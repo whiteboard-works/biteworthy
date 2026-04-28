@@ -13,6 +13,13 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 20:05 — loop tick #1. PR #124 (phase-1.1) open, CI pending
+on all 5 checks after title-fix push, `area:api` label applied. Per
+playbook: wait for CI, no action. Subscribed to PR activity; webhook
+events will trigger the next handler. Cron primitive (CronCreate) not
+loaded in this session — relying on webhooks + user pings for
+heartbeat instead of a true 30-min cadence.
+
 2026-04-28 19:55 — Phase 1.1 complete locally; opening PR. 12 request
 specs green covering signup happy/dup/invalid, login happy/wrong-pw/
 ghost, logout rotates jti + invalidates old token, refresh rotates jti
