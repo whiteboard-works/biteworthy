@@ -1,0 +1,54 @@
+version: 2
+
+# Quiet, weekly dep refresh across all three runtimes. Grouped so a
+# week's bumps land as one PR per ecosystem instead of five per app.
+# CI gates the merges as usual.
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Denver
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns: ["@types/*"]
+      eslint:
+        patterns: ["eslint*", "@eslint/*", "typescript-eslint*"]
+      next:
+        patterns: ["next", "@next/*", "eslint-config-next"]
+      expo:
+        patterns: ["expo*", "@expo/*", "react-native*", "metro*"]
+      tanstack:
+        patterns: ["@tanstack/*"]
+
+  - package-ecosystem: bundler
+    directory: "/apps/api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Denver
+    open-pull-requests-limit: 5
+    groups:
+      rails:
+        patterns: ["rails", "actionpack", "actionview", "activejob",
+                   "activemodel", "activerecord", "activestorage",
+                   "activesupport", "actionmailer", "railties"]
+      devise:
+        patterns: ["devise*", "omniauth*"]
+      solid:
+        patterns: ["solid_*"]
+      rspec:
+        patterns: ["rspec*", "factory_bot*", "shoulda-*", "webmock"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: America/Denver
+    open-pull-requests-limit: 3

@@ -1,0 +1,30 @@
+name: Auto-merge
+
+# Realizes the auto-merge policy from docs/delivery-playbook.md.
+# Enables PR auto-merge (squash) when:
+#   - PR has the `auto-merge-ok` label
+#   - PR is part of the `claude-cd` series
+# Once enabled, GitHub completes the merge as soon as required checks
+# pass and required reviews are satisfied. Branch protection on master
+# is what actually gates the merge — this workflow just opts in.
+
+on:
+  pull_request_target:
+    types: [labeled, opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'auto-merge-ok') &&
+      contains(github.event.pull_request.labels.*.name, 'claude-cd')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: squash

@@ -1,0 +1,44 @@
+name: PR title
+
+# Enforces conventional-commit-style PR titles. Squash-merges use the PR
+# title as the commit message, so this keeps git history readable.
+#
+# Allowed types: feat, fix, chore, docs, refactor, test, ci, build, perf,
+# revert, style. Optional scope in parentheses. Examples:
+#   feat(api): add Devise JWT login endpoint
+#   fix(web): hide button when filter is empty
+#   chore: bump turbo to 2.4
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  lint:
+    name: lint title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            refactor
+            test
+            ci
+            build
+            perf
+            revert
+            style
+          requireScope: false
+          subjectPattern: ^(?![A-Z])(?!.*\.$).+$
+          subjectPatternError: |
+            The PR subject "{subject}" must start lowercase and not end in a period.
+            Example: feat(api): add Devise JWT login endpoint

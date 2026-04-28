@@ -1,0 +1,29 @@
+# Path-based PR labels. See .github/workflows/labeler.yml.
+
+"area:api":
+  - changed-files:
+      - any-glob-to-any-file: ["apps/api/**"]
+
+"area:web":
+  - changed-files:
+      - any-glob-to-any-file: ["apps/web/**"]
+
+"area:mobile":
+  - changed-files:
+      - any-glob-to-any-file: ["apps/mobile/**"]
+
+"area:packages":
+  - changed-files:
+      - any-glob-to-any-file: ["packages/**"]
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "**/README.md", "**/*.md"]
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+
+"area:legacy":
+  - changed-files:
+      - any-glob-to-any-file: ["_legacy/**"]
