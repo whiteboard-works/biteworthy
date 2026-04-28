@@ -1,0 +1,4 @@
+# All PRs route reviews to @shadoath unless overridden below.
+# More specific rules win — bottom of file beats top.
+
+* @shadoath

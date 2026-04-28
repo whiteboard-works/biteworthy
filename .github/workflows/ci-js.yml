@@ -1,0 +1,51 @@
+name: CI · JS
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "apps/mobile/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - ".prettierrc"
+      - ".github/workflows/ci-js.yml"
+
+concurrency:
+  group: ci-js-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version is sourced from the `packageManager` field in
+      # package.json. Don't pass `version:` here — pnpm/action-setup@v4
+      # errors on conflicting sources.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test

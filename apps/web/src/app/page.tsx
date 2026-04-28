@@ -1,4 +1,6 @@
-export default function HomePage() {
+import type { ReactElement } from 'react';
+
+export default function HomePage(): ReactElement {
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 px-6">
       <span className="text-bite text-sm font-medium uppercase tracking-wider">BiteWorthy</span>

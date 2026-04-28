@@ -1,0 +1,64 @@
+name: CI · API
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/ci-api.yml"
+
+concurrency:
+  group: ci-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rspec:
+    name: rspec · brakeman · rubocop
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/biteworthy_test
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: apps/api
+          bundler-cache: true
+
+      - name: Prepare database
+        run: |
+          bin/rails db:create
+          bin/rails db:schema:load
+
+      - name: RSpec
+        run: bundle exec rspec
+
+      - name: Brakeman
+        run: bundle exec brakeman --no-pager --quiet --format plain
+        continue-on-error: true
+
+      - name: Rubocop
+        run: bundle exec rubocop --parallel
+        continue-on-error: true
