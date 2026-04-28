@@ -9,7 +9,7 @@ Repository automation. Each file's purpose:
 | `workflows/codeql.yml`    | Weekly CodeQL scans for JS/TS and Ruby. |
 | `workflows/pr-title.yml`  | Conventional-commit format check on every PR title. |
 | `workflows/labeler.yml`   | Auto-applies `area:*` labels by changed paths. Config in `labeler.yml`. |
-| `workflows/auto-merge.yml`| Enables squash auto-merge for PRs with `claude-cd` + `auto-merge-ok`. |
+| `workflows/auto-merge.yml`| Enables squash auto-merge for PRs with `claude-cd` + `auto-merge-ok`, or any PR authored by `dependabot[bot]`. |
 | `labeler.yml`             | Path → label mapping. |
 | `dependabot.yml`          | Weekly grouped dep PRs (npm + bundler) + monthly actions bumps. |
 | `CODEOWNERS`              | Review routing. |
@@ -29,7 +29,8 @@ Repository automation. Each file's purpose:
    `CI · API / rspec`, `CodeQL / javascript-typescript`,
    `CodeQL / ruby`. Configure in repo Settings → Branches.
 6. **Auto-merge** is opt-in per PR via labels (`auto-merge-ok` +
-   `claude-cd`). Branch protection still gates everything.
+   `claude-cd`) and is automatic for `dependabot[bot]` PRs. Branch
+   protection still gates everything — failing CI blocks the merge.
 7. **`continue-on-error: true`** on Brakeman + Rubocop until the
    codebase grows to where they're meaningful. Re-tighten in Phase 1.
 
