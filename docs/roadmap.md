@@ -11,17 +11,17 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-1. **subtask: fix master CI** — `db:schema:load` runs against an
-   empty schema; eslint flat config has unmet deps; rspec needs
-   scaffolding. Generate `schema.rb`, simplify the eslint shared
-   config, scaffold rspec. (Blocks everything else from going green.)
-2. **Phase 1.1 — Devise JWT login + signup** (`docs/plans/phase-1.md#11`)
-3. **Phase 1.2 — OmniAuth Apple + Google** (`docs/plans/phase-1.md#12`)
-4. **Phase 1.3 — `GET/PATCH /api/v1/profile`** (`docs/plans/phase-1.md#13`)
-5. **Phase 1.4 — full ingredient port** (`docs/plans/phase-1.md#14`)
-6. **Phase 1.5 — Rails admin dashboard** (`docs/plans/phase-1.md#15`)
-7. **Phase 1.6 — OpenAPI codegen for `packages/api-types`** (`docs/plans/phase-1.md#16`)
-8. **Phase 1.7 — Restaurant + Item read endpoints with filter** (`docs/plans/phase-1.md#17`)
+1. **Phase 1.2 — OmniAuth Apple + Google** (`docs/plans/phase-1.md#12`)
+2. **Phase 1.3 — `GET/PATCH /api/v1/profile`** (`docs/plans/phase-1.md#13`) — stubbed in 1.1; full impl here
+3. **Phase 1.4 — full ingredient port** (`docs/plans/phase-1.md#14`)
+4. **Phase 1.5 — Rails admin dashboard** (`docs/plans/phase-1.md#15`)
+5. **Phase 1.6 — OpenAPI codegen for `packages/api-types`** (`docs/plans/phase-1.md#16`)
+6. **Phase 1.7 — Restaurant + Item read endpoints with filter** (`docs/plans/phase-1.md#17`)
+
+### Done
+
+- ✅ subtask: master CI green (#112)
+- ✅ Phase 1.1 — Devise JWT signup/login/logout/refresh (this PR)
 
 After Phase 1 ships, the loop pulls Phase 2 items into "Next up" via a
 plan-update PR (so a human reviews the next batch before they auto-run).
