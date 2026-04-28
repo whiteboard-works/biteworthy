@@ -47,13 +47,20 @@ jobs:
           working-directory: apps/api
           bundler-cache: true
 
-      - name: Prepare database
-        run: |
-          bin/rails db:create
-          bin/rails db:schema:load
+      - name: bundle env
+        run: bundle env
+
+      - name: db:create
+        run: bin/rails db:create
+
+      - name: db:schema:load
+        run: bin/rails db:schema:load
+
+      - name: which rspec
+        run: bundle exec ruby -e 'puts Gem.bin_path("rspec-core","rspec")'
 
       - name: RSpec
-        run: bundle exec rspec
+        run: bin/rspec
 
       - name: Brakeman
         run: bundle exec brakeman --no-pager --quiet --format plain
