@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "BiteWorthy",
+    "slug": "biteworthy",
+    "scheme": "biteworthy",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.biteworthy.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "BiteWorthy uses your camera to scan menus and turn them into filterable, allergen-aware listings.",
+        "NSPhotoLibraryUsageDescription": "BiteWorthy uses your photo library to import existing menu photos."
+      }
+    },
+    "android": {
+      "package": "app.biteworthy.mobile",
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "BiteWorthy uses your camera to scan menus."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,164 @@
+# Seed ingredient taxonomy. Tiny starter set — full ~1500-row port from
+# _legacy/db/seeds/0_ingredients.rb happens in a later migration once we've
+# nailed the path conventions and decided which 2020 entries to keep.
+#
+# `allergen: true` flags ingredients that are "big-9" allergens for the
+# strict-mode honest-disclosure UI.
+
+# --- Roots ---
+- slug: ingredient
+  name: Ingredient
+  path: ingredient
+- slug: animal
+  name: Animal product
+  path: ingredient.animal
+- slug: plant
+  name: Plant
+  path: ingredient.plant
+- slug: dairy
+  name: Dairy
+  path: ingredient.animal.dairy
+  allergen: true
+- slug: meat
+  name: Meat
+  path: ingredient.animal.meat
+- slug: poultry
+  name: Poultry
+  path: ingredient.animal.poultry
+- slug: fish
+  name: Fish
+  path: ingredient.animal.fish
+  allergen: true
+- slug: shellfish
+  name: Shellfish
+  path: ingredient.animal.shellfish
+  allergen: true
+- slug: egg
+  name: Egg
+  path: ingredient.animal.egg
+  allergen: true
+
+- slug: grain
+  name: Grain
+  path: ingredient.plant.grain
+- slug: gluten-grain
+  name: Gluten-bearing grain
+  path: ingredient.plant.grain.gluten
+  allergen: true
+- slug: wheat
+  name: Wheat
+  path: ingredient.plant.grain.gluten.wheat
+  aliases: [flour, "all-purpose flour", semolina]
+  allergen: true
+- slug: barley
+  name: Barley
+  path: ingredient.plant.grain.gluten.barley
+  allergen: true
+- slug: rye
+  name: Rye
+  path: ingredient.plant.grain.gluten.rye
+  allergen: true
+- slug: oat
+  name: Oat
+  path: ingredient.plant.grain.oat
+  aliases: [oats, oatmeal]
+- slug: rice
+  name: Rice
+  path: ingredient.plant.grain.rice
+
+- slug: legume
+  name: Legume
+  path: ingredient.plant.legume
+- slug: peanut
+  name: Peanut
+  path: ingredient.plant.legume.peanut
+  aliases: [groundnut]
+  allergen: true
+- slug: soybean
+  name: Soybean
+  path: ingredient.plant.legume.soybean
+  aliases: [soy, edamame, tofu, tempeh]
+  allergen: true
+- slug: chickpea
+  name: Chickpea
+  path: ingredient.plant.legume.chickpea
+  aliases: [garbanzo, "garbanzo bean"]
+
+- slug: nut
+  name: Tree nut
+  path: ingredient.plant.nut
+  allergen: true
+- slug: almond
+  name: Almond
+  path: ingredient.plant.nut.almond
+  allergen: true
+- slug: cashew
+  name: Cashew
+  path: ingredient.plant.nut.cashew
+  allergen: true
+- slug: walnut
+  name: Walnut
+  path: ingredient.plant.nut.walnut
+  allergen: true
+- slug: pecan
+  name: Pecan
+  path: ingredient.plant.nut.pecan
+  allergen: true
+
+- slug: dairy-milk
+  name: Milk
+  path: ingredient.animal.dairy.milk
+  allergen: true
+- slug: dairy-cheese
+  name: Cheese
+  path: ingredient.animal.dairy.cheese
+  aliases: [cheddar, mozzarella, parmesan, feta]
+  allergen: true
+- slug: dairy-butter
+  name: Butter
+  path: ingredient.animal.dairy.butter
+  allergen: true
+- slug: dairy-cream
+  name: Cream
+  path: ingredient.animal.dairy.cream
+  allergen: true
+- slug: dairy-yogurt
+  name: Yogurt
+  path: ingredient.animal.dairy.yogurt
+  allergen: true
+
+- slug: meat-beef
+  name: Beef
+  path: ingredient.animal.meat.beef
+- slug: meat-pork
+  name: Pork
+  path: ingredient.animal.meat.pork
+- slug: meat-lamb
+  name: Lamb
+  path: ingredient.animal.meat.lamb
+- slug: poultry-chicken
+  name: Chicken
+  path: ingredient.animal.poultry.chicken
+- slug: poultry-turkey
+  name: Turkey
+  path: ingredient.animal.poultry.turkey
+
+- slug: shellfish-shrimp
+  name: Shrimp
+  path: ingredient.animal.shellfish.shrimp
+  aliases: [prawn, prawns]
+  allergen: true
+- slug: shellfish-crab
+  name: Crab
+  path: ingredient.animal.shellfish.crab
+  allergen: true
+- slug: shellfish-lobster
+  name: Lobster
+  path: ingredient.animal.shellfish.lobster
+  allergen: true
+
+- slug: sesame
+  name: Sesame
+  path: ingredient.plant.sesame
+  aliases: [tahini]
+  allergen: true

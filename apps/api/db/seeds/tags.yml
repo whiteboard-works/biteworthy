@@ -1,0 +1,153 @@
+# Seed taxonomy of tags. ltree paths use dot notation: "diet.vegan" sits
+# under "diet". Family is also derivable from the path root but stored
+# explicitly for indexed lookups.
+
+- slug: diet
+  name: Diet
+  family: diet
+  path: diet
+- slug: vegan
+  name: Vegan
+  family: diet
+  path: diet.vegan
+- slug: vegetarian
+  name: Vegetarian
+  family: diet
+  path: diet.vegetarian
+- slug: pescatarian
+  name: Pescatarian
+  family: diet
+  path: diet.pescatarian
+- slug: keto
+  name: Keto
+  family: diet
+  path: diet.keto
+- slug: paleo
+  name: Paleo
+  family: diet
+  path: diet.paleo
+- slug: halal
+  name: Halal
+  family: diet
+  path: diet.halal
+- slug: kosher
+  name: Kosher
+  family: diet
+  path: diet.kosher
+
+- slug: allergen
+  name: Allergen
+  family: allergen
+  path: allergen
+- slug: contains-dairy
+  name: Contains dairy
+  family: allergen
+  path: allergen.contains_dairy
+- slug: contains-gluten
+  name: Contains gluten
+  family: allergen
+  path: allergen.contains_gluten
+- slug: contains-egg
+  name: Contains egg
+  family: allergen
+  path: allergen.contains_egg
+- slug: contains-soy
+  name: Contains soy
+  family: allergen
+  path: allergen.contains_soy
+- slug: contains-peanut
+  name: Contains peanut
+  family: allergen
+  path: allergen.contains_peanut
+- slug: contains-tree-nut
+  name: Contains tree nut
+  family: allergen
+  path: allergen.contains_tree_nut
+- slug: contains-shellfish
+  name: Contains shellfish
+  family: allergen
+  path: allergen.contains_shellfish
+- slug: contains-fish
+  name: Contains fish
+  family: allergen
+  path: allergen.contains_fish
+- slug: contains-sesame
+  name: Contains sesame
+  family: allergen
+  path: allergen.contains_sesame
+
+- slug: gluten-free
+  name: Gluten-free
+  family: diet
+  path: diet.gluten_free
+- slug: dairy-free
+  name: Dairy-free
+  family: diet
+  path: diet.dairy_free
+- slug: nut-free
+  name: Nut-free
+  family: diet
+  path: diet.nut_free
+
+- slug: prep
+  name: Preparation
+  family: prep
+  path: prep
+- slug: fried
+  name: Fried
+  family: prep
+  path: prep.fried
+- slug: grilled
+  name: Grilled
+  family: prep
+  path: prep.grilled
+- slug: raw
+  name: Raw
+  family: prep
+  path: prep.raw
+- slug: smoked
+  name: Smoked
+  family: prep
+  path: prep.smoked
+
+- slug: flavor
+  name: Flavor
+  family: flavor
+  path: flavor
+- slug: spicy
+  name: Spicy
+  family: flavor
+  path: flavor.spicy
+- slug: sweet
+  name: Sweet
+  family: flavor
+  path: flavor.sweet
+
+- slug: cuisine
+  name: Cuisine
+  family: cuisine
+  path: cuisine
+- slug: italian
+  name: Italian
+  family: cuisine
+  path: cuisine.italian
+- slug: mexican
+  name: Mexican
+  family: cuisine
+  path: cuisine.mexican
+- slug: thai
+  name: Thai
+  family: cuisine
+  path: cuisine.thai
+- slug: japanese
+  name: Japanese
+  family: cuisine
+  path: cuisine.japanese
+- slug: indian
+  name: Indian
+  family: cuisine
+  path: cuisine.indian
+- slug: american
+  name: American
+  family: cuisine
+  path: cuisine.american
