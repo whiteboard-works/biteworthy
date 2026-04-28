@@ -1,0 +1,13 @@
+{
+  "name": "@biteworthy/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.js",
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf .turbo"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  }
+}

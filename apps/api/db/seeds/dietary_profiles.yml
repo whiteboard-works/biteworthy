@@ -1,0 +1,68 @@
+# Curated bundles that pre-fill a user's avoid lists in one tap.
+# Keep these conservative — users can always tighten further per-ingredient.
+
+- slug: celiac
+  name: Celiac / Gluten-free
+  description: Hides anything containing gluten-bearing grains.
+  avoid_ingredient_slugs: [gluten-grain, wheat, barley, rye]
+  avoid_tag_slugs: [contains-gluten]
+
+- slug: lactose-free
+  name: Lactose intolerant
+  description: Hides dairy-containing dishes.
+  avoid_ingredient_slugs: [dairy, dairy-milk, dairy-cheese, dairy-butter, dairy-cream, dairy-yogurt]
+  avoid_tag_slugs: [contains-dairy]
+
+- slug: vegan
+  name: Vegan
+  description: Hides any animal-derived ingredient.
+  avoid_ingredient_slugs:
+    [animal, dairy, meat, poultry, fish, shellfish, egg, dairy-milk, dairy-cheese,
+     dairy-butter, dairy-cream, dairy-yogurt, meat-beef, meat-pork, meat-lamb,
+     poultry-chicken, poultry-turkey]
+  avoid_tag_slugs: []
+
+- slug: vegetarian
+  name: Vegetarian
+  description: Hides meat, poultry, and seafood; allows dairy and egg.
+  avoid_ingredient_slugs:
+    [meat, poultry, fish, shellfish, meat-beef, meat-pork, meat-lamb,
+     poultry-chicken, poultry-turkey, shellfish-shrimp, shellfish-crab, shellfish-lobster]
+  avoid_tag_slugs: []
+
+- slug: pescatarian
+  name: Pescatarian
+  description: Hides land animals; allows fish and seafood.
+  avoid_ingredient_slugs:
+    [meat, poultry, meat-beef, meat-pork, meat-lamb, poultry-chicken, poultry-turkey]
+  avoid_tag_slugs: []
+
+- slug: tree-nut-allergy
+  name: Tree nut allergy
+  description: Severe allergen filter — strict mode is recommended.
+  avoid_ingredient_slugs: [nut, almond, cashew, walnut, pecan]
+  avoid_tag_slugs: [contains-tree-nut]
+
+- slug: peanut-allergy
+  name: Peanut allergy
+  description: Severe allergen filter — strict mode is recommended.
+  avoid_ingredient_slugs: [peanut]
+  avoid_tag_slugs: [contains-peanut]
+
+- slug: shellfish-allergy
+  name: Shellfish allergy
+  description: Severe allergen filter — strict mode is recommended.
+  avoid_ingredient_slugs: [shellfish, shellfish-shrimp, shellfish-crab, shellfish-lobster]
+  avoid_tag_slugs: [contains-shellfish]
+
+- slug: halal
+  name: Halal
+  description: Hides pork; alcohol filtering coming in v2.
+  avoid_ingredient_slugs: [meat-pork]
+  avoid_tag_slugs: []
+
+- slug: kosher
+  name: Kosher
+  description: Starter rules; rabbinical certification flag coming in v2.
+  avoid_ingredient_slugs: [meat-pork, shellfish, shellfish-shrimp, shellfish-crab, shellfish-lobster]
+  avoid_tag_slugs: []

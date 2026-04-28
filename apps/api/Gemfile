@@ -1,0 +1,61 @@
+source "https://rubygems.org"
+
+ruby "3.3.6"
+
+# --- Core --------------------------------------------------------------------
+gem "rails", "~> 8.0.0"
+gem "pg", "~> 1.5"
+gem "puma", "~> 6.4"
+
+# Solid* trio (Rails 8 defaults — no Redis, all Postgres).
+gem "solid_cache"
+gem "solid_queue"
+gem "solid_cable"
+
+# --- API ---------------------------------------------------------------------
+gem "jbuilder"
+gem "rack-cors"
+gem "rswag-api"
+gem "rswag-ui"
+
+# --- Auth --------------------------------------------------------------------
+gem "devise", "~> 4.9"
+gem "devise-jwt", "~> 0.12"
+gem "omniauth", "~> 2.1"
+gem "omniauth-rails_csrf_protection"
+gem "omniauth-google-oauth2"
+gem "omniauth-apple"
+
+# --- Storage / files ---------------------------------------------------------
+gem "image_processing", "~> 1.13"
+gem "aws-sdk-s3", require: false
+
+# --- AI ingestion ------------------------------------------------------------
+# Anthropic does not yet ship an official Ruby SDK; we use Faraday and call
+# the REST API directly. See app/services/anthropic_client.rb.
+gem "faraday", "~> 2.10"
+gem "faraday-retry"
+
+# --- Misc utilities ----------------------------------------------------------
+gem "bcrypt", "~> 3.1"
+gem "bootsnap", require: false
+gem "tzinfo-data", platforms: %i[windows jruby]
+
+group :development, :test do
+  gem "debug", platforms: %i[mri windows], require: "debug/prelude"
+  gem "rspec-rails", "~> 7.1"
+  gem "factory_bot_rails"
+  gem "faker"
+  gem "rswag-specs"
+  gem "dotenv-rails"
+end
+
+group :development do
+  gem "rubocop-rails-omakase", require: false
+  gem "brakeman", require: false
+end
+
+group :test do
+  gem "shoulda-matchers", "~> 6.0"
+  gem "webmock"
+end

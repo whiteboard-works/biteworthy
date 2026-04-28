@@ -1,0 +1,4 @@
+# Rake's main task definitions are in lib/tasks/. Rails handles the rest.
+require_relative "config/application"
+
+Rails.application.load_tasks
