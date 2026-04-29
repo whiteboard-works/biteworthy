@@ -10,13 +10,41 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_29_221403) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_29_224319) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "addresses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "city"
@@ -103,18 +131,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_221403) do
   end
 
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "api_cost_cents", default: 0, null: false
+    t.integer "cached_input_tokens", default: 0, null: false
     t.integer "cost_cents", default: 0
     t.datetime "created_at", null: false
     t.text "failure_message"
     t.datetime "finished_at"
     t.string "input_kind", null: false
+    t.integer "latency_ms"
     t.string "model"
     t.jsonb "raw_output", default: {}
     t.uuid "restaurant_id"
     t.string "source_url"
+    t.jsonb "staging", default: {}, null: false
     t.datetime "started_at"
     t.jsonb "state_history", default: {}, null: false
     t.string "status", default: "queued", null: false
+    t.integer "uncached_input_tokens", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id"
     t.index ["restaurant_id"], name: "index_ingestion_runs_on_restaurant_id"
@@ -335,6 +368,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_221403) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "addresses", "restaurants"
   add_foreign_key "dietary_profile_ingredients", "dietary_profiles"
   add_foreign_key "dietary_profile_ingredients", "ingredients"

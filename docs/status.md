@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 23:05 — tick #43. PR #137 (Phase 2.2) merged at 22:19 UTC.
+Picked up Phase 2.3 — ExtractMenuJob. Stop condition (needs
+ANTHROPIC_API_KEY for cassette recording) acknowledged but bulk of
+work shipped without live calls. Migrations: ActiveStorage install +
+extraction-fields columns (staging jsonb, api_cost_cents,
+latency_ms, cached/uncached_input_tokens for Phase 2.9 dashboard).
+**Discovered + fixed**: default ActiveStorage migration uses
+`bigint` for `record_id`, which silently coerces UUID parents to
+nil — added `t.string :record_id` override. New code:
+`Ingestion::MenuExtractionSchema` (JSON Schema for the structured
+output), `Ingestion::ExtractMenuPrompt` (system + user blocks with
+caching), `ExtractMenuJob` (state-machine wired, transitions
+queued→extracting→resolving on success / →failed on ApiError or
+ValidationError, records latency_ms). `IngestionRun` declares
+`has_many_attached :inputs`. `ApplicationJob` base class with
+retry_on. `config.active_job.queue_adapter = :test` in test env so
+specs don't need Solid Queue tables. 5 mocked-client specs pass +
+1 cassette-stub `skip` block flagged for human follow-up. Local
+rspec 97/97 (1 pending). Pushing PR.
+
 2026-04-29 22:25 — tick #42. PR #136 (Phase 2.1) merged at 21:48 UTC.
 Picked up Phase 2.2 — state machine. Migration adds
 `state_history :jsonb` + renames `error_message` → `failure_message`
