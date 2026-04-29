@@ -59,13 +59,12 @@ applicable branch.
 
 | State | Action |
 |---|---|
-| PR open, CI green, approved (or `auto-merge-ok` labeled), no unresolved threads | **Squash-merge**, then continue to step 3. |
-| PR open, CI green, awaiting `@codex review` | Wait. Log "awaiting codex" in `docs/status.md`. |
+| PR open, CI green, no unresolved threads | Auto-merge is already enabled — GitHub will squash-merge as soon as branch protection allows. Continue to step 3 once merged. |
 | PR open, CI green, has unresolved review threads | Read each thread. If small + clear, address and push. If ambiguous or architectural, post a question on the thread tagging `@shadoath` and pause. |
 | PR open, CI red | Fetch the failing logs. If the cause is known and the fix is small, push it to the same branch. If unknown after one diagnosis attempt, post a status comment summarizing the failure, ping `@shadoath`, and pause. |
 | PR open, CI pending | Do nothing. Log "waiting for CI." |
 | PR open, conflicts with master | Rebase onto master. If conflicts are mechanical, resolve and force-push. If non-trivial, ping and pause. |
-| No PR open, branch has commits | Open the PR, request codex review, do a self-review pass, then continue to step 3. |
+| No PR open, branch has commits | Open the PR (auto-merge enables on open), do a self-review pass, then continue to step 3. |
 | No PR open, working tree clean | Continue to step 3. |
 
 ### 3. Update the plan
@@ -129,22 +128,29 @@ breadcrumbs for the next tick to resume.
 
 ## Auto-merge policy
 
-Auto-merge is enabled per-PR, never globally. The loop only enables
-it when **all** of the following are true:
+Auto-merge is enabled on **every PR** by `.github/workflows/auto-merge.yml`
+(policy changed 2026-04-29: dropped the `auto-merge-ok` + `claude-cd`
+label gate and the codex/shadoath approval requirement — CI green is
+the only gate the owner cares about for routine work).
 
-- The PR is in the `claude-cd` series.
+Once auto-merge is enabled, GitHub completes the squash-merge as
+soon as required checks pass. Branch protection on master is what
+actually decides what "required" means.
+
+Hard rules the loop still enforces (refuse to open or merge a PR
+that violates these):
+
 - The PR description has a populated **Test plan** checklist.
-- CI is green.
-- `@codex review` has no unaddressed comments.
-- Either `@shadoath` has approved OR the PR has the
-  `auto-merge-ok` label.
-- No file under `apps/api/db/migrate/` was edited destructively (a
+- No file under `apps/api/db/migrate/` is edited destructively (a
   new migration is fine; editing a previously-shipped migration is
   not).
-- No file under `_legacy/` was modified.
+- No file under `_legacy/` is modified.
 
 The loop never bypasses CI, never force-pushes to master, never
 deletes branches it didn't create.
+
+The `auto-merge-ok` and `claude-cd` labels still exist for tagging
+purposes but are no longer required to enable auto-merge.
 
 ## Stop conditions (ping `@shadoath`)
 
