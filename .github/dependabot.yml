@@ -13,6 +13,10 @@ updates:
       time: "09:00"
       timezone: America/Denver
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
     groups:
       types:
         patterns: ["@types/*"]
@@ -33,6 +37,10 @@ updates:
       time: "09:00"
       timezone: America/Denver
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
     groups:
       rails:
         patterns: ["rails", "actionpack", "actionview", "activejob",
@@ -52,3 +60,6 @@ updates:
       time: "09:00"
       timezone: America/Denver
     open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope
