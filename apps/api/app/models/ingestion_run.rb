@@ -77,6 +77,30 @@ class IngestionRun < ApplicationRecord
     self
   end
 
+  # Phase 2.5 — when a swipe-verify accept/reject crosses the
+  # acceptance threshold for this run, flip both the run AND the
+  # restaurant to :published. Threshold is 80% of *decided* items
+  # (accepted + rejected, i.e. anything not still :pending) being
+  # `:accepted`. Returns whether anything was published.
+  PUBLICATION_THRESHOLD = 0.80
+
+  def maybe_publish!
+    return false unless staged?
+    return false unless ingestion_items.exists?
+
+    decided = ingestion_items.where.not(decision: "pending").count
+    return false if decided.zero?
+
+    accepted = ingestion_items.where(decision: "accepted").count
+    return false if (accepted.to_f / decided) < PUBLICATION_THRESHOLD
+
+    transaction do
+      transition_to!(:published)
+      restaurant&.update!(status: "published") unless restaurant.nil? || restaurant.status == "published"
+    end
+    true
+  end
+
   private
 
   def record_state_entry!(new_status)

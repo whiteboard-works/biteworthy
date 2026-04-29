@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 00:15 — tick #45. PR #139 (Phase 2.4) merged at 23:20 UTC.
+Picked up Phase 2.5 — admin verify UI + auto-publish threshold.
+Generated Avo resources for IngestionRun + IngestionItem (Phase 1.5
+shipped without them — they only got generated for the data-model
+set explicitly in phase-1.md §1.5). Customized both: badge fields
+for status + decision; panels grouping pipeline / cost / AI extraction
+/ AI suggestions / unresolved; staging + raw_output as JSON code
+viewers. Three Avo Actions: `IngestionRuns::ReExtract` (resets
+state_history + staging, dispatches ExtractMenuJob), `IngestionItems
+::Accept` (calls IngestionItem#promote!, runs maybe_publish! after),
+`IngestionItems::Reject` (sets decision, runs maybe_publish! after).
+Action handle methods extracted into class methods (`accept_all`,
+`reject_all`) so specs can exercise them without Avo's controller
+lifecycle (which wires `succeed`). New `IngestionRun#maybe_publish!`:
+publishes the run + restaurant when ≥80% of decided items are
+accepted; pending items don't count toward the denominator. 9 new
+specs (6 publication-threshold + 3 Avo accept-action). Local rspec
+116/116 (1 pending). Pushing PR.
+
 2026-04-29 23:50 — tick #44. PR #138 (Phase 2.3) merged at 23:14 UTC.
 Picked up Phase 2.4 — Resolve jobs. Same ANTHROPIC_API_KEY stop
 condition handled the same way as 2.3 (mocked-client coverage,
