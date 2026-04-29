@@ -13,6 +13,19 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 21:30 — loop tick (resumed). Reconciled stale log: PR #124
+(phase-1.1) merged at 2026-04-29 01:16 UTC; `Done` already ticked in
+roadmap. Picked up Phase 1.2 — opened branch
+`claude/phase-1.2-omniauth`. Implemented: `:omniauthable` on User,
+`User.from_omniauth`, `OmniauthCallbacksController` (google_oauth2 +
+apple + failure), routes wired, `config/initializers/omniauth.rb`
+(allow GET request method, on_failure → controller), `.env.example`
+documenting GOOGLE_/APPLE_/DEVISE_JWT_ env vars, request specs in
+test_mode covering google new/returning/failure + apple
+new/returning. Local rspec deferred (no postgres service running on
+this dev box); CI's postgres container will exercise. Next: push +
+open PR + request `@codex review`.
+
 2026-04-28 20:05 — loop tick #1. PR #124 (phase-1.1) open, CI pending
 on all 5 checks after title-fix push, `area:api` label applied. Per
 playbook: wait for CI, no action. Subscribed to PR activity; webhook

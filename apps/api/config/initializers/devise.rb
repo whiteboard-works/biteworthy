@@ -28,4 +28,23 @@ Devise.setup do |config|
   # headers for navigational requests and 401s for everything else.
   config.responder.error_status = :unprocessable_entity
   config.responder.redirect_status = :see_other
+
+  # OmniAuth providers — credentials come from ENV (see apps/api/.env.example).
+  # Both strategies are registered unconditionally so route helpers
+  # (`user_google_oauth2_omniauth_authorize_path`, etc.) exist in
+  # every environment; missing ENV just means the live OAuth handshake
+  # 401s, which is what we want during local dev without keys.
+  config.omniauth :google_oauth2,
+                  ENV["GOOGLE_OAUTH_CLIENT_ID"],
+                  ENV["GOOGLE_OAUTH_CLIENT_SECRET"],
+                  scope: "email,profile",
+                  prompt: "select_account"
+
+  config.omniauth :apple,
+                  ENV["APPLE_OAUTH_CLIENT_ID"],
+                  "", # client_secret is generated from the private key, not an env var
+                  scope: "email name",
+                  team_id: ENV["APPLE_OAUTH_TEAM_ID"],
+                  key_id: ENV["APPLE_OAUTH_KEY_ID"],
+                  pem: ENV["APPLE_OAUTH_PRIVATE_KEY"]
 end

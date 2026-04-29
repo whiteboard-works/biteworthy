@@ -9,8 +9,9 @@ Rails.application.routes.draw do
              path: "api/v1/auth",
              path_names: { sign_in: "login", sign_out: "logout", registration: "signup" },
              controllers: {
-               sessions:      "api/v1/auth/sessions",
-               registrations: "api/v1/auth/registrations"
+               sessions:            "api/v1/auth/sessions",
+               registrations:       "api/v1/auth/registrations",
+               omniauth_callbacks:  "api/v1/auth/omniauth_callbacks"
              },
              defaults: { format: :json }
 
