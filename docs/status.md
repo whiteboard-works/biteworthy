@@ -13,6 +13,13 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 21:55 — opened #128 phase-1.2-omniauth (+362/-3); 5 specs
+across google + apple (new/returning/failure). Created `claude-cd` +
+`auto-merge-ok` labels on the repo (referenced by playbook + auto-
+merge.yml but never created). Requested `@codex review`. CI checks
+in flight: ci-api (rspec/brakeman/rubocop), CodeQL (js + ruby),
+labeler, title-lint. Waiting for CI; next 30-min tick checks state.
+
 2026-04-28 21:30 — loop tick (resumed). Reconciled stale log: PR #124
 (phase-1.1) merged at 2026-04-29 01:16 UTC; `Done` already ticked in
 roadmap. Picked up Phase 1.2 — opened branch
