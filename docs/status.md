@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 23:50 — tick #44. PR #138 (Phase 2.3) merged at 23:14 UTC.
+Picked up Phase 2.4 — Resolve jobs. Same ANTHROPIC_API_KEY stop
+condition handled the same way as 2.3 (mocked-client coverage,
+cassette deferred). New: migration adds `unresolved_tags :jsonb`
+to ingestion_items (mirrors existing unresolved_ingredients).
+`Ingestion::ResolutionSchema` (shared JSON Schema for both jobs:
+`{items: [{index, resolved: [{slug, confidence}], unresolved: [str]}]}`).
+`Ingestion::CatalogBuilder` renders Ingredient + Tag tables as
+`slug | name | (path) | aliases` text — the bulk of input tokens,
+goes in the cached system block. `Ingestion::ResolveIngredientsPrompt`
++ `ResolveTagsPrompt` build cached system blocks per resolution.
+`ResolveIngredientsJob` walks staging items, calls Anthropic, writes
+`ingredients` + `unresolved_ingredients` arrays back into staging,
+chains to `ResolveTagsJob`. `ResolveTagsJob` does the same for tags
+THEN materializes IngestionItem rows + transitions to :staged.
+10 mocked-client specs (5 ingredients, 5 tags) + 1 cassette stub
+(deferred) covering happy path, no-items, ApiError, ValidationError,
+no-op on terminal states, IngestionItem creation. Local rspec
+107/107, 1 pending. Pushing PR.
+
 2026-04-29 23:05 — tick #43. PR #137 (Phase 2.2) merged at 22:19 UTC.
 Picked up Phase 2.3 — ExtractMenuJob. Stop condition (needs
 ANTHROPIC_API_KEY for cassette recording) acknowledged but bulk of

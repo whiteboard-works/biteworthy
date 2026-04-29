@@ -13,13 +13,12 @@ the merge / review / status rules.
 
 **Phase 2** ⭐ AI ingestion MVP. Subplan: `docs/plans/phase-2.md`. This batch is **proposed by the loop** (this PR is the plan-update PR); humans review it before the items auto-run.
 
-1. **Phase 2.3 — ExtractMenuJob** (`docs/plans/phase-2.md#23`) — this PR; mocked-client coverage shipped, live VCR cassette deferred until `ANTHROPIC_API_KEY` is recorded
-2. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — depends on 2.3; needs `ANTHROPIC_API_KEY`
-3. **Phase 2.5 — Item promotion + admin verify UI** (`docs/plans/phase-2.md#25`)
-4. **Phase 2.6 — Mobile multi-page camera capture + upload** (`docs/plans/phase-2.md#26`)
-5. **Phase 2.7 — Mobile swipe-verify UI** (`docs/plans/phase-2.md#27`)
-6. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`)
-7. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
+1. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — this PR; mocked-client coverage shipped, live VCR cassette deferred until `ANTHROPIC_API_KEY` is recorded
+2. **Phase 2.5 — Item promotion + admin verify UI** (`docs/plans/phase-2.md#25`)
+3. **Phase 2.6 — Mobile multi-page camera capture + upload** (`docs/plans/phase-2.md#26`)
+4. **Phase 2.7 — Mobile swipe-verify UI** (`docs/plans/phase-2.md#27`)
+5. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`)
+6. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
 
 ### Done
 
@@ -34,6 +33,7 @@ the merge / review / status rules.
 - ✅ Phase 1.7 — Restaurant + Item read endpoints with filter (#134)
 - ✅ Phase 2.1 — AnthropicClient service (#136)
 - ✅ Phase 2.2 — IngestionRun + IngestionItem state machine (#137)
+- ✅ Phase 2.3 — ExtractMenuJob + ActiveStorage wiring (#138)
 
 After Phase 2 ships, the loop will draft `docs/plans/phase-3.md` (dietary filter UI) the same way.
 
