@@ -9,15 +9,38 @@ Rails.application.routes.draw do
              path: "api/v1/auth",
              path_names: { sign_in: "login", sign_out: "logout", registration: "signup" },
              controllers: {
-               sessions:      "api/v1/auth/sessions",
-               registrations: "api/v1/auth/registrations"
+               sessions:            "api/v1/auth/sessions",
+               registrations:       "api/v1/auth/registrations",
+               omniauth_callbacks:  "api/v1/auth/omniauth_callbacks"
              },
+             # devise_for would mount omniauth at /api/v1/auth/auth/:provider,
+             # which doubles up the /auth segment. We skip it and define our
+             # own clean routes below so the public URL is /api/v1/auth/:provider.
+             skip: [:omniauth_callbacks],
              defaults: { format: :json }
 
   # Custom Devise route — needs the devise_scope wrapper so the
   # SessionsController inherits the right Devise mapping.
   devise_scope :user do
     post "/api/v1/auth/refresh", to: "api/v1/auth/sessions#refresh", as: :api_v1_auth_refresh
+
+    # OmniAuth start + callback. Routes match what OmniAuth.config.path_prefix
+    # tells the OmniAuth middleware to intercept; the start path passes through
+    # the middleware (passthru), the callback path lands on our action that
+    # mints a JWT. Constraints lock the :provider param to known strategies.
+    provider_constraint = { provider: /google_oauth2|apple/ }
+    match "/api/v1/auth/:provider",
+          to: "api/v1/auth/omniauth_callbacks#passthru",
+          via: [:get, :post], constraints: provider_constraint, as: :user_omniauth_authorize
+    get   "/api/v1/auth/google_oauth2/callback",
+          to: "api/v1/auth/omniauth_callbacks#google_oauth2",
+          as: :user_google_oauth2_omniauth_callback
+    get   "/api/v1/auth/apple/callback",
+          to: "api/v1/auth/omniauth_callbacks#apple",
+          as: :user_apple_omniauth_callback
+    match "/api/v1/auth/failure",
+          to: "api/v1/auth/omniauth_callbacks#failure",
+          via: [:get, :post]
   end
 
   namespace :api do
