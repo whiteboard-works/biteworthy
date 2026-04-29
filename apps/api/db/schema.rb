@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_29_194420) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_29_221403) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -105,7 +105,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_194420) do
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "cost_cents", default: 0
     t.datetime "created_at", null: false
-    t.text "error_message"
+    t.text "failure_message"
     t.datetime "finished_at"
     t.string "input_kind", null: false
     t.string "model"
@@ -113,6 +113,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_194420) do
     t.uuid "restaurant_id"
     t.string "source_url"
     t.datetime "started_at"
+    t.jsonb "state_history", default: {}, null: false
     t.string "status", default: "queued", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id"

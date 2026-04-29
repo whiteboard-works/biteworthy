@@ -13,15 +13,14 @@ the merge / review / status rules.
 
 **Phase 2** ⭐ AI ingestion MVP. Subplan: `docs/plans/phase-2.md`. This batch is **proposed by the loop** (this PR is the plan-update PR); humans review it before the items auto-run.
 
-1. **Phase 2.1 — AnthropicClient service** (`docs/plans/phase-2.md#21`) — this PR
-2. **Phase 2.2 — IngestionRun + IngestionItem state machine** (`docs/plans/phase-2.md#22`)
-3. **Phase 2.3 — ExtractMenuJob** (`docs/plans/phase-2.md#23`) — depends on 2.1, 2.2; needs `ANTHROPIC_API_KEY` for VCR cassette recording
-4. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — depends on 2.3; needs `ANTHROPIC_API_KEY`
-5. **Phase 2.5 — Item promotion + admin verify UI** (`docs/plans/phase-2.md#25`)
-6. **Phase 2.6 — Mobile multi-page camera capture + upload** (`docs/plans/phase-2.md#26`)
-7. **Phase 2.7 — Mobile swipe-verify UI** (`docs/plans/phase-2.md#27`)
-8. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`)
-9. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
+1. **Phase 2.2 — IngestionRun + IngestionItem state machine** (`docs/plans/phase-2.md#22`) — this PR
+2. **Phase 2.3 — ExtractMenuJob** (`docs/plans/phase-2.md#23`) — depends on 2.2; needs `ANTHROPIC_API_KEY` for VCR cassette recording
+3. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — depends on 2.3; needs `ANTHROPIC_API_KEY`
+4. **Phase 2.5 — Item promotion + admin verify UI** (`docs/plans/phase-2.md#25`)
+5. **Phase 2.6 — Mobile multi-page camera capture + upload** (`docs/plans/phase-2.md#26`)
+6. **Phase 2.7 — Mobile swipe-verify UI** (`docs/plans/phase-2.md#27`)
+7. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`)
+8. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
 
 ### Done
 
@@ -34,6 +33,7 @@ the merge / review / status rules.
 - ✅ Phase 1.5 — Avo admin at `/admin` (#132)
 - ✅ Phase 1.6 — OpenAPI codegen for `packages/api-types` (#133)
 - ✅ Phase 1.7 — Restaurant + Item read endpoints with filter (#134)
+- ✅ Phase 2.1 — AnthropicClient service (#136)
 
 After Phase 2 ships, the loop will draft `docs/plans/phase-3.md` (dietary filter UI) the same way.
 
