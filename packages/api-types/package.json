@@ -7,9 +7,12 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "build:codegen": "openapi-typescript ../../docs/openapi.json -o src/generated.ts",
+    "codegen:check": "openapi-typescript ../../docs/openapi.json -o /tmp/api-types-check.ts && diff -u src/generated.ts /tmp/api-types-check.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.5.0",
     "typescript": "^5.7.2"
   }
 }

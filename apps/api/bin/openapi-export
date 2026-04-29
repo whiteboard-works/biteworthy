@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#
+# Regenerate docs/openapi.json from the rswag specs.
+# Run from anywhere; this resolves paths relative to the api root.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+bundle exec rake rswag:specs:swaggerize

@@ -13,6 +13,24 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 20:15 — tick #38. PR #132 (Phase 1.5) merged at 19:50 UTC.
+Picked up Phase 1.6 — OpenAPI codegen. Wrote rswag swagger_helper.rb
+(OpenAPI 3.0.3, security schemes for bearerAuth + basicAuth, shared
+component schemas for UserPayload/AuthResponse/ProfilePayload/
+Error/ValidationErrors). Added rswag specs for 8 endpoints
+(signup/login/logout/refresh + 2× omniauth + GET/PATCH profile)
+under `spec/integration/api/v1/`. `bin/openapi-export` wraps
+`rake rswag:specs:swaggerize` to dump `docs/openapi.json` (497
+lines). Wired up `pnpm --filter @biteworthy/api-types build:codegen`
+via openapi-typescript v7 → `packages/api-types/src/generated.ts`
+(345 lines). Replaced hand-written `index.ts` with re-exports of
+generated types + friendly aliases (UserPayload/AuthResponse/
+ProfilePayload). Added `codegen:check` script and a CI step in
+`ci-js.yml` that fails if `generated.ts` is out of sync with
+`docs/openapi.json`. Discovered + fixed: `next lint` deprecated in
+Next 16, swapped `apps/web` lint script to `eslint .`. Local rspec
+52/52 green; pnpm typecheck/lint/test all green.
+
 2026-04-29 19:45 — ticks #36+#37 combined. Owner picked Avo (via the
 implicit "just go" pattern from earlier ticks). Implemented Phase 1.5:
 avo gem (~v3.17), `rails g avo:install` initializer mounted at `/admin`
