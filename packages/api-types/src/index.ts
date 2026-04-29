@@ -7,10 +7,12 @@
  * Rails endpoint change. CI's `codegen:check` script fails the build
  * if `src/generated.ts` is out of sync with the spec.
  *
- * The hand-written domain types below cover read-model shapes that
- * Phase 1.7's `/restaurants/:id/items` endpoint will produce — they
- * stay here until that endpoint exists in the rswag specs and gets
- * generated, at which point this whole block disappears.
+ * The hand-written domain types below are read-model shapes used by
+ * `@biteworthy/filter-engine` and by ad-hoc client code. They stay
+ * until ingredient / tag / restaurant list endpoints get their own
+ * rswag specs (which would then generate them as components). Phase
+ * 1.7 added `/restaurants/:id/items` but inlined the item shape in
+ * the operation response rather than exposing it as a component.
  */
 
 export type * from './generated';

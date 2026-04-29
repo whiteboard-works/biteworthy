@@ -296,6 +296,108 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/restaurants/{restaurant_id}/items": {
+        parameters: {
+            query?: {
+                /** @description DietaryProfile slug whose avoid lists to apply */
+                profile?: string;
+                /** @description Override the strictness from profile/user */
+                strictness?: "relaxed" | "balanced" | "strict";
+            };
+            header?: never;
+            path: {
+                /**
+                 * Format: uuid
+                 * @description Published restaurant id
+                 */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        /** List published items at this restaurant with per-item filter status */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description DietaryProfile slug whose avoid lists to apply */
+                    profile?: string;
+                    /** @description Override the strictness from profile/user */
+                    strictness?: "relaxed" | "balanced" | "strict";
+                };
+                header?: never;
+                path: {
+                    /**
+                     * Format: uuid
+                     * @description Published restaurant id
+                     */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description items + per-item status (visible | hidden) + reasons[] */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            filter: {
+                                /** @enum {string} */
+                                source?: "none" | "preset" | "user_profile";
+                                preset_slug?: string | null;
+                                /** @enum {string} */
+                                strictness?: "relaxed" | "balanced" | "strict";
+                                avoid_ingredient_ids?: string[];
+                                avoid_tag_ids?: string[];
+                            };
+                            items: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                restaurant_id: string;
+                                name: string;
+                                description?: string | null;
+                                /** @enum {string} */
+                                confidence: "confirmed" | "suggested" | "inferred";
+                                popularity?: number;
+                                ingredient_ids: string[];
+                                tag_ids: string[];
+                                /** @enum {string} */
+                                status: "visible" | "hidden";
+                                reasons: {
+                                    /** @enum {string} */
+                                    kind: "avoid_ingredient" | "avoid_tag" | "unconfirmed_strict";
+                                    /** Format: uuid */
+                                    ingredient_id?: string;
+                                    /** Format: uuid */
+                                    tag_id?: string;
+                                    /** @enum {string} */
+                                    confidence?: "confirmed" | "suggested" | "inferred";
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description restaurant not found, not published, or unknown profile slug */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

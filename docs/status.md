@@ -13,6 +13,24 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 20:50 — tick #39. PR #133 (Phase 1.6) merged at 20:20 UTC.
+Picked up Phase 1.7 — the centerpiece dietary filter. New
+`Api::V1::ItemsController#index` at `GET /api/v1/restaurants/:id/items`
+returns every published item with per-item `status` (visible|hidden)
++ `reasons[]`. Filter source resolves in priority order: `?profile=
+<slug>` (DietaryProfile lookup) > current_user.profile (when JWT
+present) > none. `?strictness=strict` overrides; in strict mode
+items with `confidence != 'confirmed'` get a reason
+`unconfirmed_strict`. Endpoint is unauth-friendly so anon mobile
+users can browse menus. New factories for places (city/restaurant)
++ items (menu/menu_section/item) using real Durango data + curated
+samples. 7 request specs covering all 5 acceptance scenarios from
+phase-1.md §1.7 + 2 404 paths. New rswag spec at
+`spec/integration/.../restaurants/items_spec.rb` regenerated
+docs/openapi.json + generated.ts; pnpm typecheck/lint/test all
+green; rspec 59/59. Roadmap ticked Phase 1.6 + flagged Phase 1
+as the last item before phase-2 plan PR.
+
 2026-04-29 20:15 — tick #38. PR #132 (Phase 1.5) merged at 19:50 UTC.
 Picked up Phase 1.6 — OpenAPI codegen. Wrote rswag swagger_helper.rb
 (OpenAPI 3.0.3, security schemes for bearerAuth + basicAuth, shared

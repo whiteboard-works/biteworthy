@@ -343,6 +343,221 @@
           "required": true
         }
       }
+    },
+    "/api/v1/restaurants/{restaurant_id}/items": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "format": "uuid",
+          "description": "Published restaurant id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "profile",
+          "in": "query",
+          "required": false,
+          "description": "DietaryProfile slug whose avoid lists to apply",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "strictness",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "relaxed",
+              "balanced",
+              "strict"
+            ]
+          },
+          "description": "Override the strictness from profile/user"
+        }
+      ],
+      "get": {
+        "summary": "List published items at this restaurant with per-item filter status",
+        "tags": [
+          "Restaurants"
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items + per-item status (visible | hidden) + reasons[]",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "filter",
+                    "items"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "filter": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "preset",
+                            "user_profile"
+                          ]
+                        },
+                        "preset_slug": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "strictness": {
+                          "type": "string",
+                          "enum": [
+                            "relaxed",
+                            "balanced",
+                            "strict"
+                          ]
+                        },
+                        "avoid_ingredient_ids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        },
+                        "avoid_tag_ids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "restaurant_id",
+                          "name",
+                          "confidence",
+                          "ingredient_ids",
+                          "tag_ids",
+                          "status",
+                          "reasons"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "restaurant_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": [
+                              "confirmed",
+                              "suggested",
+                              "inferred"
+                            ]
+                          },
+                          "popularity": {
+                            "type": "integer"
+                          },
+                          "ingredient_ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid"
+                            }
+                          },
+                          "tag_ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "visible",
+                              "hidden"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "avoid_ingredient",
+                                    "avoid_tag",
+                                    "unconfirmed_strict"
+                                  ]
+                                },
+                                "ingredient_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "tag_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "confidence": {
+                                  "type": "string",
+                                  "enum": [
+                                    "confirmed",
+                                    "suggested",
+                                    "inferred"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "restaurant not found, not published, or unknown profile slug"
+          }
+        }
+      }
     }
   },
   "servers": [
