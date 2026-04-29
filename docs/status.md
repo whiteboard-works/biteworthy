@@ -13,6 +13,23 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 21:25 — tick #40. PR #134 (Phase 1.7) merged at 20:57 UTC.
+**Phase 1 complete end-to-end.** Demo unblocked: admin builds a menu
+in /admin, web/mobile call /api/v1/restaurants/:id/items, items
+show or carry a transparent reason. Per the roadmap policy ("After
+Phase 1 ships, the loop pulls Phase 2 items into Next up via a
+plan-update PR"), this tick = plan PR. Drafted
+`docs/plans/phase-2.md` decomposing the AI ingestion MVP into 9
+PR-sized tasks (AnthropicClient → state machine → ExtractMenu/
+Resolve jobs → admin verify → mobile camera → mobile swipe-verify
+→ web URL/PDF → cost dashboard) with explicit stop conditions for
+the ANTHROPIC_API_KEY (cassette recording needs it). Updated
+`docs/roadmap.md`: marked Phase 1 ✅ in the phase header, replaced
+the empty Next-up with the proposed Phase 2 queue (loop-proposed,
+human reviews this PR before they auto-run). No code changes — this
+is a docs-only plan PR. Next tick: depends on how owner reviews
+the Phase 2 queue. If approved, pick up Phase 2.1.
+
 2026-04-29 20:50 — tick #39. PR #133 (Phase 1.6) merged at 20:20 UTC.
 Picked up Phase 1.7 — the centerpiece dietary filter. New
 `Api::V1::ItemsController#index` at `GET /api/v1/restaurants/:id/items`

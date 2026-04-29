@@ -11,9 +11,17 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-1. **Phase 1.7 — Restaurant + Item read endpoints with filter** (`docs/plans/phase-1.md#17`) — this PR
+**Phase 2** ⭐ AI ingestion MVP. Subplan: `docs/plans/phase-2.md`. This batch is **proposed by the loop** (this PR is the plan-update PR); humans review it before the items auto-run.
 
-After 1.7 ships, **Phase 1 is complete** — the loop will draft `docs/plans/phase-2.md` and propose the Phase 2 "Next up" queue in a plan-update PR for human review (per the policy at the bottom of this section).
+1. **Phase 2.1 — AnthropicClient service** (`docs/plans/phase-2.md#21`)
+2. **Phase 2.2 — IngestionRun + IngestionItem state machine** (`docs/plans/phase-2.md#22`)
+3. **Phase 2.3 — ExtractMenuJob** (`docs/plans/phase-2.md#23`) — depends on 2.1, 2.2; needs `ANTHROPIC_API_KEY` for VCR cassette recording
+4. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — depends on 2.3; needs `ANTHROPIC_API_KEY`
+5. **Phase 2.5 — Item promotion + admin verify UI** (`docs/plans/phase-2.md#25`)
+6. **Phase 2.6 — Mobile multi-page camera capture + upload** (`docs/plans/phase-2.md#26`)
+7. **Phase 2.7 — Mobile swipe-verify UI** (`docs/plans/phase-2.md#27`)
+8. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`)
+9. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
 
 ### Done
 
@@ -25,9 +33,9 @@ After 1.7 ships, **Phase 1 is complete** — the loop will draft `docs/plans/pha
 - ✅ Phase 1.4 — full ingredient port: 1,096 ingredients (#131)
 - ✅ Phase 1.5 — Avo admin at `/admin` (#132)
 - ✅ Phase 1.6 — OpenAPI codegen for `packages/api-types` (#133)
+- ✅ Phase 1.7 — Restaurant + Item read endpoints with filter (#134)
 
-After Phase 1 ships, the loop pulls Phase 2 items into "Next up" via a
-plan-update PR (so a human reviews the next batch before they auto-run).
+After Phase 2 ships, the loop will draft `docs/plans/phase-3.md` (dietary filter UI) the same way.
 
 ## Phase 0 — Foundation ✅
 
@@ -45,14 +53,15 @@ plan-update PR (so a human reviews the next batch before they auto-run).
 **Demo:** all three apps say "hello" against the same Rails API. Held
 back by the master-CI subtask.
 
-## Phase 1 — Schema + auth + admin (weeks 2–3)
+## Phase 1 — Schema + auth + admin ✅
 
-Subplan: `docs/plans/phase-1.md`. Tasks 1.1 through 1.7 are in
-"Next up" above.
+Subplan: `docs/plans/phase-1.md`. All 7 tasks merged (#124, #128,
+#130, #131, #132, #133, #134) plus the auto-merge policy chore (#129).
 
-**Demo:** admin creates a restaurant + a 10-item menu by hand; mobile
-and web both render it; toggling a dietary profile changes what's
-shown.
+**Demo (achieved 2026-04-29):** admin can create a restaurant + 10-item
+menu in `/admin` (Phase 1.5); web and mobile call
+`GET /api/v1/restaurants/:id/items?profile=…` (Phase 1.7) and items
+either show or carry a transparent reason for being hidden.
 
 ## Phase 2 — AI ingestion MVP (weeks 4–6) ⭐
 
