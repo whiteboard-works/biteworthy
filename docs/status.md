@@ -13,6 +13,18 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 23:30 — tick #4. PR #128 fully green: rspec 17/17,
+CodeQL js+ruby, **CodeQL umbrella also SUCCESS** (the CSRF alert
+cleared once I removed the no-op `skip_before_action`), labeler,
+title-lint. `mergeStateStatus: CLEAN`, `mergeable: MERGEABLE`. But
+`reviewDecision: ""` — codex hasn't responded ~1h post-ping. Per
+playbook auto-merge needs codex approval OR `auto-merge-ok` label
+OR shadoath approval; none present. Pinged `@shadoath` on the PR
+asking for approval, label, or hold-direction. Tick ends here per
+playbook §7 (no progress on Next-up while a `claude-cd` PR is
+waiting for review). Next tick: re-check for codex/shadoath
+response; if still no movement, hold.
+
 2026-04-28 23:00 — tick #3. PR #128 CI · API green (rspec 17/17) and
 CodeQL js+ruby green after the 22:35 push, but the umbrella
 "CodeQL" code-scanning aggregator FAILED on a real new alert:
