@@ -13,6 +13,19 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 22:35 — tick #2. PR #128 CI red: 17/17 specs failing 500.
+Root cause: api_only Rails strips session middleware → OmniAuth's
+strategy raises NoSessionError on every request (including /up).
+Diagnosed by starting postgres@16 locally, reproducing with
+`bin/rspec`, reading log/test.log. Pushed three fixes in one
+commit (06fc7c9): (a) reinjected ActionDispatch::Cookies + Session
+in application.rb, (b) skipped Devise's `/api/v1/auth/auth/:provider`
+double-prefix routes — set OmniAuth.config.path_prefix +
+custom clean routes for /api/v1/auth/:provider per phase-1.md spec,
+(c) `||=` was a no-op against the `default: ""` email column → use
+`if blank?`. Local rspec: 17 examples, 0 failures. Waiting on CI
+re-run to confirm green; next tick checks merge state.
+
 2026-04-28 21:55 — opened #128 phase-1.2-omniauth (+362/-3); 5 specs
 across google + apple (new/returning/failure). Created `claude-cd` +
 `auto-merge-ok` labels on the repo (referenced by playbook + auto-
