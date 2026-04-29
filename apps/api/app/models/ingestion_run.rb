@@ -28,6 +28,11 @@ class IngestionRun < ApplicationRecord
   belongs_to :restaurant, optional: true
   has_many :ingestion_items, dependent: :destroy
 
+  # The source artifact(s) we're extracting from. Multi-page menu
+  # photos arrive as an array of attachments; URL/PDF runs typically
+  # have a single attachment that the URL fetcher saved.
+  has_many_attached :inputs
+
   validates :input_kind, inclusion: { in: INPUT_KINDS }
   validates :status,     inclusion: { in: STATUSES }
 

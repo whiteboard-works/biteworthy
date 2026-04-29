@@ -11,6 +11,12 @@ Rails.application.configure do
 
   config.active_storage.service = :test
 
+  # Solid Queue lives in a separate database which isn't part of the
+  # test schema. Use the in-memory :test adapter so jobs enqueue
+  # synchronously into ActiveJob::QueueAdapters::TestAdapter.queue
+  # and specs can inspect them without touching Solid Queue tables.
+  config.active_job.queue_adapter = :test
+
   config.action_mailer.delivery_method = :test
   config.action_mailer.perform_caching = false
   config.action_mailer.raise_delivery_errors = true
