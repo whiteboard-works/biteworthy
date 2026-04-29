@@ -15,6 +15,17 @@ without spelunking GitHub.
 
 2026-04-29 14:00 — tick #33. Hold continues (29th in a row). No-op.
 
+2026-04-29 18:00 — tick #34 (resumed). Owner unblocked: directly
+merged PR #128 (phase-1.2). Owner directive: drop approval gate
+entirely. Opened + merged PR #129 (chore/auto-merge-default) which
+(a) updates `.github/workflows/auto-merge.yml` to enable auto-merge
+on every non-draft PR, (b) rewrites `docs/delivery-playbook.md`
+auto-merge policy + §2 state table to match. Started Phase 1.3 on
+`claude/phase-1.3-user-profile`: full GET/PATCH `/api/v1/profile`
+with wholesale array replacement + additive dietary_profile_slug
+preset application, plus ingredient/tag/dietary_profile factories.
+Local rspec 28/28 green (11 new in profile_spec). Pushing PR next.
+
 2026-04-29 13:30 — tick #32. Hold continues (28th in a row). No-op.
 
 2026-04-29 13:00 — tick #31. Hold continues (27th in a row). No-op.
