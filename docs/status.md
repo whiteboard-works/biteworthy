@@ -13,6 +13,20 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 18:30 — tick #35. PR #130 (Phase 1.3) merged at 18:06 UTC
+under the new auto-merge default. Picked up Phase 1.4 — full
+ingredient port. Wrote a balanced-paren parser at
+`apps/api/script/import_legacy_ingredients.rb` that turns the 905-
+line 2020 `_legacy/db/seeds/0_ingredients.rb` into structured YAML
+with ltree paths. Added curated supplements (dairy, egg, spice,
+sesame, soy, shellfish, oil_and_fat, sweetener, condiment, alcohol)
+to cover the FDA big-9 allergens + path roots phase-1.md required.
+Output: 1,096 ingredients, 218 allergen-flagged, 0 malformed
+ltree paths, parenthetical glosses preserved as aliases (e.g.
+"Domestic pig" carries alias "pork"). New `spec/db/ingredients_seed_spec.rb`
+verifies catalog shape, idempotence, and ancestry queries through
+the GiST `path <@` index. Local rspec 37/37 green. Pushing PR next.
+
 2026-04-29 14:00 — tick #33. Hold continues (29th in a row). No-op.
 
 2026-04-29 18:00 — tick #34 (resumed). Owner unblocked: directly
