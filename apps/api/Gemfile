@@ -19,7 +19,7 @@ gem "rswag-api"
 gem "rswag-ui"
 
 # --- Auth --------------------------------------------------------------------
-gem "devise", "~> 4.9"
+gem "devise", "~> 5.0"
 gem "devise-jwt", "~> 0.12"
 gem "omniauth", "~> 2.1"
 gem "omniauth-rails_csrf_protection"
