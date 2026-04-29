@@ -36,6 +36,12 @@ gem "aws-sdk-s3", require: false
 gem "faraday", "~> 2.10"
 gem "faraday-retry"
 
+# --- Admin -------------------------------------------------------------------
+# Avo at /admin for menu data CRUD. Phase 1.5 gates with HTTP basic auth
+# (ADMIN_USERNAME / ADMIN_PASSWORD env vars). Phase 4 will swap to
+# user-tied Devise sessions on top of the is_admin flag.
+gem "avo", "~> 3.17"
+
 # --- Misc utilities ----------------------------------------------------------
 gem "bcrypt", "~> 3.1"
 gem "bootsnap", require: false

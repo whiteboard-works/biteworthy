@@ -13,6 +13,23 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 19:45 — ticks #36+#37 combined. Owner picked Avo (via the
+implicit "just go" pattern from earlier ticks). Implemented Phase 1.5:
+avo gem (~v3.17), `rails g avo:install` initializer mounted at `/admin`
+(not /avo) gated with HTTP Basic auth (`ADMIN_USERNAME`/
+`ADMIN_PASSWORD` ENV, falls back to admin/admin in dev+test for
+boot-without-secrets), `is_admin :boolean` migration on users with a
+partial index on `is_admin = true`, 14 Avo resources auto-generated
+covering Restaurant/City/Address/Hours/Menu/MenuSection/Item/
+ItemVariant/ItemModifier/Ingredient/Tag/DietaryProfile/User(RO)/
+Suggestion. User resource hand-cleaned to drop `jti`/
+`confirmation_token`/`encrypted_password` from the field list (security
+tokens). Suggestion's polymorphic subject types filled in (Restaurant,
+Item, Ingredient, Tag). Read-only on User+Suggestion is trust-based
+for now — Phase 4 adds Pundit policies. New `spec/requests/admin_spec.rb`
+covers the auth gate (challenge / wrong creds / right creds → 200|302).
+Local rspec 40/40 green. Pushing PR next.
+
 2026-04-29 18:30 — tick #35. PR #130 (Phase 1.3) merged at 18:06 UTC
 under the new auto-merge default. Picked up Phase 1.4 — full
 ingredient port. Wrote a balanced-paren parser at
