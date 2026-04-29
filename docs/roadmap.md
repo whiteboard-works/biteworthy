@@ -13,7 +13,7 @@ the merge / review / status rules.
 
 **Phase 2** ⭐ AI ingestion MVP. Subplan: `docs/plans/phase-2.md`. This batch is **proposed by the loop** (this PR is the plan-update PR); humans review it before the items auto-run.
 
-1. **Phase 2.1 — AnthropicClient service** (`docs/plans/phase-2.md#21`)
+1. **Phase 2.1 — AnthropicClient service** (`docs/plans/phase-2.md#21`) — this PR
 2. **Phase 2.2 — IngestionRun + IngestionItem state machine** (`docs/plans/phase-2.md#22`)
 3. **Phase 2.3 — ExtractMenuJob** (`docs/plans/phase-2.md#23`) — depends on 2.1, 2.2; needs `ANTHROPIC_API_KEY` for VCR cassette recording
 4. **Phase 2.4 — ResolveIngredients + ResolveTags jobs** (`docs/plans/phase-2.md#24`) — depends on 2.3; needs `ANTHROPIC_API_KEY`
