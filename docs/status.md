@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 22:25 — tick #42. PR #136 (Phase 2.1) merged at 21:48 UTC.
+Picked up Phase 2.2 — state machine. Migration adds
+`state_history :jsonb` + renames `error_message` → `failure_message`
+(no data lost, column was unused). `IngestionRun#transition_to!(state)`
+is idempotent (re-call = no-op, first-entry timestamp wins),
+records UTC iso8601 in state_history, raises InvalidTransition for
+non-adjacent forward moves (queued → published etc.), and dispatches
+NEXT-state Solid Queue jobs via `safe_constantize` so 2.3+ defining
+ExtractMenuJob/ResolveIngredientsJob "just works" with no further
+changes here. `#fail!(message)` truncates to 2000 chars + transitions
+to failed without enqueuing. Predicates auto-defined per status.
+`IngestionItem#promote!` materializes a staged item → real Item +
+ItemIngredient + ItemTag rows with confidence: confirmed, source:
+human (humans accepted, that's confirmed by definition); skips
+unresolvable slugs gracefully; idempotent (re-call returns existing
+Item, no dup join rows); raises if the IngestionRun has no
+restaurant. New ingestion factories (run + item) with realistic
+payloads matching what 2.4's resolve job will write. 18 model
+specs (11 run + 7 item). Local rspec 91/91 green.
+
 2026-04-29 22:00 — tick #41. Plan PR #135 merged at 21:16 UTC. Phase 2
 queue live. Picked up Phase 2.1 — AnthropicClient. Faraday wrapper
 at `app/services/anthropic_client.rb` with bearer auth, prompt
