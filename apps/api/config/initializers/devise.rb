@@ -23,7 +23,9 @@ Devise.setup do |config|
 
   config.navigational_formats = []  # API-only
 
-  # JWT (devise-jwt) — wired up in a follow-up commit alongside
-  # SessionsController. Placeholder here so seeded users have a default
-  # `jti`. See app/controllers/api/v1/sessions_controller.rb.
+  # Tell Devise that signup/login/logout/refresh hand back JSON, not
+  # redirects. Without this Devise tries to render flash + Location
+  # headers for navigational requests and 401s for everything else.
+  config.responder.error_status = :unprocessable_entity
+  config.responder.redirect_status = :see_other
 end

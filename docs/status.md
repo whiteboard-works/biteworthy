@@ -13,7 +13,29 @@ without spelunking GitHub.
 
 ---
 
-2026-04-28 09:00 — Phase 0 merged (PR #110). Some master CI red — added
-to Next-up as a subtask. Framework PR (`claude/delivery-framework`)
+2026-04-28 20:05 — loop tick #1. PR #124 (phase-1.1) open, CI pending
+on all 5 checks after title-fix push, `area:api` label applied. Per
+playbook: wait for CI, no action. Subscribed to PR activity; webhook
+events will trigger the next handler. Cron primitive (CronCreate) not
+loaded in this session — relying on webhooks + user pings for
+heartbeat instead of a true 30-min cadence.
+
+2026-04-28 19:55 — Phase 1.1 complete locally; opening PR. 12 request
+specs green covering signup happy/dup/invalid, login happy/wrong-pw/
+ghost, logout rotates jti + invalidates old token, refresh rotates jti
++ invalidates old token + rejects no-token. Includes a stub
+`Api::V1::ProfilesController#show` so the auth-gating specs have a
+real protected route — Phase 1.3 owns its full GET/PATCH semantics.
+
+2026-04-28 09:30 — PR #112 (master CI rebuild + GitHub Actions
+modernization) merged. CI now green: 6 workflows, dependabot,
+labeler, auto-merge gate, conventional-commit PR title check,
+CodeQL, code owners.
+
+2026-04-28 09:10 — PR #111 (delivery framework) merged. Playbook +
+status log + phase subplan + restructured roadmap on master.
+
+2026-04-28 09:00 — Phase 0 merged (PR #110). Some master CI red —
+added to Next-up as a subtask. Framework PR (`claude/delivery-framework`)
 opening shortly with playbook v2, status log, phase-1 subplan, roadmap
 restructure.
