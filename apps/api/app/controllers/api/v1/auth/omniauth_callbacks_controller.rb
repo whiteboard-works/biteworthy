@@ -12,11 +12,12 @@ module Api
       class OmniauthCallbacksController < Devise::OmniauthCallbacksController
         respond_to :json
 
-        # Skip CSRF protection on the callback — the provider's
-        # redirect doesn't carry our CSRF token, and OAuth's `state`
-        # parameter (validated by the strategy) is the actual
-        # cross-site forgery defense for this leg.
-        skip_before_action :verify_authenticity_token, raise: false
+        # No `skip_before_action :verify_authenticity_token` needed:
+        # ApplicationController extends ActionController::API
+        # (config.api_only = true), which never installs CSRF
+        # protection. OAuth's own `state` parameter — validated by the
+        # OmniAuth strategy before we run — is the cross-site forgery
+        # defense for the callback leg.
 
         def google_oauth2
           handle_oauth_callback
