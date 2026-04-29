@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_29_224319) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_29_231545) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -124,6 +124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_224319) do
     t.string "section_name"
     t.jsonb "tags_payload", default: []
     t.jsonb "unresolved_ingredients", default: []
+    t.jsonb "unresolved_tags", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["ingestion_run_id", "decision"], name: "index_ingestion_items_on_ingestion_run_id_and_decision"
     t.index ["ingestion_run_id"], name: "index_ingestion_items_on_ingestion_run_id"
