@@ -29,5 +29,13 @@ module Biteworthy
     config.autoload_lib(ignore: %w[assets tasks])
 
     # CORS handled in initializers/cors.rb.
+
+    # OmniAuth needs a Rack session to hold the OAuth `state` param
+    # across the provider redirect. api_only mode strips both Cookies
+    # and Session middleware, so we put them back. Nothing else writes
+    # to the session — JWTs carry all post-login state.
+    config.session_store :cookie_store, key: "_biteworthy_session"
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_biteworthy_session"
   end
 end

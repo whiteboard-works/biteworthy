@@ -33,9 +33,13 @@ class User < ApplicationRecord
   # otherwise.
   def self.from_omniauth(auth)
     user = find_or_initialize_by(provider: auth.provider, uid: auth.uid)
-    user.email          ||= auth.info.email
-    user.display_name   ||= auth.info.name
-    user.confirmed_at   ||= Time.current
+    # Use `blank?` rather than `||=` because the users.email column has
+    # `default: ""` from Devise's migration generator — fresh records
+    # come back with an empty string, which is truthy and would block
+    # ||= from filling in the OAuth-provided email.
+    user.email          = auth.info.email if user.email.blank?
+    user.display_name   = auth.info.name  if user.display_name.blank?
+    user.confirmed_at ||= Time.current
 
     # Devise needs *some* password for :database_authenticatable's
     # encrypted_password column to be set. Generate a random one on

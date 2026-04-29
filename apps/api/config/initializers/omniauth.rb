@@ -8,6 +8,12 @@
 OmniAuth.config.allowed_request_methods = [:get, :post]
 OmniAuth.config.silence_get_warning = true
 
+# Mount OmniAuth's internal middleware under the same /api/v1/auth/
+# prefix the rest of the auth routes use. Without this, OmniAuth would
+# only intercept /auth/<provider>/callback URLs, which our routes
+# don't expose.
+OmniAuth.config.path_prefix = "/api/v1/auth"
+
 # In test mode, fail fast on misconfigured mocks so missing-mock bugs
 # surface in the spec instead of silently 302'ing to /users/sign_in.
 OmniAuth.config.test_mode = true if Rails.env.test?
