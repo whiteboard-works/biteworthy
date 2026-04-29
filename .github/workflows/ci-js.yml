@@ -8,6 +8,7 @@ on:
       - "apps/web/**"
       - "apps/mobile/**"
       - "packages/**"
+      - "docs/openapi.json"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -49,3 +50,11 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: api-types codegen drift check
+        # Re-runs openapi-typescript against the checked-in
+        # docs/openapi.json and fails if the generated TS doesn't
+        # match what's committed. Catches the case where someone
+        # edited a Rails endpoint, regenerated openapi.json, but
+        # forgot to re-run `build:codegen`.
+        run: pnpm --filter @biteworthy/api-types codegen:check
