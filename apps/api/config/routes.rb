@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  mount_avo
   # Health check for uptime monitors and load balancers.
   get "up" => "rails/health#show", as: :rails_health_check
 
