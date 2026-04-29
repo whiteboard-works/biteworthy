@@ -13,6 +13,17 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 00:00 — tick #5. Hold tick. PR #128 unchanged from #4:
+CLEAN/MERGEABLE, all 7 checks SUCCESS, `reviewDecision: ""`, no
+`auto-merge-ok` label, no shadoath response. Discovered structural
+issue: the loop's gh CLI authenticates as `shadoath` (same as the
+project owner), so `@shadoath` pings via `gh pr comment` are
+self-mentions and don't notify. Playbook's escalation channel needs
+either a separate bot account OR direct surfacing to the human via
+the agent conversation. Surfaced both in this tick's reply. Not
+re-pinging (no signal value). Not stacking Phase 1.3 PR (one PR per
+task per playbook). Holding until human acts on #128.
+
 2026-04-28 23:30 — tick #4. PR #128 fully green: rspec 17/17,
 CodeQL js+ruby, **CodeQL umbrella also SUCCESS** (the CSRF alert
 cleared once I removed the no-op `skip_before_action`), labeler,
