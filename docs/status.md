@@ -13,6 +13,21 @@ without spelunking GitHub.
 
 ---
 
+2026-04-28 23:00 — tick #3. PR #128 CI · API green (rspec 17/17) and
+CodeQL js+ruby green after the 22:35 push, but the umbrella
+"CodeQL" code-scanning aggregator FAILED on a real new alert:
+`rb/csrf-protection-disabled` against
+`omniauth_callbacks_controller.rb:13` (the
+`skip_before_action :verify_authenticity_token` line). In api_only
+mode that line is a no-op — ActionController::API never installs
+CSRF in the first place. Removed the line + comment-explained why
+(commit 6d6ed92). Local rspec still 17/17 green. No `@codex` review
+came back since the 21:55 ping; PR is `reviewDecision: ""`. Per
+playbook §2 still need CI green AND approval; if codex doesn't
+respond by next tick, will ping `@shadoath` to clarify codex setup
+or apply `auto-merge-ok` manually. Next tick: re-check CI + review
+state.
+
 2026-04-28 22:35 — tick #2. PR #128 CI red: 17/17 specs failing 500.
 Root cause: api_only Rails strips session middleware → OmniAuth's
 strategy raises NoSessionError on every request (including /up).
