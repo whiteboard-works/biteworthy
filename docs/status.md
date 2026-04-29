@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-04-29 22:00 — tick #41. Plan PR #135 merged at 21:16 UTC. Phase 2
+queue live. Picked up Phase 2.1 — AnthropicClient. Faraday wrapper
+at `app/services/anthropic_client.rb` with bearer auth, prompt
+caching helper (`#system_blocks` marks blocks with
+`cache_control: {type: ephemeral}`), vision input helper
+(`#image_block` accepts ActiveStorage::Blob OR raw IO/String,
+base64-encodes), structured output validation via json-schema gem
+(raises `AnthropicClient::ValidationError` with the validator's
+errors[]), retries via faraday-retry (3 attempts on 429/5xx,
+auth errors NOT retried). Default model claude-sonnet-4-6 per
+ADR 0001. Helper class `AnthropicClient::ResponseParser` extracts
+the first text block from /v1/messages responses. Added vcr gem
++ `spec/support/vcr.rb` config for Phase 2.3+ cassette recording
+(record: :once locally, :none in CI, sensitive-header scrubbing).
+12 unit specs at `spec/services/anthropic_client_spec.rb` covering
+all public methods + happy/auth-fail/retry paths via WebMock
+stubs. ANTHROPIC_API_KEY documented in .env.example. Local rspec
+73/73 green. Pushing PR.
+
 2026-04-29 21:25 — tick #40. PR #134 (Phase 1.7) merged at 20:57 UTC.
 **Phase 1 complete end-to-end.** Demo unblocked: admin builds a menu
 in /admin, web/mobile call /api/v1/restaurants/:id/items, items

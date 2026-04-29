@@ -36,6 +36,11 @@ gem "aws-sdk-s3", require: false
 gem "faraday", "~> 2.10"
 gem "faraday-retry"
 
+# Validates Anthropic's structured-output responses against the JSON Schema
+# we send up — catches model drift before the rest of the ingestion pipeline
+# tries to read fields that aren't there.
+gem "json-schema", "~> 5.1"
+
 # --- Admin -------------------------------------------------------------------
 # Avo at /admin for menu data CRUD. Phase 1.5 gates with HTTP basic auth
 # (ADMIN_USERNAME / ADMIN_PASSWORD env vars). Phase 4 will swap to
@@ -64,4 +69,8 @@ end
 group :test do
   gem "shoulda-matchers", "~> 7.0"
   gem "webmock"
+  # Cassette-based playback for the live Anthropic calls in Phase 2.3+.
+  # Cassettes are recorded locally with ANTHROPIC_API_KEY; CI replays them
+  # with `record: :none`.
+  gem "vcr", "~> 6.3"
 end
