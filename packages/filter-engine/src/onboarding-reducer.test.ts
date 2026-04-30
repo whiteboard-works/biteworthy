@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'vitest';
 import {
-  reducer,
   initialDraft,
+  onboardingReducer,
   toProfilePayload,
   type DietaryPreset,
   type DraftProfile,
-} from '../../lib/onboarding-reducer';
+} from './onboarding-reducer';
 
 const vegan: DietaryPreset = {
   id: 'p-vegan',
@@ -33,16 +34,16 @@ const dairyFree: DietaryPreset = {
   avoid_tag_ids: ['tag-contains-dairy'],
 };
 
-describe('onboarding reducer', () => {
+describe('onboardingReducer', () => {
   describe('TOGGLE_PRESET', () => {
     it('adds a preset slug when not selected', () => {
-      const next = reducer(initialDraft, { type: 'TOGGLE_PRESET', slug: 'vegan' });
+      const next = onboardingReducer(initialDraft, { type: 'TOGGLE_PRESET', slug: 'vegan' });
       expect(next.selectedPresetSlugs).toEqual(['vegan']);
     });
 
     it('removes a preset slug when already selected', () => {
       const seeded: DraftProfile = { ...initialDraft, selectedPresetSlugs: ['vegan', 'celiac'] };
-      const next = reducer(seeded, { type: 'TOGGLE_PRESET', slug: 'vegan' });
+      const next = onboardingReducer(seeded, { type: 'TOGGLE_PRESET', slug: 'vegan' });
       expect(next.selectedPresetSlugs).toEqual(['celiac']);
     });
 
@@ -52,7 +53,7 @@ describe('onboarding reducer', () => {
         manualIngredientIds: ['ing-cilantro'],
         strictness: 'strict',
       };
-      const next = reducer(seeded, { type: 'TOGGLE_PRESET', slug: 'vegan' });
+      const next = onboardingReducer(seeded, { type: 'TOGGLE_PRESET', slug: 'vegan' });
       expect(next.manualIngredientIds).toEqual(['ing-cilantro']);
       expect(next.strictness).toBe('strict');
     });
@@ -60,7 +61,7 @@ describe('onboarding reducer', () => {
 
   describe('ADD_MANUAL_INGREDIENT', () => {
     it('appends a new id', () => {
-      const next = reducer(initialDraft, {
+      const next = onboardingReducer(initialDraft, {
         type: 'ADD_MANUAL_INGREDIENT',
         ingredientId: 'ing-cilantro',
       });
@@ -68,11 +69,11 @@ describe('onboarding reducer', () => {
     });
 
     it('is idempotent — adding the same id twice keeps one entry', () => {
-      const once = reducer(initialDraft, {
+      const once = onboardingReducer(initialDraft, {
         type: 'ADD_MANUAL_INGREDIENT',
         ingredientId: 'ing-cilantro',
       });
-      const twice = reducer(once, {
+      const twice = onboardingReducer(once, {
         type: 'ADD_MANUAL_INGREDIENT',
         ingredientId: 'ing-cilantro',
       });
@@ -87,7 +88,7 @@ describe('onboarding reducer', () => {
         ...initialDraft,
         manualIngredientIds: ['ing-a', 'ing-b', 'ing-c'],
       };
-      const next = reducer(seeded, {
+      const next = onboardingReducer(seeded, {
         type: 'REMOVE_MANUAL_INGREDIENT',
         ingredientId: 'ing-b',
       });
@@ -99,7 +100,7 @@ describe('onboarding reducer', () => {
         ...initialDraft,
         manualIngredientIds: ['ing-a'],
       };
-      const next = reducer(seeded, {
+      const next = onboardingReducer(seeded, {
         type: 'REMOVE_MANUAL_INGREDIENT',
         ingredientId: 'ing-zzz',
       });
@@ -109,7 +110,7 @@ describe('onboarding reducer', () => {
 
   describe('SET_STRICTNESS', () => {
     it('updates strictness', () => {
-      const next = reducer(initialDraft, { type: 'SET_STRICTNESS', strictness: 'strict' });
+      const next = onboardingReducer(initialDraft, { type: 'SET_STRICTNESS', strictness: 'strict' });
       expect(next.strictness).toBe('strict');
     });
   });
@@ -121,7 +122,7 @@ describe('onboarding reducer', () => {
         manualIngredientIds: ['ing-x'],
         strictness: 'strict',
       };
-      expect(reducer(seeded, { type: 'RESET' })).toEqual(initialDraft);
+      expect(onboardingReducer(seeded, { type: 'RESET' })).toEqual(initialDraft);
     });
   });
 });
@@ -154,7 +155,7 @@ describe('toProfilePayload', () => {
 
   it('dedupes ids that appear in multiple selected presets', () => {
     const draft: DraftProfile = {
-      selectedPresetSlugs: ['vegan', 'dairy-free'], // both include ing-dairy + tag-contains-dairy
+      selectedPresetSlugs: ['vegan', 'dairy-free'],
       manualIngredientIds: [],
       strictness: 'balanced',
     };
@@ -171,14 +172,7 @@ describe('toProfilePayload', () => {
     };
     const payload = toProfilePayload(draft, catalog);
     expect(payload.avoid_ingredient_ids.sort()).toEqual(
-      [
-        'ing-almond',
-        'ing-cashew',
-        'ing-cilantro',
-        'ing-dairy',
-        'ing-egg',
-        'ing-meat',
-      ].sort(),
+      ['ing-almond', 'ing-cashew', 'ing-cilantro', 'ing-dairy', 'ing-egg', 'ing-meat'].sort(),
     );
     expect(payload.avoid_tag_ids.sort()).toEqual(
       ['tag-contains-dairy', 'tag-contains-tree-nut'].sort(),

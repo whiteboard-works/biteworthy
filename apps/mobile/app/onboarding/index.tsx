@@ -13,12 +13,12 @@ import {
 import { router } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
-  reducer,
   initialDraft,
+  onboardingReducer,
   toProfilePayload,
-  type Strictness,
   type DietaryPreset,
-} from '../../lib/onboarding-reducer';
+  type Strictness,
+} from '@biteworthy/filter-engine';
 import {
   fetchDietaryProfiles,
   saveProfile,
@@ -42,7 +42,7 @@ type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>('presets');
-  const [draft, dispatch] = useReducer(reducer, initialDraft);
+  const [draft, dispatch] = useReducer(onboardingReducer, initialDraft);
   const [presets, setPresets] = useState<DietaryPreset[]>([]);
   const [loadingPresets, setLoadingPresets] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

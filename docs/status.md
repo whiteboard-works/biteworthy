@@ -13,6 +13,27 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 07:30 — tick #58. PR #152 (Phase 3.7) merged at 07:07 UTC.
+Picked up Phase 3.8 — web profile onboarding (mirror of mobile 3.2).
+First move: promoted the mobile onboarding reducer into
+`@biteworthy/filter-engine` as `onboardingReducer` + `toProfilePayload`
++ `DraftProfile` + `DietaryPreset` + `OnboardingAction`. Mobile reducer
+file deleted, mobile screen + API client now import from filter-engine
+(rename `reducer` → `onboardingReducer`). 14 reducer tests moved from
+mobile jest into filter-engine vitest — mobile jest count drops from
+34 to 20, filter-engine grows from 31 to 45. Web pieces: new
+`apps/web/src/lib/onboarding.ts` (fetchDietaryProfiles +
+searchIngredients + saveProfile, accepts injected fetchImpl);
+`apps/web/src/lib/jwt-cookie.ts` (set/get/clear bw_jwt cookie —
+plaintext + JS-readable, same workaround the ingest screen uses; Phase
+4 swaps for HttpOnly server-managed sessions); 4-step page at
+`apps/web/src/app/onboarding/page.tsx` ('use client' for the reducer
++ search + cookie writes). 11 new vitest cases (6 onboarding API
+client + 5 cookie helper), no UI snapshot test for the page itself
+(same blocker as Phase 3.5 — needs `@testing-library/react` setup).
+Local: filter-engine vitest 45/45; web vitest 21/21; mobile jest
+20/20; rspec 184/0/1 pending; pnpm typecheck/lint cached green.
+
 2026-05-01 07:00 — tick #57. PR #151 (Phase 3.6) merged at 06:00 UTC.
 Picked up Phase 3.7 — consolidated the per-item filter computation
 into `@biteworthy/filter-engine`. The package was previously a
