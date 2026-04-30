@@ -269,3 +269,14 @@ export {
   type DraftProfile,
   type OnboardingAction,
 } from './onboarding-reducer';
+
+// ─── Shareable profile tokens (Phase 3.9) ──────────────────────────
+
+export {
+  decodeProfileToken,
+  encodeProfileToken,
+  shareableToFilterProfile,
+  PROFILE_TOKEN_VERSION,
+  InvalidProfileTokenError,
+  type ShareableProfile,
+} from './profile-token';

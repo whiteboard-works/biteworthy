@@ -18,6 +18,10 @@ module Api
     class ItemsController < BaseController
       skip_before_action :authenticate_user!, only: [:index, :show]
 
+      rescue_from ProfileToken::InvalidTokenError do |e|
+        render json: { error: "Invalid profile_token: #{e.message}" }, status: :unprocessable_entity
+      end
+
       def index
         restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
         items      = restaurant.items.published
@@ -47,7 +51,18 @@ module Api
       Filter = Struct.new(:avoid_ingredient_ids, :avoid_tag_ids, :strictness, :source, :preset_slug, keyword_init: true)
 
       def build_filter
-        if params[:profile].present?
+        if params[:profile_token].present?
+          decoded = ProfileToken.decode(params[:profile_token])
+          # ?strictness=... overrides what the token encoded so a
+          # strict-mode toggle still works on a shared link.
+          Filter.new(
+            avoid_ingredient_ids: decoded.avoid_ingredient_ids,
+            avoid_tag_ids:        decoded.avoid_tag_ids,
+            strictness:           strictness_param || decoded.strictness,
+            source:               "profile_token",
+            preset_slug:          nil
+          )
+        elsif params[:profile].present?
           preset = DietaryProfile.includes(:dietary_profile_ingredients, :dietary_profile_tags)
                                  .find_by!(slug: params[:profile])
           Filter.new(

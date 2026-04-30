@@ -202,6 +202,68 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
     end
   end
 
+  describe "with ?profile_token=… (Phase 3.9 shareable URLs)" do
+    let(:token) do
+      ProfileToken.encode(
+        avoid_ingredient_ids: [cheese.id],
+        avoid_tag_ids:        [],
+        strictness:           "balanced"
+      )
+    end
+
+    it "applies the encoded avoid_ingredient_ids" do
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{token}"
+
+      expect(response).to have_http_status(:ok)
+      body  = response.parsed_body
+      items = body["items"].index_by { |i| i["name"] }
+
+      expect(items["Cheese Quesadilla"]["status"]).to eq("hidden")
+      expect(items["Carne Asada Taco"]["status"]).to  eq("visible")
+      expect(body["filter"]["source"]).to eq("profile_token")
+    end
+
+    it "lets ?strictness= override what the token encoded" do
+      strict_token = ProfileToken.encode(
+        avoid_ingredient_ids: [],
+        avoid_tag_ids:        [],
+        strictness:           "balanced"
+      )
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{strict_token}&strictness=strict"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["filter"]["strictness"]).to eq("strict")
+    end
+
+    it "422s on a malformed token" do
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=not!base64@@@"
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to match(/Invalid profile_token/)
+    end
+
+    it "422s on a token with an unsupported schema version" do
+      future = Base64.urlsafe_encode64(JSON.generate(v: 99, ai: [], at: [], s: "balanced"), padding: false)
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{future}"
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "takes precedence over ?profile=<slug> when both are supplied" do
+      preset = create(:dietary_profile, slug: "vegan")
+      create(:dietary_profile_ingredient,
+             dietary_profile: preset, ingredient: salmon, rule: "avoid")
+
+      # Token avoids cheese, preset would avoid salmon — token wins.
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{token}&profile=vegan"
+
+      expect(response).to have_http_status(:ok)
+      body  = response.parsed_body
+      items = body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["status"]).to eq("hidden") # token's effect
+      expect(items["Salmon Bowl"]["status"]).to       eq("visible") # preset NOT applied
+      expect(body["filter"]["source"]).to eq("profile_token")
+    end
+  end
+
   describe "lookup by slug (Phase 3.6)" do
     it "accepts the restaurant slug in place of the UUID" do
       get "/api/v1/restaurants/#{restaurant.slug}/items"
