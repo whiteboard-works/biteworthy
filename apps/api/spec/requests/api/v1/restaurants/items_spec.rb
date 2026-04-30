@@ -318,6 +318,33 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
     end
   end
 
+  describe "history-recording side effect (Phase 4.8)" do
+    let(:visitor) { create(:user) }
+    let(:visitor_headers) { auth_headers_for(visitor) }
+
+    it "enqueues RecordRestaurantVisitJob with visible/hidden counts when authenticated" do
+      expect(RecordRestaurantVisitJob).to receive(:perform_later).with(
+        visitor.id, restaurant.id, kind_of(Integer), kind_of(Integer), kind_of(String)
+      )
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: visitor_headers
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "does NOT enqueue for anonymous callers" do
+      expect(RecordRestaurantVisitJob).not_to receive(:perform_later)
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+    end
+
+    it "swallows enqueue failures so the response still 200s" do
+      allow(RecordRestaurantVisitJob).to receive(:perform_later)
+        .and_raise(RuntimeError, "queue down")
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: visitor_headers
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe "404 cases" do
     it "404s on a non-existent restaurant" do
       get "/api/v1/restaurants/00000000-0000-0000-0000-000000000000/items"

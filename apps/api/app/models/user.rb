@@ -17,6 +17,7 @@ class User < ApplicationRecord
   has_many :suggestions, dependent: :nullify
   has_many :user_item_overrides, dependent: :destroy
   has_many :overridden_items, through: :user_item_overrides, source: :item
+  has_many :restaurant_visits, dependent: :destroy
 
   validates :handle, presence: true, uniqueness: true,
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
