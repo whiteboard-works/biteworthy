@@ -1,68 +1,109 @@
-# Curated bundles that pre-fill a user's avoid lists in one tap.
-# Keep these conservative — users can always tighten further per-ingredient.
-
-- slug: celiac
-  name: Celiac / Gluten-free
-  description: Hides anything containing gluten-bearing grains.
-  avoid_ingredient_slugs: [gluten-grain, wheat, barley, rye]
-  avoid_tag_slugs: [contains-gluten]
-
-- slug: lactose-free
-  name: Lactose intolerant
-  description: Hides dairy-containing dishes.
-  avoid_ingredient_slugs: [dairy, dairy-milk, dairy-cheese, dairy-butter, dairy-cream, dairy-yogurt]
-  avoid_tag_slugs: [contains-dairy]
-
+# Production-ready dietary profile presets (Phase 3.1).
+#
+# Each preset references the ingredient catalog by either:
+#   * `avoid_ingredient_slugs`: exact slug match (surgical).
+#   * `avoid_ingredient_paths`: ltree path roots — any descendant
+#     under that path is included (broad). Uses the GiST `<@` index.
+# Tags work the same with `avoid_tag_slugs` + `avoid_tag_paths`.
+#
+# Path roots in the catalog (from db/seeds/ingredients.yml): alcohol,
+# condiment, dairy, egg, fish, fruit, grain, herb, legume, meat,
+# oil_and_fat, poultry, sesame, shellfish, soy, spice, sweetener,
+# tree_nut, vegetable.
+#
+# Tag families (path prefixes): diet.*, allergen.*, cuisine.*,
+# prep.*, flavor.*. The `allergen.contains_*` tags are the
+# user-visible signals AI ingestion stamps onto items.
+#
+# This file replaces the slug-only version that referenced paths
+# (`gluten-grain`, `dairy-milk`, `meat-pork`) that don't exist in
+# the post-#131 catalog. Re-seed wipes nothing — DietaryProfile +
+# join rows are find_or_create_by'd.
+---
 - slug: vegan
   name: Vegan
-  description: Hides any animal-derived ingredient.
-  avoid_ingredient_slugs:
-    [animal, dairy, meat, poultry, fish, shellfish, egg, dairy-milk, dairy-cheese,
-     dairy-butter, dairy-cream, dairy-yogurt, meat-beef, meat-pork, meat-lamb,
-     poultry-chicken, poultry-turkey]
-  avoid_tag_slugs: []
+  description: No animal products of any kind — meat, poultry, fish, dairy, eggs, honey.
+  avoid_ingredient_paths:
+    - dairy
+    - egg
+    - meat
+    - poultry
+    - fish
+    - shellfish
+  avoid_tag_paths:
+    - allergen.contains_dairy
+    - allergen.contains_egg
 
 - slug: vegetarian
   name: Vegetarian
-  description: Hides meat, poultry, and seafood; allows dairy and egg.
-  avoid_ingredient_slugs:
-    [meat, poultry, fish, shellfish, meat-beef, meat-pork, meat-lamb,
-     poultry-chicken, poultry-turkey, shellfish-shrimp, shellfish-crab, shellfish-lobster]
-  avoid_tag_slugs: []
+  description: No meat, poultry, or seafood. Dairy and eggs are fine.
+  avoid_ingredient_paths:
+    - meat
+    - poultry
+    - fish
+    - shellfish
 
 - slug: pescatarian
   name: Pescatarian
-  description: Hides land animals; allows fish and seafood.
-  avoid_ingredient_slugs:
-    [meat, poultry, meat-beef, meat-pork, meat-lamb, poultry-chicken, poultry-turkey]
-  avoid_tag_slugs: []
+  description: Vegetarian plus fish and shellfish.
+  avoid_ingredient_paths:
+    - meat
+    - poultry
 
-- slug: tree-nut-allergy
-  name: Tree nut allergy
-  description: Severe allergen filter — strict mode is recommended.
-  avoid_ingredient_slugs: [nut, almond, cashew, walnut, pecan]
-  avoid_tag_slugs: [contains-tree-nut]
+- slug: celiac
+  name: Celiac
+  description: Strict gluten-free for celiac disease — wheat, rye, barley, spelt, triticale.
+  avoid_ingredient_paths:
+    - grain.wheat
+    - grain.rye
+    - grain.barley
+    - grain.spelt
+    - grain.triticale
 
-- slug: peanut-allergy
-  name: Peanut allergy
-  description: Severe allergen filter — strict mode is recommended.
-  avoid_ingredient_slugs: [peanut]
-  avoid_tag_slugs: [contains-peanut]
+- slug: gluten-free
+  name: Gluten-Free
+  description: Same avoid list as Celiac, framed for non-medical preference.
+  avoid_ingredient_paths:
+    - grain.wheat
+    - grain.rye
+    - grain.barley
+    - grain.spelt
+    - grain.triticale
 
-- slug: shellfish-allergy
-  name: Shellfish allergy
-  description: Severe allergen filter — strict mode is recommended.
-  avoid_ingredient_slugs: [shellfish, shellfish-shrimp, shellfish-crab, shellfish-lobster]
-  avoid_tag_slugs: [contains-shellfish]
+- slug: dairy-free
+  name: Dairy-Free
+  description: No milk, cheese, butter, cream, yogurt, or other dairy products.
+  avoid_ingredient_paths:
+    - dairy
+  avoid_tag_paths:
+    - allergen.contains_dairy
 
 - slug: halal
   name: Halal
-  description: Hides pork; alcohol filtering coming in v2.
-  avoid_ingredient_slugs: [meat-pork]
-  avoid_tag_slugs: []
+  description: Halal dietary law — no pork or alcohol; meats must be halal-slaughtered.
+  avoid_ingredient_paths:
+    - meat.swine
+    - alcohol
 
 - slug: kosher
   name: Kosher
-  description: Starter rules; rabbinical certification flag coming in v2.
-  avoid_ingredient_slugs: [meat-pork, shellfish, shellfish-shrimp, shellfish-crab, shellfish-lobster]
-  avoid_tag_slugs: []
+  description: Kosher dietary law — no pork or shellfish; meat and dairy not mixed.
+  avoid_ingredient_paths:
+    - meat.swine
+    - shellfish
+
+- slug: tree-nut-allergy
+  name: Tree-Nut Allergy
+  description: Avoids almonds, walnuts, cashews, pecans, pistachios, and other tree nuts.
+  avoid_ingredient_paths:
+    - tree_nut
+  avoid_tag_paths:
+    - allergen.contains_tree_nut
+
+- slug: peanut-allergy
+  name: Peanut Allergy
+  description: Avoids peanuts and peanut-derived ingredients (the catalog's "peanuts" path).
+  avoid_ingredient_paths:
+    - legume.peanuts
+  avoid_tag_paths:
+    - allergen.contains_peanut

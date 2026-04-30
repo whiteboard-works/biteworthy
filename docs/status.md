@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 04:00 — tick #51. Plan PR #145 merged at 01:55 UTC.
+Picked up Phase 3.1 — production seeds. Found the existing
+dietary_profiles.yml was stale slug-only entries referencing
+catalog paths that don't exist post-#131 (`gluten-grain`,
+`dairy-milk`, `meat-pork` — the catalog uses `grain-wheat`,
+`dairy-cheddar`, `meat-swine-domestic-pig` instead). Extended
+`db/seeds.rb` to accept `avoid_ingredient_paths` +
+`avoid_tag_paths` lists (ltree subtree match via the GiST `<@`
+index — same query Phase 1.7 uses) alongside the existing
+slug-exact lists. Rewrote dietary_profiles.yml: 10 presets
+(Vegan, Vegetarian, Pescatarian, Celiac, Gluten-Free, Dairy-Free,
+Halal, Kosher, Tree-Nut Allergy, Peanut Allergy), each with a
+one-line description for the onboarding-card UI. Vegan uses path
+prefixes (broad: dairy/egg/meat/poultry/fish/shellfish); Celiac
+uses surgical leaves (grain.wheat, grain.rye, grain.barley,
+grain.spelt, grain.triticale — not rice/corn/oats). 9 specs cover
+catalog shape (10 presets, name + description), idempotence (no
+dup join rows), Vegan canary (path-expansion correctness),
+Celiac canary (surgical-leaf correctness), Halal canary
+(meat.swine + alcohol). Local rspec 166/166 (1 pending), pnpm
+checks all cached green. Live seed task ran end-to-end against
+the dev DB: 1,096 ingredients + 36 tags + 10 dietary profiles.
+
 2026-05-01 03:30 — tick #50. PR #144 (Phase 2.9) merged at 01:48 UTC.
 **Phase 2 feature-complete.** Per the roadmap policy ("After
 Phase N ships, the loop pulls Phase N+1 items into Next up via a
