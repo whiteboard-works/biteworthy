@@ -1,0 +1,18 @@
+name,slug,address,phone,website,menu_source,neighborhood
+# Phase 5.7 — Durango seed CSV template.
+#
+# Each row creates (or finds) a Restaurant in the durango City and
+# kicks off an IngestionRun via `bin/rails biteworthy:seed:durango
+# FILE=docs/seeds/durango.csv`. The runner picks `url` vs `pdf`
+# entrypoint based on whether `menu_source` ends in .pdf.
+#
+# Slug rules: kebab-case, ASCII only, deduped if blank (uses the
+# parameterized name).
+#
+# Lines starting with `#` are ignored — keep notes inline.
+#
+# DO NOT commit the populated `durango.csv` — that's the launch
+# operator's research output. Only this template lives in git.
+Ninis Taqueria,ninis-taqueria,901 Main Ave,(970) 555-0101,https://ninisdurango.com,https://ninisdurango.com/menu.pdf,East 9th Street
+Cream Bean Berry,cream-bean-berry,1021 Main Ave,(970) 555-0102,https://creambeanberry.com,https://creambeanberry.com/menu,East 11th Street
+Olde Tymer's Cafe,olde-tymers-cafe,1000 Main Ave,(970) 555-0103,https://oldetymerscafe.com,https://oldetymerscafe.com/lunch.pdf,Historic Downtown
