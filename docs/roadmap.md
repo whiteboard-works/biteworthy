@@ -13,7 +13,7 @@ the merge / review / status rules.
 
 **Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`.
 
-1. **Phase 4.2 — Persistent "never hide this dish" override** (`docs/plans/phase-4.md#42`) — this PR
+1. **Phase 4.3 — Review API + photo attachment** (`docs/plans/phase-4.md#43`) — this PR
 3. **Phase 4.3 — Review API + photo attachment** (`docs/plans/phase-4.md#43`)
 4. **Phase 4.4 — Mobile review UX** (`docs/plans/phase-4.md#44`)
 5. **Phase 4.5 — Web review UX** (`docs/plans/phase-4.md#45`)
@@ -55,6 +55,7 @@ the merge / review / status rules.
 - ✅ Phase 3.9 — shareable filter URLs (#154) — **Phase 3 feature-complete**
 - ✅ Phase 4 — subplan committed (#155)
 - ✅ Phase 4.1 — real session cookies + login/signup (#156)
+- ✅ Phase 4.2 — persistent "never hide this dish" override (#157)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 

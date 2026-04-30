@@ -13,6 +13,28 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 10:00 — tick #63. PR #157 (Phase 4.2) merged at 10:04 UTC.
+Picked up Phase 4.3 — review API + photo attachment. The reviews
+table existed since Phase 0; this PR wires `has_one_attached :photo`
+on the model with size (≤5 MB) + content-type validation
+(image/jpeg|png|heic|heif|webp) and ships the four endpoints the
+mobile + web review UX needs in 4.4 / 4.5. New ReviewsController:
+GET /api/v1/items/:item_id/reviews (public, paginated newest-first
+with limit/offset, includes user payload + total), POST same path
+(authenticated, multipart for the optional photo, returns
+photo_url), PATCH and DELETE on /api/v1/reviews/:id (owner-gated,
+403 for non-owners). Photo URL helper builds rails_blob_url against
+PUBLIC_HOST when set or request.base_url otherwise — production
+deploys point at https://bite-worthy.com. PATCH treats `photo: ""`
+as "purge the existing photo." Tests: 16 request specs covering
+newest-first ordering, pagination, public access on index, the
+404 for unpublished items, auth boundary on create/update/destroy,
+photo round-trip via multipart fixture, oversized + wrong-type
+rejections, empty-string purge. New review factory at
+spec/factories/reviews.rb with realistic body samples. Local: rspec
+228/0/1 pending; pnpm typecheck/lint cached green (no JS/TS
+changes).
+
 2026-05-01 09:30 — tick #62. PR #156 (Phase 4.1) merged at 09:51 UTC.
 Picked up Phase 4.2 — persistent "never hide this dish" override.
 Closes the deferred half from Phase 3.4. New `user_item_overrides`

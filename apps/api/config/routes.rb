@@ -63,7 +63,9 @@ Rails.application.routes.draw do
           post   :never_hide, to: "item_overrides#create"
           delete :never_hide, to: "item_overrides#destroy"
         end
+        resources :reviews, only: [:index, :create]
       end
+      resources :reviews, only: [:update, :destroy]
       resources :ingestion_runs, only: [:create, :show] do
         resources :items, only: [:index, :update], controller: "ingestion_items"
       end
