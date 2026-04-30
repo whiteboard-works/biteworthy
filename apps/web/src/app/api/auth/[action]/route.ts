@@ -15,6 +15,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE } from '../../../../lib/server-auth';
 import { getServerJwt } from '../../../../lib/server-auth';
+import { buildAuthCookieOptions } from '../../../../lib/cookie-options';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -73,15 +74,7 @@ async function handleLoginOrSignup(action: string, body: CredentialsBody) {
 
   const userPayload = await upstream.json().catch(() => ({}));
   const response = NextResponse.json(userPayload, { status: 200 });
-  response.cookies.set({
-    name: SESSION_COOKIE,
-    value: token,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: COOKIE_MAX_AGE,
-  });
+  response.cookies.set(buildAuthCookieOptions(SESSION_COOKIE, token, COOKIE_MAX_AGE));
   return response;
 }
 
@@ -97,15 +90,7 @@ async function handleLogout() {
     }).catch(() => {});
   }
   const response = NextResponse.json({ ok: true }, { status: 200 });
-  response.cookies.set({
-    name: SESSION_COOKIE,
-    value: '',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
+  response.cookies.set(buildAuthCookieOptions(SESSION_COOKIE, '', 0));
   return response;
 }
 
