@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 15:21 — tick #73. PR #167 (Phase 4.11.1 cropper) merged at
+14:51 UTC. **Anthropic still capped** until 2026-05-01 00:00 UTC
+(~9h away) — skipped retry of the 4.11.0 cassette + 4.11.2 prompt
+work, pivoted to 4.11.3 (consumer-side promote/serialize) which has
+zero Anthropic dependency. Item gains `has_one_attached :photo`
+(reuses Phase 4.3's MAX_PHOTO_BYTES + ALLOWED_PHOTO_TYPES). Extended
+`IngestionItem#promote!` with a `attach_dish_photo!(created)` rescue
+block: when `image_bbox` is present, fetches the run's first source
+blob and crops via `Ingestion::DishPhotoCropper`, attaches the JPEG
+to the new Item.photo. Cropper failures (bad bbox, unreadable blob,
+no source) log + skip — promotion always succeeds so a single weird
+coordinate doesn't block the verify queue. Items endpoint serializer
+emits `photo_url` (signed `rails_blob_url` with PUBLIC_HOST/
+request.base_url fallback, mirrors Phase 4.3's review pattern);
+preloaded `photo_attachment: :blob` on both index + show to skip
+N+1. RestaurantItem TS types in web + mobile gain
+`photo_url: string | null`. Mobile factory updated with
+`photo_url: null` default. Tests: 5 new specs (4 promote behavior +
+1 serializer payload) — rspec 329/0/1 pending; pnpm typecheck +
+lint cached green; mobile + web vitest/jest green. Pre-4.11.2
+ingestions stay null on the bbox column so this is a no-op for
+them; once 4.11.2 lands, photos flow through with no further
+consumer changes. **Date fix**: prior tick #72 mis-stamped itself
+2026-05-01; actual UTC clock today is 2026-04-30 (PR #167 merge
+timestamp confirms).
+
 2026-05-01 14:30 — tick #72. PR #166 (Phase 4.11 plan + master fix) merged at 14:18 UTC.
 **Cassette PR (4.11.0) blocked again**: tried recording with the same
 sample.jpg, hit HTTP 400 "regain access on 2026-05-01 at 00:00 UTC"

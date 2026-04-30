@@ -78,5 +78,57 @@ RSpec.describe IngestionItem, type: :model do
 
       expect { orphan_item.promote! }.to raise_error(/no restaurant/)
     end
+
+    # Phase 4.11.3 — when Anthropic vision marked a per-dish photo on
+    # the source page (image_bbox jsonb populated by 4.11.2), promote!
+    # crops it out and attaches it to the new Item. Must be best-effort
+    # so a single bad bbox doesn't block the whole verify queue.
+    describe "dish photo attachment" do
+      let(:menu_path) { Rails.root.join("spec/fixtures/menus/sample.jpg") }
+
+      before do
+        run.inputs.attach(
+          io:           File.open(menu_path, "rb"),
+          filename:     "menu.jpg",
+          content_type: "image/jpeg"
+        )
+      end
+
+      it "attaches a cropped photo when image_bbox is present" do
+        item.update!(image_bbox: { "x" => 0.4, "y" => 0.4, "w" => 0.2, "h" => 0.2 })
+
+        promoted = item.promote!
+
+        expect(promoted.photo).to be_attached
+        expect(promoted.photo.content_type).to eq("image/jpeg")
+        expect(promoted.photo.byte_size).to be > 0
+      end
+
+      it "leaves photo unattached when image_bbox is nil" do
+        promoted = item.promote!
+        expect(promoted.photo).not_to be_attached
+      end
+
+      it "swallows cropper errors so promotion still succeeds" do
+        # Bad bbox (x out of range) makes DishPhotoCropper raise. The
+        # rescue must keep promotion succeeding without an attachment.
+        item.update!(image_bbox: { "x" => 1.5, "y" => 0.1, "w" => 0.1, "h" => 0.1 })
+
+        expect(Rails.logger).to receive(:warn).with(/InvalidBboxError/)
+        expect { item.promote! }.not_to raise_error
+        expect(item.reload.item.photo).not_to be_attached
+        expect(item.decision).to eq("accepted")
+      end
+
+      it "leaves photo unattached when the run has no source blob" do
+        # Edge case: bbox set but inputs purged (operator cleanup, etc.).
+        # Should silently skip rather than blow up.
+        run.inputs.purge
+        item.update!(image_bbox: { "x" => 0.4, "y" => 0.4, "w" => 0.2, "h" => 0.2 })
+
+        promoted = item.promote!
+        expect(promoted.photo).not_to be_attached
+      end
+    end
   end
 end

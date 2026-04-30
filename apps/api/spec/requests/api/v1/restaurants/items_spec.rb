@@ -357,4 +357,23 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "photo_url payload (Phase 4.11.3)" do
+    it "echoes a signed blob URL for items with an attached photo" do
+      carne_taco.photo.attach(
+        io:           StringIO.new("\xff\xd8\xff\xe0fake-jpeg-bytes".b),
+        filename:     "carne.jpg",
+        content_type: "image/jpeg"
+      )
+
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Carne Asada Taco"]["photo_url"]).to be_a(String)
+      expect(items["Carne Asada Taco"]["photo_url"]).to match(%r{/rails/active_storage/blobs/})
+      # Items without an attachment carry an explicit null so clients
+      # can pattern-match without an `in payload` check.
+      expect(items["Cheese Quesadilla"]["photo_url"]).to be_nil
+    end
+  end
 end

@@ -122,6 +122,7 @@ describe('groupItemsBySection', () => {
       menu_section_name: null,
       status: 'visible',
       reasons: [],
+      photo_url: null,
       ...overrides,
     };
   }

@@ -25,7 +25,7 @@ module Api
       def index
         restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
         items      = restaurant.items.published
-                               .includes(menu_section: :menu)
+                               .includes(menu_section: :menu, photo_attachment: :blob)
                                .order(popularity: :desc, name: :asc)
                                .to_a
 
@@ -48,7 +48,8 @@ module Api
       end
 
       def show
-        item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id]).items.published.find(params[:id])
+        item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
+                          .items.published.includes(photo_attachment: :blob).find(params[:id])
         filter = build_filter
         render json: serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]), review_counts_for([item]))
       end
@@ -176,8 +177,19 @@ module Api
           status:              reasons.empty? ? "visible" : "hidden",
           reasons:             reasons,
           overridden_by_user:  override_ids.include?(item.id),
-          reviews_count:       review_counts.fetch(item.id, 0)
+          reviews_count:       review_counts.fetch(item.id, 0),
+          photo_url:           photo_url_for(item)
         }
+      end
+
+      # Phase 4.11.3 — same shape as ReviewsController#photo_url_for.
+      # Returns the signed blob URL, falling back to the request's base
+      # URL when PUBLIC_HOST isn't set (dev / CI). Production deploys
+      # set PUBLIC_HOST so URLs work for clients on a different origin.
+      def photo_url_for(item)
+        return nil unless item.photo.attached?
+        host = ENV["PUBLIC_HOST"].presence || request.base_url
+        Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: host)
       end
 
       # Phase 4.4 — bulk-load review counts for the items in the
