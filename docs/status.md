@@ -13,6 +13,44 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 19:45 — tick #82. PR #175 (Phase 5.4 web deploy wiring)
+merged at 19:18 UTC, all CI green. Anthropic still capped (~4.3h
+to reset); cassette PR stays BLOCKED. Picked the next unblocked
+Next-up item: **Phase 5.5 — marketing landing page at /**.
+Replaced the "Pre-MVP" placeholder home page with the real launch
+landing. Pure SSR, Tailwind-only, ui-tokens colors. Shipped:
+- **Hero** with one-line value prop ("Scan any menu, see only
+  what you can eat."), subhead, primary CTA → /onboarding (entry
+  to the Phase 3.2/3.8 6-tap profile flow). iOS + Android render
+  as "Coming soon" badges until Phase 5.9 lands real store URLs
+  — honest scope vs fake hrefs that 404 on launch announcement.
+- **Three-up feature row** (Scan / Pick filter / See safe dishes)
+  on a soft `bg-bite-light/30` background.
+- **Durango note** explicit launch-market positioning ("30
+  independent restaurants, not chains").
+- **Footer** with copyright, /privacy /terms /press placeholders
+  (Phase 5.9 + 5.10 ship the actual pages — links are markup-
+  stable across PRs), real GitHub link.
+- **Open Graph + Twitter card metadata** via Next 13+ `metadata`
+  export. Pulled into pure-TS `apps/web/src/lib/landing-meta.ts`
+  so the strings are unit-testable. `metadataBase` derived from
+  `NEXT_PUBLIC_SITE_URL`; preview deploys still emit a canonical
+  `/` so SEO doesn't split across vercel.app subdomains.
+5 new vitest cases for `buildLandingMetadata` (title/description,
+trailing-slash stripping in OG URL + image, Twitter
+summary_large_image, canonical, OG siteName). Web vitest 77/77
+(+5). One tsc gotcha caught during spec authoring: Next 16's
+`Twitter` type is a discriminated union — `meta.twitter?.card`
+only resolves with narrowing. Fixed via a local cast in the
+spec; production code stays type-correct. Local: pnpm typecheck
++ lint full-turbo green; rspec 349/0/1 unchanged. Roadmap:
+ticked 5.4 (#175); reordered Next-up. Eager-rebase applied.
+**Phase 5 production infrastructure stays structurally complete**;
+this PR opens the public-surface bucket. Next tick: 5.6
+(/durango/[diet] SEO pages — sitemap hook from #175 already
+ready) — OR if the Anthropic cap clears at 00:00 UTC (~4h
+from now), finally retry the cassette PR.
+
 2026-04-30 19:17 — tick #81. PR #174 (Phase 5.3 R2 blob storage)
 merged at 18:48 UTC, all CI green. Anthropic still capped (~4.7h
 to reset); cassette PR stays BLOCKED. Picked the next unblocked
