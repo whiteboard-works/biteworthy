@@ -1,8 +1,10 @@
 import {
+  clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
   groupItemsBySection,
   RestaurantFetchError,
+  setNeverHide,
   type Restaurant,
   type RestaurantItem,
   type RestaurantItemsResponse,
@@ -169,5 +171,40 @@ describe('groupItemsBySection', () => {
 
   it('returns an empty array for no items', () => {
     expect(groupItemsBySection([])).toEqual([]);
+  });
+});
+
+describe('setNeverHide / clearNeverHide (Phase 4.2)', () => {
+  it('POSTs with Bearer JWT and returns the new state', async () => {
+    const fetchImpl = fakeFetch(200, { item_id: 'item-1', overridden_by_user: true });
+    const result = await setNeverHide('item-1', 'jjj.www.ttt', { fetchImpl });
+    expect(result.overridden_by_user).toBe(true);
+
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toContain('/api/v1/items/item-1/never_hide');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+  });
+
+  it('DELETE clears the override', async () => {
+    const fetchImpl = fakeFetch(200, { item_id: 'item-1', overridden_by_user: false });
+    const result = await clearNeverHide('item-1', 'jwt', { fetchImpl });
+    expect(result.overridden_by_user).toBe(false);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('encodes item ids that contain reserved URL chars', async () => {
+    const fetchImpl = fakeFetch(200, { item_id: 'a/b', overridden_by_user: true });
+    await setNeverHide('a/b', 'jwt', { fetchImpl });
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('/items/a%2Fb/never_hide');
+  });
+
+  it('throws RestaurantFetchError on non-2xx', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'unauth' });
+    await expect(setNeverHide('item-1', 'bad', { fetchImpl })).rejects.toBeInstanceOf(
+      RestaurantFetchError,
+    );
   });
 });

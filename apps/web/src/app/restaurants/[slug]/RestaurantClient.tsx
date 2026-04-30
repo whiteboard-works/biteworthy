@@ -11,7 +11,9 @@ import {
   type Strictness,
 } from '@biteworthy/filter-engine';
 import {
+  clearNeverHide,
   fetchRestaurantItems,
+  setNeverHide,
   type FilterSummary,
   type Restaurant,
   type RestaurantItem,
@@ -91,6 +93,29 @@ export function RestaurantClient({
     });
   };
 
+  // Phase 4.2 — flip an item's persistent override and patch local
+  // state in place so the UI updates without a full refetch.
+  const setPersistentOverride = async (itemId: string, next: boolean) => {
+    try {
+      if (next) await setNeverHide(itemId);
+      else await clearNeverHide(itemId);
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    setSections((prev) =>
+      prev.map((section) => ({
+        ...section,
+        visible: section.visible.map((it) =>
+          it.id === itemId ? { ...it, overridden_by_user: next } : it,
+        ),
+        hidden: section.hidden.map((it) =>
+          it.id === itemId ? { ...it, overridden_by_user: next } : it,
+        ),
+      })),
+    );
+  };
+
   const totalHidden = overriddenSections.reduce((acc, s) => acc + s.hidden.length, 0);
   const totalVisible = overriddenSections.reduce((acc, s) => acc + s.visible.length, 0);
 
@@ -134,6 +159,7 @@ export function RestaurantClient({
           section={section}
           shownAnyway={shownAnyway}
           onToggleOverride={toggleOverride}
+          onSetPersistentOverride={setPersistentOverride}
         />
       ))}
     </main>
@@ -200,10 +226,12 @@ function SectionBlock({
   section,
   shownAnyway,
   onToggleOverride,
+  onSetPersistentOverride,
 }: {
   section: ItemSection<RestaurantItem>;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
+  onSetPersistentOverride: (itemId: string, next: boolean) => void;
 }) {
   const [hiddenOpen, setHiddenOpen] = useState(false);
   return (
@@ -214,8 +242,9 @@ function SectionBlock({
           <ItemRow
             key={item.id}
             item={item}
-            overridden={shownAnyway.has(item.id)}
+            overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
             onToggleOverride={onToggleOverride}
+            onSetPersistentOverride={onSetPersistentOverride}
           />
         ))}
         {section.visible.length === 0 && section.hidden.length > 0 && (
@@ -249,6 +278,7 @@ function SectionBlock({
               hidden
               overridden={false}
               onToggleOverride={onToggleOverride}
+              onSetPersistentOverride={onSetPersistentOverride}
             />
           ))}
         </ul>
@@ -262,15 +292,19 @@ function ItemRow({
   hidden = false,
   overridden,
   onToggleOverride,
+  onSetPersistentOverride,
 }: {
   item: RestaurantItem;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
+  onSetPersistentOverride: (itemId: string, next: boolean) => void;
 }) {
   // Item shown in the visible list but with reasons[] = the user
-  // tapped "Show anyway". Keep chips visible as a transparency cue.
+  // tapped "Show anyway" (session) or set "never hide" (persistent).
+  // Keep chips visible as a transparency cue.
   const showChips = hidden || overridden;
+  const persistent = item.overridden_by_user === true;
   return (
     <li
       data-testid={`item-${item.id}`}
@@ -292,13 +326,38 @@ function ItemRow({
       )}
 
       {item.reasons.length > 0 && (
-        <button
-          type="button"
-          onClick={() => onToggleOverride(item.id)}
-          className="mt-bw-2 text-bw-sm font-semibold text-bite hover:text-bite-dark"
-        >
-          {overridden ? 'Hide again' : 'Show anyway'}
-        </button>
+        <div className="mt-bw-2 flex flex-wrap gap-bw-3 text-bw-sm font-semibold">
+          {persistent ? (
+            <button
+              type="button"
+              onClick={() => onSetPersistentOverride(item.id, false)}
+              data-testid={`undo-never-hide-${item.id}`}
+              className="text-bite hover:text-bite-dark"
+            >
+              Always shown — undo
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onToggleOverride(item.id)}
+                className="text-bite hover:text-bite-dark"
+              >
+                {overridden ? 'Hide again' : 'Show anyway'}
+              </button>
+              {overridden && (
+                <button
+                  type="button"
+                  onClick={() => onSetPersistentOverride(item.id, true)}
+                  data-testid={`set-never-hide-${item.id}`}
+                  className="text-zinc-600 hover:text-zinc-800"
+                >
+                  Never hide this dish
+                </button>
+              )}
+            </>
+          )}
+        </div>
       )}
     </li>
   );

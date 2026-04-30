@@ -29,9 +29,10 @@ module Api
                                .order(popularity: :desc, name: :asc)
                                .to_a
 
-        filter = build_filter
-        labels = build_label_lookup(items, filter)
-        rendered = items.map { |item| serialize_item(item, filter, labels) }
+        filter   = build_filter
+        labels   = build_label_lookup(items, filter)
+        override_ids = current_user_override_item_ids(items)
+        rendered = items.map { |item| serialize_item(item, filter, labels, override_ids) }
 
         render json: {
           restaurant_id: restaurant.id,
@@ -43,7 +44,7 @@ module Api
       def show
         item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id]).items.published.find(params[:id])
         filter = build_filter
-        render json: serialize_item(item, filter, build_label_lookup([item], filter))
+        render json: serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]))
       end
 
       private
@@ -152,23 +153,37 @@ module Api
 
       # Try to keep this stable — mobile + web bind to these keys via
       # generated TS types; Phase 1.6's openapi.json should match.
-      def serialize_item(item, filter, labels)
+      def serialize_item(item, filter, labels, override_ids = Set.new)
         reasons = hide_reasons(item, filter, labels)
         section = item.menu_section
         {
-          id:                 item.id,
-          restaurant_id:      item.restaurant_id,
-          name:               item.name,
-          description:        item.description,
-          confidence:         item.confidence,
-          popularity:         item.popularity,
-          ingredient_ids:     item.ingredient_ids,
-          tag_ids:            item.tag_ids,
-          menu_section_id:    section&.id,
-          menu_section_name:  section&.name,
-          status:             reasons.empty? ? "visible" : "hidden",
-          reasons:            reasons
+          id:                  item.id,
+          restaurant_id:       item.restaurant_id,
+          name:                item.name,
+          description:         item.description,
+          confidence:          item.confidence,
+          popularity:          item.popularity,
+          ingredient_ids:      item.ingredient_ids,
+          tag_ids:             item.tag_ids,
+          menu_section_id:     section&.id,
+          menu_section_name:   section&.name,
+          status:              reasons.empty? ? "visible" : "hidden",
+          reasons:             reasons,
+          overridden_by_user:  override_ids.include?(item.id)
         }
+      end
+
+      # Phase 4.2 — bulk-load the authenticated user's "never hide"
+      # overrides for the items in this response. Returns an empty
+      # Set when anonymous so the boolean stays accurate (anonymous
+      # callers always see `overridden_by_user: false`).
+      def current_user_override_item_ids(items)
+        return Set.new unless current_user
+        ids = items.map(&:id)
+        return Set.new if ids.empty?
+        Set.new(
+          UserItemOverride.where(user_id: current_user.id, item_id: ids, never_hide: true).pluck(:item_id)
+        )
       end
 
       def filter_summary(filter)

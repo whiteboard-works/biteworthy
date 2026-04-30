@@ -54,6 +54,8 @@ export interface RestaurantItem extends FilterableItem {
   popularity: number;
   status: ItemStatus;
   reasons: HideReason[];
+  /** Phase 4.2 — set by the API when authenticated. */
+  overridden_by_user?: boolean;
 }
 
 export interface FilterSummary {
@@ -115,3 +117,35 @@ export async function fetchRestaurantItems(
 
 // Re-export from filter-engine so mobile callers don't need a second import.
 export { groupItemsBySection } from '@biteworthy/filter-engine';
+
+/**
+ * Phase 4.2 — POST/DELETE the persistent never-hide override.
+ * Idempotent on both ends; returns the new state.
+ */
+export async function setNeverHide(
+  itemId: string,
+  jwt: string,
+  opts: FetchOptions = {},
+): Promise<{ item_id: string; overridden_by_user: boolean }> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/items/${encodeURIComponent(itemId)}/never_hide`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new RestaurantFetchError(res.status, `setNeverHide ${itemId} failed: ${res.status}`);
+  return (await res.json()) as { item_id: string; overridden_by_user: boolean };
+}
+
+export async function clearNeverHide(
+  itemId: string,
+  jwt: string,
+  opts: FetchOptions = {},
+): Promise<{ item_id: string; overridden_by_user: boolean }> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/items/${encodeURIComponent(itemId)}/never_hide`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new RestaurantFetchError(res.status, `clearNeverHide ${itemId} failed: ${res.status}`);
+  return (await res.json()) as { item_id: string; overridden_by_user: boolean };
+}

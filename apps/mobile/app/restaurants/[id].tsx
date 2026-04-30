@@ -20,8 +20,10 @@ import {
 import { buildShareUrl } from '../../lib/share-url';
 import { getJwt } from '../../lib/auth';
 import {
+  clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
+  setNeverHide,
   type FilterSummary,
   type Restaurant,
   type RestaurantItem,
@@ -130,6 +132,31 @@ export default function RestaurantScreen() {
     });
   };
 
+  // Phase 4.2 — flip an item's persistent override server-side and
+  // patch local state so the chip updates without a full refetch.
+  // No-op without a JWT — the screen falls back to session overrides.
+  const setPersistentOverride = async (itemId: string, next: boolean) => {
+    if (!jwt) return;
+    try {
+      if (next) await setNeverHide(itemId, jwt);
+      else await clearNeverHide(itemId, jwt);
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    setSections((prev) =>
+      prev.map((section) => ({
+        ...section,
+        visible: section.visible.map((it) =>
+          it.id === itemId ? { ...it, overridden_by_user: next } : it,
+        ),
+        hidden: section.hidden.map((it) =>
+          it.id === itemId ? { ...it, overridden_by_user: next } : it,
+        ),
+      })),
+    );
+  };
+
   const overriddenSections = useMemo(
     () => applyOverrides(sections, shownAnyway),
     [sections, shownAnyway],
@@ -179,6 +206,8 @@ export default function RestaurantScreen() {
           section={section}
           shownAnyway={shownAnyway}
           onToggleOverride={toggleOverride}
+          onSetPersistentOverride={setPersistentOverride}
+          allowPersistent={!!jwt}
         />
       ))}
 
@@ -275,10 +304,14 @@ function SectionBlock({
   section,
   shownAnyway,
   onToggleOverride,
+  onSetPersistentOverride,
+  allowPersistent,
 }: {
   section: ItemSection<RestaurantItem>;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
+  onSetPersistentOverride: (itemId: string, next: boolean) => void;
+  allowPersistent: boolean;
 }) {
   const [hiddenOpen, setHiddenOpen] = useState(false);
   return (
@@ -289,8 +322,10 @@ function SectionBlock({
         <ItemRow
           key={item.id}
           item={item}
-          overridden={shownAnyway.has(item.id)}
+          overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
           onToggleOverride={onToggleOverride}
+          onSetPersistentOverride={onSetPersistentOverride}
+          allowPersistent={allowPersistent}
         />
       ))}
 
@@ -321,6 +356,8 @@ function SectionBlock({
             hidden
             overridden={false}
             onToggleOverride={onToggleOverride}
+            onSetPersistentOverride={onSetPersistentOverride}
+            allowPersistent={allowPersistent}
           />
         ))}
     </View>
@@ -332,11 +369,15 @@ function ItemRow({
   hidden = false,
   overridden,
   onToggleOverride,
+  onSetPersistentOverride,
+  allowPersistent,
 }: {
   item: RestaurantItem;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
+  onSetPersistentOverride: (itemId: string, next: boolean) => void;
+  allowPersistent: boolean;
 }) {
   // An item with reasons but rendered in the visible column means the
   // user tapped "show anyway" — keep the chips visible as a cue.
@@ -362,15 +403,38 @@ function ItemRow({
       )}
 
       {item.reasons.length > 0 && (
-        <Pressable
-          accessibilityLabel={`toggle-override-${item.id}`}
-          onPress={() => onToggleOverride(item.id)}
-          style={styles.overrideButton}
-        >
-          <Text style={styles.overrideText}>
-            {overridden ? 'Hide again' : 'Show anyway'}
-          </Text>
-        </Pressable>
+        <View style={styles.overrideRow}>
+          {item.overridden_by_user ? (
+            <Pressable
+              accessibilityLabel={`undo-never-hide-${item.id}`}
+              onPress={() => onSetPersistentOverride(item.id, false)}
+              style={styles.overrideButton}
+            >
+              <Text style={styles.overrideText}>Always shown — undo</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                accessibilityLabel={`toggle-override-${item.id}`}
+                onPress={() => onToggleOverride(item.id)}
+                style={styles.overrideButton}
+              >
+                <Text style={styles.overrideText}>
+                  {overridden ? 'Hide again' : 'Show anyway'}
+                </Text>
+              </Pressable>
+              {overridden && allowPersistent && (
+                <Pressable
+                  accessibilityLabel={`set-never-hide-${item.id}`}
+                  onPress={() => onSetPersistentOverride(item.id, true)}
+                  style={styles.overrideButton}
+                >
+                  <Text style={styles.persistentOverrideText}>Never hide this dish</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
       )}
     </View>
   );
@@ -548,13 +612,23 @@ const styles = StyleSheet.create({
     color: colors.hide,
     fontWeight: '600',
   },
+  overrideRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space['3'],
+    marginTop: space['1'],
+  },
   overrideButton: {
-    marginTop: space['2'],
     paddingVertical: space['1'],
     alignSelf: 'flex-start',
   },
   overrideText: {
     color: colors.bite,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
+  persistentOverrideText: {
+    color: colors.textMuted,
     fontSize: fontSize.sm,
     fontWeight: '600',
   },

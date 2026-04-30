@@ -58,6 +58,12 @@ Rails.application.routes.draw do
       resources :ingredients, only: [:index]
       resources :tags, only: [:index]
       resources :dietary_profiles, only: [:index]
+      resources :items, only: [] do
+        member do
+          post   :never_hide, to: "item_overrides#create"
+          delete :never_hide, to: "item_overrides#destroy"
+        end
+      end
       resources :ingestion_runs, only: [:create, :show] do
         resources :items, only: [:index, :update], controller: "ingestion_items"
       end
