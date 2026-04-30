@@ -9,8 +9,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { getJwt } from '../../lib/auth';
 import {
   decideIngestionItem,
   getIngestionRun,
@@ -22,22 +23,36 @@ import {
 const POLL_INTERVAL_MS = 2_000;
 
 /**
- * Phase 2.7 — swipe-verify deck.
+ * Phase 2.7 + 4.1 — swipe-verify deck.
  *
- * Routed at `/ingest/verify?runId=...&jwt=...`. While the run is in
+ * Routed at `/ingest/verify?runId=...`. JWT comes from the keychain
+ * (Phase 4.1 — `getJwt()` from lib/auth). While the run is in
  * `:queued / :extracting / :resolving`, polls every 2s. Once status
  * hits `:staged`, fetches the items and shows a one-at-a-time card
  * with Accept / Reject / Edit buttons.
  *
- * Phase 2.7 ships the tap-to-decide flow + the polling. The
+ * Phase 2.7 shipped the tap-to-decide flow + the polling. The
  * Tinder-style swipe gestures (react-native-gesture-handler +
  * reanimated worklets) come in a follow-up after the on-device
  * testing pass — the data wiring is what matters for end-to-end.
  */
 export default function VerifyScreen() {
-  const params = useLocalSearchParams<{ runId?: string; jwt?: string }>();
+  const params = useLocalSearchParams<{ runId?: string }>();
   const runId = params.runId ?? '';
-  const jwt = params.jwt ?? '';
+  const [jwt, setJwtState] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getJwt().then((t) => {
+      if (cancelled) return;
+      setJwtState(t);
+      setAuthChecked(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [run, setRun] = useState<IngestionRunPayload | null>(null);
   const [items, setItems] = useState<IngestionItemPayload[]>([]);
@@ -81,7 +96,7 @@ export default function VerifyScreen() {
 
   const decide = useCallback(
     async (decision: 'accepted' | 'rejected' | 'edited') => {
-      if (!current) return;
+      if (!current || !jwt) return;
       try {
         const edits =
           decision === 'edited' || decision === 'accepted'
@@ -105,10 +120,22 @@ export default function VerifyScreen() {
     [current, runId, jwt, editName, editDescription],
   );
 
-  if (!runId || !jwt) {
+  if (!runId) {
     return (
       <View style={styles.container}>
-        <Text style={styles.body}>Missing runId or jwt query params.</Text>
+        <Text style={styles.body}>Missing runId query param.</Text>
+      </View>
+    );
+  }
+
+  if (authChecked && !jwt) {
+    router.replace('/login?next=' + encodeURIComponent(`/ingest/verify?runId=${runId}`));
+    return null;
+  }
+  if (!authChecked) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={colors.bite} />
       </View>
     );
   }

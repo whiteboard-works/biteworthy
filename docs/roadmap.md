@@ -11,9 +11,9 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
+**Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`.
 
-1. **Phase 4.1 — Real session cookies (retire JWT-pasting)** (`docs/plans/phase-4.md#41`) — this PR is the plan
+1. **Phase 4.1 — Real session cookies (retire JWT-pasting)** (`docs/plans/phase-4.md#41`) — this PR
 2. **Phase 4.2 — Persistent "never hide this dish" override** (`docs/plans/phase-4.md#42`)
 3. **Phase 4.3 — Review API + photo attachment** (`docs/plans/phase-4.md#43`)
 4. **Phase 4.4 — Mobile review UX** (`docs/plans/phase-4.md#44`)
@@ -54,6 +54,7 @@ the merge / review / status rules.
 - ✅ Phase 3.7 — applyProfile + display helpers consolidated in filter-engine (#152)
 - ✅ Phase 3.8 — web profile onboarding (#153)
 - ✅ Phase 3.9 — shareable filter URLs (#154) — **Phase 3 feature-complete**
+- ✅ Phase 4 — subplan committed (#155)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 

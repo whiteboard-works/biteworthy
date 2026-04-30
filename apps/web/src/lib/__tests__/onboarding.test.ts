@@ -78,17 +78,21 @@ describe('saveProfile', () => {
     strictness: 'balanced',
   };
 
-  it('PATCHes /api/v1/profile with the payload + Bearer auth', async () => {
+  it('PATCHes the Next proxy at /api/profile with credentials (no client-side JWT)', async () => {
     const fetchImpl = fakeFetch(200, {});
-    await saveProfile(payload, 'jjj.www.ttt', { fetchImpl });
+    await saveProfile(payload, { fetchImpl });
+    const url = String(fetchImpl.mock.calls[0]![0]);
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toBe('/api/profile');
     expect(init.method).toBe('PATCH');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+    expect(init.credentials).toBe('same-origin');
+    // The Next proxy injects the Authorization header from the cookie.
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
     expect(JSON.parse(init.body as string)).toEqual(payload);
   });
 
-  it('throws on non-2xx', async () => {
-    const fetchImpl = fakeFetch(422, { error: 'invalid' });
-    await expect(saveProfile(payload, 'jwt', { fetchImpl })).rejects.toThrow(/422/);
+  it('throws on non-2xx so the screen can route a 401 to /login', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'Not signed in' });
+    await expect(saveProfile(payload, { fetchImpl })).rejects.toThrow(/401/);
   });
 });

@@ -25,6 +25,7 @@ import {
   searchIngredients,
   type IngredientSearchResult,
 } from '../../lib/api/onboarding';
+import { getJwt } from '../../lib/auth';
 
 /**
  * Phase 3.2 — 6-tap onboarding to a working dietary filter.
@@ -32,11 +33,11 @@ import {
  *   1. Pick presets ("What can't you eat?")
  *   2. Add specific ingredients ("Anything else?")
  *   3. Set strictness ("How strict?")
- *   4. Done → PATCH /api/v1/profile, navigate to ingest/restaurant
- *      picker (out of scope for 3.2 — for now just shows success).
+ *   4. Done → PATCH /api/v1/profile, navigate to /.
  *
- * The JWT is taken as a query param until Phase 4 wires
- * `expo-secure-store`. Same pattern as ingest/verify screens.
+ * Phase 4.1 dropped the paste-the-JWT field; auth comes from the
+ * keychain-backed token stored by /login. A 401 means the session
+ * expired — the user is bounced to /login?next=/onboarding.
  */
 type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
 
@@ -48,7 +49,6 @@ export default function OnboardingScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IngredientSearchResult[]>([]);
   const [searchedIngredients, setSearchedIngredients] = useState<Map<string, IngredientSearchResult>>(new Map());
-  const [jwt, setJwt] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Load presets once.
@@ -80,8 +80,9 @@ export default function OnboardingScreen() {
   }, [searchQuery, step]);
 
   const finalize = async () => {
+    const jwt = await getJwt();
     if (!jwt) {
-      Alert.alert('JWT required', 'Paste a JWT — Phase 4 will swap to secure-store.');
+      router.replace('/login?next=%2Fonboarding');
       return;
     }
     try {
@@ -90,7 +91,12 @@ export default function OnboardingScreen() {
       Alert.alert('Profile saved', 'Your dietary filter is ready.');
       router.replace('/');
     } catch (e) {
-      Alert.alert('Save failed', (e as Error).message);
+      const message = (e as Error).message;
+      if (message.includes('401')) {
+        router.replace('/login?next=%2Fonboarding');
+        return;
+      }
+      Alert.alert('Save failed', message);
     } finally {
       setSaving(false);
     }
@@ -240,16 +246,6 @@ export default function OnboardingScreen() {
           {draft.manualIngredientIds.length} ingredient{draft.manualIngredientIds.length === 1 ? '' : 's'}
         </Text>, strictness <Text style={{ fontWeight: '700' }}>{draft.strictness}</Text>.
       </Text>
-
-      <TextInput
-        accessibilityLabel="jwt"
-        placeholder="JWT (paste from /api/v1/auth/login)"
-        value={jwt}
-        onChangeText={setJwt}
-        autoCapitalize="none"
-        secureTextEntry
-        style={styles.input}
-      />
 
       <Pressable
         accessibilityLabel="finish"

@@ -1,9 +1,10 @@
 /**
- * Phase 2.8 — web client for `POST /api/v1/ingestion_runs`.
- * Supports both source-URL and file-upload (PDF) modes.
+ * Phase 2.8 + 4.1 — web client for ingestion runs.
+ *
+ * Posts to the Next proxy at `/api/ingestion_runs` (which reads the
+ * `bw_session` cookie and forwards to Rails as a Bearer header), so
+ * the browser never needs to know the JWT.
  */
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
 
 export interface IngestionRunPayload {
   id: string;
@@ -38,16 +39,16 @@ export class IngestionRequestError extends Error {
 
 async function postIngestionRun(
   body: BodyInit,
-  jwt: string,
   fetchImpl: typeof fetch,
   isMultipart: boolean,
 ): Promise<IngestionRunPayload> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` };
+  const headers: Record<string, string> = {};
   if (!isMultipart) headers['Content-Type'] = 'application/json';
 
-  const res = await fetchImpl(`${API_BASE}/api/v1/ingestion_runs`, {
+  const res = await fetchImpl('/api/ingestion_runs', {
     method: 'POST',
     headers,
+    credentials: 'same-origin',
     body,
   });
   if (!res.ok) {
@@ -65,13 +66,11 @@ async function postIngestionRun(
 export async function ingestFromUrl(opts: {
   restaurantId: string;
   sourceUrl: string;
-  jwt: string;
   fetchImpl?: typeof fetch;
 }): Promise<IngestionRunPayload> {
-  const { restaurantId, sourceUrl, jwt, fetchImpl = fetch } = opts;
+  const { restaurantId, sourceUrl, fetchImpl = fetch } = opts;
   return postIngestionRun(
     JSON.stringify({ restaurant_id: restaurantId, source_url: sourceUrl }),
-    jwt,
     fetchImpl,
     false,
   );
@@ -80,12 +79,11 @@ export async function ingestFromUrl(opts: {
 export async function ingestFromFile(opts: {
   restaurantId: string;
   file: File;
-  jwt: string;
   fetchImpl?: typeof fetch;
 }): Promise<IngestionRunPayload> {
-  const { restaurantId, file, jwt, fetchImpl = fetch } = opts;
+  const { restaurantId, file, fetchImpl = fetch } = opts;
   const form = new FormData();
   form.append('restaurant_id', restaurantId);
   form.append('inputs[]', file, file.name);
-  return postIngestionRun(form, jwt, fetchImpl, true);
+  return postIngestionRun(form, fetchImpl, true);
 }

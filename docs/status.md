@@ -13,6 +13,35 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 09:00 — tick #61. PR #155 (Phase 4 plan) merged at 08:47 UTC.
+**Major user unblocks during this tick**: ANTHROPIC_API_KEY now in
+GitHub Actions secrets + local .env, and bite-worthy.com domain
+purchased. Documented as a punch-list response; user requested
+continuing the planned flow. Picked up Phase 4.1 — retire the
+JWT-paste workaround Phases 1–3 deferred. Web side: new
+`apps/web/src/lib/auth.ts` (login/signup/logout client helpers
+posting to Next API routes) + `apps/web/src/lib/server-auth.ts`
+(`getServerJwt` for SSR cookie reads). Three new Next API routes:
+`api/auth/[action]` proxies to Rails + sets HttpOnly bw_session
+cookie; `api/profile` PATCH proxies with the cookie's JWT;
+`api/ingestion_runs` POST proxies multipart + JSON. New
+/login + /signup pages with `?next=…` redirect. Updated /onboarding
++ /ingest to drop JWT input fields; 401s bounce to /login. Mobile
+side: `apps/mobile/lib/auth.ts` wrapping expo-secure-store
+(getJwt/setJwt/clearJwt + login/signup/logout that pull JWT off
+Authorization response header). New /login + /signup screens.
+Updated /onboarding + /ingest + /ingest/verify + /restaurants/[id]
+to read JWT from keychain instead of paste/query-param. Tests:
+9 new vitest cases for auth.ts, 11 new jest cases for the mobile
+auth wrapper (round-trip, error fallback, header extraction,
+best-effort logout). Existing ingestion + onboarding tests
+updated to assert the new proxy URL + no client-side Authorization
+header. Two flaky admin specs (admin_spec, dashboard_spec) that
+broke when the user's .env set a non-default ADMIN_PASSWORD —
+fixed with `around` hooks that pin the env vars during the spec
+and restore on teardown. Local: rspec 199/0/1 pending; web vitest
+27/27; mobile jest 35/35; pnpm typecheck/lint cached green.
+
 2026-05-01 08:30 — tick #60. PR #154 (Phase 3.9) merged at 08:38 UTC.
 **Phase 3 feature-complete** (3.1–3.9 all merged: seeds → mobile
 onboarding → mobile restaurant page → transparency chips →

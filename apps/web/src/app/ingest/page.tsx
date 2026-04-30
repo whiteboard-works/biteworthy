@@ -1,27 +1,30 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ingestFromFile,
   ingestFromUrl,
+  IngestionRequestError,
   type IngestionRunPayload,
 } from '../../lib/ingestion';
 
 /**
- * Phase 2.8 — admin entrypoint for AI ingestion via web.
+ * Phase 2.8 + 4.1 — admin entrypoint for AI ingestion via web.
  *
  * Two parallel ways to start a run:
  *   1. Paste a restaurant menu URL (HTML or PDF). Server-side
  *      `UrlFetcher` downloads it and attaches the body.
  *   2. Drop a PDF file. Same backend pipeline from the multipart side.
  *
- * Either way, the response carries the IngestionRun id; admin then
- * polls `/admin` (Avo) or, eventually, a follow-up web verify view
- * that mirrors the mobile swipe deck (out of scope for 2.8).
+ * Phase 4.1 dropped the JWT-paste field; auth comes from the
+ * `bw_session` cookie set by `/login`. A 401 from the proxy bounces
+ * the user to /login?next=/ingest.
  */
 export default function IngestPage() {
+  const router = useRouter();
+
   const [restaurantId, setRestaurantId] = useState('');
-  const [jwt, setJwt] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -31,8 +34,8 @@ export default function IngestPage() {
   const submit = async (mode: 'url' | 'file') => {
     setError(null);
     setResult(null);
-    if (!restaurantId || !jwt) {
-      setError('Restaurant id + JWT are required.');
+    if (!restaurantId) {
+      setError('Restaurant id is required.');
       return;
     }
     if (mode === 'url' && !sourceUrl) {
@@ -48,10 +51,14 @@ export default function IngestPage() {
       setSubmitting(true);
       const run =
         mode === 'url'
-          ? await ingestFromUrl({ restaurantId, sourceUrl, jwt })
-          : await ingestFromFile({ restaurantId, file: file!, jwt });
+          ? await ingestFromUrl({ restaurantId, sourceUrl })
+          : await ingestFromFile({ restaurantId, file: file! });
       setResult(run);
     } catch (e) {
+      if (e instanceof IngestionRequestError && e.status === 401) {
+        router.replace(`/login?next=${encodeURIComponent('/ingest')}`);
+        return;
+      }
       setError((e as Error).message);
     } finally {
       setSubmitting(false);
@@ -80,16 +87,6 @@ export default function IngestPage() {
             onChange={(e) => setRestaurantId(e.target.value)}
             className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm"
             placeholder="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">JWT</span>
-          <input
-            type="password"
-            value={jwt}
-            onChange={(e) => setJwt(e.target.value)}
-            className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm"
-            placeholder="paste the bearer token from /api/v1/auth/login"
           />
         </label>
       </section>
