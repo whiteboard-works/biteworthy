@@ -80,6 +80,64 @@ RSpec.describe "Ingestion runs API", type: :request do
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["input_kind"]).to eq("pdf")
     end
+
+    context "with source_url (Phase 2.8)" do
+      let(:menu_url) { "https://durango-restaurants.example/cream-bean-berry/menu" }
+
+      it "fetches the URL, attaches the response, and 201s with input_kind=url for HTML" do
+        allow(ExtractMenuJob).to receive(:perform_later)
+        stub_request(:get, menu_url).to_return(
+          status: 200,
+          body: "<html>menu html</html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect {
+          post "/api/v1/ingestion_runs",
+               params: { restaurant_id: restaurant.id, source_url: menu_url },
+               headers: auth_for(admin)
+        }.to change(IngestionRun, :count).by(1)
+
+        expect(response).to have_http_status(:created)
+        body = response.parsed_body
+        expect(body["input_kind"]).to    eq("url")
+        expect(body["input_count"]).to   eq(1)
+
+        run = IngestionRun.last
+        expect(run.source_url).to eq(menu_url)
+        expect(run.inputs).to be_attached
+      end
+
+      it "uses input_kind=pdf when the URL serves a PDF" do
+        allow(ExtractMenuJob).to receive(:perform_later)
+        stub_request(:get, "#{menu_url}.pdf").to_return(
+          status: 200,
+          body: "%PDF-1.4 fake",
+          headers: { "Content-Type" => "application/pdf" }
+        )
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, source_url: "#{menu_url}.pdf" },
+             headers: auth_for(admin)
+
+        expect(response).to have_http_status(:created)
+        expect(response.parsed_body["input_kind"]).to eq("pdf")
+      end
+
+      it "422s when the upstream URL returns non-2xx" do
+        stub_request(:get, menu_url).to_return(status: 503)
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, source_url: menu_url },
+             headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        body = response.parsed_body
+        expect(body["error"]).to  eq("url_fetch_failed")
+        expect(body["reason"]).to eq("non_2xx")
+        expect(body["status"]).to eq(503)
+      end
+    end
   end
 
   describe "GET /api/v1/ingestion_runs/:id" do

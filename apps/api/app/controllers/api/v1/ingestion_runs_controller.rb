@@ -13,22 +13,19 @@ module Api
 
       def create
         restaurant = Restaurant.find(params.require(:restaurant_id))
-        files      = Array(params[:inputs])
+        files      = Array(params[:inputs]).reject(&:blank?)
+        source_url = params[:source_url].to_s.presence
 
-        if files.empty?
+        if files.empty? && source_url.nil?
           render json: { error: "no_inputs" }, status: :unprocessable_entity
           return
         end
 
-        run = IngestionRun.create!(
-          user:       current_user,
-          restaurant: restaurant,
-          input_kind: detect_input_kind(files.first)
-        )
-        run.inputs.attach(files)
-        run.transition_to!(:extracting)
-
-        render json: serialize_run(run), status: :created
+        if source_url
+          create_from_url(restaurant, source_url)
+        else
+          create_from_files(restaurant, files)
+        end
       end
 
       def show
@@ -42,6 +39,39 @@ module Api
       end
 
       private
+
+      def create_from_files(restaurant, files)
+        run = IngestionRun.create!(
+          user:       current_user,
+          restaurant: restaurant,
+          input_kind: detect_input_kind(files.first)
+        )
+        run.inputs.attach(files)
+        run.transition_to!(:extracting)
+
+        render json: serialize_run(run), status: :created
+      end
+
+      def create_from_url(restaurant, source_url)
+        result = UrlFetcher.fetch(source_url)
+        run = IngestionRun.create!(
+          user:       current_user,
+          restaurant: restaurant,
+          input_kind: result.content_type.include?("pdf") ? "pdf" : "url",
+          source_url: source_url
+        )
+        run.inputs.attach(
+          io:           result.io,
+          filename:     result.filename,
+          content_type: result.content_type
+        )
+        run.transition_to!(:extracting)
+
+        render json: serialize_run(run), status: :created
+      rescue UrlFetcher::FetchError => e
+        render json: { error: "url_fetch_failed", reason: e.reason, status: e.status },
+               status: :unprocessable_entity
+      end
 
       def ensure_admin!
         return if current_user&.is_admin?
