@@ -71,6 +71,8 @@ export interface FetchItemsOptions extends FetchOptions {
   jwt?: string;
   presetSlug?: string;
   strictness?: Strictness;
+  /** Phase 3.9 — base64url-encoded shareable profile token. */
+  profileToken?: string | null;
 }
 
 export async function fetchRestaurant(
@@ -87,6 +89,7 @@ export async function fetchRestaurantItems(
   opts: FetchItemsOptions = {},
 ): Promise<RestaurantItemsResponse> {
   const params = new URLSearchParams();
+  if (opts.profileToken) params.set('profile_token', opts.profileToken);
   if (opts.presetSlug) params.set('profile', opts.presetSlug);
   if (opts.strictness) params.set('strictness', opts.strictness);
   const qs = params.toString();

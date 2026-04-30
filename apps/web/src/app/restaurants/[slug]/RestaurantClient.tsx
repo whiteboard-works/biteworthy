@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   applyOverrides,
+  encodeProfileToken,
   groupItemsBySection,
   hiddenReasonLabel,
   type HideReason,
@@ -33,10 +34,13 @@ export function RestaurantClient({
   slug,
   restaurant,
   initialItems,
+  profileToken = null,
 }: {
   slug: string;
   restaurant: Restaurant;
   initialItems: RestaurantItemsResponse;
+  /** Phase 3.9 — passed from SSR when the URL had ?p=<token>. */
+  profileToken?: string | null;
 }) {
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
   const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>(() =>
@@ -52,7 +56,12 @@ export function RestaurantClient({
     if (isInitialRender) return;
     let cancelled = false;
     startTransition(() => {
-      fetchRestaurantItems(slug, { strictness: strictnessOverride ?? undefined })
+      // Keep the share-link token in play across refetches so the
+      // strictness override doesn't silently drop the encoded profile.
+      fetchRestaurantItems(slug, {
+        strictness: strictnessOverride ?? undefined,
+        profileToken: profileToken ?? undefined,
+      })
         .then((res) => {
           if (cancelled) return;
           setFilter(res.filter);
@@ -66,7 +75,7 @@ export function RestaurantClient({
     return () => {
       cancelled = true;
     };
-  }, [slug, strictnessOverride, isInitialRender]);
+  }, [slug, strictnessOverride, isInitialRender, profileToken]);
 
   const overriddenSections = useMemo(
     () => applyOverrides(sections, shownAnyway),
@@ -97,13 +106,14 @@ export function RestaurantClient({
         {totalHidden > 0 ? `, hiding ${totalHidden}.` : '.'}
       </p>
 
-      <div className="mt-bw-3 flex items-center gap-bw-2">
+      <div className="mt-bw-3 flex flex-wrap items-center gap-bw-2">
         <FilterBadge filter={filter} />
         <StrictnessToggle
           active={strictnessOverride ?? filter.strictness}
           loading={isPending}
           onChange={setStrictnessOverride}
         />
+        <ShareLinkButton slug={slug} filter={filter} />
       </div>
 
       {error && (
@@ -302,6 +312,49 @@ export function HiddenReasonChip({ reason }: { reason: HideReason }) {
     >
       {hiddenReasonLabel(reason)}
     </span>
+  );
+}
+
+/**
+ * Phase 3.9 — share the current filter as a `/r/<slug>?p=<token>` URL.
+ *
+ * The token encodes the filter currently applied on the server (as
+ * reported by `filter` in the items response) — preset, manual avoid
+ * lists, strictness. A friend opening the link sees the same hidden/
+ * visible split without needing to sign in or know the encoder's
+ * profile.
+ */
+export function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleClick = async () => {
+    const token = encodeProfileToken({
+      avoid_ingredient_ids: filter.avoid_ingredient_ids,
+      avoid_tag_ids: filter.avoid_tag_ids,
+      strictness: filter.strictness,
+    });
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${origin}/r/${encodeURIComponent(slug)}?p=${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2_000);
+    } catch {
+      // Clipboard blocked (rare in modern browsers, common in iframes).
+      // Fall back to a prompt so the user can copy manually.
+      window.prompt('Copy this share link', url);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      data-testid="share-link"
+      className="rounded-bw-pill border border-zinc-200 bg-zinc-50 px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-700 hover:border-zinc-300"
+    >
+      {copied ? '✓ Copied' : '🔗 Share filter'}
+    </button>
   );
 }
 

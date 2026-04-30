@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -16,6 +17,7 @@ import {
   type HideReason,
   type ItemSection,
 } from '@biteworthy/filter-engine';
+import { buildShareUrl } from '../../lib/share-url';
 import {
   fetchRestaurant,
   fetchRestaurantItems,
@@ -156,6 +158,7 @@ export default function RestaurantScreen() {
         loading={loadingItems}
         onChange={setStrictnessOverride}
       />
+      <ShareLinkButton slug={restaurant.slug} filter={filter} />
 
       {overriddenSections.map((section) => (
         <SectionBlock
@@ -232,6 +235,22 @@ export function StrictnessToggle({
         />
       )}
     </View>
+  );
+}
+
+function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary }) {
+  const handlePress = async () => {
+    const url = buildShareUrl(slug, filter);
+    await Share.share({ message: url, url });
+  };
+  return (
+    <Pressable
+      accessibilityLabel="share-link"
+      onPress={handlePress}
+      style={styles.shareButton}
+    >
+      <Text style={styles.shareText}>🔗 Share filter</Text>
+    </Pressable>
   );
 }
 
@@ -452,6 +471,20 @@ const styles = StyleSheet.create({
   },
   strictnessSpinner: {
     marginLeft: space['1'],
+  },
+  shareButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: space['3'],
+    paddingVertical: space['1'],
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgAlt,
+  },
+  shareText: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
   },
   section: {
     marginTop: space['4'],

@@ -13,8 +13,9 @@ the merge / review / status rules.
 
 **Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
 
-1. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`) — this PR
-2. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
+1. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`) — this PR (last item in Phase 3)
+
+After 3.9 merges, Phase 3 is feature-complete and the loop drafts `docs/plans/phase-4.md` (reviews + accounts).
 
 ### Done
 
@@ -44,6 +45,7 @@ the merge / review / status rules.
 - ✅ Phase 3.5 — strict-mode toggle (#150)
 - ✅ Phase 3.6 — web filtered restaurant page (#151)
 - ✅ Phase 3.7 — applyProfile + display helpers consolidated in filter-engine (#152)
+- ✅ Phase 3.8 — web profile onboarding (#153)
 
 After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 

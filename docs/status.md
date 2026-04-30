@@ -13,6 +13,39 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 08:00 — tick #59. PR #153 (Phase 3.8) merged at 07:48 UTC.
+Picked up Phase 3.9 — shareable filter URLs. Locked the wire format
+in `@biteworthy/filter-engine`: `encodeProfileToken({avoid_ingredient_ids,
+avoid_tag_ids, strictness})` produces base64url(JSON({v:1, ai, at, s})),
+`decodeProfileToken(token)` parses + validates the whole shape and
+throws `InvalidProfileTokenError` on garbage. Built the matching Ruby
+implementation at `apps/api/app/services/profile_token.rb` and
+asserted byte-identical output via a TS-token fixture in the rspec —
+both sides encode the sample payload to the same exact string. Wired
+`?profile_token=` on `/api/v1/restaurants/:id/items` (precedence:
+profile_token > preset slug > user profile > none); a 422 (with the
+"Invalid profile_token: …" body) is returned for malformed/unsupported
+tokens. `?strictness=` still overrides what the token encoded so a
+strict-mode toggle keeps working on a shared link. Web: extended the
+restaurants `[slug]/page.tsx` SSR component to read `?p=` and pass it
+through to the items fetch via `profileToken`; the client island
+threads the token across every refetch so strictness flips don't
+silently drop the encoded profile. Added a `<ShareLinkButton>` (uses
+`navigator.clipboard.writeText` with prompt fallback) that turns the
+current `filter` summary into `/r/<slug>?p=<token>`. Created the short
+`/r/[slug]/page.tsx` route as a pure re-export of the same SSR page.
+Mobile: added a Share button using RN's built-in `Share.share`,
+extracted the URL-building logic to a pure-TS helper at
+`apps/mobile/lib/share-url.ts` for testability. Tests: 12 vitest
+(roundtrip + URL-safe + version + 5 error cases + adapter), 10 rspec
+service spec (round-trip + Ruby↔TS parity + 5 error cases), 5 controller
+specs (profile_token applies, ?strictness override, malformed 422,
+future version 422, takes precedence over preset), 4 mobile jest
+(roundtrip via decode, URL encoding, default base). Local: rspec
+199/0/1 pending; web vitest 21/21; mobile jest 24/24; filter-engine
+vitest 57/57; pnpm typecheck/lint cached green. After this PR ships,
+Phase 3 is feature-complete and the next tick drafts phase-4.md.
+
 2026-05-01 07:30 — tick #58. PR #152 (Phase 3.7) merged at 07:07 UTC.
 Picked up Phase 3.8 — web profile onboarding (mirror of mobile 3.2).
 First move: promoted the mobile onboarding reducer into
