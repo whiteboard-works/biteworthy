@@ -79,6 +79,27 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       )
     end
 
+    it "enriches reasons with the human name + family for the chip (Phase 3.4)" do
+      # The factory's `dairy-cheese` slug maps to name=Cheese, path=dairy.cheese.
+      # The `allergen-contains-dairy` tag has family=allergen.
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile=vegan"
+
+      reasons = response.parsed_body["items"]
+                        .find { |i| i["name"] == "Cheese Quesadilla" }["reasons"]
+                        .index_by { |r| r["kind"] }
+
+      expect(reasons["avoid_ingredient"]).to include(
+        "ingredient_id"     => cheese.id,
+        "ingredient_name"   => "Cheese",
+        "ingredient_family" => "dairy"
+      )
+      expect(reasons["avoid_tag"]).to include(
+        "tag_id"     => contains_dairy_tag.id,
+        "tag_name"   => "Contains Dairy",
+        "tag_family" => "allergen"
+      )
+    end
+
     it "404s on an unknown profile slug" do
       get "/api/v1/restaurants/#{restaurant.id}/items?profile=no-such-thing"
       expect(response).to have_http_status(:not_found)

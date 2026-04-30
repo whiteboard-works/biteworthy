@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 05:30 — tick #54. PR #148 (Phase 3.3) merged at 04:22 UTC.
+Picked up Phase 3.4 — transparency chips + session-only "show
+anyway" override. Backend: `ItemsController#hide_reasons` now
+enriches each reason with the human display strings the chip needs
+(`ingredient_name` + `ingredient_family` from the ltree path's first
+segment; `tag_name` + `tag_family` from the Tag model's family
+column). One bulk pluck per kind in `build_label_lookup`, joined to
+the items the request already loaded — avoids N+1 even with dozens
+of items. The reason payload stays self-contained so the mobile +
+web chips never make a second roundtrip. Mobile: pure helper at
+`apps/mobile/lib/hidden-reason.ts` formats reasons as "Contains
+dairy (Cheese)" / "Tagged allergen: Contains Dairy" / "AI
+confidence: suggested (strict mode)" with snake_case → space
+humanization (`tree_nut` → `tree nut`) and graceful name/family
+fallbacks. Pure helper at `apps/mobile/lib/restaurant-overrides.ts`
+re-buckets visible vs hidden based on a `Set<string>` of overridden
+ids; preserves section identity for non-touched sections. The
+restaurant screen wires both helpers in: every item with reasons[]
+gets a Show anyway / Hide again pressable, and the chip row stays
+visible after a "show anyway" so the override remains transparent
+to the user. The override resets on screen unmount/remount —
+Phase 4 introduces the persistent `UserProfile` override. 12 new
+Jest cases (6 chip label + 3 headline + 4 override). 1 new rspec
+case for the enriched reason payload. Local: rspec 178/0/1 pending;
+mobile jest 45/45; pnpm typecheck/lint cached green.
+
 2026-05-01 05:00 — tick #53. PR #147 (Phase 3.2) merged at 03:21 UTC.
 Picked up Phase 3.3 — mobile filtered restaurant page. Found a Phase
 1.7 gap on the way: `routes.rb` exposed `api/v1/restaurants#index` +

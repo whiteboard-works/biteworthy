@@ -26,7 +26,8 @@ module Api
                                .to_a
 
         filter = build_filter
-        rendered = items.map { |item| serialize_item(item, filter) }
+        labels = build_label_lookup(items, filter)
+        rendered = items.map { |item| serialize_item(item, filter, labels) }
 
         render json: {
           restaurant_id: restaurant.id,
@@ -37,7 +38,8 @@ module Api
 
       def show
         item = Restaurant.published.find(params[:restaurant_id]).items.published.find(params[:id])
-        render json: serialize_item(item, build_filter)
+        filter = build_filter
+        render json: serialize_item(item, filter, build_label_lookup([item], filter))
       end
 
       private
@@ -81,15 +83,30 @@ module Api
       end
 
       # Compute reasons WHY an item would be hidden under this filter.
-      # An empty reasons array means the item passes the filter.
-      def hide_reasons(item, filter)
+      # An empty reasons array means the item passes the filter. Each
+      # reason is enriched with display strings (`*_name`, `*_family`)
+      # so the mobile/web HiddenReasonChip is a pure render — no
+      # second roundtrip to look up names.
+      def hide_reasons(item, filter, labels)
         reasons = []
 
         (item.ingredient_ids & filter.avoid_ingredient_ids).each do |ing_id|
-          reasons << { kind: "avoid_ingredient", ingredient_id: ing_id }
+          ing = labels[:ingredients][ing_id]
+          reasons << {
+            kind:              "avoid_ingredient",
+            ingredient_id:     ing_id,
+            ingredient_name:   ing&.dig(:name),
+            ingredient_family: ing&.dig(:family)
+          }
         end
         (item.tag_ids & filter.avoid_tag_ids).each do |tag_id|
-          reasons << { kind: "avoid_tag", tag_id: tag_id }
+          tag = labels[:tags][tag_id]
+          reasons << {
+            kind:       "avoid_tag",
+            tag_id:     tag_id,
+            tag_name:   tag&.dig(:name),
+            tag_family: tag&.dig(:family)
+          }
         end
         if filter.strictness == "strict" && item.confidence != "confirmed"
           reasons << { kind: "unconfirmed_strict", confidence: item.confidence }
@@ -98,10 +115,30 @@ module Api
         reasons
       end
 
+      # Bulk-load names + family strings for every ingredient/tag id
+      # the filter could possibly cite. Keyed by id so `hide_reasons`
+      # is a hash lookup. Family for ingredients = first ltree segment
+      # (e.g. `dairy.cheddar` -> `dairy`); for tags it's the model
+      # column.
+      def build_label_lookup(items, filter)
+        cited_ingredient_ids = items.flat_map(&:ingredient_ids).uniq & filter.avoid_ingredient_ids
+        cited_tag_ids        = items.flat_map(&:tag_ids).uniq        & filter.avoid_tag_ids
+
+        ingredient_labels = Ingredient.where(id: cited_ingredient_ids)
+                                      .pluck(:id, :name, :path)
+                                      .to_h { |id, name, path| [id, { name: name, family: path.to_s.split(".").first }] }
+
+        tag_labels = Tag.where(id: cited_tag_ids)
+                        .pluck(:id, :name, :family)
+                        .to_h { |id, name, family| [id, { name: name, family: family }] }
+
+        { ingredients: ingredient_labels, tags: tag_labels }
+      end
+
       # Try to keep this stable — mobile + web bind to these keys via
       # generated TS types; Phase 1.6's openapi.json should match.
-      def serialize_item(item, filter)
-        reasons = hide_reasons(item, filter)
+      def serialize_item(item, filter, labels)
+        reasons = hide_reasons(item, filter, labels)
         section = item.menu_section
         {
           id:                 item.id,

@@ -127,7 +127,14 @@ describe('groupItemsBySection', () => {
         menu_section_id: 's1',
         menu_section_name: 'S1',
         status: 'hidden',
-        reasons: [{ kind: 'avoid_ingredient', ingredient_id: 'ing-x' }],
+        reasons: [
+          {
+            kind: 'avoid_ingredient',
+            ingredient_id: 'ing-x',
+            ingredient_name: 'Cheese',
+            ingredient_family: 'dairy',
+          },
+        ],
       }),
     ]);
     expect(sections[0]!.visible.map((i) => i.id)).toEqual(['v1']);
