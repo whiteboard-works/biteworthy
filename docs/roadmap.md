@@ -13,9 +13,8 @@ the merge / review / status rules.
 
 **Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`.
 
-1. **Phase 4.11.4 — Render dish photos on web + mobile restaurant pages** (`docs/plans/phase-4.11-dish-photos.md#4114--render-dish-photos-on-web--mobile-restaurant-pages`) — this PR
-2. **[BLOCKED] Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work; **still blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that)
-3. **[BLOCKED] Phase 4.11.2 — Extend ExtractMenuJob to ask for + receive bboxes** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`) — same Anthropic-cap dependency as 4.11.0
+1. **Phase 4.11.2 — Extend MenuExtractionSchema + prompt + materialize image_bbox (structural)** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`) — this PR. Per the subplan's Stop clause, the structural part (schema+prompt+materialize+specs) ships now; live cassette recording follows when the Anthropic cap clears.
+2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the bbox prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that.
 
 After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way Phase 4 was drafted at the end of Phase 3.
 
@@ -63,6 +62,7 @@ After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango lau
 - ✅ Phase 4.11 — subplan committed (#166)
 - ✅ Phase 4.11.1 — image_bbox column + DishPhotoCropper service (#167)
 - ✅ Phase 4.11.3 — IngestionItem promote attaches cropped dish photo (#168)
+- ✅ Phase 4.11.4 — render cropped dish photos on restaurant pages (#169)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 

@@ -123,4 +123,61 @@ RSpec.describe ResolveTagsJob, type: :job do
       expect(run.failure_message).to start_with("resolve_tags_api_error: 500")
     end
   end
+
+  # Phase 4.11.2 — when the extractor's payload included image_bbox
+  # (per-item bounding box for the inline dish photo), materialize
+  # must copy it onto the IngestionItem so Phase 4.11.3's promote!
+  # can crop + attach. Items without a bbox carry nil so the
+  # promote-time cropper skip kicks in cleanly.
+  describe "image_bbox from extraction" do
+    let(:staging_with_bbox) do
+      {
+        "sections" => [
+          { "name" => "Appetizers", "items" => [
+              { "name" => "Spring Rolls",
+                "description" => "Crispy veggie.",
+                "prices" => [{ "size" => nil, "price_cents" => 600 }],
+                "ingredients" => [],
+                "unresolved_ingredients" => [],
+                "image_bbox" => { "x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25 } },
+              { "name" => "Tom Yum",
+                "description" => "Hot + sour soup.",
+                "prices" => [{ "size" => nil, "price_cents" => 800 }],
+                "ingredients" => [],
+                "unresolved_ingredients" => [] }
+            ] }
+        ]
+      }
+    end
+
+    let(:run_with_bbox) do
+      create(:ingestion_run,
+             restaurant: restaurant, status: "resolving",
+             staging:    staging_with_bbox,
+             state_history: { "extracting" => 5.minutes.ago.utc.iso8601,
+                              "resolving"  => Time.current.utc.iso8601 })
+    end
+
+    let(:empty_tag_response) do
+      { "items" => [
+        { "index" => 0, "resolved" => [], "unresolved" => [] },
+        { "index" => 1, "resolved" => [], "unresolved" => [] }
+      ] }
+    end
+
+    before do
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(empty_tag_response)
+    end
+
+    it "copies image_bbox onto the IngestionItem when present, leaves nil otherwise" do
+      described_class.perform_now(run_with_bbox.id)
+
+      with_photo    = IngestionItem.find_by(name: "Spring Rolls")
+      without_photo = IngestionItem.find_by(name: "Tom Yum")
+
+      expect(with_photo.image_bbox).to eq("x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25)
+      expect(without_photo.image_bbox).to be_nil
+    end
+  end
 end
