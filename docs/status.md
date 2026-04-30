@@ -13,6 +13,46 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 18:47 — tick #80. PR #173 (Phase 5.2 SMTP wiring) merged
+at 18:20 UTC, all CI green. Anthropic still capped (~5.2h to
+reset); cassette PR stays BLOCKED. Picked the next unblocked
+Next-up item: **Phase 5.3 — production blob storage**. Closes
+the long-deferred Phase 2 + 4 + 4.11 blob gap. Shipped:
+- `config/storage.yml` adds `:r2` block. R2 speaks S3 API so
+  `aws-sdk-s3` works unchanged — only endpoint + region (must
+  be "auto") + `force_path_style: true` differ. `:amazon` stays
+  as a one-line-flip fallback for R2 outages.
+- `production.rb` flips `active_storage.service` from `:amazon`
+  to `:r2`.
+- New `Biteworthy::StorageBackfill` runner +
+  `bin/rails biteworthy:storage:backfill` rake task. Migrates
+  any blob whose `service_name` differs from the configured
+  service. Idempotent — already-on-target blobs are no-ops.
+  Per-blob `[ok]/[skip]/[FAIL]` log; `EXIT_CODE=1` makes CI
+  fail loud on any failure. Reusable for future service flips.
+- ADR 0004 captures R2-over-S3 decision (zero egress charges
+  become real money at scale: $0/GB vs $0.09/GB; ~$45/mo
+  saved at modest growth scale). Why-not for Backblaze/Wasabi
+  (operational maturity) + why-not for R2-native gem
+  (portability). Direct CDN serving via public R2 URLs deferred
+  to Phase 5+ — ActiveStorage's signed-redirect adds ~40ms per
+  image, invisible at Durango-beta volume.
+- `.env.example` adds R2_* placeholders + commented AWS_*
+  fallback block. README gets new "Blob storage" section with
+  the bootstrap + backfill command.
+4 new specs in `spec/lib/storage_backfill_spec.rb` (already-
+on-target skip, cross-service migration, per-blob failure
+capture without aborting, summary counts). Caught one bug
+during spec authoring: `service_name_was` returns nil after
+update_columns (which bypasses dirty tracking) — fixed by
+capturing `from_service` before calling migrate. Local: rspec
+349/0/1 pending (+4); pnpm typecheck + lint full-turbo cached.
+Roadmap: ticked 5.2 (#173); reordered Next-up. **Eager-rebase
+applied** before branching. Next tick: babysit PR #174 to
+merge, then 5.4 (Vercel web deploy) — OR if Anthropic cap
+clears at 00:00 UTC (~5h from now), finally retry the
+cassette.
+
 2026-04-30 18:18 — tick #79. PR #172 (Phase 5.1 deploy wiring)
 merged at 17:45 UTC after the rebase, all CI green. Anthropic
 still capped (~5.7h to reset); cassette PR stays BLOCKED. Picked
