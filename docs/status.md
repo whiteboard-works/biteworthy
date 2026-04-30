@@ -13,6 +13,52 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 17:19 — tick #77. PR #171 (Phase 5 subplan) merged at
+16:48 UTC. Anthropic still capped (~6.5h to reset); cassette PR
+stays BLOCKED. Picked the next unblocked Next-up item: **Phase
+5.1 — production API deploy wiring**. Split the work cleanly into
+"loop-shippable wiring" vs "human-only provisioning" per the
+subplan's Stop conditions. Shipped:
+- Multi-stage `apps/api/Dockerfile` (Rails 8 prod, libpq + libvips
+  + imagemagick + libjemalloc2, non-root rails:1000 user) +
+  `.dockerignore` (no secrets/.git/specs in upload) +
+  `bin/docker-entrypoint` (runs db:prepare on the puma process
+  only — release_command is the belt-and-suspenders).
+- `apps/api/fly.toml` with two processes (`app` puma,
+  `worker` `bundle exec rake solid_queue:start`), region DEN
+  (closest to Durango), `/up` healthcheck every 30s, force_https,
+  separate `[[vm]]` per process. Workers explicitly OUT of puma
+  (`SOLID_QUEUE_IN_PUMA=false`) — auto_stop would kill in-flight
+  ingestion jobs. libjemalloc2 LD_PRELOAD'd to trim puma RSS.
+- `lib/tasks/production.rake` thin Rake adapter +
+  `app/services/biteworthy/production_smoke.rb` (extracted so
+  the spec doesn't need Rake's DSL). Read-only smoke: GET /up +
+  GET /api/v1/restaurants/:slug/items, one timing line per check,
+  exits non-zero with `EXIT_CODE=1` so CI can fail a deploy.
+  Stays read-only so it's safe on every deploy; Phase 5.7's seed
+  task is the right place for IngestionRun creation against prod.
+- `docs/adr/0002-production-hosting.md` capturing implementation-
+  level Fly.io decisions (machine model, region, process split,
+  Postgres dev tier to start, secret rotation lifecycle, why not
+  Render/Railway/Heroku/IaaS). Refines ADR 0001 rather than
+  superseding it.
+- `apps/api/.env.example` adds `PUBLIC_HOST`,
+  `SOLID_QUEUE_IN_PUMA=false`, commented Rails 8 prod ENV.
+- `apps/api/README.md` new "Production deploy" section with the
+  one-time bootstrap + every-deploy commands.
+What still needs a human (per ADR 0002 step list): fly auth login,
+fly launch, fly postgres create/attach, fly secrets set
+(RAILS_MASTER_KEY + ANTHROPIC_API_KEY + DEVISE_JWT_SECRET_KEY +
+ADMIN credentials), fly deploy, DNS for api.bite-worthy.com (CNAME
+→ biteworthy-api.fly.dev) + fly certs add, then run the smoke
+task to confirm. Roadmap: ticked 4.11.2 (#170) and 4.11.4 (#169) +
+flagged Phase 4.11 structurally complete in PR #171; next-up after
+this PR is 5.2 (SMTP). Tests: 4 new specs against
+`Biteworthy::ProductionSmoke` (no-restaurants branch, happy path
+with one published restaurant, non-2xx /up, network-error
+capture). Local: rspec 341/0/1 pending (+4); pnpm typecheck +
+lint full-turbo cached green.
+
 2026-04-30 16:46 — tick #76. PR #170 (Phase 4.11.2 structural)
 merged at 16:18 UTC. Anthropic still capped (~7h to reset);
 Next-up was a single `[BLOCKED]` cassette item. Per the
