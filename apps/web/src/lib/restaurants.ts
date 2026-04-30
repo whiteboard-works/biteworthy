@@ -49,6 +49,8 @@ export interface RestaurantItem extends FilterableItem {
   reasons: HideReason[];
   /** Phase 4.2 — set by the API when authenticated. */
   overridden_by_user?: boolean;
+  /** Phase 4.4 — total review count, populated for both anon + auth. */
+  reviews_count?: number;
 }
 
 export interface FilterSummary {
@@ -84,6 +86,18 @@ export async function fetchRestaurant(
   return api<Restaurant>(`/restaurants/${encodeURIComponent(slugOrId)}`, {
     fetchImpl: opts.fetchImpl,
   });
+}
+
+/** Phase 4.5 — fetch a single item by id under a restaurant. */
+export async function fetchItem(
+  restaurantSlugOrId: string,
+  itemId: string,
+  opts: FetchOptions = {},
+): Promise<RestaurantItem> {
+  return api<RestaurantItem>(
+    `/restaurants/${encodeURIComponent(restaurantSlugOrId)}/items/${encodeURIComponent(itemId)}`,
+    { fetchImpl: opts.fetchImpl },
+  );
 }
 
 export async function fetchRestaurantItems(

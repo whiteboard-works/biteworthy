@@ -13,6 +13,31 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 11:00 — tick #65. PR #159 (Phase 4.4) merged at 10:48 UTC.
+Picked up Phase 4.5 — web review UX. Mirror of mobile 4.4 on Next.js.
+Two new Next API proxy routes: `/api/items/[id]/reviews` (GET +
+POST, multipart-aware) and `/api/reviews/[id]` (PATCH + DELETE).
+Both proxy through `getServerJwt` from the bw_session cookie. New
+`apps/web/src/lib/reviews.ts` API client (fetchReviews via proxy,
+fetchReviewsServer for SSR direct, createReview that switches
+JSON/multipart based on photo presence, updateReview, deleteReview);
+401 surfaces as ReviewError with status preserved so the caller can
+bounce to /login. New `fetchItem(slug, id)` server-side fetcher in
+restaurants.ts. SSR page at
+`apps/web/src/app/restaurants/[slug]/items/[id]/page.tsx` runs
+`Promise.all` over restaurant + item + initial reviews; notFound()
+on either restaurant or item miss; reviews fall back to empty array
+on fetch error. Client island ReviewsClient handles compose form
+(5-star tap, optional body textarea, optional File photo) + Load
+more pagination starting at offset=20. The existing RestaurantClient
+got per-item review badges that link to `/restaurants/<slug>/items/<id>`
+matching the mobile flow. Tests: 11 new vitest cases covering
+proxy URL construction, query-param presence/absence, JSON vs
+multipart switching, 401/403/404 → ReviewError, no client-side
+Authorization header (proxy injects from cookie). Local: rspec
+229/0/1 pending; web vitest 41/41; mobile jest 50/50; pnpm
+typecheck/lint cached green.
+
 2026-05-01 10:30 — tick #64. PR #158 (Phase 4.3) merged at 10:17 UTC.
 Picked up Phase 4.4 — mobile review UX. Tiny backend change first:
 items endpoint emits `reviews_count: int` per item via one bulk
