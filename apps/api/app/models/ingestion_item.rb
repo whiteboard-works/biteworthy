@@ -59,8 +59,35 @@ class IngestionItem < ApplicationRecord
         )
       end
 
+      attach_dish_photo!(created)
+
       update!(item: created, decision: "accepted", decided_at: Time.current)
       created
     end
+  end
+
+  private
+
+  # Phase 4.11.3 — when Anthropic vision marked a per-dish photo on the
+  # source page (image_bbox jsonb populated by 4.11.2), crop it out and
+  # attach it to the new Item. Best-effort: a bad bbox or unreadable
+  # source blob logs + skips so promotion still succeeds. The bbox
+  # column stays null for items extracted by pre-4.11.2 cassettes; this
+  # method is a no-op for them.
+  def attach_dish_photo!(created_item)
+    return if image_bbox.blank?
+    source_blob = ingestion_run.inputs.blobs.first
+    return if source_blob.nil?
+
+    cropped = Ingestion::DishPhotoCropper.call(source: source_blob, bbox: image_bbox)
+    created_item.photo.attach(
+      io:           cropped.io,
+      filename:     "dish-#{created_item.id}.jpg",
+      content_type: cropped.content_type
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "IngestionItem##{id} promote! photo attach skipped: #{e.class} #{e.message}"
+    )
   end
 end

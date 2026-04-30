@@ -54,6 +54,12 @@ export interface RestaurantItem extends FilterableItem {
   overridden_by_user?: boolean;
   /** Phase 4.4 — total review count, populated for both anon + auth. */
   reviews_count?: number;
+  /**
+   * Phase 4.11.3 — signed `rails_blob_url` for the dish photo cropped
+   * out of the source menu page. Null for items extracted before
+   * 4.11.2 / for menu items with no inline photo.
+   */
+  photo_url: string | null;
 }
 
 export interface FilterSummary {
