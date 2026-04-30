@@ -13,6 +13,47 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 20:46 — tick #84. PR #177 (Phase 5.6 SEO city/diet pages)
+merged at 20:19 UTC. Anthropic still capped (~3.2h to reset);
+cassette PR stays BLOCKED. **Title-lint failed** on #177
+("SEO" caps tripped `subjectPattern: ^(?![A-Z])(?!.*\.$).+$`) —
+auto-merge config doesn't gate on title-lint so the merge happened
+anyway; future titles avoid all-caps acronyms. Picked the next
+unblocked Next-up item: **Phase 5.7 — seed 30 Durango
+restaurants**. Operator-driven batch ingest tooling (the loop
+ships the runner; populating the CSV + actually running the
+seed is human work). Shipped:
+- `docs/seeds/durango.csv.example` — column template
+  (name/slug/address/phone/website/menu_source/neighborhood) with
+  inline guidance + 3 example rows. The populated `durango.csv`
+  stays out of git per inline note.
+- `Biteworthy::DurangoSeed` runner. Idempotent — already-staged
+  rows skip, per-row failures (UrlFetcher errors, missing files)
+  caught + logged + tallied so one bad URL doesn't kill the
+  batch. Uses Phase 2.8's UrlFetcher for HTTP sources, falls
+  back to direct File.open for local paths. Restaurants stay
+  :draft so Phase 2.5's 80%-accepted swipe-verify threshold
+  still gates publication.
+- `bin/rails biteworthy:seed:durango FILE=…` rake adapter with
+  ENV overrides (CITY, CITY_NAME, CITY_REGION, WAIT, EXIT_CODE).
+6 new specs covering happy path (2 rows → 2 runs created),
+idempotent re-run (skips :staged), per-row failure isolation
+(UrlFetcher::FetchError → :failed outcome, batch continues),
+tally summary, draft-status guard, and CSV comment/blank-line
+parsing. Total rspec 365/0/1 (+6); pnpm typecheck + lint
+full-turbo green. Caught one bug during spec authoring:
+Restaurant has no `has_many :ingestion_runs` association — fixed
+by querying `IngestionRun.where(restaurant_id: …)` directly
+rather than adding an association for a single check. Roadmap:
+ticked 5.6 (#177); reordered Next-up. Eager-rebase applied.
+**Avo dashboard tile** (subplan called for one) deferred — rake
+stdout is sufficient for the seed run; an Avo widget is a
+better stand-alone PR once the seed has run + we know what
+counts matter. Next tick: 5.8 (PostHog instrumentation) — OR if
+the Anthropic cap clears at 00:00 UTC (~3.2h from now), retry
+the cassette PR (also unblocks the operator's actual Durango
+seed run, since 30 menus need real Anthropic capacity).
+
 2026-04-30 20:18 — tick #83. PR #176 (Phase 5.5 marketing landing)
 merged at 19:46 UTC, all CI green. Anthropic still capped (~3.7h
 to reset); cassette PR stays BLOCKED. Picked the next unblocked
