@@ -13,6 +13,34 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 02:25 — tick #48. PR #142 (Phase 2.7) merged at 00:48 UTC.
+Picked up Phase 2.8 — web URL/PDF entrypoint. New `UrlFetcher`
+service: faraday GET with 15s timeout, 10MB max bytes, sniffs PDF
+magic bytes when content-type is missing, raises
+`UrlFetcher::FetchError(reason:, status:)` on non-2xx / oversize /
+invalid scheme. Updated `Api::V1::IngestionRunsController#create`
+to branch on `inputs[]` (multipart) vs `source_url` (URL-fetch
+path), populating `input_kind` (url|pdf) accordingly. Bug caught
+locally: `File.basename("/")` returns `"/"` → my filename
+fallback produced `"/.html"` instead of `"menu.html"`.
+
+Web: `apps/web/src/lib/ingestion.ts` exposes `ingestFromUrl`
+(JSON body) + `ingestFromFile` (multipart FormData) + a typed
+`IngestionRequestError`. New page at `apps/web/src/app/ingest/page.tsx`
+('use client', Tailwind-styled): restaurant_id + JWT inputs +
+two side-by-side panels (URL submit / file dropzone), success
+panel links to `/admin/resources/ingestion_runs`.
+
+Specs: 7 URL-fetcher specs (header content-type, magic-byte sniff,
+404 + oversize + invalid-scheme rejection, filename inference) +
+3 new controller specs (URL happy path HTML, URL happy path PDF,
+422 on upstream non-2xx) = 10 new Rails specs. 4 web vitest tests
+(ingestFromUrl POST shape + error, ingestFromFile multipart +
+non-JSON error path).
+
+Local: rspec 146/146 (1 pending), pnpm typecheck/lint/test all
+green. Pushing PR.
+
 2026-05-01 01:45 — tick #47. PR #141 (Phase 2.6) merged at 00:22 UTC.
 Picked up Phase 2.7 — swipe-verify UI + ingestion-item PATCH/INDEX
 endpoints. API: new `Api::V1::IngestionItemsController` with #index
