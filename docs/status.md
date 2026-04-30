@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 14:00 — tick #71. PR #165 (Phase 4.10) merged at 13:51 UTC.
+**Phase 4 feature-complete** (4.1 → 4.10 all shipped: session cookies
+→ persistent overrides → review API → mobile review UX → web review
+UX → moderation queue → user profile pages → history → restaurant
+claim → suggestion queue UX). Per the roadmap's stated cadence,
+this tick is a plan-update PR: no code, just
+`docs/plans/phase-4.11-dish-photos.md` and the Next-up queue
+update. Decomposed Phase 4.11 (per-dish photo extraction) into 5
+PR-sized tasks plus the long-deferred Phase 2.3 cassette work as
+prerequisite 4.11.0: 4.11.1 schema (image_bbox jsonb on
+ingestion_items, normalized 0..1 fractions) + DishPhotoCropper
+service (image_processing + 5% pad); 4.11.2 extend
+MenuExtractionSchema + ExtractMenuPrompt to ask Anthropic vision
+for bboxes per item, re-record cassette; 4.11.3 Item gains
+has_one_attached :photo + IngestionItem#promote! crops + attaches
+on accept; 4.11.4 web + mobile RestaurantItem renders photo_url
+inline. Stop conditions called out: ANTHROPIC_API_KEY daily cap
+(blocked previous tick — should be reset by now); bbox accuracy
+unproven (acceptance bar: visual sanity-check on 3 menus, NOT
+pixel-perfect); cost increase ~10–20% per page in output tokens.
+Cross-cutting notes: Phase 2.9 cost dashboard validates the bump;
+OpenAPI codegen gains Item.photo_url; no mobile camera changes.
+Marked Phase 4 ✅ in roadmap header with the achieved-2026-04-30
+demo line; added a Phase 4.11 interstitial section. Plan PR
+awaits human review before items auto-run, same protocol as the
+Phase 3 (#145) and Phase 4 (#155) plan PRs.
+
 2026-05-01 13:30 — tick #70. PR #164 (Phase 4.9) merged at 13:24 UTC.
 Picked up Phase 4.10 — suggestion queue UX (the last item in Phase 4).
 New `SuggestionResolver` service with five item-edit kinds

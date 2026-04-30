@@ -11,11 +11,15 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`.
+**Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
 
-1. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`) — this PR (last item in Phase 4)
+1. **Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work — gating on the API daily-cap reset) — this PR is the plan
+2. **Phase 4.11.1 — Schema + DishPhotoCropper service** (`docs/plans/phase-4.11-dish-photos.md#4111--schema--imagecropper-service`)
+3. **Phase 4.11.2 — Extend ExtractMenuJob to ask for + receive bboxes** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`)
+4. **Phase 4.11.3 — IngestionItem#promote! attaches the cropped photo** (`docs/plans/phase-4.11-dish-photos.md#4113--ingestionitempromote-attaches-the-cropped-photo`)
+5. **Phase 4.11.4 — Render dish photos on web + mobile restaurant pages** (`docs/plans/phase-4.11-dish-photos.md#4114--render-dish-photos-on-web--mobile-restaurant-pages`)
 
-After 4.10 merges, Phase 4 is feature-complete. The next loop tick drafts `docs/plans/phase-4.11-dish-photos.md` (per-dish photo extraction from menu pages — user-requested followup) before moving to Phase 5.
+After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way Phase 4 was drafted at the end of Phase 3.
 
 ### Done
 
@@ -57,6 +61,7 @@ After 4.10 merges, Phase 4 is feature-complete. The next loop tick drafts `docs/
 - ✅ Phase 4.7 — public user profile pages (#162)
 - ✅ Phase 4.8 — "My filtered menus" history (#163)
 - ✅ Phase 4.9 — restaurant claim flow with domain-email verification (#164)
+- ✅ Phase 4.10 — suggestion queue UX for community edits (#165) — **Phase 4 feature-complete**
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
@@ -125,7 +130,7 @@ items each say *why*. Tap "show anyway" on one and it re-appears
 client-side. Share a filtered link via `/r/<slug>?p=<token>` and the
 recipient sees the same view without signing in.
 
-## Phase 4 — Reviews + accounts (weeks 10–11)
+## Phase 4 — Reviews + accounts (weeks 10–11) ✅
 
 Subplan: `docs/plans/phase-4.md`.
 
@@ -136,8 +141,22 @@ Subplan: `docs/plans/phase-4.md`.
 - Restaurant claim flow (domain-email verification)
 - Suggestion queue UX for community edits
 
-**Demo:** a logged-in user reviews a dish from a restaurant they
-filtered to; an owner claims that restaurant.
+**Demo (achieved 2026-04-30):** a logged-in user reviews a dish
+from a restaurant they filtered to; an owner claims that
+restaurant via domain-email verification; a contributor suggests
+a missing-ingredient fix and the owner accepts it from the queue.
+
+## Phase 4.11 — Per-dish photo extraction (interstitial)
+
+Subplan: `docs/plans/phase-4.11-dish-photos.md`. User-requested
+followup. Pulls each dish photo out of the source menu page and
+attaches it to the resulting Item, so the restaurant page can
+render the menu with real food photos. Includes the long-deferred
+Phase 2.3 cassette PR as the prerequisite (4.11.0).
+
+**Demo:** open a restaurant page; items that had a photo on the
+source menu page render with the cropped photo alongside the
+name + description.
 
 ## Phase 5 — Launch (week 12)
 
