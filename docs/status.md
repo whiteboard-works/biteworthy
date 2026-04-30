@@ -13,6 +13,30 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 17:45 — tick #78. PR #172 (Phase 5.1 deploy wiring) was
+DIRTY when this tick started — branch was based on PR #170 (master
+when I cut it last tick), but PR #171 (Phase 5 subplan) merged
+afterwards and both modified `docs/status.md` near the top of the
+log. Per playbook §2's conflict row, rebased
+`claude/phase-5.1-api-deploy` onto `origin/master`, resolved the
+status.md conflict by interleaving both ticks (newest #77 above
+#76 to honor the file's own ordering convention), force-pushed
+with `--force-with-lease`. Re-ran the smoke spec post-rebase to
+confirm — 4/4 still green. CI should re-run automatically; auto-
+merge re-enables once the conflict is gone. **No new PR opened
+this tick** — playbook §2 conflict resolution stops at "resolve
+and force-push"; next tick picks up from §3 once #172 merges
+(then 5.2 SMTP wiring is the next unblocked item; cassette
+retry once the Anthropic cap clears at ~6h from now).
+**Discovered followup updated**: this is the second auto-merge-
+race-adjacent incident on the loop (after #150 noted in roadmap
+Discovered). #172 was opened ~22min before #171 merged, and the
+two were on overlapping master commits. Mitigation worth
+considering: the loop should `git fetch origin master` + check
+for newer master commits AFTER opening a PR but BEFORE walking
+away from the tick, and rebase eagerly when behind. Cheaper than
+discovering it via DIRTY one tick later.
+
 2026-04-30 17:19 — tick #77. PR #171 (Phase 5 subplan) merged at
 16:48 UTC. Anthropic still capped (~6.5h to reset); cassette PR
 stays BLOCKED. Picked the next unblocked Next-up item: **Phase
