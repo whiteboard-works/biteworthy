@@ -87,6 +87,22 @@ describe('fetchRestaurantItems', () => {
     expect(url).toContain('profile=vegan');
     expect(url).toContain('strictness=strict');
   });
+
+  it('omits the strictness param when undefined (server keeps profile default)', async () => {
+    const fetchImpl = fakeFetch(200, itemsPayload);
+    await fetchRestaurantItems('rest-1', { fetchImpl });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    expect(url).not.toContain('strictness=');
+  });
+
+  it('passes each strictness value verbatim (relaxed | balanced | strict)', async () => {
+    for (const s of ['relaxed', 'balanced', 'strict'] as const) {
+      const fetchImpl = fakeFetch(200, itemsPayload);
+      await fetchRestaurantItems('rest-1', { fetchImpl, strictness: s });
+      const url = String(fetchImpl.mock.calls[0]![0]);
+      expect(url).toContain(`strictness=${s}`);
+    }
+  });
 });
 
 describe('groupItemsBySection', () => {

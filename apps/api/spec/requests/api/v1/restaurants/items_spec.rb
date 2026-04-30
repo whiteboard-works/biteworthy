@@ -124,9 +124,22 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
 
       expect(items["Carne Asada Taco"]["status"]).to    eq("visible") # confirmed
       expect(items["AI-Inferred Quinoa Bowl"]["status"]).to eq("hidden")
+      expect(body["filter"]["strictness"]).to eq("strict")
 
       reasons = items["AI-Inferred Quinoa Bowl"]["reasons"].map { |r| r["kind"] }
       expect(reasons).to include("unconfirmed_strict")
+    end
+
+    it "echoes 'relaxed' on filter.strictness when ?strictness=relaxed (Phase 3.5 toggle)" do
+      get "/api/v1/restaurants/#{restaurant.id}/items?strictness=relaxed"
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["filter"]["strictness"]).to eq("relaxed")
+    end
+
+    it "ignores garbage values and falls back to balanced (defense-in-depth for the toggle)" do
+      get "/api/v1/restaurants/#{restaurant.id}/items?strictness=zomg-not-a-mode"
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["filter"]["strictness"]).to eq("balanced")
     end
   end
 

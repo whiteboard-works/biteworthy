@@ -23,16 +23,21 @@ import { hiddenReasonLabel } from '../../lib/hidden-reason';
 import { applyOverrides } from '../../lib/restaurant-overrides';
 
 /**
- * Phase 3.3 + 3.4 — filtered restaurant page with transparency chips
- * and a session-only override.
+ * Phase 3.3 + 3.4 + 3.5 — filtered restaurant page with transparency
+ * chips, a session-only override, and a strictness toggle.
  *
- * Each hidden item now renders one <HiddenReasonChip> per reason
- * (e.g. "Contains dairy (Cheese)"), and a "Show anyway" pressable
- * that flips the item to visible **client-side only** — no server
- * roundtrip, no profile mutation. The override resets when the
- * screen unmounts; Phase 4 introduces a persisted "never hide this
- * dish" override on UserProfile.
+ * Each hidden item renders one <HiddenReasonChip> per reason
+ * (e.g. "Contains dairy (Cheese)") and a "Show anyway" pressable that
+ * flips it to visible client-side only.
+ *
+ * The strictness toggle in the header sends `?strictness=…` on the
+ * next items refetch — the underlying user profile is unchanged. The
+ * override applies for this session only, the same way "show anyway"
+ * does. Phase 4 introduces a persistent profile-level toggle.
  */
+
+type Strictness = 'relaxed' | 'balanced' | 'strict';
+const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 
 export default function RestaurantScreen() {
   const params = useLocalSearchParams<{ id: string; jwt?: string }>();
@@ -42,36 +47,62 @@ export default function RestaurantScreen() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [filter, setFilter] = useState<FilterSummary | null>(null);
   const [sections, setSections] = useState<ItemSection[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingRestaurant, setLoadingRestaurant] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shownAnyway, setShownAnyway] = useState<Set<string>>(() => new Set());
+  // null = let the server pick (user profile or 'balanced'). Set by
+  // the toggle when the user wants to override for this session.
+  const [strictnessOverride, setStrictnessOverride] = useState<Strictness | null>(null);
 
+  // Load the restaurant header once per id. Toggling strictness later
+  // shouldn't re-fetch this — the header doesn't depend on it.
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setShownAnyway(new Set());
-
-    Promise.all([fetchRestaurant(id), fetchRestaurantItems(id, { jwt })])
-      .then(([r, itemsRes]) => {
-        if (cancelled) return;
-        setRestaurant(r);
-        setFilter(itemsRes.filter);
-        setSections(groupItemsBySection(itemsRes.items));
+    setLoadingRestaurant(true);
+    fetchRestaurant(id)
+      .then((r) => {
+        if (!cancelled) setRestaurant(r);
       })
       .catch((e) => {
-        if (cancelled) return;
-        setError((e as Error).message);
+        if (!cancelled) setError((e as Error).message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadingRestaurant(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // Refetch items whenever id, jwt, or the strictness override change.
+  // Reset the per-item "show anyway" set so refetching clears stale
+  // overrides too (otherwise a swapped-out item id could still appear
+  // visible when the new payload says it isn't there).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoadingItems(true);
+    setShownAnyway(new Set());
+
+    fetchRestaurantItems(id, { jwt, strictness: strictnessOverride ?? undefined })
+      .then((res) => {
+        if (cancelled) return;
+        setFilter(res.filter);
+        setSections(groupItemsBySection(res.items));
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingItems(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [id, jwt]);
+  }, [id, jwt, strictnessOverride]);
 
   const toggleOverride = (itemId: string) => {
     setShownAnyway((prev) => {
@@ -90,7 +121,8 @@ export default function RestaurantScreen() {
   if (!id) {
     return <CenteredMessage text="Missing restaurant id." />;
   }
-  if (loading) {
+  // First-time load: wait for both before showing the page.
+  if ((loadingRestaurant || loadingItems) && (!restaurant || !filter)) {
     return (
       <View style={styles.center} testID="restaurant-loading">
         <ActivityIndicator size="large" color={colors.bite} />
@@ -117,6 +149,11 @@ export default function RestaurantScreen() {
         {totalHidden > 0 ? `, hiding ${totalHidden}.` : '.'}
       </Text>
       <FilterBadge filter={filter} />
+      <StrictnessToggle
+        active={strictnessOverride ?? filter.strictness}
+        loading={loadingItems}
+        onChange={setStrictnessOverride}
+      />
 
       {overriddenSections.map((section) => (
         <SectionBlock
@@ -148,6 +185,56 @@ function FilterBadge({ filter }: { filter: FilterSummary }) {
       </Text>
     </View>
   );
+}
+
+export function StrictnessToggle({
+  active,
+  loading,
+  onChange,
+}: {
+  active: Strictness;
+  loading: boolean;
+  onChange: (next: Strictness) => void;
+}) {
+  return (
+    <View style={styles.strictnessRow} testID="strictness-toggle">
+      {STRICTNESSES.map((s) => {
+        const selected = s === active;
+        return (
+          <Pressable
+            key={s}
+            accessibilityLabel={`strictness-${s}`}
+            accessibilityState={{ selected, disabled: loading }}
+            onPress={() => {
+              if (!loading && !selected) onChange(s);
+            }}
+            style={[styles.strictnessChip, selected && styles.strictnessChipSelected]}
+          >
+            <Text
+              style={[
+                styles.strictnessText,
+                selected && styles.strictnessTextSelected,
+              ]}
+            >
+              {capitalize(s)}
+            </Text>
+          </Pressable>
+        );
+      })}
+      {loading && (
+        <ActivityIndicator
+          size="small"
+          color={colors.bite}
+          style={styles.strictnessSpinner}
+          testID="strictness-spinner"
+        />
+      )}
+    </View>
+  );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function SectionBlock({
@@ -334,6 +421,35 @@ const styles = StyleSheet.create({
     color: colors.biteDark,
     fontSize: fontSize.sm,
     fontWeight: '600',
+  },
+  strictnessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['2'],
+    marginTop: space['1'],
+  },
+  strictnessChip: {
+    paddingHorizontal: space['3'],
+    paddingVertical: space['1'],
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgAlt,
+  },
+  strictnessChipSelected: {
+    borderColor: colors.bite,
+    backgroundColor: colors.biteLight,
+  },
+  strictnessText: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
+  strictnessTextSelected: {
+    color: colors.biteDark,
+  },
+  strictnessSpinner: {
+    marginLeft: space['1'],
   },
   section: {
     marginTop: space['4'],

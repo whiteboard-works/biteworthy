@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 06:00 — tick #55. PR #149 (Phase 3.4) merged at 04:29 UTC.
+Picked up Phase 3.5 — strictness toggle in the restaurant header. The
+items endpoint already accepted `?strictness` (Phase 1.7) so this was
+mostly a mobile change. Split the screen's effects: restaurant
+header loads once per id, items reload whenever id/jwt/strictness
+override change. The `<StrictnessToggle>` component renders three
+chips (Relaxed / Balanced / Strict); the active chip defaults to
+`filter.strictness` (which itself comes from the user profile or the
+`?profile=` preset). Tapping a different chip flips
+`strictnessOverride` state, which the items effect picks up and
+refetches with the new param. Inline ActivityIndicator next to the
+chips during refetch; chips are no-ops while loading. The override
+clears the per-item "show anyway" set on every refetch — otherwise a
+stale id could leak into the visible bucket. Tests: 2 new Jest cases
+on the API client (omits param when undefined; passes each strictness
+verbatim); 2 new rspec cases on the items endpoint (echoes 'relaxed'
+in filter.strictness; ignores garbage values, defense-in-depth for
+the toggle). Local: rspec 180/0/1 pending; mobile jest 47/47; pnpm
+typecheck/lint cached green.
+
 2026-05-01 05:30 — tick #54. PR #148 (Phase 3.3) merged at 04:22 UTC.
 Picked up Phase 3.4 — transparency chips + session-only "show
 anyway" override. Backend: `ItemsController#hide_reasons` now
