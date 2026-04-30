@@ -66,6 +66,10 @@ Rails.application.routes.draw do
         resources :reviews, only: [:index, :create]
       end
       resources :reviews, only: [:update, :destroy]
+      # Phase 4.7 — public profile by handle. Constraint allows
+      # underscores + digits + ASCII letters (matches User#handle
+      # validation).
+      get "/users/:handle", to: "users#show", as: :user, constraints: { handle: /[A-Za-z0-9_]{3,30}/ }
       resources :ingestion_runs, only: [:create, :show] do
         resources :items, only: [:index, :update], controller: "ingestion_items"
       end

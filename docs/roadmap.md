@@ -13,15 +13,12 @@ the merge / review / status rules.
 
 **Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`.
 
-1. **Phase 4.6 — Review moderation queue (Avo)** (`docs/plans/phase-4.md#46`) — this PR
-3. **Phase 4.3 — Review API + photo attachment** (`docs/plans/phase-4.md#43`)
-4. **Phase 4.4 — Mobile review UX** (`docs/plans/phase-4.md#44`)
-5. **Phase 4.5 — Web review UX** (`docs/plans/phase-4.md#45`)
-6. **Phase 4.6 — Review moderation queue (Avo)** (`docs/plans/phase-4.md#46`)
-7. **Phase 4.7 — User profile pages** (`docs/plans/phase-4.md#47`)
-8. **Phase 4.8 — "My filtered menus" history** (`docs/plans/phase-4.md#48`)
-9. **Phase 4.9 — Restaurant claim flow (domain-email verification)** (`docs/plans/phase-4.md#49`)
-10. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`)
+1. **Phase 4.7 — User profile pages** (`docs/plans/phase-4.md#47`) — this PR
+2. **Phase 4.8 — "My filtered menus" history** (`docs/plans/phase-4.md#48`)
+3. **Phase 4.9 — Restaurant claim flow (domain-email verification)** (`docs/plans/phase-4.md#49`)
+4. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`)
+
+After Phase 4 ships, the loop will draft `docs/plans/phase-4.11-dish-photos.md` (per-dish photo extraction from menu pages — user-requested followup) before moving to Phase 5.
 
 ### Done
 
@@ -59,6 +56,7 @@ the merge / review / status rules.
 - ✅ Phase 4.3 — review API + photo attachment (#158)
 - ✅ Phase 4.4 — mobile review UX (#159)
 - ✅ Phase 4.5 — web review UX (#160)
+- ✅ Phase 4.6 — review moderation queue (#161)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 

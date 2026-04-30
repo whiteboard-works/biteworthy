@@ -13,6 +13,36 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 12:00 — tick #67. PR #161 (Phase 4.6) merged at 11:49 UTC.
+**Cassette PR blocked**: started the cassette work (planned for this
+tick at user request), converted IMG_6973.HEIC → JPEG, dropped at
+spec/fixtures/menus/sample.jpg, replaced the skip block with a real
+VCR.use_cassette around ExtractMenuJob.perform_now. Recording
+attempt failed with HTTP 400: "You have reached your specified API
+usage limits. You will regain access on 2026-05-01 at 00:00 UTC."
+Per playbook §7 (secrets the loop doesn't have / blocked), rolled
+back the local edits + reported to user; can retry after the cap
+resets. Pivoted to Phase 4.7 — user profile pages — since it has
+no Anthropic dependency. New `GET /api/v1/users/:handle` returns
+the public payload (handle, display_name, member_since,
+reviews_count, restaurants_reviewed_count, recent_reviews[10]
+with item + restaurant context). Sensitive fields explicitly
+excluded; one rspec asserts the response keys are exactly the
+allowed set AND that user.email + user.jti don't appear anywhere
+in the response body. Hidden reviews drop out via the same
+.visible scope from 4.6. Web: server-rendered `/u/[handle]/page.tsx`
+with stat cards + recent-reviews list linking to
+/restaurants/<slug>/items/<id>. Mobile: `/users/[handle].tsx`
+mirror with the same structure; review rows push to /items/[id]
+via the typed router.push. Tests: 5 rspec (public payload, no
+PII leak, hidden-review exclusion, 10-cap newest-first, 404 on
+unknown handle); 4 vitest for the web client; 3 jest for the
+mobile client. Roadmap: cleaned up duplicated Next-up entries
+(stale items from earlier ticks), added a note that Phase 4.11
+dish-photo subplan drafts after Phase 4.10. Local: rspec 254/0/1
+pending; web vitest 45/45; mobile jest 53/53; pnpm typecheck/lint
+cached green.
+
 2026-05-01 11:30 — tick #66. PR #160 (Phase 4.5) merged at 11:18 UTC.
 Picked up Phase 4.6 — review moderation queue. New migration adds
 `hidden_at` + `hidden_reason` + `flagged_at` columns to reviews
