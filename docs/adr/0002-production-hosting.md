@@ -1,9 +1,11 @@
 # ADR 0002: production hosting (Fly.io for the API)
 
 - **Date:** 2026-04-30
-- **Status:** Accepted
+- **Status:** **Superseded by [ADR 0007](./0007-hosting-kamal-hetzner-neon.md) (2026-04-30)**
 - **Supersedes:** N/A
 - **Refines:** ADR 0001 — `Hosting | Fly.io (api) + Vercel (web) + EAS (mobile)`
+
+> **Superseded same day.** The Fly.io pick was reversed at human request before the live deploy ever happened. The wiring shipped in PR #172 (Dockerfile, `bin/docker-entrypoint`, `Biteworthy::ProductionSmoke`, smoke rake task) is reused unchanged by ADR 0007's Kamal+Hetzner+Neon setup. Only `fly.toml` was deleted; everything else carried over. See ADR 0007 for the new decision rationale + what changed.
 
 ## Context
 

@@ -1,0 +1,125 @@
+# Phase 5.1.1 — Kamal config for the BiteWorthy API.
+#
+# Deploys to a single Hetzner CX22 (4 GB / 2 vCPU / Ashburn US) with
+# both `web` (puma) and `worker` (Solid Queue) running on the same
+# box as separate Kamal roles. Tier up to CX32 or split the worker
+# to a second host only if launch volume reveals headroom issues.
+#
+# Postgres lives on Neon (managed, free tier, aws-us-east-1). The
+# pooled DATABASE_URL is in `.kamal/secrets`; the app box stays
+# stateless so rebuilding it never risks data.
+#
+# Image registry: GitHub Container Registry (ghcr.io). Same
+# Sky-Fox-Studios/ permissions as the source repo; free for private
+# use. Push token in `KAMAL_REGISTRY_PASSWORD` (a GitHub PAT with
+# `write:packages`).
+#
+# Bring-up (one-time, human; full version in apps/api/README.md):
+#   hcloud server create --name biteworthy-api --type cx22 \
+#       --image ubuntu-24.04 --datacenter ash-dc1 --ssh-key skylar
+#   cp .kamal/secrets.example .kamal/secrets   # then fill in
+#   kamal setup           # installs Docker on box + boots kamal-proxy
+#   kamal env push         # uploads secrets
+#   kamal deploy           # full deploy with db:prepare release
+#
+# Subsequent deploys: `kamal deploy` from the laptop. CI automation
+# is a separate small follow-up after manual deploys are proven.
+
+service: biteworthy-api
+image: sky-fox-studios/biteworthy-api
+
+servers:
+  web:
+    hosts:
+      - <REPLACE_WITH_HETZNER_IP>
+  worker:
+    hosts:
+      - <REPLACE_WITH_HETZNER_IP>
+    cmd: bundle exec rake solid_queue:start
+
+# Kamal 2's built-in proxy (replaces the older Traefik integration).
+# Handles TLS termination via Let's Encrypt + zero-downtime cutover.
+proxy:
+  ssl: true
+  host: api.bite-worthy.com
+  app_port: 3000
+  healthcheck:
+    path: /up
+    interval: 5
+    timeout: 3
+
+registry:
+  server: ghcr.io
+  username: sky-fox-studios
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# Build settings. Builds locally on the operator laptop by default;
+# switch to a Hetzner builder host or GitHub Actions in a follow-up
+# PR to keep deploys fast on slower laptops.
+builder:
+  arch: amd64
+  context: .
+  dockerfile: Dockerfile
+
+# Run db:prepare once per release as a release command (Phase 5.1
+# pattern; Kamal's hook fires before the new image's web role
+# starts taking traffic).
+hooks:
+  pre-deploy: ".kamal/hooks/pre-deploy"
+
+env:
+  clear:
+    RAILS_ENV: production
+    RAILS_LOG_TO_STDOUT: "true"
+    RAILS_SERVE_STATIC_FILES: "true"
+    PUBLIC_HOST: https://api.bite-worthy.com
+    SOLID_QUEUE_IN_PUMA: "false"
+    # libjemalloc trims puma RSS by ~30%; the Dockerfile installs
+    # the lib but the loader has to be told to use it.
+    LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+    # Mailer host is the WEB origin (Phase 5.4 Vercel), not the API.
+    MAILER_HOST: https://bite-worthy.com
+    # SMTP defaults — Postmark per ADR 0003. Override via secrets if
+    # the human picks a different provider.
+    SMTP_ADDRESS: smtp.postmarkapp.com
+    SMTP_PORT: "587"
+    SMTP_DOMAIN: bite-worthy.com
+  secret:
+    # Rails core
+    - RAILS_MASTER_KEY
+    - DATABASE_URL                  # Neon pooled connection string
+    - DEVISE_JWT_SECRET_KEY
+    # AI ingestion (Phase 2.1+)
+    - ANTHROPIC_API_KEY
+    # Avo admin (Phase 1.5)
+    - ADMIN_USERNAME
+    - ADMIN_PASSWORD
+    # SMTP (Phase 5.2 — Postmark token in both fields)
+    - SMTP_USERNAME
+    - SMTP_PASSWORD
+    # ActiveStorage on Cloudflare R2 (Phase 5.3)
+    - R2_ACCESS_KEY_ID
+    - R2_SECRET_ACCESS_KEY
+    - R2_BUCKET
+    - R2_ENDPOINT
+    # OAuth (Phase 1.2)
+    - GOOGLE_OAUTH_CLIENT_ID
+    - GOOGLE_OAUTH_CLIENT_SECRET
+    - APPLE_OAUTH_CLIENT_ID
+    - APPLE_OAUTH_TEAM_ID
+    - APPLE_OAUTH_KEY_ID
+    - APPLE_OAUTH_PRIVATE_KEY
+
+# Convenient aliases for the operator laptop.
+aliases:
+  console: app exec --interactive --reuse "bin/rails console"
+  shell:   app exec --interactive --reuse "bash"
+  smoke:   app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"
+  seed:    app exec "bin/rails biteworthy:seed:durango FILE=docs/seeds/durango.csv"
+
+# A single-VM box benefits from `accessories` only when we actually
+# add Redis or another sidecar. Today we have neither — Solid Queue
+# uses Postgres (Neon), Solid Cache uses the same. Block left empty
+# as documentation for the future.
+# accessories: {}

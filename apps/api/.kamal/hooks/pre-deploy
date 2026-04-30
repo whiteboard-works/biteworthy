@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+# Phase 5.1.1 — Kamal pre-deploy hook.
+#
+# Runs db:prepare against the new image before kamal-proxy cuts
+# traffic over. Equivalent to Fly's `[deploy] release_command`. If
+# the migration fails, the new image never serves a request.
+#
+# Kamal sets these env vars for hooks (see Kamal docs):
+#   $KAMAL_PERFORMER  — who triggered the deploy
+#   $KAMAL_VERSION    — the release tag being deployed
+#   $KAMAL_HOSTS      — comma-separated host list
+#   $KAMAL_ROLE       — the role being deployed (or empty)
+#
+# We don't pin which host runs the migration; the first web host is
+# fine (Neon's connection pooler doesn't care).
+
+echo "==> pre-deploy: db:prepare for ${KAMAL_VERSION:-unknown}"
+kamal app exec --version "${KAMAL_VERSION}" --quiet "./bin/rails db:prepare"
+echo "==> pre-deploy: db:prepare ok"
