@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
@@ -388,6 +389,18 @@ function ItemRow({
       style={[styles.itemRow, hidden && styles.itemRowHidden]}
       testID={`item-${item.id}`}
     >
+      {item.photo_url ? (
+        // Phase 4.11.4 — cropped dish photo from the source menu page.
+        // expo-image handles caching + progressive load better than
+        // react-native's Image, and is already a dep.
+        <Image
+          source={{ uri: item.photo_url }}
+          accessibilityLabel={`photo of ${item.name}`}
+          testID={`item-photo-${item.id}`}
+          contentFit="cover"
+          style={styles.itemPhoto}
+        />
+      ) : null}
       <Text style={[styles.itemName, hidden && styles.itemNameHidden]}>{item.name}</Text>
       {item.description ? (
         <Text style={[styles.itemDescription, hidden && styles.itemNameHidden]}>
@@ -610,6 +623,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  itemPhoto: {
+    width: '100%',
+    height: 180,
+    borderRadius: 8,
+    marginBottom: space['2'],
+    backgroundColor: colors.bgAlt,
   },
   reviewBadge: {
     marginTop: space['1'],

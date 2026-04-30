@@ -13,11 +13,9 @@ the merge / review / status rules.
 
 **Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`.
 
-1. **Phase 4.11.1 — Schema + DishPhotoCropper service** (`docs/plans/phase-4.11-dish-photos.md#4111--schema--imagecropper-service`) — this PR
-2. **Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work; **still blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that)
-3. **Phase 4.11.2 — Extend ExtractMenuJob to ask for + receive bboxes** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`)
-4. **Phase 4.11.3 — IngestionItem#promote! attaches the cropped photo** (`docs/plans/phase-4.11-dish-photos.md#4113--ingestionitempromote-attaches-the-cropped-photo`)
-5. **Phase 4.11.4 — Render dish photos on web + mobile restaurant pages** (`docs/plans/phase-4.11-dish-photos.md#4114--render-dish-photos-on-web--mobile-restaurant-pages`)
+1. **Phase 4.11.4 — Render dish photos on web + mobile restaurant pages** (`docs/plans/phase-4.11-dish-photos.md#4114--render-dish-photos-on-web--mobile-restaurant-pages`) — this PR
+2. **[BLOCKED] Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work; **still blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that)
+3. **[BLOCKED] Phase 4.11.2 — Extend ExtractMenuJob to ask for + receive bboxes** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`) — same Anthropic-cap dependency as 4.11.0
 
 After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way Phase 4 was drafted at the end of Phase 3.
 
@@ -63,6 +61,8 @@ After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango lau
 - ✅ Phase 4.9 — restaurant claim flow with domain-email verification (#164)
 - ✅ Phase 4.10 — suggestion queue UX for community edits (#165) — **Phase 4 feature-complete**
 - ✅ Phase 4.11 — subplan committed (#166)
+- ✅ Phase 4.11.1 — image_bbox column + DishPhotoCropper service (#167)
+- ✅ Phase 4.11.3 — IngestionItem promote attaches cropped dish photo (#168)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
@@ -179,12 +179,19 @@ belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
 - **Wire `jest-expo` preset + `@testing-library/react-native` for the
-  mobile app** — surfaced during Phase 3.5. Mobile tests currently
-  run pure-TS only; importing any screen module (which transitively
-  imports react-native ESM) fails Jest's default transformer. The
-  Phase 3.5 subplan asked for a UI snapshot, which we couldn't ship
-  without the preset wiring. Setup change in its own PR; once landed,
-  retroactively add the deferred snapshots from 3.2 / 3.3 / 3.4 / 3.5.
+  mobile app, AND wire `@testing-library/react` + jsdom for the web
+  app** — surfaced during Phase 3.5; reinforced by Phase 4.11.4's
+  inability to ship a JSX render snapshot for the new dish-photo
+  `<Image>` / `<img>` on either side. Mobile tests currently run
+  pure-TS only; importing any screen module (which transitively
+  imports react-native ESM) fails Jest's default transformer. Web
+  tests are also pure-TS — there's no `@testing-library/react` dep
+  and no `vitest.config.ts`, so a `.tsx` test would set new precedent.
+  Setup change in its own PR (one for each app); once landed,
+  retroactively add the deferred snapshots from 3.2 / 3.3 / 3.4 /
+  3.5 / 4.11.4 (web RestaurantClient ItemRow + mobile [id].tsx
+  ItemRow asserting `photo_url` renders into an `<img>` / `<Image>`
+  when set, doesn't render when null).
 - **Auto-merge race lost a follow-on commit on PR #150**. After the
   initial push, a second commit (the prior version of this Discovered
   note) was added before CI finished — auto-merge had already enabled

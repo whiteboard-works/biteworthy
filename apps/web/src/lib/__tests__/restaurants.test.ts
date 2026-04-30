@@ -78,6 +78,31 @@ describe('fetchRestaurantItems', () => {
     expect(String(fetchImpl.mock.calls[0]![0])).not.toContain('strictness=');
   });
 
+  it('passes photo_url through unchanged for items with + without an attached crop (phase 4.11.4)', async () => {
+    const withPhoto = {
+      id: 'item-1',
+      restaurant_id: 'rest-1',
+      name: 'Pad Thai',
+      description: 'Rice noodles, peanut, lime.',
+      confidence: 'confirmed',
+      popularity: 0,
+      ingredient_ids: [],
+      tag_ids: [],
+      menu_section_id: null,
+      menu_section_name: null,
+      status: 'visible',
+      reasons: [],
+      photo_url: 'https://api.bite-worthy.com/rails/active_storage/blobs/abc/dish-1.jpg',
+    };
+    const noPhoto = { ...withPhoto, id: 'item-2', name: 'Som Tum', photo_url: null };
+    const fetchImpl = fakeFetch(200, { ...itemsPayload, items: [withPhoto, noPhoto] });
+
+    const res = await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl });
+
+    expect(res.items[0]!.photo_url).toBe(withPhoto.photo_url);
+    expect(res.items[1]!.photo_url).toBeNull();
+  });
+
   it('passes presetSlug + strictness as query params', async () => {
     const fetchImpl = fakeFetch(200, itemsPayload);
     await fetchRestaurantItems('cream-bean-berry-1', {

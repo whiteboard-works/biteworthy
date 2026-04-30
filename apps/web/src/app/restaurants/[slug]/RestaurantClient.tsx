@@ -322,6 +322,19 @@ function ItemRow({
       data-testid={`item-${item.id}`}
       className={['py-bw-3', hidden ? 'opacity-60' : ''].join(' ')}
     >
+      {item.photo_url && (
+        // Phase 4.11.4 — cropped dish photo from the source menu page.
+        // Plain <img> (not next/image) since the URL is a Rails signed
+        // blob URL whose host varies per env; loader config would have
+        // to learn each one. Lazy-load + fixed max-height avoid CLS.
+        <img
+          src={item.photo_url}
+          alt={item.name}
+          loading="lazy"
+          data-testid={`item-photo-${item.id}`}
+          className="mb-bw-2 h-48 w-full rounded-bw-md object-cover"
+        />
+      )}
       <p className={['font-semibold', hidden ? 'text-hide' : 'text-zinc-900'].join(' ')}>
         {item.name}
       </p>
