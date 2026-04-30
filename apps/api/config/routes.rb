@@ -54,7 +54,9 @@ Rails.application.routes.draw do
       resources :ingredients, only: [:index]
       resources :tags, only: [:index]
       resources :dietary_profiles, only: [:index]
-      resources :ingestion_runs, only: [:create, :show]
+      resources :ingestion_runs, only: [:create, :show] do
+        resources :items, only: [:index, :update], controller: "ingestion_items"
+      end
     end
   end
 

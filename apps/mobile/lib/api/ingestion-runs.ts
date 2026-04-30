@@ -50,6 +50,117 @@ export class IngestionUploadError extends Error {
   }
 }
 
+export interface IngestionItemPayload {
+  id: string;
+  ingestion_run_id: string;
+  item_id: string | null;
+  name: string;
+  description: string | null;
+  section_name: string | null;
+  decision: 'pending' | 'accepted' | 'rejected' | 'edited';
+  decided_at: string | null;
+  ingredients_payload: Array<{ slug: string; confidence: number }>;
+  tags_payload: Array<{ slug: string; confidence: number }>;
+  prices_payload: Array<{ size: string | null; price_cents: number | null }>;
+  unresolved_ingredients: string[];
+  unresolved_tags: string[];
+}
+
+export interface FetchOptions {
+  jwt: string;
+  fetchImpl?: typeof fetch;
+}
+
+/** Poll-friendly read of the run state. Use to wait until status === "staged". */
+export async function getIngestionRun(
+  runId: string,
+  opts: FetchOptions,
+): Promise<IngestionRunPayload> {
+  const { jwt, fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/ingestion_runs/${runId}`, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new IngestionUploadError(res.status, body);
+  }
+  return (await res.json()) as IngestionRunPayload;
+}
+
+/** List the staged items for the swipe deck. */
+export async function listIngestionItems(
+  runId: string,
+  opts: FetchOptions,
+): Promise<IngestionItemPayload[]> {
+  const { jwt, fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/ingestion_runs/${runId}/items`, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new IngestionUploadError(res.status, body);
+  }
+  const json = (await res.json()) as { items: IngestionItemPayload[] };
+  return json.items;
+}
+
+export type Decision = 'accepted' | 'rejected' | 'edited';
+
+export interface DecideOptions extends FetchOptions {
+  runId: string;
+  itemId: string;
+  decision: Decision;
+  /** Edit overrides — applied before promotion. Optional. */
+  edits?: Partial<{
+    name: string;
+    description: string;
+    ingredients_payload: Array<{ slug: string; confidence: number }>;
+    tags_payload: Array<{ slug: string; confidence: number }>;
+  }>;
+}
+
+/**
+ * Update an ingestion item's decision. Accept fires promote! on the
+ * Rails side (materializes a real Item). Edit overrides apply BEFORE
+ * promotion, so the live Item carries the human's tweaks.
+ */
+export async function decideIngestionItem(
+  opts: DecideOptions,
+): Promise<IngestionItemPayload> {
+  const { runId, itemId, decision, edits, jwt, fetchImpl = fetch } = opts;
+  const res = await fetchImpl(
+    `${API_BASE}/api/v1/ingestion_runs/${runId}/items/${itemId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ decision, ...edits }),
+    },
+  );
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new IngestionUploadError(res.status, body);
+  }
+  return (await res.json()) as IngestionItemPayload;
+}
+
 export async function uploadIngestionRun(opts: UploadOptions): Promise<IngestionRunPayload> {
   const { restaurantId, pages, jwt, fetchImpl = fetch } = opts;
 
