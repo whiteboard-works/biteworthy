@@ -42,3 +42,42 @@ bundle exec rspec
 | API controllers | `app/controllers/api/v1/` |
 | Ingestion services (Anthropic) | `app/services/ingestion/` |
 | Background jobs | `app/jobs/` |
+
+## Production deploy (Phase 5.1)
+
+Hosted on Fly.io. Decision + trade-offs in `docs/adr/0002-production-hosting.md`.
+
+**One-time bootstrap (human):**
+
+```bash
+cd apps/api
+fly auth login
+fly launch --no-deploy --copy-config --name biteworthy-api
+fly postgres create --name biteworthy-pg --region den --vm-size shared-cpu-1x
+fly postgres attach biteworthy-pg
+fly secrets set \
+    RAILS_MASTER_KEY=$(cat config/master.key) \
+    DEVISE_JWT_SECRET_KEY=$(bin/rails secret) \
+    ANTHROPIC_API_KEY=... \
+    ADMIN_USERNAME=... ADMIN_PASSWORD=...
+fly deploy
+fly certs add api.bite-worthy.com   # after CNAME points at biteworthy-api.fly.dev
+```
+
+**Every deploy (automated post-Phase-5.4 CI; today: manual):**
+
+```bash
+fly deploy
+bin/rails biteworthy:production:smoke HOST=https://api.bite-worthy.com EXIT_CODE=1
+```
+
+The smoke task is read-only — safe to run repeatedly. It hits `/up` plus a real items query and prints one timing line per check; exits non-zero when `EXIT_CODE=1` is set so CI can fail the deploy if the smoke fails.
+
+**Where things live (deploy edition):**
+
+| Concern | Path |
+|---|---|
+| Container image | `Dockerfile` + `.dockerignore` + `bin/docker-entrypoint` |
+| Fly app config | `fly.toml` |
+| Smoke task | `lib/tasks/production.rake` (wraps `app/services/biteworthy/production_smoke.rb`) |
+| Production env defaults | `[env]` block in `fly.toml`; secrets via `fly secrets` |

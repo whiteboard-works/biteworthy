@@ -1,0 +1,31 @@
+# Phase 5.1 — keep the production image lean + secret-free.
+# Anything touched here also affects `fly deploy` upload size.
+
+# Local secrets / state
+.env
+.env.*
+!.env.example
+
+# Logs + temp
+log/
+tmp/
+storage/
+
+# VCS + editor cruft
+.git/
+.gitignore
+.DS_Store
+**/.DS_Store
+
+# Test artifacts
+spec/
+.rspec
+coverage/
+
+# Local Postgres / Solid Queue dump dirs (if ever created)
+db/data/
+db/storage/
+
+# Documentation — built into the image is wasteful; CI publishes elsewhere.
+README.md
+docs/

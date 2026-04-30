@@ -1,0 +1,14 @@
+#!/bin/bash -e
+
+# Phase 5.1 — Docker entrypoint shared by the `app` (puma) and
+# `worker` (solid_queue:start) processes Fly runs from the same image.
+#
+# Only the puma process should run `db:prepare` on boot. The release
+# command in fly.toml ALSO runs `db:prepare` so this is belt-and-
+# suspenders — running it twice is a no-op when the schema is current.
+
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+  ./bin/rails db:prepare
+fi
+
+exec "${@}"
