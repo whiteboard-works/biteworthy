@@ -13,9 +13,8 @@ the merge / review / status rules.
 
 **Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`.
 
-1. **Phase 4.8 — "My filtered menus" history** (`docs/plans/phase-4.md#48`) — this PR
-2. **Phase 4.9 — Restaurant claim flow (domain-email verification)** (`docs/plans/phase-4.md#49`)
-3. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`)
+1. **Phase 4.9 — Restaurant claim flow (domain-email verification)** (`docs/plans/phase-4.md#49`) — this PR
+2. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-4.11-dish-photos.md` (per-dish photo extraction from menu pages — user-requested followup) before moving to Phase 5.
 
@@ -57,6 +56,7 @@ After Phase 4 ships, the loop will draft `docs/plans/phase-4.11-dish-photos.md` 
 - ✅ Phase 4.5 — web review UX (#160)
 - ✅ Phase 4.6 — review moderation queue (#161)
 - ✅ Phase 4.7 — public user profile pages (#162)
+- ✅ Phase 4.8 — "My filtered menus" history (#163)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
