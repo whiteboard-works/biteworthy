@@ -13,7 +13,7 @@ the merge / review / status rules.
 
 **Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
 
-1. **Phase 3.1 — Production-ready dietary profile seeds** (`docs/plans/phase-3.md#31`)
+1. **Phase 3.1 — Production-ready dietary profile seeds** (`docs/plans/phase-3.md#31`) — this PR
 2. **Phase 3.2 — Mobile profile onboarding (6 taps)** (`docs/plans/phase-3.md#32`)
 3. **Phase 3.3 — Mobile filtered restaurant page** (`docs/plans/phase-3.md#33`)
 4. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`)
