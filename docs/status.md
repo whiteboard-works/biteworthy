@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 04:30 — tick #52. PR #146 (Phase 3.1) merged at 04:18 UTC.
+Picked up Phase 3.2 — mobile profile onboarding (6 taps). New API
+surface: `GET /api/v1/dietary_profiles` (presets sorted by name with
+`avoid_ingredient_ids` + `avoid_tag_ids` inlined so the client can
+union picks additively into the draft) and
+`GET /api/v1/ingredients?q=&limit=` (ILIKE on name + aliases — the
+"garbanzo → Chickpea" alias case has its own spec). Both are public
+(skip `:authenticate_user!`) so anonymous users can browse before
+sign-up. Mobile work: pure reducer at
+`apps/mobile/lib/onboarding-reducer.ts` driving a 4-screen flow
+(presets → ingredient search → strictness → review/save). 11 Jest
+cases lock down every reducer transition + `toProfilePayload` union
++ dedupe (vegan + dairy-free overlap; stale-slug skip). API client
+at `apps/mobile/lib/api/onboarding.ts` accepts injected `fetchImpl`
+for test seams. Save on the final step PATCHes
+`/api/v1/profile` (Phase 1.3 wholesale-replace). JWT is still pasted
+in plaintext — `expo-secure-store` swap is Phase 4 work and matches
+the same workaround on the ingest/verify screens. Local: rspec
+173/0/1 pending, mobile jest 23/23, pnpm typecheck/lint cached green.
+
 2026-05-01 04:00 — tick #51. Plan PR #145 merged at 01:55 UTC.
 Picked up Phase 3.1 — production seeds. Found the existing
 dietary_profiles.yml was stale slug-only entries referencing

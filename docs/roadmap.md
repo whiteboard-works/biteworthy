@@ -11,17 +11,16 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
+**Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
 
-1. **Phase 3.1 — Production-ready dietary profile seeds** (`docs/plans/phase-3.md#31`) — this PR
-2. **Phase 3.2 — Mobile profile onboarding (6 taps)** (`docs/plans/phase-3.md#32`)
-3. **Phase 3.3 — Mobile filtered restaurant page** (`docs/plans/phase-3.md#33`)
-4. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`)
-5. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`)
-6. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
-7. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
-8. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
-9. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
+1. **Phase 3.2 — Mobile profile onboarding (6 taps)** (`docs/plans/phase-3.md#32`) — this PR
+2. **Phase 3.3 — Mobile filtered restaurant page** (`docs/plans/phase-3.md#33`)
+3. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`)
+4. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`)
+5. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
+6. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
+7. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
+8. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
 
 ### Done
 
@@ -43,6 +42,8 @@ the merge / review / status rules.
 - ✅ Phase 2.7 — mobile swipe-verify UI + ingestion item PATCH (#142)
 - ✅ Phase 2.8 — web URL/PDF entrypoint (#143)
 - ✅ Phase 2.9 — cost + latency dashboard at /admin/dashboard (#144)
+- ✅ Phase 3 — subplan committed (#145)
+- ✅ Phase 3.1 — production-ready dietary profile seeds (#146)
 
 After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 
