@@ -13,6 +13,36 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 16:46 — tick #76. PR #170 (Phase 4.11.2 structural)
+merged at 16:18 UTC. Anthropic still capped (~7h to reset);
+Next-up was a single `[BLOCKED]` cassette item. Per the
+roadmap's stated cadence ("After Phase 4.11 ships, the loop
+will draft `docs/plans/phase-5.md` (Durango launch) the same way
+Phase 4 was drafted at the end of Phase 3"), and given Phase 4.11
+is **structurally complete** (every line of consumer + producer
+code on master after #170; cassette is the only outstanding
+work), this tick mirrors PR #155 — a plan-only PR drafting
+Phase 5. Decomposed Phase 5 into 10 tasks across three buckets:
+production deploys (5.1 Fly.io API, 5.2 SMTP Postmark, 5.3 R2
+ActiveStorage, 5.4 Vercel web on bite-worthy.com), public
+surface (5.5 marketing landing replacing /, 5.6 SEO
+/durango/[diet] pages), and seed + launch motion (5.7
+30-restaurant batch ingest from CSV, 5.8 PostHog funnel wiring
+real, 5.9 TestFlight + Play Internal app submission, 5.10 press
+kit + Durango outreach + waitlist). Stop conditions enumerated:
+Anthropic billing tier, SMTP creds, R2 bucket + IAM, App Store
++ Play Store team accounts, real Durango menu CSV (research
+task), DNS for bite-worthy.com, lawyer-skim of privacy/terms.
+Cross-cutting: OpenAPI codegen on every endpoint PR; existing
+Discovered followups (jest-expo + web RTL wiring; auto-merge
+race) carry over. Roadmap: ticked 4.11.2 (#170) + flagged Phase
+4.11 structurally complete; replaced Next-up with the Phase 5
+batch plus the holdover BLOCKED cassette PR. Local: pnpm
+typecheck + lint full-turbo cached green; no code changes.
+**Plan PR awaiting human review** — subsequent ticks will pick
+from the new queue (5.1 first once a human approves the plan;
+cassette retry once the cap clears at 2026-05-01 00:00 UTC).
+
 2026-04-30 16:17 — tick #75. PR #169 (Phase 4.11.4 photo render)
 merged at 15:48 UTC with all CI green including title-lint (the
 lowercase-after-colon convention now baked in). Anthropic still
