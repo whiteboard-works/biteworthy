@@ -13,6 +13,27 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 23:11 — tick #89. **Loop pauses for credentials.** PR #183
+(Phase 5.10) merged at 22:51 UTC. Anthropic cap clears in ~49 min;
+the next tick can attempt the cassette retry but THIS tick is too
+early. Read the Next-up queue: every remaining item is either
+`[BLOCKED]` (cassette) or implicitly gated on a human credential
+drop (PostHog, Apple/Google, manual `kamal deploy`). Per
+delivery-playbook §7 stop conditions, this is the right place to
+pause + ping. **Phase 5 status: every loop-shippable launch piece
+is on master**. Shipped one artifact this tick — a
+`docs/launch-readiness.md` checklist organized by what each
+human action unlocks (provision Kamal+Hetzner+Neon → wire
+SMTP/R2 → provision Vercel → record cassette → seed Durango →
+PostHog → App Stores → press outreach). The doc gives the human
+a clear linear path from "code complete" to "real users on a
+Friday night." After this PR merges, the next 30-min cron tick
+should land just after 00:00 UTC and attempt the cassette retry
+automatically. If still capped or 4xx, the loop will pause again
+and ping. Roadmap unchanged (no new code shipped); no test
+deltas (rspec 377/0/1, web vitest 99/99). @shadoath pinged in
+the PR body for credential-drop coordination.
+
 2026-04-30 22:50 — tick #88. PR #182 (Phase 5.1.1 Kamal+Hetzner+Neon
 migration) merged at 22:23 UTC. Anthropic still capped (~1.2h to
 reset); cassette PR stays BLOCKED. Picked the next unblocked

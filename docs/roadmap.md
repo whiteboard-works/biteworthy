@@ -77,6 +77,9 @@ the merge / review / status rules.
 - ✅ Phase 5.9 — privacy + terms + app store listing templates (#180) — **structural; wiring follow-up queued at Next-up #5**
 - ✅ Phase 5.1.1 — plan: switch API hosting to Kamal + Hetzner + Neon (#181)
 - ✅ Phase 5.1.1 — implementation: deploy.yml + .kamal + ADR 0007 (#182) — **API hosting story rewritten; Fly.io retired before live deploy**
+- ✅ Phase 5.10 — press kit + waitlist + Durango outreach templates (#183) — **last code-only Phase 5 PR**
+
+**🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
