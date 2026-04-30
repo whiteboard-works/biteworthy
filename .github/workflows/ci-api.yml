@@ -42,6 +42,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Phase 4.11.1 — Ingestion::DishPhotoCropper depends on
+      # MiniMagick which shells out to `magick`/`identify`. The
+      # ubuntu-latest runner ships ImageMagick today but be explicit
+      # so a future runner image change doesn't silently break us.
+      - name: Install ImageMagick
+        run: sudo apt-get update -y && sudo apt-get install -y imagemagick
+
       - uses: ruby/setup-ruby@v1
         with:
           working-directory: apps/api

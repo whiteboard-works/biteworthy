@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_30_124229) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_30_144509) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -116,6 +116,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_124229) do
     t.datetime "decided_at"
     t.string "decision", default: "pending", null: false
     t.text "description"
+    t.jsonb "image_bbox"
     t.uuid "ingestion_run_id", null: false
     t.jsonb "ingredients_payload", default: []
     t.uuid "item_id"
