@@ -1,17 +1,18 @@
 /**
- * Phase 3.2 — pure reducer for the onboarding draft profile.
+ * Phase 3.2 + 3.8 — pure reducer for the onboarding draft profile.
  *
- * The screen drives this; the reducer is pure so the spec can verify
- * every transition without mounting React. The eventual `PATCH
- * /api/v1/profile` payload is the `toProfilePayload(state)` output.
+ * Drives the 4-step onboarding flow on both mobile (Phase 3.2) and
+ * web (Phase 3.8). The reducer is pure so the spec verifies every
+ * transition without mounting React, and the eventual
+ * `PATCH /api/v1/profile` payload is the `toProfilePayload(state)`
+ * output.
  *
  * Picking a preset (Vegan etc.) is **additive**: it unions the
- * preset's avoid_*_ids onto whatever's already in the draft.
- * Un-picking removes only the ids that ONLY came from that preset,
- * not ids the user added manually or via another preset.
+ * preset's avoid_*_ids onto whatever's already in the draft. The
+ * union+dedupe is what `toProfilePayload` does — the reducer just
+ * remembers which slugs the user tapped on.
  */
-
-export type Strictness = 'relaxed' | 'balanced' | 'strict';
+import type { Strictness } from './index';
 
 export interface DietaryPreset {
   id: string;
@@ -37,14 +38,14 @@ export const initialDraft: DraftProfile = {
   strictness: 'balanced',
 };
 
-export type Action =
+export type OnboardingAction =
   | { type: 'TOGGLE_PRESET'; slug: string }
   | { type: 'ADD_MANUAL_INGREDIENT'; ingredientId: string }
   | { type: 'REMOVE_MANUAL_INGREDIENT'; ingredientId: string }
   | { type: 'SET_STRICTNESS'; strictness: Strictness }
   | { type: 'RESET' };
 
-export function reducer(state: DraftProfile, action: Action): DraftProfile {
+export function onboardingReducer(state: DraftProfile, action: OnboardingAction): DraftProfile {
   switch (action.type) {
     case 'TOGGLE_PRESET': {
       const has = state.selectedPresetSlugs.includes(action.slug);

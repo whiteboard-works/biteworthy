@@ -7,7 +7,7 @@
  * taps Done (Phase 1.3 endpoint, wholesale-replace semantics).
  */
 
-import type { DietaryPreset } from '../onboarding-reducer';
+import type { DietaryPreset } from '@biteworthy/filter-engine';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
 

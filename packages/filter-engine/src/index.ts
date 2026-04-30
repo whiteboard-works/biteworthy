@@ -258,3 +258,14 @@ export function applyOverrides<T extends FilteredItem>(
     };
   });
 }
+
+// ─── Onboarding draft profile (Phase 3.2 + 3.8) ────────────────────
+
+export {
+  initialDraft,
+  onboardingReducer,
+  toProfilePayload,
+  type DietaryPreset,
+  type DraftProfile,
+  type OnboardingAction,
+} from './onboarding-reducer';
