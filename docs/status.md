@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 23:41 — tick #90. **Queue housekeeping.** PR #184
+(launch-readiness checklist) merged at 23:16 UTC. Anthropic cap
+clears in ~19 min — too early to retry the cassette this tick
+without burning another failed attempt. Read the queue: it was
+stale (Phase 5.10 still listed as #1 even though it merged in
+tick #88) + the wiring items weren't `[BLOCKED]`-prefixed despite
+all needing human credentials. Cleanup-only PR:
+- Removed the merged Phase 5.10 entry from Next-up.
+- Marked the four remaining wiring items as `[BLOCKED]` with the
+  specific human action that unblocks each.
+- Added a "Loop work complete; see launch-readiness.md" banner
+  at the top of Next-up so future readers (or future loop ticks)
+  see the launch-readiness pointer immediately.
+- Ticked PR #184 in the Done section so the audit trail is
+  complete.
+No code, no test deltas (rspec 377/0/1, web vitest 99/99 unchanged
+since #183). The next loop tick lands ~1 minute after Anthropic's
+cap reset and will see the cassette item as the topmost
+`[BLOCKED]` with "cap resets at 00:00 UTC" — the loop should
+attempt the recording then. If still 4xx, pause + ping. If
+recording succeeds, the cassette PR fires (cassette + spec
+update flipping the `skip` block to `VCR.use_cassette`).
+
 2026-04-30 23:11 — tick #89. **Loop pauses for credentials.** PR #183
 (Phase 5.10) merged at 22:51 UTC. Anthropic cap clears in ~49 min;
 the next tick can attempt the cassette retry but THIS tick is too
