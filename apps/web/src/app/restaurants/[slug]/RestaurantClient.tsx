@@ -157,6 +157,7 @@ export function RestaurantClient({
         <SectionBlock
           key={section.id ?? '__none__'}
           section={section}
+          restaurantSlug={slug}
           shownAnyway={shownAnyway}
           onToggleOverride={toggleOverride}
           onSetPersistentOverride={setPersistentOverride}
@@ -224,11 +225,13 @@ export function StrictnessToggle({
 
 function SectionBlock({
   section,
+  restaurantSlug,
   shownAnyway,
   onToggleOverride,
   onSetPersistentOverride,
 }: {
   section: ItemSection<RestaurantItem>;
+  restaurantSlug: string;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
@@ -242,6 +245,7 @@ function SectionBlock({
           <ItemRow
             key={item.id}
             item={item}
+            restaurantSlug={restaurantSlug}
             overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
             onToggleOverride={onToggleOverride}
             onSetPersistentOverride={onSetPersistentOverride}
@@ -275,6 +279,7 @@ function SectionBlock({
             <ItemRow
               key={item.id}
               item={item}
+              restaurantSlug={restaurantSlug}
               hidden
               overridden={false}
               onToggleOverride={onToggleOverride}
@@ -289,12 +294,14 @@ function SectionBlock({
 
 function ItemRow({
   item,
+  restaurantSlug,
   hidden = false,
   overridden,
   onToggleOverride,
   onSetPersistentOverride,
 }: {
   item: RestaurantItem;
+  restaurantSlug: string;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
@@ -305,6 +312,7 @@ function ItemRow({
   // Keep chips visible as a transparency cue.
   const showChips = hidden || overridden;
   const persistent = item.overridden_by_user === true;
+  const reviewsCount = item.reviews_count ?? 0;
   return (
     <li
       data-testid={`item-${item.id}`}
@@ -316,6 +324,15 @@ function ItemRow({
       {item.description && (
         <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>
       )}
+      <a
+        href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}`}
+        data-testid={`open-item-${item.id}`}
+        className="mt-1 inline-block text-bw-xs font-semibold text-bite hover:text-bite-dark"
+      >
+        {reviewsCount === 0
+          ? 'Be the first to review'
+          : `${reviewsCount} review${reviewsCount === 1 ? '' : 's'} →`}
+      </a>
 
       {showChips && item.reasons.length > 0 && (
         <div className="mt-bw-2 flex flex-wrap gap-bw-1">
