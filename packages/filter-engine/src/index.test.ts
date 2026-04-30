@@ -355,4 +355,55 @@ describe('applyOverrides', () => {
     const result = applyOverrides([tacos, bowls], new Set(['h']));
     expect(result[1]).toBe(bowls);
   });
+
+  describe('persistent overrides (Phase 4.2)', () => {
+    function persistentlyOverridden(id: string): FilteredItem {
+      return {
+        id,
+        ingredient_ids: [],
+        tag_ids: [],
+        confidence: 'confirmed',
+        menu_section_id: null,
+        menu_section_name: null,
+        status: 'hidden',
+        reasons: [],
+        overridden_by_user: true,
+      };
+    }
+
+    it('promotes items flagged overridden_by_user without an explicit shownAnyway entry', () => {
+      const sections: ItemSection[] = [
+        {
+          id: 'tacos',
+          name: 'Tacos',
+          visible: [fItem('v', 'visible')],
+          hidden: [persistentlyOverridden('p1'), fItem('h1', 'hidden')],
+        },
+      ];
+      const out = applyOverrides(sections, new Set());
+      expect(out[0]!.visible.map((i) => i.id)).toEqual(['v', 'p1']);
+      expect(out[0]!.hidden.map((i) => i.id)).toEqual(['h1']);
+    });
+
+    it('unions session + persistent overrides into one bucket', () => {
+      const sections: ItemSection[] = [
+        {
+          id: 'tacos',
+          name: 'Tacos',
+          visible: [],
+          hidden: [persistentlyOverridden('p1'), fItem('s1', 'hidden')],
+        },
+      ];
+      const out = applyOverrides(sections, new Set(['s1']));
+      expect(out[0]!.visible.map((i) => i.id)).toEqual(['p1', 's1']);
+      expect(out[0]!.hidden).toEqual([]);
+    });
+
+    it('preserves identity when neither override kind hits', () => {
+      const sections: ItemSection[] = [
+        { id: 'tacos', name: 'Tacos', visible: [], hidden: [fItem('h', 'hidden')] },
+      ];
+      expect(applyOverrides(sections, new Set())).toBe(sections);
+    });
+  });
 });

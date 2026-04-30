@@ -15,6 +15,8 @@ class User < ApplicationRecord
   has_one  :profile, class_name: "UserProfile", dependent: :destroy
   has_many :reviews, dependent: :destroy
   has_many :suggestions, dependent: :nullify
+  has_many :user_item_overrides, dependent: :destroy
+  has_many :overridden_items, through: :user_item_overrides, source: :item
 
   validates :handle, presence: true, uniqueness: true,
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }

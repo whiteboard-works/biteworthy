@@ -13,6 +13,31 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 09:30 — tick #62. PR #156 (Phase 4.1) merged at 09:51 UTC.
+Picked up Phase 4.2 — persistent "never hide this dish" override.
+Closes the deferred half from Phase 3.4. New `user_item_overrides`
+table (user_id, item_id, never_hide bool) with composite unique
+index. UserItemOverride model + has_many wires on User + Item;
+`User#overridden_items` through-association reads cleanly. New
+`POST/DELETE /api/v1/items/:id/never_hide` endpoints (idempotent,
+authenticated, 404 for unpublished items). Items endpoint now emits
+`overridden_by_user: bool` per item — true only for the
+authenticated user's overrides; anonymous always false.
+filter-engine: extended `FilteredItem` with optional
+`overridden_by_user` and updated `applyOverrides` to union
+session + persistent overrides into the visible bucket. Web: new
+`/api/items/[id]/never_hide` Next proxy + `setNeverHide` /
+`clearNeverHide` client helpers. RestaurantClient gains "Never hide
+this dish" sub-action under "Show anyway"; persistent state shows
+"Always shown — undo". Mobile: same fetchers + buttons (gated by
+`allowPersistent` boolean since the screen still renders anonymously).
+Tests: 5 model specs, 6 controller specs, 2 new items-endpoint
+specs (auth + anonymous), 4 mobile jest cases for the fetchers,
+3 web vitest cases for the helpers, 3 new filter-engine vitest
+cases for the persistent override path. Local: rspec 212/0/1
+pending; web vitest 30/30; mobile jest 39/39; filter-engine vitest
+60/60; pnpm typecheck/lint cached green.
+
 2026-05-01 09:00 — tick #61. PR #155 (Phase 4 plan) merged at 08:47 UTC.
 **Major user unblocks during this tick**: ANTHROPIC_API_KEY now in
 GitHub Actions secrets + local .env, and bite-worthy.com domain

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_29_231545) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_30_095252) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -322,6 +322,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_231545) do
     t.index ["slug"], name: "index_tags_on_slug", unique: true
   end
 
+  create_table "user_item_overrides", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "item_id", null: false
+    t.boolean "never_hide", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["item_id"], name: "index_user_item_overrides_on_item_id"
+    t.index ["user_id", "item_id"], name: "index_user_item_overrides_on_user_id_and_item_id", unique: true
+    t.index ["user_id"], name: "index_user_item_overrides_on_user_id"
+  end
+
   create_table "user_profiles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "avoid_ingredient_ids", default: [], null: false, array: true
     t.uuid "avoid_tag_ids", default: [], null: false, array: true
@@ -398,6 +409,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_231545) do
   add_foreign_key "reviews", "users"
   add_foreign_key "suggestions", "users"
   add_foreign_key "suggestions", "users", column: "resolved_by_user_id"
+  add_foreign_key "user_item_overrides", "items"
+  add_foreign_key "user_item_overrides", "users"
   add_foreign_key "user_profiles", "dietary_profiles", column: "primary_dietary_profile_id"
   add_foreign_key "user_profiles", "users"
 end

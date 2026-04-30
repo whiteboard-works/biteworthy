@@ -13,6 +13,7 @@ class Item < ApplicationRecord
   has_many :item_tags,        dependent: :destroy
   has_many :tags,        through: :item_tags
   has_many :reviews,          dependent: :destroy
+  has_many :user_item_overrides, dependent: :destroy
 
   validates :name, presence: true
   validates :status,     inclusion: { in: STATUSES }

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
+  setNeverHide,
   type Restaurant,
   type RestaurantItemsResponse,
 } from '../restaurants';
@@ -91,5 +93,33 @@ describe('fetchRestaurantItems', () => {
     await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl, jwt: 'jjj.www.ttt' });
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+  });
+});
+
+describe('setNeverHide / clearNeverHide (Phase 4.2)', () => {
+  it('POSTs the Next proxy with credentials and no client-side JWT header', async () => {
+    const fetchImpl = fakeFetch(200, { item_id: 'item-1', overridden_by_user: true });
+    const result = await setNeverHide('item-1', { fetchImpl });
+    expect(result.overridden_by_user).toBe(true);
+
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toBe('/api/items/item-1/never_hide');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+
+  it('DELETE clears the override', async () => {
+    const fetchImpl = fakeFetch(200, { item_id: 'item-1', overridden_by_user: false });
+    const result = await clearNeverHide('item-1', { fetchImpl });
+    expect(result.overridden_by_user).toBe(false);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('throws on non-2xx', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'unauth' });
+    await expect(setNeverHide('item-1', { fetchImpl })).rejects.toThrow(/401/);
   });
 });

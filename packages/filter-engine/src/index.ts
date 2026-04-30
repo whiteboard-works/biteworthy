@@ -60,6 +60,14 @@ export interface FilterableItem {
 export interface FilteredItem extends FilterableItem {
   status: ItemStatus;
   reasons: HideReason[];
+  /**
+   * Phase 4.2 — true when the authenticated user has flagged this
+   * item as "never hide for me." Optional so anonymous responses
+   * (which always set it `false` server-side) don't have to spell it
+   * out, and so factories / fixtures can omit it in tests that don't
+   * exercise the override path.
+   */
+  overridden_by_user?: boolean;
 }
 
 /**
@@ -242,12 +250,18 @@ export function applyOverrides<T extends FilteredItem>(
   sections: ItemSection<T>[],
   shownAnyway: ReadonlySet<string>,
 ): ItemSection<T>[] {
-  if (shownAnyway.size === 0) return sections;
+  // Phase 4.2 — items the server already marked `overridden_by_user`
+  // get the same treatment as session-only "show anyway" picks: they
+  // move from `hidden` to `visible`. The `shownAnyway` set is unioned
+  // with the per-item flag so callers don't have to merge manually.
+  const hasPersistentOverrides = sections.some((s) => s.hidden.some((i) => i.overridden_by_user));
+  if (shownAnyway.size === 0 && !hasPersistentOverrides) return sections;
+
   return sections.map((section) => {
     const stillHidden: T[] = [];
     const promoted: T[] = [];
     for (const item of section.hidden) {
-      if (shownAnyway.has(item.id)) promoted.push(item);
+      if (shownAnyway.has(item.id) || item.overridden_by_user) promoted.push(item);
       else stillHidden.push(item);
     }
     if (promoted.length === 0) return section;

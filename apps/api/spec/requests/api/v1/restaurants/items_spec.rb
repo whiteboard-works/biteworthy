@@ -162,6 +162,25 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(items["Salmon Bowl"]["status"]).to eq("hidden")
       expect(body["filter"]["source"]).to        eq("user_profile")
     end
+
+    it "surfaces overridden_by_user=true for items the user marked never-hide (Phase 4.2)" do
+      create(:user_item_override, user: user, item: cheese_quesadilla)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: headers
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["overridden_by_user"]).to be(true)
+      expect(items["Carne Asada Taco"]["overridden_by_user"]).to be(false)
+    end
+
+    it "always returns overridden_by_user=false anonymously" do
+      create(:user_item_override, user: user, item: cheese_quesadilla)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["overridden_by_user"]).to be(false)
+    end
   end
 
   describe "menu section payload (Phase 3.3)" do
