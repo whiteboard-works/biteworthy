@@ -18,10 +18,15 @@
 
 import type { MetadataRoute } from 'next';
 import { buildSitemapEntries } from '../lib/sitemap';
+import { DURANGO_DIET_SLUGS } from '../lib/durango';
 
 const DEFAULT_BASE_URL = 'https://bite-worthy.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_BASE_URL;
-  return buildSitemapEntries(baseUrl);
+  return buildSitemapEntries(baseUrl, {
+    // Phase 5.6 — every curated diet slug becomes /durango/[diet].
+    // Phase 5.7 will populate restaurantSlugs once the seed run lands.
+    dietSlugs: [...DURANGO_DIET_SLUGS],
+  });
 }
