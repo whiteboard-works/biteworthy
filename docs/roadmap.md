@@ -13,11 +13,11 @@ the merge / review / status rules.
 
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`.
 
-1. **Phase 5.9 — app store submission (structural)** (`docs/plans/phase-5.md#59--mobile-app-store-submission-testflight--play-store`) — this PR. Ships privacy + terms pages, app-store-listing markdown templates, eas.json profiles, asset spec docs. Defers binary asset generation, screenshot capture, and the actual TestFlight / Play Internal upload to a wiring follow-up gated on Apple Developer ($99/yr) + Google Play Console ($25 one-time) accounts.
+1. **Phase 5.1.1 — migrate API hosting from Fly.io to Kamal + Hetzner CX22 + Neon Postgres** (`docs/plans/phase-5.md#511--migrate-api-hosting-to-kamal--hetzner-cx22--neon-postgres`) — this PR (the next loop tick picks it up). Reverses the original 5.1 Fly.io pick at human request. Ships the deploy.yml + ADR 0007 + README rewrite + secrets template; the Hetzner box, Neon project, GHCR token, and DNS A-record are the human bootstrap. Reuses unchanged: Dockerfile, docker-entrypoint, smoke task, and every Phase 5.2+ wiring.
 2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the 4.11.2 prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that. Holdover from Phase 4.11; not a launch blocker (the structural code is on master) but should land before Phase 5.7's seed task mass-ingests real Durango menus.
-3. **Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179; needs `posthog-js` + `posthog-react-native` installed and the call-site instrumentation.) Decoupled because each surface PR is small + reviewable on its own.
-4. **Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to this PR; needs Apple/Google dev accounts + EAS credentials).
-5. **Phase 5.10 — press kit + Durango outreach** (`docs/plans/phase-5.md#510--press-kit--outreach-durango-launch`).
+3. **Phase 5.10 — press kit + Durango outreach** (`docs/plans/phase-5.md#510--press-kit--outreach-durango-launch`).
+4. **Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179; needs `posthog-js` + `posthog-react-native` installed and the call-site instrumentation.) Decoupled because each surface PR is small + reviewable on its own.
+5. **Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180; needs Apple/Google dev accounts + lawyer signoff on /privacy + /terms).
 
 ### Done
 
@@ -73,7 +73,8 @@ the merge / review / status rules.
 - ✅ Phase 5.5 — marketing landing page at / (#176)
 - ✅ Phase 5.6 — SEO city/diet pages at /durango/[diet] (#177)
 - ✅ Phase 5.7 — durango batch ingest task + csv template (#178)
-- ✅ Phase 5.8 — analytics abstraction + event taxonomy (#179) — **structural; wiring follow-up queued at Next-up #3**
+- ✅ Phase 5.8 — analytics abstraction + event taxonomy (#179) — **structural; wiring follow-up queued at Next-up #4**
+- ✅ Phase 5.9 — privacy + terms + app store listing templates (#180) — **structural; wiring follow-up queued at Next-up #5**
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
