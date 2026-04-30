@@ -61,6 +61,8 @@ Rails.application.routes.draw do
         # Phase 4.9 — restaurant claim flow.
         post   "claim",        to: "restaurant_claims#create"
         get    "claim/verify", to: "restaurant_claims#verify"
+        # Phase 4.10 — owner's pending-suggestion queue.
+        resources :suggestions, only: [:index]
       end
       resources :ingredients, only: [:index]
       resources :tags, only: [:index]
@@ -71,8 +73,12 @@ Rails.application.routes.draw do
           delete :never_hide, to: "item_overrides#destroy"
         end
         resources :reviews, only: [:index, :create]
+        # Phase 4.10 — anyone can suggest a fix.
+        resources :suggestions, only: [:create]
       end
       resources :reviews, only: [:update, :destroy]
+      # Phase 4.10 — owner accepts/rejects a suggestion.
+      resources :suggestions, only: [:update]
       # Phase 4.7 — public profile by handle. Constraint allows
       # underscores + digits + ASCII letters (matches User#handle
       # validation).

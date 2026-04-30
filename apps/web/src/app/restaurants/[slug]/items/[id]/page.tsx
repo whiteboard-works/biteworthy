@@ -8,6 +8,7 @@ import {
 } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { ReviewsClient } from './ReviewsClient';
+import { SuggestFixClient } from './SuggestFixClient';
 
 /**
  * Phase 4.5 — server-rendered item detail page with reviews.
@@ -62,6 +63,7 @@ function Page({
       )}
 
       <ReviewsClient itemId={item.id} initial={initialReviews} />
+      <SuggestFixClient itemId={item.id} />
     </main>
   );
 }

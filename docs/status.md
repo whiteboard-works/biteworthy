@@ -13,6 +13,39 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 13:30 — tick #70. PR #164 (Phase 4.9) merged at 13:24 UTC.
+Picked up Phase 4.10 — suggestion queue UX (the last item in Phase 4).
+New `SuggestionResolver` service with five item-edit kinds
+(add_ingredient, remove_ingredient, add_tag, remove_tag, rename),
+each accept materializing a real Item / ItemIngredient / ItemTag
+change with `confidence: confirmed, source: human` (mirrors
+IngestionItem#promote!). Wrapped in one transaction so a payload
+validation failure rolls back both the side effect and the
+Suggestion status. Three endpoints: POST anonymous-allowed (so a
+diner without an account can still flag a fix), GET owner-only
+(restaurant.claimed_by_user_id or admin), PATCH owner-only with
+'accepted' | 'rejected' decision. All gated through one
+`gate_owner!` helper. Web: three Next proxy routes mirroring the
+auth shape (suggestion-create forwards a JWT IF the cookie has
+one; the other two require it). New `lib/suggestions.ts` client
+with SuggestionError preserving status + kind so the UI can
+distinguish 401 (bounce to /login), 403 (you don't own this
+restaurant), 422 + InvalidPayloadError (couldn't accept that —
+double-check the value). `<SuggestFixClient>` form on the item
+detail page (kind dropdown + value input + dynamic placeholder
+hint per kind). `/restaurants/[slug]/suggestions` owner queue page
+shows pending suggestions with Accept / Reject buttons; rows drop
+locally on decision rather than re-fetching. Tests: 11 resolver
+specs (every kind end-to-end + idempotence + rollback +
+unsupported kind), 12 controller specs (anonymous create,
+authenticated create attribution, unsupported kind 422, owner
+gate on index/update, admin override, accept materializes,
+InvalidPayload rollback), 7 vitest for the web client. Local:
+rspec 314/0/1 pending; web vitest 61/61; mobile jest 56/56;
+pnpm typecheck/lint cached green. **After this PR ships, Phase 4
+is feature-complete** (4.1 → 4.10 all merged); next tick drafts
+the Phase 4.11 dish-photo subplan per the user's earlier ask.
+
 2026-05-01 13:00 — tick #69. PR #163 (Phase 4.8) merged at 12:52 UTC.
 Picked up Phase 4.9 — restaurant claim flow with domain-email
 verification. New `RestaurantClaim` service that reuses the
