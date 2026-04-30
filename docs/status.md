@@ -13,6 +13,50 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 21:47 — tick #86. PR #179 (Phase 5.8 analytics structural)
+merged at 21:20 UTC, all CI green. Anthropic still capped (~2.2h
+to reset); cassette PR stays BLOCKED. Picked the next unblocked
+item: **Phase 5.9 — app store submission (structural)**. Same
+ship-the-wiring-first split — loop ships everything that doesn't
+need a paid Apple Developer or Google Play Console account.
+Shipped:
+- **Web privacy + terms** at `/privacy` and `/terms` (resolves
+  the Phase 5.5 footer placeholder hrefs). Pure SSR templates
+  filled with BiteWorthy's actual data flows: account, profile,
+  reviews, restaurant_visits, suggestions; named services
+  (Postgres+Fly.io / Cloudflare R2 / Anthropic / Postmark /
+  PostHog). Both marked DRAFT with a banner — needs final
+  lawyer pass before App Store submission. Allergen disclaimer
+  is up top in /terms ("planning tool, not a medical device").
+- `apps/web/src/lib/legal-meta.ts` extracted metadata helper +
+  5 vitest cases (canonical title, OG url path joining,
+  trailing-slash stripping, Twitter summary card, robots
+  index/follow). Same testable shape as Phase 5.5's
+  landing-meta.
+- **Mobile store-listing**: `eas.json` with development /
+  preview / production build profiles + a submit profile with
+  placeholder values marking where Apple ID / ASC App ID / team
+  ID / Play service-account path go.
+  `apps/mobile/store-listing/` — App Store Connect metadata
+  (name/subtitle/description/keywords/URLs/category/App Privacy
+  answers/What's New template), Play Console metadata (short
+  description/feature graphic/data safety/distribution), and a
+  screenshots-plan.md naming the 5 marketing shots + the
+  expo-router test-route flow Phase 5.9-wiring will use.
+- `apps/mobile/assets/README.md` — required asset specs (icon,
+  adaptive-icon, splash, favicon) + ui-tokens-derived design
+  guidance + the sharp render pipeline 5.9-wiring follows.
+Tests: 5 new vitest cases (web 92/92, +5). Typecheck + lint full-
+turbo green; rspec 365/0/1 unchanged. Roadmap: ticked 5.8 (#179);
+reordered Next-up so 5.9-structural is #1 and a new 5.9-wiring
+entry is #4 (BLOCKED on dev accounts + lawyer review). **Phase
+5 status**: every code-only PR has now shipped its structural
+half. Remaining loop work: 5.10 (press kit + waitlist). The
+human-credential-gated wiring queue: 5.1 deploy, 5.2 SMTP, 5.3
+R2, 5.4 Vercel, 5.8-wiring (PostHog), 5.9-wiring (App Stores),
+plus the long-blocked cassette PR. Anthropic cap clears at
+00:00 UTC (~2.2h from now).
+
 2026-04-30 21:19 — tick #85. PR #178 (Phase 5.7 Durango seed task)
 merged at 20:47 UTC, all CI green including title-lint this time.
 Anthropic still capped (~2.7h to reset); cassette PR stays
