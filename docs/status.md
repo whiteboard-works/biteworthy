@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 08:30 — tick #60. PR #154 (Phase 3.9) merged at 08:38 UTC.
+**Phase 3 feature-complete** (3.1–3.9 all merged: seeds → mobile
+onboarding → mobile restaurant page → transparency chips →
+strictness toggle → web restaurant page → applyProfile in
+filter-engine → web onboarding → shareable URLs). Per the roadmap's
+stated cadence ("After Phase 3 ships, the loop will draft
+docs/plans/phase-4.md the same way"), this tick is a plan-update PR:
+no code, just `docs/plans/phase-4.md` + the Next-up batch in
+`docs/roadmap.md`. Decomposed Phase 4 (reviews + accounts) into 10
+PR-sized tasks: 4.1 real session cookies (retire JWT-pasting that
+Phases 2+3 deferred); 4.2 persistent "never hide this dish" override
+(closes the Phase 3.4 deferred half); 4.3 review API + photo via
+ActiveStorage; 4.4 mobile review UX; 4.5 web review UX; 4.6 review
+moderation queue (Avo) with hidden_at/hidden_reason + keyword spam
+heuristic; 4.7 user profile pages at /u/:handle; 4.8 "My filtered
+menus" history via async restaurant_visits log; 4.9 restaurant
+claim flow (domain-email verification reusing the suggestions table
+with kind:'claim'); 4.10 suggestion queue UX for community edits.
+Stop conditions called out: SMTP credentials (mailers), S3 bucket
+(review photos), domain-email verification (claim flow). Cross-
+cutting notes: telemetry hooks, OpenAPI codegen on every endpoint
+PR, JWT-paste comment removal as part of the relevant diff, and the
+jest-expo Discovered followup blocking UI snapshots until landed.
+Marked Phase 3 ✅ in the roadmap header, captured the "achieved
+2026-04-30" demo line. Plan PR awaits human review before items
+auto-run, same protocol as the Phase 3 plan PR (#145).
+
 2026-05-01 08:00 — tick #59. PR #153 (Phase 3.8) merged at 07:48 UTC.
 Picked up Phase 3.9 — shareable filter URLs. Locked the wire format
 in `@biteworthy/filter-engine`: `encodeProfileToken({avoid_ingredient_ids,

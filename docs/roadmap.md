@@ -11,11 +11,18 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
+**Phase 4** ⭐ Reviews + accounts. Subplan: `docs/plans/phase-4.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
 
-1. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`) — this PR (last item in Phase 3)
-
-After 3.9 merges, Phase 3 is feature-complete and the loop drafts `docs/plans/phase-4.md` (reviews + accounts).
+1. **Phase 4.1 — Real session cookies (retire JWT-pasting)** (`docs/plans/phase-4.md#41`) — this PR is the plan
+2. **Phase 4.2 — Persistent "never hide this dish" override** (`docs/plans/phase-4.md#42`)
+3. **Phase 4.3 — Review API + photo attachment** (`docs/plans/phase-4.md#43`)
+4. **Phase 4.4 — Mobile review UX** (`docs/plans/phase-4.md#44`)
+5. **Phase 4.5 — Web review UX** (`docs/plans/phase-4.md#45`)
+6. **Phase 4.6 — Review moderation queue (Avo)** (`docs/plans/phase-4.md#46`)
+7. **Phase 4.7 — User profile pages** (`docs/plans/phase-4.md#47`)
+8. **Phase 4.8 — "My filtered menus" history** (`docs/plans/phase-4.md#48`)
+9. **Phase 4.9 — Restaurant claim flow (domain-email verification)** (`docs/plans/phase-4.md#49`)
+10. **Phase 4.10 — Suggestion queue UX (community edits)** (`docs/plans/phase-4.md#410`)
 
 ### Done
 
@@ -46,8 +53,9 @@ After 3.9 merges, Phase 3 is feature-complete and the loop drafts `docs/plans/ph
 - ✅ Phase 3.6 — web filtered restaurant page (#151)
 - ✅ Phase 3.7 — applyProfile + display helpers consolidated in filter-engine (#152)
 - ✅ Phase 3.8 — web profile onboarding (#153)
+- ✅ Phase 3.9 — shareable filter URLs (#154) — **Phase 3 feature-complete**
 
-After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
+After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
 ## Phase 0 — Foundation ✅
 
@@ -95,7 +103,7 @@ record real interactions before "live demo-ready" is true.
 **Demo (original target text):** photograph a real Durango menu in person; 60 seconds later
 the items appear staged; 5 minutes of swiping promotes them to live.
 
-## Phase 3 — Dietary filter (weeks 7–9)
+## Phase 3 — Dietary filter (weeks 7–9) ✅
 
 Subplan: `docs/plans/phase-3.md` (drafted at end of Phase 2).
 
@@ -108,8 +116,11 @@ Subplan: `docs/plans/phase-3.md` (drafted at end of Phase 2).
 - Strict-mode toggle (hides anything not `confidence: confirmed`)
 - Shareable filter URLs (encode profile in a token)
 
-**Demo:** open the app, pick "Celiac + tree-nut allergy", scan a real
-menu, see only the dishes that pass. Hidden items each say *why*.
+**Demo (achieved 2026-04-30):** open the app, pick "Celiac + tree-nut
+allergy", scan a real menu, see only the dishes that pass. Hidden
+items each say *why*. Tap "show anyway" on one and it re-appears
+client-side. Share a filtered link via `/r/<slug>?p=<token>` and the
+recipient sees the same view without signing in.
 
 ## Phase 4 — Reviews + accounts (weeks 10–11)
 
