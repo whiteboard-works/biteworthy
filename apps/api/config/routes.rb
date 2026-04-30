@@ -84,6 +84,8 @@ Rails.application.routes.draw do
         resources :suggestions, only: [:create]
       end
       resources :reviews, only: [:update, :destroy]
+      # Phase 5.10 — soft-launch waitlist; public + unauthenticated.
+      resources :waitlist_signups, only: [:create]
       # Phase 4.10 — owner accepts/rejects a suggestion.
       resources :suggestions, only: [:update]
       # Phase 4.7 — public profile by handle. Constraint allows
