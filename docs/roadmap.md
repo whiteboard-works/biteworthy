@@ -11,10 +11,10 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
+**Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`.
 
-1. **Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work — gating on the API daily-cap reset) — this PR is the plan
-2. **Phase 4.11.1 — Schema + DishPhotoCropper service** (`docs/plans/phase-4.11-dish-photos.md#4111--schema--imagecropper-service`)
+1. **Phase 4.11.1 — Schema + DishPhotoCropper service** (`docs/plans/phase-4.11-dish-photos.md#4111--schema--imagecropper-service`) — this PR
+2. **Phase 4.11.0 — Record live AnthropicClient cassette** (deferred Phase 2.3 work; **still blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that)
 3. **Phase 4.11.2 — Extend ExtractMenuJob to ask for + receive bboxes** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`)
 4. **Phase 4.11.3 — IngestionItem#promote! attaches the cropped photo** (`docs/plans/phase-4.11-dish-photos.md#4113--ingestionitempromote-attaches-the-cropped-photo`)
 5. **Phase 4.11.4 — Render dish photos on web + mobile restaurant pages** (`docs/plans/phase-4.11-dish-photos.md#4114--render-dish-photos-on-web--mobile-restaurant-pages`)
@@ -62,6 +62,7 @@ After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango lau
 - ✅ Phase 4.8 — "My filtered menus" history (#163)
 - ✅ Phase 4.9 — restaurant claim flow with domain-email verification (#164)
 - ✅ Phase 4.10 — suggestion queue UX for community edits (#165) — **Phase 4 feature-complete**
+- ✅ Phase 4.11 — subplan committed (#166)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 

@@ -13,6 +13,35 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 14:30 — tick #72. PR #166 (Phase 4.11 plan + master fix) merged at 14:18 UTC.
+**Cassette PR (4.11.0) blocked again**: tried recording with the same
+sample.jpg, hit HTTP 400 "regain access on 2026-05-01 at 00:00 UTC"
+— I miscounted last tick (00:00 UTC is the START of May 1, ~10
+hours away from the cron's 14:18 UTC reading, not behind us).
+Rolled back the spec edit + deleted the empty cassette dir; per
+playbook §7, pivoted to Phase 4.11.1 since it has zero Anthropic
+dependency. New migration adds image_bbox jsonb to ingestion_items
+(nullable, validation lives at app layer). New
+Ingestion::DishPhotoCropper service: takes a blob + normalized
+{x,y,w,h} bbox + optional padding (default 5%), reads via
+MiniMagick, clamps the padded box to source dimensions so a
+near-edge bbox doesn't slice off, returns a Cropped struct
+({io, width, height, content_type}) ready to attach via
+ActiveStorage. Accepts symbol OR string keys (jsonb roundtrip
+brings strings; in-Ruby callers prefer symbols). Hard-validates
+input: missing key, non-numeric, x/y out of [0,1], w/h ≤ 0,
+non-Hash all raise InvalidBboxError so the calling promote! can
+rescue cleanly. Tests: 10 specs against the committed JPEG fixture
+(spec/fixtures/menus/sample.jpg from the prepped 4.11.0 work) —
+JPEG roundtrip via MiniMagick decode, padding behavior, edge
+clamping, every validation branch, ActiveStorage::Blob duck-typing.
+Kept the JPEG fixture committed (it's needed for 4.11.1 specs and
+will be needed again for 4.11.2's cassette). Added explicit
+`apt-get install imagemagick` step to ci-api.yml so the runner
+keeps the binary even if the ubuntu-latest image changes (locally
+also brew-installed imagemagick to run the specs). Local: rspec
+324/0/1 pending; pnpm typecheck/lint cached green (no JS changes).
+
 2026-05-01 14:00 — tick #71. PR #165 (Phase 4.10) merged at 13:51 UTC.
 **Phase 4 feature-complete** (4.1 → 4.10 all shipped: session cookies
 → persistent overrides → review API → mobile review UX → web review
