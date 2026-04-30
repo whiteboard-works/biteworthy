@@ -50,7 +50,11 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      resource :profile, only: [:show, :update]
+      resource :profile, only: [:show, :update] do
+        # Phase 4.8 — "My filtered menus" history (recent restaurant
+        # visits with the visible/hidden item counts at view time).
+        get :history, to: "profile_history#index"
+      end
       resources :cities, only: [:index, :show]
       resources :restaurants, only: [:index, :show] do
         resources :items, only: [:index, :show]

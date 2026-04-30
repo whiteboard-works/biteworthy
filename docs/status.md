@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 12:30 — tick #68. PR #162 (Phase 4.7) merged at 12:23 UTC.
+Picked up Phase 4.8 — "My filtered menus" history. New
+`restaurant_visits` table (user_id, restaurant_id, viewed_on,
+items_visible_count, items_hidden_count) with composite unique
+index on (user_id, restaurant_id, viewed_on) so the upsert is
+race-safe — a user reloading the same restaurant five times in
+a day produces a single row with the latest counts. Counts are
+denormalized so the History list renders without touching items
+or reviews. New `RecordRestaurantVisitJob` that
+`find_or_initialize_by` + saves; rescues InvalidForeignKey
+silently (best-effort) and retries RecordNotUnique once.
+ItemsController#index now enqueues the job when current_user is
+present, swallowing any enqueue exception so the response always
+200s. New `GET /api/v1/profile/history` returns paginated visits
+newest-first with restaurant + city info; auth-only. Web: Next
+proxy at `/api/profile/history` + client-side `/history` page
+that bounces 401 → /login. Mobile: `/history.tsx` mirror that
+reads JWT from keychain and bounces to /login if absent or 401.
+Tests: 5 job specs (create, idempotent upsert, separate days,
+swallowed FK error, default viewed_on); 4 controller specs (auth
+gate, newest-first ordering with city, limit/offset, no cross-user
+leak); 3 items-endpoint specs (enqueue with auth, no enqueue
+anonymous, swallow enqueue failure); 3 vitest + 3 jest for the
+JS clients. Local: rspec 266/0/1 pending; web vitest 48/48;
+mobile jest 56/56; pnpm typecheck/lint cached green.
+
 2026-05-01 12:00 — tick #67. PR #161 (Phase 4.6) merged at 11:49 UTC.
 **Cassette PR blocked**: started the cassette work (planned for this
 tick at user request), converted IMG_6973.HEIC → JPEG, dropped at

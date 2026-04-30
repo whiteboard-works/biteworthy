@@ -35,6 +35,11 @@ module Api
         review_counts = review_counts_for(items)
         rendered      = items.map { |item| serialize_item(item, filter, labels, override_ids, review_counts) }
 
+        # Phase 4.8 — record an authenticated user's visit to this
+        # restaurant for the History tab. Best-effort, async, never
+        # blocks the response.
+        record_visit_for_history(restaurant, rendered) if current_user
+
         render json: {
           restaurant_id: restaurant.id,
           filter: filter_summary(filter),
@@ -184,6 +189,22 @@ module Api
         ids = items.map(&:id)
         return {} if ids.empty?
         Review.visible.where(item_id: ids).group(:item_id).count
+      end
+
+      # Phase 4.8 — fire-and-forget enqueue. Never raises into the
+      # request even if SolidQueue is briefly unhealthy.
+      def record_visit_for_history(restaurant, rendered_items)
+        visible_count = rendered_items.count { |i| i[:status] == "visible" }
+        hidden_count  = rendered_items.size - visible_count
+        RecordRestaurantVisitJob.perform_later(
+          current_user.id,
+          restaurant.id,
+          visible_count,
+          hidden_count,
+          Date.current.iso8601
+        )
+      rescue StandardError => e
+        Rails.logger.warn("RecordRestaurantVisitJob enqueue failed: #{e.class} #{e.message}")
       end
 
       # Phase 4.2 — bulk-load the authenticated user's "never hide"
