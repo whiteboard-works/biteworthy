@@ -12,3 +12,19 @@ amazon:
   secret_access_key: <%= ENV["AWS_SECRET_ACCESS_KEY"] %>
   region: <%= ENV.fetch("AWS_REGION", "us-east-1") %>
   bucket: <%= ENV["AWS_S3_BUCKET"] %>
+
+# Phase 5.3 — Cloudflare R2 (S3-compatible). The aws-sdk-s3 client
+# is unchanged; only the endpoint differs. ADR 0004 documents the
+# pick + the no-egress-charges argument vs AWS S3.
+#
+# region must be "auto" for R2; force_path_style is required because
+# R2 buckets aren't addressable as virtual-hosted subdomains the way
+# S3 buckets are.
+r2:
+  service: S3
+  access_key_id: <%= ENV["R2_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["R2_SECRET_ACCESS_KEY"] %>
+  endpoint: <%= ENV["R2_ENDPOINT"] %>
+  region: <%= ENV.fetch("R2_REGION", "auto") %>
+  bucket: <%= ENV["R2_BUCKET"] %>
+  force_path_style: true
