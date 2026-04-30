@@ -22,12 +22,16 @@ module Api
       def index
         limit  = (params[:limit].presence || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
         offset = (params[:offset].presence || 0).to_i.clamp(0, 10_000)
-        scope = @item.reviews.newest_first.includes(:user, photo_attachment: :blob).offset(offset).limit(limit)
+        # Phase 4.6 — public feed shows visible (non-hidden) reviews only.
+        # Flagged reviews stay public until a moderator decides; only
+        # hide! removes them from the feed.
+        public_scope = @item.reviews.visible
+        scope        = public_scope.newest_first.includes(:user, photo_attachment: :blob).offset(offset).limit(limit)
 
         render json: {
           item_id: @item.id,
           reviews: scope.map { |r| serialize(r) },
-          total:   @item.reviews.count
+          total:   public_scope.count
         }
       end
 

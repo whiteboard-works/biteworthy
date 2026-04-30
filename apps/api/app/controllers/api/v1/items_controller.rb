@@ -178,11 +178,12 @@ module Api
       # Phase 4.4 — bulk-load review counts for the items in the
       # response. One grouped query, joined client-side so the
       # restaurant page can render an "X reviews" badge per item
-      # without N+1.
+      # without N+1. Phase 4.6: counts only `.visible` reviews so
+      # hidden ones don't inflate the public number.
       def review_counts_for(items)
         ids = items.map(&:id)
         return {} if ids.empty?
-        Review.where(item_id: ids).group(:item_id).count
+        Review.visible.where(item_id: ids).group(:item_id).count
       end
 
       # Phase 4.2 — bulk-load the authenticated user's "never hide"

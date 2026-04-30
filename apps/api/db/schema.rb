@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_30_095252) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_30_114231) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -281,10 +281,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_095252) do
   create_table "reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "body"
     t.datetime "created_at", null: false
+    t.datetime "flagged_at"
+    t.datetime "hidden_at"
+    t.string "hidden_reason"
     t.uuid "item_id", null: false
     t.integer "rating", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.index ["flagged_at"], name: "index_reviews_on_flagged_at", where: "((flagged_at IS NOT NULL) AND (hidden_at IS NULL))"
+    t.index ["hidden_at"], name: "index_reviews_on_hidden_at", where: "(hidden_at IS NOT NULL)"
     t.index ["item_id"], name: "index_reviews_on_item_id"
     t.index ["user_id", "item_id"], name: "index_reviews_on_user_id_and_item_id", unique: true
     t.index ["user_id"], name: "index_reviews_on_user_id"
