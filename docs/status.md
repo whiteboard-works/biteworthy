@@ -13,6 +13,48 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 21:19 — tick #85. PR #178 (Phase 5.7 Durango seed task)
+merged at 20:47 UTC, all CI green including title-lint this time.
+Anthropic still capped (~2.7h to reset); cassette PR stays
+BLOCKED. Picked the next unblocked item: **Phase 5.8 — analytics
+instrumentation (structural)**. Discovered Phase 4's
+"placeholder track() events" were never actually wired — the
+cross-cutting note in phase-4.md said they would be but no
+call-sites have track() calls today. So 5.8 is a from-scratch
+build of both abstraction + taxonomy. Shipped:
+- New **`@biteworthy/analytics`** workspace package, zero deps,
+  pure TS. Tracker interface + AnalyticsClient (the SDK contract
+  apps will inject) + EVENTS map (9 stable funnel + engagement
+  event names) + EventPropsMap (per-event payload type-safety
+  → misspellings become tsc errors not split funnels) +
+  noopTracker + createTracker factory. 6 vitest cases.
+- **Web wrapper** at `apps/web/src/lib/track.ts` — env + DNT +
+  `localStorage.bw_analytics_opt_out` aware. Returns noopTracker
+  unless ALL of: `NEXT_PUBLIC_POSTHOG_KEY` set, DNT off, not
+  opted out, AND a real AnalyticsClient injected. Phase 5.8
+  ships always-noop because no client is injected yet — wiring
+  follow-up adds posthog-js + the adapter. 5 vitest cases.
+- **Mobile wrapper** at `apps/mobile/lib/track.ts` — same
+  pattern but opt-IN by default (App Store privacy posture).
+  4 jest cases.
+- `docs/analytics.md` documents the 9 events + payload schemas +
+  privacy posture + the structural-vs-wiring split. Mirrors the
+  TS types so misspellings stay caught.
+- ADR 0006 captures PostHog pick over Plausible / Mixpanel /
+  Amplitude / Segment, why abstraction-first ship pattern,
+  bootstrap path for the wiring follow-up.
+Total: 15 new tests across 3 surfaces (web 87/87 +5; mobile
+60/60 +4; analytics package 6/6). rspec 365/0/1 unchanged
+(no API changes). pnpm typecheck (10 tasks) + lint (6 tasks)
+all green; turbo cache miss only on the new package. Roadmap:
+ticked 5.7 (#178); reordered Next-up so 5.8-structural is #1 and
+a new 5.8-wiring entry is queued at #3 (depends on PostHog
+credentials + posthog-js/RN install — operator task). **Phase 5
+playbook continues**: every Phase-5 PR has split honestly into
+loop-shippable wiring vs human-credential-gated hookup. Next
+tick: 5.9 (mobile app store submission) — OR if Anthropic cap
+clears at 00:00 UTC (~2.7h from now), retry the cassette PR.
+
 2026-04-30 20:46 — tick #84. PR #177 (Phase 5.6 SEO city/diet pages)
 merged at 20:19 UTC. Anthropic still capped (~3.2h to reset);
 cassette PR stays BLOCKED. **Title-lint failed** on #177
