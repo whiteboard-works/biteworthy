@@ -32,6 +32,9 @@ export interface Restaurant {
   phone: string | null;
   website: string | null;
   status: string;
+  /** Phase 4.9 — set when an owner has verified the claim. */
+  claimed_at: string | null;
+  claimed_by_user_id: string | null;
   city: RestaurantCity;
 }
 

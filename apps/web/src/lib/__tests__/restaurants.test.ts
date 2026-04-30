@@ -16,6 +16,8 @@ const restaurantPayload: Restaurant = {
   phone: null,
   website: null,
   status: 'published',
+  claimed_at: null,
+  claimed_by_user_id: null,
   city: { id: 'city-1', slug: 'durango', name: 'Durango', region: 'CO' },
 };
 

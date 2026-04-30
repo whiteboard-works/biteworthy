@@ -16,10 +16,12 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
     body = response.parsed_body
 
     expect(body).to include(
-      "id"     => restaurant.id,
-      "slug"   => restaurant.slug,
-      "name"   => "Ninis Taqueria",
-      "status" => "published"
+      "id"                 => restaurant.id,
+      "slug"               => restaurant.slug,
+      "name"               => "Ninis Taqueria",
+      "status"             => "published",
+      "claimed_at"         => nil,
+      "claimed_by_user_id" => nil
     )
     expect(body["city"]).to include(
       "slug"   => "durango",

@@ -58,6 +58,9 @@ Rails.application.routes.draw do
       resources :cities, only: [:index, :show]
       resources :restaurants, only: [:index, :show] do
         resources :items, only: [:index, :show]
+        # Phase 4.9 — restaurant claim flow.
+        post   "claim",        to: "restaurant_claims#create"
+        get    "claim/verify", to: "restaurant_claims#verify"
       end
       resources :ingredients, only: [:index]
       resources :tags, only: [:index]

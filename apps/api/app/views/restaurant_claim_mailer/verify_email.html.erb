@@ -1,0 +1,16 @@
+<h1>Verify your claim on <%= @restaurant.name %></h1>
+
+<p>
+  Someone — hopefully you — asked to claim
+  <strong><%= @restaurant.name %></strong> on BiteWorthy. Click the
+  link below to confirm. The link expires in 7 days.
+</p>
+
+<p>
+  <a class="btn" href="<%= @verify_url %>">Verify and claim</a>
+</p>
+
+<p style="color:#5C5C5C; font-size: 13px;">
+  If you didn't request this, ignore this email — no claim will
+  happen without the link being clicked.
+</p>

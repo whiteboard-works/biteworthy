@@ -13,6 +13,41 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 13:00 — tick #69. PR #163 (Phase 4.8) merged at 12:52 UTC.
+Picked up Phase 4.9 — restaurant claim flow with domain-email
+verification. New `RestaurantClaim` service that reuses the
+`suggestions` polymorphic queue with `kind: 'claim'` (no schema
+change): `request_claim` creates a Suggestion holding token + email
++ expiry in payload jsonb; `verify` looks up the token, validates
+expiry, marks the restaurant `claimed_at` + `claimed_by_user_id`,
+and accepts the Suggestion in one transaction. Domain match
+heuristic: email's host vs restaurant.website host (with leading
+`www.` stripped, case-insensitive) — mismatches still create the
+Suggestion but mark `auto_acceptable: false` for admin review via
+Avo's existing Suggestion resource. Endpoints: `POST
+/api/v1/restaurants/:id/claim` (auth-only) enqueues
+RestaurantClaimMailer.verify_email; `GET .../claim/verify?t=<token>`
+is anonymous (token IS the credential). Mailer ships HTML+text
+templates; dev environment also logs the verify URL to satisfy the
+Phase 4 SMTP stop condition. Restaurants endpoint extended with
+`claimed_at` + `claimed_by_user_id` (non-PII) so the web page can
+hide the claim button when already claimed without a roundtrip.
+Web: `/api/restaurants/[slug]/claim` proxy + verify proxy (the
+verify proxy is anonymous — the token alone is the credential),
+new `lib/restaurant-claim.ts` client, `<ClaimSection>` inline form
+on RestaurantClient (hidden when restaurant is claimed; bounces
+401 to /login), and standalone verify landing page at
+`/restaurants/[slug]/claim/page.tsx` that handles the four error
+kinds (Invalid/Expired/AlreadyClaimed + missing-params) with
+human-readable messages. Tests: 14 service specs (domain match
+matrix, request creation, expiry, idempotence, AlreadyClaimed
+race), 11 controller specs (POST auth gate, mailer enqueue, slug
+lookup, conflict, anonymous verify happy + invalid + expired),
+6 vitest for the web client (POST URL + credentials + ClaimError
+kind preservation, verify URL encoding, ExpiredTokenError surface).
+Local: rspec 291/0/1 pending; web vitest 54/54; mobile jest 56/56;
+pnpm typecheck/lint cached green.
+
 2026-05-01 12:30 — tick #68. PR #162 (Phase 4.7) merged at 12:23 UTC.
 Picked up Phase 4.8 — "My filtered menus" history. New
 `restaurant_visits` table (user_id, restaurant_id, viewed_on,

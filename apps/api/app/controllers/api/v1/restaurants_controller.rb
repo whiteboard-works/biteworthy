@@ -21,13 +21,19 @@ module Api
 
       def serialize(r)
         {
-          id:      r.id,
-          slug:    r.slug,
-          name:    r.name,
-          about:   r.about,
-          phone:   r.phone,
-          website: r.website,
-          status:  r.status,
+          id:                 r.id,
+          slug:               r.slug,
+          name:               r.name,
+          about:              r.about,
+          phone:              r.phone,
+          website:            r.website,
+          status:             r.status,
+          # Phase 4.9 — non-PII signals so the web page can show or
+          # hide the "Claim this restaurant" button without a second
+          # roundtrip. claimed_by_user_id is the user's UUID; not
+          # private and useful for "is this me" comparisons.
+          claimed_at:         r.claimed_at,
+          claimed_by_user_id: r.claimed_by_user_id,
           city: {
             id:     r.city.id,
             slug:   r.city.slug,
