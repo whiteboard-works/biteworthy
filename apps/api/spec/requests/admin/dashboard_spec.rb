@@ -1,6 +1,19 @@
 require "rails_helper"
 
 RSpec.describe "Admin::Dashboard", type: :request do
+  # Insulate the spec from whatever credentials live in the local
+  # .env / CI secrets — same reason as spec/requests/admin_spec.rb.
+  around do |example|
+    original_user = ENV["ADMIN_USERNAME"]
+    original_password = ENV["ADMIN_PASSWORD"]
+    ENV["ADMIN_USERNAME"] = "admin"
+    ENV["ADMIN_PASSWORD"] = "admin"
+    example.run
+  ensure
+    ENV["ADMIN_USERNAME"] = original_user
+    ENV["ADMIN_PASSWORD"] = original_password
+  end
+
   let(:restaurant) { create(:restaurant, :published) }
   let(:basic_auth) do
     creds = ActionController::HttpAuthentication::Basic.encode_credentials("admin", "admin")

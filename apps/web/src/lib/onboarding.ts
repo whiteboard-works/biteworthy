@@ -45,22 +45,32 @@ export async function searchIngredients(
 }
 
 /**
- * PATCH /api/v1/profile (Phase 1.3) with the assembled draft. The
- * endpoint replaces the whole avoid list — the reducer's
- * `toProfilePayload` returns the wholesale-replacement payload.
+ * PATCH /api/profile via the Next API route at
+ * `apps/web/src/app/api/profile/route.ts`. The proxy reads the
+ * HttpOnly `bw_session` cookie and forwards to Rails as a Bearer
+ * header — the client never sees the JWT (Phase 4.1).
+ *
+ * Throws on non-2xx; 401 means the session expired and the caller
+ * should redirect to `/login`.
  */
 export async function saveProfile(
   payload: SaveProfilePayload,
-  jwt: string,
-  opts: ApiOptions = {},
+  opts: { fetchImpl?: typeof fetch } = {},
 ): Promise<void> {
-  await api<unknown>('/profile', {
-    ...opts,
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl('/api/profile', {
     method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      ...(opts.headers ?? {}),
-    },
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new Error(`saveProfile failed: ${res.status} ${JSON.stringify(body)}`);
+  }
 }

@@ -18,6 +18,7 @@ import {
   type ItemSection,
 } from '@biteworthy/filter-engine';
 import { buildShareUrl } from '../../lib/share-url';
+import { getJwt } from '../../lib/auth';
 import {
   fetchRestaurant,
   fetchRestaurantItems,
@@ -44,9 +45,21 @@ type Strictness = 'relaxed' | 'balanced' | 'strict';
 const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 
 export default function RestaurantScreen() {
-  const params = useLocalSearchParams<{ id: string; jwt?: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id ?? '');
-  const jwt = typeof params.jwt === 'string' ? params.jwt : undefined;
+  // Phase 4.1: pull the JWT from the keychain on mount; if absent
+  // the page still loads (anonymous browse), but personalized filter
+  // results require a sign-in.
+  const [jwt, setJwt] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    getJwt().then((t) => {
+      if (!cancelled) setJwt(t ?? undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [filter, setFilter] = useState<FilterSummary | null>(null);

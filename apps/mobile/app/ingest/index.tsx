@@ -9,12 +9,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   uploadIngestionRun,
   type CapturedPage,
 } from '../../lib/api/ingestion-runs';
+import { getJwt } from '../../lib/auth';
 
 /**
  * Phase 2.6 — multi-page menu capture.
@@ -31,7 +33,6 @@ import {
  */
 export default function IngestScreen() {
   const [restaurantId, setRestaurantId] = useState('');
-  const [jwt, setJwt] = useState(''); // Phase 4 will pull from secure-store
   const [pages, setPages] = useState<CapturedPage[]>([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
@@ -47,8 +48,13 @@ export default function IngestScreen() {
   };
 
   const onUpload = async () => {
-    if (!restaurantId || pages.length === 0 || !jwt) {
-      Alert.alert('Missing info', 'Restaurant id, JWT, and at least one page are required.');
+    if (!restaurantId || pages.length === 0) {
+      Alert.alert('Missing info', 'Restaurant id and at least one page are required.');
+      return;
+    }
+    const jwt = await getJwt();
+    if (!jwt) {
+      router.replace('/login?next=%2Fingest');
       return;
     }
     try {
@@ -57,7 +63,12 @@ export default function IngestScreen() {
       Alert.alert('Uploaded', `Run ${run.id.slice(0, 8)}… is now ${run.status}.`);
       setPages([]);
     } catch (e) {
-      Alert.alert('Upload failed', (e as Error).message);
+      const message = (e as Error).message;
+      if (message.includes('401')) {
+        router.replace('/login?next=%2Fingest');
+        return;
+      }
+      Alert.alert('Upload failed', message);
     } finally {
       setUploading(false);
     }
@@ -107,15 +118,6 @@ export default function IngestScreen() {
         value={restaurantId}
         onChangeText={setRestaurantId}
         autoCapitalize="none"
-        style={styles.input}
-      />
-      <TextInput
-        accessibilityLabel="jwt"
-        placeholder="JWT (paste from /api/v1/auth/login)"
-        value={jwt}
-        onChangeText={setJwt}
-        autoCapitalize="none"
-        secureTextEntry
         style={styles.input}
       />
 

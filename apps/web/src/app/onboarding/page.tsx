@@ -15,19 +15,19 @@ import {
   searchIngredients,
   type IngredientSearchResult,
 } from '../../lib/onboarding';
-import { setJwtCookie } from '../../lib/jwt-cookie';
 
 /**
- * Phase 3.8 — web mirror of the mobile 4-step onboarding flow.
+ * Phase 3.8 + 4.1 — web mirror of the mobile 4-step onboarding flow.
  *
  *   1. Pick presets ("What can't you eat?")
  *   2. Add specific ingredients ("Anything else?")
  *   3. Set strictness ("How strict?")
- *   4. Done → PATCH /api/v1/profile, save JWT to cookie, navigate home.
+ *   4. Done → PATCH /api/profile (Next proxy reads the bw_session
+ *      cookie + forwards to Rails), navigate home.
  *
- * The reducer + payload composition come from
- * `@biteworthy/filter-engine` (Phase 3.7), so mobile + web stay
- * in lockstep.
+ * Phase 4.1 dropped the paste-the-JWT input; if the request comes
+ * back 401, the user is bounced to /login?next=/onboarding so they
+ * can sign in and resume.
  */
 type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
 
@@ -48,7 +48,6 @@ export default function OnboardingPage() {
   const [loadingPresets, setLoadingPresets] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IngredientSearchResult[]>([]);
-  const [jwt, setJwt] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -74,18 +73,20 @@ export default function OnboardingPage() {
 
   const finalize = async (e: FormEvent) => {
     e.preventDefault();
-    if (!jwt) {
-      setSaveError('Paste a JWT — Phase 4 will swap to a real session cookie.');
-      return;
-    }
     try {
       setSaving(true);
       setSaveError(null);
-      await saveProfile(toProfilePayload(draft, presets), jwt);
-      setJwtCookie(jwt);
+      await saveProfile(toProfilePayload(draft, presets));
       router.replace('/');
     } catch (err) {
-      setSaveError((err as Error).message);
+      const message = (err as Error).message;
+      // 401 from the proxy means the cookie expired or never existed
+      // — bounce to login and come back here to finish.
+      if (message.includes('401')) {
+        router.replace(`/login?next=${encodeURIComponent('/onboarding')}`);
+        return;
+      }
+      setSaveError(message);
     } finally {
       setSaving(false);
     }
@@ -133,8 +134,6 @@ export default function OnboardingPage() {
           presetCount={draft.selectedPresetSlugs.length}
           ingredientCount={draft.manualIngredientIds.length}
           strictness={draft.strictness}
-          jwt={jwt}
-          onJwtChange={setJwt}
           saving={saving}
           error={saveError}
           onSubmit={finalize}
@@ -372,8 +371,6 @@ function ReviewStep({
   presetCount,
   ingredientCount,
   strictness,
-  jwt,
-  onJwtChange,
   saving,
   error,
   onSubmit,
@@ -381,8 +378,6 @@ function ReviewStep({
   presetCount: number;
   ingredientCount: number;
   strictness: Strictness;
-  jwt: string;
-  onJwtChange: (j: string) => void;
   saving: boolean;
   error: string | null;
   onSubmit: (e: FormEvent) => void;
@@ -402,16 +397,6 @@ function ReviewStep({
         </span>
         , strictness <span className="font-bold">{strictness}</span>.
       </p>
-
-      <input
-        type="password"
-        value={jwt}
-        onChange={(e) => onJwtChange(e.target.value)}
-        placeholder="JWT (paste from /api/v1/auth/login)"
-        autoComplete="off"
-        aria-label="jwt"
-        className="mt-bw-4 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
-      />
 
       {error && (
         <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">

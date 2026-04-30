@@ -32,25 +32,25 @@ function fakeFetch(status: number, body: unknown) {
 }
 
 describe('ingestFromUrl', () => {
-  it('POSTs JSON body with restaurant_id + source_url and returns the run', async () => {
+  it('POSTs to the Next proxy at /api/ingestion_runs with credentials', async () => {
     const fetchImpl = fakeFetch(201, sampleRun);
 
     const result = await ingestFromUrl({
       restaurantId: 'rest-1',
       sourceUrl: 'https://restaurant.example/menu',
-      jwt: 'jwt-x',
       fetchImpl,
     });
 
     expect(result.id).toBe(sampleRun.id);
     const calls = fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>;
     const [url, init] = calls[0]!;
-    expect(url).toContain('/api/v1/ingestion_runs');
+    expect(url).toBe('/api/ingestion_runs');
     expect(init.method).toBe('POST');
-    expect(init.headers).toMatchObject({
-      Authorization: 'Bearer jwt-x',
-      'Content-Type': 'application/json',
-    });
+    expect(init.credentials).toBe('same-origin');
+    // No Authorization header from the client — the Next proxy adds
+    // it from the bw_session cookie.
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
     expect(JSON.parse(init.body as string)).toEqual({
       restaurant_id: 'rest-1',
       source_url: 'https://restaurant.example/menu',
@@ -64,7 +64,6 @@ describe('ingestFromUrl', () => {
       ingestFromUrl({
         restaurantId: 'rest-1',
         sourceUrl: 'https://broken.example/menu',
-        jwt: 'jwt-x',
         fetchImpl,
       }),
     ).rejects.toMatchObject({
@@ -75,14 +74,13 @@ describe('ingestFromUrl', () => {
 });
 
 describe('ingestFromFile', () => {
-  it('POSTs multipart with the file under inputs[]', async () => {
+  it('POSTs multipart with the file under inputs[] and no client-side auth header', async () => {
     const fetchImpl = fakeFetch(201, { ...sampleRun, input_kind: 'pdf' });
     const file = new File(['%PDF-1.4'], 'menu.pdf', { type: 'application/pdf' });
 
     const result = await ingestFromFile({
       restaurantId: 'rest-1',
       file,
-      jwt: 'jwt-x',
       fetchImpl,
     });
 
@@ -90,8 +88,9 @@ describe('ingestFromFile', () => {
     const calls = fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>;
     const [, init] = calls[0]!;
     expect(init.method).toBe('POST');
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer jwt-x' });
-    // No Content-Type — let fetch set the multipart boundary itself.
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    // No Content-Type either — let fetch set the multipart boundary itself.
     expect((init.headers as Record<string, string>)['Content-Type']).toBeUndefined();
     expect(init.body).toBeInstanceOf(FormData);
   });
@@ -112,7 +111,6 @@ describe('ingestFromFile', () => {
       ingestFromFile({
         restaurantId: 'rest-1',
         file,
-        jwt: 'jwt-x',
         fetchImpl: fetchImpl as unknown as typeof fetch,
       }),
     ).rejects.toBeInstanceOf(IngestionRequestError);
