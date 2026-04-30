@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,25 +14,24 @@ import {
   fetchRestaurantItems,
   groupItemsBySection,
   type FilteredItem,
+  type HideReason,
   type ItemSection,
   type Restaurant,
   type FilterSummary,
 } from '../../lib/api/restaurants';
+import { hiddenReasonLabel } from '../../lib/hidden-reason';
+import { applyOverrides } from '../../lib/restaurant-overrides';
 
 /**
- * Phase 3.3 — filtered restaurant page.
+ * Phase 3.3 + 3.4 — filtered restaurant page with transparency chips
+ * and a session-only override.
  *
- *   1. Hits GET /api/v1/restaurants/:id for header info.
- *   2. Hits GET /api/v1/restaurants/:id/items (with optional JWT).
- *      Server applies the user's profile when authed (Phase 1.7).
- *   3. Renders sections + items; visible up top, hidden behind a
- *      "Items hidden by your filter (N)" expander per section.
- *
- * The transparency-chip translation + per-item override land in
- * Phase 3.4 — for now the screen labels hidden items with a generic
- * "Hidden" tag and lists their reasons by raw kind. Same JWT-pasted-
- * in-input workaround as the ingest/onboarding screens until Phase 4
- * brings expo-secure-store.
+ * Each hidden item now renders one <HiddenReasonChip> per reason
+ * (e.g. "Contains dairy (Cheese)"), and a "Show anyway" pressable
+ * that flips the item to visible **client-side only** — no server
+ * roundtrip, no profile mutation. The override resets when the
+ * screen unmounts; Phase 4 introduces a persisted "never hide this
+ * dish" override on UserProfile.
  */
 
 export default function RestaurantScreen() {
@@ -45,12 +44,14 @@ export default function RestaurantScreen() {
   const [sections, setSections] = useState<ItemSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shownAnyway, setShownAnyway] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setShownAnyway(new Set());
 
     Promise.all([fetchRestaurant(id), fetchRestaurantItems(id, { jwt })])
       .then(([r, itemsRes]) => {
@@ -72,6 +73,20 @@ export default function RestaurantScreen() {
     };
   }, [id, jwt]);
 
+  const toggleOverride = (itemId: string) => {
+    setShownAnyway((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const overriddenSections = useMemo(
+    () => applyOverrides(sections, shownAnyway),
+    [sections, shownAnyway],
+  );
+
   if (!id) {
     return <CenteredMessage text="Missing restaurant id." />;
   }
@@ -89,8 +104,8 @@ export default function RestaurantScreen() {
     return <CenteredMessage text="Restaurant not found." />;
   }
 
-  const totalHidden = sections.reduce((acc, s) => acc + s.hidden.length, 0);
-  const totalVisible = sections.reduce((acc, s) => acc + s.visible.length, 0);
+  const totalHidden = overriddenSections.reduce((acc, s) => acc + s.hidden.length, 0);
+  const totalVisible = overriddenSections.reduce((acc, s) => acc + s.visible.length, 0);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -103,11 +118,16 @@ export default function RestaurantScreen() {
       </Text>
       <FilterBadge filter={filter} />
 
-      {sections.map((section) => (
-        <SectionBlock key={section.id ?? '__none__'} section={section} />
+      {overriddenSections.map((section) => (
+        <SectionBlock
+          key={section.id ?? '__none__'}
+          section={section}
+          shownAnyway={shownAnyway}
+          onToggleOverride={toggleOverride}
+        />
       ))}
 
-      {sections.length === 0 && (
+      {overriddenSections.length === 0 && (
         <Text style={styles.empty}>No published items at this restaurant yet.</Text>
       )}
     </ScrollView>
@@ -130,14 +150,27 @@ function FilterBadge({ filter }: { filter: FilterSummary }) {
   );
 }
 
-function SectionBlock({ section }: { section: ItemSection }) {
+function SectionBlock({
+  section,
+  shownAnyway,
+  onToggleOverride,
+}: {
+  section: ItemSection;
+  shownAnyway: Set<string>;
+  onToggleOverride: (itemId: string) => void;
+}) {
   const [hiddenOpen, setHiddenOpen] = useState(false);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionName}>{section.name}</Text>
 
       {section.visible.map((item) => (
-        <ItemRow key={item.id} item={item} />
+        <ItemRow
+          key={item.id}
+          item={item}
+          overridden={shownAnyway.has(item.id)}
+          onToggleOverride={onToggleOverride}
+        />
       ))}
 
       {section.visible.length === 0 && section.hidden.length > 0 && (
@@ -160,12 +193,33 @@ function SectionBlock({ section }: { section: ItemSection }) {
       )}
 
       {hiddenOpen &&
-        section.hidden.map((item) => <ItemRow key={item.id} item={item} hidden />)}
+        section.hidden.map((item) => (
+          <ItemRow
+            key={item.id}
+            item={item}
+            hidden
+            overridden={false}
+            onToggleOverride={onToggleOverride}
+          />
+        ))}
     </View>
   );
 }
 
-function ItemRow({ item, hidden = false }: { item: FilteredItem; hidden?: boolean }) {
+function ItemRow({
+  item,
+  hidden = false,
+  overridden,
+  onToggleOverride,
+}: {
+  item: FilteredItem;
+  hidden?: boolean;
+  overridden: boolean;
+  onToggleOverride: (itemId: string) => void;
+}) {
+  // An item with reasons but rendered in the visible column means the
+  // user tapped "show anyway" — keep the chips visible as a cue.
+  const showChips = hidden || overridden;
   return (
     <View
       style={[styles.itemRow, hidden && styles.itemRowHidden]}
@@ -177,28 +231,36 @@ function ItemRow({ item, hidden = false }: { item: FilteredItem; hidden?: boolea
           {item.description}
         </Text>
       ) : null}
-      {hidden && (
-        <View style={styles.reasonsBlock}>
+
+      {showChips && item.reasons.length > 0 && (
+        <View style={styles.chipRow}>
           {item.reasons.map((r, idx) => (
-            <Text key={idx} style={styles.reasonText}>
-              {reasonLabel(r)}
-            </Text>
+            <HiddenReasonChip key={idx} reason={r} />
           ))}
         </View>
+      )}
+
+      {item.reasons.length > 0 && (
+        <Pressable
+          accessibilityLabel={`toggle-override-${item.id}`}
+          onPress={() => onToggleOverride(item.id)}
+          style={styles.overrideButton}
+        >
+          <Text style={styles.overrideText}>
+            {overridden ? 'Hide again' : 'Show anyway'}
+          </Text>
+        </Pressable>
       )}
     </View>
   );
 }
 
-function reasonLabel(r: FilteredItem['reasons'][number]): string {
-  switch (r.kind) {
-    case 'avoid_ingredient':
-      return '• avoids ingredient';
-    case 'avoid_tag':
-      return '• avoids tag';
-    case 'unconfirmed_strict':
-      return `• not confirmed (${r.confidence}) — strict mode`;
-  }
+export function HiddenReasonChip({ reason }: { reason: HideReason }) {
+  return (
+    <View style={styles.chip} testID={`chip-${reason.kind}`}>
+      <Text style={styles.chipText}>{hiddenReasonLabel(reason)}</Text>
+    </View>
+  );
 }
 
 function CenteredMessage({ text }: { text: string }) {
@@ -303,13 +365,34 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
-  reasonsBlock: {
-    marginTop: 4,
-    gap: 2,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space['1'],
+    marginTop: space['2'],
   },
-  reasonText: {
+  chip: {
+    paddingHorizontal: space['2'],
+    paddingVertical: space['0_5'],
+    borderRadius: 999,
+    backgroundColor: colors.bgAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipText: {
     fontSize: fontSize.xs,
     color: colors.hide,
+    fontWeight: '600',
+  },
+  overrideButton: {
+    marginTop: space['2'],
+    paddingVertical: space['1'],
+    alignSelf: 'flex-start',
+  },
+  overrideText: {
+    color: colors.bite,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
   },
   hiddenToggle: {
     paddingVertical: space['2'],

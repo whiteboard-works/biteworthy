@@ -37,8 +37,18 @@ export interface Restaurant {
 export type ItemStatus = 'visible' | 'hidden';
 
 export type HideReason =
-  | { kind: 'avoid_ingredient'; ingredient_id: string }
-  | { kind: 'avoid_tag'; tag_id: string }
+  | {
+      kind: 'avoid_ingredient';
+      ingredient_id: string;
+      ingredient_name: string | null;
+      ingredient_family: string | null;
+    }
+  | {
+      kind: 'avoid_tag';
+      tag_id: string;
+      tag_name: string | null;
+      tag_family: string | null;
+    }
   | { kind: 'unconfirmed_strict'; confidence: string };
 
 export interface FilteredItem {

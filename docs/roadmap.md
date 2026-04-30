@@ -13,13 +13,12 @@ the merge / review / status rules.
 
 **Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
 
-1. **Phase 3.3 — Mobile filtered restaurant page** (`docs/plans/phase-3.md#33`) — this PR
-2. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`)
-3. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`)
-4. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
-5. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
-6. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
-7. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
+1. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`) — this PR
+2. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`)
+3. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
+4. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
+5. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
+6. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
 
 ### Done
 
@@ -44,6 +43,7 @@ the merge / review / status rules.
 - ✅ Phase 3 — subplan committed (#145)
 - ✅ Phase 3.1 — production-ready dietary profile seeds (#146)
 - ✅ Phase 3.2 — mobile profile onboarding (6 taps) (#147)
+- ✅ Phase 3.3 — mobile filtered restaurant page (#148)
 
 After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 
