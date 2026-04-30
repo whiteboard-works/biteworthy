@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 01:45 — tick #47. PR #141 (Phase 2.6) merged at 00:22 UTC.
+Picked up Phase 2.7 — swipe-verify UI + ingestion-item PATCH/INDEX
+endpoints. API: new `Api::V1::IngestionItemsController` with #index
+(list run's items) + #update (PATCH decision). Update validates
+decision ∈ {pending,accepted,rejected,edited}, applies edit overrides
+(name/description/payloads) before promote!, fires
+maybe_publish! after every decision. Routes nested under
+`ingestion_runs/:run_id/items`. Bug caught locally:
+`ActionController::Parameters` doesn't have `#any?` — switched to
+`params.to_h.any?`. 10 request specs covering happy/edit/reject/
+auth/validation/threshold-trigger paths.
+
+Mobile: extended `lib/api/ingestion-runs.ts` with `getIngestionRun`,
+`listIngestionItems`, `decideIngestionItem`. New screen
+`app/ingest/verify.tsx`: polls run state every 2s while
+extracting/resolving, opens a one-card-at-a-time deck on :staged,
+Accept/Edit/Reject buttons with full decision wiring. Deferred:
+Tinder-style swipe gestures (gesture-handler/reanimated) — the
+data wiring is what matters for end-to-end; gestures are pure
+visual sugar best added during on-device polish. 5 new Jest tests
+(decideIngestionItem PATCH shape + edits + error path,
+getIngestionRun, listIngestionItems).
+
+Local: rspec 136/136 (1 pending), pnpm typecheck/lint/test all
+green. Pushing PR.
+
 2026-05-01 01:00 — tick #46. PR #140 (Phase 2.5) merged at 23:49 UTC.
 Picked up Phase 2.6 — mobile camera + upload. Two surfaces in one PR:
 
