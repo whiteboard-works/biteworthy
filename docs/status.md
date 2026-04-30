@@ -13,6 +13,24 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 03:30 — tick #50. PR #144 (Phase 2.9) merged at 01:48 UTC.
+**Phase 2 feature-complete.** Per the roadmap policy ("After
+Phase N ships, the loop pulls Phase N+1 items into Next up via a
+plan-update PR"), this tick = plan PR. Drafted
+`docs/plans/phase-3.md` decomposing the dietary-filter UI into 9
+PR-sized tasks: production seeds (3.1) → mobile onboarding (3.2)
+→ mobile restaurant page (3.3) → transparency layer (3.4) → strict
+mode toggle (3.5) → web restaurant page (3.6) → applyProfile in
+filter-engine (3.7) → web onboarding (3.8) → shareable filter URLs
+(3.9). Updated `docs/roadmap.md`: Phase 2 ✅ in phase header,
+Next-up replaced with proposed Phase 3 queue. No code changes —
+docs-only plan PR for human review before items auto-run.
+
+Ongoing gap from Phase 2: cassette stubs in 2.3 + 2.4 still need
+ANTHROPIC_API_KEY to record. Doesn't block Phase 3 (filter UI
+works against pre-existing IngestionItems / handcrafted Items)
+but does block "live demo with a fresh menu scan."
+
 2026-05-01 03:00 — tick #49. PR #143 (Phase 2.8) merged at 01:18 UTC.
 Picked up Phase 2.9 — cost + latency dashboard. New
 `Ingestion::CostMetrics` service: aggregates IngestionRun columns

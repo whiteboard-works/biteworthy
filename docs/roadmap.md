@@ -11,9 +11,17 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-1. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`) — this PR
+**Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`. **Loop-proposed batch** (this PR is the plan-update PR); humans review before items auto-run.
 
-After this merges, **Phase 2 is complete** — the loop drafts a `docs/plans/phase-3.md` PR proposing the dietary-filter-UI queue (same plan-PR pattern as #135).
+1. **Phase 3.1 — Production-ready dietary profile seeds** (`docs/plans/phase-3.md#31`)
+2. **Phase 3.2 — Mobile profile onboarding (6 taps)** (`docs/plans/phase-3.md#32`)
+3. **Phase 3.3 — Mobile filtered restaurant page** (`docs/plans/phase-3.md#33`)
+4. **Phase 3.4 — Transparency layer + one-tap override** (`docs/plans/phase-3.md#34`)
+5. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`)
+6. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
+7. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
+8. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
+9. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
 
 ### Done
 
@@ -34,6 +42,9 @@ After this merges, **Phase 2 is complete** — the loop drafts a `docs/plans/pha
 - ✅ Phase 2.6 — mobile camera + ingestion runs API (#141)
 - ✅ Phase 2.7 — mobile swipe-verify UI + ingestion item PATCH (#142)
 - ✅ Phase 2.8 — web URL/PDF entrypoint (#143)
+- ✅ Phase 2.9 — cost + latency dashboard at /admin/dashboard (#144)
+
+After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 
 ## Phase 0 — Foundation ✅
 
@@ -61,18 +72,24 @@ menu in `/admin` (Phase 1.5); web and mobile call
 `GET /api/v1/restaurants/:id/items?profile=…` (Phase 1.7) and items
 either show or carry a transparent reason for being hidden.
 
-## Phase 2 — AI ingestion MVP (weeks 4–6) ⭐
+## Phase 2 — AI ingestion MVP ✅
 
-Subplan: `docs/plans/phase-2.md` (drafted at end of Phase 1).
+Subplan: `docs/plans/phase-2.md`. All 9 tasks merged
+(#136, #137, #138, #139, #140, #141, #142, #143, #144).
 
-- AnthropicClient service (Faraday + Bearer + prompt caching)
-- IngestionRun + IngestionItem state machine
-- Solid Queue jobs: ExtractMenu, ResolveIngredients, ResolveTags
-- Mobile: multi-page camera capture → upload → wait → swipe-verify UI
-- Web: paste URL or upload PDF → verify
-- Cost + latency dashboard in admin
+**Demo (achieved 2026-04-30):** end-to-end ingestion pipeline shipped
+— web URL/PDF entrypoint OR mobile multi-page camera capture →
+ExtractMenuJob (vision) → ResolveIngredients/ResolveTags jobs →
+IngestionItems staged → admin verify (Avo) or mobile swipe-verify
+→ 80%-accepted threshold flips run + restaurant to :published.
+Cost + latency dashboard at `/admin/dashboard` tracks the $0.25/
+50-item-menu target.
 
-**Demo:** photograph a real Durango menu in person; 60 seconds later
+**Remaining gap:** Phase 2.3 + 2.4 ship with mocked-AnthropicClient
+specs. The cassette stubs need a human with `ANTHROPIC_API_KEY` to
+record real interactions before "live demo-ready" is true.
+
+**Demo (original target text):** photograph a real Durango menu in person; 60 seconds later
 the items appear staged; 5 minutes of swiping promotes them to live.
 
 ## Phase 3 — Dietary filter (weeks 7–9)
