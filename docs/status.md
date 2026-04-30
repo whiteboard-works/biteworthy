@@ -13,6 +13,53 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 20:18 — tick #83. PR #176 (Phase 5.5 marketing landing)
+merged at 19:46 UTC, all CI green. Anthropic still capped (~3.7h
+to reset); cassette PR stays BLOCKED. Picked the next unblocked
+Next-up item: **Phase 5.6 — SEO city/diet pages
+(/durango/[diet])**. Indexable per-diet ranking pages (the
+queries Durango folks actually type). Shipped both API + web:
+- **API**: new `Cities::RestaurantRanking` service computes
+  visible/total item counts per restaurant via one SQL query
+  with Postgres `FILTER (WHERE …)` aggregation against the
+  GIN-indexed `ingredient_ids uuid[]` + `tag_ids uuid[]` arrays.
+  Order: `(visible_count DESC, name ASC)`. LEFT-OUTER joins so
+  zero-item restaurants still appear; ignores draft restaurants;
+  empty avoid lists handled with placeholder UUID so
+  `ARRAY[]::uuid[]` doesn't trip Postgres. New
+  `GET /api/v1/cities/:city_slug/restaurants?profile=:diet_slug`
+  endpoint (public, unauthenticated). 404s on unknown city or
+  diet slug. Flat route since the parent `:cities` resource has
+  no controller (Phase 0 stub). 10 new specs (5 service + 5
+  request); rspec 359/0/1 (+10).
+- **Web**: `apps/web/src/app/durango/[diet]/page.tsx` pure-SSR.
+  `generateStaticParams` pre-renders every curated diet at build
+  time. `generateMetadata` composes deterministic title
+  ("Vegan restaurants in Durango — BiteWorthy") + description.
+  Unknown diet routes to Next's `notFound()`. Restaurants with
+  zero safe items collapse into a `<details>` block at bottom so
+  the page stays useful without burying the leads. Empty-state
+  CTA back to /onboarding for the gap before Phase 5.7's seed
+  run.
+- `apps/web/src/lib/durango.ts` — fetcher +
+  `DURANGO_DIET_SLUGS` curated constant (mirrors
+  `db/seeds/dietary_profiles.yml`). Hard-coded rather than
+  build-time-fetched: list changes once a quarter; mismatch is
+  non-catastrophic (404 vs stale grid). 5 new vitest cases (URL
+  composition, slug encoding, 404+500 propagation, slug list).
+  Web vitest 82/82 (+5).
+- `app/sitemap.ts` extended to enumerate diet URLs via the
+  `dietSlugs` hook PR #175 already wired in.
+Local: pnpm typecheck + lint full-turbo green; rspec 359/0/1
+(+10). Roadmap: ticked 5.5 (#176); reordered Next-up. Eager-
+rebase applied. Surfaced one **Discovered**-worthy gap during
+implementation: addresses table has no `neighborhood` column;
+the subplan asked for a per-row neighborhood label which I left
+out. Worth a Phase 5+ followup once the launch market grows
+beyond "Durango itself." Next tick: 5.7 (seed 30 Durango
+restaurants) — OR if the Anthropic cap clears at 00:00 UTC
+(~3.7h from now), retry the cassette PR.
+
 2026-04-30 19:45 — tick #82. PR #175 (Phase 5.4 web deploy wiring)
 merged at 19:18 UTC, all CI green. Anthropic still capped (~4.3h
 to reset); cassette PR stays BLOCKED. Picked the next unblocked
