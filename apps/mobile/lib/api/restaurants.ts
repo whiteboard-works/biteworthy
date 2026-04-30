@@ -56,6 +56,8 @@ export interface RestaurantItem extends FilterableItem {
   reasons: HideReason[];
   /** Phase 4.2 — set by the API when authenticated. */
   overridden_by_user?: boolean;
+  /** Phase 4.4 — total review count, populated for both anon + auth. */
+  reviews_count?: number;
 }
 
 export interface FilterSummary {

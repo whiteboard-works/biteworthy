@@ -13,6 +13,28 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 10:30 — tick #64. PR #158 (Phase 4.3) merged at 10:17 UTC.
+Picked up Phase 4.4 — mobile review UX. Tiny backend change first:
+items endpoint emits `reviews_count: int` per item via one bulk
+grouped count (no N+1) so the restaurant page can render an
+"X reviews" badge per item without a follow-up roundtrip. Mobile:
+new `apps/mobile/lib/api/reviews.ts` with fetchReviews (anonymous,
+limit/offset), createReview (multipart for photo or JSON for
+text-only — uses RN's {uri,name,type} blob shape that DOM FormData
+wouldn't accept), updateReview, deleteReview. Detail screen at
+`apps/mobile/app/items/[id].tsx` shows item name + review count +
+"Write a review" button + scrollable list of ReviewCards
+(★ rating, body, photo). Composer sheet uses expo-image-picker
+(library only — Phase 2.6 multi-page CameraView is overkill for one
+review photo) with 5-star tap, optional body, optional photo. The
+restaurant page got a `<reviewBadge>` per item that pushes
+`/items/[id]?itemName=…` via the typed router.push API. Anonymous
+write attempt bounces to /login?next=/items/<id>. Tests: 11 new
+jest cases covering URL building, query-param presence/absence,
+JSON vs multipart switching, 401/403/404 → ReviewError. 1 new rspec
+case for the reviews_count field. Local: rspec 229/0/1 pending;
+mobile jest 50/50; pnpm typecheck/lint cached green.
+
 2026-05-01 10:00 — tick #63. PR #157 (Phase 4.2) merged at 10:04 UTC.
 Picked up Phase 4.3 — review API + photo attachment. The reviews
 table existed since Phase 0; this PR wires `has_one_attached :photo`

@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
@@ -382,6 +382,7 @@ function ItemRow({
   // An item with reasons but rendered in the visible column means the
   // user tapped "show anyway" — keep the chips visible as a cue.
   const showChips = hidden || overridden;
+  const reviewsCount = item.reviews_count ?? 0;
   return (
     <View
       style={[styles.itemRow, hidden && styles.itemRowHidden]}
@@ -393,6 +394,23 @@ function ItemRow({
           {item.description}
         </Text>
       ) : null}
+
+      <Pressable
+        accessibilityLabel={`open-item-${item.id}`}
+        onPress={() =>
+          router.push({
+            pathname: '/items/[id]',
+            params: { id: item.id, itemName: item.name },
+          })
+        }
+        style={styles.reviewBadge}
+      >
+        <Text style={styles.reviewBadgeText}>
+          {reviewsCount === 0
+            ? 'Be the first to review'
+            : `${reviewsCount} review${reviewsCount === 1 ? '' : 's'} →`}
+        </Text>
+      </Pressable>
 
       {showChips && item.reasons.length > 0 && (
         <View style={styles.chipRow}>
@@ -592,6 +610,15 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  reviewBadge: {
+    marginTop: space['1'],
+    alignSelf: 'flex-start',
+  },
+  reviewBadgeText: {
+    color: colors.bite,
+    fontSize: fontSize.xs,
+    fontWeight: '600',
   },
   chipRow: {
     flexDirection: 'row',

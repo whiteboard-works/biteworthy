@@ -143,6 +143,21 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
     end
   end
 
+  describe "reviews_count payload (Phase 4.4)" do
+    let(:reviewer) { create(:user) }
+
+    it "echoes a per-item count and zero when no reviews exist" do
+      create(:review, item: cheese_quesadilla, user: reviewer, rating: 5)
+      create(:review, item: cheese_quesadilla, user: create(:user), rating: 4)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["reviews_count"]).to eq(2)
+      expect(items["Carne Asada Taco"]["reviews_count"]).to eq(0)
+    end
+  end
+
   describe "with a signed-in user (no params)" do
     let(:user) { create(:user, password: "password123") }
     let(:headers) do

@@ -29,10 +29,11 @@ module Api
                                .order(popularity: :desc, name: :asc)
                                .to_a
 
-        filter   = build_filter
-        labels   = build_label_lookup(items, filter)
-        override_ids = current_user_override_item_ids(items)
-        rendered = items.map { |item| serialize_item(item, filter, labels, override_ids) }
+        filter        = build_filter
+        labels        = build_label_lookup(items, filter)
+        override_ids  = current_user_override_item_ids(items)
+        review_counts = review_counts_for(items)
+        rendered      = items.map { |item| serialize_item(item, filter, labels, override_ids, review_counts) }
 
         render json: {
           restaurant_id: restaurant.id,
@@ -44,7 +45,7 @@ module Api
       def show
         item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id]).items.published.find(params[:id])
         filter = build_filter
-        render json: serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]))
+        render json: serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]), review_counts_for([item]))
       end
 
       private
@@ -153,7 +154,7 @@ module Api
 
       # Try to keep this stable — mobile + web bind to these keys via
       # generated TS types; Phase 1.6's openapi.json should match.
-      def serialize_item(item, filter, labels, override_ids = Set.new)
+      def serialize_item(item, filter, labels, override_ids = Set.new, review_counts = {})
         reasons = hide_reasons(item, filter, labels)
         section = item.menu_section
         {
@@ -169,8 +170,19 @@ module Api
           menu_section_name:   section&.name,
           status:              reasons.empty? ? "visible" : "hidden",
           reasons:             reasons,
-          overridden_by_user:  override_ids.include?(item.id)
+          overridden_by_user:  override_ids.include?(item.id),
+          reviews_count:       review_counts.fetch(item.id, 0)
         }
+      end
+
+      # Phase 4.4 — bulk-load review counts for the items in the
+      # response. One grouped query, joined client-side so the
+      # restaurant page can render an "X reviews" badge per item
+      # without N+1.
+      def review_counts_for(items)
+        ids = items.map(&:id)
+        return {} if ids.empty?
+        Review.where(item_id: ids).group(:item_id).count
       end
 
       # Phase 4.2 — bulk-load the authenticated user's "never hide"
