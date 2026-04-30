@@ -20,7 +20,10 @@ module Api
 
       def index
         restaurant = Restaurant.published.find(params[:restaurant_id])
-        items      = restaurant.items.published.order(popularity: :desc, name: :asc).to_a
+        items      = restaurant.items.published
+                               .includes(menu_section: :menu)
+                               .order(popularity: :desc, name: :asc)
+                               .to_a
 
         filter = build_filter
         rendered = items.map { |item| serialize_item(item, filter) }
@@ -99,17 +102,20 @@ module Api
       # generated TS types; Phase 1.6's openapi.json should match.
       def serialize_item(item, filter)
         reasons = hide_reasons(item, filter)
+        section = item.menu_section
         {
-          id:             item.id,
-          restaurant_id:  item.restaurant_id,
-          name:           item.name,
-          description:    item.description,
-          confidence:     item.confidence,
-          popularity:     item.popularity,
-          ingredient_ids: item.ingredient_ids,
-          tag_ids:        item.tag_ids,
-          status:         reasons.empty? ? "visible" : "hidden",
-          reasons:        reasons
+          id:                 item.id,
+          restaurant_id:      item.restaurant_id,
+          name:               item.name,
+          description:        item.description,
+          confidence:         item.confidence,
+          popularity:         item.popularity,
+          ingredient_ids:     item.ingredient_ids,
+          tag_ids:            item.tag_ids,
+          menu_section_id:    section&.id,
+          menu_section_name:  section&.name,
+          status:             reasons.empty? ? "visible" : "hidden",
+          reasons:            reasons
         }
       end
 
