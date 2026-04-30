@@ -17,3 +17,7 @@
 .env
 .env.local
 .env.*.local
+
+# Phase 5.1.1 — Kamal secrets file (sourced as bash). The
+# .kamal/secrets.example template is committed; the real one isn't.
+.kamal/secrets

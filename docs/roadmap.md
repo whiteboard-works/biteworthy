@@ -75,6 +75,7 @@ the merge / review / status rules.
 - ✅ Phase 5.7 — durango batch ingest task + csv template (#178)
 - ✅ Phase 5.8 — analytics abstraction + event taxonomy (#179) — **structural; wiring follow-up queued at Next-up #4**
 - ✅ Phase 5.9 — privacy + terms + app store listing templates (#180) — **structural; wiring follow-up queued at Next-up #5**
+- ✅ Phase 5.1.1 — plan: switch API hosting to Kamal + Hetzner + Neon (#181) — implementation lands in this PR
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
