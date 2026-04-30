@@ -13,10 +13,9 @@ the merge / review / status rules.
 
 **Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
 
-1. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`) — this PR
-2. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
-3. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
-4. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
+1. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`) — this PR
+2. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
+3. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
 
 ### Done
 
@@ -44,6 +43,7 @@ the merge / review / status rules.
 - ✅ Phase 3.3 — mobile filtered restaurant page (#148)
 - ✅ Phase 3.4 — transparency chips + show-anyway override (#149)
 - ✅ Phase 3.5 — strict-mode toggle (#150)
+- ✅ Phase 3.6 — web filtered restaurant page (#151)
 
 After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 
@@ -156,12 +156,10 @@ phase or "Next up" queue.
   Either tighten the loop's flow (push everything in one go) or
   consider gating auto-merge on a manual "ready" label after final
   push.
-- **Consolidate web + mobile pure helpers** (`hidden-reason.ts`,
-  `restaurant-overrides.ts`, `groupItemsBySection`). Phase 3.6
-  duplicated three small files into `apps/web/src/lib/`. Once Phase
-  3.7 moves the filter logic into `packages/filter-engine`, consider
-  moving the display helpers into a sibling shared package
-  (`@biteworthy/restaurant-page-helpers`?) to delete the duplicate.
+- ~~Consolidate web + mobile pure helpers~~ — done in Phase 3.7 (#152).
+  All display helpers (`hiddenReasonLabel`, `groupItemsBySection`,
+  `applyOverrides`) now live in `@biteworthy/filter-engine` and are
+  the single source of truth.
 
 ## What we are explicitly NOT doing in v1
 

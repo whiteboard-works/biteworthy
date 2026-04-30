@@ -3,8 +3,8 @@ import {
   fetchRestaurantItems,
   groupItemsBySection,
   RestaurantFetchError,
-  type FilteredItem,
   type Restaurant,
+  type RestaurantItem,
   type RestaurantItemsResponse,
 } from '../../lib/api/restaurants';
 
@@ -106,7 +106,7 @@ describe('fetchRestaurantItems', () => {
 });
 
 describe('groupItemsBySection', () => {
-  function item(overrides: Partial<FilteredItem>): FilteredItem {
+  function item(overrides: Partial<RestaurantItem>): RestaurantItem {
     return {
       id: overrides.id ?? 'item-?',
       restaurant_id: 'rest-1',

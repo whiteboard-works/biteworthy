@@ -2,18 +2,20 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
-  fetchRestaurantItems,
+  applyOverrides,
   groupItemsBySection,
-  type FilterSummary,
-  type FilteredItem,
+  hiddenReasonLabel,
   type HideReason,
   type ItemSection,
-  type Restaurant,
-  type RestaurantItemsResponse,
   type Strictness,
+} from '@biteworthy/filter-engine';
+import {
+  fetchRestaurantItems,
+  type FilterSummary,
+  type Restaurant,
+  type RestaurantItem,
+  type RestaurantItemsResponse,
 } from '../../../lib/restaurants';
-import { hiddenReasonLabel } from '../../../lib/hidden-reason';
-import { applyOverrides } from '../../../lib/restaurant-overrides';
 
 /**
  * Phase 3.6 — client island for the SSR-rendered restaurant page.
@@ -37,7 +39,7 @@ export function RestaurantClient({
   initialItems: RestaurantItemsResponse;
 }) {
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
-  const [sections, setSections] = useState<ItemSection[]>(() =>
+  const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>(() =>
     groupItemsBySection(initialItems.items),
   );
   const [strictnessOverride, setStrictnessOverride] = useState<Strictness | null>(null);
@@ -189,7 +191,7 @@ function SectionBlock({
   shownAnyway,
   onToggleOverride,
 }: {
-  section: ItemSection;
+  section: ItemSection<RestaurantItem>;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
 }) {
@@ -251,7 +253,7 @@ function ItemRow({
   overridden,
   onToggleOverride,
 }: {
-  item: FilteredItem;
+  item: RestaurantItem;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;

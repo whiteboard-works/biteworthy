@@ -1,14 +1,25 @@
 /**
- * Phase 3.3 — restaurant + filtered-items fetchers.
+ * Phase 3.3 + 3.4 + 3.7 — restaurant + filtered-items fetchers (mobile).
  *
- * `fetchRestaurant(id)` powers the page header (name + city).
- * `fetchRestaurantItems(id, jwt?)` returns the per-item filter
- * verdict the screen renders. The server applies the filter using
- * `current_user.profile` when a JWT is supplied (per Phase 1.7) so
- * the client never recomputes it.
- *
- * Both endpoints work anonymously — the JWT is optional.
+ * Wire-format types live in `@biteworthy/filter-engine` (the single
+ * source of truth as of Phase 3.7). This module just adds the
+ * fetchers + the mobile-specific Restaurant header type.
  */
+
+import type {
+  FilterableItem,
+  FilteredItem,
+  HideReason,
+  ItemSection,
+  Strictness,
+} from '@biteworthy/filter-engine';
+
+export type {
+  FilteredItem,
+  HideReason,
+  ItemSection,
+  Strictness,
+} from '@biteworthy/filter-engine';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
 
@@ -36,32 +47,11 @@ export interface Restaurant {
 
 export type ItemStatus = 'visible' | 'hidden';
 
-export type HideReason =
-  | {
-      kind: 'avoid_ingredient';
-      ingredient_id: string;
-      ingredient_name: string | null;
-      ingredient_family: string | null;
-    }
-  | {
-      kind: 'avoid_tag';
-      tag_id: string;
-      tag_name: string | null;
-      tag_family: string | null;
-    }
-  | { kind: 'unconfirmed_strict'; confidence: string };
-
-export interface FilteredItem {
-  id: string;
+export interface RestaurantItem extends FilterableItem {
   restaurant_id: string;
   name: string;
   description: string;
-  confidence: 'confirmed' | 'suggested' | 'inferred';
   popularity: number;
-  ingredient_ids: string[];
-  tag_ids: string[];
-  menu_section_id: string | null;
-  menu_section_name: string | null;
   status: ItemStatus;
   reasons: HideReason[];
 }
@@ -69,7 +59,7 @@ export interface FilteredItem {
 export interface FilterSummary {
   source: 'preset' | 'user_profile' | 'none';
   preset_slug: string | null;
-  strictness: 'relaxed' | 'balanced' | 'strict';
+  strictness: Strictness;
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
 }
@@ -77,7 +67,7 @@ export interface FilterSummary {
 export interface RestaurantItemsResponse {
   restaurant_id: string;
   filter: FilterSummary;
-  items: FilteredItem[];
+  items: RestaurantItem[];
 }
 
 export class RestaurantFetchError extends Error {
@@ -102,9 +92,7 @@ export async function fetchRestaurant(
 
 export interface FetchItemsOptions extends FetchOptions {
   jwt?: string;
-  /** Override the server's chosen profile with a preset slug. */
   presetSlug?: string;
-  /** Override the server's chosen strictness for this request. */
   strictness?: 'relaxed' | 'balanced' | 'strict';
 }
 
@@ -125,40 +113,5 @@ export async function fetchRestaurantItems(
   return (await res.json()) as RestaurantItemsResponse;
 }
 
-/**
- * Group filtered items by their menu section. Items with no
- * `menu_section_id` end up in the catch-all "Other" group at the end.
- * Within each section, items are ordered visible-first, hidden-last
- * (the server already orders by popularity); the screen flattens the
- * groups and renders an expander around the hidden tail.
- */
-export interface ItemSection {
-  id: string | null;
-  name: string;
-  visible: FilteredItem[];
-  hidden: FilteredItem[];
-}
-
-export function groupItemsBySection(items: FilteredItem[]): ItemSection[] {
-  const order: (string | null)[] = [];
-  const lookup = new Map<string | null, ItemSection>();
-
-  for (const item of items) {
-    const sectionId = item.menu_section_id;
-    let section = lookup.get(sectionId);
-    if (!section) {
-      section = {
-        id: sectionId,
-        name: item.menu_section_name ?? 'Other',
-        visible: [],
-        hidden: [],
-      };
-      lookup.set(sectionId, section);
-      order.push(sectionId);
-    }
-    if (item.status === 'visible') section.visible.push(item);
-    else section.hidden.push(item);
-  }
-
-  return order.map((id) => lookup.get(id)!);
-}
+// Re-export from filter-engine so mobile callers don't need a second import.
+export { groupItemsBySection } from '@biteworthy/filter-engine';

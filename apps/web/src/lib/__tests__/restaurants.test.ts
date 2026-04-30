@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   fetchRestaurant,
   fetchRestaurantItems,
-  groupItemsBySection,
-  type FilteredItem,
   type Restaurant,
   type RestaurantItemsResponse,
 } from '../restaurants';
@@ -93,62 +91,5 @@ describe('fetchRestaurantItems', () => {
     await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl, jwt: 'jjj.www.ttt' });
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
-  });
-});
-
-describe('groupItemsBySection', () => {
-  function item(overrides: Partial<FilteredItem>): FilteredItem {
-    return {
-      id: overrides.id ?? 'item-?',
-      restaurant_id: 'rest-1',
-      name: 'Item',
-      description: '',
-      confidence: 'confirmed',
-      popularity: 0,
-      ingredient_ids: [],
-      tag_ids: [],
-      menu_section_id: null,
-      menu_section_name: null,
-      status: 'visible',
-      reasons: [],
-      ...overrides,
-    };
-  }
-
-  it('groups by menu_section_id, preserves server order', () => {
-    const sections = groupItemsBySection([
-      item({ id: 'a', menu_section_id: 'tacos', menu_section_name: 'Tacos' }),
-      item({ id: 'b', menu_section_id: 'bowls', menu_section_name: 'Bowls' }),
-      item({ id: 'c', menu_section_id: 'tacos', menu_section_name: 'Tacos' }),
-    ]);
-    expect(sections.map((s) => s.name)).toEqual(['Tacos', 'Bowls']);
-    expect(sections[0]!.visible.map((i) => i.id)).toEqual(['a', 'c']);
-  });
-
-  it('drops null-section items into "Other"', () => {
-    const sections = groupItemsBySection([item({ id: 'a' })]);
-    expect(sections[0]!.name).toBe('Other');
-  });
-
-  it('separates visible vs hidden within a section', () => {
-    const sections = groupItemsBySection([
-      item({ id: 'v', status: 'visible', menu_section_id: 's', menu_section_name: 'S' }),
-      item({
-        id: 'h',
-        status: 'hidden',
-        menu_section_id: 's',
-        menu_section_name: 'S',
-        reasons: [
-          {
-            kind: 'avoid_ingredient',
-            ingredient_id: 'ing-x',
-            ingredient_name: 'Cheese',
-            ingredient_family: 'dairy',
-          },
-        ],
-      }),
-    ]);
-    expect(sections[0]!.visible.map((i) => i.id)).toEqual(['v']);
-    expect(sections[0]!.hidden.map((i) => i.id)).toEqual(['h']);
   });
 });
