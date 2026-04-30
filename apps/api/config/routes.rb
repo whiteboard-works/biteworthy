@@ -1,5 +1,9 @@
 Rails.application.routes.draw do
   mount_avo
+  # Phase 2.9 cost dashboard. Lives at /admin/dashboard so the admin
+  # nav bar can link straight to it from Avo.
+  get "/admin/dashboard", to: "admin/dashboard#index", as: :admin_dashboard
+
   # Health check for uptime monitors and load balancers.
   get "up" => "rails/health#show", as: :rails_health_check
 

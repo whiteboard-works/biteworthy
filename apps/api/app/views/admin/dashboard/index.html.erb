@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>BiteWorthy admin · Cost dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+           background: #f7f5f2; color: #1a1a1a; margin: 0; padding: 32px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 28px; }
+    .crumbs { color: #5c5c5c; font-size: 14px; margin-bottom: 32px; }
+    .crumbs a { color: #e14e2a; text-decoration: none; }
+    .grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .card { background: #fff; border: 1px solid #e6e2dd; border-radius: 12px; padding: 24px; }
+    .card h2 { margin: 0 0 16px; font-size: 18px; color: #1a1a1a; }
+    .stat { display: flex; justify-content: space-between; align-items: baseline;
+            padding: 8px 0; border-bottom: 1px dashed #e6e2dd; }
+    .stat:last-child { border-bottom: 0; }
+    .stat .label { color: #5c5c5c; font-size: 14px; }
+    .stat .value { font-weight: 600; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .stat .value.warn { color: #e03131; }
+    .stat .value.ok   { color: #2f9e44; }
+    .target-line { font-size: 13px; color: #5c5c5c; margin-top: 16px;
+                   padding-top: 12px; border-top: 1px solid #e6e2dd; }
+    .empty { color: #868e96; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="crumbs"><a href="/admin">← Back to /admin</a></div>
+    <h1>Cost &amp; latency dashboard</h1>
+    <p class="crumbs">
+      Live numbers from <code>IngestionRun</code> (Phase 2.9). Target: $0.25 per
+      50-item menu = <strong><%= @target_target %>¢ per item</strong>.
+    </p>
+
+    <div class="grid">
+      <% @metrics.each do |period_key, b| %>
+        <div class="card" data-period="<%= period_key %>">
+          <h2><%= b.label %></h2>
+
+          <div class="stat">
+            <span class="label">Runs</span>
+            <span class="value"><%= b.run_count %></span>
+          </div>
+          <div class="stat">
+            <span class="label">Items extracted</span>
+            <span class="value"><%= b.item_count %></span>
+          </div>
+
+          <% over_target = b.cost_per_item_cents > @target_target %>
+          <div class="stat">
+            <span class="label">Total cost</span>
+            <span class="value">$<%= sprintf("%.2f", b.total_cost_cents.to_f / 100) %></span>
+          </div>
+          <div class="stat">
+            <span class="label">Cost per item</span>
+            <span class="value <%= over_target ? "warn" : "ok" %>">
+              <%= sprintf("%.2f", b.cost_per_item_cents) %>¢
+            </span>
+          </div>
+
+          <div class="stat">
+            <span class="label">Avg latency</span>
+            <span class="value">
+              <% if b.avg_latency_ms.nil? %>
+                <span class="empty">—</span>
+              <% else %>
+                <%= b.avg_latency_ms %> ms
+              <% end %>
+            </span>
+          </div>
+          <div class="stat">
+            <span class="label">p95 latency</span>
+            <span class="value">
+              <% if b.p95_latency_ms.nil? %>
+                <span class="empty">—</span>
+              <% else %>
+                <%= b.p95_latency_ms %> ms
+              <% end %>
+            </span>
+          </div>
+
+          <div class="stat">
+            <span class="label">Cache hit rate</span>
+            <span class="value <%= b.cache_hit_rate >= 0.5 ? "ok" : "warn" %>">
+              <%= sprintf("%.1f%%", b.cache_hit_rate * 100) %>
+            </span>
+          </div>
+
+          <p class="target-line">
+            Target: ≤ <%= @target_target %>¢ per item. Cache hit rate &gt; 50% means
+            most calls are reading the cached taxonomy block.
+          </p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</body>
+</html>
