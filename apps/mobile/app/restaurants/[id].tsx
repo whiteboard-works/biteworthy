@@ -10,17 +10,19 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
-  fetchRestaurant,
-  fetchRestaurantItems,
+  applyOverrides,
   groupItemsBySection,
-  type FilteredItem,
+  hiddenReasonLabel,
   type HideReason,
   type ItemSection,
-  type Restaurant,
+} from '@biteworthy/filter-engine';
+import {
+  fetchRestaurant,
+  fetchRestaurantItems,
   type FilterSummary,
+  type Restaurant,
+  type RestaurantItem,
 } from '../../lib/api/restaurants';
-import { hiddenReasonLabel } from '../../lib/hidden-reason';
-import { applyOverrides } from '../../lib/restaurant-overrides';
 
 /**
  * Phase 3.3 + 3.4 + 3.5 — filtered restaurant page with transparency
@@ -46,7 +48,7 @@ export default function RestaurantScreen() {
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [filter, setFilter] = useState<FilterSummary | null>(null);
-  const [sections, setSections] = useState<ItemSection[]>([]);
+  const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>([]);
   const [loadingRestaurant, setLoadingRestaurant] = useState(true);
   const [loadingItems, setLoadingItems] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -242,7 +244,7 @@ function SectionBlock({
   shownAnyway,
   onToggleOverride,
 }: {
-  section: ItemSection;
+  section: ItemSection<RestaurantItem>;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
 }) {
@@ -299,7 +301,7 @@ function ItemRow({
   overridden,
   onToggleOverride,
 }: {
-  item: FilteredItem;
+  item: RestaurantItem;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;

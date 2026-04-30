@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 07:00 — tick #57. PR #151 (Phase 3.6) merged at 06:00 UTC.
+Picked up Phase 3.7 — consolidated the per-item filter computation
+into `@biteworthy/filter-engine`. The package was previously a
+prototype with camelCase types that nobody imported; rewrote it
+wholesale to be the single TS source of truth for the wire format
+the Rails endpoint emits. New surface: canonical types
+(`FilterableItem`, `FilteredItem`, `HideReason`, `FilterProfile`,
+`LabelLookup`, `ItemSection`, `Strictness`); the `applyProfile`
+function (pure, generic over T extends FilterableItem so extra
+fields pass through); `buildLabelLookup` (derives ingredient family
+from ltree path's first segment, mirroring Rails); display helpers
+(`hiddenReasonLabel`, `hiddenReasonHeadline`); section grouping
+(`groupItemsBySection`); session-only "show anyway" override
+(`applyOverrides`). Migration: deleted `apps/web/src/lib/{hidden-
+reason,restaurant-overrides}.ts` + their tests; deleted
+`apps/mobile/lib/{hidden-reason,restaurant-overrides}.ts` + tests;
+both apps now import the shared helpers + types from filter-engine.
+Mobile and web `restaurants` modules keep their fetchers but now
+re-export the wire types from filter-engine. Critical addition:
+`packages/filter-engine/src/rails-parity.test.ts` runs `applyProfile`
+against the same fixture the Rails rspec uses ("Cheese Quesadilla
+under vegan preset") and asserts byte-identical output, so a future
+drift on either side trips a test. Resolved the helper-consolidation
+Discovered followup. Local: filter-engine vitest 31/31; web vitest
+10/10; mobile jest 34/34; rspec 184/0/1 pending; pnpm typecheck/lint
+green.
+
 2026-05-01 06:30 — tick #56. PR #150 (Phase 3.5) merged at 04:46 UTC.
 Picked up Phase 3.6 — web filtered restaurant page (mirror of mobile
 3.3 + 3.4 + 3.5). API: extended Restaurant model with
