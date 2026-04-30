@@ -13,6 +13,27 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 05:00 — tick #53. PR #147 (Phase 3.2) merged at 03:21 UTC.
+Picked up Phase 3.3 — mobile filtered restaurant page. Found a Phase
+1.7 gap on the way: `routes.rb` exposed `api/v1/restaurants#index` +
+`#show` but no controller existed (every hit would have 500'd with
+NameError). Built the minimal `RestaurantsController#show` (id, slug,
+name, status, city — what the page header needs) and added a
+3-case rspec for it. Also extended `ItemsController#serialize_item`
+to include `menu_section_id` + `menu_section_name` so the screen can
+group items by menu section without a second roundtrip; added an
+`includes(menu_section: :menu)` to dodge N+1. New mobile pieces:
+`apps/mobile/lib/api/restaurants.ts` (fetchRestaurant +
+fetchRestaurantItems with optional jwt/preset/strictness +
+groupItemsBySection helper) and `apps/mobile/app/restaurants/[id].tsx`
+(header + filter badge + per-section visible-list + collapsed
+"Items hidden by your filter (N)" expander). 11 Jest cases lock down
+the API client (anonymous vs JWT, query params) + the section
+grouping (server-order preservation, visible/hidden split, "Other"
+catch-all). 4 new rspec cases (3 for restaurants#show, 1 for the new
+menu_section payload). Local: rspec 177/0/1 pending; mobile jest
+32/32; pnpm typecheck/lint cached green.
+
 2026-05-01 04:30 — tick #52. PR #146 (Phase 3.1) merged at 04:18 UTC.
 Picked up Phase 3.2 — mobile profile onboarding (6 taps). New API
 surface: `GET /api/v1/dietary_profiles` (presets sorted by name with

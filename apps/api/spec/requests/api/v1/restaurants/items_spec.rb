@@ -130,6 +130,44 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
     end
   end
 
+  describe "menu section payload (Phase 3.3)" do
+    let(:menu)    { create(:menu, restaurant: restaurant) }
+    let(:tacos)   { create(:menu_section, menu: menu, name: "Tacos", position: 0) }
+    let(:bowls)   { create(:menu_section, menu: menu, name: "Bowls", position: 1) }
+
+    let!(:sectioned_taco) do
+      create(:item, :published, :confirmed,
+             restaurant: restaurant, name: "Pollo Taco",
+             menu_section: tacos, ingredients: [])
+    end
+    let!(:sectioned_bowl) do
+      create(:item, :published, :confirmed,
+             restaurant: restaurant, name: "Veggie Bowl",
+             menu_section: bowls, ingredients: [])
+    end
+
+    it "exposes menu_section_id + menu_section_name on each item" do
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      expect(response).to have_http_status(:ok)
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+
+      expect(items["Pollo Taco"]).to include(
+        "menu_section_id"   => tacos.id,
+        "menu_section_name" => "Tacos"
+      )
+      expect(items["Veggie Bowl"]).to include(
+        "menu_section_id"   => bowls.id,
+        "menu_section_name" => "Bowls"
+      )
+      # Items without a section (the original three) carry nulls.
+      expect(items["Carne Asada Taco"]).to include(
+        "menu_section_id"   => nil,
+        "menu_section_name" => nil
+      )
+    end
+  end
+
   describe "404 cases" do
     it "404s on a non-existent restaurant" do
       get "/api/v1/restaurants/00000000-0000-0000-0000-000000000000/items"
