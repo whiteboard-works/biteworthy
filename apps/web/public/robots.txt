@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Phase 5.4 — Next.js proxy routes shouldn't be indexed; they're
+# server-side adapters to the Rails API, not user-facing pages.
+Disallow: /api/
+
+Sitemap: https://bite-worthy.com/sitemap.xml

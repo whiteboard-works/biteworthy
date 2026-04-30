@@ -13,6 +13,52 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 19:17 — tick #81. PR #174 (Phase 5.3 R2 blob storage)
+merged at 18:48 UTC, all CI green. Anthropic still capped (~4.7h
+to reset); cassette PR stays BLOCKED. Picked the next unblocked
+Next-up item: **Phase 5.4 — production web deploy (Vercel +
+bite-worthy.com)**. Loop-shippable wiring split out from
+human-only provisioning per the subplan's Stop conditions.
+Shipped:
+- `apps/web/vercel.json` — minimal config: framework=nextjs,
+  region=iad1 (closest free-tier to Durango; iad→den ~30ms RTT
+  to the Phase 5.1 API), security response headers
+  (X-Frame-Options, X-Content-Type-Options, Referrer-Policy).
+- `apps/web/public/robots.txt` — allow all bots; disallow
+  `/api/*` proxy routes (server-side adapters, not user pages);
+  points crawlers at /sitemap.xml.
+- `apps/web/src/app/sitemap.ts` (Next 13+ App Router entry) +
+  `apps/web/src/lib/sitemap.ts` (pure-TS generator). Today
+  covers /, /login, /signup with sensible priorities/changefreqs;
+  has hooks (`dietSlugs`, `restaurantSlugs`) for Phase 5.6 +
+  Phase 5.7 to extend without touching Next. Encodes slugs with
+  reserved chars; strips trailing slashes from baseUrl.
+- `apps/web/src/lib/cookie-options.ts` — extracted auth-cookie
+  attribute builder reading `NEXT_PUBLIC_COOKIE_DOMAIN`. Prod
+  scopes cookie to `.bite-worthy.com` (works across www + future
+  app subdomain); dev/CI leave it unset (localhost cookies MUST
+  NOT carry a domain attribute or browsers silently drop them).
+  3-line refactor of `api/auth/[action]/route.ts` to use it.
+- `apps/web/.env.example` — first one for the web app. Documents
+  `NEXT_PUBLIC_API_BASE` + `NEXT_PUBLIC_COOKIE_DOMAIN`.
+- ADR 0005 captures Vercel pick (free tier handles Durango-scale,
+  native Next.js 15 support, preview deploys per PR) vs CF Pages
+  (cheaper at scale but less mature Next runtime). Cookie-domain
+  rationale captured. Deploy lifecycle: push to master →
+  Vercel auto-deploy; push to feature branch → preview URL.
+- Web README gets new "Production deploy" section.
+Tests: 10 new vitest cases (5 sitemap + 5 cookie-options). Web
+vitest 72/72 (+10). Local: pnpm typecheck + lint full-turbo
+cached green; rspec 349/0/1 pending unchanged. Roadmap: ticked
+5.3 (#174); reordered Next-up. **Eager-rebase applied** before
+branching. After PR #175 merges, **Phase 5's production
+infrastructure is structurally complete** (5.1 API deploy, 5.2
+SMTP, 5.3 R2 storage, 5.4 web deploy all loop-shipped); next
+steps shift to public surface (5.5 marketing landing, 5.6
+SEO city pages) and seed motion (5.7 Durango ingest). Anthropic
+cap clears at 00:00 UTC (~4.7h from now); cassette retry
+unblocks then.
+
 2026-04-30 18:47 — tick #80. PR #173 (Phase 5.2 SMTP wiring) merged
 at 18:20 UTC, all CI green. Anthropic still capped (~5.2h to
 reset); cassette PR stays BLOCKED. Picked the next unblocked
