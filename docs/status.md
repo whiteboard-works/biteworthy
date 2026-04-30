@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 01:00 — tick #46. PR #140 (Phase 2.5) merged at 23:49 UTC.
+Picked up Phase 2.6 — mobile camera + upload. Two surfaces in one PR:
+
+API: `Api::V1::IngestionRunsController#create + #show`. Create
+gates on `is_admin?`, requires multipart `inputs[]` files, attaches
+to ActiveStorage `inputs`, fires `transition_to!(:extracting)`
+(which dispatches ExtractMenuJob via JOB_FOR). Show is owner-or-
+admin gated. Auto-detects pdf vs photo from content_type. New
+routes under `api/v1`. 10 request specs (happy/auth-gate/unknown
+restaurant/no inputs/PDF/show owner/show admin/show stranger/show
+unauth) + 2 rswag schema specs.
+
+Mobile: `lib/api/ingestion-runs.ts` — `uploadIngestionRun({
+restaurantId, pages, jwt })` builds multipart FormData via React
+Native's Blob-shape. `IngestionUploadError` carries status + body.
+4 Jest tests (POST shape, error path, empty-pages guard, non-JSON
+body survives). New screen at `app/ingest/index.tsx` with
+restaurant_id + JWT inputs, expo-camera flow with capture
+button (production capture-via-ref deferred), thumbnail strip
+with long-press delete, "Upload all" button. Uses ui-tokens
+(colors.bgAlt for thumb backgrounds, etc.). Added @types/jest +
+@types/node + tsconfig types entry so Jest globals are typed.
+
+Local: rspec 126/126 (1 pending), pnpm typecheck/lint/test all
+green, codegen drift clean (regenerated openapi.json + generated.ts).
+Pushing PR.
+
 2026-05-01 00:15 — tick #45. PR #139 (Phase 2.4) merged at 23:20 UTC.
 Picked up Phase 2.5 — admin verify UI + auto-publish threshold.
 Generated Avo resources for IngestionRun + IngestionItem (Phase 1.5
