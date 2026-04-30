@@ -13,6 +13,41 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 22:50 — tick #88. PR #182 (Phase 5.1.1 Kamal+Hetzner+Neon
+migration) merged at 22:23 UTC. Anthropic still capped (~1.2h to
+reset); cassette PR stays BLOCKED. Picked the next unblocked
+item: **Phase 5.10 — press kit + waitlist + Durango outreach** —
+the last code-only Phase-5 PR. Shipped:
+- **Waitlist** (API): `create_waitlist_signups` migration with
+  citext email + unique idx; WaitlistSignup model with lenient
+  EMAIL_REGEX + source allowlist; WaitlistMailer.confirm via the
+  Phase 5.2 SMTP pipeline; POST /api/v1/waitlist_signups
+  (anonymous, 200 on new+duplicate, 422 on malformed email). 12
+  specs (7 model + 5 request) covering normalize, citext dedup,
+  source allowlist, controller idempotence, mailer fires once.
+- **Waitlist** (web): /api/waitlist Next proxy + lib/waitlist.ts
+  (fetcher + isValidEmail) + _waitlist-form.tsx client island on
+  the marketing landing under the existing CTAs. Idle/sending/
+  done/error states inline; no full-page reload. 7 vitest cases.
+- **/press page**: SSR with 50-word + 200-word blurbs, founder
+  line, contact, placeholder logo links (Phase 5.9-wiring renders
+  binaries). Reuses buildLegalMetadata.
+- **docs/outreach/**: 5 templates calibrated per outlet — Durango
+  Telegraph (dining beat), Durango Herald (business + tech), La
+  Plata Mountaineer (community-events), KSUT (NPR human-interest,
+  slower follow-up cycle), launch-day.md (Twitter/Bluesky/IG/
+  LinkedIn posts + day-of timing). README cross-references the
+  press page + send order.
+Total: rspec 377/0/1 (+12); web vitest 99/99 (+7); pnpm typecheck
++ lint full-turbo green. Roadmap: ticked 5.1.1 (#182) + 5.1.1
+plan (#181); reordered Next-up — this 5.10 PR at #1, then the
+human-credential-gated wiring PRs (5.8/5.9/5.1.1) + the BLOCKED
+cassette. **Phase 5 status after #183 merges**: every loop-
+shippable launch piece is on master. Remaining work is entirely
+human-gated (Anthropic cap retry, PostHog/Apple/Google accounts,
+lawyer signoff, the actual `kamal deploy` from a laptop).
+Anthropic cap clears in ~1.2h.
+
 2026-04-30 22:21 — tick #87. PR #181 (Phase 5.1.1 plan) merged at
 22:14 UTC; PR #180 (Phase 5.9 structural) also merged earlier.
 Anthropic still capped (~1.6h to reset); cassette PR stays
