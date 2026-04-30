@@ -43,6 +43,16 @@ RSpec.describe "Reviews API", type: :request do
       get "/api/v1/items/#{draft.id}/reviews"
       expect(response).to have_http_status(:not_found)
     end
+
+    it "excludes hidden reviews from the public feed (Phase 4.6)" do
+      newer.hide!(reason: "spam")
+
+      get "/api/v1/items/#{item.id}/reviews"
+
+      body = response.parsed_body
+      expect(body["total"]).to eq(1)
+      expect(body["reviews"].map { |r| r["id"] }).to eq([older.id])
+    end
   end
 
   describe "POST /api/v1/items/:item_id/reviews" do

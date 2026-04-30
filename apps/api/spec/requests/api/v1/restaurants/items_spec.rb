@@ -156,6 +156,18 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(items["Cheese Quesadilla"]["reviews_count"]).to eq(2)
       expect(items["Carne Asada Taco"]["reviews_count"]).to eq(0)
     end
+
+    it "excludes hidden reviews from the count (Phase 4.6)" do
+      visible_review = create(:review, item: cheese_quesadilla, user: reviewer, rating: 5)
+      hidden_review  = create(:review, item: cheese_quesadilla, user: create(:user), rating: 1)
+      hidden_review.hide!(reason: "spam")
+
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["reviews_count"]).to eq(1)
+      expect(visible_review).to be_persisted # not used after this — silence rubocop
+    end
   end
 
   describe "with a signed-in user (no params)" do

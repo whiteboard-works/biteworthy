@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 11:30 — tick #66. PR #160 (Phase 4.5) merged at 11:18 UTC.
+Picked up Phase 4.6 — review moderation queue. New migration adds
+`hidden_at` + `hidden_reason` + `flagged_at` columns to reviews
+with partial indexes scoped to the two hot paths (public feed
+lookup `WHERE hidden_at IS NULL`, queue lookup
+`WHERE flagged_at IS NOT NULL AND hidden_at IS NULL`). Review model
+gained `.visible` / `.hidden` / `.awaiting_moderation` scopes,
+`HIDDEN_REASONS` constant (spam | abuse | duplicate | off_topic),
+`hide!(reason:)` + `unhide!` helpers, and a `before_save` callback
+that runs `suspicious?` and drops a `flagged_at` timestamp when the
+body trips the heuristic (URL detection + 9-word profanity list,
+word-boundary matched so "ducks" doesn't false-positive). Public
+API: items endpoint's `reviews_count` and reviews#index both went
+from `Review.where(...)` to `Review.visible.where(...)` so hidden
+reviews drop out of the public feed instantly. Avo: new
+`Avo::Resources::Review` (read-write for admins) with two filters
+(Awaiting moderation boolean + Visibility select), three actions
+(Hide with reason picker, MarkSpam shortcut, Unhide). Each action
+extracts pure logic to `self.method` so specs can call without the
+controller lifecycle (Phase 2.5 pattern). Tests: 16 model specs
+covering scopes, the heuristic, auto-flagging, hide/unhide
+idempotence + reason validation; 4 Avo action specs (hide_all
+counts + skip-already-hidden + flag-clearing on hide; unhide_all
+counts); 1 reviews#index spec for the visible scope; 1 items
+endpoint spec for the visible reviews_count. Local: rspec 249/0/1
+pending; pnpm typecheck/lint cached green (no JS changes).
+
 2026-05-01 11:00 — tick #65. PR #159 (Phase 4.4) merged at 10:48 UTC.
 Picked up Phase 4.5 — web review UX. Mirror of mobile 4.4 on Next.js.
 Two new Next API proxy routes: `/api/items/[id]/reviews` (GET +
