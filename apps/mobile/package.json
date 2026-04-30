@@ -15,6 +15,7 @@
     "clean": "rm -rf .expo .turbo dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@biteworthy/analytics": "workspace:*",
     "@biteworthy/api-types": "workspace:*",
     "@biteworthy/filter-engine": "workspace:*",
     "@biteworthy/ui-tokens": "workspace:*",
