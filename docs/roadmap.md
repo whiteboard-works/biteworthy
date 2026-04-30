@@ -142,7 +142,13 @@ The loop appends here when work surfaces a new task that doesn't
 belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
-(empty)
+- **Wire `jest-expo` preset + `@testing-library/react-native` for the
+  mobile app** — surfaced during Phase 3.5. Mobile tests currently
+  run pure-TS only; importing any screen module (which transitively
+  imports react-native ESM) fails Jest's default transformer. The
+  Phase 3.5 subplan asked for a UI snapshot, which we couldn't ship
+  without the preset wiring. Setup change in its own PR; once landed,
+  retroactively add the deferred snapshots from 3.2 / 3.3 / 3.4 / 3.5.
 
 ## What we are explicitly NOT doing in v1
 
