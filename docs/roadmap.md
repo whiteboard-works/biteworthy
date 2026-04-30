@@ -13,12 +13,11 @@ the merge / review / status rules.
 
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`.
 
-1. **Phase 5.6 — SEO city/diet pages (`/durango/[diet]`)** (`docs/plans/phase-5.md#56--seo-landing-pages-durangodiet`) — this PR.
-2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the 4.11.2 prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that. Holdover from Phase 4.11; not a launch blocker (the structural code is on master) but should land before Phase 5.7 mass-ingests Durango menus.
-3. **Phase 5.7 — seed 30 Durango restaurants** (`docs/plans/phase-5.md#57--seed-30-durango-restaurants-via-the-ingestion-pipeline`).
-4. **Phase 5.8 — PostHog instrumentation** (`docs/plans/phase-5.md#58--posthog-funnel-wiring-real-instrumentation`).
-5. **Phase 5.9 — mobile app store submission** (`docs/plans/phase-5.md#59--mobile-app-store-submission-testflight--play-store`).
-6. **Phase 5.10 — press kit + Durango outreach** (`docs/plans/phase-5.md#510--press-kit--outreach-durango-launch`).
+1. **Phase 5.7 — seed 30 Durango restaurants** (`docs/plans/phase-5.md#57--seed-30-durango-restaurants-via-the-ingestion-pipeline`) — this PR. Loop ships the batch tooling; populating the CSV + actually running the seed is a human task.
+2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the 4.11.2 prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that. Holdover from Phase 4.11; not a launch blocker (the structural code is on master) but should land before the seed task from this PR mass-ingests real Durango menus.
+3. **Phase 5.8 — PostHog instrumentation** (`docs/plans/phase-5.md#58--posthog-funnel-wiring-real-instrumentation`).
+4. **Phase 5.9 — mobile app store submission** (`docs/plans/phase-5.md#59--mobile-app-store-submission-testflight--play-store`).
+5. **Phase 5.10 — press kit + Durango outreach** (`docs/plans/phase-5.md#510--press-kit--outreach-durango-launch`).
 
 ### Done
 
@@ -72,6 +71,7 @@ the merge / review / status rules.
 - ✅ Phase 5.3 — production blob storage on Cloudflare R2 + backfill task (#174)
 - ✅ Phase 5.4 — production web deploy wiring: vercel.json + sitemap + cookie domain (#175) — **Phase 5 production infrastructure structurally complete (5.1 API + 5.2 SMTP + 5.3 R2 + 5.4 web)**
 - ✅ Phase 5.5 — marketing landing page at / (#176)
+- ✅ Phase 5.6 — SEO city/diet pages at /durango/[diet] (#177)
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
