@@ -11,10 +11,9 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 2** ⭐ AI ingestion MVP. Subplan: `docs/plans/phase-2.md`. This batch is **proposed by the loop** (this PR is the plan-update PR); humans review it before the items auto-run.
+1. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`) — this PR
 
-1. **Phase 2.8 — Web: paste-URL / upload-PDF entrypoint** (`docs/plans/phase-2.md#28`) — this PR
-2. **Phase 2.9 — Cost + latency dashboard in admin** (`docs/plans/phase-2.md#29`)
+After this merges, **Phase 2 is complete** — the loop drafts a `docs/plans/phase-3.md` PR proposing the dietary-filter-UI queue (same plan-PR pattern as #135).
 
 ### Done
 
@@ -34,8 +33,7 @@ the merge / review / status rules.
 - ✅ Phase 2.5 — admin verify UI + 80%-accepted publish (#140)
 - ✅ Phase 2.6 — mobile camera + ingestion runs API (#141)
 - ✅ Phase 2.7 — mobile swipe-verify UI + ingestion item PATCH (#142)
-
-After Phase 2 ships, the loop will draft `docs/plans/phase-3.md` (dietary filter UI) the same way.
+- ✅ Phase 2.8 — web URL/PDF entrypoint (#143)
 
 ## Phase 0 — Foundation ✅
 

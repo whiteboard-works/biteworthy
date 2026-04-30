@@ -13,6 +13,30 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 03:00 — tick #49. PR #143 (Phase 2.8) merged at 01:18 UTC.
+Picked up Phase 2.9 — cost + latency dashboard. New
+`Ingestion::CostMetrics` service: aggregates IngestionRun columns
+(api_cost_cents/latency_ms/cached+uncached_input_tokens) over
+today/last_7_days/last_30_days buckets, computes total_cost,
+items_extracted, cost_per_item, avg + p95 latency (nearest-rank),
+cache_hit_rate. Target line $0.25/50-item-menu = 0.5¢/item.
+New `Admin::DashboardController` (inherits from
+ActionController::Base for ERB rendering since the rest of the app
+is api_only) at `/admin/dashboard`, gated with the same HTTP Basic
+auth Avo uses (re-reads ADMIN_USERNAME/ADMIN_PASSWORD ENV).
+Self-contained ERB layout with three period cards, color-coded
+cost-per-item warning when above the 0.5¢ target, color-coded
+cache-hit rate. Bug caught locally: my period_label_for computed
+days from `(end - begin) / 1.day` and the half-day tail rounded
+7→8 → restructured PERIODS to carry explicit labels. 8 metric
+specs (totals, zero-safety, zero-items no-divide, percentile +
+edge cases) + 3 dashboard request specs (auth challenge / wrong
+creds / right creds renders metrics). Local rspec 157/157
+(1 pending), pnpm typecheck/lint/test all green.
+
+**Phase 2 feature-complete after this merges.** Next tick will draft
+the phase-3 plan PR (same pattern as #135).
+
 2026-05-01 02:25 — tick #48. PR #142 (Phase 2.7) merged at 00:48 UTC.
 Picked up Phase 2.8 — web URL/PDF entrypoint. New `UrlFetcher`
 service: faraday GET with 15s timeout, 10MB max bytes, sniffs PDF
