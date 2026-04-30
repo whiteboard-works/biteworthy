@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { buildLandingMetadata } from '../lib/landing-meta';
+import WaitlistForm from './_waitlist-form';
 
 /**
  * Phase 5.5 — marketing landing.
@@ -69,6 +70,14 @@ function Hero(): ReactElement {
       <p className="mt-bw-4 text-bw-xs text-zinc-500">
         Free during the Durango beta. No ads, no email signup until you choose to save a profile.
       </p>
+
+      <div className="mt-bw-8 rounded-bw-lg border border-zinc-200 bg-zinc-50 p-bw-4">
+        <p className="text-bw-sm font-bold text-zinc-900">Want a heads-up when the apps drop?</p>
+        <p className="mt-bw-1 text-bw-sm text-zinc-600">
+          One email, 48 hours before public release. Nothing else.
+        </p>
+        <WaitlistForm />
+      </div>
     </section>
   );
 }
