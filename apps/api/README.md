@@ -107,3 +107,28 @@ fly ssh console -C 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
 Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
 
 **What works after secrets are set** — Devise password reset (built-in), `RestaurantClaimMailer.verify_email` (Phase 4.9), and any new mailer added later. No code change needed per mailer.
+
+## Blob storage (Phase 5.3)
+
+Production blobs (review photos, dish photos, ingestion menu pages) live on **Cloudflare R2**. Decision + trade-offs in `docs/adr/0004-blob-storage.md` (R2 over S3 because zero egress charges; `aws-sdk-s3` works unchanged because R2 speaks S3). Dev keeps `:local` (disk under `storage/`); test uses in-memory `:test`.
+
+**One-time bootstrap (human):**
+
+```bash
+# 1. Cloudflare → R2 → create bucket "biteworthy-blobs", generate
+#    an API token with Object Read & Write on the bucket.
+fly secrets set \
+    R2_ACCESS_KEY_ID=<token-id> \
+    R2_SECRET_ACCESS_KEY=<token-secret> \
+    R2_BUCKET=biteworthy-blobs \
+    R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+fly deploy
+```
+
+**(Optional) Migrate any pre-existing blobs to R2:**
+
+```bash
+fly ssh console -C 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
+```
+
+The backfill task is **idempotent** — blobs already on the configured service are no-ops, so it's safe to re-run after every deploy or any future service flip (R2 → S3 or back). Logs `[ok] / [skip] / [FAIL]` per blob.

@@ -7,7 +7,10 @@ Rails.application.configure do
 
   config.public_file_server.enabled = ENV["RAILS_SERVE_STATIC_FILES"].present?
 
-  config.active_storage.service = :amazon
+  # Phase 5.3 — production blobs live on Cloudflare R2 (ADR 0004).
+  # `:amazon` (AWS S3) stays in storage.yml as a no-code-change
+  # fallback — flip this back if R2 ever has a regional outage.
+  config.active_storage.service = :r2
 
   config.force_ssl = true
   config.assume_ssl = true
