@@ -13,6 +13,45 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 22:21 — tick #87. PR #181 (Phase 5.1.1 plan) merged at
+22:14 UTC; PR #180 (Phase 5.9 structural) also merged earlier.
+Anthropic still capped (~1.6h to reset); cassette PR stays
+BLOCKED. Picked the next unblocked Next-up item: **Phase 5.1.1 —
+the actual Kamal+Hetzner+Neon migration** queued by last tick's
+plan PR. Shipped the full rewrite of the API hosting story:
+- Deleted `apps/api/fly.toml`. Added `apps/api/config/deploy.yml`
+  (Kamal 2 config) — web + worker as separate roles, same image,
+  GHCR registry, kamal-proxy with /up healthcheck + auto Let's
+  Encrypt for api.bite-worthy.com, libjemalloc preload, all
+  Phase 5.2/5.3 env wired through.
+- `.kamal/hooks/pre-deploy` runs `bin/rails db:prepare` against
+  the new image before kamal-proxy cuts traffic — Fly's
+  release_command analog. Failed migration → no traffic cutover.
+- `.kamal/secrets.example` documents every secret + where it
+  comes from (Neon URL, GitHub PAT, Postmark token, R2 keys,
+  OAuth secrets). Real `.kamal/secrets` gitignored.
+- `.env.example` Fly section → Kamal/Hetzner/Neon section.
+- README "Production deploy" rewrite — full hcloud + kamal flow
+  inline, useful aliases table, where-things-live table updated
+  for the new layout.
+- ADR 0007 captures decision rationale: Hetzner CX22 (4GB/2vCPU
+  in Ashburn at ~€5/mo) vs alternatives (Render, Railway, raw
+  IaaS); Neon (managed Postgres) over Postgres-on-Hetzner-CX22
+  (data survives box rebuilds; backups handled); Kamal vs
+  Compose/Coolify/Dokku; GHCR vs Docker Hub. Trade-offs (you own
+  the OS, single point of failure, mild lock-in) + mitigations.
+- ADR 0002 marked Superseded by 0007 with one-paragraph note.
+What stays unchanged: Dockerfile, bin/docker-entrypoint,
+Biteworthy::ProductionSmoke + the rake task, all of Phase 5.2
+(SMTP), 5.3 (R2 storage), 5.4 (Vercel for web), 5.5–5.10. The
+migration is config-only on the deploy side; no app-code touched.
+Tests: rspec 365/0/1 unchanged; pnpm typecheck + lint full-turbo
+green. Roadmap: ticked the 5.1.1 plan PR (#181) in Done; this
+implementation PR is what's "in flight" on Next-up #1. **Phase
+5 launch playbook reset for the new stack**: the same human-
+credential-gated pattern (Hetzner + Neon + GHCR PAT vs Fly +
+Fly Postgres) but with cleaner cost ceiling. Cap clears in ~1.6h.
+
 2026-04-30 21:47 — tick #86. PR #179 (Phase 5.8 analytics structural)
 merged at 21:20 UTC, all CI green. Anthropic still capped (~2.2h
 to reset); cassette PR stays BLOCKED. Picked the next unblocked
