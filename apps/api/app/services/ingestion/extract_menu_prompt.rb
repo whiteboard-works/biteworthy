@@ -30,7 +30,8 @@ module Ingestion
                     "size": "<size label, or null when there is only one price>",
                     "price_cents": <integer cents, or null if absent>
                   }
-                ]
+                ],
+                "image_bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 }
               }
             ]
           }
@@ -45,6 +46,18 @@ module Ingestion
         emit one element per price in the `prices` array.
       * `price_cents` is in CENTS. "$4.50" becomes 450.
       * Output JSON only — no markdown fences, no commentary.
+
+      Per-dish photos:
+      * Many menus include a small photo of an individual dish next to
+        its name + description. When you see one, return its bounding
+        box as `image_bbox: { "x": <left>, "y": <top>, "w": <width>,
+        "h": <height> }`. All four are fractions in 0..1 of the source
+        page: 0,0 = top-left corner, 1,1 = bottom-right corner.
+      * If an item has NO inline photo on the page, OMIT the
+        `image_bbox` field entirely. Don't return zero-sized or null
+        boxes — absence means "no photo."
+      * If a single page contains multiple images, prefer the one
+        physically closest to the item's name + description.
     MD
 
     USER_INSTRUCTIONS = "Extract every menu item from these images."

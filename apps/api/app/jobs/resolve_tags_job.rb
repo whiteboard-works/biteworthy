@@ -68,6 +68,11 @@ class ResolveTagsJob < ApplicationJob
           tags_payload:            Array(item["tags"]),
           unresolved_ingredients:  Array(item["unresolved_ingredients"]),
           unresolved_tags:         Array(item["unresolved_tags"]),
+          # Phase 4.11.2 — bbox is optional in the schema; nil is the
+          # signal "no inline photo for this dish." Phase 4.11.3's
+          # IngestionItem#promote! reads this column to decide whether
+          # to crop + attach.
+          image_bbox:              item["image_bbox"],
           decision:                "pending"
         )
       end

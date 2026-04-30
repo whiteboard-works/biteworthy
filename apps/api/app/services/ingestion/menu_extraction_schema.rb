@@ -53,6 +53,35 @@ module Ingestion
                         price_cents: { type: %w[integer null], minimum: 0 }
                       }
                     }
+                  },
+                  # Phase 4.11.2 — optional per-dish bounding box for the
+                  # cropper (Phase 4.11.1 + 4.11.3). Coordinates are
+                  # fractions of the source page so resolution-independent:
+                  # 0,0 = top-left, 1,1 = bottom-right; w + h are the
+                  # box's width + height as fractions. Items without an
+                  # inline photo on the source page should omit this
+                  # field entirely. The `oneOf` shape is draft-04-safe
+                  # (json-schema gem default): a union type at the top
+                  # level dilutes the sub-object rules, so we
+                  # explicitly enumerate "null" + "fully-typed object."
+                  # `exclusiveMinimum: true` (boolean form) goes with
+                  # `minimum: 0` for w/h since draft-04 doesn't support
+                  # the numeric `exclusiveMinimum` form.
+                  image_bbox: {
+                    oneOf: [
+                      { type: "null" },
+                      {
+                        type: "object",
+                        required: %w[x y w h],
+                        additionalProperties: false,
+                        properties: {
+                          x: { type: "number", minimum: 0, maximum: 1 },
+                          y: { type: "number", minimum: 0, maximum: 1 },
+                          w: { type: "number", minimum: 0, exclusiveMinimum: true, maximum: 1 },
+                          h: { type: "number", minimum: 0, exclusiveMinimum: true, maximum: 1 }
+                        }
+                      }
+                    ]
                   }
                 }
               }
