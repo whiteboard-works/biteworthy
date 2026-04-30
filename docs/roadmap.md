@@ -11,12 +11,20 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 4.11** ⭐ Per-dish photo extraction (user-requested followup). Subplan: `docs/plans/phase-4.11-dish-photos.md`.
+**Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md` — committed this PR. Awaiting human review of the plan before items auto-run.
 
-1. **Phase 4.11.2 — Extend MenuExtractionSchema + prompt + materialize image_bbox (structural)** (`docs/plans/phase-4.11-dish-photos.md#4112--extend-extractmenujob-to-ask-for--receive-bboxes`) — this PR. Per the subplan's Stop clause, the structural part (schema+prompt+materialize+specs) ships now; live cassette recording follows when the Anthropic cap clears.
-2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the bbox prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that.
-
-After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way Phase 4 was drafted at the end of Phase 3.
+1. **Phase 5 subplan committed** — this PR. No code, just `docs/plans/phase-5.md` + Next-up reorder. **Phase 4.11 is structurally complete** (every line of consumer + producer code is on master); only the live cassette recording remains, which is now item #2 below.
+2. **[BLOCKED] Phase 4.11.0 / 4.11.2-cassette — Record the live AnthropicClient cassette** (combined: VCR's body matching means the 4.11.2 prompt change auto-supersedes the older cassette; one recording covers both). **Blocked on Anthropic daily-cap reset at 2026-05-01 00:00 UTC** — retry after that. Holdover from Phase 4.11; not a launch blocker (the structural code is on master) but should land before Phase 5.7 mass-ingests Durango menus.
+3. **Phase 5.1 — production API deploy (Fly.io + Postgres + Solid Queue)** (`docs/plans/phase-5.md#51--production-api-deploy-flyio--postgres--solid-queue`). Foundation for everything below.
+4. **Phase 5.2 — SMTP wiring** (`docs/plans/phase-5.md#52--smtp-wiring-real-email-for-reviews--claims--password-resets`). Closes the long-deferred email gap from Phase 4.
+5. **Phase 5.3 — ActiveStorage S3 / R2** (`docs/plans/phase-5.md#53--activestorage-s3--r2-review--dish-photos-in-production`). Closes the long-deferred blob-storage gap from Phase 2 + 4.
+6. **Phase 5.4 — production web deploy (Vercel + bite-worthy.com)** (`docs/plans/phase-5.md#54--production-web-deploy-vercel--bite-worthycom`).
+7. **Phase 5.5 — marketing landing page** (`docs/plans/phase-5.md#55--marketing-landing-page-at-`).
+8. **Phase 5.6 — SEO city/diet pages (`/durango/[diet]`)** (`docs/plans/phase-5.md#56--seo-landing-pages-durangodiet`).
+9. **Phase 5.7 — seed 30 Durango restaurants** (`docs/plans/phase-5.md#57--seed-30-durango-restaurants-via-the-ingestion-pipeline`).
+10. **Phase 5.8 — PostHog instrumentation** (`docs/plans/phase-5.md#58--posthog-funnel-wiring-real-instrumentation`).
+11. **Phase 5.9 — mobile app store submission** (`docs/plans/phase-5.md#59--mobile-app-store-submission-testflight--play-store`).
+12. **Phase 5.10 — press kit + Durango outreach** (`docs/plans/phase-5.md#510--press-kit--outreach-durango-launch`).
 
 ### Done
 
@@ -63,6 +71,7 @@ After Phase 4.11 ships, the loop will draft `docs/plans/phase-5.md` (Durango lau
 - ✅ Phase 4.11.1 — image_bbox column + DishPhotoCropper service (#167)
 - ✅ Phase 4.11.3 — IngestionItem promote attaches cropped dish photo (#168)
 - ✅ Phase 4.11.4 — render cropped dish photos on restaurant pages (#169)
+- ✅ Phase 4.11.2 — extend menu-extraction schema + prompt with image bboxes (#170) — **Phase 4.11 structurally complete; live cassette recording is the only remaining task**
 
 After Phase 4 ships, the loop will draft `docs/plans/phase-5.md` (Durango launch) the same way.
 
