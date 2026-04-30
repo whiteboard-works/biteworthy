@@ -15,4 +15,17 @@ class Restaurant < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :published, -> { where(status: "published") }
+
+  # SEO-friendly URLs (`/restaurants/ninis-1`) need lookup-by-slug;
+  # mobile/api consumers still pass UUIDs. Single endpoint accepts
+  # either by sniffing the value.
+  UUID_FORMAT = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+
+  def self.find_by_id_or_slug!(value)
+    if value.to_s.match?(UUID_FORMAT)
+      find(value)
+    else
+      find_by!(slug: value)
+    end
+  end
 end
