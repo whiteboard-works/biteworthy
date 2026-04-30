@@ -24,6 +24,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@biteworthy/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@biteworthy/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
@@ -109,6 +112,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@biteworthy/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@biteworthy/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
@@ -161,6 +167,15 @@ importers:
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@25.6.0)(jsdom@20.0.3)(lightningcss@1.27.0)(terser@5.46.2)
+
+  packages/analytics:
+    devDependencies:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
