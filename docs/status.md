@@ -13,6 +13,41 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 16:17 — tick #75. PR #169 (Phase 4.11.4 photo render)
+merged at 15:48 UTC with all CI green including title-lint (the
+lowercase-after-colon convention now baked in). Anthropic still
+capped until 2026-05-01 00:00 UTC (~7.5h away). Next-up was
+all-`[BLOCKED]` so I re-read the 4.11.2 subplan: its **Stop**
+clause explicitly says "if capped, push the schema + prompt + spec
+stub and skip the live re-record." Pivoted to **Phase 4.11.2
+structural** — everything except the live cassette recording.
+- `MenuExtractionSchema` gains optional per-item `image_bbox`
+  shaped as `oneOf: [null, {x, y, w, h}]`. Restructured from
+  `type: [object, null]` to `oneOf` because json-schema gem
+  defaults to draft-04 where union types dilute sub-object rules
+  (caught by the spec — first 2 cases failed until I switched).
+  Also `exclusiveMinimum: true` (boolean form) for w/h since
+  draft-04 doesn't support the numeric form. Items omit the field
+  entirely when no inline photo; null also accepted defensively.
+- `ExtractMenuPrompt::SYSTEM_INSTRUCTIONS` gets a "Per-dish
+  photos" paragraph: 0,0=top-left, 1,1=bottom-right, omit when no
+  inline photo, prefer the photo physically closest to the item
+  name when a page has multiple.
+- `ResolveTagsJob#materialize_ingestion_items!` copies
+  `item["image_bbox"]` (or nil) onto IngestionItem so 4.11.3's
+  promote! crops + attaches without further plumbing.
+- New spec `spec/services/ingestion/menu_extraction_schema_spec.rb`
+  (7 cases) + extended resolve_tags_job_spec covering bbox flow.
+Roadmap: ticked 4.11.4 (#169); reorganized Next-up so 4.11.2
+structural (this PR) is #1 and the combined 4.11.0 / 4.11.2
+cassette work is #2 (BLOCKED, single recording covers both since
+VCR body-matching auto-supersedes the older cassette). Local:
+rspec 337/0/1 pending (+8); pnpm typecheck + lint cached green.
+**Phase 4.11 status after this PR**: every line of consumer-side
+code is on master + the extractor is asking the model for bboxes;
+the only outstanding work is the live recording when the cap
+clears.
+
 2026-04-30 15:47 — tick #74. PR #168 (Phase 4.11.3 promote+serialize)
 merged at 15:24 UTC. **Anthropic still capped** until 2026-05-01
 00:00 UTC (~8.5h away) — 4.11.0 (cassette) + 4.11.2 (extract
