@@ -18,7 +18,8 @@ This phase has the most external-dependency surface of any phase so far. The loo
 - **App Store / Play Store team accounts** — Apple Developer Program ($99/yr) + Google Play Console ($25 one-time) need a human signature. EAS submit can drive the upload once credentials exist.
 - **Apple review timeline** — typically 1–7 days. Not blocking the loop but a real launch dependency. Submit early.
 - **Real menu PDFs / URLs for 30 Durango restaurants** — research task, not a coding task. The loop ships the batch-ingest tooling + a `seeds.csv` template; populating it is human work. (`docs/seeds/durango.csv.example` will list the columns.)
-- **DNS for bite-worthy.com** — domain is registered. Once the API host (5.1) + web host (5.4) are picked, DNS records need a human in the registrar.
+- **DNS for bite-worthy.com** — domain is registered. Once the API host (5.1.1) + web host (5.4) are picked, DNS records need a human in the registrar.
+- **Hetzner + Neon + GHCR accounts** (per 5.1.1) — Hetzner Cloud account for the CX22, Neon account for managed Postgres, a GitHub PAT with `write:packages` for the GHCR push. None individually is more than a 5-minute signup; collectively they replace the single Fly account from the original 5.1 plan.
 - **Privacy policy + terms** — App Store requires both. Phase 5.9 ships standard templates filled with BiteWorthy specifics; a human should have a lawyer skim before submission.
 
 ## Tasks (one PR each)
@@ -38,6 +39,81 @@ The Rails API needs a real public home so the mobile + web apps can hit somethin
 **Specs**: smoke task spec; existing rspec stays unchanged (same env shape).
 
 **Acceptance**: `curl https://api.bite-worthy.com/up` returns 200 from a fresh checkout.
+
+> **Superseded by 5.1.1.** The Fly.io pick was reversed at human request before the live deploy happened. The wiring shipped in PR #172 (Dockerfile, smoke task, env docs) is largely reusable; only the `fly.toml` + Fly-specific README sections get replaced. ADR 0002 will be marked superseded by ADR 0007.
+
+### 5.1.1 — migrate API hosting to Kamal + Hetzner CX22 + Neon Postgres
+
+**Branch**: `claude/phase-5.1.1-kamal-migration`
+
+Replaces Phase 5.1's Fly.io pick. Same goal — get the Rails API publicly reachable at `api.bite-worthy.com` — different stack:
+
+- **Compute**: 1 × Hetzner **CX22** (4GB RAM / 2 vCPU / ~€5/mo) in the **Ashburn, US** datacenter (`ash`). Both puma + Solid Queue worker run on the same box as separate Kamal **roles** (`web` + `worker`). Tier up to CX32 or split the worker to a second box only if launch volume reveals headroom issues — the CX22 has more spec than the dual-Fly-machine setup it replaces, at lower cost.
+- **Postgres**: **Neon** (managed, free tier, branching, `aws-us-east-1`). Free tier covers Durango beta easily; bumps cost only past 0.5 GB or compute-hour limits. The app box stays stateless — rebuilding it never risks data, no `pg_dump` cron needed. Neon handles backups (7-day retention, free).
+- **Container deploys**: **Kamal** (Basecamp's). Zero-downtime via Traefik, automatic Let's Encrypt TLS, single-command rollback. Image registry: **GitHub Container Registry (`ghcr.io`)** since the repo is already in `Sky-Fox-Studios/` — same auth model, free for private repos.
+
+**What stays from PR #172** (no changes needed):
+- The multi-stage `apps/api/Dockerfile` — Kamal uses the same OCI image.
+- `apps/api/bin/docker-entrypoint` — same db:prepare-on-puma logic.
+- The `Biteworthy::ProductionSmoke` runner + `bin/rails biteworthy:production:smoke` task — they hit a public URL regardless of host.
+- All of Phase 5.2 (SMTP), 5.3 (R2 storage), 5.4 (Vercel web), 5.5–5.10. Orthogonal.
+
+**What this PR changes**:
+- **Delete** `apps/api/fly.toml`.
+- **Add** `apps/api/config/deploy.yml` — Kamal's canonical config: app name, server IP placeholder, `web` + `worker` roles pointing at the same image, registry block for GHCR, Traefik labels for Let's Encrypt, healthcheck on `/up`, env-var passthrough.
+- **Add** `apps/api/.kamal/secrets.example` — template for `KAMAL_REGISTRY_PASSWORD` (GHCR token), `RAILS_MASTER_KEY`, `DATABASE_URL` (Neon pooled URL), `ANTHROPIC_API_KEY`, the rest of the existing prod env. Real `.kamal/secrets` is gitignored.
+- **Update** `apps/api/.env.example` — drop the Fly-specific section, add a Kamal/Hetzner/Neon section with the env vars and where they come from.
+- **Update** `apps/api/README.md` "Production deploy" — replace the `fly` commands with `kamal setup` / `kamal deploy` / `hcloud server create` flow. Keep the smoke command.
+- **Add** `docs/adr/0007-hosting-kamal-hetzner-neon.md` — captures the decision: why Kamal over Fly, why Hetzner CX22 over (Render / Railway / Coolify / DIY), why Neon over (Hetzner-Postgres-on-same-box / Supabase / RDS), why GHCR over (Docker Hub / self-hosted), trade-offs (you own the host's OS updates) + mitigations (cheap snapshots, automated security updates).
+- **Update** `docs/adr/0002-production-hosting.md` — change Status to `Superseded by 0007 (2026-04-30)` + a one-paragraph note pointing at 0007.
+
+**Specs**: no new test surface. The smoke task spec from #172 stays; config files don't need unit coverage.
+
+**Acceptance**: same as 5.1 — `curl https://api.bite-worthy.com/up` returns 200 after the human bootstrap.
+
+**Stop conditions specific to 5.1.1**:
+- **Hetzner Cloud account** — sign up at https://hetzner.cloud, generate an API token, install `hcloud` CLI locally OR provision via the web console.
+- **Neon account** — sign up at https://neon.tech, create a `biteworthy-prod` project in `aws-us-east-1`, copy the **pooled** connection string (the unpooled one will exhaust connections under puma+worker concurrency).
+- **GHCR access token** — GitHub → Settings → Developer Settings → Personal Access Tokens (classic) → generate one with `write:packages` + `read:packages` scopes; store as `KAMAL_REGISTRY_PASSWORD` in `.kamal/secrets`.
+- **SSH keypair** — generate ed25519, add public key to Hetzner's "SSH keys" panel BEFORE provisioning the CX22 (saves a console-bound password reset).
+- **DNS** — `api.bite-worthy.com` `A` record at the Hetzner IP. Same registrar work as the original Fly plan.
+
+**Human bootstrap** (rewrite of the README's "Production deploy" section):
+
+```bash
+# 1. Provision the box (Hetzner Cloud Console or `hcloud`).
+hcloud server create \
+    --name biteworthy-api \
+    --type cx22 \
+    --image ubuntu-24.04 \
+    --datacenter ash-dc1 \
+    --ssh-key skylar
+# Note the IP. Set the `api.bite-worthy.com` A record to it.
+
+# 2. Set up Kamal locally (one-time).
+gem install kamal
+cd apps/api
+cp .kamal/secrets.example .kamal/secrets
+# Fill in the real values: GHCR token, RAILS_MASTER_KEY,
+# DATABASE_URL (Neon pooled), ANTHROPIC_API_KEY, ADMIN_*,
+# DEVISE_JWT_SECRET_KEY, OAuth secrets, SMTP_*, R2_*, MAILER_HOST.
+
+# 3. First deploy.
+kamal setup            # installs Docker on the box, pulls image, boots Traefik
+kamal env push          # uploads `.kamal/secrets` to the box
+kamal deploy            # full deploy with db:prepare release command
+
+# 4. Confirm.
+bin/rails biteworthy:production:smoke HOST=https://api.bite-worthy.com EXIT_CODE=1
+```
+
+Subsequent deploys: `kamal deploy` from the laptop. CI automation deferred to a separate small follow-up PR (cleaner to verify manual deploys work first).
+
+**Out of scope for 5.1.1**:
+- Multi-region (single Ashburn box for v1).
+- Postgres-on-Hetzner (Neon handles DB; revisit only if Neon ever bites cost-wise).
+- Phase 5.4 (Vercel for web) — explicitly kept per the human's directive.
+- CI-driven `kamal deploy` on master push — separate small PR after the manual flow is proven.
 
 ### 5.2 — SMTP wiring (real email for reviews + claims + password resets)
 
