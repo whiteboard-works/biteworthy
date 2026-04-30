@@ -56,6 +56,13 @@ Rails.application.routes.draw do
         get :history, to: "profile_history#index"
       end
       resources :cities, only: [:index, :show]
+      # Phase 5.6 — backs the SSR /durango/[diet] SEO pages. Flat
+      # route (not nested) so the `:city_slug` param name is explicit;
+      # the parent `resources :cities` has no controller yet (Phase 0
+      # stub) so nesting would be misleading.
+      get "/cities/:city_slug/restaurants",
+          to: "city_restaurants#index",
+          as: :city_restaurants_ranking
       resources :restaurants, only: [:index, :show] do
         resources :items, only: [:index, :show]
         # Phase 4.9 — restaurant claim flow.
