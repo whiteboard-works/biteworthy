@@ -202,6 +202,14 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
     end
   end
 
+  describe "lookup by slug (Phase 3.6)" do
+    it "accepts the restaurant slug in place of the UUID" do
+      get "/api/v1/restaurants/#{restaurant.slug}/items"
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["restaurant_id"]).to eq(restaurant.id)
+    end
+  end
+
   describe "404 cases" do
     it "404s on a non-existent restaurant" do
       get "/api/v1/restaurants/00000000-0000-0000-0000-000000000000/items"

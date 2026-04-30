@@ -1,0 +1,308 @@
+'use client';
+
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  fetchRestaurantItems,
+  groupItemsBySection,
+  type FilterSummary,
+  type FilteredItem,
+  type HideReason,
+  type ItemSection,
+  type Restaurant,
+  type RestaurantItemsResponse,
+  type Strictness,
+} from '../../../lib/restaurants';
+import { hiddenReasonLabel } from '../../../lib/hidden-reason';
+import { applyOverrides } from '../../../lib/restaurant-overrides';
+
+/**
+ * Phase 3.6 — client island for the SSR-rendered restaurant page.
+ *
+ * Mirrors the mobile screen's interactivity: strictness toggle that
+ * triggers a refetch, "show anyway" per-item override (session-only),
+ * and translated <HiddenReasonChip> per reason. SSR renders the
+ * initial items with the server's default filter; the client takes
+ * over for re-filtering and overrides without a full page navigation.
+ */
+
+const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
+
+export function RestaurantClient({
+  slug,
+  restaurant,
+  initialItems,
+}: {
+  slug: string;
+  restaurant: Restaurant;
+  initialItems: RestaurantItemsResponse;
+}) {
+  const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
+  const [sections, setSections] = useState<ItemSection[]>(() =>
+    groupItemsBySection(initialItems.items),
+  );
+  const [strictnessOverride, setStrictnessOverride] = useState<Strictness | null>(null);
+  const [shownAnyway, setShownAnyway] = useState<Set<string>>(() => new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const isInitialRender = strictnessOverride === null;
+
+  useEffect(() => {
+    if (isInitialRender) return;
+    let cancelled = false;
+    startTransition(() => {
+      fetchRestaurantItems(slug, { strictness: strictnessOverride ?? undefined })
+        .then((res) => {
+          if (cancelled) return;
+          setFilter(res.filter);
+          setSections(groupItemsBySection(res.items));
+          setShownAnyway(new Set());
+        })
+        .catch((e) => {
+          if (!cancelled) setError((e as Error).message);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, strictnessOverride, isInitialRender]);
+
+  const overriddenSections = useMemo(
+    () => applyOverrides(sections, shownAnyway),
+    [sections, shownAnyway],
+  );
+
+  const toggleOverride = (itemId: string) => {
+    setShownAnyway((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const totalHidden = overriddenSections.reduce((acc, s) => acc + s.hidden.length, 0);
+  const totalVisible = overriddenSections.reduce((acc, s) => acc + s.visible.length, 0);
+
+  return (
+    <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
+      <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
+        {restaurant.city.name}, {restaurant.city.region}
+      </p>
+      <h1 className="mt-bw-2 text-bw-3xl font-bold">{restaurant.name}</h1>
+      <p className="mt-bw-2 text-bw-base text-zinc-700">
+        Showing <span className="font-bold">{totalVisible}</span> item
+        {totalVisible === 1 ? '' : 's'} that match your filter
+        {totalHidden > 0 ? `, hiding ${totalHidden}.` : '.'}
+      </p>
+
+      <div className="mt-bw-3 flex items-center gap-bw-2">
+        <FilterBadge filter={filter} />
+        <StrictnessToggle
+          active={strictnessOverride ?? filter.strictness}
+          loading={isPending}
+          onChange={setStrictnessOverride}
+        />
+      </div>
+
+      {error && (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          Could not refresh items — {error}
+        </p>
+      )}
+
+      {overriddenSections.length === 0 && (
+        <p className="mt-bw-6 text-center text-bw-base text-zinc-500">
+          No published items at this restaurant yet.
+        </p>
+      )}
+
+      {overriddenSections.map((section) => (
+        <SectionBlock
+          key={section.id ?? '__none__'}
+          section={section}
+          shownAnyway={shownAnyway}
+          onToggleOverride={toggleOverride}
+        />
+      ))}
+    </main>
+  );
+}
+
+function FilterBadge({ filter }: { filter: FilterSummary }) {
+  const label =
+    filter.source === 'preset'
+      ? `Preset · ${filter.preset_slug ?? 'unknown'}`
+      : filter.source === 'user_profile'
+      ? 'Your saved profile'
+      : 'No filter';
+  return (
+    <span
+      data-testid="filter-badge"
+      className="rounded-bw-pill bg-bite-light px-bw-3 py-bw-1 text-bw-sm font-semibold text-bite-dark"
+    >
+      {label} · {filter.strictness}
+    </span>
+  );
+}
+
+export function StrictnessToggle({
+  active,
+  loading,
+  onChange,
+}: {
+  active: Strictness;
+  loading: boolean;
+  onChange: (next: Strictness) => void;
+}) {
+  return (
+    <div data-testid="strictness-toggle" className="flex items-center gap-bw-2">
+      {STRICTNESSES.map((s) => {
+        const selected = s === active;
+        return (
+          <button
+            key={s}
+            type="button"
+            aria-pressed={selected}
+            disabled={loading}
+            onClick={() => {
+              if (!loading && !selected) onChange(s);
+            }}
+            className={[
+              'rounded-bw-pill border px-bw-3 py-bw-1 text-bw-sm font-semibold transition',
+              selected
+                ? 'border-bite bg-bite-light text-bite-dark'
+                : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-zinc-300',
+              loading ? 'opacity-60' : '',
+            ].join(' ')}
+          >
+            {capitalize(s)}
+          </button>
+        );
+      })}
+      {loading && <span className="text-bw-xs text-zinc-400">refreshing…</span>}
+    </div>
+  );
+}
+
+function SectionBlock({
+  section,
+  shownAnyway,
+  onToggleOverride,
+}: {
+  section: ItemSection;
+  shownAnyway: Set<string>;
+  onToggleOverride: (itemId: string) => void;
+}) {
+  const [hiddenOpen, setHiddenOpen] = useState(false);
+  return (
+    <section className="mt-bw-6">
+      <h2 className="text-bw-lg font-bold">{section.name}</h2>
+      <ul className="mt-bw-2 divide-y divide-zinc-100">
+        {section.visible.map((item) => (
+          <ItemRow
+            key={item.id}
+            item={item}
+            overridden={shownAnyway.has(item.id)}
+            onToggleOverride={onToggleOverride}
+          />
+        ))}
+        {section.visible.length === 0 && section.hidden.length > 0 && (
+          <li className="py-bw-2 text-bw-sm text-zinc-500">
+            Every item in this section is hidden by your filter.
+          </li>
+        )}
+      </ul>
+
+      {section.hidden.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setHiddenOpen((v) => !v)}
+          aria-expanded={hiddenOpen}
+          aria-controls={`hidden-${section.id ?? 'none'}`}
+          className="mt-bw-2 text-bw-sm font-semibold text-bite hover:text-bite-dark"
+        >
+          {hiddenOpen ? '▾ Hide' : '▸ Show'} items hidden by your filter ({section.hidden.length})
+        </button>
+      )}
+
+      {hiddenOpen && (
+        <ul
+          id={`hidden-${section.id ?? 'none'}`}
+          className="mt-bw-2 divide-y divide-zinc-100"
+        >
+          {section.hidden.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              hidden
+              overridden={false}
+              onToggleOverride={onToggleOverride}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ItemRow({
+  item,
+  hidden = false,
+  overridden,
+  onToggleOverride,
+}: {
+  item: FilteredItem;
+  hidden?: boolean;
+  overridden: boolean;
+  onToggleOverride: (itemId: string) => void;
+}) {
+  // Item shown in the visible list but with reasons[] = the user
+  // tapped "Show anyway". Keep chips visible as a transparency cue.
+  const showChips = hidden || overridden;
+  return (
+    <li
+      data-testid={`item-${item.id}`}
+      className={['py-bw-3', hidden ? 'opacity-60' : ''].join(' ')}
+    >
+      <p className={['font-semibold', hidden ? 'text-hide' : 'text-zinc-900'].join(' ')}>
+        {item.name}
+      </p>
+      {item.description && (
+        <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>
+      )}
+
+      {showChips && item.reasons.length > 0 && (
+        <div className="mt-bw-2 flex flex-wrap gap-bw-1">
+          {item.reasons.map((r, idx) => (
+            <HiddenReasonChip key={idx} reason={r} />
+          ))}
+        </div>
+      )}
+
+      {item.reasons.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onToggleOverride(item.id)}
+          className="mt-bw-2 text-bw-sm font-semibold text-bite hover:text-bite-dark"
+        >
+          {overridden ? 'Hide again' : 'Show anyway'}
+        </button>
+      )}
+    </li>
+  );
+}
+
+export function HiddenReasonChip({ reason }: { reason: HideReason }) {
+  return (
+    <span
+      data-testid={`chip-${reason.kind}`}
+      className="rounded-bw-pill border border-zinc-200 bg-zinc-50 px-bw-2 py-bw-0_5 text-bw-xs font-semibold text-hide"
+    >
+      {hiddenReasonLabel(reason)}
+    </span>
+  );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

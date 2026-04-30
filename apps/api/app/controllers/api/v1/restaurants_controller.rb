@@ -13,7 +13,7 @@ module Api
       skip_before_action :authenticate_user!, only: [:show]
 
       def show
-        restaurant = Restaurant.published.includes(:city).find(params[:id])
+        restaurant = Restaurant.published.includes(:city).find_by_id_or_slug!(params[:id])
         render json: serialize(restaurant)
       end
 

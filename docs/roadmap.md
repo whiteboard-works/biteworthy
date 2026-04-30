@@ -13,11 +13,10 @@ the merge / review / status rules.
 
 **Phase 3** ⭐ Dietary filter UI. Subplan: `docs/plans/phase-3.md`.
 
-1. **Phase 3.5 — Strict-mode toggle** (`docs/plans/phase-3.md#35`) — this PR
-2. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`)
-3. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
-4. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
-5. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
+1. **Phase 3.6 — Web filtered restaurant page** (`docs/plans/phase-3.md#36`) — this PR
+2. **Phase 3.7 — `applyProfile` in filter-engine** (`docs/plans/phase-3.md#37`)
+3. **Phase 3.8 — Web profile onboarding** (`docs/plans/phase-3.md#38`)
+4. **Phase 3.9 — Shareable filter URLs** (`docs/plans/phase-3.md#39`)
 
 ### Done
 
@@ -44,6 +43,7 @@ the merge / review / status rules.
 - ✅ Phase 3.2 — mobile profile onboarding (6 taps) (#147)
 - ✅ Phase 3.3 — mobile filtered restaurant page (#148)
 - ✅ Phase 3.4 — transparency chips + show-anyway override (#149)
+- ✅ Phase 3.5 — strict-mode toggle (#150)
 
 After Phase 3 ships, the loop will draft `docs/plans/phase-4.md` (reviews + accounts) the same way.
 
@@ -142,7 +142,26 @@ The loop appends here when work surfaces a new task that doesn't
 belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
-(empty)
+- **Wire `jest-expo` preset + `@testing-library/react-native` for the
+  mobile app** — surfaced during Phase 3.5. Mobile tests currently
+  run pure-TS only; importing any screen module (which transitively
+  imports react-native ESM) fails Jest's default transformer. The
+  Phase 3.5 subplan asked for a UI snapshot, which we couldn't ship
+  without the preset wiring. Setup change in its own PR; once landed,
+  retroactively add the deferred snapshots from 3.2 / 3.3 / 3.4 / 3.5.
+- **Auto-merge race lost a follow-on commit on PR #150**. After the
+  initial push, a second commit (the prior version of this Discovered
+  note) was added before CI finished — auto-merge had already enabled
+  on the first sha and squashed without the second commit's diff.
+  Either tighten the loop's flow (push everything in one go) or
+  consider gating auto-merge on a manual "ready" label after final
+  push.
+- **Consolidate web + mobile pure helpers** (`hidden-reason.ts`,
+  `restaurant-overrides.ts`, `groupItemsBySection`). Phase 3.6
+  duplicated three small files into `apps/web/src/lib/`. Once Phase
+  3.7 moves the filter logic into `packages/filter-engine`, consider
+  moving the display helpers into a sibling shared package
+  (`@biteworthy/restaurant-page-helpers`?) to delete the duplicate.
 
 ## What we are explicitly NOT doing in v1
 

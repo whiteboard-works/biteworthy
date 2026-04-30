@@ -13,6 +13,31 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 06:30 — tick #56. PR #150 (Phase 3.5) merged at 04:46 UTC.
+Picked up Phase 3.6 — web filtered restaurant page (mirror of mobile
+3.3 + 3.4 + 3.5). API: extended Restaurant model with
+`find_by_id_or_slug!` (sniffs UUID format vs slug); both
+`/api/v1/restaurants/:id` and `/api/v1/restaurants/:restaurant_id/items`
+now accept either form so SEO-friendly URLs (`/restaurants/cream-bean-
+berry-1`) work end-to-end. Web: built `apps/web/src/lib/restaurants.ts`
+mirroring the mobile API client (server-callable for SSR), with
+duplicates of `hidden-reason.ts` + `restaurant-overrides.ts` for now
+(extraction into a shared package logged as Discovered followup).
+SSR page at `apps/web/src/app/restaurants/[slug]/page.tsx` fetches
+restaurant + initial items in parallel with `notFound()` on miss; the
+`'use client'` island `RestaurantClient.tsx` handles strictness
+toggle + per-item show-anyway override + chip rendering using
+`useTransition` for non-blocking refetch. Tests: 9 vitest for the
+API client + grouping; 5 for chip labels; 3 for override
+re-bucketing — total 17 new web cases. 4 new rspec cases for the
+slug lookup (restaurant by slug + by-slug 404 + draft 404 + items by
+slug). Also re-added the Discovered note that lost the auto-merge
+race on PR #150 (push-then-second-push was squashed without the
+second sha) and added two new Discovered followups (helper
+consolidation + auto-merge race protection). Local: rspec 184/0/1
+pending; web vitest 21/21; mobile jest 47/47; pnpm typecheck/lint
+cached green.
+
 2026-05-01 06:00 — tick #55. PR #149 (Phase 3.4) merged at 04:29 UTC.
 Picked up Phase 3.5 — strictness toggle in the restaurant header. The
 items endpoint already accepted `?strictness` (Phase 1.7) so this was

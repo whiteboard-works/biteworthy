@@ -38,4 +38,23 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
     get "/api/v1/restaurants/#{draft.id}"
     expect(response).to have_http_status(:not_found)
   end
+
+  describe "lookup by slug (Phase 3.6 — SEO URLs)" do
+    it "resolves a restaurant by its slug" do
+      get "/api/v1/restaurants/#{restaurant.slug}"
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["id"]).to eq(restaurant.id)
+    end
+
+    it "404s on a slug that doesn't exist" do
+      get "/api/v1/restaurants/no-such-restaurant-here"
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s on a slug for a draft restaurant" do
+      draft = create(:restaurant, slug: "secret-place-1")
+      get "/api/v1/restaurants/secret-place-1"
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

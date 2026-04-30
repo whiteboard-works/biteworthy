@@ -19,7 +19,7 @@ module Api
       skip_before_action :authenticate_user!, only: [:index, :show]
 
       def index
-        restaurant = Restaurant.published.find(params[:restaurant_id])
+        restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
         items      = restaurant.items.published
                                .includes(menu_section: :menu)
                                .order(popularity: :desc, name: :asc)
@@ -37,7 +37,7 @@ module Api
       end
 
       def show
-        item = Restaurant.published.find(params[:restaurant_id]).items.published.find(params[:id])
+        item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id]).items.published.find(params[:id])
         filter = build_filter
         render json: serialize_item(item, filter, build_label_lookup([item], filter))
       end
