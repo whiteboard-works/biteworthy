@@ -13,6 +13,44 @@ without spelunking GitHub.
 
 ---
 
+2026-04-30 18:18 — tick #79. PR #172 (Phase 5.1 deploy wiring)
+merged at 17:45 UTC after the rebase, all CI green. Anthropic
+still capped (~5.7h to reset); cassette PR stays BLOCKED. Picked
+the next unblocked Next-up item: **Phase 5.2 — SMTP wiring**.
+Closes the long-deferred Phase 4 email gap. Shipped:
+- `config/environments/production.rb` switches `delivery_method`
+  to `:smtp` with `smtp_settings` reading `SMTP_*` env vars
+  (defaults to Postmark's `smtp.postmarkapp.com:587` + STARTTLS +
+  plain auth). `raise_delivery_errors = true` so misconfig fails
+  loud; Solid Queue retries transient errors. `default_url_options`
+  derived from `MAILER_HOST` (web origin, not API origin) so
+  claim-verify links + Devise password resets render correct URLs.
+- New `BiteworthyMailer.smoke_test(to:)` + text/html templates +
+  `Biteworthy::EmailSmoke` runner + `bin/rails biteworthy:email:smoke
+  EMAIL=...` rake task. Self-contained, no DB record needed —
+  runnable on a fresh deploy. Reports SMTP Message-ID per delivery;
+  `EXIT_CODE=1` makes CI fail loud.
+- ADR 0003 captures Postmark-via-SMTP decision (why Postmark over
+  SES/SendGrid/Mailgun/Resend; why SMTP over postmark-rails gem;
+  secret-rotation lifecycle; what works after secrets are set).
+- `.env.example` adds SMTP_* placeholders + MAILER_HOST. README
+  gets a new "Email" section with bootstrap + smoke command.
+After this merges, Devise password reset + Phase 4.9's
+RestaurantClaimMailer.verify_email both light up automatically —
+no per-mailer code change needed (the wiring is per-environment).
+Tests: 4 new specs in `spec/lib/email_smoke_spec.rb` (happy path,
+log format, mailer-raise capture, text+html template rendering).
+Local: rspec 345/0/1 pending (+4); pnpm typecheck + lint
+full-turbo cached green. Roadmap: ticked 5.1 (#172) and the Phase
+5 subplan (#171); reordered Next-up. **Eager-rebase mitigation
+applied** (lesson from #172 going DIRTY): ran
+`git fetch origin && git pull origin master --ff-only` before
+branching this tick so 5.2 starts on the freshest master.
+**Note**: tick #78 was the rebase fix for PR #172 (resolved a
+docs/status.md conflict between #170-base and #171-merged); its
+own status entry got lost in #172's squash-merge, hence the
+#77 → #79 jump.
+
 2026-04-30 17:19 — tick #77. PR #171 (Phase 5 subplan) merged at
 16:48 UTC. Anthropic still capped (~6.5h to reset); cassette PR
 stays BLOCKED. Picked the next unblocked Next-up item: **Phase

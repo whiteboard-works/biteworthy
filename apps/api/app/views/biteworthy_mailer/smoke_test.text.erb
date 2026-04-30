@@ -1,0 +1,13 @@
+BiteWorthy SMTP smoke test
+==========================
+
+This message confirms that the production mail pipeline works end-to-end:
+
+  app  →  ActionMailer  →  SMTP  →  this inbox
+
+Sent at: <%= @sent_at.iso8601 %>
+Host:    <%= ENV.fetch("MAILER_HOST", "(unset)") %>
+SMTP:    <%= ENV.fetch("SMTP_ADDRESS", "(default)") %>
+
+If you didn't run `bin/rails biteworthy:email:smoke`, somebody else did.
+The task is read-only and only sends to the EMAIL= argument.

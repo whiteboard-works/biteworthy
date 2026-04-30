@@ -81,3 +81,29 @@ The smoke task is read-only — safe to run repeatedly. It hits `/up` plus a rea
 | Fly app config | `fly.toml` |
 | Smoke task | `lib/tasks/production.rake` (wraps `app/services/biteworthy/production_smoke.rb`) |
 | Production env defaults | `[env]` block in `fly.toml`; secrets via `fly secrets` |
+
+## Email (Phase 5.2)
+
+Production SMTP is wired in `config/environments/production.rb`. Decision + trade-offs in `docs/adr/0003-email-provider.md` (Postmark via plain SMTP). Dev + test use the `:test` adapter — no real delivery — so specs don't open sockets.
+
+**One-time bootstrap (human):** sign up for Postmark, create a "BiteWorthy" server, verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records), generate a Server API token, then:
+
+```bash
+fly secrets set \
+    SMTP_ADDRESS=smtp.postmarkapp.com \
+    SMTP_PORT=587 \
+    SMTP_USERNAME=$POSTMARK_TOKEN \
+    SMTP_PASSWORD=$POSTMARK_TOKEN \
+    SMTP_DOMAIN=bite-worthy.com \
+    MAILER_HOST=https://bite-worthy.com
+```
+
+**Confirm delivery:**
+
+```bash
+fly ssh console -C 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
+```
+
+Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
+
+**What works after secrets are set** — Devise password reset (built-in), `RestaurantClaimMailer.verify_email` (Phase 4.9), and any new mailer added later. No code change needed per mailer.
