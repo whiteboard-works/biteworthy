@@ -13,6 +13,50 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 05:20 — tick #103. **Loop took initiative on third paused
+tick.** Three consecutive paused ticks (#100, #101 silent, #102
+silent) with no human direction since PR #194 at 04:43 UTC. Queue
+state unchanged — all `[BLOCKED]` on credentials.
+
+Per the precedent from tick #94 (3 paused ticks before promoting a
+Discovered note), promoted the only safely-promotable open
+Discovered: the mobile jest config `setupFilesAfterEach` typo from
+PR #191. The auto-merge race Discovered stays open — it needs human
+judgment on the architectural fix.
+
+Investigation deepened the fix:
+- The correct Jest 29 key is `setupFilesAfterEnv` (verified against
+  jestjs.io/docs/configuration). I had been misremembering as
+  `setupFilesAfterEach`.
+- Renaming the key surfaced a SECOND bug: `jest.setup.ts` did
+  `import '@testing-library/react-native/extend-expect'`, but that
+  subpath was removed in v13 (the project is on v13.3.3). With the
+  typo'd key, the file never loaded, so the broken subpath was
+  invisible. Renaming the key broke 12/12 suites with
+  `Cannot find module .../extend-expect`.
+- Inspection of `@testing-library/react-native@13.3.3`'s main
+  `build/index.js` shows `require("./matchers/extend-expect")` as a
+  side-effect import — matchers (`toBeOnTheScreen`, etc.) auto-
+  register the first time any test file imports from the package.
+  So the setup file was DOUBLY dead.
+
+Shipped:
+- Removed `setupFilesAfterEnv: ['./jest.setup.ts']` from
+  `apps/mobile/jest.config.js`.
+- Deleted `apps/mobile/jest.setup.ts`.
+- Updated jest.config.js comment header to explain why no
+  `setupFilesAfterEnv` is needed (so the next reader doesn't add
+  one back).
+- Roadmap: struck through the Discovered note with the resolution.
+
+Result: mobile jest **80/80** unchanged; the per-worker validation
+warning is gone; typecheck (10/10) + lint (6/6) green; no other
+deltas.
+
+After this PR merges, the queue is again entirely credential-gated.
+Loop returns to paused state on next tick (#104) unless something
+changes.
+
 2026-05-01 04:50 — tick #100. **Loop fully paused — queue is exclusively
 credential-gated.** PR #193 (Phase 3.2 onboarding-screen render
 snapshot) merged at 04:17 UTC, clearing the last loop-shippable

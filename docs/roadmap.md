@@ -219,14 +219,13 @@ phase or "Next up" queue.
   All display helpers (`hiddenReasonLabel`, `groupItemsBySection`,
   `applyOverrides`) now live in `@biteworthy/filter-engine` and are
   the single source of truth.
-- **Mobile jest config: `setupFilesAfterEach` typo in PR #191's
-  `apps/mobile/jest.config.js`** — not a real Jest option; emits a
-  validation warning on every test run. Currently inert because
-  `@testing-library/react-native` v12+ auto-registers matchers via
-  the jest-expo preset, but the warning is noise. One-line cleanup:
-  drop the line + the matching `apps/mobile/jest.setup.ts` file
-  (no longer needed), or rename to the correct `setupFilesAfterEach`-
-  equivalent option. Surfaced in tick #98.
+- ~~**Mobile jest config: `setupFilesAfterEach` typo in PR #191**~~ —
+  fixed in PR #195 (tick #103, third paused tick). The correct Jest
+  29 key is `setupFilesAfterEnv`; further investigation found the
+  setup file's import path (`@testing-library/react-native/extend-
+  expect`) was removed in v13 anyway, and the package's main entry
+  auto-registers matchers as a side-effect import — so the file was
+  doubly dead. Both removed.
 
 ## What we are explicitly NOT doing in v1
 

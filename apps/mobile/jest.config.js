@@ -16,10 +16,20 @@
  * Existing pure-TS tests under __tests__/lib/ continue to pass —
  * they don't import react-native modules directly (they mock
  * expo-secure-store / fetch at the boundary).
+ *
+ * No `setupFilesAfterEnv` — `@testing-library/react-native` v13's
+ * main entry does `require('./matchers/extend-expect')` as a
+ * side-effect import, so matchers (`toBeOnTheScreen`, etc.) are
+ * auto-registered the first time any test file imports from the
+ * package. PR #191 added a setup file to do this explicitly, but
+ * the config key was typo'd (`setupFilesAfterEach` instead of
+ * `setupFilesAfterEnv`) so the file never loaded — and the import
+ * path it used (`'.../extend-expect'`) was removed in v13. Tests
+ * passed anyway because of the auto-registration. PR #195 deleted
+ * the dead config + setup file.
  */
 module.exports = {
   preset: 'jest-expo',
-  setupFilesAfterEach: ['./jest.setup.ts'],
   transformIgnorePatterns: [
     'node_modules/(?!(?:.pnpm/)?(?:(jest-)?react-native|@react-native|@react-native-community|expo|@expo|react-native-.+|@react-navigation/.+))',
   ],
