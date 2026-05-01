@@ -13,6 +13,31 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 00:15 — tick #91. **Cassette recorded.** PR #185
+(housekeeping) merged at 23:45 UTC. Anthropic cap reset at
+00:00 UTC happened cleanly; the loop's first post-reset attempt
+worked on the first try. Hit the live API against the committed
+sample.jpg fixture; got a 12-second 200 with a well-formed
+schema response including 8 `image_bbox` values across 5+ items
+(Phase 4.11.2's prompt extension is doing what it should — the
+model identifies inline dish photos + returns normalized
+{x,y,w,h} fractions). VCR `record: :once` wrote the cassette at
+`apps/api/spec/cassettes/extract_menu_job/simply_tasty_thai_appetizers.yml`
+(456 KB; mostly the inline base64-encoded image). API key fully
+scrubbed via the existing filter_sensitive_data hook (verified
+0 matches). Removed the `skip "needs ANTHROPIC_API_KEY"` block
+in extract_menu_job_spec.rb + replaced with a real `vcr:` test
+asserting status, staging shape, and the 4.11.2 acceptance
+(≥3 items with image_bbox). Re-ran rspec to confirm replay:
+0.3 sec replay vs 12 sec live call. Total rspec moved from
+377/0/1 pending → **377/0/0** (the previously-pending cassette
+spec now passes for real). Roadmap: ticked the cassette item;
+**Phase 4.11 is now FULLY complete** (was structurally complete
+after #170; this was the last line item). After #186 merges,
+the only Next-up items are the three human-credential-gated
+wiring PRs (5.8/5.9/5.1.1). Loop re-pauses after this; same
+`launch-readiness.md` checklist applies for the human.
+
 2026-04-30 23:41 — tick #90. **Queue housekeeping.** PR #184
 (launch-readiness checklist) merged at 23:16 UTC. Anthropic cap
 clears in ~19 min — too early to retry the cassette this tick
