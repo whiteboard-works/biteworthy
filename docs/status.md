@@ -13,6 +13,46 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 02:46 — tick #95. **Test-infra wired.** Human accepted
+the loop's initiative — PR #188 merged at 02:14 UTC without revert.
+Picked the topmost unblocked Next-up item (web `@testing-library/
+react` + jsdom wiring, just-promoted from Discovered). Shipped:
+- `pnpm add -D @testing-library/react @testing-library/jest-dom
+  jsdom @vitejs/plugin-react@^4` to apps/web. Pinned plugin-react
+  to v4 because vitest 2.x brings vite 5; v5+ of plugin-react
+  needs vite 8 — clean version dance.
+- `apps/web/vitest.config.ts` — first one for the web app. jsdom
+  env (existing pure-TS fetcher tests still pass; jsdom adds DOM
+  without removing Node primitives), automatic JSX runtime via
+  the React plugin (test files don't need `import React`).
+- `apps/web/vitest.setup.ts` registers jest-dom matchers at
+  runtime; `apps/web/src/vitest-types.ts` pulls the type
+  augmentation into tsc's view (vitest.setup.ts is outside
+  tsconfig's `include`).
+- `apps/web/src/app/restaurants/[slug]/__tests__/
+  RestaurantClient.render.test.tsx` — 6 cases proving the infra
+  works: HiddenReasonChip with all three reason kinds (avoid_
+  ingredient + family chip, avoid_tag + family chip, unconfirmed_
+  strict); StrictnessToggle render + aria-pressed + disabled-
+  while-loading + onChange-only-on-inactive.
+Caught a TS-tooling gotcha during setup: JSDoc comments
+containing `**/*` glob notation terminate the comment block early
+(the `*/` is end-of-comment). Switched vitest-types.ts to single-
+line `//` comments. Worth remembering for future config files.
+Result: web vitest **105/105** (was 99/99; +6); typecheck (10/10)
++ lint (6/6) green; rspec untouched at 377/0/0.
+
+**Out of scope, logged for next**:
+- ItemRow extraction from RestaurantClient — needed before the
+  Phase 4.11.4 photo_url snapshot can land directly. Small
+  scoped refactor.
+- Mobile counterpart (jest-expo + `@testing-library/react-native`)
+  — same Discovered note, different config story.
+
+After this PR merges, the queue: 1) ItemRow extract + photo_url
+snapshot test (or mobile jest-expo wiring — operator's pick), then
+back to the credential-gated wiring PRs.
+
 2026-05-01 01:42 — tick #94. **Loop took initiative.** Three
 consecutive paused ticks (#92, #93, the start-of-this-tick read)
 with no human direction since `docs/launch-readiness.md` shipped
