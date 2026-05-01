@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 00:42 — tick #92. **Loop paused — no actionable code work.**
+PR #186 (cassette recording) merged at 00:16 UTC. Phase 4.11 is
+fully complete; every code-only Phase-5 PR is on master; the
+cassette is recorded. Re-read the Next-up queue: every remaining
+item is `[BLOCKED]` on a human credential drop the loop cannot
+make:
+- Phase 5.8-wiring → PostHog account + project API key
+- Phase 5.9-wiring → Apple Developer ($99/yr) + Google Play
+  Console ($25 one-time) + lawyer signoff on /privacy + /terms
+- Phase 5.1.1-wiring → Hetzner CX22 + Neon project + GHCR PAT +
+  DNS A-record (this one unblocks step 1 of the chain)
+None of these have moved since tick #89 noted the same pause.
+The loop has nothing new to ship. **Posture unchanged**: the
+human's playbook is `docs/launch-readiness.md`; the next loop
+tick will see the same all-blocked queue and pause again. Most
+useful thing the loop can do now is stop noisy PRs and wait
+for a credential-drop signal in the form of a roadmap edit
+(human promotes a Discovered followup → Next-up, OR a wiring
+item gets unblocked).
+**Discovered followups still open** (not promoted to Next-up):
+- jest-expo + web `@testing-library/react` wiring — would
+  unlock UI-snapshot tests across web + mobile.
+- Auto-merge race (third occurrence not yet observed since #172).
+- Restaurant `neighborhood` column for Phase 5.6 SEO pages.
+None of these are launch blockers; humans triage when ready.
+
 2026-05-01 00:15 — tick #91. **Cassette recorded.** PR #185
 (housekeeping) merged at 23:45 UTC. Anthropic cap reset at
 00:00 UTC happened cleanly; the loop's first post-reset attempt
