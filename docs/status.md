@@ -13,6 +13,33 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 04:50 — tick #100. **Loop fully paused — queue is exclusively
+credential-gated.** PR #193 (Phase 3.2 onboarding-screen render
+snapshot) merged at 04:17 UTC, clearing the last loop-shippable
+test-infra item. The Next-up queue now has only `[BLOCKED]` items:
+- #1 Phase 5.8-wiring — needs PostHog account + project API key
+- #2 Phase 5.9-wiring — needs Apple Developer ($99/yr) + Google Play
+  Console ($25 one-time) + lawyer signoff on /privacy + /terms +
+  designed icon-source.svg
+- #3 Phase 5.1.1-wiring — needs first manual `kamal deploy`, which
+  needs Hetzner + Neon + GHCR provisioning per launch-readiness step 1
+
+Discovered notes still open (small enough to promote on a future
+paused tick if the queue stays empty):
+- Auto-merge race lost a follow-on commit on PR #150 — needs a human
+  judgment call on the right architectural fix
+- Mobile jest config: `setupFilesAfterEach` typo in PR #191 — one-line
+  cleanup, currently inert because @testing-library/react-native v12+
+  auto-registers matchers via the jest-expo preset
+
+Per playbook §7 stop conditions, this tick pauses + pings @shadoath
+via a top-level comment on this PR. Subsequent ticks will continue
+to pause until either the credential-gated items are unblocked OR
+something new is added to the queue. Per the precedent set in tick
+#94 (3 paused ticks before promoting Discovered work), the loop
+will not promote a Discovered item until at least 3 paused ticks
+have accumulated — so as not to silently expand scope.
+
 2026-05-01 04:35 — tick #99. **Phase 3.2 onboarding-screen render
 snapshot landed; test-infra queue cleared.** PR #192 (mobile ItemRow
 extraction + Phase 4.11.4 snapshot) merged at 04:00 UTC. Picked the
