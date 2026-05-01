@@ -13,6 +13,35 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 03:15 — tick #96. **Phase 4.11.4 deferred snapshot landed.**
+PR #189 (test-infra wiring) merged at 02:47 UTC. Picked the
+finish-what-we-started followup: extract ItemRow from
+`RestaurantClient.tsx` into its own file + ship the photo_url
+render test that PR #169 originally deferred. Behavior is
+byte-identical to the previous in-file ItemRow — same JSX, same
+imports, just a file boundary so render tests can target it.
+Shipped:
+- New `apps/web/src/app/restaurants/[slug]/ItemRow.tsx`
+  (exported). ~120 lines moved out of RestaurantClient.tsx.
+- RestaurantClient.tsx imports from `./ItemRow`; drops ~100 lines.
+  HiddenReasonChip stays exported there so ItemRow can import it
+  back (no circular issue — TS resolves via module-level imports).
+- New `apps/web/src/app/restaurants/[slug]/__tests__/
+  ItemRow.test.tsx` — 7 cases. The headline two cover the Phase
+  4.11.4 contract (`<img>` with src=photo_url + alt + loading="lazy"
+  appears when set; query returns null when photo_url is null).
+  Five sibling tests prove name/description/link/reviews-badge
+  pluralization don't drift.
+Result: web vitest **112/112** (was 105/105; +7); typecheck (10/10)
++ lint (6/6) green; rspec unchanged at 377/0/0. Roadmap: removed
+the stale "test-infra wiring" Next-up entry; queued mobile
+jest-expo as #1, kept credential-gated wiring at #2-#4.
+
+After this PR merges, the queue: 1) mobile test-infra wiring
+(jest-expo + `@testing-library/react-native`) — same Discovered
+note as the web side, different config story; then back to the
+credential-gated wiring PRs.
+
 2026-05-01 02:46 — tick #95. **Test-infra wired.** Human accepted
 the loop's initiative — PR #188 merged at 02:14 UTC without revert.
 Picked the topmost unblocked Next-up item (web `@testing-library/
