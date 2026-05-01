@@ -13,6 +13,48 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 04:18 — tick #98. **Mobile ItemRow extracted + Phase 4.11.4
+photo snapshot landed.** PR #191 (mobile test-infra) merged at 03:49
+UTC. Picked the mirror of web's PR #190: pull file-private ItemRow
+out of `app/restaurants/[id].tsx`, ship the deferred dish-photo
+render snapshot. Shipped:
+- New `apps/mobile/app/restaurants/_ItemRow.tsx` (~170 lines).
+  `_` prefix is the expo-router convention for private (non-route)
+  files. Owns the 13 style entries that only ItemRow uses.
+  Imports `HiddenReasonChip` from `./[id]` (circular import works
+  because access is at render time, mirroring web's ItemRow ←
+  RestaurantClient pattern from PR #190).
+- `[id].tsx` drops the inline `function ItemRow(...)` + the 13
+  moved style entries; adds `import { ItemRow } from './_ItemRow'`.
+  Behavior is byte-identical — same JSX, same imports, just a file
+  boundary. Removed unused `Image` (expo-image), `router` (expo-
+  router) imports from `[id].tsx` since ItemRow owned both.
+- New `apps/mobile/__tests__/screens/_ItemRow.render.test.tsx`
+  — 7 cases. The headline two cover the Phase 4.11.4 contract
+  (`<Image>` with `source.uri = photo_url` + `accessibilityLabel`
+  + `contentFit="cover"` appears when set; query returns null when
+  photo_url is null). Five sibling tests cover name + description
+  rendering + reviews-badge pluralization (1 = "1 review →",
+  3 = "3 reviews →", 0/undefined = "Be the first to review").
+  Mocks expo-image to a string component so we can assert via
+  props without booting the native image module.
+Result: mobile jest **72/72** (was 65/65; +7); typecheck (10/10)
++ lint (6/6) green; web vitest 112/112 + rspec 377/0/0 unchanged.
+Roadmap: removed the stale "extract mobile ItemRow" Next-up entry;
+Phase 3.x snapshot backfills now sit at #1 with credential-gated
+wiring at #2-#4.
+
+After this PR merges, the queue: 1) Phase 3.x snapshot backfills
+(now unblocked by the wiring + extraction work); then back to the
+credential-gated wiring PRs.
+
+Note: pre-existing typo in `apps/mobile/jest.config.js`
+(`setupFilesAfterEach` is not a Jest option) — emits a validation
+warning per worker but is functionally inert because
+`@testing-library/react-native` v12+ auto-registers matchers via
+the jest-expo preset. Out of scope for this PR; logged below in
+Discovered as a one-line cleanup rather than expanding scope.
+
 2026-05-01 03:48 — tick #97. **Mobile test-infra wired.** PR #190
 (ItemRow + Phase 4.11.4 snapshot) merged at 03:16 UTC. Picked
 the mobile counterpart of the web test-infra work. Closes the
