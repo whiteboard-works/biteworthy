@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # pnpm version is sourced from the `packageManager` field in
       # package.json. Don't pass `version:` here — pnpm/action-setup@v6
