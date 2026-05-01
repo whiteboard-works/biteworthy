@@ -13,6 +13,39 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 18:30 — tick #125. **Loop unpaused to fix a CI flake I
+introduced.** ~13 hours of silent paused ticks (#104-#124) with no
+queue change. Then dependabot opened PR #198 (actions/setup-node
+v4→v6) and its `ci-js.yml` failed on `__tests__/screens/onboarding
+.render.test.tsx` test 2 ("renders a chip per preset once the fetch
+resolves") — 5s timeout. The test was introduced by my PR #193 in
+tick #99. Local + CI behavior diverged because the test combined
+`waitFor(() => queryByTestId('presets-loading') is null)` (polling
+for the spinner to disappear) with synchronous chip assertions —
+but `setPresets` (in `.then`) and `setLoadingPresets(false)` (in
+`.finally`) are separate promise callbacks, and React 18 batches
+them inconsistently across runs. Sometimes the spinner is gone
+before chips render, sometimes after.
+
+Switched to `findByLabelText('preset-vegan')` which polls for the
+chip directly — the post-batched DOM. Matches the pattern other
+tests in the file already use. Removed the now-unused `waitFor`
+import. Triple-ran the suite locally; stable at 8/8 each run.
+
+Result: mobile jest **80/80** unchanged; typecheck (10/10) + lint
+(6/6) green; web vitest 112/112 + rspec 377/0/0 unaffected.
+
+Notes from the silent window:
+- Dependabot PRs #196 (actions/labeler v5→v6) and #197 (actions/
+  checkout v4→v6) auto-merged cleanly during the pause; master
+  advanced to 395a301 without loop intervention.
+- PR #198 surfaced the flake. Once this PR (#199) merges, PR #198
+  should pass on its next CI re-run (or dependabot will re-roll on
+  its own schedule).
+
+After this PR merges, the loop returns to paused state — queue is
+still all credential-gated.
+
 2026-05-01 05:20 — tick #103. **Loop took initiative on third paused
 tick.** Three consecutive paused ticks (#100, #101 silent, #102
 silent) with no human direction since PR #194 at 04:43 UTC. Queue

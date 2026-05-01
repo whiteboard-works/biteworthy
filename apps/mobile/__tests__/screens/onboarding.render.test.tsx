@@ -33,7 +33,7 @@ jest.mock('../../lib/auth', () => ({
   getJwt: jest.fn(() => Promise.resolve(null)),
 }));
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import OnboardingScreen from '../../app/onboarding/index';
 
 /**
@@ -90,11 +90,18 @@ describe('OnboardingScreen — Step 1: presets', () => {
   it('renders a chip per preset once the fetch resolves', async () => {
     render(<OnboardingScreen />);
 
-    await waitFor(() => {
-      expect(screen.queryByTestId('presets-loading')).toBeNull();
-    });
+    // findBy* polls (default ~1000ms) for the chip — proves the fetch
+    // resolved AND React rendered the new state. Originally written
+    // as `waitFor(() => queryByTestId('presets-loading') is null)` +
+    // synchronous chip assertions, but that flaked under CI: setPresets
+    // (in `.then`) and setLoadingPresets(false) (in `.finally`) are
+    // separate promise callbacks, and React 18's automatic batching
+    // groups them inconsistently across runs — sometimes the spinner
+    // disappears in a render before the chips appear, sometimes after.
+    // findBy on the chip directly waits for the post-batched DOM.
+    await screen.findByLabelText('preset-vegan');
 
-    expect(screen.getByLabelText('preset-vegan')).toBeOnTheScreen();
+    expect(screen.queryByTestId('presets-loading')).toBeNull();
     expect(screen.getByText('Vegan')).toBeOnTheScreen();
     expect(screen.getByText('No animal products.')).toBeOnTheScreen();
     expect(screen.getByLabelText('preset-gluten-free')).toBeOnTheScreen();
