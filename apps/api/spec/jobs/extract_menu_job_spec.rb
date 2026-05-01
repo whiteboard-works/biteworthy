@@ -112,19 +112,48 @@ RSpec.describe ExtractMenuJob, type: :job do
   end
 
   describe "live-cassette integration smoke test" do
-    # Phase 2.3 stop condition (per docs/plans/phase-2.md): cassette
-    # recording requires ANTHROPIC_API_KEY which the autonomous loop
-    # doesn't have. A human with the key should:
-    #   1. Drop a real menu image at spec/fixtures/menus/sample.jpg
-    #   2. ANTHROPIC_API_KEY=... bin/rspec spec/jobs/extract_menu_job_spec.rb
-    #   3. Commit the recorded cassette under spec/cassettes/
-    #   4. Replace this skip block with the VCR.use_cassette block.
+    # Phase 4.11.0 / 4.11.2-cassette — replays a real Anthropic
+    # vision call against the committed sample.jpg fixture (Simply
+    # Tasty Thai appetizers page). Recorded once locally with
+    # ANTHROPIC_API_KEY set; CI replays from the committed cassette
+    # with `record: :none` (see spec/support/vcr.rb).
     #
-    # The mocked specs above are sufficient to validate the job's
-    # behavior — this stub is the integration smoke that asserts our
-    # prompt + schema actually work against the real model.
-    it "extracts a real menu image end-to-end" do
-      skip "needs ANTHROPIC_API_KEY + recorded cassette (see comment)"
+    # VCR matches on method + URI + body, so changing the prompt
+    # (Phase 4.11.2's image_bbox addition) auto-invalidates the
+    # cassette — re-record locally + commit the new file.
+    #
+    # The mocked specs above are sufficient for the job's branch
+    # logic; this is the integration smoke that asserts our prompt +
+    # schema actually work against the real model.
+    let(:menu_path) { Rails.root.join("spec/fixtures/menus/sample.jpg") }
+
+    let(:run_with_real_image) do
+      r = create(:ingestion_run, restaurant: restaurant)
+      r.inputs.attach(
+        io:           File.open(menu_path, "rb"),
+        filename:     "sample.jpg",
+        content_type: "image/jpeg"
+      )
+      r
+    end
+
+    it "extracts a real menu image end-to-end", vcr: { cassette_name: "extract_menu_job/simply_tasty_thai_appetizers" } do
+      described_class.perform_now(run_with_real_image.id)
+
+      run = run_with_real_image.reload
+      expect(run.status).to eq("resolving")
+      expect(run.staging).to be_a(Hash)
+      expect(run.staging["sections"]).to be_an(Array)
+      expect(run.staging["sections"]).not_to be_empty
+
+      # Phase 4.11.2 acceptance: at least 3 items should carry an
+      # image_bbox after the prompt extension lands. Simply Tasty
+      # Thai's appetizers page has Spring Rolls, Crab Rangoon, and
+      # Chicken Satay all with inline photos.
+      items = run.staging["sections"].flat_map { |s| s["items"] }
+      bbox_items = items.select { |i| i["image_bbox"].present? }
+      expect(items.size).to be >= 3
+      expect(bbox_items.size).to be >= 3
     end
   end
 end
