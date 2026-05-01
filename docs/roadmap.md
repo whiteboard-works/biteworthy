@@ -13,13 +13,13 @@ the merge / review / status rules.
 
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only Phase-5 PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
 
-Web test-infra wiring shipped in PR #189; ItemRow extraction + Phase 4.11.4 photo_url snapshot ships in this PR. Mobile test-infra wiring (jest-expo + `@testing-library/react-native`) remains queued as the next loop-shippable item.
+Test-infra wiring shipped both sides (web in #189, mobile in this PR). Two outstanding test-infra followups remain.
 
-1. **Extract ItemRow + Phase 4.11.4 photo_url snapshot** — this PR. Pulls the file-private ItemRow out of `RestaurantClient.tsx` into its own file, lands the deferred render test asserting `<img>` appears with `src=photo_url` when set + doesn't render when null. Closes the original 4.11.4 deferral.
-2. **Mobile test-infra wiring (jest-expo + `@testing-library/react-native`)** — same Discovered note as the web wiring; deferred to its own PR because the configs differ enough that combining would muddy review. Once landed, retroactively add the deferred snapshots from Phases 3.2 / 3.3 / 3.4 / 3.5 / 4.11.4.
-2. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
-3. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-4. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+1. **Extract mobile ItemRow + Phase 4.11.4 photo `<Image>` snapshot** — mirrors web's PR #190. Small scoped refactor pulling the file-private ItemRow out of `apps/mobile/app/restaurants/[id].tsx`, plus the dish-photo render test asserting the `<Image>` renders with `source.uri = photo_url` when set + doesn't render when null.
+2. **Backfill Phase 3.x deferred snapshots** — Phases 3.2 / 3.3 / 3.4 / 3.5 each had a deferred mobile UI snapshot (the `jest-expo`-not-wired excuse from the original Discovered note). The infra is now in place; one PR (or a few) can backfill them.
+3. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
+4. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+5. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
 ### Done
 
