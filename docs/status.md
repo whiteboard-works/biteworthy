@@ -13,6 +13,40 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 03:48 — tick #97. **Mobile test-infra wired.** PR #190
+(ItemRow + Phase 4.11.4 snapshot) merged at 03:16 UTC. Picked
+the mobile counterpart of the web test-infra work. Closes the
+mobile half of the long-standing Discovered followup. Shipped:
+- `apps/mobile/jest.config.js` — first jest config for mobile.
+  preset: jest-expo + a custom `transformIgnorePatterns` that
+  fixes the pnpm + jest-expo path mismatch (the upstream pattern
+  assumes a flat npm layout and skips files under
+  `node_modules/.pnpm/@react-native+js-polyfills@.../node_modules/`,
+  causing react-native's Flow-typed polyfill to not get
+  transformed → `SyntaxError: Unexpected identifier 'ErrorHandler'`
+  on every test). The override matches react-native, @react-native,
+  expo, @expo, and react-native-* whether or not under .pnpm/.
+- `pnpm add -D @testing-library/react-native -F @biteworthy/mobile`.
+  jest-expo@~52.0.2 was already installed since SDK 52 setup.
+- `apps/mobile/jest.setup.ts` registers v12.4+ matchers.
+- `apps/mobile/__tests__/screens/restaurant-screen.render.test.tsx`
+  — 5 cases mirroring web's PR #189: HiddenReasonChip with all
+  three reason kinds, StrictnessToggle's three modes + active
+  accessibilityState + loading state. Mocks expo-router at the
+  module boundary so importing the screen doesn't pull the full
+  Stack/Tabs runtime.
+Caught two real issues during setup:
+- pnpm + jest-expo transformIgnorePatterns mismatch (above).
+- @testing-library/react-native dropped `toHaveAccessibilityState`
+  in v12+; switched to direct prop assertions
+  (`expect(node.props.accessibilityState).toMatchObject(...)`).
+Result: mobile jest **65/65** (was 60/60; +5); typecheck (10/10)
++ lint (6/6) green; web vitest 112/112 + rspec 377/0/0 unchanged.
+Roadmap: ticked the stale Next-up #1; queued mobile ItemRow
+extraction (mirrors web PR #190) + Phase 3.x snapshot backfills
+as the next two test-infra followups; credential-gated wiring
+PRs at #3-#5.
+
 2026-05-01 03:15 — tick #96. **Phase 4.11.4 deferred snapshot landed.**
 PR #189 (test-infra wiring) merged at 02:47 UTC. Picked the
 finish-what-we-started followup: extract ItemRow from
