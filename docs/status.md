@@ -13,6 +13,50 @@ without spelunking GitHub.
 
 ---
 
+2026-05-01 04:35 — tick #99. **Phase 3.2 onboarding-screen render
+snapshot landed; test-infra queue cleared.** PR #192 (mobile ItemRow
+extraction + Phase 4.11.4 snapshot) merged at 04:00 UTC. Picked the
+last loop-shippable test-infra item: backfill the Phase 3.2 6-tap
+onboarding screen render snapshot. Shipped:
+- New `apps/mobile/__tests__/screens/onboarding.render.test.tsx`
+  — 8 cases. Covers step 1 loading + presets-loaded + chip toggle;
+  advances through steps 2/3/4 via `fireEvent.press` on each
+  `next-to-*` pressable; asserts step 3 renders all three
+  strictness options + the description text updates on tap; step 4
+  shows the bolded summary count nodes ("0 presets" / "1 preset" /
+  "0 ingredients" / "balanced") + a finalize without a JWT
+  redirects to `/login?next=%2Fonboarding` (mocking `getJwt` to
+  resolve null).
+- Mocks at the boundary: `expo-router` (with `mock`-prefixed vars
+  to satisfy Jest's mock-factory hoist + arrow-indirection wrappers
+  so the captured ref is a real function at call time, not the
+  pre-init undefined), `../../lib/api/onboarding`
+  (fetchDietaryProfiles, searchIngredients, saveProfile), and
+  `../../lib/auth.getJwt`.
+Result: mobile jest **80/80** (was 72/72; +8); typecheck (10/10)
++ lint (6/6) green; web vitest 112/112 + rspec 377/0/0 unchanged.
+Roadmap: dropped the "backfill Phase 3.x snapshots" Next-up entry.
+Phases 3.4 (HiddenReasonChip) + 3.5 (StrictnessToggle) are already
+covered via `restaurant-screen.render.test.tsx` (#191); Phase 3.3
+helpers (FilterBadge, SectionBlock) deferred until a real bug
+motivates them. Queue is now exclusively credential-gated wiring
+PRs at #1-#3.
+
+After this PR merges: the loop has no unblocked work. Next ticks
+will pause + report status until a human supplies the credentials
+documented in `docs/launch-readiness.md` to unblock 5.8 / 5.9 /
+5.1.1 wiring, OR until something new is added to the queue.
+
+Two issues caught during setup, both documented in the test file:
+- Jest mock-factory hoisting requires `mock`-prefixed names; my
+  initial `replaceMock` triggered "Invalid variable access" until
+  renamed to `mockReplace` (and the other vars too).
+- The factory closure resolves the `mockReplace` binding at hoist
+  time (when it's still `undefined`), so a bare
+  `replace: mockReplace` produces "router.replace is not a
+  function" at test runtime. Fixed by wrapping each method in an
+  arrow indirection: `replace: (...args) => mockReplace(...args)`.
+
 2026-05-01 04:18 — tick #98. **Mobile ItemRow extracted + Phase 4.11.4
 photo snapshot landed.** PR #191 (mobile test-infra) merged at 03:49
 UTC. Picked the mirror of web's PR #190: pull file-private ItemRow
