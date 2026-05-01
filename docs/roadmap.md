@@ -13,13 +13,12 @@ the merge / review / status rules.
 
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only Phase-5 PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
 
-Test-infra wiring shipped both sides (web in #189, mobile in this PR). Two outstanding test-infra followups remain.
+Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow extraction + Phase 4.11.4 photo snapshot landed in this PR. One outstanding test-infra followup remains.
 
-1. **Extract mobile ItemRow + Phase 4.11.4 photo `<Image>` snapshot** — mirrors web's PR #190. Small scoped refactor pulling the file-private ItemRow out of `apps/mobile/app/restaurants/[id].tsx`, plus the dish-photo render test asserting the `<Image>` renders with `source.uri = photo_url` when set + doesn't render when null.
-2. **Backfill Phase 3.x deferred snapshots** — Phases 3.2 / 3.3 / 3.4 / 3.5 each had a deferred mobile UI snapshot (the `jest-expo`-not-wired excuse from the original Discovered note). The infra is now in place; one PR (or a few) can backfill them.
-3. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
-4. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-5. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+1. **Backfill Phase 3.x deferred snapshots** — Phases 3.2 / 3.3 / 3.4 / 3.5 each had a deferred mobile UI snapshot (the `jest-expo`-not-wired excuse from the original Discovered note). The infra is now in place; one PR (or a few) can backfill them.
+2. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
+3. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+4. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
 ### Done
 
@@ -221,6 +220,14 @@ phase or "Next up" queue.
   All display helpers (`hiddenReasonLabel`, `groupItemsBySection`,
   `applyOverrides`) now live in `@biteworthy/filter-engine` and are
   the single source of truth.
+- **Mobile jest config: `setupFilesAfterEach` typo in PR #191's
+  `apps/mobile/jest.config.js`** — not a real Jest option; emits a
+  validation warning on every test run. Currently inert because
+  `@testing-library/react-native` v12+ auto-registers matchers via
+  the jest-expo preset, but the warning is noise. One-line cleanup:
+  drop the line + the matching `apps/mobile/jest.setup.ts` file
+  (no longer needed), or rename to the correct `setupFilesAfterEach`-
+  equivalent option. Surfaced in tick #98.
 
 ## What we are explicitly NOT doing in v1
 
