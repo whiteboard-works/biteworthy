@@ -11,13 +11,14 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
+**Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only Phase-5 PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
 
-Every Next-up item below is `[BLOCKED]` on a human action. The loop pauses here and pings; the next tick after a credential drop can pick the corresponding wiring item up.
+After three consecutive paused ticks (#92, #93, the loop-fired-but-no-direction-given turns) the loop took initiative and promoted the **jest-expo + web `@testing-library/react` wiring** Discovered followup into Next-up #1 below. It's pure setup work, no credentials needed, useful regardless of the credential queue. **Revert this PR if you'd prefer the loop stay paused.**
 
-1. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
-2. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-3. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+1. **Test-infra wiring (web `@testing-library/react` + jsdom)** — promoted from Discovered. Adds the dep + `vitest.config.ts` jsdom env + a sample render test for `RestaurantClient`'s ItemRow asserting `photo_url` renders into `<img>` when set, doesn't render when null (backfills the deferred snapshot from #169). Mobile counterpart (jest-expo + `@testing-library/react-native`) is its own follow-up PR — same Discovered note covers both, two separate PRs because the configs are very different.
+2. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
+3. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+4. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
 ### Done
 
@@ -197,16 +198,13 @@ The loop appends here when work surfaces a new task that doesn't
 belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
-- **Wire `jest-expo` preset + `@testing-library/react-native` for the
+- ~~Wire `jest-expo` preset + `@testing-library/react-native` for the
   mobile app, AND wire `@testing-library/react` + jsdom for the web
-  app** — surfaced during Phase 3.5; reinforced by Phase 4.11.4's
-  inability to ship a JSX render snapshot for the new dish-photo
-  `<Image>` / `<img>` on either side. Mobile tests currently run
-  pure-TS only; importing any screen module (which transitively
-  imports react-native ESM) fails Jest's default transformer. Web
-  tests are also pure-TS — there's no `@testing-library/react` dep
-  and no `vitest.config.ts`, so a `.tsx` test would set new precedent.
-  Setup change in its own PR (one for each app); once landed,
+  app~~ — **promoted to Next-up #1 (web side) in tick #94 after three
+  paused ticks**. Mobile counterpart will be its own follow-up PR.
+  Original note: surfaced during Phase 3.5; reinforced by Phase
+  4.11.4's inability to ship a JSX render snapshot for the new
+  dish-photo `<Image>` / `<img>` on either side. Once landed,
   retroactively add the deferred snapshots from 3.2 / 3.3 / 3.4 /
   3.5 / 4.11.4 (web RestaurantClient ItemRow + mobile [id].tsx
   ItemRow asserting `photo_url` renders into an `<img>` / `<Image>`
