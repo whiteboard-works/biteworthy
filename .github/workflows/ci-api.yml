@@ -40,7 +40,7 @@ jobs:
       DATABASE_PASSWORD: postgres
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Phase 4.11.1 — Ingestion::DishPhotoCropper depends on
       # MiniMagick which shells out to `magick`/`identify`. The
