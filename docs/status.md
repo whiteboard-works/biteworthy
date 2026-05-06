@@ -13,6 +13,40 @@ without spelunking GitHub.
 
 ---
 
+2026-05-06 17:30 — tick #126. **Repo moved to whiteboard-works org.**
+~5 days of mostly silent paused ticks since #125 (the onboarding
+flake fix at PR #199). Two relevant non-loop changes during the
+silence:
+- 5 dependabot PRs opened on May 4 (#201-#205); 3 minor/dev bumps
+  merged to master (#200, #206, #207). Major bumps (React 19 #205,
+  vitest 4 #203, plugin-react 6 #204, expo group #201, tanstack
+  #202) sat DIRTY waiting for rebases. PR #205 (React 18→19) merged
+  on May 5 after dependabot rerolled.
+- The user announced today: "We are moving everything to Whiteboard
+  Works. This is the new standard." The repo is now at
+  `whiteboard-works/biteworthy`.
+
+This PR follows the move. Six files referenced the old
+`Sky-Fox-Studios` org; one more was caught after the first sweep
+(`.kamal/secrets.example`). All updated:
+- `apps/api/config/deploy.yml` — Kamal image path + GHCR username +
+  comment (was real config affecting the future deploy)
+- `apps/api/.kamal/secrets.example` — comment for KAMAL_REGISTRY_PASSWORD
+- `apps/web/src/app/page.tsx` — footer GitHub link
+- `apps/web/src/app/press/page.tsx` — founder line: "Sky-Fox-Studios"
+  display + link → "Whiteboard Works"
+- `docs/outreach/launch-day.md` — embargo template URL
+- `docs/adr/0007-hosting-kamal-hetzner-neon.md` — GHCR rationale
+- `docs/plans/phase-5.md` — same GHCR rationale
+
+Local git remote also updated to point at the new repo URL.
+
+Result: web vitest 112/112 unchanged; typecheck (10/10) + lint (6/6)
+green; api unchanged.
+
+After this PR merges, the queue is again credential-gated. Loop
+returns to paused state.
+
 2026-05-01 18:30 — tick #125. **Loop unpaused to fix a CI flake I
 introduced.** ~13 hours of silent paused ticks (#104-#124) with no
 queue change. Then dependabot opened PR #198 (actions/setup-node

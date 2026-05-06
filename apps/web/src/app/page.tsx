@@ -151,7 +151,7 @@ function Footer(): ReactElement {
             Press
           </a>
           <a
-            href="https://github.com/Sky-Fox-Studios/biteworthy"
+            href="https://github.com/whiteboard-works/biteworthy"
             className="hover:text-zinc-700"
             data-testid="footer-github"
           >

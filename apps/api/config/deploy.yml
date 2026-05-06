@@ -10,7 +10,7 @@
 # stateless so rebuilding it never risks data.
 #
 # Image registry: GitHub Container Registry (ghcr.io). Same
-# Sky-Fox-Studios/ permissions as the source repo; free for private
+# whiteboard-works/ permissions as the source repo; free for private
 # use. Push token in `KAMAL_REGISTRY_PASSWORD` (a GitHub PAT with
 # `write:packages`).
 #
@@ -26,7 +26,7 @@
 # is a separate small follow-up after manual deploys are proven.
 
 service: biteworthy-api
-image: sky-fox-studios/biteworthy-api
+image: whiteboard-works/biteworthy-api
 
 servers:
   web:
@@ -50,7 +50,7 @@ proxy:
 
 registry:
   server: ghcr.io
-  username: sky-fox-studios
+  username: whiteboard-works
   password:
     - KAMAL_REGISTRY_PASSWORD
 

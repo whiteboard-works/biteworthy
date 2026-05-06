@@ -50,7 +50,7 @@ Audience here is more "founders / techies who happen to live in southwest Colora
 >
 > Free, no ads, opt-in analytics. The dietary filter is byte-identical between web and mobile because it's a single TypeScript package both apps import.
 >
-> If you build app-shaped products and want to see how this is wired, the repo is at https://github.com/Sky-Fox-Studios/biteworthy. The decision records (ADR 0001–0007) walk through the stack picks honestly.
+> If you build app-shaped products and want to see how this is wired, the repo is at https://github.com/whiteboard-works/biteworthy. The decision records (ADR 0001–0007) walk through the stack picks honestly.
 >
 > Launch beta covers 30 Durango restaurants. Scaling-up city-by-city if the funnel proves out.
 

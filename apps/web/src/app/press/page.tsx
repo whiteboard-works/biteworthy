@@ -90,7 +90,7 @@ export default function PressPage(): ReactElement {
       <Section title="Founder">
         <p className="text-bw-base text-zinc-800">
           Skylar Bolton &mdash; software engineer based in Durango, Colorado.
-          {' '}<a href="https://github.com/Sky-Fox-Studios" className="underline">Sky-Fox-Studios</a>.
+          {' '}<a href="https://github.com/whiteboard-works" className="underline">Whiteboard Works</a>.
         </p>
       </Section>
 

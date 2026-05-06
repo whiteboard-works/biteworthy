@@ -47,7 +47,7 @@ Single box for v1 launch:
 
 ### Image registry — GitHub Container Registry (ghcr.io)
 
-- **Why GHCR** — the source repo (`Sky-Fox-Studios/biteworthy`) is on GitHub. Same auth model (PAT with `write:packages`); free for private repos; no separate account.
+- **Why GHCR** — the source repo (`whiteboard-works/biteworthy`) is on GitHub. Same auth model (PAT with `write:packages`); free for private repos; no separate account.
 - **Why not Docker Hub** — image pulls from Docker Hub are rate-limited for unauthenticated requests. Hetzner box without a Docker Hub login would hit the limit during deploy retries.
 - **Why not self-hosted (Harbor, etc.)** — operationally not worth it for one image. GHCR is the single piece we don't run ourselves; matches the same posture as Neon for the DB.
 
