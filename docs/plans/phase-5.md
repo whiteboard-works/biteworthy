@@ -50,7 +50,7 @@ Replaces Phase 5.1's Fly.io pick. Same goal — get the Rails API publicly reach
 
 - **Compute**: 1 × Hetzner **CX22** (4GB RAM / 2 vCPU / ~€5/mo) in the **Ashburn, US** datacenter (`ash`). Both puma + Solid Queue worker run on the same box as separate Kamal **roles** (`web` + `worker`). Tier up to CX32 or split the worker to a second box only if launch volume reveals headroom issues — the CX22 has more spec than the dual-Fly-machine setup it replaces, at lower cost.
 - **Postgres**: **Neon** (managed, free tier, branching, `aws-us-east-1`). Free tier covers Durango beta easily; bumps cost only past 0.5 GB or compute-hour limits. The app box stays stateless — rebuilding it never risks data, no `pg_dump` cron needed. Neon handles backups (7-day retention, free).
-- **Container deploys**: **Kamal** (Basecamp's). Zero-downtime via Traefik, automatic Let's Encrypt TLS, single-command rollback. Image registry: **GitHub Container Registry (`ghcr.io`)** since the repo is already in `Sky-Fox-Studios/` — same auth model, free for private repos.
+- **Container deploys**: **Kamal** (Basecamp's). Zero-downtime via Traefik, automatic Let's Encrypt TLS, single-command rollback. Image registry: **GitHub Container Registry (`ghcr.io`)** since the repo is already in `whiteboard-works/` — same auth model, free for private repos.
 
 **What stays from PR #172** (no changes needed):
 - The multi-stage `apps/api/Dockerfile` — Kamal uses the same OCI image.
