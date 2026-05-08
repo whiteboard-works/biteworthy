@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
+import { PostHogProvider } from './_PostHogProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,7 +15,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (
     <html lang="en">
-      <body className="bg-white text-zinc-900 antialiased">{children}</body>
+      <body className="bg-white text-zinc-900 antialiased">
+        <PostHogProvider>{children}</PostHogProvider>
+      </body>
     </html>
   );
 }

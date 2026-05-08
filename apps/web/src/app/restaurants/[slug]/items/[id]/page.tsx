@@ -62,8 +62,8 @@ function Page({
         <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>
       )}
 
-      <ReviewsClient itemId={item.id} initial={initialReviews} />
-      <SuggestFixClient itemId={item.id} />
+      <ReviewsClient itemId={item.id} restaurantSlug={restaurant.slug} initial={initialReviews} />
+      <SuggestFixClient itemId={item.id} restaurantSlug={restaurant.slug} />
     </main>
   );
 }

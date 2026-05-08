@@ -23,6 +23,9 @@ import { HiddenReasonChip } from './[id]';
  */
 export interface ItemRowProps {
   item: RestaurantItem;
+  /** Optional — when set, passed through to /items/[id] so the review
+   * screen can attribute review_posted events to the right restaurant. */
+  restaurantSlug?: string;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
@@ -32,6 +35,7 @@ export interface ItemRowProps {
 
 export function ItemRow({
   item,
+  restaurantSlug,
   hidden = false,
   overridden,
   onToggleOverride,
@@ -71,7 +75,11 @@ export function ItemRow({
         onPress={() =>
           router.push({
             pathname: '/items/[id]',
-            params: { id: item.id, itemName: item.name },
+            params: {
+              id: item.id,
+              itemName: item.name,
+              ...(restaurantSlug ? { restaurantSlug } : {}),
+            },
           })
         }
         style={styles.reviewBadge}

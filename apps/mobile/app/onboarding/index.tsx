@@ -26,6 +26,7 @@ import {
   type IngredientSearchResult,
 } from '../../lib/api/onboarding';
 import { getJwt } from '../../lib/auth';
+import { useTracker } from '../../lib/tracker-context';
 
 /**
  * Phase 3.2 — 6-tap onboarding to a working dietary filter.
@@ -42,6 +43,7 @@ import { getJwt } from '../../lib/auth';
 type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
 
 export default function OnboardingScreen() {
+  const tracker = useTracker();
   const [step, setStep] = useState<Step>('presets');
   const [draft, dispatch] = useReducer(onboardingReducer, initialDraft);
   const [presets, setPresets] = useState<DietaryPreset[]>([]);
@@ -87,7 +89,14 @@ export default function OnboardingScreen() {
     }
     try {
       setSaving(true);
-      await saveProfile(toProfilePayload(draft, presets), jwt);
+      const payload = toProfilePayload(draft, presets);
+      await saveProfile(payload, jwt);
+      tracker.track('profile_set', {
+        preset_slug: draft.selectedPresetSlugs[0] ?? null,
+        avoid_ingredient_count: payload.avoid_ingredient_ids.length,
+        avoid_tag_count: payload.avoid_tag_ids.length,
+        strictness: payload.strictness,
+      });
       Alert.alert('Profile saved', 'Your dietary filter is ready.');
       router.replace('/');
     } catch (e) {

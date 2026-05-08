@@ -22,6 +22,7 @@ import {
   type RestaurantItemsResponse,
 } from '../../../lib/restaurants';
 import { ItemRow } from './ItemRow';
+import { useTracker } from '../../_PostHogProvider';
 
 /**
  * Phase 3.6 — client island for the SSR-rendered restaurant page.
@@ -47,6 +48,7 @@ export function RestaurantClient({
   /** Phase 3.9 — passed from SSR when the URL had ?p=<token>. */
   profileToken?: string | null;
 }) {
+  const tracker = useTracker();
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
   const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>(() =>
     groupItemsBySection(initialItems.items),
@@ -56,6 +58,28 @@ export function RestaurantClient({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isInitialRender = strictnessOverride === null;
+
+  // Phase 5.8 — fire menu_filtered + restaurant_tap once on first
+  // paint with the SSR-delivered items, then again whenever the
+  // strictness override triggers a refetch (handled below).
+  useEffect(() => {
+    const totalVisible = initialItems.items.filter((it) => it.status === 'visible').length;
+    const totalHidden = initialItems.items.length - totalVisible;
+    tracker.track('menu_filtered', {
+      restaurant_slug: slug,
+      visible_count: totalVisible,
+      hidden_count: totalHidden,
+      filter_source: initialItems.filter.source,
+    });
+    tracker.track('restaurant_tap', {
+      restaurant_slug: slug,
+      from: 'direct',
+    });
+    // Mount-only — slug + initialItems are stable across the
+    // RestaurantClient's lifetime (a new restaurant remounts the
+    // component).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (isInitialRender) return;
@@ -72,6 +96,13 @@ export function RestaurantClient({
           setFilter(res.filter);
           setSections(groupItemsBySection(res.items));
           setShownAnyway(new Set());
+          const totalVisible = res.items.filter((it) => it.status === 'visible').length;
+          tracker.track('menu_filtered', {
+            restaurant_slug: slug,
+            visible_count: totalVisible,
+            hidden_count: res.items.length - totalVisible,
+            filter_source: res.filter.source,
+          });
         })
         .catch((e) => {
           if (!cancelled) setError((e as Error).message);
@@ -139,9 +170,16 @@ export function RestaurantClient({
         <StrictnessToggle
           active={strictnessOverride ?? filter.strictness}
           loading={isPending}
-          onChange={setStrictnessOverride}
+          onChange={(next) => {
+            tracker.track('filter_changed', {
+              kind: 'strictness',
+              from: strictnessOverride ?? filter.strictness,
+              to: next,
+            });
+            setStrictnessOverride(next);
+          }}
         />
-        <ShareLinkButton slug={slug} filter={filter} />
+        <ShareLinkButton slug={slug} filter={filter} tracker={tracker} />
       </div>
 
       <ClaimSection slug={slug} restaurant={restaurant} />
@@ -327,6 +365,7 @@ export function HiddenReasonChip({ reason }: { reason: HideReason }) {
  */
 function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaurant }) {
   const router = useRouter();
+  const tracker = useTracker();
   const [email, setEmail] = useState('');
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -378,6 +417,10 @@ function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaura
       setSubmitting(true);
       const result = await requestClaim(slug, email);
       setDone({ email: result.email, auto: result.auto_acceptable });
+      tracker.track('restaurant_claimed', {
+        restaurant_slug: slug,
+        decision: result.auto_acceptable ? 'auto_acceptable' : 'admin_review',
+      });
     } catch (e) {
       if (e instanceof ClaimError && e.status === 401) {
         router.replace(`/login?next=${encodeURIComponent(`/restaurants/${slug}`)}`);
@@ -433,7 +476,17 @@ function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaura
   );
 }
 
-export function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary }) {
+export function ShareLinkButton({
+  slug,
+  filter,
+  tracker,
+}: {
+  slug: string;
+  filter: FilterSummary;
+  tracker?: ReturnType<typeof useTracker>;
+}) {
+  const ctxTracker = useTracker();
+  const t = tracker ?? ctxTracker;
   const [copied, setCopied] = useState(false);
 
   const handleClick = async () => {
@@ -448,10 +501,12 @@ export function ShareLinkButton({ slug, filter }: { slug: string; filter: Filter
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2_000);
+      t.track('share_link_copied', { restaurant_slug: slug, via: 'clipboard' });
     } catch {
       // Clipboard blocked (rare in modern browsers, common in iframes).
       // Fall back to a prompt so the user can copy manually.
       window.prompt('Copy this share link', url);
+      t.track('share_link_copied', { restaurant_slug: slug, via: 'prompt_fallback' });
     }
   };
 

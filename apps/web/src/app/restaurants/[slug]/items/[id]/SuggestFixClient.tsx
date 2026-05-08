@@ -7,6 +7,7 @@ import {
   SuggestionError,
   type SuggestionKind,
 } from '../../../../../lib/suggestions';
+import { useTracker } from '../../../../_PostHogProvider';
 
 const KIND_LABELS: Record<SuggestionKind, string> = {
   add_ingredient:    'Add a missing ingredient',
@@ -29,7 +30,14 @@ const KIND_PAYLOAD_HINT: Record<SuggestionKind, string> = {
  * can submit; the queue lands at /restaurants/<slug>/suggestions for
  * the claimed-restaurant owner to act on.
  */
-export function SuggestFixClient({ itemId }: { itemId: string }) {
+export function SuggestFixClient({
+  itemId,
+  restaurantSlug,
+}: {
+  itemId: string;
+  restaurantSlug: string;
+}) {
+  const tracker = useTracker();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<SuggestionKind>('add_ingredient');
   const [value, setValue] = useState('');
@@ -48,6 +56,11 @@ export function SuggestFixClient({ itemId }: { itemId: string }) {
     try {
       setSubmitting(true);
       await createSuggestion(itemId, { kind, payload });
+      tracker.track('suggestion_submitted', {
+        item_slug: itemId,
+        restaurant_slug: restaurantSlug,
+        kind,
+      });
       setDone(true);
       setValue('');
     } catch (err) {

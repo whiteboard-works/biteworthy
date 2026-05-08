@@ -15,6 +15,7 @@ import {
   searchIngredients,
   type IngredientSearchResult,
 } from '../../lib/onboarding';
+import { useTracker } from '../_PostHogProvider';
 
 /**
  * Phase 3.8 + 4.1 — web mirror of the mobile 4-step onboarding flow.
@@ -40,6 +41,7 @@ const STRICTNESS_BLURB: Record<Strictness, string> = {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const tracker = useTracker();
 
   const [step, setStep] = useState<Step>('presets');
   const [draft, dispatch] = useReducer(onboardingReducer, initialDraft);
@@ -76,7 +78,14 @@ export default function OnboardingPage() {
     try {
       setSaving(true);
       setSaveError(null);
-      await saveProfile(toProfilePayload(draft, presets));
+      const payload = toProfilePayload(draft, presets);
+      await saveProfile(payload);
+      tracker.track('profile_set', {
+        preset_slug: draft.selectedPresetSlugs[0] ?? null,
+        avoid_ingredient_count: payload.avoid_ingredient_ids.length,
+        avoid_tag_count: payload.avoid_tag_ids.length,
+        strictness: payload.strictness,
+      });
       router.replace('/');
     } catch (err) {
       const message = (err as Error).message;
