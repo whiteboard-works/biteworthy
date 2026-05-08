@@ -9,6 +9,7 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../../../../../lib/reviews';
+import { useTracker } from '../../../../_PostHogProvider';
 
 /**
  * Phase 4.5 — client island for the SSR item detail page.
@@ -23,9 +24,11 @@ const PAGE_SIZE = 20;
 
 export function ReviewsClient({
   itemId,
+  restaurantSlug,
   initial,
 }: {
   itemId: string;
+  restaurantSlug: string;
   initial: ReviewsResponse;
 }) {
   const router = useRouter();
@@ -75,6 +78,7 @@ export function ReviewsClient({
       {composerOpen && (
         <Composer
           itemId={itemId}
+          restaurantSlug={restaurantSlug}
           onCancel={() => setComposerOpen(false)}
           onPosted={onPosted}
           onUnauthenticated={() => {
@@ -138,15 +142,18 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
 
 function Composer({
   itemId,
+  restaurantSlug,
   onCancel,
   onPosted,
   onUnauthenticated,
 }: {
   itemId: string;
+  restaurantSlug: string;
   onCancel: () => void;
   onPosted: (saved: ReviewPayload) => void;
   onUnauthenticated: () => void;
 }) {
+  const tracker = useTracker();
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -166,6 +173,12 @@ function Composer({
         rating,
         body: body.trim() || undefined,
         photo,
+      });
+      tracker.track('review_posted', {
+        item_slug: itemId,
+        restaurant_slug: restaurantSlug,
+        rating,
+        has_photo: photo !== null,
       });
       onPosted(saved);
     } catch (e) {

@@ -20,6 +20,7 @@ import {
   type ReviewPayload,
 } from '../../lib/api/reviews';
 import { getJwt } from '../../lib/auth';
+import { useTracker } from '../../lib/tracker-context';
 
 /**
  * Phase 4.4 — item detail screen with reviews + write-a-review sheet.
@@ -35,12 +36,15 @@ import { getJwt } from '../../lib/auth';
 type Params = {
   id: string;
   itemName?: string;
+  restaurantSlug?: string;
 };
 
 export default function ItemDetailScreen() {
   const params = useLocalSearchParams<Params>();
   const itemId = String(params.id ?? '');
   const headerName = typeof params.itemName === 'string' ? params.itemName : 'Item';
+  const restaurantSlug =
+    typeof params.restaurantSlug === 'string' ? params.restaurantSlug : null;
 
   const [reviews, setReviews] = useState<ReviewPayload[]>([]);
   const [total, setTotal] = useState(0);
@@ -116,6 +120,7 @@ export default function ItemDetailScreen() {
       {composerOpen && (
         <ReviewComposer
           itemId={itemId}
+          restaurantSlug={restaurantSlug}
           onCancel={() => setComposerOpen(false)}
           onSubmitted={(saved) => {
             setReviews((prev) => [saved, ...prev]);
@@ -145,13 +150,16 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
 
 function ReviewComposer({
   itemId,
+  restaurantSlug,
   onCancel,
   onSubmitted,
 }: {
   itemId: string;
+  restaurantSlug: string | null;
   onCancel: () => void;
   onSubmitted: (saved: ReviewPayload) => void;
 }) {
+  const tracker = useTracker();
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -186,6 +194,12 @@ function ReviewComposer({
         rating,
         body: body.trim() || undefined,
         photoUri: photoUri ?? undefined,
+      });
+      tracker.track('review_posted', {
+        item_slug: itemId,
+        restaurant_slug: restaurantSlug ?? '',
+        rating,
+        has_photo: photoUri !== null,
       });
       onSubmitted(saved);
     } catch (e) {

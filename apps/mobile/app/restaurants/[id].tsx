@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -29,6 +29,7 @@ import {
   type RestaurantItem,
 } from '../../lib/api/restaurants';
 import { ItemRow } from './_ItemRow';
+import { useTracker } from '../../lib/tracker-context';
 
 /**
  * Phase 3.3 + 3.4 + 3.5 — filtered restaurant page with transparency
@@ -48,8 +49,14 @@ type Strictness = 'relaxed' | 'balanced' | 'strict';
 const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 
 export default function RestaurantScreen() {
+  const tracker = useTracker();
   const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id ?? '');
+  // Phase 5.8 — fire restaurant_tap once per id mount; the from
+  // value defaults to 'direct' since mobile lists currently don't
+  // pass a source param. Funnel queries can grow more granularity
+  // later by adding `from` to the navigation links.
+  const tapFiredRef = useRef(false);
   // Phase 4.1: pull the JWT from the keychain on mount; if absent
   // the page still loads (anonymous browse), but personalized filter
   // results require a sign-in.
@@ -111,6 +118,17 @@ export default function RestaurantScreen() {
         if (cancelled) return;
         setFilter(res.filter);
         setSections(groupItemsBySection(res.items));
+        const totalVisible = res.items.filter((it) => it.status === 'visible').length;
+        tracker.track('menu_filtered', {
+          restaurant_slug: id,
+          visible_count: totalVisible,
+          hidden_count: res.items.length - totalVisible,
+          filter_source: res.filter.source,
+        });
+        if (!tapFiredRef.current) {
+          tapFiredRef.current = true;
+          tracker.track('restaurant_tap', { restaurant_slug: id, from: 'direct' });
+        }
       })
       .catch((e) => {
         if (!cancelled) setError((e as Error).message);
@@ -197,7 +215,14 @@ export default function RestaurantScreen() {
       <StrictnessToggle
         active={strictnessOverride ?? filter.strictness}
         loading={loadingItems}
-        onChange={setStrictnessOverride}
+        onChange={(next) => {
+          tracker.track('filter_changed', {
+            kind: 'strictness',
+            from: strictnessOverride ?? filter.strictness,
+            to: next,
+          });
+          setStrictnessOverride(next);
+        }}
       />
       <ShareLinkButton slug={restaurant.slug} filter={filter} />
 
@@ -205,6 +230,7 @@ export default function RestaurantScreen() {
         <SectionBlock
           key={section.id ?? '__none__'}
           section={section}
+          restaurantSlug={restaurant.slug}
           shownAnyway={shownAnyway}
           onToggleOverride={toggleOverride}
           onSetPersistentOverride={setPersistentOverride}
@@ -282,9 +308,11 @@ export function StrictnessToggle({
 }
 
 function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary }) {
+  const tracker = useTracker();
   const handlePress = async () => {
     const url = buildShareUrl(slug, filter);
     await Share.share({ message: url, url });
+    tracker.track('share_link_copied', { restaurant_slug: slug, via: 'native_share' });
   };
   return (
     <Pressable
@@ -303,12 +331,14 @@ function capitalize(s: string) {
 
 function SectionBlock({
   section,
+  restaurantSlug,
   shownAnyway,
   onToggleOverride,
   onSetPersistentOverride,
   allowPersistent,
 }: {
   section: ItemSection<RestaurantItem>;
+  restaurantSlug?: string;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
@@ -323,6 +353,7 @@ function SectionBlock({
         <ItemRow
           key={item.id}
           item={item}
+          restaurantSlug={restaurantSlug}
           overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
           onToggleOverride={onToggleOverride}
           onSetPersistentOverride={onSetPersistentOverride}
@@ -354,6 +385,7 @@ function SectionBlock({
           <ItemRow
             key={item.id}
             item={item}
+            restaurantSlug={restaurantSlug}
             hidden
             overridden={false}
             onToggleOverride={onToggleOverride}
