@@ -11,6 +11,8 @@ module Admin
   class DashboardController < ActionController::Base
     layout false # keep it self-contained — no app-wide layout file
 
+    protect_from_forgery with: :exception
+
     before_action :require_admin_basic_auth!
 
     def index
