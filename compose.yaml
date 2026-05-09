@@ -1,0 +1,30 @@
+# Local-dev Postgres for the Rails API.
+#
+# Web / mobile / API run natively; only the database is containerized.
+# Usage:
+#   docker compose up -d postgres
+#   cd apps/api && bin/rails db:create db:schema:load db:seed
+#
+# Auth: POSTGRES_HOST_AUTH_METHOD=trust matches database.yml defaults
+# (host=localhost, user=postgres, password=""). Safe because the port
+# is bound to localhost only. Dev use only.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: biteworthy-postgres
+    ports:
+      - '127.0.0.1:5432:5432'
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
