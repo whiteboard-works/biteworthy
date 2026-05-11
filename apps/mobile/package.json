@@ -44,7 +44,7 @@
     "@types/node": "^25.7.0",
     "@types/react": "~18.3.12",
     "eslint": "^10.3.0",
-    "jest": "^30.3.0",
+    "jest": "^30.4.2",
     "jest-expo": "~55.0.17",
     "typescript": "^6.0.3"
   }
