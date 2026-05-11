@@ -1,6 +1,52 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
+
+## Working rules
+
+These apply to every task unless explicitly overridden. Bias: caution over speed
+on non-trivial work. Use judgment on trivial tasks.
+
+### Rule 1 — Think, checkpoint, fail loud
+State assumptions explicitly. If uncertain, ask rather than guess. Stop when
+confused and name what's unclear. After each significant step, summarize what
+was done, what's verified, what's left. "Completed" is wrong if anything was
+skipped silently; "tests pass" is wrong if any were skipped. Default to
+surfacing uncertainty, not hiding it.
+
+### Rule 2 — Simplicity first
+Minimum code that solves the problem. Nothing speculative. No features beyond
+what was asked. No abstractions for single-use code. Test: would a senior
+engineer say this is overcomplicated? If yes, simplify.
+
+### Rule 3 — Surgical changes
+Touch only what you must. Clean up only your own mess. Don't "improve" adjacent
+code, comments, or formatting. Don't refactor what isn't broken.
+
+### Rule 4 — Goal-driven execution
+Define success criteria. Loop until verified. Strong success criteria let you
+loop independently.
+
+### Rule 5 — Use the model only for judgment calls
+Use the LLM for: classification, drafting, summarization, extraction. Do NOT
+use it for: routing, retries, deterministic transforms. If code can answer,
+code answers. (Relevant to the ingestion pipeline — see `docs/ingestion.md`.)
+
+### Rule 6 — Read before you write
+Before adding code, read exports, immediate callers, shared utilities. "Looks
+orthogonal" is dangerous. If unsure why code is structured a way, ask.
+
+### Rule 7 — Tests verify intent, not just behavior
+Tests must encode WHY behavior matters, not just WHAT it does. A test that
+can't fail when business logic changes is wrong.
+
+### Rule 8 — Surface conflicts, don't average them
+If two patterns contradict, pick one (more recent / more tested), explain why,
+and flag the other for cleanup. Don't blend conflicting patterns. Conformance
+to existing repo convention wins inside this codebase — if you think a
+convention is harmful, surface it; don't fork silently.
+
+---
 
 ## Stack at a glance
 
