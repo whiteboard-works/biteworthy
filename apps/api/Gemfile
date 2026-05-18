@@ -33,7 +33,7 @@ gem "aws-sdk-s3", require: false
 # --- AI ingestion ------------------------------------------------------------
 # Anthropic does not yet ship an official Ruby SDK; we use Faraday and call
 # the REST API directly. See app/services/anthropic_client.rb.
-gem "faraday", "~> 2.10"
+gem "faraday", "~> 2.14"
 gem "faraday-retry"
 
 # Validates Anthropic's structured-output responses against the JSON Schema
