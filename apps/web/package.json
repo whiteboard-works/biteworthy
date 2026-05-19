@@ -16,7 +16,7 @@
     "@biteworthy/api-types": "workspace:*",
     "@biteworthy/filter-engine": "workspace:*",
     "@biteworthy/ui-tokens": "workspace:*",
-    "@tanstack/react-query": "^5.100.10",
+    "@tanstack/react-query": "^5.100.11",
     "next": "^16.2.6",
     "posthog-js": "^1.372.9",
     "react": "^19.2.6",
