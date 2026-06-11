@@ -1,0 +1,41 @@
+name: Migration guard
+
+# Enforces the repo rule "never edit a previously-shipped migration — add a
+# new one" (CLAUDE.md + docs/delivery-playbook.md). Fails any PR that
+# modifies, deletes, or renames a file under apps/api/db/migrate/ that
+# already exists on the base branch. Newly added migrations are fine.
+
+on:
+  pull_request:
+    paths:
+      - "apps/api/db/migrate/**"
+
+concurrency:
+  group: migration-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: no edits to shipped migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for modified/deleted/renamed shipped migrations
+        run: |
+          git fetch origin "${{ github.base_ref }}"
+          # M = modified, D = deleted, R = renamed. Added (A) files are
+          # intentionally excluded — new migrations are the whole point.
+          offending="$(git diff --name-status --diff-filter=MDR "origin/${{ github.base_ref }}...HEAD" -- apps/api/db/migrate/)"
+          if [ -n "$offending" ]; then
+            echo "::error::This PR modifies, deletes, or renames previously-shipped migrations:"
+            echo "$offending"
+            echo ""
+            echo "Shipped migrations are immutable. Add a new migration instead of"
+            echo "editing a shipped one (see docs/delivery-playbook.md)."
+            exit 1
+          fi
+          echo "Only additions under apps/api/db/migrate/ — OK."
