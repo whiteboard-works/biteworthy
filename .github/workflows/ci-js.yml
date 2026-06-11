@@ -4,28 +4,47 @@ on:
   push:
     branches: [master, main]
   pull_request:
-    paths:
-      - "apps/web/**"
-      - "apps/mobile/**"
-      - "packages/**"
-      - "docs/openapi.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - "tsconfig.base.json"
-      - ".prettierrc"
-      - ".github/workflows/ci-js.yml"
 
 concurrency:
   group: ci-js-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Cheap change detection so `check` always reports a status on every
+  # PR (required checks can't be satisfied by a workflow that never
+  # runs), while still skipping the heavy work on irrelevant changes.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ github.event_name != 'pull_request' || steps.filter.outputs.relevant == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            relevant:
+              - "apps/web/**"
+              - "apps/mobile/**"
+              - "packages/**"
+              - "docs/openapi.json"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - "turbo.json"
+              - "tsconfig.base.json"
+              - ".prettierrc"
+              - ".github/workflows/ci-js.yml"
+
   check:
     name: typecheck · lint · test
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     steps:
       - uses: actions/checkout@v6
 
@@ -57,4 +76,14 @@ jobs:
         # match what's committed. Catches the case where someone
         # edited a Rails endpoint, regenerated openapi.json, but
         # forgot to re-run `build:codegen`.
+        id: codegen
         run: pnpm --filter @biteworthy/api-types codegen:check
+
+      - name: How to fix codegen drift
+        if: failure() && steps.codegen.outcome == 'failure'
+        run: |
+          echo "generated.ts is out of date with docs/openapi.json."
+          echo "To fix, run:"
+          echo "  cd apps/api && bin/openapi-export"
+          echo "  pnpm --filter @biteworthy/api-types build:codegen"
+          echo "then commit the result."
