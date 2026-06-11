@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-06-11 23:05 — tick #128 (interactive session). **Master CI was
+red; restored green.** Tick #127's docs PR (#273) failed both CI
+workflows — the failures predated it. The June dependabot wave
+(#227-#272, ~45 PRs) auto-merged with required checks apparently not
+enforced on the new org, accumulating four JS breaks and two API
+breaks. Fixes shipped as two PRs:
+- #274 (ci-js): posthog-react-native 4.45 JsonType cast in the mobile
+  adapter; reanimated pinned back to Expo 56's bundled 4.3.1 + missing
+  react-native-worklets@0.8.3 peer added; jest-expo → ~56.0.4 with
+  jest/@types/jest pinned to 29 (jest-expo is built on jest-29
+  internals; jest 30's runtime crashed its environment);
+  react-test-renderer 19.2.6 added to match react exactly; `as Route`
+  casts for Next typedRoutes on login/signup. Verified: typecheck
+  10/10, lint 6/6, test 8/8 (mobile 82/82), codegen:check clean.
+- #275 (ci-api): image_processing 2.0 dropped mini_magick from the
+  dependency tree but Ingestion::DishPhotoCropper requires it —
+  declared explicitly (~> 5.3). Also fixed 3 ingestion_runs specs that
+  were red since #223: the SSRF guard resolves DNS, WebMock doesn't —
+  stubbed Resolv for the spec host. Verified: rspec 387/0.
+Process flags for the human (also in roadmap Discovered): re-enable
+required checks on master branch protection; stop dependabot from
+bumping Expo-managed native deps past the SDK's bundled versions.
+
 2026-06-11 22:13 — tick #127 (interactive session, not the cron loop).
 **Docs sync after ~5 weeks of drift.** Since tick #126, master advanced
 through #218-#225 without status/roadmap updates:

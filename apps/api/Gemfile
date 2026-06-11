@@ -28,6 +28,9 @@ gem "omniauth-apple"
 
 # --- Storage / files ---------------------------------------------------------
 gem "image_processing", "~> 2.0"
+# image_processing 2.0 dropped mini_magick as a hard dependency, but
+# Ingestion::DishPhotoCropper requires it directly — keep it explicit.
+gem "mini_magick", "~> 5.3"
 gem "aws-sdk-s3", require: false
 
 # --- AI ingestion ------------------------------------------------------------

@@ -84,6 +84,14 @@ RSpec.describe "Ingestion runs API", type: :request do
     context "with source_url (Phase 2.8)" do
       let(:menu_url) { "https://durango-restaurants.example/cream-bean-berry/menu" }
 
+      before do
+        # UrlFetcher's SSRF guard (#223) resolves DNS before fetching;
+        # WebMock only intercepts the HTTP layer. Resolve the spec host
+        # to a public address so the guard passes.
+        allow(Resolv).to receive(:getaddresses)
+          .with("durango-restaurants.example").and_return(["93.184.215.14"])
+      end
+
       it "fetches the URL, attaches the response, and 201s with input_kind=url for HTML" do
         allow(ExtractMenuJob).to receive(:perform_later)
         stub_request(:get, menu_url).to_return(
