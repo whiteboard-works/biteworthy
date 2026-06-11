@@ -41,6 +41,10 @@ RSpec.describe Biteworthy::DurangoSeed do
     tempfile.write("# Comments are allowed inline.\n")
     rows.each { |r| tempfile.write(r + "\n") }
     tempfile.close
+    # Keep the Tempfile referenced for the rest of the example —
+    # returning only the path lets GC finalize (unlink) the file
+    # between two `run` calls, which flaked in CI as Errno::ENOENT.
+    (@csv_tempfiles ||= []) << tempfile
     tempfile.path
   end
 
