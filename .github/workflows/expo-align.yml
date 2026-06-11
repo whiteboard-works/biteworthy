@@ -1,0 +1,109 @@
+name: Expo SDK alignment
+
+# Monthly job that keeps the Expo-managed native dependency matrix aligned.
+# Expo pins compatible versions of react-native, reanimated, worklets,
+# jest-expo, etc. per SDK (expo/bundledNativeModules.json). The sanctioned
+# upgrade path is `npx expo install --fix`, which rewrites
+# apps/mobile/package.json to the SDK-aligned versions — NOT per-package
+# bumps (dependabot bumping these individually broke CI for weeks in
+# June 2026; dependabot is disabled for these packages).
+#
+# Known limitation: PRs created with the default GITHUB_TOKEN do not
+# trigger CI workflows (pull_request events from github-actions[bot] are
+# suppressed to prevent recursion). The PR needs a close/reopen (or a
+# fresh push) to get checks; the nightly master run is the backstop.
+
+on:
+  schedule:
+    - cron: "0 10 1 * *" # monthly, 1st of the month, 10:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: expo-align
+  cancel-in-progress: false
+
+jobs:
+  align:
+    name: expo install --fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      # pnpm version is sourced from the `packageManager` field in
+      # package.json. Don't pass `version:` here — pnpm/action-setup@v6
+      # errors on conflicting sources.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Align Expo-managed deps
+        working-directory: apps/mobile
+        run: npx expo install --fix
+
+      - name: Re-resolve lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Already aligned — nothing to do."
+            echo "dirty=false" >> "$GITHUB_OUTPUT"
+          else
+            git status --porcelain
+            echo "dirty=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Verify the aligned versions before they ever become a PR. If
+      # these fail, the job fails loudly and no PR is opened.
+      - name: Typecheck
+        if: steps.diff.outputs.dirty == 'true'
+        run: pnpm typecheck
+
+      - name: Mobile tests
+        if: steps.diff.outputs.dirty == 'true'
+        run: pnpm --filter @biteworthy/mobile test
+
+      - name: Open alignment PR
+        if: steps.diff.outputs.dirty == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="chore/expo-align-${{ github.run_id }}"
+          git checkout -b "$branch"
+          git add -A
+          git commit -m "chore(mobile): align Expo-managed deps via expo install --fix"
+          git push origin "$branch"
+          gh pr create \
+            --base master \
+            --head "$branch" \
+            --title "chore(mobile): monthly Expo SDK alignment" \
+            --label "claude-cd" \
+            --body "$(cat <<'EOF'
+          Automated monthly run of `npx expo install --fix` in `apps/mobile`,
+          which rewrites package.json to the versions Expo pins for the current
+          SDK (expo/bundledNativeModules.json), followed by a lockfile
+          re-resolve. `pnpm typecheck` and the mobile test suite passed on the
+          aligned versions before this PR was opened.
+
+          **A human should eyeball the version diff** before merging — make sure
+          the bumps look like SDK-matrix alignment, not surprise major upgrades.
+
+          Note: because this PR was created with the default GITHUB_TOKEN, CI
+          workflows do not trigger automatically. Close and reopen the PR (or
+          push to the branch) to get checks running.
+          EOF
+          )"
