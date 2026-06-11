@@ -9,38 +9,47 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
 
 ## P0 — merge safety net
 
-1. [~] **CI workflows report on every PR** so required checks can be
-   enforced. Today both workflows are path-filtered at the trigger, so
-   a docs-only PR never reports `CI · JS / check` — making it a
-   required check would block those PRs forever. Move the path filter
-   inside the workflow (change-detection job + job-level `if`; GitHub
-   treats skipped required jobs as satisfied). Also: make Brakeman
-   blocking if it's currently clean, and add a failure hint to the
-   codegen drift check.
-2. [~] **Enforce required status checks on `master` branch protection**
-   (`CI · JS / check`, `CI · API / rspec` — exact contexts verified at
-   apply time). Apply via `gh api` after item 1 merges; if the token
-   lacks admin, falls back to a human task (Settings → Branches).
-3. [~] **Nightly full-suite CI on master** (`schedule:` cron) running
-   both the JS and API suites regardless of paths, opening/updating a
-   pinned issue on failure. Closes the "docs merge never runs rspec,
-   master rots invisibly" gap.
-4. [~] **Migration guard** — CI check that fails any PR which modifies
-   or deletes a previously-shipped file under `apps/api/db/migrate/`
-   (new migrations are fine). Makes the playbook rule mechanical.
+1. [x] **CI workflows report on every PR** so required checks can be
+   enforced — done in #280. Path filters moved from the `pull_request`
+   trigger into a `changes` job (`dorny/paths-filter`, bumped to v4 by
+   #282) gating the heavy job; skipped jobs satisfy required checks.
+   Brakeman was clean → now blocking; Rubocop stays informational.
+   Codegen drift check now prints exact fix commands on failure.
+2. [x] **Enforce required status checks on `master` branch protection**
+   — applied 2026-06-11 via `gh api` (the token had admin). Required
+   contexts: `typecheck · lint · test`, `rspec · brakeman · rubocop`,
+   `javascript-typescript`, `ruby` (check-run names, not the
+   "workflow / job-id" form). `strict` is off; admins not enforced.
+   Verified working: red dependabot PRs are now blocked from merging.
+3. [x] **Nightly full-suite CI on master** — done in #278
+   (`.github/workflows/ci-nightly.yml`, 09:00 UTC + workflow_dispatch;
+   on failure opens/updates an issue labeled `ci-nightly` mentioning
+   @shadoath). Extra reason it matters, discovered during rollout:
+   master-push CI runs are SUPPRESSED for auto-merged PRs (the merge
+   is attributed to GITHUB_TOKEN, whose events don't trigger
+   workflows) — the nightly is currently the only thing that runs CI
+   against master itself.
+4. [x] **Migration guard** — done in #281
+   (`.github/workflows/migration-guard.yml`): fails any PR that
+   modifies/deletes/renames an existing file under
+   `apps/api/db/migrate/`; additions pass.
 
 ## P1 — dependency hygiene
 
-5. [~] **Dependabot ignore rules for Expo-managed packages**
-   (`expo*`, `react-native*`, `jest-expo`, `jest`, `@types/jest`,
-   `react-test-renderer`) — these are coupled to the Expo SDK and must
-   move together, not one-at-a-time. Note: `react`/`react-dom` are
-   deliberately NOT ignored (web needs them); accepted residual risk,
-   the nightly run + required checks now catch a bad bump.
-6. [~] **Monthly Expo SDK alignment workflow** — scheduled job that
-   runs `npx expo install --fix`, reinstalls, runs the suite, and opens
-   a PR with the aligned versions. The deliberate replacement for
-   dependabot's per-package Expo bumps.
+5. [x] **Dependabot ignore rules for Expo-managed packages** — done in
+   #279 (12 ignore patterns; the `expo` group removed). Note:
+   `react`/`react-dom` are deliberately NOT ignored (web needs them);
+   accepted residual risk — required checks + the renderer-sync step in
+   the align workflow now catch a bad bump. Painfully validated: #276
+   (an expo-group bump) merged minutes BEFORE the ignores landed,
+   re-broke mobile, and was cleaned up by #292.
+6. [x] **Monthly Expo SDK alignment workflow** — done in #283
+   (`.github/workflows/expo-align.yml`), patched in #292 after its
+   first dispatched run correctly caught — but couldn't fix — the
+   react-test-renderer/react version mismatch (the workflow now syncs
+   the renderer pin after `expo install --fix`). Known limitation:
+   the PRs it opens via GITHUB_TOKEN don't trigger CI; close/reopen
+   them to get checks, which are now required to merge.
 
 ## P2 — deploy + ops (blocked on launch provisioning)
 
