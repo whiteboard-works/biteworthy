@@ -208,19 +208,17 @@ phase or "Next up" queue.
   3.5 / 4.11.4 (web RestaurantClient ItemRow + mobile [id].tsx
   ItemRow asserting `photo_url` renders into an `<img>` / `<Image>`
   when set, doesn't render when null).
-- **Auto-merge is completing on red (June 2026).** The dependabot wave
-  #227–#272 merged with both CI workflows failing — required status
-  checks don't appear to be enforced on `master` branch protection
-  since the whiteboard-works org move (the old repo's settings didn't
-  travel). Master was broken for ~3 weeks unnoticed (restored by #274
-  + #275). Human action: re-add the required checks listed in
-  `.github/README.md` §5 under Settings → Branches.
-- **Dependabot bumps Expo-managed native deps past SDK support.** It
-  walked expo 52→56 and reanimated to 4.4 (unsupported by the SDK,
-  missing the worklets peer), and split jest from jest-expo. Consider
-  `ignore` rules in `.github/dependabot.yml` for `expo*`,
-  `react-native*`, `jest-expo`, and `jest` so SDK upgrades happen
-  deliberately via `npx expo install --fix`.
+- ~~**Auto-merge is completing on red (June 2026).**~~ — **resolved
+  2026-06-11**: required status checks re-applied to master branch
+  protection via API (tick #129; contexts in `.github/README.md` §5),
+  after #280 restructured both CI workflows to report on every PR.
+  The full automation plan that came out of this incident lives in
+  `docs/automations-todo.md`.
+- ~~**Dependabot bumps Expo-managed native deps past SDK support.**~~ —
+  **resolved 2026-06-11**: ignore rules added in #279; the monthly
+  `expo-align.yml` workflow owns these versions now (#283, #292). One
+  last over-bump (#276) raced in before the ignores landed; realigned
+  in #292.
 - **Auto-merge race lost a follow-on commit on PR #150**. After the
   initial push, a second commit (the prior version of this Discovered
   note) was added before CI finished — auto-merge had already enabled

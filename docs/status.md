@@ -13,6 +13,36 @@ without spelunking GitHub.
 
 ---
 
+2026-06-11 23:29 — tick #129 (interactive session). **Automation
+hardening shipped; branch protection enforced.** Owner asked for the
+longterm-development automations; plan written to
+`docs/automations-todo.md` (#277), then items 1-6 shipped via five
+parallel subagent PRs, all merged:
+- #280 ci-js/ci-api report on every PR (path filters moved inside via
+  a `changes` job); Brakeman now blocking; codegen drift check prints
+  fix commands on failure.
+- #278 nightly full-suite run against master + failure issue
+  (`ci-nightly` label, mentions @shadoath).
+- #281 migration guard (fails PRs editing shipped migrations).
+- #279 dependabot ignores for Expo-managed packages (+ expo group
+  removed).
+- #283 monthly `expo-align.yml` (expo install --fix → verify → PR).
+Then: **required status checks applied to master branch protection
+via API** (typecheck · lint · test / rspec · brakeman · rubocop /
+javascript-typescript / ruby; strict off, admins not enforced) —
+verified blocking red dependabot PRs immediately.
+War story in between: expo-group bump #276 auto-merged minutes before
+#279's ignores landed and re-broke mobile (react-native 0.86 drops
+the jest preset jest-expo needs). First dispatched expo-align run
+caught the react-test-renderer mismatch in its test gate exactly as
+designed but couldn't fix it; #292 realigned the deps to SDK 56 and
+taught the workflow to sync react-test-renderer after --fix.
+Discovered en route: auto-merged PRs never trigger master-push CI
+(merge attributed to GITHUB_TOKEN, events suppressed) — the nightly
+run is the only thing exercising master directly.
+Remaining TODO items are launch-blocked (P2) or human-decision (P3);
+see docs/automations-todo.md.
+
 2026-06-11 23:05 — tick #128 (interactive session). **Master CI was
 red; restored green.** Tick #127's docs PR (#273) failed both CI
 workflows — the failures predated it. The June dependabot wave
