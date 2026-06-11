@@ -1,0 +1,157 @@
+name: CI · Nightly
+
+# The PR workflows (ci-js.yml, ci-api.yml) are path-filtered, so a
+# docs-only merge never exercises the suites — master can rot
+# unnoticed. This workflow runs BOTH suites against master every
+# night, unconditionally, and opens (or updates) a `ci-nightly`
+# issue when either suite fails.
+
+on:
+  schedule:
+    # 09:00 UTC = 2-3am Denver (depending on DST)
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      # pnpm version is sourced from the `packageManager` field in
+      # package.json. Don't pass `version:` here — pnpm/action-setup@v6
+      # errors on conflicting sources.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: api-types codegen drift check
+        # Re-runs openapi-typescript against the checked-in
+        # docs/openapi.json and fails if the generated TS doesn't
+        # match what's committed.
+        run: pnpm --filter @biteworthy/api-types codegen:check
+
+  api:
+    name: rspec
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/biteworthy_test
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Ingestion::DishPhotoCropper depends on MiniMagick which shells
+      # out to `magick`/`identify`. The ubuntu-latest runner ships
+      # ImageMagick today but be explicit so a future runner image
+      # change doesn't silently break us.
+      - name: Install ImageMagick
+        run: sudo apt-get update -y && sudo apt-get install -y imagemagick
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: apps/api
+          bundler-cache: true
+
+      - name: db:create
+        run: bin/rails db:create
+
+      - name: db:schema:load
+        run: bin/rails db:schema:load
+
+      # Brakeman/Rubocop intentionally omitted — ci-api.yml owns those
+      # on PRs; the nightly run only cares about test health.
+      - name: RSpec
+        run: bin/rspec
+
+  report:
+    name: open or update failure issue
+    runs-on: ubuntu-latest
+    needs: [js, api]
+    if: always() && (needs.js.result == 'failure' || needs.api.result == 'failure')
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Open or update the ci-nightly issue
+        run: |
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          failed=""
+          if [ "${{ needs.js.result }}" = "failure" ]; then
+            failed="JS (typecheck · lint · test)"
+          fi
+          if [ "${{ needs.api.result }}" = "failure" ]; then
+            failed="${failed:+$failed, }API (rspec)"
+          fi
+
+          # `gh issue create --label` fails if the label doesn't exist
+          # yet; --force makes this idempotent on every run.
+          gh label create ci-nightly --force \
+            --color B60205 \
+            --description "Nightly full-suite CI is failing on master"
+
+          existing="$(gh issue list --label ci-nightly --state open --json number --jq '.[0].number')"
+
+          if [ -n "$existing" ]; then
+            body="$(printf '%s\n' \
+              "Nightly CI failed again." \
+              "" \
+              "Failed suite(s): $failed" \
+              "Run: $run_url")"
+            gh issue comment "$existing" --body "$body"
+          else
+            body="$(printf '%s\n' \
+              "@shadoath — the nightly full-suite CI run is failing on master." \
+              "" \
+              "Failed suite(s): $failed" \
+              "Run: $run_url" \
+              "" \
+              "Opened automatically by \`.github/workflows/ci-nightly.yml\`. Future failures will be added as comments while this issue stays open.")"
+            gh issue create \
+              --title "Nightly CI is failing on master" \
+              --label ci-nightly \
+              --body "$body"
+          fi
