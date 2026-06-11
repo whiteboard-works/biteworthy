@@ -4,7 +4,7 @@ Repository automation. Each file's purpose:
 
 | File | Purpose |
 |---|---|
-| `workflows/ci-js.yml`     | Typecheck, lint, test for `apps/web`, `apps/mobile`, `packages/*`. Path-filtered. |
+| `workflows/ci-js.yml`     | Typecheck, lint, test + api-types codegen drift check for `apps/web`, `apps/mobile`, `packages/*`. Path-filtered. |
 | `workflows/ci-api.yml`    | RSpec + Brakeman + Rubocop for `apps/api`. Path-filtered. Postgres 16 service. |
 | `workflows/codeql.yml`    | Weekly CodeQL scans for JS/TS and Ruby. |
 | `workflows/pr-title.yml`  | Conventional-commit format check on every PR title. |
@@ -23,7 +23,7 @@ Repository automation. Each file's purpose:
    API-only PR doesn't run JS checks. Faster, cheaper, less noise.
 3. **Concurrency groups** cancel in-progress runs when a new commit
    lands. The newest commit's CI is the only one that matters.
-4. **Pinned major versions** (`@v4`, `@v5`) on every action — no
+4. **Pinned major versions** (e.g. `@v6`) on every action — no
    floating `@latest`, no SHA-pinning churn.
 5. **Required checks** for merge to master: `CI · JS / check`,
    `CI · API / rspec`, `CodeQL / javascript-typescript`,

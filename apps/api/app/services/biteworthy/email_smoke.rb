@@ -9,8 +9,9 @@
 #
 #   * **production** — `delivery_method = :smtp` from
 #     `config/environments/production.rb` opens a real SMTP connection.
-#     Useful right after `fly secrets set SMTP_*=...` to confirm
-#     Postmark (or whichever provider) accepts the credentials.
+#     Useful right after setting SMTP_* in `.kamal/secrets` (then
+#     `kamal env push`) to confirm Postmark (or whichever provider)
+#     accepts the credentials.
 #
 #   * **dev / test** — `:test` adapter captures the message in
 #     `ActionMailer::Base.deliveries`. The runner reports the Message-ID

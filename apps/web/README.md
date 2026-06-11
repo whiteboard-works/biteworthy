@@ -10,7 +10,8 @@ pnpm install         # from repo root
 pnpm web dev         # alias for: pnpm --filter @biteworthy/web dev
 ```
 
-Set `NEXT_PUBLIC_API_BASE` to override the Rails URL.
+Set `NEXT_PUBLIC_API_BASE` to override the Rails URL. All env vars are
+documented in `.env.example` (copy to `.env.local`).
 
 ## Why Next + Tailwind
 
@@ -33,6 +34,7 @@ Hosted on Vercel. Decision + trade-offs in `docs/adr/0005-web-hosting.md`.
    - `NEXT_PUBLIC_API_BASE=https://api.bite-worthy.com`
    - `NEXT_PUBLIC_COOKIE_DOMAIN=.bite-worthy.com` (cookie scoped across subdomains)
    - `NEXT_PUBLIC_SITE_URL=https://bite-worthy.com` (sitemap base URL)
+   - `NEXT_PUBLIC_POSTHOG_KEY=phc_…` (Phase 5.8 funnel analytics; leave unset to disable — see `docs/analytics.md`)
 4. Add `bite-worthy.com` + `www.bite-worthy.com` as custom domains. Vercel emits the DNS records to add at the registrar.
 
 **Every deploy:** push to `master` → Vercel auto-deploys to production. Push to a feature branch → Vercel emits a preview URL (`<branch>--biteworthy.vercel.app`) which is useful for codex review of UX changes.

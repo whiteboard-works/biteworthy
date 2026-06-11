@@ -27,13 +27,13 @@ Rails.application.configure do
 
   # Phase 5.2 — production SMTP. Provider-agnostic: any SMTP-capable
   # service (Postmark, SES, SendGrid, Mailgun) works by setting the
-  # SMTP_* env vars via `fly secrets set`. ADR 0003 documents the
+  # SMTP_* env vars in `.kamal/secrets`. ADR 0003 documents the
   # Postmark pick + alternatives.
   #
   # Fail loudly if delivery raises — Solid Queue retries the mailer
   # job on transient errors, but a misconfigured server should NOT
   # silently swallow signups. Disable raise_delivery_errors only
-  # if a hosted-by-Fly outage requires it (rare).
+  # if a provider outage requires it (rare).
   config.action_mailer.delivery_method   = :smtp
   config.action_mailer.raise_delivery_errors = true
   config.action_mailer.perform_deliveries    = true

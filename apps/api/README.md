@@ -5,6 +5,7 @@ Rails 8 JSON API. Lives at `apps/api/` inside the monorepo.
 ## Local setup
 
 ```bash
+docker compose up -d postgres   # from the repo root; or use your own local Postgres 16
 cd apps/api
 bundle install
 bin/rails db:create db:schema:load db:seed
@@ -18,7 +19,12 @@ privilege the first time).
 ## Routes
 
 All app traffic lives under `/api/v1`. `/up` is the health check.
-`/api-docs` renders the OpenAPI spec via rswag (Phase 1 work-in-progress).
+`/api-docs` renders the OpenAPI spec via rswag.
+
+The spec is built from the rswag specs in `spec/integration/` —
+`bin/openapi-export` dumps it to `docs/openapi.json`, which feeds the
+`@biteworthy/api-types` codegen. Re-run both after any endpoint change;
+CI fails on drift.
 
 ## Background jobs
 
@@ -124,22 +130,17 @@ Useful aliases (all in `config/deploy.yml`):
 
 Production SMTP is wired in `config/environments/production.rb`. Decision + trade-offs in `docs/adr/0003-email-provider.md` (Postmark via plain SMTP). Dev + test use the `:test` adapter — no real delivery — so specs don't open sockets.
 
-**One-time bootstrap (human):** sign up for Postmark, create a "BiteWorthy" server, verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records), generate a Server API token, then:
+**One-time bootstrap (human):** sign up for Postmark, create a "BiteWorthy" server, verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records), generate a Server API token, then put the Postmark token into `SMTP_USERNAME` / `SMTP_PASSWORD` in `.kamal/secrets` (template at `.kamal/secrets.example`) and:
 
 ```bash
-fly secrets set \
-    SMTP_ADDRESS=smtp.postmarkapp.com \
-    SMTP_PORT=587 \
-    SMTP_USERNAME=$POSTMARK_TOKEN \
-    SMTP_PASSWORD=$POSTMARK_TOKEN \
-    SMTP_DOMAIN=bite-worthy.com \
-    MAILER_HOST=https://bite-worthy.com
+kamal env push
+kamal deploy
 ```
 
 **Confirm delivery:**
 
 ```bash
-fly ssh console -C 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
+kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
 ```
 
 Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
@@ -155,18 +156,16 @@ Production blobs (review photos, dish photos, ingestion menu pages) live on **Cl
 ```bash
 # 1. Cloudflare → R2 → create bucket "biteworthy-blobs", generate
 #    an API token with Object Read & Write on the bucket.
-fly secrets set \
-    R2_ACCESS_KEY_ID=<token-id> \
-    R2_SECRET_ACCESS_KEY=<token-secret> \
-    R2_BUCKET=biteworthy-blobs \
-    R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
-fly deploy
+# 2. Fill in R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET /
+#    R2_ENDPOINT in .kamal/secrets (template at .kamal/secrets.example).
+kamal env push
+kamal deploy
 ```
 
 **(Optional) Migrate any pre-existing blobs to R2:**
 
 ```bash
-fly ssh console -C 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
+kamal app exec 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
 ```
 
 The backfill task is **idempotent** — blobs already on the configured service are no-ops, so it's safe to re-run after every deploy or any future service flip (R2 → S3 or back). Logs `[ok] / [skip] / [FAIL]` per blob.

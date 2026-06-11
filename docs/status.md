@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-06-11 22:13 — tick #127 (interactive session, not the cron loop).
+**Docs sync after ~5 weeks of drift.** Since tick #126, master advanced
+through #218-#225 without status/roadmap updates:
+- #218 shipped Phase 5.8-wiring (posthog-js + posthog-react-native →
+  9 funnel events) — the roadmap still listed it as BLOCKED Next-up #1.
+  Ticked it into Done; launch-readiness step 7 now shows only the
+  human key-setting steps.
+- #221 thai-menu test fixtures; #222 .env.example docs; #223 SSRF +
+  CSRF fixes; #224 security dep bumps; #225 compose.yaml for local
+  Postgres.
+This PR also refreshes CLAUDE.md + all READMEs against shipped
+reality (Phase 1.6 codegen is live, packages/analytics exists, local
+Postgres via compose.yaml, ci-api installs ImageMagick) and finishes
+the Fly.io → Kamal/Hetzner reference sweep the owner confirmed
+("Kamal Hetzner is the new standard"): apps/api README email/blob
+sections, production.rb + email_smoke.rb comments, web .env.example.
+Queue state: both remaining Next-up items (5.9-wiring, 5.1.1-wiring)
+stay credential-gated; loop remains paused.
+
 2026-05-06 17:30 — tick #126. **Repo moved to whiteboard-works org.**
 ~5 days of mostly silent paused ticks since #125 (the onboarding
 flake fix at PR #199). Two relevant non-loop changes during the
