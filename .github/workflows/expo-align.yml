@@ -51,6 +51,15 @@ jobs:
         working-directory: apps/mobile
         run: npx expo install --fix
 
+      # react-test-renderer must exactly match react, but it isn't in
+      # expo's bundledNativeModules so `expo install --fix` won't touch
+      # it. Sync it to whatever react the alignment landed on —
+      # @testing-library/react-native hard-fails on any mismatch.
+      - name: Sync react-test-renderer to the aligned react
+        run: |
+          react_version="$(node -p "require('./apps/mobile/package.json').dependencies.react")"
+          pnpm add -D "react-test-renderer@${react_version}" -F @biteworthy/mobile
+
       - name: Re-resolve lockfile
         run: pnpm install --no-frozen-lockfile
 
