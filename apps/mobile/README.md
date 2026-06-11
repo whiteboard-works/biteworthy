@@ -15,6 +15,9 @@ pnpm mobile android           # Android emulator
 Use the Expo Go app on a physical device for the fastest iteration loop —
 the camera capture flow needs a real camera anyway.
 
+Env vars (`EXPO_PUBLIC_*`) are documented in `.env.example` (copy to
+`.env`, gitignored).
+
 ## Why Expo
 
 - Camera, secure-store, OAuth, push, OTA updates — all built in.
@@ -24,6 +27,6 @@ the camera capture flow needs a real camera anyway.
 
 ## Shared with web
 
-`@biteworthy/api-types`, `@biteworthy/filter-engine`, `@biteworthy/ui-tokens`
-live in `packages/` and feed both apps. Mobile maps tokens into
-`StyleSheet.create`; web maps the same tokens into Tailwind.
+`@biteworthy/api-types`, `@biteworthy/filter-engine`, `@biteworthy/analytics`,
+and `@biteworthy/ui-tokens` live in `packages/` and feed both apps. Mobile
+maps tokens into `StyleSheet.create`; web maps the same tokens into Tailwind.

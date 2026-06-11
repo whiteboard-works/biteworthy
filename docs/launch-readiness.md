@@ -40,7 +40,7 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Onboarding (6-tap profile) — Phase 3.8.
 - /privacy, /terms, /press — Phases 5.9, 5.10.
 - Sitemap + robots, Vercel config, cookie-domain helper — Phase 5.4.
-- Analytics abstraction wired (no-op until Phase 5.8-wiring injects posthog-js) — Phase 5.8.
+- Analytics wired: posthog-js into the 9 funnel events (#218); no-op until `NEXT_PUBLIC_POSTHOG_KEY` is set — Phases 5.8, 5.8-wiring.
 - 99 vitest passing.
 
 ### Mobile (Expo SDK 52, `apps/mobile/`)
@@ -51,12 +51,12 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Reviews UX, history, public user pages — Phases 4.4, 4.7, 4.8.
 - Suggestion submission flow — Phase 4.10.
 - Store-listing markdown templates + eas.json + assets/README — Phase 5.9.
-- Analytics abstraction wired (no-op until Phase 5.8-wiring injects posthog-react-native) — Phase 5.8.
+- Analytics wired: posthog-react-native into the 9 funnel events (#218); no-op until `EXPO_PUBLIC_POSTHOG_KEY` is set + the user opts in — Phases 5.8, 5.8-wiring.
 - 60 jest passing (all lib-only — UI snapshots gated on the jest-expo Discovered followup).
 
 ### Shared packages (`packages/`)
 
-- `@biteworthy/api-types` — handwritten until Phase 1.6's codegen lands.
+- `@biteworthy/api-types` — codegen'd from `docs/openapi.json` (Phase 1.6); CI drift-checked.
 - `@biteworthy/filter-engine` — pure-TS dietary filter, mirrors the SQL — Phase 3.7.
 - `@biteworthy/ui-tokens` — design tokens for Tailwind + RN StyleSheet.
 - `@biteworthy/eslint-config` — minimal flat config.
@@ -176,14 +176,12 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
 
 **Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`).
 
-- Sign up for PostHog Cloud, create a "BiteWorthy" project, generate a project API key.
-- Vercel: set `NEXT_PUBLIC_POSTHOG_KEY=<key>`.
-- EAS: set `EXPO_PUBLIC_POSTHOG_KEY=<key>` in the project's env.
-- Open follow-up PR `claude/phase-5.8-wiring`:
-  - `pnpm add posthog-js -F @biteworthy/web`
-  - `pnpm add posthog-react-native -F @biteworthy/mobile`
-  - Wrap each SDK in an `AnalyticsClient` adapter; inject into `buildWebTracker` / `buildMobileTracker`.
-  - Instrument the 9 events at their call sites per `docs/analytics.md`.
+- ~~Code side~~ — **done in #218**: posthog-js + posthog-react-native installed, wrapped in `AnalyticsClient` adapters, all 9 events instrumented per `docs/analytics.md`. Env vars documented in each app's `.env.example`.
+- Remaining (human):
+  - Generate a project API key (WBW Cross-Product project, id 370116).
+  - Vercel: set `NEXT_PUBLIC_POSTHOG_KEY=<key>`.
+  - EAS: set `EXPO_PUBLIC_POSTHOG_KEY=<key>` in the project's env (mobile capture is additionally opt-in via `EXPO_PUBLIC_POSTHOG_OPT_IN` / the in-app toggle).
+  - Verify events arrive: load the prod site, confirm `app_open` in the PostHog live-events view.
 
 ### 8. App Store + Play Store submission (Phase 5.9-wiring)
 

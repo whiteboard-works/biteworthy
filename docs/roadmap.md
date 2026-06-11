@@ -15,9 +15,8 @@ the merge / review / status rules.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **[BLOCKED] Phase 5.8-wiring — instrument 9 funnel events end-to-end** (followup to #179). Needs PostHog account + project API key; then `pnpm add posthog-js -F @biteworthy/web` + `pnpm add posthog-react-native -F @biteworthy/mobile` + call-site instrumentation per `docs/analytics.md`.
-2. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-3. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+2. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
 ### Done
 
@@ -80,6 +79,7 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Phase 5.10 — press kit + waitlist + Durango outreach templates (#183) — **last code-only Phase 5 PR**
 - ✅ Launch-readiness checklist + loop pause (#184) — `docs/launch-readiness.md` is the human's linear path from "code complete" to launch.
 - ✅ Phase 4.11.0 / 4.11.2-cassette — recorded against Simply Tasty Thai appetizers; ExtractMenuJob integration smoke now real (this PR) — **Phase 4.11 fully complete**
+- ✅ Phase 5.8-wiring — posthog-js + posthog-react-native wired into the 9 funnel events (#218) — code side complete; setting the real `*_POSTHOG_KEY` in Vercel/EAS is launch-readiness step 7
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 

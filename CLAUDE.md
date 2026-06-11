@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack at a glance
 
-Pnpm + Turborepo monorepo. Three apps + four shared packages:
+Pnpm + Turborepo monorepo. Three apps + five shared packages:
 
 - `apps/api` — Rails 8 (Ruby 3.3.6) JSON API on Postgres 16. **Not** part of the pnpm workspace; lives as its own Bundler tree.
 - `apps/web` — Next.js 15 App Router + Tailwind. Dev port `:3001`.
 - `apps/mobile` — Expo SDK 52 + expo-router.
-- `packages/api-types` — TS types (currently hand-written; OpenAPI codegen lands in Phase 1.6).
+- `packages/api-types` — TS types codegen'd from `docs/openapi.json` (see Cross-package contracts below).
 - `packages/filter-engine` — pure-TS dietary filter, shared by web + mobile, with Vitest tests. Mirrors the server-side SQL.
+- `packages/analytics` — the 9-event funnel taxonomy (`EVENTS` map + `EventPropsMap`). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
 - `packages/ui-tokens` — design tokens consumed by Tailwind (web) and `StyleSheet.create` (mobile).
 - `packages/eslint-config` — minimal flat config; framework rules live per-app.
 
@@ -38,6 +39,7 @@ pnpm mobile <script>       # alias for: pnpm --filter @biteworthy/mobile ...
 The API has its own toolchain — run from `apps/api/`:
 
 ```bash
+docker compose up -d postgres           # (from repo root) local Postgres 16, localhost-only, trust auth
 bundle install
 bin/rails db:create db:schema:load db:seed
 bin/rails s -p 3000                     # API on :3000 (web is on :3001)
@@ -47,6 +49,7 @@ bundle exec rspec spec/requests/foo_spec.rb     # one file
 bundle exec rspec spec/requests/foo_spec.rb:42  # one example by line
 bundle exec rubocop --parallel
 bundle exec brakeman --no-pager --quiet --format plain
+bin/openapi-export                      # regenerate docs/openapi.json from the rswag specs
 ```
 
 Per-app test runners (use these for narrow runs instead of `pnpm test`):
@@ -88,7 +91,7 @@ See `docs/schema.md` for the 60-second tour of all 25-ish tables, and `docs/inge
 
 ## Cross-package contracts
 
-- The Rails OpenAPI spec → `packages/api-types/src/generated.ts` codegen pipeline is **not yet wired up** (Phase 1.6). For now, `packages/api-types/src/index.ts` is hand-written. When you add an endpoint, update the hand-written types in the same PR. Once 1.6 lands, the hand-written file is deleted and only `generated.ts` is re-exported.
+- **API types are generated, not hand-written.** The chain: rswag specs in `apps/api/spec/integration/` → `bin/openapi-export` writes `docs/openapi.json` → `pnpm --filter @biteworthy/api-types build:codegen` writes `src/generated.ts`. When you add or change an endpoint, write/update its rswag spec and re-run both steps in the same PR — CI (`codegen:check` in `ci-js.yml`) fails if `generated.ts` drifts from the checked-in spec. A few hand-written read-model types (Ingredient, Tag, Restaurant, Item) remain in `packages/api-types/src/index.ts` until their endpoints get rswag specs.
 - `@biteworthy/filter-engine` consumes `@biteworthy/api-types`. If you change the shape of an `Item`, fix both.
 - `@biteworthy/ui-tokens` is consumed by `apps/web/tailwind.config.ts` (as Tailwind theme extensions) and `apps/mobile` (mapped into `StyleSheet.create`). Token renames touch all three.
 
@@ -110,13 +113,15 @@ See `docs/schema.md` for the 60-second tour of all 25-ish tables, and `docs/inge
 - `docs/status.md` — running log, newest first; what the previous tick left mid-flight.
 - `docs/schema.md` — the data model in 60 seconds.
 - `docs/ingestion.md` — how Claude vision + prompt-cached taxonomy turns a menu photo into staged `IngestionItem`s.
-- `docs/adr/0001-stack.md` — why every stack pick is what it is. Read before proposing alternatives.
+- `docs/analytics.md` — the funnel-event contract behind `packages/analytics`.
+- `docs/launch-readiness.md` — the human-action launch checklist (provisioning, store accounts, deploy).
+- `docs/adr/` — why every pick is what it is (0001 stack, 0007 hosting = Kamal + Hetzner + Neon, 0006 analytics = PostHog, plus email/blob/web-hosting). Read the relevant ADR before proposing alternatives.
 
 ## CI
 
 Two workflows gate PRs:
 
-- `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test`.
-- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16, then `bin/rails db:create db:schema:load`, then `bin/rspec`. Brakeman + Rubocop run with `continue-on-error: true` (informational, not blocking).
+- `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, `docs/openapi.json`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test` → api-types codegen drift check.
+- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. Brakeman + Rubocop run with `continue-on-error: true` (informational, not blocking).
 
 Both are required for auto-merge. Don't request human review on red.
