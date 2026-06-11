@@ -4,19 +4,38 @@ on:
   push:
     branches: [master, main]
   pull_request:
-    paths:
-      - "apps/api/**"
-      - ".github/workflows/ci-api.yml"
 
 concurrency:
   group: ci-api-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Cheap change detection so `rspec` always reports a status on every
+  # PR (required checks can't be satisfied by a workflow that never
+  # runs), while still skipping the heavy work on irrelevant changes.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ github.event_name != 'pull_request' || steps.filter.outputs.relevant == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            relevant:
+              - "apps/api/**"
+              - ".github/workflows/ci-api.yml"
+
   rspec:
     name: rspec · brakeman · rubocop
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     services:
       postgres:
         image: postgres:16
@@ -71,7 +90,6 @@ jobs:
 
       - name: Brakeman
         run: bundle exec brakeman --no-pager --quiet --format plain
-        continue-on-error: true
 
       - name: Rubocop
         run: bundle exec rubocop --parallel
