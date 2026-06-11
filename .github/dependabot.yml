@@ -17,6 +17,25 @@ updates:
       prefix: chore
       prefix-development: chore
       include: scope
+    # Expo-SDK-coupled packages (and jest, which jest-expo is built on) must
+    # move together via `npx expo install --fix`, not one at a time — piecemeal
+    # bumps walked mobile from SDK 52 to 56 and broke CI for ~3 weeks in
+    # June 2026. The monthly expo-align workflow owns their upgrades; see
+    # docs/automations-todo.md item 5. react/react-dom are deliberately NOT
+    # ignored (web needs their updates) — accepted residual risk for mobile.
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "metro*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "jest"
+      - dependency-name: "@types/jest"
+      - dependency-name: "react-test-renderer"
     groups:
       types:
         patterns: ["@types/*"]
@@ -24,8 +43,6 @@ updates:
         patterns: ["eslint*", "@eslint/*", "typescript-eslint*"]
       next:
         patterns: ["next", "@next/*", "eslint-config-next"]
-      expo:
-        patterns: ["expo*", "@expo/*", "react-native*", "metro*"]
       tanstack:
         patterns: ["@tanstack/*"]
 
