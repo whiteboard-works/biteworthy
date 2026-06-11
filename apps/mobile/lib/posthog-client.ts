@@ -21,6 +21,16 @@ export const EXTENSION_NAME = 'biteworthy';
 export type PostHogRNInstance = PostHog;
 
 /**
+ * posthog-react-native 4.45+ narrowed event properties from
+ * `Record<string, unknown>` to `{ [key: string]: JsonType }`, and the
+ * type isn't re-exported from the package's main entry — derive it
+ * from the method signature instead. The cast below is sound: every
+ * payload reaching this adapter is JSON-serializable by construction
+ * (`EventPropsMap` in @biteworthy/analytics only allows JSON shapes).
+ */
+type CaptureProperties = Parameters<PostHog['capture']>[1];
+
+/**
  * Register the `extension` super-property. The RN SDK's `register` is
  * async (writes to AsyncStorage); fire-and-forget is fine because the
  * subsequent `capture` calls retry from the same persisted store on
@@ -37,10 +47,10 @@ export function registerExtension(client: PostHog): void {
 export function createPostHogClient(client: PostHog): AnalyticsClient {
   return {
     capture(eventName, props) {
-      client.capture(eventName, props);
+      client.capture(eventName, props as CaptureProperties);
     },
     identify(distinctId, props) {
-      client.identify(distinctId, props);
+      client.identify(distinctId, props as CaptureProperties);
     },
     reset() {
       void client.reset();
