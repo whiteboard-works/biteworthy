@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { login, AuthError } from '../../lib/auth';
 
 /**
@@ -33,7 +34,8 @@ export default function LoginPage() {
     try {
       setSubmitting(true);
       await login(email, password);
-      router.replace(next);
+      // `next` is a runtime query value — typedRoutes can't prove it.
+      router.replace(next as Route);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 0;
       setError(status === 401 ? 'Wrong email or password.' : (err as Error).message);
@@ -96,7 +98,7 @@ export default function LoginPage() {
 
       <p className="mt-bw-6 text-bw-sm text-zinc-500">
         Don&rsquo;t have an account?{' '}
-        <Link href={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold text-bite hover:text-bite-dark">
+        <Link href={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}` as Route} className="font-semibold text-bite hover:text-bite-dark">
           Create one
         </Link>
       </p>
