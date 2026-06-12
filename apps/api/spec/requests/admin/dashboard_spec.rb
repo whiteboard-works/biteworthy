@@ -48,4 +48,21 @@ RSpec.describe "Admin::Dashboard", type: :request do
     expect(response.body).to include("Last 30 days")
     expect(response.body).to include("Cache hit rate")
   end
+
+  describe "community counters (Phase 6.4)" do
+    it "counts community runs separately from admin runs and shows spend vs ceiling" do
+      scanner = create(:user, password: "password123", is_admin: false)
+      admin_u = create(:user, password: "password123", is_admin: true)
+      create(:ingestion_run, restaurant: restaurant, user: scanner, api_cost_cents: 30)
+      create(:ingestion_run, restaurant: restaurant, user: admin_u, api_cost_cents: 70)
+
+      get "/admin/dashboard", headers: basic_auth
+
+      expect(response.body).to include("Community ingestion (today, UTC)")
+      community_card = response.body[/data-period="community-today".*?<\/div>\s*<\/div>/m]
+      expect(community_card).to include(">1<")          # 1 community run (admin's excluded)
+      expect(response.body).to include("$1.00 /")        # 30 + 70 cents total spend
+      expect(response.body).to include("$20.00")         # default ceiling
+    end
+  end
 end

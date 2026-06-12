@@ -35,6 +35,31 @@
       50-item menu = <strong><%= @target_target %>¢ per item</strong>.
     </p>
 
+    <div class="grid" style="margin-bottom: 24px;">
+      <div class="card" data-period="community-today">
+        <h2>Community ingestion (today, UTC)</h2>
+
+        <div class="stat">
+          <span class="label">Community runs</span>
+          <span class="value"><%= @community_runs_today %></span>
+        </div>
+        <% ceiling_ratio = @ceiling_cents.zero? ? 0 : @spend_today_cents.to_f / @ceiling_cents %>
+        <div class="stat">
+          <span class="label">Spend vs daily ceiling</span>
+          <span class="value <%= ceiling_ratio >= 0.8 ? "warn" : "ok" %>">
+            $<%= sprintf("%.2f", @spend_today_cents.to_f / 100) %> /
+            $<%= sprintf("%.2f", @ceiling_cents.to_f / 100) %>
+          </span>
+        </div>
+
+        <p class="target-line">
+          Same UTC-day window the Phase 6.1 cost ceiling enforces — when
+          spend hits the ceiling, non-admin run creation 503s until the
+          UTC day rolls over.
+        </p>
+      </div>
+    </div>
+
     <div class="grid">
       <% @metrics.each do |period_key, b| %>
         <div class="card" data-period="<%= period_key %>">

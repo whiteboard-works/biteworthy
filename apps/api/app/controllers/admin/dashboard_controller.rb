@@ -18,6 +18,22 @@ module Admin
     def index
       @metrics       = Ingestion::CostMetrics.by_period
       @target_target = Ingestion::CostMetrics::TARGET_CENTS_PER_ITEM
+
+      # Phase 6.4 — community-ingestion counters. Same UTC-day window
+      # the Phase 6.1 cost ceiling enforces, so "spend today" here is
+      # exactly the number the 503 guard compares against.
+      # (Parens required: an endless range at end-of-line parses the
+      # NEXT line as its end — bit me once already.)
+      today_utc             = (Time.current.utc.beginning_of_day..)
+      @community_runs_today = IngestionRun.joins(:user)
+                                          .where(users: { is_admin: false })
+                                          .where(created_at: today_utc)
+                                          .count
+      @spend_today_cents    = IngestionRun.where(created_at: today_utc).sum(:api_cost_cents)
+      @ceiling_cents        = Integer(ENV.fetch(
+        "INGESTION_DAILY_COST_CEILING_CENTS",
+        Api::V1::IngestionRunsController::DAILY_COST_CEILING_CENTS_DEFAULT
+      ))
     end
 
     private
