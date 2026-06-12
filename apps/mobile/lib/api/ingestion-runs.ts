@@ -204,3 +204,25 @@ export async function uploadIngestionRun(opts: UploadOptions): Promise<Ingestion
 
   return (await res.json()) as IngestionRunPayload;
 }
+
+/**
+ * Phase 6.6 — human copy for the Phase 6.1 guardrails. Works for any
+ * error carrying {status, body} (IngestionUploadError and
+ * RestaurantCreateError both do).
+ */
+export function friendlyScanError(err: unknown): string {
+  const e = err as { status?: number; body?: { error?: string; limit?: number } | null };
+  if (typeof e?.status === 'number') {
+    if (e.status === 429) {
+      const limit = e.body?.limit;
+      return `Daily scan limit reached${limit ? ` (${limit}/day)` : ''} — try again tomorrow.`;
+    }
+    if (e.status === 503) {
+      return "Today's community scanning budget is used up — try again tomorrow.";
+    }
+    if (e.status === 403 && e.body?.error === 'forbidden_restaurant') {
+      return "That restaurant is someone else's draft — pick a published restaurant or create your own.";
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}

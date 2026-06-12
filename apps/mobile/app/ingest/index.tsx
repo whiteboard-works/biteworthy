@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -13,30 +13,39 @@ import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
+  friendlyScanError,
   uploadIngestionRun,
+  IngestionUploadError,
   type CapturedPage,
 } from '../../lib/api/ingestion-runs';
 import { getJwt } from '../../lib/auth';
+import { RestaurantPicker } from './_RestaurantPicker';
 
 /**
  * Phase 2.6 — multi-page menu capture.
- *
- * Flow:
- *  1. Admin types a restaurant_id into the input (Phase 2.6 ships
- *     this as a bare UUID input; the picker UX comes when restaurants
- *     have a search endpoint, scheduled for Phase 3).
- *  2. Tap "scan menu" → camera opens.
- *  3. Take a photo → it's added to `pages[]` as a thumbnail.
- *  4. Repeat for each page; tap a thumbnail to retake.
- *  5. "Upload all" POSTs to /api/v1/ingestion_runs.
- *  6. Navigation to a polling/swipe-verify screen lands in 2.7.
+ * Phase 6.6 — community scan flow: pick or create the restaurant
+ * (Phase 6.2 dedup as "did you mean…?" rows), capture pages, upload,
+ * then land on the swipe-verify screen (Phase 2.7) for your own run
+ * (Phase 6.3 self-verify). Guardrail errors (Phase 6.1) render as
+ * human copy via friendlyScanError.
  */
 export default function IngestScreen() {
-  const [restaurantId, setRestaurantId] = useState('');
+  const [restaurant, setRestaurant] = useState<{ id: string; name: string } | null>(null);
+  const [manualId, setManualId] = useState('');
+  const [jwt, setJwt] = useState<string | null>(null);
   const [pages, setPages] = useState<CapturedPage[]>([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [uploading, setUploading] = useState(false);
+
+  const restaurantId = restaurant?.id ?? manualId;
+
+  useEffect(() => {
+    void getJwt().then((token) => {
+      if (token) setJwt(token);
+      else router.replace('/login?next=%2Fingest');
+    });
+  }, []);
 
   const onCapture = (uri: string) => {
     setPages((prev) => [...prev, { uri, mimeType: 'image/jpeg' }]);
@@ -49,10 +58,9 @@ export default function IngestScreen() {
 
   const onUpload = async () => {
     if (!restaurantId || pages.length === 0) {
-      Alert.alert('Missing info', 'Restaurant id and at least one page are required.');
+      Alert.alert('Missing info', 'Pick a restaurant and capture at least one page.');
       return;
     }
-    const jwt = await getJwt();
     if (!jwt) {
       router.replace('/login?next=%2Fingest');
       return;
@@ -60,15 +68,15 @@ export default function IngestScreen() {
     try {
       setUploading(true);
       const run = await uploadIngestionRun({ restaurantId, pages, jwt });
-      Alert.alert('Uploaded', `Run ${run.id.slice(0, 8)}… is now ${run.status}.`);
       setPages([]);
+      // Phase 6.6 — straight into swipe-verify for your own run.
+      router.push(`/ingest/verify?runId=${run.id}`);
     } catch (e) {
-      const message = (e as Error).message;
-      if (message.includes('401')) {
+      if (e instanceof IngestionUploadError && e.status === 401) {
         router.replace('/login?next=%2Fingest');
         return;
       }
-      Alert.alert('Upload failed', message);
+      Alert.alert('Upload failed', friendlyScanError(e));
     } finally {
       setUploading(false);
     }
@@ -109,17 +117,28 @@ export default function IngestScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.eyebrow}>Ingest a menu</Text>
-      <Text style={styles.headline}>Multi-page camera capture</Text>
+      <Text style={styles.eyebrow}>Scan a menu</Text>
+      <Text style={styles.headline}>
+        {restaurant ? `Scanning for ${restaurant.name}` : 'Which restaurant?'}
+      </Text>
 
-      <TextInput
-        accessibilityLabel="restaurant-id"
-        placeholder="Restaurant UUID"
-        value={restaurantId}
-        onChangeText={setRestaurantId}
-        autoCapitalize="none"
-        style={styles.input}
-      />
+      {restaurant ? (
+        <Pressable accessibilityLabel="change-restaurant" onPress={() => setRestaurant(null)}>
+          <Text style={styles.changeLink}>Change restaurant</Text>
+        </Pressable>
+      ) : (
+        <>
+          {jwt && <RestaurantPicker jwt={jwt} onPicked={setRestaurant} />}
+          <TextInput
+            accessibilityLabel="restaurant-id"
+            placeholder="…or paste a restaurant UUID"
+            value={manualId}
+            onChangeText={setManualId}
+            autoCapitalize="none"
+            style={styles.input}
+          />
+        </>
+      )}
 
       <FlatList
         data={pages}
@@ -200,6 +219,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: fontSize.base,
     paddingVertical: space['4'],
+  },
+  changeLink: {
+    color: colors.bite,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+    fontSize: fontSize.sm,
   },
   primaryButton: {
     backgroundColor: colors.bite,
