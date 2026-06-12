@@ -41,6 +41,7 @@ class ResolveTagsJob < ApplicationJob
 
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
+    run.record_api_usage!(client.last_usage, model: client.model)
     new_staging = ResolveIngredientsJob.new.apply_resolution(run.staging, result, key: :tags)
 
     run.transaction do

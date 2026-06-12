@@ -56,6 +56,19 @@ RSpec.describe ExtractMenuJob, type: :job do
       run.reload
       expect(run.status).to eq("staged")
     end
+
+    it "accrues real cost + tokens from the call's usage (Phase 6.1.1)" do
+      usage = { "input_tokens" => 100_000, "output_tokens" => 2_000,
+                "cache_read_input_tokens" => 0, "cache_creation_input_tokens" => 0 }
+      allow_any_instance_of(AnthropicClient).to receive(:last_usage).and_return(usage)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.api_cost_cents).to be > 0
+      expect(run.uncached_input_tokens).to eq(100_000)
+      expect(run.model).to eq(AnthropicClient::DEFAULT_MODEL)
+    end
   end
 
   describe "no inputs attached" do

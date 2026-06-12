@@ -102,4 +102,33 @@ RSpec.describe IngestionRun, type: :model do
       expect(run.failed?).to     be false
     end
   end
+
+  describe "#record_api_usage! (Phase 6.1.1)" do
+    let(:run) { create(:ingestion_run) }
+
+    let(:usage) do
+      { "input_tokens" => 100_000, "output_tokens" => 2_000,
+        "cache_read_input_tokens" => 50_000, "cache_creation_input_tokens" => 10_000 }
+    end
+
+    it "accrues cost + token counts and stamps the model" do
+      run.record_api_usage!(usage, model: "claude-sonnet-4-6")
+
+      run.reload
+      expect(run.api_cost_cents).to eq(Ingestion::UsageCost.cents(usage, model: "claude-sonnet-4-6"))
+      expect(run.cached_input_tokens).to   eq(50_000)
+      expect(run.uncached_input_tokens).to eq(110_000) # input + cache writes
+      expect(run.model).to eq("claude-sonnet-4-6")
+    end
+
+    it "accumulates across calls — three pipeline stages add up, not overwrite" do
+      2.times { run.record_api_usage!(usage, model: "claude-sonnet-4-6") }
+
+      expect(run.reload.cached_input_tokens).to eq(100_000)
+    end
+
+    it "no-ops on nil usage (stubbed clients, failed calls)" do
+      expect { run.record_api_usage!(nil) }.not_to change { run.reload.api_cost_cents }
+    end
+  end
 end
