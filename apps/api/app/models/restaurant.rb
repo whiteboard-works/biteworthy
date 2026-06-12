@@ -18,9 +18,20 @@ class Restaurant < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :published, -> { where(status: "published") }
-  # Phase 6.4 — the moderation lens: live restaurants that exist
-  # because a community member created + scanned them.
-  scope :community_published, -> { published.where.not(created_by_user_id: nil) }
+  # Phase 6.4 — the moderation lens. Two ways a restaurant enters it:
+  # a community member created it (created_by_user_id present), OR a
+  # community member re-scanned an existing/seeded restaurant, which
+  # leaves `suggested` items behind (6.4.1 — codex caught that
+  # rescans escaped the creator-only version of this scope).
+  scope :community_published, -> {
+    published.where(
+      "restaurants.created_by_user_id IS NOT NULL OR EXISTS (
+         SELECT 1 FROM items
+         WHERE items.restaurant_id = restaurants.id
+           AND items.confidence = 'suggested'
+       )"
+    )
+  }
 
   # Phase 6.4 — graduate a community-verified menu to strict-mode
   # visibility: flip every `suggested` association a HUMAN vouched for
@@ -42,7 +53,15 @@ class Restaurant < ApplicationRecord
                              .where(items: { restaurant_id: id },
                                     confidence: "suggested", source: "human")
                              .update_all(confidence: "confirmed")
-      items_n       = items.where(confidence: "suggested").update_all(confidence: "confirmed")
+
+      # Only items whose EVERY association is now confirmed graduate —
+      # an item still carrying an ai-suggested join must stay
+      # `suggested`, or strict mode would show it while an untrusted
+      # association remains (6.4.1 — codex).
+      items_n = items.where(confidence: "suggested")
+                     .where.not(id: ItemIngredient.where(confidence: "suggested").select(:item_id))
+                     .where.not(id: ItemTag.where(confidence: "suggested").select(:item_id))
+                     .update_all(confidence: "confirmed")
 
       { items: items_n, ingredients: ingredients_n, tags: tags_n }
     end

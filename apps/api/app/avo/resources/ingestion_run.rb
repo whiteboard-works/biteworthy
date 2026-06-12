@@ -45,4 +45,9 @@ class Avo::Resources::IngestionRun < Avo::BaseResource
   def actions
     action Avo::Actions::IngestionRuns::ReExtract
   end
+
+  # Phase 6.4.1 — run-level community moderation lens.
+  def filters
+    filter Avo::Filters::CommunityRuns
+  end
 end

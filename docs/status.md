@@ -13,6 +13,16 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 11:10 — tick #136. **Phase 6.4.1 — three codex P2s from
+#302 fixed forward.** (1) community_published scope now also catches
+seeded restaurants that received a community RE-scan (EXISTS on
+suggested items, not just created_by). (2) confirm-all no longer
+graduates an item whose ai-suggested joins remain — item.confidence
+only flips when EVERY association is confirmed (strict mode keys
+off item.confidence). (3) New Avo CommunityRuns filter on the
+ingestion-runs resource (runs by non-admin users). rspec 436/436
+(+1 net). Next: Phase 6.5 web community scan entrypoint.
+
 2026-06-12 10:55 — tick #135. **Phase 6.4 shipped — moderation
 visibility.** #301 (6.3) merged, zero codex findings. Loop cadence
 shortened to 15 min by owner. This PR:
