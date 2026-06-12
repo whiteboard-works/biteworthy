@@ -13,6 +13,21 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 02:00 — tick #131. **Phase 6.1 shipped — anyone can create
+ingestion runs.** Plan PR #296 merged. This PR drops `ensure_admin!`
+from POST /api/v1/ingestion_runs and adds the community guardrails:
+per-user rolling-24h quota (`INGESTION_RUNS_PER_USER_PER_DAY`,
+default 5 → 429 `quota_exceeded`) + global daily spend ceiling over
+`api_cost_cents` (`INGESTION_DAILY_COST_CEILING_CENTS`, default
+$20 → 503 `cost_ceiling_reached`); admins bypass both. Both vars
+documented in `apps/api/.env.example`. The non-admin-403 spec became
+a non-admin-201 spec; 7 new limit specs (quota boundary, rolling
+window, per-user isolation, prior-day spend ignored, admin bypasses).
+rspec 394/394; brakeman 0 warnings. Note: ingestion_runs has no
+rswag spec (pre-existing gap — openapi.json never covered it), so no
+codegen delta. Next: Phase 6.2 community restaurant creation +
+pg_trgm dedup.
+
 2026-06-12 00:05 — tick #130 (interactive session, loop restarted).
 **Owner approved the product-vision arc; Phases 6–8 planned and
 queued.** Owner restated the BIG goal (anyone scans any menu → full

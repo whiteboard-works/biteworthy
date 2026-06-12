@@ -4,12 +4,16 @@ module Api
     #   { restaurant_id: <uuid>, inputs[]: <files> }
     # GET  /api/v1/ingestion_runs/:id
     #
-    # Phase 2.6 — the mobile camera capture flow uploads here. Auth-gated
-    # to admins (Phase 4 introduces a contributor role). The endpoint
-    # creates the run, attaches the images, and kicks off the
+    # Phase 2.6 — the mobile camera capture flow uploads here. The
+    # endpoint creates the run, attaches the images, and kicks off the
     # ExtractMenuJob via the state machine.
+    #
+    # Phase 6.1 — open to any authenticated user (was admin-only).
+    # Non-admins are bounded by a per-user rolling-24h run quota and a
+    # global daily API-spend ceiling; admins bypass both. Community
+    # trust handling (suggested-confidence promotion) is Phase 6.3.
     class IngestionRunsController < BaseController
-      before_action :ensure_admin!, only: [:create]
+      before_action :enforce_community_limits!, only: [:create]
 
       def create
         restaurant = Restaurant.find(params.require(:restaurant_id))
@@ -73,9 +77,40 @@ module Api
                status: :unprocessable_entity
       end
 
-      def ensure_admin!
+      PER_USER_DAILY_RUNS_DEFAULT      = 5
+      DAILY_COST_CEILING_CENTS_DEFAULT = 2_000 # $20/day across all non-admin spend
+
+      def enforce_community_limits!
         return if current_user&.is_admin?
-        render json: { error: "forbidden" }, status: :forbidden
+
+        if runs_in_last_24h >= per_user_daily_limit
+          render json: { error: "quota_exceeded", limit: per_user_daily_limit },
+                 status: :too_many_requests
+          return
+        end
+
+        if todays_spend_cents >= daily_cost_ceiling_cents
+          render json: { error: "cost_ceiling_reached" }, status: :service_unavailable
+        end
+      end
+
+      def runs_in_last_24h
+        IngestionRun.where(user_id: current_user.id)
+                    .where(created_at: 24.hours.ago..)
+                    .count
+      end
+
+      def todays_spend_cents
+        IngestionRun.where(created_at: Time.current.utc.beginning_of_day..)
+                    .sum(:api_cost_cents)
+      end
+
+      def per_user_daily_limit
+        Integer(ENV.fetch("INGESTION_RUNS_PER_USER_PER_DAY", PER_USER_DAILY_RUNS_DEFAULT))
+      end
+
+      def daily_cost_ceiling_cents
+        Integer(ENV.fetch("INGESTION_DAILY_COST_CEILING_CENTS", DAILY_COST_CEILING_CENTS_DEFAULT))
       end
 
       def detect_input_kind(file)

@@ -42,13 +42,17 @@ RSpec.describe "Ingestion runs API", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "rejects a non-admin caller with 403" do
-      post "/api/v1/ingestion_runs",
-           params: { restaurant_id: restaurant.id, inputs: [fake_image] },
-           headers: auth_for(non_admin)
+    it "creates a run for a non-admin caller (Phase 6.1 — anyone can scan)" do
+      allow(ExtractMenuJob).to receive(:perform_later)
 
-      expect(response).to have_http_status(:forbidden)
-      expect(response.parsed_body["error"]).to eq("forbidden")
+      expect {
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, inputs: [fake_image] },
+             headers: auth_for(non_admin)
+      }.to change(IngestionRun, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(IngestionRun.last.user_id).to eq(non_admin.id)
     end
 
     it "422s when no inputs are attached" do
@@ -144,6 +148,86 @@ RSpec.describe "Ingestion runs API", type: :request do
         expect(body["error"]).to  eq("url_fetch_failed")
         expect(body["reason"]).to eq("non_2xx")
         expect(body["status"]).to eq(503)
+      end
+    end
+  end
+
+  describe "community limits (Phase 6.1)" do
+    before { allow(ExtractMenuJob).to receive(:perform_later) }
+
+    around do |example|
+      old_quota   = ENV["INGESTION_RUNS_PER_USER_PER_DAY"]
+      old_ceiling = ENV["INGESTION_DAILY_COST_CEILING_CENTS"]
+      example.run
+    ensure
+      ENV["INGESTION_RUNS_PER_USER_PER_DAY"]    = old_quota
+      ENV["INGESTION_DAILY_COST_CEILING_CENTS"] = old_ceiling
+    end
+
+    def create_run_as(user)
+      post "/api/v1/ingestion_runs",
+           params: { restaurant_id: restaurant.id, inputs: [fake_image] },
+           headers: auth_for(user)
+    end
+
+    describe "per-user daily quota" do
+      before { ENV["INGESTION_RUNS_PER_USER_PER_DAY"] = "2" }
+
+      it "allows runs up to the quota, then 429s with the limit in the payload" do
+        2.times { create_run_as(non_admin) }
+        expect(response).to have_http_status(:created)
+
+        expect { create_run_as(non_admin) }.not_to change(IngestionRun, :count)
+        expect(response).to have_http_status(:too_many_requests)
+        expect(response.parsed_body).to include("error" => "quota_exceeded", "limit" => 2)
+      end
+
+      it "is a rolling 24h window — runs older than 24h don't count" do
+        create(:ingestion_run, user: non_admin, restaurant: restaurant, created_at: 25.hours.ago)
+        create(:ingestion_run, user: non_admin, restaurant: restaurant, created_at: 1.hour.ago)
+
+        create_run_as(non_admin)
+        expect(response).to have_http_status(:created)
+      end
+
+      it "is per-user — another user's runs don't count against mine" do
+        other = create(:user, password: "password123", is_admin: false)
+        2.times { create(:ingestion_run, user: other, restaurant: restaurant) }
+
+        create_run_as(non_admin)
+        expect(response).to have_http_status(:created)
+      end
+
+      it "admins bypass the quota" do
+        3.times { create_run_as(admin) }
+        expect(response).to have_http_status(:created)
+      end
+    end
+
+    describe "global daily cost ceiling" do
+      before { ENV["INGESTION_DAILY_COST_CEILING_CENTS"] = "1000" }
+
+      it "503s non-admin creation once today's spend reaches the ceiling" do
+        create(:ingestion_run, user: admin, restaurant: restaurant, api_cost_cents: 1_000)
+
+        expect { create_run_as(non_admin) }.not_to change(IngestionRun, :count)
+        expect(response).to have_http_status(:service_unavailable)
+        expect(response.parsed_body["error"]).to eq("cost_ceiling_reached")
+      end
+
+      it "ignores spend from previous days" do
+        create(:ingestion_run, user: admin, restaurant: restaurant,
+                               api_cost_cents: 5_000, created_at: 2.days.ago)
+
+        create_run_as(non_admin)
+        expect(response).to have_http_status(:created)
+      end
+
+      it "admins bypass the ceiling" do
+        create(:ingestion_run, user: admin, restaurant: restaurant, api_cost_cents: 9_999)
+
+        create_run_as(admin)
+        expect(response).to have_http_status(:created)
       end
     end
   end
