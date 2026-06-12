@@ -5,13 +5,23 @@ RSpec.describe Restaurant, type: :model do
   let(:scanner) { create(:user, password: "password123", is_admin: false) }
 
   describe ".community_published" do
-    it "includes live community-created restaurants only" do
+    it "includes live community-created restaurants" do
       community_live  = create(:restaurant, :published, created_by_user: scanner)
       community_draft = create(:restaurant, status: "draft", created_by_user: scanner)
-      admin_seeded    = create(:restaurant, :published) # no creator
+      admin_seeded    = create(:restaurant, :published) # no creator, no suggested items
 
       expect(described_class.community_published).to contain_exactly(community_live)
       expect(described_class.community_published).not_to include(community_draft, admin_seeded)
+    end
+
+    it "includes seeded restaurants that received a community RE-scan (suggested items, no creator)" do
+      rescanned = create(:restaurant, :published) # admin-seeded
+      create(:item, :published, restaurant: rescanned) # factory default confidence: suggested
+
+      pristine = create(:restaurant, :published)
+      create(:item, :published, :confirmed, restaurant: pristine)
+
+      expect(described_class.community_published).to contain_exactly(rescanned)
     end
   end
 
@@ -35,14 +45,18 @@ RSpec.describe Restaurant, type: :model do
       expect(ItemTag.where(item: community_item).pluck(:confidence)).to        all(eq("confirmed"))
     end
 
-    it "leaves ai-sourced suggestions alone — the admin endorses the human, not the model" do
+    it "leaves ai-sourced suggestions alone AND keeps their item unconfirmed" do
       onion = create(:ingredient, slug: "vegetable-onion")
       ai_row = ItemIngredient.create!(item: community_item, ingredient: onion,
                                       confidence: "suggested", source: "ai")
 
-      restaurant.confirm_community_associations!
+      counts = restaurant.confirm_community_associations!
 
       expect(ai_row.reload.confidence).to eq("suggested")
+      # The item must NOT graduate while an untrusted association
+      # remains — strict mode keys off item.confidence (6.4.1).
+      expect(community_item.reload.confidence).to eq("suggested")
+      expect(counts[:items]).to eq(0)
     end
 
     it "does not touch other restaurants" do
