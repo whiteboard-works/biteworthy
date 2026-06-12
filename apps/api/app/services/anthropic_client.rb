@@ -83,6 +83,13 @@ class AnthropicClient
 
   attr_reader :api_key, :model, :base_url
 
+  # The `usage` object from the most recent successful messages_create
+  # call ({"input_tokens" =>, "output_tokens" =>,
+  # "cache_read_input_tokens" =>, "cache_creation_input_tokens" =>}).
+  # Phase 6.1.1 — jobs read this after each call to accrue real cost
+  # onto IngestionRun.api_cost_cents. Nil until a call succeeds.
+  attr_reader :last_usage
+
   def initialize(api_key: nil, model: nil, base_url: nil, conn: nil)
     @api_key  = api_key  || ENV["ANTHROPIC_API_KEY"] || ""
     @model    = model    || DEFAULT_MODEL
@@ -113,6 +120,7 @@ class AnthropicClient
     end
 
     parsed = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
+    @last_usage = parsed["usage"]
     return parsed if response_schema.nil?
 
     text = ResponseParser.first_text(parsed)

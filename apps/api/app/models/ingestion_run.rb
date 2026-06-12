@@ -101,6 +101,25 @@ class IngestionRun < ApplicationRecord
     true
   end
 
+  # Phase 6.1.1 — accrue one Anthropic call's usage onto the run.
+  # Called by each pipeline job after a successful API call. Safe
+  # no-op when usage is nil (job specs stub messages_create without
+  # usage; VCR replays carry it). Jobs run sequentially per run, so
+  # read-modify-write here doesn't race.
+  def record_api_usage!(usage, model: nil)
+    return self if usage.blank?
+
+    pricing_model = model || self.model || AnthropicClient::DEFAULT_MODEL
+    update!(
+      model:                 pricing_model,
+      api_cost_cents:        api_cost_cents + Ingestion::UsageCost.cents(usage, model: pricing_model),
+      cached_input_tokens:   cached_input_tokens + usage["cache_read_input_tokens"].to_i,
+      uncached_input_tokens: uncached_input_tokens + usage["input_tokens"].to_i +
+                             usage["cache_creation_input_tokens"].to_i
+    )
+    self
+  end
+
   private
 
   def record_state_entry!(new_status)

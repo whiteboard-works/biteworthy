@@ -13,8 +13,6 @@ module Api
     # global daily API-spend ceiling; admins bypass both. Community
     # trust handling (suggested-confidence promotion) is Phase 6.3.
     class IngestionRunsController < BaseController
-      before_action :enforce_community_limits!, only: [:create]
-
       def create
         restaurant = Restaurant.find(params.require(:restaurant_id))
         files      = Array(params[:inputs]).reject(&:blank?)
@@ -25,10 +23,34 @@ module Api
           return
         end
 
+        return unless validate_files!(files)
+
+        # URL fetch happens BEFORE the per-user lock — an upstream
+        # server's slowness must not extend how long we hold a DB
+        # transaction + advisory lock.
+        fetched = nil
         if source_url
-          create_from_url(restaurant, source_url)
-        else
-          create_from_files(restaurant, files)
+          begin
+            fetched = UrlFetcher.fetch(source_url)
+          rescue UrlFetcher::FetchError => e
+            render json: { error: "url_fetch_failed", reason: e.reason, status: e.status },
+                   status: :unprocessable_entity
+            return
+          end
+        end
+
+        # The quota check and the INSERT must be atomic per user, or
+        # parallel requests just under the quota all pass the read and
+        # all insert (codex P2 on #297). pg_advisory_xact_lock keyed on
+        # the user id serializes them; admins skip the lock entirely.
+        with_per_user_serialization do
+          next unless enforce_community_limits!
+
+          if fetched
+            create_from_fetched(restaurant, source_url, fetched)
+          else
+            create_from_files(restaurant, files)
+          end
         end
       end
 
@@ -56,8 +78,7 @@ module Api
         render json: serialize_run(run), status: :created
       end
 
-      def create_from_url(restaurant, source_url)
-        result = UrlFetcher.fetch(source_url)
+      def create_from_fetched(restaurant, source_url, result)
         run = IngestionRun.create!(
           user:       current_user,
           restaurant: restaurant,
@@ -72,26 +93,74 @@ module Api
         run.transition_to!(:extracting)
 
         render json: serialize_run(run), status: :created
-      rescue UrlFetcher::FetchError => e
-        render json: { error: "url_fetch_failed", reason: e.reason, status: e.status },
-               status: :unprocessable_entity
       end
 
       PER_USER_DAILY_RUNS_DEFAULT      = 5
       DAILY_COST_CEILING_CENTS_DEFAULT = 2_000 # $20/day across all non-admin spend
+      MAX_INPUT_FILES_DEFAULT          = 10
+      MAX_INPUT_FILE_BYTES_DEFAULT     = 10 * 1024 * 1024 # match UrlFetcher's 10 MB cap
 
+      ALLOWED_INPUT_CONTENT_TYPES = %w[
+        image/jpeg image/png image/heic image/heif image/webp application/pdf
+      ].freeze
+
+      # Direct multipart uploads need the same bounds the URL path has
+      # had since Phase 2.8 (codex P2 on #297). Applies to admins too —
+      # the extraction job base64-encodes every byte into the prompt,
+      # so oversized inputs hurt regardless of who sent them.
+      def validate_files!(files)
+        return true if files.empty?
+
+        if files.size > max_input_files
+          render json: { error: "too_many_files", limit: max_input_files },
+                 status: :unprocessable_entity
+          return false
+        end
+
+        if files.any? { |f| f.size.to_i > max_input_file_bytes }
+          render json: { error: "file_too_large", limit_bytes: max_input_file_bytes },
+                 status: :unprocessable_entity
+          return false
+        end
+
+        if files.any? { |f| ALLOWED_INPUT_CONTENT_TYPES.exclude?(f.content_type.to_s) }
+          render json: { error: "unsupported_file_type", allowed: ALLOWED_INPUT_CONTENT_TYPES },
+                 status: :unprocessable_entity
+          return false
+        end
+
+        true
+      end
+
+      def with_per_user_serialization(&block)
+        return yield if current_user&.is_admin?
+
+        ActiveRecord::Base.transaction do
+          ActiveRecord::Base.connection.execute(
+            ActiveRecord::Base.sanitize_sql_array(
+              ["SELECT pg_advisory_xact_lock(hashtext(?))", current_user.id]
+            )
+          )
+          block.call
+        end
+      end
+
+      # Returns true when within limits; renders + returns false otherwise.
       def enforce_community_limits!
-        return if current_user&.is_admin?
+        return true if current_user&.is_admin?
 
         if runs_in_last_24h >= per_user_daily_limit
           render json: { error: "quota_exceeded", limit: per_user_daily_limit },
                  status: :too_many_requests
-          return
+          return false
         end
 
         if todays_spend_cents >= daily_cost_ceiling_cents
           render json: { error: "cost_ceiling_reached" }, status: :service_unavailable
+          return false
         end
+
+        true
       end
 
       def runs_in_last_24h
@@ -111,6 +180,14 @@ module Api
 
       def daily_cost_ceiling_cents
         Integer(ENV.fetch("INGESTION_DAILY_COST_CEILING_CENTS", DAILY_COST_CEILING_CENTS_DEFAULT))
+      end
+
+      def max_input_files
+        Integer(ENV.fetch("INGESTION_MAX_INPUT_FILES", MAX_INPUT_FILES_DEFAULT))
+      end
+
+      def max_input_file_bytes
+        Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", MAX_INPUT_FILE_BYTES_DEFAULT))
       end
 
       def detect_input_kind(file)

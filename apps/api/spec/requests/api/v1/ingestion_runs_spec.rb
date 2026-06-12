@@ -158,10 +158,62 @@ RSpec.describe "Ingestion runs API", type: :request do
     around do |example|
       old_quota   = ENV["INGESTION_RUNS_PER_USER_PER_DAY"]
       old_ceiling = ENV["INGESTION_DAILY_COST_CEILING_CENTS"]
+      old_files   = ENV["INGESTION_MAX_INPUT_FILES"]
+      old_bytes   = ENV["INGESTION_MAX_INPUT_FILE_BYTES"]
       example.run
     ensure
       ENV["INGESTION_RUNS_PER_USER_PER_DAY"]    = old_quota
       ENV["INGESTION_DAILY_COST_CEILING_CENTS"] = old_ceiling
+      ENV["INGESTION_MAX_INPUT_FILES"]          = old_files
+      ENV["INGESTION_MAX_INPUT_FILE_BYTES"]     = old_bytes
+    end
+
+    describe "upload caps (Phase 6.1.1)" do
+      it "422s when more files than the cap are attached" do
+        ENV["INGESTION_MAX_INPUT_FILES"] = "2"
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id,
+                       inputs: [fake_image("1.jpg"), fake_image("2.jpg"), fake_image("3.jpg")] },
+             headers: auth_for(non_admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to include("error" => "too_many_files", "limit" => 2)
+      end
+
+      it "422s when a file exceeds the byte cap" do
+        ENV["INGESTION_MAX_INPUT_FILE_BYTES"] = "2"
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, inputs: [fake_image] },
+             headers: auth_for(non_admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("file_too_large")
+      end
+
+      it "422s on content types the pipeline can't extract from" do
+        txt = Rack::Test::UploadedFile.new(StringIO.new("just text"), "text/plain",
+                                           original_filename: "menu.txt")
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, inputs: [txt] },
+             headers: auth_for(non_admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("unsupported_file_type")
+      end
+
+      it "applies the caps to admins too" do
+        ENV["INGESTION_MAX_INPUT_FILES"] = "1"
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id,
+                       inputs: [fake_image("1.jpg"), fake_image("2.jpg")] },
+             headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
     end
 
     def create_run_as(user)

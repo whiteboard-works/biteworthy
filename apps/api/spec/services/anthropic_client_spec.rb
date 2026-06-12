@@ -113,6 +113,24 @@ RSpec.describe AnthropicClient do
       expect(result["content"].first["text"]).to include("Tacos")
     end
 
+    it "exposes the response usage via #last_usage (Phase 6.1.1 cost accrual)" do
+      stub_request(:post, "#{base_url}/v1/messages")
+        .to_return(status: 200, body: happy_response_body,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.last_usage).to be_nil
+
+      client.messages_create(
+        system:   [{ type: "text", text: "x" }],
+        messages: [{ role: "user", content: "hello" }]
+      )
+
+      expect(client.last_usage).to eq(
+        "input_tokens" => 10, "output_tokens" => 5,
+        "cache_creation_input_tokens" => 0, "cache_read_input_tokens" => 0
+      )
+    end
+
     context "with response_schema" do
       let(:menu_schema) do
         {

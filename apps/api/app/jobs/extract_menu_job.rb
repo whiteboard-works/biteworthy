@@ -52,6 +52,7 @@ class ExtractMenuJob < ApplicationJob
 
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
+    run.record_api_usage!(client.last_usage, model: client.model)
     run.update!(
       staging:    result,
       latency_ms: elapsed_ms

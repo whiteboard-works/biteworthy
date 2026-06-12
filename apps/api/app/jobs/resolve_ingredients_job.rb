@@ -43,6 +43,7 @@ class ResolveIngredientsJob < ApplicationJob
 
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
+    run.record_api_usage!(client.last_usage, model: client.model)
     run.update!(
       staging:    apply_resolution(run.staging, result, key: :ingredients),
       latency_ms: elapsed_ms

@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 02:35 — tick #132. **Phase 6.1.1 — community ingestion
+hardened per codex review of #297.** All three codex findings were
+real and are fixed forward:
+- **P1 (cost ceiling read a column nothing wrote):** confirmed —
+  no job ever wrote `api_cost_cents`. AnthropicClient now exposes
+  `last_usage`; new `Ingestion::UsageCost` prices it (sonnet-4-6
+  rate card, cache-read 0.1x / cache-write 1.25x, ceil per call so
+  sub-cent calls can't leak the ceiling); all three pipeline jobs
+  call the new `IngestionRun#record_api_usage!` (cost + cached/
+  uncached token columns + model stamp). The Phase 2.9 dashboard
+  starts showing real numbers too.
+- **P2 (quota TOCTOU race):** quota check + INSERT now serialized
+  per user via `pg_advisory_xact_lock(hashtext(user_id))`; admins
+  skip the lock. URL fetch happens BEFORE the lock so a slow
+  upstream can't hold a DB transaction open.
+- **P2 (unbounded multipart uploads):** per-run caps — max files
+  (`INGESTION_MAX_INPUT_FILES`, 10), per-file bytes
+  (`INGESTION_MAX_INPUT_FILE_BYTES`, 10 MB = UrlFetcher's cap),
+  content-type allowlist (jpeg/png/heic/heif/webp/pdf). Applies to
+  admins too.
+rspec 408/408 (+14); brakeman 0. Next: Phase 6.2 community
+restaurant creation + pg_trgm dedup.
+
 2026-06-12 02:00 — tick #131. **Phase 6.1 shipped — anyone can create
 ingestion runs.** Plan PR #296 merged. This PR drops `ensure_admin!`
 from POST /api/v1/ingestion_runs and adds the community guardrails:
