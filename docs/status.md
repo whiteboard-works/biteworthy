@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 10:55 — tick #135. **Phase 6.4 shipped — moderation
+visibility.** #301 (6.3) merged, zero codex findings. Loop cadence
+shortened to 15 min by owner. This PR:
+- `Restaurant.community_published` scope + Avo boolean filter on the
+  restaurants resource (+ created_by_user fields).
+- `Restaurant#confirm_community_associations!` + Avo bulk action
+  "Confirm community menu → strict-mode visible": flips
+  suggested/human joins + item confidence to confirmed via
+  update_all (id arrays untouched — only ids sync via callbacks).
+  Deliberately skips source:ai rows — admin endorses the human
+  verifier, not the model. Returns counts for the admin message.
+- /admin/dashboard: "Community ingestion (today, UTC)" card —
+  community run count (non-admin users) + spend vs ceiling using
+  EXACTLY the same UTC-day window the 6.1 ceiling enforces; warns
+  at ≥80%.
+War story: endless-range-at-end-of-line Ruby parse trap — `x = t..`
+consumed the next line as the range end → PG DatetimeFieldOverflow.
+Parenthesized + commented. rspec 435/435 (+7); brakeman 0.
+Next: Phase 6.5 web community scan entrypoint.
+
 2026-06-12 10:20 — tick #134. **Phase 6.3 shipped — community
 self-verify + suggested-confidence trust model.** #300 (6.2) merged
 with zero codex findings. This PR:
