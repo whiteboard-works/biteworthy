@@ -13,6 +13,20 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 19:05 — tick #140. **Phase 7.2 shipped — real mobile home
+screen.** The Phase-0 "Pre-MVP" placeholder is gone: debounced
+(300ms) restaurant search → tap into the filtered menu, scan CTA →
+/ingest, profile link → /onboarding; search-miss copy nudges toward
+scanning. API: implemented the GET /api/v1/restaurants index that
+was routed since Phase 0 but had no action (500'd) — published
+scope, ?q= ILIKE with sanitize_sql_like, 25-row cap, summary
+serializer incl. lat/lng for the deferred near-me sort
+(expo-location followup). +4 request specs (440 examples green),
++3 lib specs, +5 home.render specs (mobile jest 102/102); typecheck,
+lint, brakeman all green. #306 (7.1) auto-merged on green while this
+was in flight; branch rebased onto it. Next: Phase 7.3 stitch the
+scan-to-menu flow end-to-end.
+
 2026-06-12 12:10 — tick #139. **Phase 7.1 shipped — real camera
 capture.** Also logging tick #138 retroactively (its status entry
 was deferred to dodge a same-line squash conflict with #304):
