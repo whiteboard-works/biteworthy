@@ -157,3 +157,79 @@ export async function clearNeverHide(
   if (!res.ok) throw new RestaurantFetchError(res.status, `clearNeverHide ${itemId} failed: ${res.status}`);
   return (await res.json()) as { item_id: string; overridden_by_user: boolean };
 }
+
+/**
+ * Phase 6.6 — community restaurant creation (mobile twin of the web
+ * flow). 409 possible_duplicate is a flow state, not an error: the
+ * caller renders the candidates as "did you mean…?" rows.
+ */
+
+export interface DuplicateCandidate {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  street: string | null;
+}
+
+export interface CreatedRestaurant {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+}
+
+export type CreateRestaurantResult =
+  | { kind: 'created'; restaurant: CreatedRestaurant }
+  | { kind: 'duplicates'; candidates: DuplicateCandidate[] };
+
+export class RestaurantCreateError extends Error {
+  status: number;
+  body: unknown;
+  constructor(status: number, body: unknown) {
+    super(`Restaurant create failed: ${status}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export async function createRestaurant(opts: {
+  name: string;
+  citySlug: string;
+  street?: string;
+  postalCode?: string;
+  force?: boolean;
+  jwt: string;
+  fetchImpl?: typeof fetch;
+}): Promise<CreateRestaurantResult> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/restaurants`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${opts.jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: opts.name,
+      city_slug: opts.citySlug,
+      street: opts.street,
+      postal_code: opts.postalCode,
+      force: opts.force ? 'true' : undefined,
+    }),
+  });
+
+  if (res.status === 409) {
+    const body = (await res.json()) as { candidates: DuplicateCandidate[] };
+    return { kind: 'duplicates', candidates: body.candidates ?? [] };
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new RestaurantCreateError(res.status, body);
+  }
+  return { kind: 'created', restaurant: (await res.json()) as CreatedRestaurant };
+}
