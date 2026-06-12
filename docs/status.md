@@ -13,6 +13,15 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 03:05 — tick #133 (part 1). **Phase 6.1.2 — two codex P2s
+from #298 fixed forward.** (1) Over-quota callers could still force
+an outbound URL fetch: a cheap unlocked limits pre-check now runs
+before UrlFetcher; the authoritative check still re-runs under the
+advisory lock. (2) Billed 200s that failed schema validation never
+accrued usage: all three jobs now record_api_usage! in the
+ValidationError rescue before fail!. rspec 410/410 (+2). Part 2 of
+this tick: Phase 6.2.
+
 2026-06-12 02:35 — tick #132. **Phase 6.1.1 — community ingestion
 hardened per codex review of #297.** All three codex findings were
 real and are fixed forward:

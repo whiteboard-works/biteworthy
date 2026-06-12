@@ -122,6 +122,17 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.failure_message).to start_with("schema_validation_failed:")
       expect(run.failure_message).to include("sections must be an array")
     end
+
+    it "still accrues the billed usage (Phase 6.1.2 — a 200 that fails our schema cost money)" do
+      usage = { "input_tokens" => 100_000, "output_tokens" => 2_000 }
+      allow_any_instance_of(AnthropicClient).to receive(:last_usage).and_return(usage)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.failed?).to be true
+      expect(run.api_cost_cents).to be > 0
+    end
   end
 
   describe "live-cassette integration smoke test" do

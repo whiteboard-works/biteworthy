@@ -37,6 +37,8 @@ class ResolveIngredientsJob < ApplicationJob
       run.fail!("resolve_ingredients_api_error: #{e.status} #{e.body.to_s.truncate(500)}")
       return
     rescue AnthropicClient::ValidationError => e
+      # Billed 200 with a non-conforming body — still accrue its cost.
+      run.record_api_usage!(client.last_usage, model: client.model)
       run.fail!("resolve_ingredients_validation_failed: #{e.errors.first(3).join('; ')}")
       return
     end
