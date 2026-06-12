@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
   Image,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -37,6 +38,9 @@ export default function IngestScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [uploading, setUploading] = useState(false);
+  // Phase 7.1 — the real capture goes through this ref.
+  const cameraRef = useRef<CameraView>(null);
+  const [capturing, setCapturing] = useState(false);
 
   const restaurantId = restaurant?.id ?? manualId;
 
@@ -47,9 +51,24 @@ export default function IngestScreen() {
     });
   }, []);
 
-  const onCapture = (uri: string) => {
-    setPages((prev) => [...prev, { uri, mimeType: 'image/jpeg' }]);
-    setCameraOpen(false);
+  // Phase 7.1 — real capture via the CameraView ref (was a mock URI
+  // in the Phase 2.6 skeleton). quality 0.7 keeps a typical menu page
+  // well under the 10 MB per-file cap while staying readable for the
+  // vision model.
+  const onCapturePress = async () => {
+    if (capturing) return;
+    try {
+      setCapturing(true);
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.7 });
+      if (photo?.uri) {
+        setPages((prev) => [...prev, { uri: photo.uri, mimeType: 'image/jpeg' }]);
+        setCameraOpen(false);
+      }
+    } catch (e) {
+      Alert.alert('Capture failed', (e as Error).message);
+    } finally {
+      setCapturing(false);
+    }
   };
 
   const onDelete = (i: number) => {
@@ -85,31 +104,43 @@ export default function IngestScreen() {
   if (cameraOpen) {
     if (!permission) return <View testID="camera-permission-loading" />;
     if (!permission.granted) {
+      // Phase 7.1 — when the OS won't re-prompt (canAskAgain false),
+      // the only path is the system settings screen.
+      const hardDenied = !permission.canAskAgain;
       return (
         <View style={styles.container}>
           <Text style={styles.headline}>Camera permission needed</Text>
-          <Pressable onPress={requestPermission} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Grant access</Text>
+          <Text style={styles.permissionBody}>
+            BiteWorthy uses the camera only to photograph menu pages you choose to
+            scan. Photos upload to extract dishes — nothing records in the background.
+          </Text>
+          <Pressable
+            accessibilityLabel={hardDenied ? 'open-settings' : 'grant-camera'}
+            onPress={hardDenied ? () => void Linking.openSettings() : requestPermission}
+            style={styles.primaryButton}
+          >
+            <Text style={styles.primaryButtonText}>
+              {hardDenied ? 'Open Settings' : 'Grant access'}
+            </Text>
+          </Pressable>
+          <Pressable accessibilityLabel="camera-back" onPress={() => setCameraOpen(false)}>
+            <Text style={styles.changeLink}>Back</Text>
           </Pressable>
         </View>
       );
     }
     return (
       <View style={{ flex: 1 }}>
-        <CameraView
-          style={{ flex: 1 }}
-          facing="back"
-          onCameraReady={() => {}}
-          // The actual capture is wired in via a ref in production —
-          // this skeleton shows the structure; fine-grained capture
-          // gestures land alongside the real on-device testing pass.
-        />
+        <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" />
         <Pressable
           accessibilityLabel="capture-page"
-          style={styles.captureButton}
-          onPress={() => onCapture(`file:///mock/page-${pages.length + 1}.jpg`)}
+          style={[styles.captureButton, capturing && styles.disabled]}
+          disabled={capturing}
+          onPress={() => void onCapturePress()}
         >
-          <Text style={styles.captureButtonText}>📸 Capture page</Text>
+          <Text style={styles.captureButtonText}>
+            {capturing ? '⏳ Capturing…' : '📸 Capture page'}
+          </Text>
         </Pressable>
       </View>
     );
@@ -225,6 +256,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
     fontSize: fontSize.sm,
+  },
+  permissionBody: {
+    color: colors.textMuted,
+    fontSize: fontSize.base,
+    lineHeight: 22,
   },
   primaryButton: {
     backgroundColor: colors.bite,
