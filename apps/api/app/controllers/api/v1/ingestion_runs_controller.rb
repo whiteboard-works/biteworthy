@@ -25,6 +25,11 @@ module Api
 
         return unless validate_files!(files)
 
+        # Cheap unlocked pre-check so an over-quota caller can't make
+        # us do an outbound URL fetch (codex P2 on #298). Advisory only
+        # — the authoritative check re-runs under the lock below.
+        return unless enforce_community_limits!
+
         # URL fetch happens BEFORE the per-user lock — an upstream
         # server's slowness must not extend how long we hold a DB
         # transaction + advisory lock.

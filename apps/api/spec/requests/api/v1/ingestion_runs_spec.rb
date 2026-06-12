@@ -254,6 +254,17 @@ RSpec.describe "Ingestion runs API", type: :request do
         3.times { create_run_as(admin) }
         expect(response).to have_http_status(:created)
       end
+
+      it "rejects over-quota callers BEFORE doing any outbound URL fetch (Phase 6.1.2)" do
+        2.times { create(:ingestion_run, user: non_admin, restaurant: restaurant) }
+        expect(UrlFetcher).not_to receive(:fetch)
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, source_url: "https://example.com/menu" },
+             headers: auth_for(non_admin)
+
+        expect(response).to have_http_status(:too_many_requests)
+      end
     end
 
     describe "global daily cost ceiling" do

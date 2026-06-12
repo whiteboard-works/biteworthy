@@ -46,6 +46,9 @@ class ExtractMenuJob < ApplicationJob
       run.fail!("anthropic_api_error: #{e.status} #{e.body.to_s.truncate(500)}")
       return
     rescue AnthropicClient::ValidationError => e
+      # The 200 was billed even though its body failed our schema —
+      # accrue it so the cost ceiling can't leak via failed runs.
+      run.record_api_usage!(client.last_usage, model: client.model)
       run.fail!("schema_validation_failed: #{e.errors.first(3).join('; ')}")
       return
     end
