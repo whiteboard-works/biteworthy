@@ -9,15 +9,106 @@ module Api
     #
     # Public (unauthenticated) — anonymous browsing is part of the
     # Phase 3 demo.
+    #
+    # POST /api/v1/restaurants (Phase 6.2) — the community "scan a new
+    # restaurant" entrypoint. Authenticated. Creates a `draft`
+    # restaurant recording the creator; a pg_trgm similarity guard
+    # answers "did you mean…?" with 409 + candidates before creating a
+    # near-duplicate in the same city. `force: true` (sent after the
+    # client has shown the candidates) skips the guard.
     class RestaurantsController < BaseController
       skip_before_action :authenticate_user!, only: [:show]
+
+      # Calibrated against pg_trgm similarity() on realistic pairs:
+      # true duplicates ("Maria's Tacos"/"Marias Taco" 0.53,
+      # "Home Slice Pizza"/"Home Slice" 0.65, "Oscar's Cafe"/
+      # "Oscars Café" 0.50) sit above 0.45; genuinely different
+      # restaurants ("Durango Diner"/"Durango Bagel" 0.42,
+      # "Thai Kitchen"/"Himalayan Kitchen" 0.35) sit below. This is a
+      # "did you mean?" prompt with a force override, not a hard block,
+      # so the cost of a borderline match is one extra tap.
+      DUPLICATE_SIMILARITY_THRESHOLD = 0.45
+      MAX_DUPLICATE_CANDIDATES       = 5
 
       def show
         restaurant = Restaurant.published.includes(:city).find_by_id_or_slug!(params[:id])
         render json: serialize(restaurant)
       end
 
+      def create
+        name = params.require(:name).to_s.strip
+        if name.blank?
+          render json: { error: "name_required" }, status: :unprocessable_entity
+          return
+        end
+
+        city = City.find_by(slug: params.require(:city_slug).to_s)
+        if city.nil?
+          render json: { error: "unknown_city" }, status: :not_found
+          return
+        end
+
+        unless params[:force].to_s == "true"
+          candidates = duplicate_candidates(name, city)
+          if candidates.any?
+            render json: { error: "possible_duplicate", candidates: candidates },
+                   status: :conflict
+            return
+          end
+        end
+
+        restaurant = Restaurant.create!(
+          name:               name,
+          slug:               unique_slug_for(name),
+          city:               city,
+          status:             "draft",
+          created_by_user_id: current_user.id
+        )
+        attach_address!(restaurant, city)
+
+        render json: serialize(restaurant), status: :created
+      end
+
       private
+
+      def duplicate_candidates(name, city)
+        Restaurant
+          .where(city: city)
+          .where("similarity(restaurants.name, ?) > ?", name, DUPLICATE_SIMILARITY_THRESHOLD)
+          .order(Arel.sql(ActiveRecord::Base.sanitize_sql_array(
+            ["similarity(restaurants.name, ?) DESC", name]
+          )))
+          .limit(MAX_DUPLICATE_CANDIDATES)
+          .includes(:addresses)
+          .map do |r|
+            { id: r.id, slug: r.slug, name: r.name, status: r.status,
+              street: r.addresses.first&.street }
+          end
+      end
+
+      # parameterize + numeric suffix on collision ("ninis", "ninis-2").
+      def unique_slug_for(name)
+        base = name.parameterize
+        base = "restaurant" if base.blank?
+        return base unless Restaurant.exists?(slug: base)
+
+        n = 2
+        n += 1 while Restaurant.exists?(slug: "#{base}-#{n}")
+        "#{base}-#{n}"
+      end
+
+      def attach_address!(restaurant, city)
+        street = params[:street].to_s.strip.presence
+        postal = params[:postal_code].to_s.strip.presence
+        return if street.nil? && postal.nil?
+
+        restaurant.addresses.create!(
+          street:      street,
+          postal_code: postal,
+          city:        city.name,
+          region:      city.region
+        )
+      end
 
       def serialize(r)
         {

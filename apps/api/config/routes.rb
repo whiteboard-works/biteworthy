@@ -63,7 +63,9 @@ Rails.application.routes.draw do
       get "/cities/:city_slug/restaurants",
           to: "city_restaurants#index",
           as: :city_restaurants_ranking
-      resources :restaurants, only: [:index, :show] do
+      # Phase 6.2 — :create is the community "scan a new restaurant"
+      # entrypoint (authenticated; pg_trgm dedup guard inside).
+      resources :restaurants, only: [:index, :show, :create] do
         resources :items, only: [:index, :show]
         # Phase 4.9 — restaurant claim flow.
         post   "claim",        to: "restaurant_claims#create"

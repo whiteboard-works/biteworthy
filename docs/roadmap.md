@@ -254,6 +254,13 @@ The loop appends here when work surfaces a new task that doesn't
 belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
+- **Ingestion + restaurant endpoints lack rswag specs** (noted while
+  shipping 6.1/6.2). `POST /ingestion_runs`, `PATCH .../items/:id`,
+  `POST /restaurants` aren't in `docs/openapi.json`, so api-types
+  stays hand-written for them. One PR could rswag the lot + re-run
+  codegen. Pre-existing gap (only auth/profile/items were ever
+  rswag'd) — surfaced now because Phase 6 keeps touching these
+  endpoints.
 - ~~Wire `jest-expo` preset + `@testing-library/react-native` for the
   mobile app, AND wire `@testing-library/react` + jsdom for the web
   app~~ — **promoted to Next-up #1 (web side) in tick #94 after three

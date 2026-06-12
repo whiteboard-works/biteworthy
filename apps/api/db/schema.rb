@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_30_164500) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_12_031000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -281,6 +281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_164500) do
     t.datetime "claimed_at"
     t.uuid "claimed_by_user_id"
     t.datetime "created_at", null: false
+    t.uuid "created_by_user_id"
     t.string "name", null: false
     t.string "phone"
     t.string "slug", null: false
@@ -290,6 +291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_164500) do
     t.index ["city_id", "status"], name: "index_restaurants_on_city_id_and_status"
     t.index ["city_id"], name: "index_restaurants_on_city_id"
     t.index ["claimed_by_user_id"], name: "index_restaurants_on_claimed_by_user_id"
+    t.index ["created_by_user_id"], name: "index_restaurants_on_created_by_user_id"
     t.index ["slug"], name: "index_restaurants_on_slug", unique: true
   end
 
@@ -436,6 +438,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_164500) do
   add_foreign_key "restaurant_visits", "users"
   add_foreign_key "restaurants", "cities"
   add_foreign_key "restaurants", "users", column: "claimed_by_user_id"
+  add_foreign_key "restaurants", "users", column: "created_by_user_id"
   add_foreign_key "reviews", "items"
   add_foreign_key "reviews", "users"
   add_foreign_key "suggestions", "users"

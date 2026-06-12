@@ -18,6 +18,15 @@ module Api
         files      = Array(params[:inputs]).reject(&:blank?)
         source_url = params[:source_url].to_s.presence
 
+        # Phase 6.2 ownership rule: non-admins may scan drafts they
+        # created (the new-restaurant flow) or published restaurants
+        # (re-scans). Another user's draft is off limits — drafts are
+        # invisible work-in-progress until their creator publishes.
+        unless can_target_restaurant?(restaurant)
+          render json: { error: "forbidden_restaurant" }, status: :forbidden
+          return
+        end
+
         if files.empty? && source_url.nil?
           render json: { error: "no_inputs" }, status: :unprocessable_entity
           return
@@ -135,6 +144,13 @@ module Api
         end
 
         true
+      end
+
+      def can_target_restaurant?(restaurant)
+        return true if current_user&.is_admin?
+        return true if restaurant.status == "published"
+
+        restaurant.status == "draft" && restaurant.created_by_user_id == current_user.id
       end
 
       def with_per_user_serialization(&block)
