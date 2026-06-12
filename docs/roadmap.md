@@ -11,12 +11,33 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
+**Phases 6–8** ⭐ The product-vision arc (owner-approved 2026-06-12):
+**6** anyone-can-scan ingestion (`docs/plans/phase-6.md`) → **7** close
+the real-world mobile scan loop (`docs/plans/phase-7.md`) → **8**
+"most likely to enjoy" taste ranking (`docs/plans/phase-8.md`).
+Queue below runs top-down; the launch wiring items stay `[BLOCKED]`
+at the bottom until credentials drop.
+
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only Phase-5 PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-2. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+1. **Phase 6.1 — non-admin ingestion runs + quotas + cost ceiling** (`docs/plans/phase-6.md`)
+2. **Phase 6.2 — community restaurant creation + pg_trgm duplicate detection**
+3. **Phase 6.3 — self-verify + community-trust promotion (suggested, not confirmed)**
+4. **Phase 6.4 — community-publish moderation visibility (Avo + dashboard)**
+5. **Phase 6.5 — web community scan entrypoint (open /ingest + new-restaurant + web verify)**
+6. **Phase 6.6 — mobile community scan entrypoint**
+7. **Phase 7.1 — wire the real camera capture (expo-camera)** (`docs/plans/phase-7.md`)
+8. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)**
+9. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
+10. **Phase 8.1 — taste signal schema + profile API** (`docs/plans/phase-8.md`)
+11. **Phase 8.2 — taste scoring engine (SQL + filter-engine parity, one PR)**
+12. **Phase 8.3 — Top Picks UI (web)**
+13. **Phase 8.4 — Top Picks UI (mobile)**
+14. **Phase 8.5 — taste onboarding step (web + mobile)**
+15. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+16. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
 ### Done
 
@@ -190,6 +211,42 @@ Subplan: `docs/plans/phase-5.md`.
 - Public launch posts + outreach to Durango press
 
 **Demo:** real users on a Friday night using it to pick where to eat.
+
+## Phase 6 — Anyone-can-scan ingestion
+
+Subplan: `docs/plans/phase-6.md`. Opens the Phase-2 pipeline to every
+signed-in user with quotas, a cost ceiling, pg_trgm duplicate
+detection, and a trust model where community verification lands
+`confidence: suggested` (strict-mode users stay protected until an
+admin confirms).
+
+**Demo:** a non-admin account creates a new restaurant, scans its
+menu, swipe-verifies, and it goes live — invisible to strict-mode
+users until confirmed. A second scanner gets a "did you mean…?"
+dedup prompt.
+
+## Phase 7 — Close the real-world mobile scan loop
+
+Subplan: `docs/plans/phase-7.md`. Wires the real expo-camera capture
+(the Phase 2.6 TODO), replaces the placeholder mobile home screen
+with search + near-me + a scan CTA, and stitches search-miss →
+create → capture → progress → verify → filtered menu into one flow.
+
+**Demo:** cold-start the app at a restaurant that isn't listed and
+get from "Scan a menu" to reading your own filtered menu without
+leaving the flow.
+
+## Phase 8 — "Most likely to enjoy" taste ranking
+
+Subplan: `docs/plans/phase-8.md`. Safety filters, taste ranks: new
+liked/disliked signal arrays on profiles, a deterministic scoring
+model implemented twice (SQL + filter-engine) with a parity fixture,
+a Top Picks row on web + mobile, and an optional taste onboarding
+step.
+
+**Demo:** two users with identical allergies open the same menu and
+see the same safe items but different Top Picks, each with a
+"because you like…" explainer.
 
 ## Discovered (loop-added followups)
 

@@ -13,6 +13,24 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 00:05 — tick #130 (interactive session, loop restarted).
+**Owner approved the product-vision arc; Phases 6–8 planned and
+queued.** Owner restated the BIG goal (anyone scans any menu → full
+import incl. ingredients/prices/photos → personalized "most likely
+to enjoy" view) and greenlit an overnight 30-min loop to ship it.
+Gap analysis: pipeline/extraction/filtering largely built; gaps are
+(A) ingestion is admin-only, (B) no taste ranking — only avoid-list
+hiding, (C) mobile camera ref TODO + placeholder home screen, (D)
+nothing deployed (human-gated). This PR commits the plan:
+`docs/plans/phase-6.md` (anyone-can-scan: quotas, cost ceiling,
+community restaurant create + pg_trgm dedup, self-verify with
+suggested-confidence trust model, moderation visibility, web+mobile
+entrypoints), `docs/plans/phase-7.md` (camera wiring, real home
+screen, end-to-end scan flow), `docs/plans/phase-8.md` (taste
+signals schema, SQL+TS scoring parity, Top Picks UI, taste
+onboarding) + roadmap Next-up queue (14 unblocked items, launch
+wiring stays [BLOCKED] at bottom). Next: Phase 6.1.
+
 2026-06-11 23:29 — tick #129 (interactive session). **Automation
 hardening shipped; branch protection enforced.** Owner asked for the
 longterm-development automations; plan written to
