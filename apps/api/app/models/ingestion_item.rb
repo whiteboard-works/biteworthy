@@ -13,18 +13,27 @@ class IngestionItem < ApplicationRecord
   # Materialize a staged ingestion item into a real Item +
   # ItemIngredient + ItemTag join rows. Called from the swipe-verify
   # UI (Phase 2.5) once a human has accepted (or edited then accepted)
-  # the AI's suggestion. The new associations are saved with
-  # `confidence: confirmed, source: human` because at this point a
-  # human has explicitly signed off.
+  # the AI's suggestion.
+  #
+  # Phase 6.3 trust model: WHO verified decides the confidence level.
+  # Admin (or legacy no-arg call sites — Avo is admin-gated) →
+  # `confirmed`; a community scanner verifying their own run →
+  # `suggested`. Either way `source: human` — a human signed off, the
+  # question is whether strict-mode users should trust them yet.
+  # Strict mode only shows fully-confirmed items, so community menus
+  # are live for relaxed/balanced users and invisible to strict users
+  # until an admin confirms (Phase 6.4's confirm-all action).
   #
   # Idempotent: re-calling on an already-promoted IngestionItem
   # returns the existing Item without creating duplicates.
   #
   # Returns the materialized Item; raises if the run has no
   # restaurant attached (which means we don't know where to put it).
-  def promote!
+  def promote!(decided_by: nil)
     return item if item.present?
     raise "IngestionRun ##{ingestion_run_id} has no restaurant" if ingestion_run.restaurant_id.blank?
+
+    confidence = decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
 
     transaction do
       created = Item.create!(
@@ -32,7 +41,7 @@ class IngestionItem < ApplicationRecord
         name:        name,
         description: description.presence,
         status:      "published",
-        confidence:  "confirmed"
+        confidence:  confidence
       )
 
       Array(ingredients_payload).each do |row|
@@ -43,7 +52,7 @@ class IngestionItem < ApplicationRecord
 
         ItemIngredient.create!(
           item: created, ingredient: ingredient,
-          confidence: "confirmed", source: "human"
+          confidence: confidence, source: "human"
         )
       end
 
@@ -55,7 +64,7 @@ class IngestionItem < ApplicationRecord
 
         ItemTag.create!(
           item: created, tag: tag,
-          confidence: "confirmed", source: "human"
+          confidence: confidence, source: "human"
         )
       end
 

@@ -31,9 +31,75 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(body["items"].first["name"]).to eq("Carne Asada Taco")
     end
 
-    it "rejects non-admins with 403" do
+    it "rejects non-admins who aren't the run's creator with 403" do
       get "/api/v1/ingestion_runs/#{run.id}/items", headers: auth_for(non_admin)
       expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "community self-verify (Phase 6.3)" do
+    let(:scanner) { create(:user, password: "password123", is_admin: false) }
+    let(:community_run) do
+      create(:ingestion_run, :staged, restaurant: restaurant, user: scanner)
+    end
+    let!(:community_item) do
+      create(:ingestion_item,
+             ingestion_run: community_run, name: "Pad Thai",
+             ingredients_payload: [{ "slug" => "meat-beef", "confidence" => 0.95 }],
+             tags_payload:        [{ "slug" => "cuisine-mexican", "confidence" => 0.92 }])
+    end
+
+    def accept_as(user)
+      patch "/api/v1/ingestion_runs/#{community_run.id}/items/#{community_item.id}",
+            params: { decision: "accepted" }.to_json,
+            headers: auth_for(user)
+    end
+
+    it "lets the run's creator list its items" do
+      get "/api/v1/ingestion_runs/#{community_run.id}/items", headers: auth_for(scanner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["items"].first["name"]).to eq("Pad Thai")
+    end
+
+    it "403s a different non-admin even on an owned run" do
+      stranger = create(:user, password: "password123", is_admin: false)
+      get "/api/v1/ingestion_runs/#{community_run.id}/items", headers: auth_for(stranger)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "creator acceptance promotes with confidence: suggested on the Item AND the joins" do
+      accept_as(scanner)
+
+      expect(response).to have_http_status(:ok)
+      promoted = Item.find(response.parsed_body["item_id"])
+      expect(promoted.confidence).to eq("suggested")
+      expect(promoted.item_ingredients.pluck(:confidence, :source)).to all(eq(%w[suggested human]))
+      expect(promoted.item_tags.pluck(:confidence, :source)).to        all(eq(%w[suggested human]))
+    end
+
+    it "admin acceptance of the same run promotes with confidence: confirmed" do
+      accept_as(admin)
+
+      promoted = Item.find(response.parsed_body["item_id"])
+      expect(promoted.confidence).to eq("confirmed")
+      expect(promoted.item_ingredients.pluck(:confidence)).to all(eq("confirmed"))
+      expect(promoted.item_tags.pluck(:confidence)).to        all(eq("confirmed"))
+    end
+
+    it "end-to-end: a community-promoted item is hidden from strict mode, visible to balanced" do
+      accept_as(scanner)
+      promoted_id = response.parsed_body["item_id"]
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", params: { strictness: "strict" }
+      strict_row = response.parsed_body["items"].find { |i| i["id"] == promoted_id }
+      expect(strict_row["status"]).to eq("hidden")
+      expect(strict_row["reasons"].map { |r| r["kind"] }).to include("unconfirmed_strict")
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", params: { strictness: "balanced" }
+      balanced_row = response.parsed_body["items"].find { |i| i["id"] == promoted_id }
+      expect(balanced_row["status"]).to eq("visible")
     end
   end
 
@@ -110,7 +176,7 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(response.parsed_body["error"]).to eq("invalid_decision")
     end
 
-    it "rejects a non-admin caller with 403" do
+    it "rejects a non-admin who isn't the run's creator with 403" do
       patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
             params: { decision: "accepted" }.to_json,
             headers: auth_for(non_admin)

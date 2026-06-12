@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 10:20 — tick #134. **Phase 6.3 shipped — community
+self-verify + suggested-confidence trust model.** #300 (6.2) merged
+with zero codex findings. This PR:
+- IngestionItems endpoints widened from admin-only to
+  creator-or-admin (`ensure_run_access!`); ownerless runs stay
+  admin-only; strangers 403.
+- `IngestionItem#promote!(decided_by:)` — admin or legacy no-arg
+  call sites (Avo is admin-gated) promote `confirmed`; a community
+  scanner verifying their own run promotes `suggested` on the Item
+  AND every ItemIngredient/ItemTag join (source stays `human`).
+- End-to-end spec proves the safety contract: a community-promoted
+  item is hidden under `?strictness=strict` with reason
+  `unconfirmed_strict` and visible under balanced — strict-mode
+  users never see unconfirmed community data.
+rspec 428/428 (+5); brakeman 0. maybe_publish! unchanged (80%
+threshold now reachable by community runs — that's the feature).
+Next: Phase 6.4 moderation visibility (Avo scope + confirm-all +
+dashboard counters).
+
 2026-06-12 03:45 — tick #133 (part 2). **Phase 6.2 shipped —
 community restaurant creation + dedup.** #299 (6.1.2) merged.
 - New migration: `restaurants.created_by_user_id` (nullable FK).

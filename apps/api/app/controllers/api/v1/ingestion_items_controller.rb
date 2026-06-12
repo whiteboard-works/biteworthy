@@ -3,21 +3,26 @@ module Api
     # PATCH /api/v1/ingestion_runs/:run_id/items/:id
     #
     # Phase 2.7 — the mobile swipe-verify UI hits this endpoint when
-    # an admin accepts / edits / rejects an item. Accept also fires
+    # an item is accepted / edited / rejected. Accept also fires
     # IngestionItem#promote! (materializes the real Item) and runs
     # IngestionRun#maybe_publish! (the 80%-accepted threshold from
     # Phase 2.5).
+    #
+    # Phase 6.3 — access widened from admin-only to creator-or-admin:
+    # a community scanner verifies their OWN run. promote! receives
+    # the deciding user so community verification lands
+    # `confidence: suggested` (see the trust model in IngestionItem).
     class IngestionItemsController < BaseController
-      before_action :ensure_admin!
+      before_action :ensure_run_access!
 
       def index
-        run = IngestionRun.find(params[:ingestion_run_id])
+        run = authorized_run
         items = run.ingestion_items.order(:created_at)
         render json: { items: items.map { |it| serialize_item(it) } }
       end
 
       def update
-        run  = IngestionRun.find(params[:ingestion_run_id])
+        run  = authorized_run
         item = run.ingestion_items.find(params[:id])
 
         decision = params[:decision].to_s
@@ -42,7 +47,7 @@ module Api
           # promotion step.
           if decision == "accepted"
             item.save! if item.changed?
-            item.promote!
+            item.promote!(decided_by: current_user)
           else
             item.update!(decision: "edited", decided_at: Time.current)
           end
@@ -57,8 +62,16 @@ module Api
 
       private
 
-      def ensure_admin!
+      # The run's creator or an admin. Memoized so index/update don't
+      # re-fetch what the before_action already loaded.
+      def authorized_run
+        @authorized_run ||= IngestionRun.find(params[:ingestion_run_id])
+      end
+
+      def ensure_run_access!
         return if current_user&.is_admin?
+        return if authorized_run.user_id.present? && authorized_run.user_id == current_user&.id
+
         render json: { error: "forbidden" }, status: :forbidden
       end
 
