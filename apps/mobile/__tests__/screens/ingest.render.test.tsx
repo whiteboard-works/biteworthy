@@ -17,10 +17,27 @@ jest.mock('expo-router', () => ({
   Link: 'Link',
 }));
 
-jest.mock('expo-camera', () => ({
-  CameraView: 'CameraView',
-  useCameraPermissions: () => [{ granted: true }, jest.fn()],
-}));
+// Phase 7.1 — the screen captures through the CameraView ref, so the
+// mock exposes takePictureAsync via useImperativeHandle. Permission
+// state is mutable per test.
+const mockTakePicture = jest.fn();
+const mockRequestPermission = jest.fn();
+let mockPermission: { granted: boolean; canAskAgain: boolean } | null = {
+  granted: true,
+  canAskAgain: true,
+};
+jest.mock('expo-camera', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    CameraView: React.forwardRef((_props: unknown, ref: React.Ref<unknown>) => {
+      React.useImperativeHandle(ref, () => ({
+        takePictureAsync: (...args: unknown[]) => mockTakePicture(...args),
+      }));
+      return null;
+    }),
+    useCameraPermissions: () => [mockPermission, mockRequestPermission],
+  };
+});
 
 jest.mock('../../lib/auth', () => ({
   getJwt: jest.fn(() => Promise.resolve('jwt-1')),
@@ -49,6 +66,10 @@ describe('IngestScreen (Phase 6.6)', () => {
     mockReplace.mockClear();
     mockCreateRestaurant.mockClear();
     mockUpload.mockClear();
+    mockTakePicture.mockClear();
+    mockRequestPermission.mockClear();
+    mockPermission = { granted: true, canAskAgain: true };
+    mockTakePicture.mockResolvedValue({ uri: 'file:///captured/page-1.jpg' });
   });
 
   it('asks "Which restaurant?" with the picker until one is chosen', async () => {
@@ -106,16 +127,58 @@ describe('IngestScreen (Phase 6.6)', () => {
     fireEvent.press(screen.getByLabelText('create-restaurant'));
     await waitFor(() => expect(screen.getByText("Scanning for Maria's Tacos")).toBeTruthy());
 
-    // Capture one page through the (mocked) camera.
+    // Capture one page through the (mocked) camera ref.
     fireEvent.press(screen.getByLabelText('open-camera'));
     fireEvent.press(screen.getByLabelText('capture-page'));
+    await waitFor(() => expect(mockTakePicture).toHaveBeenCalled());
     fireEvent.press(screen.getByLabelText('upload-all'));
 
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith('/ingest/verify?runId=run-77'),
     );
     expect(mockUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ restaurantId: 'r-1', jwt: 'jwt-1' }),
+      expect.objectContaining({
+        restaurantId: 'r-1',
+        jwt: 'jwt-1',
+        pages: [expect.objectContaining({ uri: 'file:///captured/page-1.jpg' })],
+      }),
     );
+  });
+
+  describe('camera permissions (Phase 7.1)', () => {
+    it('soft denial shows the grant button wired to requestPermission', async () => {
+      mockPermission = { granted: false, canAskAgain: true };
+      render(<IngestScreen />);
+      await flush();
+
+      fireEvent.press(screen.getByLabelText('open-camera'));
+      fireEvent.press(screen.getByLabelText('grant-camera'));
+
+      expect(mockRequestPermission).toHaveBeenCalled();
+    });
+
+    it('hard denial (canAskAgain false) offers Open Settings instead', async () => {
+      mockPermission = { granted: false, canAskAgain: false };
+      render(<IngestScreen />);
+      await flush();
+
+      fireEvent.press(screen.getByLabelText('open-camera'));
+
+      expect(screen.getByLabelText('open-settings')).toBeTruthy();
+      expect(screen.queryByLabelText('grant-camera')).toBeNull();
+    });
+
+    it('a capture that returns no photo leaves the page strip empty', async () => {
+      mockTakePicture.mockResolvedValue(undefined);
+      render(<IngestScreen />);
+      await flush();
+
+      fireEvent.press(screen.getByLabelText('open-camera'));
+      fireEvent.press(screen.getByLabelText('capture-page'));
+      await waitFor(() => expect(mockTakePicture).toHaveBeenCalled());
+
+      // Still in camera view (capture didn't close it), no thumbnails added.
+      expect(screen.getByLabelText('capture-page')).toBeTruthy();
+    });
   });
 });

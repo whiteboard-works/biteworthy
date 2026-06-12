@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 12:10 — tick #139. **Phase 7.1 shipped — real camera
+capture.** Also logging tick #138 retroactively (its status entry
+was deferred to dodge a same-line squash conflict with #304):
+- Tick #138 / PR #305: **Phase 6.6 mobile community scan flow** —
+  RestaurantPicker ahead of capture (create + did-you-mean rows +
+  force), manual UUID fallback, upload routes into swipe-verify,
+  friendlyScanError copy. mobile jest 94/94 (+12). **PHASE 6
+  COMPLETE — anyone-can-scan works end to end on web + mobile.**
+- Tick #139 / this PR: **Phase 7.1** — the Phase 2.6 mock-URI
+  capture is now real: CameraView ref + takePictureAsync
+  (quality 0.7 keeps pages under the 10 MB cap), capturing busy
+  state, permission rationale copy, and hard-denial
+  (canAskAgain: false) deep-links to system settings via
+  Linking.openSettings. Camera mock upgraded to a forwardRef
+  exposing takePictureAsync. mobile jest 97/97 (+3); typecheck +
+  lint green. Caveat (honest): verified in jest with the camera
+  module mocked — real-device capture still needs a human phone
+  test, noted in the PR.
+- #304 (6.5) merged after a re-run: its CI failure was the KNOWN
+  onboarding flake ("renders a chip per preset", 5s timeout, third
+  occurrence incl. pre-fix) — recurrence noted in Discovered.
+Next: Phase 7.2 real mobile home screen.
+
 2026-06-12 11:40 — tick #137. **Phase 6.5 shipped — web community
 scan entrypoint.** #303 (6.4.1) merged. This PR (web):
 - 4 new Next proxies: POST /api/restaurants, GET run, GET run items,

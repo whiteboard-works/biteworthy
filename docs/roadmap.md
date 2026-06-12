@@ -22,10 +22,8 @@ at the bottom until credentials drop.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **Phase 6.6 — mobile community scan entrypoint** (`docs/plans/phase-6.md`)
-2. **Phase 7.1 — wire the real camera capture (expo-camera)** (`docs/plans/phase-7.md`)
-3. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)**
-4. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
+1. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)** (`docs/plans/phase-7.md`)
+2. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
 5. **Phase 8.1 — taste signal schema + profile API** (`docs/plans/phase-8.md`)
 6. **Phase 8.2 — taste scoring engine (SQL + filter-engine parity, one PR)**
 7. **Phase 8.3 — Top Picks UI (web)**
@@ -104,7 +102,9 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Phase 6.3 — self-verify + suggested-confidence trust model (#301)
 - ✅ Phase 6.4 — community-publish moderation visibility (#302)
 - ✅ Phase 6.4.1 — moderation gaps: rescan scope, mixed-ai items, run filter (#303)
-- ✅ Phase 6.5 — web community scan entrypoint (this PR)
+- ✅ Phase 6.5 — web community scan entrypoint (#304)
+- ✅ Phase 6.6 — mobile community scan entrypoint (#305) — **Phase 6 feature-complete: anyone-can-scan on both surfaces**
+- ✅ Phase 7.1 — real expo-camera capture via ref (this PR)
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 
@@ -258,6 +258,23 @@ The loop appends here when work surfaces a new task that doesn't
 belong in the current phase. Humans triage these into the appropriate
 phase or "Next up" queue.
 
+- **Onboarding-chip flake recurred (3rd occurrence)** — the test
+  fixed in #199 ("renders a chip per preset once the fetch
+  resolves") timed out again on #304's CI runner (suite took 16.5s;
+  5s per-test cap). The findByLabelText fix helped locally but slow
+  CI runners still trip it. Candidate fixes: bump that test's
+  timeout to 15s, or jest.setTimeout for the file. One-line change;
+  promote on next paused tick or fold into the next mobile PR.
+- **Phase 6.5/6.6 codex P2 followups (web+mobile verify UX)** — from
+  #304's review, all reasonable, none blocking: (1) logged-out users
+  hit the create step before any 401 redirect — picker should
+  redirect like upload does; (2) no edit-before-accept path in the
+  web verify list (API supports `edited`; mobile verify has it);
+  (3) "did you mean" cards offer other users' DRAFTS as reusable
+  targets, which then 403 at scan time — filter candidates to
+  published-or-own; (4) web verify polling stops permanently on one
+  transient fetch failure — retry with backoff. Also applies partly
+  to mobile picker (3). Bundle as Phase 7.0 cleanup PR.
 - **Ingestion + restaurant endpoints lack rswag specs** (noted while
   shipping 6.1/6.2). `POST /ingestion_runs`, `PATCH .../items/:id`,
   `POST /restaurants` aren't in `docs/openapi.json`, so api-types
