@@ -22,20 +22,15 @@ at the bottom until credentials drop.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **Phase 6.1 — non-admin ingestion runs + quotas + cost ceiling** (`docs/plans/phase-6.md`)
-2. **Phase 6.2 — community restaurant creation + pg_trgm duplicate detection**
-3. **Phase 6.3 — self-verify + community-trust promotion (suggested, not confirmed)**
-4. **Phase 6.4 — community-publish moderation visibility (Avo + dashboard)**
-5. **Phase 6.5 — web community scan entrypoint (open /ingest + new-restaurant + web verify)**
-6. **Phase 6.6 — mobile community scan entrypoint**
-7. **Phase 7.1 — wire the real camera capture (expo-camera)** (`docs/plans/phase-7.md`)
-8. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)**
-9. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
-10. **Phase 8.1 — taste signal schema + profile API** (`docs/plans/phase-8.md`)
-11. **Phase 8.2 — taste scoring engine (SQL + filter-engine parity, one PR)**
-12. **Phase 8.3 — Top Picks UI (web)**
-13. **Phase 8.4 — Top Picks UI (mobile)**
-14. **Phase 8.5 — taste onboarding step (web + mobile)**
+1. **Phase 6.6 — mobile community scan entrypoint** (`docs/plans/phase-6.md`)
+2. **Phase 7.1 — wire the real camera capture (expo-camera)** (`docs/plans/phase-7.md`)
+3. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)**
+4. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
+5. **Phase 8.1 — taste signal schema + profile API** (`docs/plans/phase-8.md`)
+6. **Phase 8.2 — taste scoring engine (SQL + filter-engine parity, one PR)**
+7. **Phase 8.3 — Top Picks UI (web)**
+8. **Phase 8.4 — Top Picks UI (mobile)**
+9. **Phase 8.5 — taste onboarding step (web + mobile)**
 15. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
 16. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
@@ -101,6 +96,15 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Launch-readiness checklist + loop pause (#184) — `docs/launch-readiness.md` is the human's linear path from "code complete" to launch.
 - ✅ Phase 4.11.0 / 4.11.2-cassette — recorded against Simply Tasty Thai appetizers; ExtractMenuJob integration smoke now real (this PR) — **Phase 4.11 fully complete**
 - ✅ Phase 5.8-wiring — posthog-js + posthog-react-native wired into the 9 funnel events (#218) — code side complete; setting the real `*_POSTHOG_KEY` in Vercel/EAS is launch-readiness step 7
+- ✅ Phases 6–8 — subplans committed (#296)
+- ✅ Phase 6.1 — non-admin ingestion runs + quotas + cost ceiling (#297)
+- ✅ Phase 6.1.1 — ingestion hardening: real cost accrual, quota race, upload caps (#298)
+- ✅ Phase 6.1.2 — pre-fetch quota check + usage on schema failures (#299)
+- ✅ Phase 6.2 — community restaurant creation + pg_trgm dedup (#300)
+- ✅ Phase 6.3 — self-verify + suggested-confidence trust model (#301)
+- ✅ Phase 6.4 — community-publish moderation visibility (#302)
+- ✅ Phase 6.4.1 — moderation gaps: rescan scope, mixed-ai items, run filter (#303)
+- ✅ Phase 6.5 — web community scan entrypoint (this PR)
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 

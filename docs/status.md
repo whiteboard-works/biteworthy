@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 11:40 — tick #137. **Phase 6.5 shipped — web community
+scan entrypoint.** #303 (6.4.1) merged. This PR (web):
+- 4 new Next proxies: POST /api/restaurants, GET run, GET run items,
+  PATCH item decision (cookie-JWT pattern from Phase 4.1).
+- lib/ingestion.ts: createRestaurant (409 → typed duplicates
+  result), fetchRun/fetchRunItems/decideRunItem,
+  friendlyIngestionError (429 quota / 503 budget / 403 foreign-draft
+  → human copy).
+- /ingest reworked into the 2-step community flow:
+  NewRestaurantPicker (create + "did you mean?" cards + force) →
+  URL/PDF upload → push to NEW /ingest/verify/[runId] page: polls
+  pipeline status (3s), then VerifyItemRow accept/reject list with
+  the 80%-threshold progress line + published banner linking to the
+  restaurant page.
+- Tests: +9 lib (dedupe/force/error mapping), +8 RTL (picker cards,
+  force resubmit, verify row wiring/badge/error).
+War story: vitest 4 flags rejected mock results as unhandled iff
+the mock was cleared in a beforeEach — empirically isolated;
+per-test impls + last-called assertions instead (commented in both
+test files). Also the known Next typedRoutes dynamic-push cast
+(#274 precedent). web vitest 133/133; typecheck 10/10; lint 6/6.
+Roadmap: 6.1–6.5 ticked into Done. Cities note: no cities index
+endpoint exists (Phase-0 stub route), so the picker takes a city
+slug defaulting to durango — fine for the launch market. Next:
+Phase 6.6 mobile entrypoint.
+
 2026-06-12 11:10 — tick #136. **Phase 6.4.1 — three codex P2s from
 #302 fixed forward.** (1) community_published scope now also catches
 seeded restaurants that received a community RE-scan (EXISTS on

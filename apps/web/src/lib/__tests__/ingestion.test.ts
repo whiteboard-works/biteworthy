@@ -116,3 +116,124 @@ describe('ingestFromFile', () => {
     ).rejects.toBeInstanceOf(IngestionRequestError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 6.5 — community scan flow
+// ---------------------------------------------------------------------------
+
+import {
+  createRestaurant,
+  decideRunItem,
+  fetchRunItems,
+  friendlyIngestionError,
+  type IngestionItemPayload,
+} from '../ingestion';
+
+const sampleItem: IngestionItemPayload = {
+  id: 'item-1',
+  ingestion_run_id: 'rrrr-1111',
+  item_id: null,
+  name: 'Pad Thai',
+  description: 'Rice noodles, peanut, lime.',
+  section_name: 'Noodles',
+  decision: 'pending',
+  decided_at: null,
+  ingredients_payload: [{ slug: 'nut-peanut', confidence: 0.97 }],
+  tags_payload: [{ slug: 'cuisine-thai', confidence: 0.99 }],
+  prices_payload: [{ size: null, price_cents: 1450 }],
+  unresolved_ingredients: [],
+  unresolved_tags: [],
+};
+
+describe('createRestaurant', () => {
+  it('returns created on 201', async () => {
+    const fetchImpl = fakeFetch(201, { id: 'r-1', slug: 'marias', name: "Maria's", status: 'draft' });
+
+    const result = await createRestaurant({ name: "Maria's", citySlug: 'durango', fetchImpl });
+
+    expect(result).toEqual({
+      kind: 'created',
+      restaurant: { id: 'r-1', slug: 'marias', name: "Maria's", status: 'draft' },
+    });
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/restaurants');
+    expect(JSON.parse(init.body as string)).toMatchObject({ name: "Maria's", city_slug: 'durango' });
+  });
+
+  it('returns the candidate list on 409 instead of throwing', async () => {
+    const candidates = [
+      { id: 'r-9', slug: 'marias', name: "Maria's Tacos", status: 'published', street: '742 Main Ave' },
+    ];
+    const fetchImpl = fakeFetch(409, { error: 'possible_duplicate', candidates });
+
+    const result = await createRestaurant({ name: 'Marias Taco', citySlug: 'durango', fetchImpl });
+
+    expect(result).toEqual({ kind: 'duplicates', candidates });
+  });
+
+  it('sends force: "true" when overriding the dedup prompt', async () => {
+    const fetchImpl = fakeFetch(201, { id: 'r-2', slug: 'x', name: 'X', status: 'draft' });
+
+    await createRestaurant({ name: 'X', citySlug: 'durango', force: true, fetchImpl });
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).force).toBe('true');
+  });
+
+  it('throws IngestionRequestError on other failures', async () => {
+    const fetchImpl = fakeFetch(404, { error: 'unknown_city' });
+
+    await expect(
+      createRestaurant({ name: 'X', citySlug: 'atlantis', fetchImpl }),
+    ).rejects.toBeInstanceOf(IngestionRequestError);
+  });
+});
+
+describe('fetchRunItems / decideRunItem', () => {
+  it('unwraps the items array', async () => {
+    const fetchImpl = fakeFetch(200, { items: [sampleItem] });
+
+    const items = await fetchRunItems('rrrr-1111', fetchImpl);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.name).toBe('Pad Thai');
+  });
+
+  it('PATCHes the decision to the per-item proxy route', async () => {
+    const fetchImpl = fakeFetch(200, { ...sampleItem, decision: 'accepted' });
+
+    const updated = await decideRunItem({
+      runId: 'rrrr-1111',
+      itemId: 'item-1',
+      decision: 'accepted',
+      fetchImpl,
+    });
+
+    expect(updated.decision).toBe('accepted');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/ingestion_runs/rrrr-1111/items/item-1');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body as string)).toEqual({ decision: 'accepted' });
+  });
+});
+
+describe('friendlyIngestionError', () => {
+  it('maps 429 quota errors with the limit', () => {
+    const err = new IngestionRequestError(429, { error: 'quota_exceeded', limit: 5 } as never);
+    expect(friendlyIngestionError(err)).toBe('Daily scan limit reached (5/day) — try again tomorrow.');
+  });
+
+  it('maps 503 ceiling errors', () => {
+    const err = new IngestionRequestError(503, { error: 'cost_ceiling_reached' });
+    expect(friendlyIngestionError(err)).toMatch(/budget.*used up/);
+  });
+
+  it('maps 403 forbidden_restaurant', () => {
+    const err = new IngestionRequestError(403, { error: 'forbidden_restaurant' });
+    expect(friendlyIngestionError(err)).toMatch(/someone else's draft/);
+  });
+
+  it('falls back to the raw message otherwise', () => {
+    expect(friendlyIngestionError(new Error('boom'))).toBe('boom');
+  });
+});
