@@ -152,6 +152,45 @@ RSpec.describe "Ingestion runs API", type: :request do
     end
   end
 
+  describe "restaurant targeting (Phase 6.2)" do
+    before { allow(ExtractMenuJob).to receive(:perform_later) }
+
+    it "lets a non-admin scan a draft restaurant they created" do
+      own_draft = create(:restaurant, status: "draft", created_by_user: non_admin)
+
+      post "/api/v1/ingestion_runs",
+           params: { restaurant_id: own_draft.id, inputs: [fake_image] },
+           headers: auth_for(non_admin)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "403s a non-admin scanning another user's draft" do
+      stranger_draft = create(:restaurant, status: "draft",
+                                           created_by_user: create(:user, password: "password123"))
+
+      expect {
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: stranger_draft.id, inputs: [fake_image] },
+             headers: auth_for(non_admin)
+      }.not_to change(IngestionRun, :count)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body["error"]).to eq("forbidden_restaurant")
+    end
+
+    it "lets an admin scan any draft" do
+      stranger_draft = create(:restaurant, status: "draft",
+                                           created_by_user: create(:user, password: "password123"))
+
+      post "/api/v1/ingestion_runs",
+           params: { restaurant_id: stranger_draft.id, inputs: [fake_image] },
+           headers: auth_for(admin)
+
+      expect(response).to have_http_status(:created)
+    end
+  end
+
   describe "community limits (Phase 6.1)" do
     before { allow(ExtractMenuJob).to receive(:perform_later) }
 

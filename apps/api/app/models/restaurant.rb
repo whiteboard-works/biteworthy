@@ -3,6 +3,9 @@ class Restaurant < ApplicationRecord
 
   belongs_to :city
   belongs_to :claimed_by_user, class_name: "User", optional: true
+  # Phase 6.2 — community-created restaurants record their creator;
+  # admin/seed-created rows leave this nil.
+  belongs_to :created_by_user, class_name: "User", optional: true
 
   has_many :addresses,     dependent: :destroy
   has_many :hours,         dependent: :destroy

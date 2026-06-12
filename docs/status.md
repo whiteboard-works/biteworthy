@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 03:45 — tick #133 (part 2). **Phase 6.2 shipped —
+community restaurant creation + dedup.** #299 (6.1.2) merged.
+- New migration: `restaurants.created_by_user_id` (nullable FK).
+- `POST /api/v1/restaurants` (authenticated): name + city_slug +
+  optional street/postal → draft restaurant recording creator;
+  unique slug via parameterize + numeric suffix.
+- Dedup guard: pg_trgm `similarity(name, ?) > 0.45` within the same
+  city → 409 `possible_duplicate` + up to 5 candidates (id/slug/
+  name/status/street); `force: true` overrides. Threshold calibrated
+  against live pg_trgm scores: true variants 0.50–0.65, different
+  restaurants ≤0.42 ("Durango Diner"/"Durango Bagel").
+- Ingestion ownership rule: non-admins may only scan drafts they
+  created or published restaurants; foreign drafts 403.
+rspec 423/423 (+13); brakeman 0. Deviation from subplan, surfaced
+honestly: no rswag spec for the new endpoint — NONE of the
+restaurant/ingestion endpoints were ever rswag'd, so openapi/codegen
+doesn't change; added a Discovered entry to rswag the lot in one PR.
+Next: Phase 6.3 self-verify + community-trust promotion.
+
 2026-06-12 03:05 — tick #133 (part 1). **Phase 6.1.2 — two codex P2s
 from #298 fixed forward.** (1) Over-quota callers could still force
 an outbound URL fetch: a cheap unlocked limits pre-check now runs
