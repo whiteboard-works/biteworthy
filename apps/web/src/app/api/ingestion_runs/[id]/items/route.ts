@@ -1,0 +1,31 @@
+/**
+ * Phase 6.5 — `GET /api/ingestion_runs/:id/items` proxies the staged
+ * item list for the web verify page (creator-or-admin per Phase 6.3).
+ */
+import { NextResponse, type NextRequest } from 'next/server';
+import { getServerJwt } from '../../../../../lib/server-auth';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+
+export async function GET(
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  const jwt = await getServerJwt();
+  if (!jwt) {
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  }
+  const { id } = await context.params;
+  const upstream = await fetch(
+    `${API_BASE}/api/v1/ingestion_runs/${encodeURIComponent(id)}/items`,
+    {
+      headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+      cache: 'no-store',
+    },
+  );
+  const responseText = await upstream.text();
+  return new NextResponse(responseText, {
+    status: upstream.status,
+    headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
+  });
+}

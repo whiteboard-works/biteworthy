@@ -63,6 +63,161 @@ async function postIngestionRun(
   return (await res.json()) as IngestionRunPayload;
 }
 
+/** Phase 6.5 — community restaurant creation + the verify flow. */
+
+export interface DuplicateCandidate {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  street: string | null;
+}
+
+export interface CreatedRestaurant {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+}
+
+export type CreateRestaurantResult =
+  | { kind: 'created'; restaurant: CreatedRestaurant }
+  | { kind: 'duplicates'; candidates: DuplicateCandidate[] };
+
+export async function createRestaurant(opts: {
+  name: string;
+  citySlug: string;
+  street?: string;
+  postalCode?: string;
+  force?: boolean;
+  fetchImpl?: typeof fetch;
+}): Promise<CreateRestaurantResult> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl('/api/restaurants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      name: opts.name,
+      city_slug: opts.citySlug,
+      street: opts.street,
+      postal_code: opts.postalCode,
+      force: opts.force ? 'true' : undefined,
+    }),
+  });
+
+  if (res.status === 409) {
+    const body = (await res.json()) as { candidates: DuplicateCandidate[] };
+    return { kind: 'duplicates', candidates: body.candidates ?? [] };
+  }
+  if (!res.ok) {
+    let parsed: IngestionApiError | null = null;
+    try {
+      parsed = (await res.json()) as IngestionApiError;
+    } catch {
+      // ignore
+    }
+    throw new IngestionRequestError(res.status, parsed);
+  }
+  return { kind: 'created', restaurant: (await res.json()) as CreatedRestaurant };
+}
+
+export interface IngestionItemPayload {
+  id: string;
+  ingestion_run_id: string;
+  item_id: string | null;
+  name: string | null;
+  description: string | null;
+  section_name: string | null;
+  decision: 'pending' | 'accepted' | 'rejected' | 'edited';
+  decided_at: string | null;
+  ingredients_payload: Array<{ slug: string; confidence: number }>;
+  tags_payload: Array<{ slug: string; confidence: number }>;
+  prices_payload: Array<{ size: string | null; price_cents: number }>;
+  unresolved_ingredients: string[];
+  unresolved_tags: string[];
+}
+
+async function getJson<T>(path: string, fetchImpl: typeof fetch): Promise<T> {
+  const res = await fetchImpl(path, { credentials: 'same-origin' });
+  if (!res.ok) {
+    let parsed: IngestionApiError | null = null;
+    try {
+      parsed = (await res.json()) as IngestionApiError;
+    } catch {
+      // ignore
+    }
+    throw new IngestionRequestError(res.status, parsed);
+  }
+  return (await res.json()) as T;
+}
+
+export async function fetchRun(
+  runId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<IngestionRunPayload> {
+  return getJson<IngestionRunPayload>(`/api/ingestion_runs/${encodeURIComponent(runId)}`, fetchImpl);
+}
+
+export async function fetchRunItems(
+  runId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<IngestionItemPayload[]> {
+  const body = await getJson<{ items: IngestionItemPayload[] }>(
+    `/api/ingestion_runs/${encodeURIComponent(runId)}/items`,
+    fetchImpl,
+  );
+  return body.items;
+}
+
+export async function decideRunItem(opts: {
+  runId: string;
+  itemId: string;
+  decision: 'accepted' | 'rejected';
+  fetchImpl?: typeof fetch;
+}): Promise<IngestionItemPayload> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(
+    `/api/ingestion_runs/${encodeURIComponent(opts.runId)}/items/${encodeURIComponent(opts.itemId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ decision: opts.decision }),
+    },
+  );
+  if (!res.ok) {
+    let parsed: IngestionApiError | null = null;
+    try {
+      parsed = (await res.json()) as IngestionApiError;
+    } catch {
+      // ignore
+    }
+    throw new IngestionRequestError(res.status, parsed);
+  }
+  return (await res.json()) as IngestionItemPayload;
+}
+
+/**
+ * Human messages for the Phase 6.1 guardrails. Anything unmapped
+ * falls back to the raw error message.
+ */
+export function friendlyIngestionError(err: unknown): string {
+  if (err instanceof IngestionRequestError) {
+    if (err.status === 429) {
+      const limit = (err.body as { limit?: number } | null)?.limit;
+      return `Daily scan limit reached${limit ? ` (${limit}/day)` : ''} — try again tomorrow.`;
+    }
+    if (err.status === 503) {
+      return "Today's community scanning budget is used up — try again tomorrow.";
+    }
+    if (err.status === 403 && err.body?.error === 'forbidden_restaurant') {
+      return "That restaurant is someone else's draft — pick a published restaurant or create your own.";
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export async function ingestFromUrl(opts: {
   restaurantId: string;
   sourceUrl: string;
