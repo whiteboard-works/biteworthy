@@ -4,10 +4,12 @@ import {
   fetchRestaurantItems,
   groupItemsBySection,
   RestaurantFetchError,
+  searchRestaurants,
   setNeverHide,
   type Restaurant,
   type RestaurantItem,
   type RestaurantItemsResponse,
+  type RestaurantSummary,
 } from '../../lib/api/restaurants';
 
 type FetchCall = Parameters<typeof fetch>;
@@ -172,6 +174,38 @@ describe('groupItemsBySection', () => {
 
   it('returns an empty array for no items', () => {
     expect(groupItemsBySection([])).toEqual([]);
+  });
+});
+
+describe('searchRestaurants (Phase 7.2)', () => {
+  const summary: RestaurantSummary = {
+    id: 'rest-1',
+    slug: 'ninis-1',
+    name: 'Ninis Taqueria',
+    status: 'published',
+    city: { slug: 'durango', name: 'Durango', region: 'CO' },
+    street: '119 W College Dr',
+    latitude: 37.27,
+    longitude: -107.88,
+  };
+
+  it('GETs /api/v1/restaurants with no query when q is blank', async () => {
+    const fetchImpl = fakeFetch(200, { restaurants: [summary] });
+    const rows = await searchRestaurants(undefined, { fetchImpl });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    expect(url).toMatch(/\/api\/v1\/restaurants$/);
+    expect(rows).toEqual([summary]);
+  });
+
+  it('URL-encodes ?q= (trimmed) when provided', async () => {
+    const fetchImpl = fakeFetch(200, { restaurants: [] });
+    await searchRestaurants('  home slice ', { fetchImpl });
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('?q=home%20slice');
+  });
+
+  it('throws on non-2xx', async () => {
+    const fetchImpl = fakeFetch(500, { error: 'boom' });
+    await expect(searchRestaurants('x', { fetchImpl })).rejects.toThrow('searchRestaurants failed: 500');
   });
 });
 

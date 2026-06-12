@@ -16,8 +16,27 @@ module Api
     # answers "did you mean…?" with 409 + candidates before creating a
     # near-duplicate in the same city. `force: true` (sent after the
     # client has shown the candidates) skips the guard.
+    # GET /api/v1/restaurants (Phase 7.2) — public list/search backing
+    # the mobile home screen. `?q=` is a case-insensitive substring
+    # match on name. The route existed since Phase 0 but the action
+    # never did — hitting it 500'd. Capped at 25 rows, name-ordered.
     class RestaurantsController < BaseController
-      skip_before_action :authenticate_user!, only: [:show]
+      skip_before_action :authenticate_user!, only: [:show, :index]
+
+      INDEX_LIMIT = 25
+
+      def index
+        scope = Restaurant.published.includes(:city, :addresses)
+        q = params[:q].to_s.strip
+        if q.present?
+          scope = scope.where(
+            "restaurants.name ILIKE ?",
+            "%#{Restaurant.sanitize_sql_like(q)}%"
+          )
+        end
+        restaurants = scope.order(:name).limit(INDEX_LIMIT)
+        render json: { restaurants: restaurants.map { |r| serialize_summary(r) } }
+      end
 
       # Calibrated against pg_trgm similarity() on realistic pairs:
       # true duplicates ("Maria's Tacos"/"Marias Taco" 0.53,
@@ -70,6 +89,23 @@ module Api
       end
 
       private
+
+      # Lighter than #serialize — list rows don't need claim fields,
+      # but the home screen wants an address line + coords (the
+      # near-me sort lands with expo-location in a followup).
+      def serialize_summary(r)
+        first_address = r.addresses.first
+        {
+          id:     r.id,
+          slug:   r.slug,
+          name:   r.name,
+          status: r.status,
+          city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
+          street:    first_address&.street,
+          latitude:  first_address&.latitude&.to_f,
+          longitude: first_address&.longitude&.to_f
+        }
+      end
 
       def duplicate_candidates(name, city)
         Restaurant

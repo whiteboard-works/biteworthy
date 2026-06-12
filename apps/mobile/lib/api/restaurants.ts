@@ -233,3 +233,30 @@ export async function createRestaurant(opts: {
   }
   return { kind: 'created', restaurant: (await res.json()) as CreatedRestaurant };
 }
+
+/**
+ * Phase 7.2 — list/search for the home screen. `q` is a
+ * case-insensitive substring match; server caps at 25 rows.
+ */
+export interface RestaurantSummary {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  city: { slug: string; name: string; region: string };
+  street: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export async function searchRestaurants(
+  q?: string,
+  opts: FetchOptions = {},
+): Promise<RestaurantSummary[]> {
+  const { fetchImpl = fetch } = opts;
+  const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+  const res = await fetchImpl(`${API_BASE}/api/v1/restaurants${query}`);
+  if (!res.ok) throw new Error(`searchRestaurants failed: ${res.status}`);
+  const json = (await res.json()) as { restaurants: RestaurantSummary[] };
+  return json.restaurants;
+}

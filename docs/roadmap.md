@@ -22,8 +22,7 @@ at the bottom until credentials drop.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **Phase 7.2 — real mobile home screen (search + near-me + scan CTA)** (`docs/plans/phase-7.md`)
-2. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
+1. **Phase 7.3 — stitch the scan-to-menu flow end-to-end**
 5. **Phase 8.1 — taste signal schema + profile API** (`docs/plans/phase-8.md`)
 6. **Phase 8.2 — taste scoring engine (SQL + filter-engine parity, one PR)**
 7. **Phase 8.3 — Top Picks UI (web)**
@@ -104,7 +103,8 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Phase 6.4.1 — moderation gaps: rescan scope, mixed-ai items, run filter (#303)
 - ✅ Phase 6.5 — web community scan entrypoint (#304)
 - ✅ Phase 6.6 — mobile community scan entrypoint (#305) — **Phase 6 feature-complete: anyone-can-scan on both surfaces**
-- ✅ Phase 7.1 — real expo-camera capture via ref (this PR)
+- ✅ Phase 7.1 — real expo-camera capture via ref (#306)
+- ✅ Phase 7.2 — real mobile home screen: search + scan CTA; near-me deferred pending expo-location (this PR)
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 

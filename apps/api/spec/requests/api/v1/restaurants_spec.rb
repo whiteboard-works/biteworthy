@@ -60,3 +60,54 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
     end
   end
 end
+
+# Phase 7.2 — list/search backing the mobile home screen. The :index
+# route existed since Phase 0 but had no action (latent 500).
+RSpec.describe "Restaurants index API", type: :request do
+  let!(:city) { create(:city, slug: "durango") }
+
+  it "lists published restaurants with city + address summary, anonymous OK" do
+    r = create(:restaurant, :published, name: "Ninis Taqueria", city: city)
+    r.addresses.create!(street: "Main Ave 101", latitude: 37.27, longitude: -107.88)
+    create(:restaurant, status: "draft", name: "Hidden Draft", city: city)
+
+    get "/api/v1/restaurants"
+
+    expect(response).to have_http_status(:ok)
+    rows = response.parsed_body["restaurants"]
+    expect(rows.map { |x| x["name"] }).to eq(["Ninis Taqueria"])
+    expect(rows.first).to include(
+      "street" => "Main Ave 101", "latitude" => 37.27, "longitude" => -107.88
+    )
+    expect(rows.first["city"]).to include("slug" => "durango")
+  end
+
+  it "filters by ?q= case-insensitively on a substring" do
+    create(:restaurant, :published, name: "Thai Kitchen", city: city)
+    create(:restaurant, :published, name: "Himalayan Kitchen", city: city)
+    create(:restaurant, :published, name: "Ninis Taqueria", city: city)
+
+    get "/api/v1/restaurants", params: { q: "kitchen" }
+
+    names = response.parsed_body["restaurants"].map { |x| x["name"] }
+    expect(names).to contain_exactly("Thai Kitchen", "Himalayan Kitchen")
+  end
+
+  it "escapes LIKE wildcards in the query" do
+    create(:restaurant, :published, name: "100% Tacos", city: city)
+    create(:restaurant, :published, name: "Ninis Taqueria", city: city)
+
+    get "/api/v1/restaurants", params: { q: "100%" }
+
+    names = response.parsed_body["restaurants"].map { |x| x["name"] }
+    expect(names).to eq(["100% Tacos"])
+  end
+
+  it "caps the list at 25 rows" do
+    30.times { |i| create(:restaurant, :published, name: "Cafe #{i.to_s.rjust(2, '0')}", city: city) }
+
+    get "/api/v1/restaurants"
+
+    expect(response.parsed_body["restaurants"].length).to eq(25)
+  end
+end
