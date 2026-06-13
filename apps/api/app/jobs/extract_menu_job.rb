@@ -16,6 +16,8 @@
 # Idempotence: re-running on a run already past `:extracting`
 # is a no-op (transition_to! is idempotent).
 class ExtractMenuJob < ApplicationJob
+  include TimedAnthropicCall
+
   queue_as :ingestion
 
   def perform(ingestion_run_id)
@@ -33,29 +35,16 @@ class ExtractMenuJob < ApplicationJob
       return
     end
 
-    client = AnthropicClient.new
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    begin
-      result = client.messages_create(
+    out = timed_anthropic_call(run, api_error: "anthropic_api_error", validation_error: "schema_validation_failed") do |client|
+      client.messages_create(
         system:          Ingestion::ExtractMenuPrompt.system(client),
         messages:        Ingestion::ExtractMenuPrompt.user_messages(client, blobs),
         response_schema: Ingestion::MenuExtractionSchema
       )
-    rescue AnthropicClient::ApiError => e
-      run.fail!("anthropic_api_error: #{e.status} #{e.body.to_s.truncate(500)}")
-      return
-    rescue AnthropicClient::ValidationError => e
-      # The 200 was billed even though its body failed our schema —
-      # accrue it so the cost ceiling can't leak via failed runs.
-      run.record_api_usage!(client.last_usage, model: client.model)
-      run.fail!("schema_validation_failed: #{e.errors.first(3).join('; ')}")
-      return
     end
+    return if out.nil?
+    result, elapsed_ms = out
 
-    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-
-    run.record_api_usage!(client.last_usage, model: client.model)
     run.update!(
       staging:    result,
       latency_ms: elapsed_ms
