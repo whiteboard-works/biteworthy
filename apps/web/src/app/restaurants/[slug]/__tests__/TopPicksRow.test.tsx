@@ -140,4 +140,9 @@ describe('TopPicksRow', () => {
     const link = screen.getByTestId('top-pick-curry').querySelector('a');
     expect(link).toHaveAttribute('href', '/restaurants/ninis/items/curry');
   });
+
+  it('offers an "Improve my picks" link into the standalone taste step', () => {
+    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" />);
+    expect(screen.getByTestId('improve-picks')).toHaveAttribute('href', '/onboarding?step=taste');
+  });
 });

@@ -29,6 +29,13 @@ export function TopPicksRow({ items }: { items: RestaurantItem[] }) {
         <Pressable accessibilityLabel="why-these" onPress={() => setWhyOpen((v) => !v)}>
           <Text style={styles.whyLink}>Why these?</Text>
         </Pressable>
+        <Pressable
+          accessibilityLabel="improve-picks"
+          onPress={() => router.push('/onboarding?step=taste')}
+          style={styles.improveLink}
+        >
+          <Text style={styles.whyLink}>Improve my picks</Text>
+        </Pressable>
       </View>
       {whyOpen && (
         <Text style={styles.explainer} testID="why-these-explainer">
@@ -85,6 +92,9 @@ const styles = StyleSheet.create({
     color: colors.bite,
     fontSize: fontSize.xs,
     fontWeight: '600',
+  },
+  improveLink: {
+    marginLeft: 'auto',
   },
   explainer: {
     color: colors.textMuted,

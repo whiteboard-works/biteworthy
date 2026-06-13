@@ -46,6 +46,13 @@ export function TopPicksRow({
         >
           Why these?
         </button>
+        <a
+          href="/onboarding?step=taste"
+          data-testid="improve-picks"
+          className="ml-auto text-bw-xs font-semibold text-bite hover:text-bite-dark"
+        >
+          Improve my picks
+        </a>
       </div>
       {whyOpen && (
         <p data-testid="why-these-explainer" className="mt-bw-1 text-bw-sm text-zinc-500">

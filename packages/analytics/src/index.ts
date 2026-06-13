@@ -76,6 +76,12 @@ export interface EventPropsMap {
     avoid_ingredient_count: number;
     avoid_tag_count: number;
     strictness: 'relaxed' | 'balanced' | 'strict';
+    /**
+     * Phase 8.5 — total taste signals set during onboarding (liked +
+     * disliked tags + ingredients). Optional: pre-8.5 callers and the
+     * standalone "Improve my picks" save omit it.
+     */
+    taste_signal_count?: number;
   };
   menu_filtered: {
     restaurant_slug: string;

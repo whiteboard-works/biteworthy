@@ -13,6 +13,32 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 05:30 — tick #147. **Phase 8.5b shipped — taste onboarding
+UI (web + mobile). Phase 8 feature-complete.** JS-only PR (no apps/api
+changes → ci-api/rspec/brakeman/openapi untouched).
+- New "What do you love?" step between strictness and review on both
+  surfaces (now 5 steps): cuisine/flavor tag chips from
+  GET /api/v1/tags?families=cuisine,flavor that cycle neutral → liked
+  → disliked → neutral on tap, plus an optional favorite-ingredient
+  search. Skippable — taste is soft, safety is not.
+- Standalone "Improve my picks": `?step=taste` (web useSearchParams,
+  mobile useLocalSearchParams) opens the step alone and saves via the
+  taste-only saveTaste/toTastePayload, so refining picks can NEVER
+  wipe the avoid lists. Web page wrapped in <Suspense> (Next 15
+  useSearchParams prod-build requirement). Entry link added to the
+  TopPicksRow header on both surfaces.
+- Contract: optional taste_signal_count on profile_set (analytics
+  EventPropsMap + docs/analytics.md, both updated same PR; no rename).
+  fetchTags + saveTaste + SaveTastePayload added to both onboarding
+  libs; SaveProfilePayload extended with the 4 optional taste arrays.
+- Tests: web 153 (+9: fetchTags/saveTaste lib shapes + taste-step page
+  render incl. standalone-save footgun guard + improve-picks link),
+  mobile 120 (+2: taste step in the of-5 flow + chip cycle); existing
+  of-4 flow assertions migrated to of-5. typecheck/lint green across
+  the workspace.
+Next: Phase 8 done — remaining queue is human-credential-gated launch
+wiring (see docs/launch-readiness.md).
+
 2026-06-13 03:15 — tick #146. **Phase 8.5a shipped — taste onboarding
 foundations** (session wrapping on user request; 8.5b = the UI half,
 queued at the top of Next-up with a full handoff note).
