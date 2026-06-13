@@ -82,14 +82,20 @@ pnpm web <script>          # alias for: pnpm --filter @biteworthy/web ...
 pnpm mobile <script>       # alias for: pnpm --filter @biteworthy/mobile ...
 ```
 
-The API has its own toolchain — run from `apps/api/`:
+The fastest path is the containerized stack — `docker compose up` (from the
+repo root) boots the API on `:3000`, the Solid Queue worker, and Postgres,
+with `apps/api` bind-mounted for hot reload. `docker compose up -d postgres`
+still starts Postgres alone if you'd rather run the API natively. See
+`docs/local-dev.md` for the full guide.
+
+The API has its own toolchain — run from `apps/api/` (native path):
 
 ```bash
 docker compose up -d postgres           # (from repo root) local Postgres 16, localhost-only, trust auth
 bundle install
-bin/rails db:create db:schema:load db:seed
+bin/rails db:prepare                    # create + load schema + seed (idempotent)
 bin/rails s -p 3000                     # API on :3000 (web is on :3001)
-bin/jobs                                # Solid Queue worker (or boot inline: SOLID_QUEUE_IN_PUMA=true bin/rails s)
+bin/rails solid_queue:start             # Solid Queue worker (or boot inline: SOLID_QUEUE_IN_PUMA=true bin/rails s)
 bundle exec rspec                       # full test suite
 bundle exec rspec spec/requests/foo_spec.rb     # one file
 bundle exec rspec spec/requests/foo_spec.rb:42  # one example by line
@@ -97,6 +103,9 @@ bundle exec rubocop --parallel
 bundle exec brakeman --no-pager --quiet --format plain
 bin/openapi-export                      # regenerate docs/openapi.json from the rswag specs
 ```
+
+Inside the containerized stack the same commands run via
+`docker compose exec api …` (e.g. `docker compose exec api bundle exec rspec`).
 
 Per-app test runners (use these for narrow runs instead of `pnpm test`):
 

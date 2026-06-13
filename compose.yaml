@@ -1,13 +1,46 @@
-# Local-dev Postgres for the Rails API.
+# Local-dev stack for the Rails API.
 #
-# Web / mobile / API run natively; only the database is containerized.
-# Usage:
-#   docker compose up -d postgres
-#   cd apps/api && bin/rails db:create db:schema:load db:seed
+# Two ways to use this:
+#
+#   1. Full containerized stack (API + worker + Postgres):
+#        cp apps/api/.env.example apps/api/.env   # optional — see notes
+#        docker compose up
+#      → API on http://localhost:3000, Solid Queue worker, Postgres.
+#      Source is bind-mounted, so edits hot-reload (Rails dev reloader).
+#      First boot installs gems + runs db:prepare (creates + seeds).
+#
+#   2. Postgres only (run web/mobile/API natively, as before):
+#        docker compose up -d postgres
+#        cd apps/api && bin/rails db:prepare && bin/rails s -p 3000
+#
+# Mobile (Expo) always runs natively — it needs simulator/device access
+# that doesn't containerize cleanly. Web can run natively (`pnpm dev`,
+# port 3001) against the containerized API on :3000.
 #
 # Auth: POSTGRES_HOST_AUTH_METHOD=trust matches database.yml defaults
-# (host=localhost, user=postgres, password=""). Safe because the port
-# is bound to localhost only. Dev use only.
+# (user=postgres, password=""). Safe because the port is bound to
+# localhost only. Dev use only.
+
+# Shared config for the API + worker — same image, same mounts, same DB.
+x-api-base: &api-base
+  build:
+    context: ./apps/api
+    target: dev
+  environment:
+    DATABASE_HOST: postgres
+    RAILS_ENV: development
+  env_file:
+    # Optional: holds ANTHROPIC_API_KEY etc. The stack boots without it;
+    # only the ingestion pipeline needs the key. `cp .env.example .env`.
+    - path: ./apps/api/.env
+      required: false
+  volumes:
+    - ./apps/api:/rails
+    - bundle:/usr/local/bundle
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
 
 services:
   postgres:
@@ -26,5 +59,42 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Rails API (Puma). Clears any stale server pid, self-heals gems if the
+  # Gemfile changed since the last build, prepares the dev databases
+  # (create + load schema + seed on first run), then boots on 0.0.0.0.
+  api:
+    <<: *api-base
+    container_name: biteworthy-api
+    command: >
+      bash -c "rm -f tmp/pids/server.pid &&
+               (bundle check || bundle install) &&
+               ./bin/rails db:prepare &&
+               ./bin/rails server -b 0.0.0.0 -p 3000"
+    ports:
+      - '127.0.0.1:3000:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/up || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Generous: covers first-boot bundle install + db:prepare.
+      start_period: 90s
+
+  # Solid Queue worker (background jobs — the ingestion pipeline). Waits
+  # for the API to be healthy so db:prepare has loaded the queue schema
+  # before this starts polling. Same command the Kamal `worker` role runs.
+  worker:
+    <<: *api-base
+    container_name: biteworthy-worker
+    command: >
+      bash -c "(bundle check || bundle install) &&
+               ./bin/rails solid_queue:start"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  bundle:
