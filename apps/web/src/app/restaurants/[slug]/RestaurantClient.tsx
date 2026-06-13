@@ -22,6 +22,7 @@ import {
   type RestaurantItemsResponse,
 } from '../../../lib/restaurants';
 import { ItemRow } from './ItemRow';
+import { TopPicksRow } from './TopPicksRow';
 import { useTracker } from '../../_PostHogProvider';
 
 /**
@@ -50,6 +51,9 @@ export function RestaurantClient({
 }) {
   const tracker = useTracker();
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
+  // Phase 8.3 — the raw (server-sorted) items feed the Top Picks row;
+  // the section state below still drives the main menu + overrides.
+  const [rawItems, setRawItems] = useState<RestaurantItem[]>(initialItems.items);
   const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>(() =>
     groupItemsBySection(initialItems.items),
   );
@@ -94,6 +98,7 @@ export function RestaurantClient({
         .then((res) => {
           if (cancelled) return;
           setFilter(res.filter);
+          setRawItems(res.items);
           setSections(groupItemsBySection(res.items));
           setShownAnyway(new Set());
           const totalVisible = res.items.filter((it) => it.status === 'visible').length;
@@ -189,6 +194,8 @@ export function RestaurantClient({
           Could not refresh items — {error}
         </p>
       )}
+
+      <TopPicksRow items={rawItems} restaurantSlug={slug} />
 
       {overriddenSections.length === 0 && (
         <p className="mt-bw-6 text-center text-bw-base text-zinc-500">
