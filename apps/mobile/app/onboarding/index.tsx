@@ -10,20 +10,25 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   initialDraft,
   onboardingReducer,
+  tasteStateOf,
   toProfilePayload,
+  toTastePayload,
   type DietaryPreset,
   type Strictness,
 } from '@biteworthy/filter-engine';
 import {
   fetchDietaryProfiles,
+  fetchTags,
   saveProfile,
+  saveTaste,
   searchIngredients,
   type IngredientSearchResult,
+  type TasteTag,
 } from '../../lib/api/onboarding';
 import { getJwt } from '../../lib/auth';
 import { useTracker } from '../../lib/tracker-context';
@@ -34,23 +39,34 @@ import { useTracker } from '../../lib/tracker-context';
  *   1. Pick presets ("What can't you eat?")
  *   2. Add specific ingredients ("Anything else?")
  *   3. Set strictness ("How strict?")
- *   4. Done → PATCH /api/v1/profile, navigate to /.
+ *   4. Taste ("What do you love?") — Phase 8.5, skippable
+ *   5. Done → PATCH /api/v1/profile, navigate to /.
  *
  * Phase 4.1 dropped the paste-the-JWT field; auth comes from the
  * keychain-backed token stored by /login. A 401 means the session
  * expired — the user is bounced to /login?next=/onboarding.
+ *
+ * Phase 8.5 — `?step=taste` enters the taste step standalone ("Improve
+ * my picks"). That mode saves ONLY the taste arrays (toTastePayload),
+ * so refining picks can never wipe the avoid lists. Safety filters,
+ * taste ranks.
  */
-type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
+type Step = 'presets' | 'ingredients' | 'strictness' | 'taste' | 'done';
 
 export default function OnboardingScreen() {
   const tracker = useTracker();
-  const [step, setStep] = useState<Step>('presets');
+  const params = useLocalSearchParams<{ step?: string }>();
+  const standalone = params.step === 'taste';
+  const [step, setStep] = useState<Step>(standalone ? 'taste' : 'presets');
   const [draft, dispatch] = useReducer(onboardingReducer, initialDraft);
   const [presets, setPresets] = useState<DietaryPreset[]>([]);
   const [loadingPresets, setLoadingPresets] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IngredientSearchResult[]>([]);
   const [searchedIngredients, setSearchedIngredients] = useState<Map<string, IngredientSearchResult>>(new Map());
+  const [tags, setTags] = useState<TasteTag[]>([]);
+  const [tasteQuery, setTasteQuery] = useState('');
+  const [tasteResults, setTasteResults] = useState<IngredientSearchResult[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Load presets once.
@@ -61,7 +77,17 @@ export default function OnboardingScreen() {
       .finally(() => setLoadingPresets(false));
   }, []);
 
-  // Debounced ingredient search.
+  // Load taste tag chips once (cuisine + flavor families).
+  useEffect(() => {
+    fetchTags()
+      .then(setTags)
+      .catch(() => {
+        // Tags are optional — taste is skippable, so a load failure
+        // just leaves the chip grid empty.
+      });
+  }, []);
+
+  // Debounced ingredient search (avoid-list step).
   useEffect(() => {
     if (step !== 'ingredients') return;
     const handle = setTimeout(() => {
@@ -81,6 +107,28 @@ export default function OnboardingScreen() {
     return () => clearTimeout(handle);
   }, [searchQuery, step]);
 
+  // Debounced ingredient search (taste step — separate query).
+  useEffect(() => {
+    if (step !== 'taste' || tasteQuery.trim().length === 0) {
+      setTasteResults([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchIngredients(tasteQuery)
+        .then(setTasteResults)
+        .catch(() => {
+          // Non-fatal.
+        });
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [tasteQuery, step]);
+
+  const tasteSignalCount =
+    draft.likedTagIds.length +
+    draft.dislikedTagIds.length +
+    draft.likedIngredientIds.length +
+    draft.dislikedIngredientIds.length;
+
   const finalize = async () => {
     const jwt = await getJwt();
     if (!jwt) {
@@ -96,6 +144,7 @@ export default function OnboardingScreen() {
         avoid_ingredient_count: payload.avoid_ingredient_ids.length,
         avoid_tag_count: payload.avoid_tag_ids.length,
         strictness: payload.strictness,
+        taste_signal_count: tasteSignalCount,
       });
       Alert.alert('Profile saved', 'Your dietary filter is ready.');
       router.replace('/');
@@ -111,11 +160,36 @@ export default function OnboardingScreen() {
     }
   };
 
+  // Standalone "Improve my picks" save — taste arrays only, so it can
+  // never wipe the user's existing avoid lists (wholesale replace).
+  const finalizeTaste = async () => {
+    const jwt = await getJwt();
+    if (!jwt) {
+      router.replace('/login?next=%2Fonboarding%3Fstep%3Dtaste');
+      return;
+    }
+    try {
+      setSaving(true);
+      await saveTaste(toTastePayload(draft), jwt);
+      Alert.alert('Picks updated', 'Your Top Picks just got smarter.');
+      router.replace('/');
+    } catch (e) {
+      const message = (e as Error).message;
+      if (message.includes('401')) {
+        router.replace('/login?next=%2Fonboarding%3Fstep%3Dtaste');
+        return;
+      }
+      Alert.alert('Save failed', message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── Step bodies ──────────────────────────────────────────────────────
   if (step === 'presets') {
     return (
       <View style={styles.container}>
-        <Text style={styles.eyebrow}>Step 1 of 4</Text>
+        <Text style={styles.eyebrow}>Step 1 of 5</Text>
         <Text style={styles.headline}>What can't you eat?</Text>
         <Text style={styles.body}>Tap any presets that apply. You can multi-select.</Text>
 
@@ -150,7 +224,7 @@ export default function OnboardingScreen() {
   if (step === 'ingredients') {
     return (
       <View style={styles.container}>
-        <Text style={styles.eyebrow}>Step 2 of 4</Text>
+        <Text style={styles.eyebrow}>Step 2 of 5</Text>
         <Text style={styles.headline}>Anything else?</Text>
         <Text style={styles.body}>Search for specific ingredients to avoid.</Text>
 
@@ -208,7 +282,7 @@ export default function OnboardingScreen() {
   if (step === 'strictness') {
     return (
       <View style={styles.container}>
-        <Text style={styles.eyebrow}>Step 3 of 4</Text>
+        <Text style={styles.eyebrow}>Step 3 of 5</Text>
         <Text style={styles.headline}>How strict?</Text>
         <Text style={styles.body}>
           Strict mode also hides items the AI hasn't fully confirmed. Pick balanced if unsure.
@@ -235,8 +309,115 @@ export default function OnboardingScreen() {
           );
         })}
 
-        <Pressable accessibilityLabel="next-to-done" onPress={() => setStep('done')} style={styles.primary}>
-          <Text style={styles.primaryText}>Review →</Text>
+        <Pressable accessibilityLabel="next-to-taste" onPress={() => setStep('taste')} style={styles.primary}>
+          <Text style={styles.primaryText}>Next →</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (step === 'taste') {
+    return (
+      <View style={styles.container}>
+        {standalone ? (
+          <>
+            <Text style={styles.eyebrow}>Improve your picks</Text>
+            <Text style={styles.headline}>What do you love?</Text>
+            <Text style={styles.body}>
+              Tap to love a cuisine or flavor; tap again to pass. This only ranks your menus —
+              it never hides anything your dietary filter allows.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.eyebrow}>Step 4 of 5</Text>
+            <Text style={styles.headline}>What do you love?</Text>
+            <Text style={styles.body}>
+              Tap to love a cuisine or flavor; tap again to pass. Optional — this only ranks your
+              Top Picks, it never hides safe food.
+            </Text>
+          </>
+        )}
+
+        <View style={styles.chipGrid}>
+          {tags.map((t) => {
+            const state = tasteStateOf(t.id, draft.likedTagIds, draft.dislikedTagIds);
+            return (
+              <Pressable
+                key={t.id}
+                accessibilityLabel={`taste-tag-${t.slug}`}
+                onPress={() => dispatch({ type: 'CYCLE_TASTE_TAG', tagId: t.id })}
+                style={[
+                  styles.tasteChip,
+                  state === 'liked' && styles.tasteChipLiked,
+                  state === 'disliked' && styles.tasteChipDisliked,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tasteChipText,
+                    state === 'disliked' && styles.tasteChipTextDisliked,
+                  ]}
+                >
+                  {state === 'liked' ? '♥ ' : state === 'disliked' ? '✕ ' : ''}
+                  {t.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <TextInput
+          accessibilityLabel="taste-ingredient-search"
+          placeholder="Search a favorite ingredient (e.g. 'basil')"
+          value={tasteQuery}
+          onChangeText={setTasteQuery}
+          style={styles.input}
+        />
+        <FlatList
+          data={tasteResults}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => {
+            const state = tasteStateOf(item.id, draft.likedIngredientIds, draft.dislikedIngredientIds);
+            return (
+              <Pressable
+                accessibilityLabel={`taste-ing-${item.slug}`}
+                onPress={() => dispatch({ type: 'CYCLE_TASTE_INGREDIENT', ingredientId: item.id })}
+                style={[styles.searchRow, state === 'liked' && styles.searchRowAdded]}
+              >
+                <Text style={[styles.searchName, { flex: 1 }]}>{item.name}</Text>
+                <Text style={[styles.addLabel, state === 'liked' && styles.addedLabel]}>
+                  {state === 'liked' ? '♥ love' : state === 'disliked' ? '✕ pass' : '+ love'}
+                </Text>
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={null}
+        />
+
+        <Text style={styles.muted}>{tasteSignalCount} taste signal(s) set</Text>
+
+        {standalone ? (
+          <Pressable
+            accessibilityLabel="save-taste"
+            onPress={finalizeTaste}
+            disabled={saving}
+            style={[styles.primary, saving && { opacity: 0.5 }]}
+          >
+            <Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save picks'}</Text>
+          </Pressable>
+        ) : (
+          <Pressable accessibilityLabel="next-to-done" onPress={() => setStep('done')} style={styles.primary}>
+            <Text style={styles.primaryText}>Review →</Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          accessibilityLabel="skip-taste"
+          onPress={() => (standalone ? router.replace('/') : setStep('done'))}
+          style={styles.skip}
+        >
+          <Text style={styles.skipText}>{standalone ? 'Cancel' : 'Skip for now'}</Text>
         </Pressable>
       </View>
     );
@@ -245,7 +426,7 @@ export default function OnboardingScreen() {
   // step === 'done'
   return (
     <View style={styles.container}>
-      <Text style={styles.eyebrow}>Step 4 of 4</Text>
+      <Text style={styles.eyebrow}>Step 5 of 5</Text>
       <Text style={styles.headline}>Ready?</Text>
 
       <Text style={styles.body}>
@@ -379,5 +560,39 @@ const styles = StyleSheet.create({
     color: colors.bg,
     fontWeight: '700',
     fontSize: fontSize.base,
+  },
+  skip: {
+    alignItems: 'center',
+    paddingVertical: space['3'],
+  },
+  skipText: {
+    color: colors.textMuted,
+    fontWeight: '600',
+    fontSize: fontSize.sm,
+  },
+  tasteChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgAlt,
+    borderRadius: 999,
+    paddingHorizontal: space['3'],
+    paddingVertical: space['2'],
+  },
+  tasteChipLiked: {
+    borderColor: colors.ok,
+    backgroundColor: colors.biteLight,
+  },
+  tasteChipDisliked: {
+    borderColor: colors.bite,
+    backgroundColor: colors.biteLight,
+  },
+  tasteChipText: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  tasteChipTextDisliked: {
+    color: colors.biteDark,
+    textDecorationLine: 'line-through',
   },
 });

@@ -18,16 +18,56 @@ export interface IngredientSearchResult {
   allergen: boolean;
 }
 
+/**
+ * Phase 8.5 — taste signals ride on the same PATCH /api/profile as
+ * the avoid lists, so they're optional on the full-onboarding
+ * payload. The standalone "Improve my picks" save uses
+ * `SaveTastePayload` (taste-only) so it can't wipe avoid lists.
+ */
 export interface SaveProfilePayload {
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
   prefer_tag_ids: string[];
   strictness: 'relaxed' | 'balanced' | 'strict';
+  liked_tag_ids?: string[];
+  disliked_tag_ids?: string[];
+  liked_ingredient_ids?: string[];
+  disliked_ingredient_ids?: string[];
+}
+
+export interface SaveTastePayload {
+  liked_tag_ids: string[];
+  disliked_tag_ids: string[];
+  liked_ingredient_ids: string[];
+  disliked_ingredient_ids: string[];
+}
+
+/** A taste-onboarding chip. Mirrors GET /api/v1/tags rows. */
+export interface TasteTag {
+  id: string;
+  slug: string;
+  name: string;
+  family: string;
 }
 
 export async function fetchDietaryProfiles(opts: ApiOptions = {}): Promise<DietaryPreset[]> {
   const json = await api<{ dietary_profiles: DietaryPreset[] }>('/dietary_profiles', opts);
   return json.dietary_profiles;
+}
+
+/**
+ * Phase 8.5 — tag chips for the "What do you love?" step. `families`
+ * narrows to the taste-relevant families (cuisine, flavor); the
+ * server whitelists unknown names away.
+ */
+export async function fetchTags(
+  families: string[] = ['cuisine', 'flavor'],
+  opts: ApiOptions = {},
+): Promise<TasteTag[]> {
+  const params = new URLSearchParams();
+  if (families.length > 0) params.set('families', families.join(','));
+  const json = await api<{ tags: TasteTag[] }>(`/tags?${params.toString()}`, opts);
+  return json.tags;
 }
 
 export async function searchIngredients(
@@ -72,5 +112,33 @@ export async function saveProfile(
       // ignore
     }
     throw new Error(`saveProfile failed: ${res.status} ${JSON.stringify(body)}`);
+  }
+}
+
+/**
+ * Phase 8.5 standalone "Improve my picks": PATCH ONLY the four taste
+ * arrays. The profile endpoint replaces arrays wholesale, so a save
+ * that carried the (empty) avoid lists would wipe the user's safety
+ * filter — this payload omits them entirely.
+ */
+export async function saveTaste(
+  payload: SaveTastePayload,
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl('/api/profile', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    throw new Error(`saveTaste failed: ${res.status} ${JSON.stringify(body)}`);
   }
 }

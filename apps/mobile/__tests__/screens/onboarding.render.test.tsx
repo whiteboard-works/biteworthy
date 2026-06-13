@@ -20,12 +20,16 @@ jest.mock('expo-router', () => ({
 // Mock the onboarding API at the boundary so the screen renders
 // against deterministic preset + ingredient catalogs.
 const mockFetchDietaryProfiles = jest.fn();
+const mockFetchTags = jest.fn();
 const mockSearchIngredients = jest.fn();
 const mockSaveProfile = jest.fn();
+const mockSaveTaste = jest.fn();
 jest.mock('../../lib/api/onboarding', () => ({
   fetchDietaryProfiles: (...args: unknown[]) => mockFetchDietaryProfiles(...args),
+  fetchTags: (...args: unknown[]) => mockFetchTags(...args),
   searchIngredients: (...args: unknown[]) => mockSearchIngredients(...args),
   saveProfile: (...args: unknown[]) => mockSaveProfile(...args),
+  saveTaste: (...args: unknown[]) => mockSaveTaste(...args),
 }));
 
 // Mock auth so finalize doesn't try to hit the keychain.
@@ -68,12 +72,17 @@ const GF_PRESET = {
   avoid_tag_ids: [],
 };
 
+const THAI_TAG = { id: 'tag-thai', slug: 'cuisine-thai', name: 'Thai', family: 'cuisine' };
+
 beforeEach(() => {
   mockFetchDietaryProfiles.mockReset();
+  mockFetchTags.mockReset();
   mockSearchIngredients.mockReset();
   mockSaveProfile.mockReset();
+  mockSaveTaste.mockReset();
   mockReplace.mockReset();
   mockFetchDietaryProfiles.mockResolvedValue([VEGAN_PRESET, GF_PRESET]);
+  mockFetchTags.mockResolvedValue([THAI_TAG]);
   mockSearchIngredients.mockResolvedValue([]);
 });
 
@@ -82,7 +91,7 @@ describe('OnboardingScreen — Step 1: presets', () => {
     mockFetchDietaryProfiles.mockReturnValue(new Promise(() => {})); // never resolves
     render(<OnboardingScreen />);
 
-    expect(screen.getByText('Step 1 of 4')).toBeOnTheScreen();
+    expect(screen.getByText('Step 1 of 5')).toBeOnTheScreen();
     expect(screen.getByText("What can't you eat?")).toBeOnTheScreen();
     expect(screen.getByTestId('presets-loading')).toBeOnTheScreen();
   });
@@ -137,10 +146,10 @@ describe('OnboardingScreen — Step 3: strictness', () => {
     await screen.findByLabelText('preset-vegan'); // wait for step 1 to settle
 
     fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    expect(screen.getByText('Step 2 of 4')).toBeOnTheScreen();
+    expect(screen.getByText('Step 2 of 5')).toBeOnTheScreen();
 
     fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    expect(screen.getByText('Step 3 of 4')).toBeOnTheScreen();
+    expect(screen.getByText('Step 3 of 5')).toBeOnTheScreen();
     expect(screen.getByText('How strict?')).toBeOnTheScreen();
 
     expect(screen.getByLabelText('strictness-relaxed')).toBeOnTheScreen();
@@ -164,16 +173,52 @@ describe('OnboardingScreen — Step 3: strictness', () => {
   });
 });
 
-describe('OnboardingScreen — Step 4: review', () => {
+describe('OnboardingScreen — Step 4: taste', () => {
+  it('renders the taste step between strictness and review, and is skippable', async () => {
+    render(<OnboardingScreen />);
+    await screen.findByLabelText('preset-vegan');
+
+    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
+    fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
+
+    expect(screen.getByText('Step 4 of 5')).toBeOnTheScreen();
+    expect(screen.getByText('What do you love?')).toBeOnTheScreen();
+    // Tag chip from the mocked fetchTags resolves.
+    await screen.findByLabelText('taste-tag-cuisine-thai');
+
+    // Skip → review step (taste arrays stay empty).
+    fireEvent.press(screen.getByLabelText('skip-taste'));
+    expect(screen.getByText('Step 5 of 5')).toBeOnTheScreen();
+    expect(screen.getByText('Ready?')).toBeOnTheScreen();
+  });
+
+  it('cycles a tag chip to liked when tapped', async () => {
+    render(<OnboardingScreen />);
+    await screen.findByLabelText('preset-vegan');
+
+    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
+    fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
+
+    const chip = await screen.findByLabelText('taste-tag-cuisine-thai');
+    fireEvent.press(chip);
+    // Liked chips prefix the name with a heart.
+    expect(screen.getByText('♥ Thai')).toBeOnTheScreen();
+  });
+});
+
+describe('OnboardingScreen — Step 5: review', () => {
   it('summarizes the empty draft on the review step', async () => {
     render(<OnboardingScreen />);
     await screen.findByLabelText('preset-vegan');
 
     fireEvent.press(screen.getByLabelText('next-to-ingredients'));
     fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
     fireEvent.press(screen.getByLabelText('next-to-done'));
 
-    expect(screen.getByText('Step 4 of 4')).toBeOnTheScreen();
+    expect(screen.getByText('Step 5 of 5')).toBeOnTheScreen();
     expect(screen.getByText('Ready?')).toBeOnTheScreen();
     // The summary string is split across multiple <Text> nodes for
     // bolding — assert via the bolded count nodes.
@@ -190,6 +235,7 @@ describe('OnboardingScreen — Step 4: review', () => {
 
     fireEvent.press(screen.getByLabelText('next-to-ingredients'));
     fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
     fireEvent.press(screen.getByLabelText('next-to-done'));
 
     // Singular when count = 1.
@@ -203,6 +249,7 @@ describe('OnboardingScreen — Step 4: review', () => {
 
     fireEvent.press(screen.getByLabelText('next-to-ingredients'));
     fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
     fireEvent.press(screen.getByLabelText('next-to-done'));
 
     await act(async () => {

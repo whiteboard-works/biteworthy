@@ -1,19 +1,25 @@
 'use client';
 
-import { useEffect, useReducer, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useReducer, useState, type FormEvent } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   initialDraft,
   onboardingReducer,
+  tasteStateOf,
   toProfilePayload,
+  toTastePayload,
   type DietaryPreset,
   type Strictness,
+  type TasteState,
 } from '@biteworthy/filter-engine';
 import {
   fetchDietaryProfiles,
+  fetchTags,
   saveProfile,
+  saveTaste,
   searchIngredients,
   type IngredientSearchResult,
+  type TasteTag,
 } from '../../lib/onboarding';
 import { useTracker } from '../_PostHogProvider';
 
@@ -23,14 +29,20 @@ import { useTracker } from '../_PostHogProvider';
  *   1. Pick presets ("What can't you eat?")
  *   2. Add specific ingredients ("Anything else?")
  *   3. Set strictness ("How strict?")
- *   4. Done → PATCH /api/profile (Next proxy reads the bw_session
+ *   4. Taste ("What do you love?") — Phase 8.5, skippable
+ *   5. Done → PATCH /api/profile (Next proxy reads the bw_session
  *      cookie + forwards to Rails), navigate home.
  *
  * Phase 4.1 dropped the paste-the-JWT input; if the request comes
  * back 401, the user is bounced to /login?next=/onboarding so they
  * can sign in and resume.
+ *
+ * Phase 8.5 — `?step=taste` enters the taste step standalone ("Improve
+ * my picks"). That mode saves ONLY the taste arrays (toTastePayload),
+ * so refining picks can never wipe the avoid lists. Taste is soft:
+ * safety filters, taste ranks.
  */
-type Step = 'presets' | 'ingredients' | 'strictness' | 'done';
+type Step = 'presets' | 'ingredients' | 'strictness' | 'taste' | 'done';
 
 const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 const STRICTNESS_BLURB: Record<Strictness, string> = {
@@ -40,16 +52,31 @@ const STRICTNESS_BLURB: Record<Strictness, string> = {
 };
 
 export default function OnboardingPage() {
+  // useSearchParams (in OnboardingFlow) needs a Suspense boundary or
+  // Next 15's prod build bails the whole page out of static rendering.
+  return (
+    <Suspense>
+      <OnboardingFlow />
+    </Suspense>
+  );
+}
+
+function OnboardingFlow() {
   const router = useRouter();
   const tracker = useTracker();
+  const searchParams = useSearchParams();
+  const standalone = searchParams.get('step') === 'taste';
 
-  const [step, setStep] = useState<Step>('presets');
+  const [step, setStep] = useState<Step>(standalone ? 'taste' : 'presets');
   const [draft, dispatch] = useReducer(onboardingReducer, initialDraft);
   const [presets, setPresets] = useState<DietaryPreset[]>([]);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const [loadingPresets, setLoadingPresets] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IngredientSearchResult[]>([]);
+  const [tags, setTags] = useState<TasteTag[]>([]);
+  const [tasteQuery, setTasteQuery] = useState('');
+  const [tasteResults, setTasteResults] = useState<IngredientSearchResult[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -60,7 +87,17 @@ export default function OnboardingPage() {
       .finally(() => setLoadingPresets(false));
   }, []);
 
-  // Debounced ingredient search.
+  // Load taste tag chips once (cuisine + flavor families).
+  useEffect(() => {
+    fetchTags()
+      .then(setTags)
+      .catch(() => {
+        // Tags are optional — taste is skippable, so a load failure
+        // just leaves the chip grid empty.
+      });
+  }, []);
+
+  // Debounced ingredient search (avoid-list step).
   useEffect(() => {
     if (step !== 'ingredients') return;
     const handle = setTimeout(() => {
@@ -72,6 +109,29 @@ export default function OnboardingPage() {
     }, 250);
     return () => clearTimeout(handle);
   }, [searchQuery, step]);
+
+  // Debounced ingredient search (taste step — separate query so the
+  // two searches don't bleed into each other).
+  useEffect(() => {
+    if (step !== 'taste' || tasteQuery.trim().length === 0) {
+      setTasteResults([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchIngredients(tasteQuery)
+        .then(setTasteResults)
+        .catch(() => {
+          // Non-fatal.
+        });
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [tasteQuery, step]);
+
+  const tasteSignalCount =
+    draft.likedTagIds.length +
+    draft.dislikedTagIds.length +
+    draft.likedIngredientIds.length +
+    draft.dislikedIngredientIds.length;
 
   const finalize = async (e: FormEvent) => {
     e.preventDefault();
@@ -85,6 +145,7 @@ export default function OnboardingPage() {
         avoid_ingredient_count: payload.avoid_ingredient_ids.length,
         avoid_tag_count: payload.avoid_tag_ids.length,
         strictness: payload.strictness,
+        taste_signal_count: tasteSignalCount,
       });
       router.replace('/');
     } catch (err) {
@@ -93,6 +154,27 @@ export default function OnboardingPage() {
       // — bounce to login and come back here to finish.
       if (message.includes('401')) {
         router.replace(`/login?next=${encodeURIComponent('/onboarding')}`);
+        return;
+      }
+      setSaveError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Standalone "Improve my picks" save — taste arrays only, so it can
+  // never wipe the user's existing avoid lists (wholesale-replace
+  // semantics on the endpoint).
+  const finalizeTaste = async () => {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      await saveTaste(toTastePayload(draft));
+      router.replace('/');
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message.includes('401')) {
+        router.replace(`/login?next=${encodeURIComponent('/onboarding?step=taste')}`);
         return;
       }
       setSaveError(message);
@@ -134,7 +216,31 @@ export default function OnboardingPage() {
         <StrictnessStep
           active={draft.strictness}
           onPick={(s) => dispatch({ type: 'SET_STRICTNESS', strictness: s })}
+          onNext={() => setStep('taste')}
+        />
+      )}
+
+      {step === 'taste' && (
+        <TasteStep
+          standalone={standalone}
+          tags={tags}
+          likedTagIds={draft.likedTagIds}
+          dislikedTagIds={draft.dislikedTagIds}
+          onCycleTag={(tagId) => dispatch({ type: 'CYCLE_TASTE_TAG', tagId })}
+          query={tasteQuery}
+          results={tasteResults}
+          likedIngredientIds={draft.likedIngredientIds}
+          dislikedIngredientIds={draft.dislikedIngredientIds}
+          onQueryChange={setTasteQuery}
+          onCycleIngredient={(ingredientId) =>
+            dispatch({ type: 'CYCLE_TASTE_INGREDIENT', ingredientId })
+          }
+          signalCount={tasteSignalCount}
+          saving={saving}
+          error={saveError}
           onNext={() => setStep('done')}
+          onSave={finalizeTaste}
+          onSkip={() => (standalone ? router.replace('/') : setStep('done'))}
         />
       )}
 
@@ -166,7 +272,7 @@ function StepHeader({
   return (
     <>
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
-        Step {step} of 4
+        Step {step} of 5
       </p>
       <h1 className="mt-bw-2 text-bw-2xl font-bold">{title}</h1>
       <p className="mt-bw-2 text-bw-base text-zinc-700">{body}</p>
@@ -371,7 +477,192 @@ function StrictnessStep({
           );
         })}
       </div>
-      <NextButton label="Review →" onClick={onNext} testId="next-to-done" />
+      <NextButton label="Next →" onClick={onNext} testId="next-to-taste" />
+    </>
+  );
+}
+
+// ─── Phase 8.5 — taste step ("What do you love?") ─────────────────
+
+function TasteChip({
+  label,
+  state,
+  onClick,
+  testId,
+}: {
+  label: string;
+  state: TasteState;
+  onClick: () => void;
+  testId: string;
+}) {
+  const tone =
+    state === 'liked'
+      ? 'border-ok bg-bite-light text-ok'
+      : state === 'disliked'
+        ? 'border-bite bg-bite-light text-bite-dark line-through'
+        : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300';
+  const prefix = state === 'liked' ? '♥ ' : state === 'disliked' ? '✕ ' : '';
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      data-state={state}
+      aria-pressed={state !== 'neutral'}
+      onClick={onClick}
+      className={['rounded-full border px-bw-3 py-bw-2 text-bw-sm font-semibold transition', tone].join(
+        ' ',
+      )}
+    >
+      {prefix}
+      {label}
+    </button>
+  );
+}
+
+function TasteStep({
+  standalone,
+  tags,
+  likedTagIds,
+  dislikedTagIds,
+  onCycleTag,
+  query,
+  results,
+  likedIngredientIds,
+  dislikedIngredientIds,
+  onQueryChange,
+  onCycleIngredient,
+  signalCount,
+  saving,
+  error,
+  onNext,
+  onSave,
+  onSkip,
+}: {
+  standalone: boolean;
+  tags: TasteTag[];
+  likedTagIds: string[];
+  dislikedTagIds: string[];
+  onCycleTag: (tagId: string) => void;
+  query: string;
+  results: IngredientSearchResult[];
+  likedIngredientIds: string[];
+  dislikedIngredientIds: string[];
+  onQueryChange: (q: string) => void;
+  onCycleIngredient: (ingredientId: string) => void;
+  signalCount: number;
+  saving: boolean;
+  error: string | null;
+  onNext: () => void;
+  onSave: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <>
+      {standalone ? (
+        <>
+          <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
+            Improve your picks
+          </p>
+          <h1 className="mt-bw-2 text-bw-2xl font-bold">What do you love?</h1>
+          <p className="mt-bw-2 text-bw-base text-zinc-700">
+            Tap to love a cuisine or flavor; tap again to pass. This only ranks your menus —
+            it never hides anything your dietary filter allows.
+          </p>
+        </>
+      ) : (
+        <StepHeader
+          step={4}
+          title="What do you love?"
+          body="Tap to love a cuisine or flavor; tap again to pass. Optional — this only ranks your Top Picks, it never hides safe food."
+        />
+      )}
+
+      {tags.length > 0 && (
+        <div className="mt-bw-4 flex flex-wrap gap-bw-2" data-testid="taste-tags">
+          {tags.map((t) => (
+            <TasteChip
+              key={t.id}
+              label={t.name}
+              state={tasteStateOf(t.id, likedTagIds, dislikedTagIds)}
+              onClick={() => onCycleTag(t.id)}
+              testId={`taste-tag-${t.slug}`}
+            />
+          ))}
+        </div>
+      )}
+
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        placeholder="Search a favorite ingredient (e.g. 'basil')"
+        aria-label="taste-ingredient-search"
+        className="mt-bw-4 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
+      />
+      <ul className="mt-bw-2 divide-y divide-zinc-100">
+        {results.map((r) => {
+          const state = tasteStateOf(r.id, likedIngredientIds, dislikedIngredientIds);
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => onCycleIngredient(r.id)}
+                data-testid={`taste-ing-${r.slug}`}
+                data-state={state}
+                className="flex w-full items-center justify-between py-bw-3 text-left"
+              >
+                <span className="text-bw-base text-zinc-900">{r.name}</span>
+                <span
+                  className={[
+                    'font-semibold',
+                    state === 'liked'
+                      ? 'text-ok'
+                      : state === 'disliked'
+                        ? 'text-bite'
+                        : 'text-zinc-400',
+                  ].join(' ')}
+                >
+                  {state === 'liked' ? '♥ love' : state === 'disliked' ? '✕ pass' : '+ love'}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="mt-bw-3 text-bw-sm text-zinc-500">{signalCount} taste signal(s) set</p>
+
+      {error && (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          {error}
+        </p>
+      )}
+
+      {standalone ? (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          data-testid="save-taste"
+          className={[
+            'mt-bw-6 w-full rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
+            saving ? 'opacity-60' : 'hover:bg-bite-dark',
+          ].join(' ')}
+        >
+          {saving ? 'Saving…' : 'Save picks'}
+        </button>
+      ) : (
+        <NextButton label="Review →" onClick={onNext} testId="next-to-done" />
+      )}
+
+      <button
+        type="button"
+        onClick={onSkip}
+        data-testid="skip-taste"
+        className="mt-bw-3 w-full text-bw-sm font-semibold text-zinc-500 hover:text-zinc-700"
+      >
+        {standalone ? 'Cancel' : 'Skip for now'}
+      </button>
     </>
   );
 }
@@ -393,7 +684,7 @@ function ReviewStep({
 }) {
   return (
     <form onSubmit={onSubmit}>
-      <StepHeader step={4} title="Ready?" body="Saving will replace any existing avoid lists on your profile." />
+      <StepHeader step={5} title="Ready?" body="Saving will replace any existing avoid lists on your profile." />
 
       <p className="mt-bw-4 text-bw-base text-zinc-700">
         Avoiding{' '}

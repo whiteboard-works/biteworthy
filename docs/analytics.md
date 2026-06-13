@@ -33,6 +33,7 @@ Fired when the user finishes the 6-tap onboarding (Phase 3.2 / 3.8) OR updates t
 | `avoid_ingredient_count` | `number` | Final count after onboarding. |
 | `avoid_tag_count` | `number` | Final count after onboarding. |
 | `strictness` | `"relaxed" \| "balanced" \| "strict"` | The Phase 3.5 toggle value. |
+| `taste_signal_count` | `number?` | Phase 8.5 — liked + disliked tags + ingredients set in the "What do you love?" step. Optional; absent when the step was skipped or for pre-8.5 callers. |
 
 ### `menu_filtered`
 Fired when the user lands on a filtered restaurant page and the items endpoint returns. Once per page render, not per item.
