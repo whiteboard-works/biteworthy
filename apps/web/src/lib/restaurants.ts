@@ -60,7 +60,18 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /**
+   * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
+   * caller's profile carries taste signals (Phase 8.1 arrays).
+   */
+  taste_score?: number | null;
+  /** Which liked tags/ingredients matched — the "because you like…" line. */
+  taste_reasons?: TasteReason[];
 }
+
+export type TasteReason =
+  | { kind: 'liked_tag'; tag_id: string; tag_name: string | null }
+  | { kind: 'liked_ingredient'; ingredient_id: string; ingredient_name: string | null };
 
 export interface FilterSummary {
   source: 'preset' | 'user_profile' | 'none';

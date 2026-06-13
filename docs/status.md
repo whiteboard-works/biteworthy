@@ -13,6 +13,26 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 02:05 — tick #144. **Phase 8.3 shipped — Top Picks UI
+(web).** #310 (8.2) auto-merged on green. This PR (web-only):
+- New TopPicksRow above the menu sections: horizontal cards (photo,
+  name, "Because you like Spicy & Basil" line from taste_reasons),
+  "Why these?" explainer whose copy explicitly says everything below
+  passed the dietary filter (taste ≠ safety rule).
+- Selection uses the SERVER's Phase 8.2 scores — no client
+  recompute: top 5 visible score>0, nothing under 3 positive picks.
+  Anonymous/zero-signal payloads carry null scores → row absent,
+  page byte-identical to pre-8.3.
+- RestaurantClient keeps rawItems state alongside sections so picks
+  survive strictness refetches. taste_score/taste_reasons added to
+  the web RestaurantItem type.
+- Deviation noted: plan card lists "price" — the items endpoint has
+  no price field (prices live only on ingestion payloads), so cards
+  ship without it; surfaced rather than silently extending the API.
+- +11 vitest (web 144/144): thresholds, null-score anonymous, hidden
+  exclusion, sort ties, reason-line shapes, explainer toggle, links.
+Next: Phase 8.4 Top Picks UI (mobile).
+
 2026-06-13 01:30 — tick #143. **Phase 8.2 shipped — taste scoring
 engine, SQL + TS in one PR.** #309 (8.1) auto-merged on green.
 - New TasteScoring service: one sanitized SQL query per request

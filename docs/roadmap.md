@@ -22,8 +22,7 @@ at the bottom until credentials drop.
 
 Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemRow + Phase 4.11.4 photo snapshot landed in #192. Phase 3.2 onboarding-screen backfill landed in this PR — Phases 3.4 (HiddenReasonChip) and 3.5 (StrictnessToggle) are already covered by `restaurant-screen.render.test.tsx` (#191), and the Phase 3.3 helpers (FilterBadge, SectionBlock) are simple enough to wait for a real bug to motivate them. **No remaining loop-shippable test-infra followups.**
 
-1. **Phase 8.3 — Top Picks UI (web)** (`docs/plans/phase-8.md`)
-8. **Phase 8.4 — Top Picks UI (mobile)**
+1. **Phase 8.4 — Top Picks UI (mobile)** (`docs/plans/phase-8.md`)
 9. **Phase 8.5 — taste onboarding step (web + mobile)**
 15. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
 16. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
@@ -104,7 +103,8 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Phase 7.2 — real mobile home screen: search + scan CTA; near-me deferred pending expo-location (#307)
 - ✅ Phase 7.3 — scan-to-menu flow stitched: search-miss → prefilled create → capture → stage progress → verify → deep-link to own filtered menu; re-scan entry on the menu screen (#308) — **Phase 7 feature-complete (device camera pass still pending a human phone test)**
 - ✅ Phase 8.1 — taste signal schema + profile API: 4 liked/disliked uuid[] columns, disjoint + existence validations, rswag + codegen (#309)
-- ✅ Phase 8.2 — taste scoring engine: SQL TasteScoring + TS scoreItem/topPicks, shared parity fixture both suites assert to 4dp, taste_score/taste_reasons on the items endpoint (this PR)
+- ✅ Phase 8.2 — taste scoring engine: SQL TasteScoring + TS scoreItem/topPicks, shared parity fixture both suites assert to 4dp, taste_score/taste_reasons on the items endpoint (#310)
+- ✅ Phase 8.3 — Top Picks UI (web): server-score-driven row + "because you like…" lines + Why-these explainer; anonymous unchanged (this PR)
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 
