@@ -3,7 +3,7 @@
  *
  * Anonymous endpoint, no JWT needed. Mirrors apps/web/src/lib/users.ts.
  */
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../api-base';
 
 export interface UserReviewItem {
   id: string;

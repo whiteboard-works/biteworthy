@@ -9,7 +9,7 @@
 
 import type { DietaryPreset } from '@biteworthy/filter-engine';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../api-base';
 
 export interface IngredientSearchResult {
   id: string;
