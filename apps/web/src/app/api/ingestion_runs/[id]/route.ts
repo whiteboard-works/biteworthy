@@ -1,28 +1,11 @@
 /**
  * Phase 6.5 — `GET /api/ingestion_runs/:id` proxies run-status
- * polling for the web verify flow.
+ * polling for the web verify flow. `no-store` so polling isn't cached.
  */
-import { NextResponse, type NextRequest } from 'next/server';
-import { getServerJwt } from '../../../../lib/server-auth';
+import { type NextRequest } from 'next/server';
+import { proxyAuthed } from '../../../../lib/api-proxy';
 
-import { API_BASE } from '../../../../lib/api-base';
-
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const jwt = await getServerJwt();
-  if (!jwt) {
-    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
-  }
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const upstream = await fetch(`${API_BASE}/api/v1/ingestion_runs/${encodeURIComponent(id)}`, {
-    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
-    cache: 'no-store',
-  });
-  const responseText = await upstream.text();
-  return new NextResponse(responseText, {
-    status: upstream.status,
-    headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
-  });
+  return proxyAuthed(`/api/v1/ingestion_runs/${encodeURIComponent(id)}`, { cache: 'no-store' });
 }
