@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-06-12 22:55 — tick #141. **Phase 7.3 shipped — scan-to-menu flow
+stitched end-to-end. PHASE 7 FEATURE-COMPLETE.** #307 (7.2)
+auto-merged on green. This PR (all mobile):
+- Home search-miss is now a CTA carrying the typed name →
+  /ingest?name=… prefills the new-restaurant form; result rows pass
+  ?from=search.
+- /ingest accepts ?restaurantId&restaurantName (skips the picker) —
+  used by the new "📷 Menu changed? Re-scan" entry on the restaurant
+  screen (server-side Phase 6.2 ownership rules unchanged).
+- Verify screen: pipeline stages render human copy ("Reading the
+  menu…" / "Matching ingredients & tags…"); finishing the deck
+  refetches the run and deep-links to /restaurants/:id?from=scan —
+  celebratory copy when the 80% auto-publish tripped, threshold
+  explainer otherwise; "nothing to verify" also links out.
+- restaurant_tap now uses the carried ?from (search | scan; default
+  direct) — existing event, no taxonomy change.
+- Tests: +2 ingest entry-point specs, new verify.render.test.tsx
+  (4 specs: stage copy, published deep-link, sub-threshold link,
+  nothing-to-verify), +2 full-screen restaurant specs (re-scan
+  route, from-param tracking), home specs updated. Mobile jest
+  113/113 (+11); typecheck + lint green. No API changes.
+Next: Phase 8.1 taste signal schema + profile API.
+
 2026-06-12 19:05 — tick #140. **Phase 7.2 shipped — real mobile home
 screen.** The Phase-0 "Pre-MVP" placeholder is gone: debounced
 (300ms) restaurant search → tap into the filtered menu, scan CTA →

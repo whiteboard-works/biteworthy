@@ -49,7 +49,7 @@ describe('Home (Phase 7.2)', () => {
     expect(screen.getByText('119 W College Dr · Durango, CO')).toBeTruthy();
   });
 
-  it('typing re-searches (debounced) and a miss suggests scanning', async () => {
+  it('typing re-searches (debounced) and a miss offers a scan CTA carrying the name', async () => {
     mockSearch.mockResolvedValueOnce([ninis]).mockResolvedValueOnce([]);
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
@@ -57,18 +57,20 @@ describe('Home (Phase 7.2)', () => {
     fireEvent.changeText(screen.getByLabelText('restaurant-search'), 'zanzibar');
 
     await waitFor(() => expect(mockSearch).toHaveBeenLastCalledWith('zanzibar'));
-    await waitFor(() =>
-      expect(screen.getByText('No matches for “zanzibar”. Scan its menu to add it!')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByLabelText('scan-miss-cta')).toBeTruthy());
+
+    // Phase 7.3 — the miss CTA prefills the new-restaurant form.
+    fireEvent.press(screen.getByLabelText('scan-miss-cta'));
+    expect(mockPush).toHaveBeenCalledWith('/ingest?name=zanzibar');
   });
 
-  it('tapping a row opens that restaurant menu', async () => {
+  it('tapping a row opens that restaurant menu with from=search', async () => {
     mockSearch.mockResolvedValue([ninis]);
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
 
     fireEvent.press(screen.getByLabelText('restaurant-ninis-1'));
-    expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1');
+    expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1?from=search');
   });
 
   it('scan CTA and profile link route to /ingest and /onboarding', async () => {

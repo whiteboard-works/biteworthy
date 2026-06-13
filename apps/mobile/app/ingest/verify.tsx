@@ -22,6 +22,14 @@ import {
 
 const POLL_INTERVAL_MS = 2_000;
 
+// Phase 7.3 — human copy per pipeline stage so the wait reads as
+// progress, not a stuck spinner. Keys are IngestionRunPayload statuses.
+const STAGE_COPY: Record<string, string> = {
+  queued: 'Waiting in line…',
+  extracting: 'Reading the menu…',
+  resolving: 'Matching ingredients & tags…',
+};
+
 /**
  * Phase 2.7 + 4.1 — swipe-verify deck.
  *
@@ -94,6 +102,24 @@ export default function VerifyScreen() {
 
   const current = items[cursor];
 
+  // Phase 7.3 — finishing the deck may trip the 80% auto-publish.
+  // Refetch once so the done screen knows whether to celebrate.
+  const deckDone = items.length > 0 && cursor >= items.length;
+  useEffect(() => {
+    if (!deckDone || !jwt) return;
+    let cancelled = false;
+    getIngestionRun(runId, { jwt })
+      .then((fresh) => {
+        if (!cancelled) setRun(fresh);
+      })
+      .catch(() => {
+        // Non-fatal — the done screen falls back to the staged copy.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deckDone, runId, jwt]);
+
   const decide = useCallback(
     async (decision: 'accepted' | 'rejected' | 'edited') => {
       if (!current || !jwt) return;
@@ -162,7 +188,7 @@ export default function VerifyScreen() {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color={colors.bite} testID="extracting-loading" />
-        <Text style={styles.headline}>{run.status}…</Text>
+        <Text style={styles.headline}>{STAGE_COPY[run.status] ?? `${run.status}…`}</Text>
         <Text style={styles.body}>
           Polling every {POLL_INTERVAL_MS / 1000}s. The deck opens as soon as the AI finishes.
         </Text>
@@ -177,18 +203,25 @@ export default function VerifyScreen() {
         <Text style={styles.body}>
           Either every item is already decided, or the run produced no items.
         </Text>
+        <ViewMenuButton restaurantId={run.restaurant_id} />
       </View>
     );
   }
 
   if (!current) {
+    // Phase 7.3 — the end of the scan loop: deep-link into the
+    // user's own filtered view of the menu they just scanned.
+    const published = run.status === 'published';
     return (
       <View style={styles.container}>
-        <Text style={styles.headline}>All done!</Text>
+        <Text style={styles.headline}>{published ? 'Menu published! 🎉' : 'All done!'}</Text>
         <Text style={styles.body}>
-          You decided on {items.length} item{items.length === 1 ? '' : 's'}. The run will
-          auto-publish at the 80% threshold.
+          {published
+            ? 'Your scan is live. See it filtered to your preferences:'
+            : `You decided on ${items.length} item${items.length === 1 ? '' : 's'}. The run ` +
+              'auto-publishes at the 80% threshold — you can open the restaurant now.'}
         </Text>
+        <ViewMenuButton restaurantId={run.restaurant_id} />
       </View>
     );
   }
@@ -293,6 +326,18 @@ export default function VerifyScreen() {
   );
 }
 
+function ViewMenuButton({ restaurantId }: { restaurantId: string }) {
+  return (
+    <Pressable
+      accessibilityLabel="view-menu"
+      onPress={() => router.replace(`/restaurants/${restaurantId}?from=scan`)}
+      style={styles.viewMenuButton}
+    >
+      <Text style={styles.viewMenuText}>🍽 See the menu</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -368,6 +413,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionText: {
+    color: colors.bg,
+    fontWeight: '700',
+    fontSize: fontSize.base,
+  },
+  viewMenuButton: {
+    backgroundColor: colors.bite,
+    paddingVertical: space['4'],
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  viewMenuText: {
     color: colors.bg,
     fontWeight: '700',
     fontSize: fontSize.base,
