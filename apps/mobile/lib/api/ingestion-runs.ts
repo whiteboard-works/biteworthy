@@ -7,8 +7,7 @@
  * an admin user — Phase 4 will introduce a contributor role.
  */
 
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../api-base';
 
 export interface CapturedPage {
   /** A `file://` URI from `expo-camera`'s captured photo. */

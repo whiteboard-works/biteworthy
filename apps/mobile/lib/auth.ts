@@ -14,7 +14,7 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from './api-base';
 const TOKEN_KEY = 'bw_jwt';
 
 export interface UserPayload {

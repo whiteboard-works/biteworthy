@@ -8,7 +8,7 @@
  * Photo upload uses multipart with the file URI from expo-camera.
  */
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../api-base';
 
 export interface ReviewAuthor {
   id: string;
