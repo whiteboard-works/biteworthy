@@ -57,6 +57,24 @@ RSpec.describe "restaurants/items", type: :request do
                              confidence:    { type: :string, enum: %w[confirmed suggested inferred] }
                            }
                          }
+                       },
+                       # Phase 8.2 — taste ranks, never hides. Null /
+                       # empty unless the signed-in caller's profile
+                       # carries taste signals.
+                       taste_score: { type: :number, nullable: true },
+                       taste_reasons: {
+                         type: :array,
+                         items: {
+                           type: :object,
+                           required: %w[kind],
+                           properties: {
+                             kind:            { type: :string, enum: %w[liked_tag liked_ingredient] },
+                             tag_id:          { type: :string, format: :uuid },
+                             tag_name:        { type: :string, nullable: true },
+                             ingredient_id:   { type: :string, format: :uuid },
+                             ingredient_name: { type: :string, nullable: true }
+                           }
+                         }
                        }
                      }
                    }

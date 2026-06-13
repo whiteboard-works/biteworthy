@@ -381,6 +381,17 @@ export interface paths {
                                     /** @enum {string} */
                                     confidence?: "confirmed" | "suggested" | "inferred";
                                 }[];
+                                taste_score?: number | null;
+                                taste_reasons?: {
+                                    /** @enum {string} */
+                                    kind: "liked_tag" | "liked_ingredient";
+                                    /** Format: uuid */
+                                    tag_id?: string;
+                                    tag_name?: string | null;
+                                    /** Format: uuid */
+                                    ingredient_id?: string;
+                                    ingredient_name?: string | null;
+                                }[];
                             }[];
                         };
                     };

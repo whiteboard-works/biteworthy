@@ -33,7 +33,20 @@ module Api
         labels        = build_label_lookup(items, filter)
         override_ids  = current_user_override_item_ids(items)
         review_counts = review_counts_for(items)
-        rendered      = items.map { |item| serialize_item(item, filter, labels, override_ids, review_counts) }
+
+        # Phase 8.2 — taste ranks, safety filters. Scores only exist
+        # when the signed-in user's profile carries taste signals;
+        # everyone else gets the legacy payload + sort untouched.
+        taste        = build_taste_signals(filter)
+        scores       = taste&.any? ? TasteScoring.scores_for(restaurant_id: restaurant.id, signals: taste) : nil
+        taste_labels = build_taste_label_lookup(scores)
+
+        rendered = items.map do |item|
+          serialize_item(item, filter, labels, override_ids, review_counts, scores, taste_labels)
+        end
+        if scores
+          rendered.sort_by! { |i| [-(i[:taste_score] || 0.0), -i[:popularity], i[:name]] }
+        end
 
         # Phase 4.8 — record an authenticated user's visit to this
         # restaurant for the History tab. Best-effort, async, never
@@ -105,6 +118,51 @@ module Api
         UserProfile::STRICTNESS.include?(params[:strictness]) ? params[:strictness] : nil
       end
 
+      # Phase 8.2 — taste signals come ONLY from the signed-in user's
+      # saved profile (presets and share tokens carry no taste). Ids
+      # that also sit in an avoid list are subtracted here — filter
+      # wins; an avoided id never scores (Phase 8.1 contract).
+      def build_taste_signals(filter)
+        return nil unless filter.source == "user_profile"
+
+        p = current_user.profile
+        TasteScoring::Signals.new(
+          liked_ingredient_ids:    p.liked_ingredient_ids    - filter.avoid_ingredient_ids,
+          liked_tag_ids:           p.liked_tag_ids           - filter.avoid_tag_ids,
+          disliked_ingredient_ids: p.disliked_ingredient_ids - filter.avoid_ingredient_ids,
+          disliked_tag_ids:        p.disliked_tag_ids        - filter.avoid_tag_ids
+        )
+      end
+
+      # Names for the matched liked ids so taste_reasons renders the
+      # "because you like…" line without a second roundtrip. Same
+      # shape as build_label_lookup, scoped to taste matches.
+      def build_taste_label_lookup(scores)
+        return { ingredients: {}, tags: {} } if scores.nil?
+
+        tag_ids = scores.values.flat_map { |s| s[:matched_liked_tag_ids] }.uniq
+        ing_ids = scores.values.flat_map { |s| s[:matched_liked_ingredient_ids] }.uniq
+
+        {
+          ingredients: Ingredient.where(id: ing_ids).pluck(:id, :name).to_h,
+          tags:        Tag.where(id: tag_ids).pluck(:id, :name).to_h
+        }
+      end
+
+      # Tags first, then ingredients, both in the SQL's sorted-uuid
+      # order — the TS mirror emits the same order so parity holds.
+      def taste_reasons_for(score_row, taste_labels)
+        return [] if score_row.nil?
+
+        score_row[:matched_liked_tag_ids].map do |tag_id|
+          { kind: "liked_tag", tag_id: tag_id, tag_name: taste_labels[:tags][tag_id] }
+        end +
+          score_row[:matched_liked_ingredient_ids].map do |ing_id|
+            { kind: "liked_ingredient", ingredient_id: ing_id,
+              ingredient_name: taste_labels[:ingredients][ing_id] }
+          end
+      end
+
       # Compute reasons WHY an item would be hidden under this filter.
       # An empty reasons array means the item passes the filter. Each
       # reason is enriched with display strings (`*_name`, `*_family`)
@@ -160,9 +218,11 @@ module Api
 
       # Try to keep this stable — mobile + web bind to these keys via
       # generated TS types; Phase 1.6's openapi.json should match.
-      def serialize_item(item, filter, labels, override_ids = Set.new, review_counts = {})
-        reasons = hide_reasons(item, filter, labels)
-        section = item.menu_section
+      def serialize_item(item, filter, labels, override_ids = Set.new, review_counts = {},
+                         scores = nil, taste_labels = nil)
+        reasons   = hide_reasons(item, filter, labels)
+        section   = item.menu_section
+        score_row = scores&.fetch(item.id, nil)
         {
           id:                  item.id,
           restaurant_id:       item.restaurant_id,
@@ -178,7 +238,12 @@ module Api
           reasons:             reasons,
           overridden_by_user:  override_ids.include?(item.id),
           reviews_count:       review_counts.fetch(item.id, 0),
-          photo_url:           photo_url_for(item)
+          photo_url:           photo_url_for(item),
+          # Phase 8.2 — null/[] whenever the caller has no taste
+          # signals. Score never hides; the client only reorders and
+          # highlights with it.
+          taste_score:         score_row&.fetch(:score),
+          taste_reasons:       taste_reasons_for(score_row, taste_labels)
         }
       end
 

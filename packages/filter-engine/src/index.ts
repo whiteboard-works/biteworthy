@@ -284,6 +284,18 @@ export {
   type OnboardingAction,
 } from './onboarding-reducer';
 
+// ─── Taste scoring (Phase 8.2) ─────────────────────────────────────
+
+export {
+  hasTasteSignals,
+  scoreItem,
+  topPicks,
+  TASTE_WEIGHTS,
+  type ScorableItem,
+  type TasteProfile,
+  type TasteScore,
+} from './taste';
+
 // ─── Shareable profile tokens (Phase 3.9) ──────────────────────────
 
 export {

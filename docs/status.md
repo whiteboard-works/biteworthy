@@ -13,6 +13,29 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 01:30 — tick #143. **Phase 8.2 shipped — taste scoring
+engine, SQL + TS in one PR.** #309 (8.1) auto-merged on green.
+- New TasteScoring service: one sanitized SQL query per request
+  (unnest/array_agg intersections, MAX(popularity) window,
+  AVG(visible reviews) join); weights live in WEIGHTS and reach the
+  SQL through placeholders so the constant and the expression can't
+  drift. Brakeman-clean (first draft interpolated quoted values —
+  flagged it; rewrote with sanitize_sql_array).
+- Items endpoint: taste_score + taste_reasons ("because you like…"
+  ids + names) per item; sort flips to score DESC, popularity DESC,
+  name ASC only when the signed-in caller's profile has signals
+  (presets/tokens/anonymous = untouched legacy payload, score null).
+  Taste never hides: negative-score items stay visible. Avoid-listed
+  ids subtracted from signals before scoring (filter wins).
+- filter-engine: scoreItem/topPicks/hasTasteSignals + TASTE_WEIGHTS.
+  topPicks: top-5 visible score>0, none under 3 picks; hidden items
+  still normalize popularity (matches the SQL window).
+- Parity contract: shared fixture (4 items × 2 profiles incl.
+  avoid-overlap) asserted to 4dp by BOTH vitest and rspec.
+- +21 vitest (139 total), +16 rspec (461 total: 10 parity/scoping +
+  6 endpoint). rswag items schema + openapi-export + codegen in-PR.
+Next: Phase 8.3 Top Picks UI (web).
+
 2026-06-13 00:35 — tick #142. **Phase 8.1 shipped — taste signal
 schema + profile API.** #308 (7.3) auto-merged on green. This PR:
 - Migration: liked/disliked_ingredient_ids + liked/disliked_tag_ids
