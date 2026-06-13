@@ -41,6 +41,10 @@ RSpec.describe "profile", type: :request do
           avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
           avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
           prefer_tag_ids:       { type: :array, items: { type: :string, format: :uuid } },
+          liked_ingredient_ids:    { type: :array, items: { type: :string, format: :uuid } },
+          liked_tag_ids:           { type: :array, items: { type: :string, format: :uuid } },
+          disliked_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
+          disliked_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
           strictness:           { type: :string, enum: %w[relaxed balanced strict] },
           dietary_profile_slug: { type: :string }
         }

@@ -325,6 +325,34 @@
                       "format": "uuid"
                     }
                   },
+                  "liked_ingredient_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "liked_tag_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "disliked_ingredient_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "disliked_tag_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
                   "strictness": {
                     "type": "string",
                     "enum": [
@@ -657,6 +685,10 @@
           "avoid_ingredient_ids",
           "avoid_tag_ids",
           "prefer_tag_ids",
+          "liked_ingredient_ids",
+          "liked_tag_ids",
+          "disliked_ingredient_ids",
+          "disliked_tag_ids",
           "strictness",
           "primary_dietary_profile"
         ],
@@ -676,6 +708,34 @@
             }
           },
           "prefer_tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "liked_ingredient_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "liked_tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "disliked_ingredient_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "disliked_tag_ids": {
             "type": "array",
             "items": {
               "type": "string",

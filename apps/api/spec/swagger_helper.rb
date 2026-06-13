@@ -74,11 +74,20 @@ RSpec.configure do |config|
           },
           ProfilePayload: {
             type: :object,
-            required: %w[avoid_ingredient_ids avoid_tag_ids prefer_tag_ids strictness primary_dietary_profile],
+            required: %w[avoid_ingredient_ids avoid_tag_ids prefer_tag_ids
+                         liked_ingredient_ids liked_tag_ids
+                         disliked_ingredient_ids disliked_tag_ids
+                         strictness primary_dietary_profile],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
               avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
               prefer_tag_ids:       { type: :array, items: { type: :string, format: :uuid } },
+              # Phase 8.1 — taste signals: soft preferences that rank
+              # Top Picks. Never hide items (avoid arrays do that).
+              liked_ingredient_ids:    { type: :array, items: { type: :string, format: :uuid } },
+              liked_tag_ids:           { type: :array, items: { type: :string, format: :uuid } },
+              disliked_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
+              disliked_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
               strictness:           { type: :string, enum: %w[relaxed balanced strict] },
               primary_dietary_profile: {
                 type: :object, nullable: true,

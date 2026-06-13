@@ -258,6 +258,10 @@ export interface paths {
                         avoid_ingredient_ids?: string[];
                         avoid_tag_ids?: string[];
                         prefer_tag_ids?: string[];
+                        liked_ingredient_ids?: string[];
+                        liked_tag_ids?: string[];
+                        disliked_ingredient_ids?: string[];
+                        disliked_tag_ids?: string[];
                         /** @enum {string} */
                         strictness?: "relaxed" | "balanced" | "strict";
                         dietary_profile_slug?: string;
@@ -427,6 +431,10 @@ export interface components {
             avoid_ingredient_ids: string[];
             avoid_tag_ids: string[];
             prefer_tag_ids: string[];
+            liked_ingredient_ids: string[];
+            liked_tag_ids: string[];
+            disliked_ingredient_ids: string[];
+            disliked_tag_ids: string[];
             /** @enum {string} */
             strictness: "relaxed" | "balanced" | "strict";
             primary_dietary_profile: {

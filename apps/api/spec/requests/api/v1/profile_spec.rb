@@ -144,5 +144,83 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
 
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # Phase 8.1 — taste signals. Soft preferences that rank Top Picks;
+    # they never hide items (that's the avoid arrays' job). The
+    # validations exist because "loved AND hated" silently cancels in
+    # scoring, and a deleted/typo'd UUID would be an invisible no-op
+    # in the user's picks forever.
+    describe "taste signals (Phase 8.1)" do
+      let(:basil)     { create(:ingredient, slug: "herb-basil") }
+      let(:spicy_tag) { create(:tag, slug: "flavor-spicy") }
+
+      it "GET includes the four taste arrays (empty by default)" do
+        get "/api/v1/profile", headers: headers
+
+        expect(response.parsed_body).to include(
+          "liked_ingredient_ids"    => [],
+          "liked_tag_ids"           => [],
+          "disliked_ingredient_ids" => [],
+          "disliked_tag_ids"        => []
+        )
+      end
+
+      it "round-trips all four taste arrays" do
+        patch "/api/v1/profile",
+              params: {
+                liked_ingredient_ids:    [basil.id],
+                liked_tag_ids:           [spicy_tag.id],
+                disliked_ingredient_ids: [cheese.id],
+                disliked_tag_ids:        [fried_tag.id]
+              }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:ok)
+        body = response.parsed_body
+        expect(body["liked_ingredient_ids"]).to    contain_exactly(basil.id)
+        expect(body["liked_tag_ids"]).to           contain_exactly(spicy_tag.id)
+        expect(body["disliked_ingredient_ids"]).to contain_exactly(cheese.id)
+        expect(body["disliked_tag_ids"]).to        contain_exactly(fried_tag.id)
+
+        profile = user.reload.profile
+        expect(profile.liked_ingredient_ids).to contain_exactly(basil.id)
+        expect(profile.disliked_tag_ids).to     contain_exactly(fried_tag.id)
+      end
+
+      it "422s when an id appears in both liked and disliked" do
+        patch "/api/v1/profile",
+              params: {
+                liked_ingredient_ids:    [basil.id],
+                disliked_ingredient_ids: [basil.id]
+              }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["errors"]).to have_key("liked_ingredient_ids")
+      end
+
+      it "422s on an unknown ingredient or tag UUID" do
+        patch "/api/v1/profile",
+              params: { liked_tag_ids: [SecureRandom.uuid] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["errors"]).to have_key("liked_tag_ids")
+      end
+
+      it "accepts an id that also sits in an avoid list (filter wins; scoring ignores it)" do
+        patch "/api/v1/profile",
+              params: {
+                avoid_ingredient_ids: [basil.id],
+                liked_ingredient_ids: [basil.id]
+              }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:ok)
+        body = response.parsed_body
+        expect(body["avoid_ingredient_ids"]).to contain_exactly(basil.id)
+        expect(body["liked_ingredient_ids"]).to contain_exactly(basil.id)
+      end
+    end
   end
 end

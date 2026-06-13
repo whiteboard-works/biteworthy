@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 00:35 — tick #142. **Phase 8.1 shipped — taste signal
+schema + profile API.** #308 (7.3) auto-merged on green. This PR:
+- Migration: liked/disliked_ingredient_ids + liked/disliked_tag_ids
+  uuid[] (default {}) on user_profiles; no GIN (read-side only).
+- UserProfile validations: liked∩disliked = 422 ("loved AND hated"
+  silently cancels in scoring — fail loud), unknown UUIDs = 422.
+  Avoid-overlap is deliberately ALLOWED (filter wins; scoring
+  ignores it in 8.2). NOTE: the plan said "same validation pattern
+  as the avoid arrays" but the avoid arrays have NO existence
+  validation — taste arrays are stricter than avoid; flagged in the
+  PR rather than silently matching the looser precedent.
+- GET/PATCH /api/v1/profile round-trips the four arrays (wholesale
+  replacement, same as avoid). rswag schema + body params updated,
+  openapi-export + api-types codegen in-PR.
+- +5 request specs (defaults, round-trip, both-lists 422, unknown
+  UUID 422, avoid-overlap OK). rspec 445/445; brakeman clean; JS
+  typecheck/lint/test green.
+Next: Phase 8.2 taste scoring engine (SQL + filter-engine, one PR).
+
 2026-06-12 22:55 — tick #141. **Phase 7.3 shipped — scan-to-menu flow
 stitched end-to-end. PHASE 7 FEATURE-COMPLETE.** #307 (7.2)
 auto-merged on green. This PR (all mobile):
