@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 module Ingestion
-  class ResolveTagsPrompt
+  # Assigns cuisine / prep / diet / allergen tags to menu items. Request
+  # shape + item rendering are inherited from ResolvePrompt; this is just
+  # the instructions.
+  class ResolveTagsPrompt < ResolvePrompt
     SYSTEM_INSTRUCTIONS = <<~MD.strip
       You assign cuisine / preparation / diet / allergen tags to menu
       items. The tag catalog is below — it's the only source of truth
@@ -22,16 +25,5 @@ module Ingestion
         * Order preserved.
         * Output JSON only.
     MD
-
-    def self.system(client, catalog_text)
-      client.system_blocks(
-        { text: SYSTEM_INSTRUCTIONS },
-        { text: catalog_text, cache: true }
-      )
-    end
-
-    def self.user_messages(items)
-      Ingestion::ResolveIngredientsPrompt.user_messages(items)
-    end
   end
 end
