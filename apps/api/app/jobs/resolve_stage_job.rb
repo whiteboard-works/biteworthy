@@ -12,6 +12,8 @@
 # accrue the (billed) cost, then fail with the validator's first 3
 # errors.
 class ResolveStageJob < ApplicationJob
+  include TimedAnthropicCall
+
   queue_as :ingestion
 
   def perform(ingestion_run_id)
@@ -24,27 +26,15 @@ class ResolveStageJob < ApplicationJob
       return
     end
 
-    client  = AnthropicClient.new
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    begin
-      result = client.messages_create(
+    out = timed_anthropic_call(run, api_error: "#{stage}_api_error", validation_error: "#{stage}_validation_failed") do |client|
+      client.messages_create(
         system:          prompt.system(client, catalog_text),
         messages:        prompt.user_messages(items),
         response_schema: Ingestion::ResolutionSchema
       )
-    rescue AnthropicClient::ApiError => e
-      run.fail!("#{stage}_api_error: #{e.status} #{e.body.to_s.truncate(500)}")
-      return
-    rescue AnthropicClient::ValidationError => e
-      # Billed 200 with a non-conforming body — still accrue its cost.
-      run.record_api_usage!(client.last_usage, model: client.model)
-      run.fail!("#{stage}_validation_failed: #{e.errors.first(3).join('; ')}")
-      return
     end
-
-    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-    run.record_api_usage!(client.last_usage, model: client.model)
+    return if out.nil?
+    result, elapsed_ms = out
 
     apply_and_advance(run, result, elapsed_ms)
   end
