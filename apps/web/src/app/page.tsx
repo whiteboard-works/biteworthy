@@ -141,6 +141,9 @@ function Footer(): ReactElement {
           &copy; {new Date().getFullYear()} BiteWorthy &middot; Made in Durango, CO.
         </p>
         <nav className="flex flex-wrap gap-bw-4">
+          <a href="/story" className="hover:text-zinc-700" data-testid="footer-story">
+            Our story
+          </a>
           <a href="/privacy" className="hover:text-zinc-700" data-testid="footer-privacy">
             Privacy
           </a>
