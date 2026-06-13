@@ -572,6 +572,44 @@
                                 }
                               }
                             }
+                          },
+                          "taste_score": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "taste_reasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "liked_tag",
+                                    "liked_ingredient"
+                                  ]
+                                },
+                                "tag_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "tag_name": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "ingredient_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "ingredient_name": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              }
+                            }
                           }
                         }
                       }

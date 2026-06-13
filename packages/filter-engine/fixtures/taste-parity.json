@@ -1,0 +1,124 @@
+{
+  "$comment": "Phase 8.2 shared parity fixture. Consumed by BOTH packages/filter-engine/src/taste-parity.test.ts (TS scoreItem) and apps/api/spec/services/taste_scoring_spec.rb (SQL TasteScoring) — each asserts its computed scores match `expected` to 4 decimal places, so the two implementations cannot drift apart silently. review_ratings drives the rating term: TS averages the array; the rspec creates one visible review per entry. max popularity at this restaurant is 100 (Spicy Basil Curry). Profile avoid lists are subtracted from taste signals BEFORE scoring (filter wins) — the avoid-overlap profile proves a liked-but-avoided ingredient contributes nothing and never appears in matched ids.",
+  "profiles": [
+    {
+      "key": "taster",
+      "liked_tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"],
+      "liked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"],
+      "disliked_tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02"],
+      "disliked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02"],
+      "avoid_ingredient_ids": [],
+      "avoid_tag_ids": []
+    },
+    {
+      "key": "avoid-overlap",
+      "liked_tag_ids": [],
+      "liked_ingredient_ids": [
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"
+      ],
+      "disliked_tag_ids": [],
+      "disliked_ingredient_ids": [],
+      "avoid_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03"],
+      "avoid_tag_ids": []
+    }
+  ],
+  "tags": {
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01": "Spicy",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02": "Fried",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03": "Vegan"
+  },
+  "ingredients": {
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01": "Basil",
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02": "Pork",
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03": "Cheese"
+  },
+  "items": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Spicy Basil Curry",
+      "popularity": 100,
+      "tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"],
+      "ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"],
+      "review_ratings": [5],
+      "expected": {
+        "taster": {
+          "score": 4.0,
+          "matched_liked_tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"],
+          "matched_liked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"]
+        },
+        "avoid-overlap": {
+          "score": 2.0,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"]
+        }
+      }
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "Fried Pork Belly",
+      "popularity": 80,
+      "tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02"],
+      "ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02"],
+      "review_ratings": [4, 5],
+      "expected": {
+        "taster": {
+          "score": -2.225,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": []
+        },
+        "avoid-overlap": {
+          "score": 0.775,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": []
+        }
+      }
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "name": "Cheese Plate",
+      "popularity": 50,
+      "tag_ids": [],
+      "ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03"],
+      "review_ratings": [],
+      "expected": {
+        "taster": {
+          "score": 0.25,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": []
+        },
+        "avoid-overlap": {
+          "score": 0.25,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": []
+        }
+      }
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "Garden Veg Bowl",
+      "popularity": 20,
+      "tag_ids": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"
+      ],
+      "ingredient_ids": [
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03"
+      ],
+      "review_ratings": [3],
+      "expected": {
+        "taster": {
+          "score": 3.1,
+          "matched_liked_tag_ids": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"],
+          "matched_liked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"]
+        },
+        "avoid-overlap": {
+          "score": 1.1,
+          "matched_liked_tag_ids": [],
+          "matched_liked_ingredient_ids": ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01"]
+        }
+      }
+    }
+  ]
+}
