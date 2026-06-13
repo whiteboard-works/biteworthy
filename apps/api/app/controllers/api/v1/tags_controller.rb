@@ -17,7 +17,7 @@ module Api
       DEFAULT_LIMIT = 100
 
       def index
-        limit = (params[:limit].presence || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
+        limit = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
         scope = Tag.order(:family, :name).limit(limit)
 
         if params[:families].present?
