@@ -3,6 +3,7 @@ import {
   initialDraft,
   onboardingReducer,
   toProfilePayload,
+  toTastePayload,
   type DietaryPreset,
   type DraftProfile,
 } from './onboarding-reducer';
@@ -49,6 +50,7 @@ describe('onboardingReducer', () => {
 
     it('preserves other state', () => {
       const seeded: DraftProfile = {
+        ...initialDraft,
         selectedPresetSlugs: [],
         manualIngredientIds: ['ing-cilantro'],
         strictness: 'strict',
@@ -118,6 +120,7 @@ describe('onboardingReducer', () => {
   describe('RESET', () => {
     it('returns the initial draft', () => {
       const seeded: DraftProfile = {
+        ...initialDraft,
         selectedPresetSlugs: ['vegan'],
         manualIngredientIds: ['ing-x'],
         strictness: 'strict',
@@ -137,11 +140,17 @@ describe('toProfilePayload', () => {
       avoid_tag_ids: [],
       prefer_tag_ids: [],
       strictness: 'balanced',
+      // Phase 8.5 — skipping the taste step leaves all four empty.
+      liked_tag_ids: [],
+      disliked_tag_ids: [],
+      liked_ingredient_ids: [],
+      disliked_ingredient_ids: [],
     });
   });
 
   it('unions a single preset onto manual ingredients', () => {
     const draft: DraftProfile = {
+      ...initialDraft,
       selectedPresetSlugs: ['vegan'],
       manualIngredientIds: ['ing-cilantro'],
       strictness: 'balanced',
@@ -155,6 +164,7 @@ describe('toProfilePayload', () => {
 
   it('dedupes ids that appear in multiple selected presets', () => {
     const draft: DraftProfile = {
+      ...initialDraft,
       selectedPresetSlugs: ['vegan', 'dairy-free'],
       manualIngredientIds: [],
       strictness: 'balanced',
@@ -166,6 +176,7 @@ describe('toProfilePayload', () => {
 
   it('combines presets, manual ingredients, and the strictness toggle', () => {
     const draft: DraftProfile = {
+      ...initialDraft,
       selectedPresetSlugs: ['vegan', 'tree-nut-allergy'],
       manualIngredientIds: ['ing-cilantro'],
       strictness: 'strict',
@@ -183,6 +194,7 @@ describe('toProfilePayload', () => {
 
   it('ignores selected slugs missing from the catalog (stale draft)', () => {
     const draft: DraftProfile = {
+      ...initialDraft,
       selectedPresetSlugs: ['ghost-preset', 'vegan'],
       manualIngredientIds: [],
       strictness: 'balanced',
@@ -191,5 +203,53 @@ describe('toProfilePayload', () => {
     expect(payload.avoid_ingredient_ids.sort()).toEqual(
       ['ing-dairy', 'ing-egg', 'ing-meat'].sort(),
     );
+  });
+});
+
+// Phase 8.5 — taste chips cycle neutral → liked → disliked → neutral
+// so one tap target covers both polarities; standalone saves use
+// toTastePayload so they can never wipe the avoid lists.
+describe('taste signals (Phase 8.5)', () => {
+  it('CYCLE_TASTE_TAG walks neutral → liked → disliked → neutral', () => {
+    const a = onboardingReducer(initialDraft, { type: 'CYCLE_TASTE_TAG', tagId: 't1' });
+    expect(a.likedTagIds).toEqual(['t1']);
+    expect(a.dislikedTagIds).toEqual([]);
+
+    const b = onboardingReducer(a, { type: 'CYCLE_TASTE_TAG', tagId: 't1' });
+    expect(b.likedTagIds).toEqual([]);
+    expect(b.dislikedTagIds).toEqual(['t1']);
+
+    const c = onboardingReducer(b, { type: 'CYCLE_TASTE_TAG', tagId: 't1' });
+    expect(c.likedTagIds).toEqual([]);
+    expect(c.dislikedTagIds).toEqual([]);
+  });
+
+  it('CYCLE_TASTE_INGREDIENT cycles independently of tags', () => {
+    const a = onboardingReducer(initialDraft, {
+      type: 'CYCLE_TASTE_INGREDIENT',
+      ingredientId: 'i1',
+    });
+    expect(a.likedIngredientIds).toEqual(['i1']);
+    expect(a.likedTagIds).toEqual([]);
+  });
+
+  it('toProfilePayload carries the four arrays; toTastePayload carries ONLY them', () => {
+    let draft = onboardingReducer(initialDraft, { type: 'CYCLE_TASTE_TAG', tagId: 't1' });
+    draft = onboardingReducer(draft, { type: 'CYCLE_TASTE_TAG', tagId: 't2' });
+    draft = onboardingReducer(draft, { type: 'CYCLE_TASTE_TAG', tagId: 't2' }); // → disliked
+
+    const full = toProfilePayload(draft, []);
+    expect(full.liked_tag_ids).toEqual(['t1']);
+    expect(full.disliked_tag_ids).toEqual(['t2']);
+
+    const standalone = toTastePayload(draft);
+    expect(standalone).toEqual({
+      liked_tag_ids: ['t1'],
+      disliked_tag_ids: ['t2'],
+      liked_ingredient_ids: [],
+      disliked_ingredient_ids: [],
+    });
+    // No avoid keys — a standalone PATCH cannot wipe the safety filter.
+    expect(Object.keys(standalone)).not.toContain('avoid_ingredient_ids');
   });
 });
