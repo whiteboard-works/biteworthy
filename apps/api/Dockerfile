@@ -25,6 +25,42 @@ ENV RAILS_ENV="production" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test"
 
+# --- dev stage (local development — see /compose.yaml) -----------------------
+# NOT part of the production build (that's the final unnamed stage below).
+# Overrides the base's production ENV: RAILS_ENV=development, dev + test
+# gems included, no deployment lockdown. At runtime compose.yaml bind-
+# mounts the source over /rails and mounts a named `bundle` volume over
+# BUNDLE_PATH (seeded from the gems baked in here), so a Gemfile change
+# self-heals via `bundle check || bundle install` on boot instead of a
+# rebuild. Runs as root so writes into the bind-mounted tmp/ and log/
+# don't trip host-ownership issues.
+FROM base AS dev
+
+ENV RAILS_ENV="development" \
+    BUNDLE_DEPLOYMENT="" \
+    BUNDLE_WITHOUT=""
+
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+        build-essential \
+        git \
+        libpq-dev \
+        libyaml-dev \
+        pkg-config \
+        curl \
+        libvips42 \
+        imagemagick \
+        postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+# Bake the current lockfile's gems into the image; the named volume in
+# compose seeds from this on first run.
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+EXPOSE 3000
+CMD ["./bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
+
 # --- build stage -------------------------------------------------------------
 FROM base AS build
 

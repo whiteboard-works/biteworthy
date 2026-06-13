@@ -28,21 +28,42 @@ biteworthy/
 
 ## Quickstart
 
-Requires Ruby 3.3+, Node 22+, pnpm 10+, Docker (or a local Postgres 16+).
+Requires Docker, plus Node 22+ and pnpm 10+ for web/mobile (and Ruby 3.3+
+only if you run the API natively).
+
+### Option A — containerized API (recommended)
+
+The API, its Solid Queue worker, and Postgres run in Docker; web and
+mobile run natively. One command brings the server side up:
+
+```bash
+cp apps/api/.env.example apps/api/.env   # optional — only ingestion needs a key
+docker compose up                        # API :3000 + worker + Postgres
+                                         # first boot installs gems, creates + seeds the DB
+
+pnpm install
+pnpm dev                                 # web :3001 + mobile, via Turborepo
+```
+
+Edits to `apps/api` hot-reload (source is bind-mounted). `docker compose
+down` stops it; add `-v` to also drop the database volume.
+
+### Option B — everything native
 
 ```bash
 pnpm install
-docker compose up -d postgres    # local Postgres 16 for the API
-pnpm dev                         # boots web + mobile concurrently via Turborepo
+docker compose up -d postgres    # just Postgres 16 in a container
+pnpm dev                         # web + mobile
 
-# The Rails API is not part of the pnpm workspace — boot it separately:
-cd apps/api
+cd apps/api                      # the API is not in the pnpm workspace
 bundle install
-bin/rails db:create db:schema:load db:seed
+bin/rails db:prepare             # create + load schema + seed
 bin/rails s -p 3000              # web dev server is on :3001
+bin/rails solid_queue:start      # background-job worker, in a second terminal
 ```
 
-Each app also has its own README under `apps/<name>/`.
+See [`docs/local-dev.md`](docs/local-dev.md) for the full local-development
+guide. Each app also has its own README under `apps/<name>/`.
 
 ## Status
 
