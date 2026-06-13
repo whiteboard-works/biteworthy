@@ -13,6 +13,24 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 03:15 — tick #146. **Phase 8.5a shipped — taste onboarding
+foundations** (session wrapping on user request; 8.5b = the UI half,
+queued at the top of Next-up with a full handoff note).
+- GET /api/v1/tags implemented — third Phase-0 route that existed
+  with no controller (after restaurants index). Public,
+  ?families=cuisine,flavor whitelist filter, limit cap 200. +4 specs
+  (incl. injection-shaped family names ignored). rspec 465/465.
+- onboarding-reducer: 4 taste arrays in DraftProfile,
+  CYCLE_TASTE_TAG / CYCLE_TASTE_INGREDIENT (neutral → liked →
+  disliked → neutral, one tap target covers both polarities),
+  toProfilePayload now carries the four arrays (empty when step
+  skipped), NEW toTastePayload for the standalone "Improve my picks"
+  save — taste-fields-only PATCH so it can NEVER wipe the avoid
+  lists (wholesale-replace footgun, caught in design). +3 specs,
+  filter-engine 171/171; web/mobile suites untouched and green.
+Next: Phase 8.5b taste onboarding UI (web + mobile) — see Next-up
+for the precise remaining scope.
+
 2026-06-13 02:40 — tick #145. **Phase 8.4 shipped — Top Picks UI
 (mobile).** #311 (8.3) auto-merged on green. This PR:
 - filter-engine: topPicksFromScores + tasteReasonLine + TasteReason/

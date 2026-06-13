@@ -278,10 +278,13 @@ export function applyOverrides<T extends FilteredItem>(
 export {
   initialDraft,
   onboardingReducer,
+  tasteStateOf,
   toProfilePayload,
+  toTastePayload,
   type DietaryPreset,
   type DraftProfile,
   type OnboardingAction,
+  type TasteState,
 } from './onboarding-reducer';
 
 // ─── Taste scoring (Phase 8.2) ─────────────────────────────────────
