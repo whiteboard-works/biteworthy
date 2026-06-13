@@ -59,12 +59,6 @@ module Api
           created_at: review.created_at
         }
       end
-
-      def photo_url_for(review)
-        return nil unless review.photo.attached?
-        host = ENV["PUBLIC_HOST"].presence || request.base_url
-        Rails.application.routes.url_helpers.rails_blob_url(review.photo, host: host)
-      end
     end
   end
 end

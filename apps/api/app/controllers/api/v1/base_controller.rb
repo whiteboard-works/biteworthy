@@ -33,6 +33,22 @@ module Api
       def page_offset
         (params[:offset].presence || 0).to_i.clamp(0, MAX_OFFSET)
       end
+
+      # The origin absolute URLs should resolve from. Production sets
+      # PUBLIC_HOST (clients fetch from a different origin than the API);
+      # dev / CI fall back to the incoming request's base URL.
+      def public_host
+        ENV["PUBLIC_HOST"].presence || request.base_url
+      end
+
+      # Signed ActiveStorage blob URL for a record's attached `photo`,
+      # or nil when none is attached. Shared by the item / review / user
+      # serializers — built via the route helpers directly so it doesn't
+      # depend on Devise's URL helpers being mixed into the controller.
+      def photo_url_for(record)
+        return nil unless record.photo.attached?
+        Rails.application.routes.url_helpers.rails_blob_url(record.photo, host: public_host)
+      end
     end
   end
 end

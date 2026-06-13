@@ -247,16 +247,6 @@ module Api
         }
       end
 
-      # Phase 4.11.3 — same shape as ReviewsController#photo_url_for.
-      # Returns the signed blob URL, falling back to the request's base
-      # URL when PUBLIC_HOST isn't set (dev / CI). Production deploys
-      # set PUBLIC_HOST so URLs work for clients on a different origin.
-      def photo_url_for(item)
-        return nil unless item.photo.attached?
-        host = ENV["PUBLIC_HOST"].presence || request.base_url
-        Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: host)
-      end
-
       # Phase 4.4 — bulk-load review counts for the items in the
       # response. One grouped query, joined client-side so the
       # restaurant page can render an "X reviews" badge per item
