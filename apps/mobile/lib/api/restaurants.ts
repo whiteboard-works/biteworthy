@@ -12,6 +12,7 @@ import type {
   HideReason,
   ItemSection,
   Strictness,
+  TasteReason,
 } from '@biteworthy/filter-engine';
 
 export type {
@@ -19,6 +20,7 @@ export type {
   HideReason,
   ItemSection,
   Strictness,
+  TasteReason,
 } from '@biteworthy/filter-engine';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
@@ -64,6 +66,13 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /**
+   * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
+   * caller's profile carries taste signals (Phase 8.1 arrays).
+   */
+  taste_score?: number | null;
+  /** Which liked tags/ingredients matched — the "because you like…" line. */
+  taste_reasons?: TasteReason[];
 }
 
 export interface FilterSummary {

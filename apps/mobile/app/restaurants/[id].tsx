@@ -29,6 +29,7 @@ import {
   type RestaurantItem,
 } from '../../lib/api/restaurants';
 import { ItemRow } from './_ItemRow';
+import { TopPicksRow } from './_TopPicksRow';
 import { useTracker } from '../../lib/tracker-context';
 
 /**
@@ -73,6 +74,9 @@ export default function RestaurantScreen() {
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [filter, setFilter] = useState<FilterSummary | null>(null);
+  // Phase 8.4 — raw server-sorted items feed the Top Picks row; the
+  // sections below still drive the main menu + overrides.
+  const [rawItems, setRawItems] = useState<RestaurantItem[]>([]);
   const [sections, setSections] = useState<ItemSection<RestaurantItem>[]>([]);
   const [loadingRestaurant, setLoadingRestaurant] = useState(true);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -117,6 +121,7 @@ export default function RestaurantScreen() {
       .then((res) => {
         if (cancelled) return;
         setFilter(res.filter);
+        setRawItems(res.items);
         setSections(groupItemsBySection(res.items));
         const totalVisible = res.items.filter((it) => it.status === 'visible').length;
         tracker.track('menu_filtered', {
@@ -226,6 +231,8 @@ export default function RestaurantScreen() {
       />
       <ShareLinkButton slug={restaurant.slug} filter={filter} />
       <RescanButton restaurantId={restaurant.id} restaurantName={restaurant.name} />
+
+      <TopPicksRow items={rawItems} />
 
       {overriddenSections.map((section) => (
         <SectionBlock

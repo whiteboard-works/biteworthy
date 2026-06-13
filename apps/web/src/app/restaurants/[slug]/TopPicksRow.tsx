@@ -1,53 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import type { RestaurantItem, TasteReason } from '../../../lib/restaurants';
+import { tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
+import type { RestaurantItem } from '../../../lib/restaurants';
 
 /**
  * Phase 8.3 — "Top picks for you", rendered above the menu sections.
  *
  * Uses the SERVER's taste_score/taste_reasons (Phase 8.2) — the
- * client never recomputes scores here, it just selects. Thresholds
- * mirror filter-engine's topPicks: the 5 highest-scoring visible
- * items with score > 0, and nothing at all below 3 positive items
- * (don't fake enthusiasm). Anonymous and zero-signal users have
- * taste_score = null on every item, so this renders nothing and the
- * page is byte-identical to the pre-8.3 layout.
+ * client never recomputes scores here, it just selects via
+ * filter-engine's shared `topPicksFromScores` (Phase 8.4 moved the
+ * selector there so web + mobile can't drift). Anonymous and
+ * zero-signal users have taste_score = null on every item, so this
+ * renders nothing and the page is byte-identical to the pre-8.3
+ * layout.
  *
  * Copy rule: taste ≠ safety. Nothing here may imply a low-scored
  * item is unsafe — the picks are "more likely to enjoy", the rest of
  * the menu is exactly as safe as the filter says.
  */
 
-const TOP_PICKS_COUNT = 5;
-const MIN_POSITIVE_PICKS = 3;
-
-export function topPicksFromScores(items: RestaurantItem[]): RestaurantItem[] {
-  const positive = items.filter(
-    (i) => i.status === 'visible' && typeof i.taste_score === 'number' && i.taste_score > 0,
-  );
-  if (positive.length < MIN_POSITIVE_PICKS) return [];
-  return [...positive]
-    .sort(
-      (a, b) =>
-        b.taste_score! - a.taste_score! ||
-        b.popularity - a.popularity ||
-        a.name.localeCompare(b.name),
-    )
-    .slice(0, TOP_PICKS_COUNT);
-}
-
-export function tasteReasonLine(reasons: TasteReason[] | undefined): string | null {
-  const names = (reasons ?? [])
-    .map((r) => (r.kind === 'liked_tag' ? r.tag_name : r.ingredient_name))
-    .filter((n): n is string => !!n);
-  if (names.length === 0) return null;
-  const list =
-    names.length === 1
-      ? names[0]
-      : `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
-  return `Because you like ${list}`;
-}
+export { tasteReasonLine, topPicksFromScores };
 
 export function TopPicksRow({
   items,
