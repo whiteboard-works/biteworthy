@@ -14,8 +14,8 @@ module Api
       MAX_LIMIT     = 100
 
       def index
-        limit  = (params[:limit].presence  || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
-        offset = (params[:offset].presence || 0).to_i.clamp(0, 10_000)
+        limit  = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
+        offset = page_offset
 
         scope = current_user.restaurant_visits
                             .newest_first

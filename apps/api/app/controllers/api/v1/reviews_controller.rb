@@ -20,8 +20,8 @@ module Api
       MAX_LIMIT     = 100
 
       def index
-        limit  = (params[:limit].presence || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
-        offset = (params[:offset].presence || 0).to_i.clamp(0, 10_000)
+        limit  = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
+        offset = page_offset
         # Phase 4.6 — public feed shows visible (non-hidden) reviews only.
         # Flagged reviews stay public until a moderator decides; only
         # hide! removes them from the feed.

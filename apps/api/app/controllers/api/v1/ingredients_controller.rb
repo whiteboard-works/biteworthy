@@ -18,7 +18,7 @@ module Api
       DEFAULT_LIMIT = 20
 
       def index
-        limit = (params[:limit].presence || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
+        limit = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
         scope = Ingredient.order(:path).limit(limit)
 
         if params[:q].present?
