@@ -54,7 +54,13 @@ module Api
           :dietary_profile_slug,
           avoid_ingredient_ids: [],
           avoid_tag_ids:        [],
-          prefer_tag_ids:       []
+          prefer_tag_ids:       [],
+          # Phase 8.1 — taste signals (soft: rank, never hide). Same
+          # wholesale-replacement semantics as the avoid arrays.
+          liked_ingredient_ids:    [],
+          liked_tag_ids:           [],
+          disliked_ingredient_ids: [],
+          disliked_tag_ids:        []
         )
       end
 
@@ -74,6 +80,10 @@ module Api
           avoid_ingredient_ids: profile.avoid_ingredient_ids,
           avoid_tag_ids:        profile.avoid_tag_ids,
           prefer_tag_ids:       profile.prefer_tag_ids,
+          liked_ingredient_ids:    profile.liked_ingredient_ids,
+          liked_tag_ids:           profile.liked_tag_ids,
+          disliked_ingredient_ids: profile.disliked_ingredient_ids,
+          disliked_tag_ids:        profile.disliked_tag_ids,
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile)
         }
