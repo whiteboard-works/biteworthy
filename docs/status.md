@@ -13,6 +13,25 @@ without spelunking GitHub.
 
 ---
 
+2026-06-13 02:40 — tick #145. **Phase 8.4 shipped — Top Picks UI
+(mobile).** #311 (8.3) auto-merged on green. This PR:
+- filter-engine: topPicksFromScores + tasteReasonLine + TasteReason/
+  ScoredWireItem promoted from the web app into the shared package
+  (one selector, web + mobile can't drift); MIN_POSITIVE_PICKS /
+  TOP_PICKS_COUNT constants replace magic numbers in topPicks too.
+- Web TopPicksRow now imports the shared helpers (deletes its local
+  copies; component + tests unchanged otherwise — 144/144 still).
+- Mobile: _TopPicksRow horizontal card strip (photo, name, "Because
+  you like…" line, Why-these explainer with the taste≠safety copy)
+  wired above the menu sections in restaurants/[id]; rawItems state
+  added beside sections, same as web. Cards push /items/:id.
+  taste_score/taste_reasons added to the mobile RestaurantItem type.
+- Tests: +24 vitest filter-engine (163), +5 mobile jest (118):
+  thresholds, anonymous null-score no-op, hidden exclusion,
+  tie-breaks, reason-line shapes, card navigation, explainer.
+Next: Phase 8.5 taste onboarding step (web + mobile) — closes
+Phase 8.
+
 2026-06-13 02:05 — tick #144. **Phase 8.3 shipped — Top Picks UI
 (web).** #310 (8.2) auto-merged on green. This PR (web-only):
 - New TopPicksRow above the menu sections: horizontal cards (photo,

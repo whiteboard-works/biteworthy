@@ -12,10 +12,17 @@ import type {
   HideReason,
   ItemSection,
   Strictness,
+  TasteReason,
 } from '@biteworthy/filter-engine';
 import { api } from './api';
 
-export type { FilteredItem, HideReason, ItemSection, Strictness } from '@biteworthy/filter-engine';
+export type {
+  FilteredItem,
+  HideReason,
+  ItemSection,
+  Strictness,
+  TasteReason,
+} from '@biteworthy/filter-engine';
 
 export interface RestaurantCity {
   id: string;
@@ -68,10 +75,6 @@ export interface RestaurantItem extends FilterableItem {
   /** Which liked tags/ingredients matched — the "because you like…" line. */
   taste_reasons?: TasteReason[];
 }
-
-export type TasteReason =
-  | { kind: 'liked_tag'; tag_id: string; tag_name: string | null }
-  | { kind: 'liked_ingredient'; ingredient_id: string; ingredient_name: string | null };
 
 export interface FilterSummary {
   source: 'preset' | 'user_profile' | 'none';

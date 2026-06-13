@@ -289,10 +289,16 @@ export {
 export {
   hasTasteSignals,
   scoreItem,
+  tasteReasonLine,
   topPicks,
+  topPicksFromScores,
+  MIN_POSITIVE_PICKS,
   TASTE_WEIGHTS,
+  TOP_PICKS_COUNT,
   type ScorableItem,
+  type ScoredWireItem,
   type TasteProfile,
+  type TasteReason,
   type TasteScore,
 } from './taste';
 
