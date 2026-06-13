@@ -2,36 +2,16 @@
  * Phase 6.5 — `PATCH /api/ingestion_runs/:id/items/:itemId` proxies
  * accept / reject / edit decisions from the web verify page.
  */
-import { NextResponse, type NextRequest } from 'next/server';
-import { getServerJwt } from '../../../../../../lib/server-auth';
-
-import { API_BASE } from '../../../../../../lib/api-base';
+import { type NextRequest } from 'next/server';
+import { proxyAuthed } from '../../../../../../lib/api-proxy';
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string; itemId: string }> },
 ) {
-  const jwt = await getServerJwt();
-  if (!jwt) {
-    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
-  }
   const { id, itemId } = await context.params;
-  const body = await request.text();
-  const upstream = await fetch(
-    `${API_BASE}/api/v1/ingestion_runs/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
-    {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body,
-    },
+  return proxyAuthed(
+    `/api/v1/ingestion_runs/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`,
+    { method: 'PATCH', body: await request.text() },
   );
-  const responseText = await upstream.text();
-  return new NextResponse(responseText, {
-    status: upstream.status,
-    headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
-  });
 }

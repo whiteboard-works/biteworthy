@@ -1,38 +1,15 @@
 /**
  * Phase 4.9 — proxy POST /api/restaurants/:slug/claim (request a
- * claim verification email) + GET /api/restaurants/:slug/claim/verify
- * (anonymous token verification).
- *
- * POST is auth-gated and runs through the cookie's JWT. GET is
- * anonymous (the URL token IS the credential), so we forward
- * straight through with no auth header.
+ * claim verification email) with the cookie's JWT. The anonymous
+ * token verification lives at .../claim/verify.
  */
-import { NextResponse, type NextRequest } from 'next/server';
-import { getServerJwt } from '../../../../../lib/server-auth';
+import { type NextRequest } from 'next/server';
+import { proxyAuthed } from '../../../../../lib/api-proxy';
 
-import { API_BASE } from '../../../../../lib/api-base';
-
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ slug: string }> },
-) {
+export async function POST(request: NextRequest, context: { params: Promise<{ slug: string }> }) {
   const { slug } = await context.params;
-  const jwt = await getServerJwt();
-  if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
-
-  const body = await request.text();
-  const upstream = await fetch(`${API_BASE}/api/v1/restaurants/${encodeURIComponent(slug)}/claim`, {
+  return proxyAuthed(`/api/v1/restaurants/${encodeURIComponent(slug)}/claim`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body,
-  });
-  const text = await upstream.text();
-  return new NextResponse(text, {
-    status: upstream.status,
-    headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
+    body: await request.text(),
   });
 }
