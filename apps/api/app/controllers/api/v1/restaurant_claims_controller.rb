@@ -65,8 +65,7 @@ module Api
       # Build the URL the email recipient clicks. The web app at
       # PUBLIC_HOST handles /restaurants/<slug>/claim?t=<token>.
       def build_verify_url(restaurant, token)
-        host = ENV["PUBLIC_HOST"].presence || request.base_url
-        "#{host.chomp('/')}/restaurants/#{restaurant.slug}/claim?t=#{token}"
+        "#{public_host.chomp('/')}/restaurants/#{restaurant.slug}/claim?t=#{token}"
       end
     end
   end

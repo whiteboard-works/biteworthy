@@ -107,17 +107,6 @@ module Api
           updated_at:   review.updated_at
         }
       end
-
-      # Build the signed blob URL without depending on Devise's URL
-      # helpers being mixed into the controller. Falls back to the
-      # incoming request's base URL when PUBLIC_HOST isn't set (dev /
-      # CI). Production deploys should set PUBLIC_HOST so URLs work
-      # for clients fetching from a different origin.
-      def photo_url_for(review)
-        return nil unless review.photo.attached?
-        host = ENV["PUBLIC_HOST"].presence || request.base_url
-        Rails.application.routes.url_helpers.rails_blob_url(review.photo, host: host)
-      end
     end
   end
 end
