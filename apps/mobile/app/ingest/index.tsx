@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
@@ -29,9 +29,21 @@ import { RestaurantPicker } from './_RestaurantPicker';
  * then land on the swipe-verify screen (Phase 2.7) for your own run
  * (Phase 6.3 self-verify). Guardrail errors (Phase 6.1) render as
  * human copy via friendlyScanError.
+ * Phase 7.3 — stitched entry points: `?name=` (home search-miss)
+ * prefills the new-restaurant form; `?restaurantId=&restaurantName=`
+ * (the menu screen's re-scan action) skips the picker entirely.
  */
 export default function IngestScreen() {
-  const [restaurant, setRestaurant] = useState<{ id: string; name: string } | null>(null);
+  const params = useLocalSearchParams<{
+    name?: string;
+    restaurantId?: string;
+    restaurantName?: string;
+  }>();
+  const [restaurant, setRestaurant] = useState<{ id: string; name: string } | null>(() =>
+    params.restaurantId && params.restaurantName
+      ? { id: params.restaurantId, name: params.restaurantName }
+      : null,
+  );
   const [manualId, setManualId] = useState('');
   const [jwt, setJwt] = useState<string | null>(null);
   const [pages, setPages] = useState<CapturedPage[]>([]);
@@ -159,7 +171,9 @@ export default function IngestScreen() {
         </Pressable>
       ) : (
         <>
-          {jwt && <RestaurantPicker jwt={jwt} onPicked={setRestaurant} />}
+          {jwt && (
+            <RestaurantPicker jwt={jwt} onPicked={setRestaurant} initialName={params.name} />
+          )}
           <TextInput
             accessibilityLabel="restaurant-id"
             placeholder="…or paste a restaurant UUID"

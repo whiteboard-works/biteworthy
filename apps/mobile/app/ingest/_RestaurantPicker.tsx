@@ -18,11 +18,14 @@ import { friendlyScanError } from '../../lib/api/ingestion-runs';
 export function RestaurantPicker({
   jwt,
   onPicked,
+  initialName,
 }: {
   jwt: string;
   onPicked: (restaurant: { id: string; name: string }) => void;
+  /** Phase 7.3 — prefilled from the home search-miss query. */
+  initialName?: string;
 }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName ?? '');
   const [citySlug, setCitySlug] = useState('durango');
   const [street, setStreet] = useState('');
   const [candidates, setCandidates] = useState<DuplicateCandidate[] | null>(null);

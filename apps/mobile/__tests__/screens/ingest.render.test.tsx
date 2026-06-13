@@ -7,13 +7,16 @@
  */
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+// Phase 7.3 — route params are mutable per test (search-miss prefill,
+// re-scan preselect).
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
     back: jest.fn(),
   },
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
   Link: 'Link',
 }));
 
@@ -68,6 +71,7 @@ describe('IngestScreen (Phase 6.6)', () => {
     mockUpload.mockClear();
     mockTakePicture.mockClear();
     mockRequestPermission.mockClear();
+    mockParams = {};
     mockPermission = { granted: true, canAskAgain: true };
     mockTakePicture.mockResolvedValue({ uri: 'file:///captured/page-1.jpg' });
   });
@@ -143,6 +147,25 @@ describe('IngestScreen (Phase 6.6)', () => {
         pages: [expect.objectContaining({ uri: 'file:///captured/page-1.jpg' })],
       }),
     );
+  });
+
+  describe('stitched entry points (Phase 7.3)', () => {
+    it('?restaurantId + ?restaurantName preselect the restaurant (re-scan flow)', async () => {
+      mockParams = { restaurantId: 'r-5', restaurantName: 'Home Slice Pizza' };
+      render(<IngestScreen />);
+      await flush();
+
+      expect(screen.getByText('Scanning for Home Slice Pizza')).toBeTruthy();
+      expect(screen.queryByLabelText('new-restaurant-name')).toBeNull();
+    });
+
+    it('?name= prefills the new-restaurant form (home search-miss)', async () => {
+      mockParams = { name: 'Zanzibar Cafe' };
+      render(<IngestScreen />);
+      await flush();
+
+      expect(screen.getByLabelText('new-restaurant-name').props.value).toBe('Zanzibar Cafe');
+    });
   });
 
   describe('camera permissions (Phase 7.1)', () => {

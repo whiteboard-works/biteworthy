@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
@@ -50,12 +50,12 @@ const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 
 export default function RestaurantScreen() {
   const tracker = useTracker();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; from?: string }>();
   const id = String(params.id ?? '');
-  // Phase 5.8 — fire restaurant_tap once per id mount; the from
-  // value defaults to 'direct' since mobile lists currently don't
-  // pass a source param. Funnel queries can grow more granularity
-  // later by adding `from` to the navigation links.
+  // Phase 5.8 — fire restaurant_tap once per id mount. Phase 7.3 —
+  // navigation links now pass `?from=` (search | scan); default
+  // stays 'direct' for deep links and older entry points.
+  const tapFrom = params.from || 'direct';
   const tapFiredRef = useRef(false);
   // Phase 4.1: pull the JWT from the keychain on mount; if absent
   // the page still loads (anonymous browse), but personalized filter
@@ -127,7 +127,7 @@ export default function RestaurantScreen() {
         });
         if (!tapFiredRef.current) {
           tapFiredRef.current = true;
-          tracker.track('restaurant_tap', { restaurant_slug: id, from: 'direct' });
+          tracker.track('restaurant_tap', { restaurant_slug: id, from: tapFrom });
         }
       })
       .catch((e) => {
@@ -225,6 +225,7 @@ export default function RestaurantScreen() {
         }}
       />
       <ShareLinkButton slug={restaurant.slug} filter={filter} />
+      <RescanButton restaurantId={restaurant.id} restaurantName={restaurant.name} />
 
       {overriddenSections.map((section) => (
         <SectionBlock
@@ -321,6 +322,31 @@ function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary
       style={styles.shareButton}
     >
       <Text style={styles.shareText}>🔗 Share filter</Text>
+    </Pressable>
+  );
+}
+
+// Phase 7.3 — re-scan entry: starts a new ingestion run against THIS
+// restaurant (the ingest screen skips its picker when both params are
+// present). Phase 6.2's ownership rules still apply server-side.
+function RescanButton({
+  restaurantId,
+  restaurantName,
+}: {
+  restaurantId: string;
+  restaurantName: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel="rescan-menu"
+      onPress={() =>
+        router.push(
+          `/ingest?restaurantId=${restaurantId}&restaurantName=${encodeURIComponent(restaurantName)}`,
+        )
+      }
+      style={styles.shareButton}
+    >
+      <Text style={styles.shareText}>📷 Menu changed? Re-scan</Text>
     </Pressable>
   );
 }

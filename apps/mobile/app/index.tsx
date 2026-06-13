@@ -87,7 +87,7 @@ export default function Home() {
           renderItem={({ item }) => (
             <Pressable
               accessibilityLabel={`restaurant-${item.slug}`}
-              onPress={() => router.push(`/restaurants/${item.id}`)}
+              onPress={() => router.push(`/restaurants/${item.id}?from=search`)}
               style={styles.row}
             >
               <Text style={styles.rowName}>{item.name}</Text>
@@ -95,11 +95,21 @@ export default function Home() {
             </Pressable>
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>
-              {query
-                ? `No matches for “${query}”. Scan its menu to add it!`
-                : 'No restaurants yet — be the first to scan a menu.'}
-            </Text>
+            query ? (
+              // Phase 7.3 — the search-miss is the front door of the
+              // scan loop: carry the typed name into the
+              // new-restaurant form so the user doesn't retype it.
+              <Pressable
+                accessibilityLabel="scan-miss-cta"
+                onPress={() => router.push(`/ingest?name=${encodeURIComponent(query.trim())}`)}
+                style={styles.missCta}
+              >
+                <Text style={styles.empty}>No matches for “{query}”.</Text>
+                <Text style={styles.missCtaText}>Can’t find it? Scan its menu to add it →</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.empty}>No restaurants yet — be the first to scan a menu.</Text>
+            )
           }
         />
       )}
@@ -169,6 +179,14 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: fontSize.base,
     paddingVertical: space['4'],
+  },
+  missCta: {
+    gap: space['1'],
+  },
+  missCtaText: {
+    color: colors.bite,
+    fontWeight: '600',
+    fontSize: fontSize.base,
   },
   error: {
     color: colors.textMuted,
