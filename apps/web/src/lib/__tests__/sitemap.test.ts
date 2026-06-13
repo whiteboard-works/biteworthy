@@ -4,12 +4,13 @@ import { buildSitemapEntries } from '../sitemap';
 const FROZEN = new Date('2026-04-30T19:00:00Z');
 
 describe('buildSitemapEntries', () => {
-  it('emits the static routes (/, /login, /signup) with sensible priorities', () => {
+  it('emits the static routes (/, /story, /login, /signup) with sensible priorities', () => {
     const entries = buildSitemapEntries('https://bite-worthy.com', {}, FROZEN);
 
     const urls = entries.map((e) => e.url);
     expect(urls).toEqual([
       'https://bite-worthy.com/',
+      'https://bite-worthy.com/story',
       'https://bite-worthy.com/login',
       'https://bite-worthy.com/signup',
     ]);
@@ -57,6 +58,7 @@ describe('buildSitemapEntries', () => {
     );
     expect(entries.map((e) => e.url)).toEqual([
       'https://bite-worthy.com/',
+      'https://bite-worthy.com/story',
       'https://bite-worthy.com/login',
       'https://bite-worthy.com/signup',
       'https://bite-worthy.com/durango/vegan',
