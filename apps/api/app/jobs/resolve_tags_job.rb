@@ -1,50 +1,21 @@
 # Phase 2.4 — third stage of the AI ingestion pipeline.
 #
-# Triggered by ResolveIngredientsJob on success. Same shape but with
-# the tag catalog instead of the ingredient catalog. After writing
-# the tag resolution back to staging, this job:
+# Triggered by ResolveIngredientsJob on success. Same shape as the
+# ingredient stage (skeleton in ResolveStageJob) but with the tag
+# catalog. After writing the tag resolution back to staging, this job:
 #
 # 1. Materializes IngestionItem rows (one per item in staging) with
 #    `decision: pending` so the swipe-verify UI in Phase 2.7 has
 #    something to show.
 # 2. Transitions the run to `:staged` (Phase 2.5's verify UI takes
 #    over from there).
-class ResolveTagsJob < ApplicationJob
-  queue_as :ingestion
+class ResolveTagsJob < ResolveStageJob
+  def stage        = "resolve_tags"
+  def prompt       = Ingestion::ResolveTagsPrompt
+  def catalog_text = Ingestion::CatalogBuilder.tags_text
 
-  def perform(ingestion_run_id)
-    run = IngestionRun.find(ingestion_run_id)
-    return if run.staged? || run.published? || run.failed?
-
-    items = ResolveIngredientsJob.collect_items(run.staging)
-    if items.empty?
-      run.fail!("resolve_tags: no_items_in_staging")
-      return
-    end
-
-    client  = AnthropicClient.new
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    begin
-      result = client.messages_create(
-        system:          Ingestion::ResolveTagsPrompt.system(client, Ingestion::CatalogBuilder.tags_text),
-        messages:        Ingestion::ResolveTagsPrompt.user_messages(items),
-        response_schema: Ingestion::ResolutionSchema
-      )
-    rescue AnthropicClient::ApiError => e
-      run.fail!("resolve_tags_api_error: #{e.status} #{e.body.to_s.truncate(500)}")
-      return
-    rescue AnthropicClient::ValidationError => e
-      # Billed 200 with a non-conforming body — still accrue its cost.
-      run.record_api_usage!(client.last_usage, model: client.model)
-      run.fail!("resolve_tags_validation_failed: #{e.errors.first(3).join('; ')}")
-      return
-    end
-
-    elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-
-    run.record_api_usage!(client.last_usage, model: client.model)
-    new_staging = ResolveIngredientsJob.new.apply_resolution(run.staging, result, key: :tags)
+  def apply_and_advance(run, result, elapsed_ms)
+    new_staging = apply_resolution(run.staging, result, key: :tags)
 
     run.transaction do
       run.update!(staging: new_staging, latency_ms: elapsed_ms)
