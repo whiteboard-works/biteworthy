@@ -17,7 +17,7 @@ import { SESSION_COOKIE } from '../../../../lib/server-auth';
 import { getServerJwt } from '../../../../lib/server-auth';
 import { buildAuthCookieOptions } from '../../../../lib/cookie-options';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../../../../lib/api-base';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 const ACTIONS = new Set(['login', 'signup', 'logout']);

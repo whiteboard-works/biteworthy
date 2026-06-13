@@ -8,7 +8,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../../lib/server-auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { API_BASE } from '../../../../../lib/api-base';
 
 async function proxy(method: 'POST' | 'DELETE', id: string) {
   const jwt = await getServerJwt();
