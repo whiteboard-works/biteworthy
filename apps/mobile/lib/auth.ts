@@ -42,6 +42,26 @@ export async function getJwt(): Promise<string | null> {
   }
 }
 
+/**
+ * The signed-in user's id, decoded from the stored JWT's `sub` claim
+ * (devise-jwt). Legal remediation E11 uses it to show the owner-only
+ * edit/delete controls on a review. Display-only — the API still gates
+ * every mutation by ownership — so we don't verify the signature.
+ */
+export async function getUserId(): Promise<string | null> {
+  const token = await getJwt();
+  if (!token) return null;
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub.length > 0 ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function setJwt(token: string): Promise<void> {
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }

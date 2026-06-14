@@ -4,8 +4,10 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   createReview,
+  deleteReview,
   fetchReviews,
   reportReview,
+  updateReview,
   ReviewError,
   type ReviewPayload,
   type ReviewsResponse,
@@ -27,10 +29,13 @@ export function ReviewsClient({
   itemId,
   restaurantSlug,
   initial,
+  currentUserId = null,
 }: {
   itemId: string;
   restaurantSlug: string;
   initial: ReviewsResponse;
+  /** Legal remediation E11 — drives the owner-only edit/delete controls. */
+  currentUserId?: string | null;
 }) {
   const router = useRouter();
 
@@ -38,6 +43,14 @@ export function ReviewsClient({
   const [total, setTotal] = useState(initial.total);
   const [loadingMore, setLoadingMore] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+
+  // E11 — keep the local list in sync after an in-place edit / delete.
+  const onUpdated = (saved: ReviewPayload) =>
+    setReviews((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+  const onDeleted = (id: string) => {
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+    setTotal((n) => Math.max(0, n - 1));
+  };
 
   const loadMore = async () => {
     try {
@@ -92,7 +105,13 @@ export function ReviewsClient({
 
       <ul className="mt-bw-4 divide-y divide-zinc-100">
         {reviews.map((r) => (
-          <ReviewCard key={r.id} review={r} />
+          <ReviewCard
+            key={r.id}
+            review={r}
+            isOwner={currentUserId != null && r.user.id === currentUserId}
+            onUpdated={onUpdated}
+            onDeleted={onDeleted}
+          />
         ))}
         {reviews.length === 0 && (
           <li className="py-bw-6 text-center text-bw-sm text-zinc-500">
@@ -116,7 +135,35 @@ export function ReviewsClient({
   );
 }
 
-function ReviewCard({ review }: { review: ReviewPayload }) {
+function ReviewCard({
+  review,
+  isOwner,
+  onUpdated,
+  onDeleted,
+}: {
+  review: ReviewPayload;
+  isOwner: boolean;
+  onUpdated: (saved: ReviewPayload) => void;
+  onDeleted: (id: string) => void;
+}) {
+  // E11 — the author can edit their own review inline or delete it.
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <li className="py-bw-3" data-testid={`review-${review.id}`}>
+        <EditReviewForm
+          review={review}
+          onCancel={() => setEditing(false)}
+          onSaved={(saved) => {
+            onUpdated(saved);
+            setEditing(false);
+          }}
+        />
+      </li>
+    );
+  }
+
   return (
     <li className="py-bw-3" data-testid={`review-${review.id}`}>
       <p className="text-bw-sm font-semibold text-zinc-900">
@@ -137,8 +184,172 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
           className="mt-bw-2 max-h-80 w-full rounded-bw-md object-cover"
         />
       )}
-      <ReportControl reviewId={review.id} />
+      {isOwner ? (
+        <OwnerControls
+          reviewId={review.id}
+          onEdit={() => setEditing(true)}
+          onDeleted={() => onDeleted(review.id)}
+        />
+      ) : (
+        <ReportControl reviewId={review.id} />
+      )}
     </li>
+  );
+}
+
+/**
+ * Legal remediation E11 — owner-only edit/delete. The author can
+ * correct or remove their own review (the Privacy Policy "correct your
+ * data" right, in-app rather than by email). The API still gates by
+ * ownership; these controls only render for the author.
+ */
+function OwnerControls({
+  reviewId,
+  onEdit,
+  onDeleted,
+}: {
+  reviewId: string;
+  onEdit: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteReview(reviewId);
+      onDeleted();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1 flex items-center gap-bw-3">
+      <button
+        type="button"
+        onClick={onEdit}
+        data-testid={`edit-${reviewId}`}
+        className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
+      >
+        Edit
+      </button>
+      {confirming ? (
+        <>
+          <span className="text-bw-xs text-zinc-500">Delete this review?</span>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            data-testid={`confirm-delete-${reviewId}`}
+            className="text-bw-xs font-semibold text-bite-dark hover:underline"
+          >
+            {busy ? 'Deleting…' : 'Yes, delete'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="text-bw-xs font-semibold text-zinc-400 hover:text-zinc-600"
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          data-testid={`delete-${reviewId}`}
+          className="text-bw-xs font-semibold text-zinc-400 hover:text-zinc-600"
+        >
+          Delete
+        </button>
+      )}
+      {error && <span className="text-bw-xs text-bite-dark">{error}</span>}
+    </div>
+  );
+}
+
+/** E11 — inline edit form for the author's own review (rating + body). */
+function EditReviewForm({
+  review,
+  onCancel,
+  onSaved,
+}: {
+  review: ReviewPayload;
+  onCancel: () => void;
+  onSaved: (saved: ReviewPayload) => void;
+}) {
+  const [rating, setRating] = useState(review.rating);
+  const [body, setBody] = useState(review.body ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateReview(review.id, { rating, body: body.trim() || null });
+      onSaved(saved);
+    } catch (e) {
+      setError((e as Error).message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} data-testid={`edit-form-${review.id}`}>
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            type="button"
+            key={n}
+            onClick={() => setRating(n)}
+            data-testid={`edit-star-${review.id}-${n}`}
+            aria-pressed={rating >= n}
+            className={['text-2xl', rating >= n ? 'text-bite' : 'text-zinc-300'].join(' ')}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        aria-label={`edit-body-${review.id}`}
+        rows={3}
+        className="mt-bw-2 w-full rounded-bw-md border border-zinc-300 p-bw-2 text-bw-base"
+      />
+      {error && (
+        <p className="mt-bw-2 rounded-bw-md bg-bite-light px-bw-2 py-bw-1 text-bw-xs text-bite-dark">
+          {error}
+        </p>
+      )}
+      <div className="mt-bw-2 flex items-center justify-end gap-bw-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-bw-sm font-semibold text-zinc-500 hover:text-zinc-700"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          data-testid={`save-edit-${review.id}`}
+          className={[
+            'rounded-bw-md bg-bite px-bw-3 py-bw-1 text-bw-sm font-bold text-white',
+            saving ? 'opacity-60' : 'hover:bg-bite-dark',
+          ].join(' ')}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
   );
 }
 

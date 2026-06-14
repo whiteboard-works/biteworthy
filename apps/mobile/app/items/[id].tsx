@@ -16,11 +16,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   createReview,
+  deleteReview,
   fetchReviews,
   reportReview,
+  updateReview,
   type ReviewPayload,
 } from '../../lib/api/reviews';
-import { getJwt } from '../../lib/auth';
+import { getJwt, getUserId } from '../../lib/auth';
 import { useTracker } from '../../lib/tracker-context';
 
 /**
@@ -52,6 +54,18 @@ export default function ItemDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  // Legal remediation E11 — drives the owner-only edit/delete controls.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getUserId().then((id) => {
+      if (!cancelled) setCurrentUserId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const reload = async () => {
     if (!itemId) return;
@@ -111,7 +125,19 @@ export default function ItemDetailScreen() {
           data={reviews}
           scrollEnabled={false}
           keyExtractor={(r) => r.id}
-          renderItem={({ item }) => <ReviewCard review={item} />}
+          renderItem={({ item }) => (
+            <ReviewCard
+              review={item}
+              isOwner={currentUserId != null && item.user.id === currentUserId}
+              onUpdated={(saved) =>
+                setReviews((prev) => prev.map((r) => (r.id === saved.id ? saved : r)))
+              }
+              onDeleted={(id) => {
+                setReviews((prev) => prev.filter((r) => r.id !== id));
+                setTotal((n) => Math.max(0, n - 1));
+              }}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.empty}>No reviews yet — be the first.</Text>
           }
@@ -134,10 +160,25 @@ export default function ItemDetailScreen() {
   );
 }
 
-function ReviewCard({ review }: { review: ReviewPayload }) {
+function ReviewCard({
+  review,
+  isOwner,
+  onUpdated,
+  onDeleted,
+}: {
+  review: ReviewPayload;
+  isOwner: boolean;
+  onUpdated: (saved: ReviewPayload) => void;
+  onDeleted: (id: string) => void;
+}) {
   // Legal remediation E8 — report routes the review into the moderation
   // queue. Signed-in only; a 401 prompts the reader to log in.
   const [reportState, setReportState] = useState<'idle' | 'sending' | 'done'>('idle');
+  // Legal remediation E11 — the author edits/deletes their own review.
+  const [editing, setEditing] = useState(false);
+  const [draftBody, setDraftBody] = useState(review.body ?? '');
+  const [draftRating, setDraftRating] = useState(review.rating);
+  const [busy, setBusy] = useState(false);
 
   const onReport = async () => {
     const jwt = await getJwt();
@@ -155,6 +196,82 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
     }
   };
 
+  const onSaveEdit = async () => {
+    const jwt = await getJwt();
+    if (!jwt) return;
+    setBusy(true);
+    try {
+      const saved = await updateReview(review.id, jwt, {
+        rating: draftRating,
+        body: draftBody.trim() || null,
+      });
+      onUpdated(saved);
+      setEditing(false);
+    } catch (e) {
+      Alert.alert('Could not save', (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDelete = () => {
+    Alert.alert('Delete review?', 'This permanently removes your review.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const jwt = await getJwt();
+          if (!jwt) return;
+          try {
+            await deleteReview(review.id, jwt);
+            onDeleted(review.id);
+          } catch (e) {
+            Alert.alert('Could not delete', (e as Error).message);
+          }
+        },
+      },
+    ]);
+  };
+
+  if (editing) {
+    return (
+      <View style={styles.reviewCard} testID={`review-${review.id}`}>
+        <View style={styles.editStars}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Pressable
+              key={n}
+              accessibilityLabel={`edit-star-${review.id}-${n}`}
+              onPress={() => setDraftRating(n)}
+            >
+              <Text style={styles.editStar}>{draftRating >= n ? '★' : '☆'}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          accessibilityLabel={`edit-body-${review.id}`}
+          value={draftBody}
+          onChangeText={setDraftBody}
+          multiline
+          style={styles.input}
+        />
+        <View style={styles.editActions}>
+          <Pressable accessibilityLabel={`cancel-edit-${review.id}`} onPress={() => setEditing(false)}>
+            <Text style={styles.reportText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel={`save-edit-${review.id}`}
+            onPress={onSaveEdit}
+            disabled={busy}
+            style={[styles.editSave, busy && { opacity: 0.5 }]}
+          >
+            <Text style={styles.editSaveText}>{busy ? 'Saving…' : 'Save'}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.reviewCard} testID={`review-${review.id}`}>
       <Text style={styles.reviewAuthor}>
@@ -165,7 +282,16 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
       {review.photo_url ? (
         <Image source={{ uri: review.photo_url }} style={styles.reviewPhoto} accessibilityLabel="review-photo" />
       ) : null}
-      {reportState === 'done' ? (
+      {isOwner ? (
+        <View style={styles.editActions}>
+          <Pressable accessibilityLabel={`edit-${review.id}`} onPress={() => setEditing(true)}>
+            <Text style={styles.editText}>Edit</Text>
+          </Pressable>
+          <Pressable accessibilityLabel={`delete-${review.id}`} onPress={onDelete}>
+            <Text style={styles.reportText}>Delete</Text>
+          </Pressable>
+        </View>
+      ) : reportState === 'done' ? (
         <Text style={styles.reportedNote} accessibilityLabel={`reported-${review.id}`}>
           Reported — a moderator will take a look.
         </Text>
@@ -411,6 +537,37 @@ const styles = StyleSheet.create({
     marginTop: space['2'],
     fontSize: fontSize.xs,
     color: colors.textMuted,
+  },
+  // Legal remediation E11 — owner edit/delete controls.
+  editActions: {
+    marginTop: space['2'],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['4'],
+  },
+  editText: {
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    color: colors.bite,
+  },
+  editStars: {
+    flexDirection: 'row',
+    gap: space['1'],
+  },
+  editStar: {
+    fontSize: fontSize.xl,
+    color: colors.bite,
+  },
+  editSave: {
+    backgroundColor: colors.bite,
+    paddingHorizontal: space['3'],
+    paddingVertical: space['1'],
+    borderRadius: 8,
+  },
+  editSaveText: {
+    color: colors.bg,
+    fontWeight: '700',
+    fontSize: fontSize.sm,
   },
   composerSheet: {
     position: 'absolute',
