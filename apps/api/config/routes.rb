@@ -55,6 +55,9 @@ Rails.application.routes.draw do
         # visits with the visible/hidden item counts at view time).
         get :history, to: "profile_history#index"
       end
+      # Legal remediation E3 — JSON archive of the caller's personal
+      # data (Privacy Policy "Access / export your data").
+      get "/account/export", to: "account_exports#show"
       resources :cities, only: [:index, :show]
       # Phase 5.6 — backs the SSR /durango/[diet] SEO pages. Flat
       # route (not nested) so the `:city_slug` param name is explicit;
