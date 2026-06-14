@@ -256,7 +256,35 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
+        /** Delete the caller's account (legal remediation E2) */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description account deleted — personal data removed, menu-graph attribution nulled */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

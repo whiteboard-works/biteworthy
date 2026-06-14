@@ -61,5 +61,42 @@ RSpec.describe "auth/signup", type: :request do
         end
       end
     end
+
+    delete("Delete the caller's account (legal remediation E2)") do
+      tags "Auth"
+      produces "application/json"
+      security [bearerAuth: []]
+      parameter name: :Authorization, in: :header, type: :string, required: true,
+                description: "Bearer <jwt>"
+
+      response(204, "account deleted — personal data removed, menu-graph attribution nulled") do
+        let(:account) { create(:user, password: "password123") }
+        let(:Authorization) do
+          token, _ = Warden::JWTAuth::UserEncoder.new.call(account, :user, nil)
+          "Bearer #{token}"
+        end
+
+        # Personal record that must be destroyed with the account.
+        let!(:review) { create(:review, user: account) }
+        # Shared menu-graph rows that must survive, with attribution nulled.
+        let!(:created_restaurant) { create(:restaurant, created_by_user: account) }
+        let!(:ingestion_run)      { create(:ingestion_run, user: account) }
+
+        run_test! do
+          expect(User.exists?(account.id)).to be(false)
+          expect(UserProfile.exists?(user_id: account.id)).to be(false)
+          # Personal review is gone.
+          expect(Review.exists?(review.id)).to be(false)
+          # Shared graph survives; the user attribution is nulled, not deleted.
+          expect(created_restaurant.reload.created_by_user_id).to be_nil
+          expect(ingestion_run.reload.user_id).to be_nil
+        end
+      end
+
+      response(401, "missing or invalid bearer token") do
+        let(:Authorization) { "" }
+        run_test!
+      end
+    end
   end
 end
