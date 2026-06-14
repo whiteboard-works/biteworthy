@@ -7,6 +7,14 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  *
  * **DRAFT — needs lawyer review before App Store submission.**
  *
+ * Legal-remediation Phase 1 (see docs/plans/legal-remediation.md)
+ * added the standard protective clauses a real ToS needs: warranty
+ * disclaimer (AS IS), limitation of liability, indemnification,
+ * arbitration + class-action waiver (with 30-day opt-out), a Copyright
+ * & DMCA section, and an acceptance clause. These are solid drafts;
+ * a licensed Colorado attorney finalizes them before the DRAFT banner
+ * comes off (legal-remediation L1).
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/terms`
  * placeholder href.
  */
@@ -21,7 +29,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-04-30';
+const LAST_UPDATED = '2026-06-14';
 
 export default function TermsPage(): ReactElement {
   return (
@@ -35,12 +43,19 @@ export default function TermsPage(): ReactElement {
       <DraftBanner />
 
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
+        <Section title="Acceptance of these terms">
+          <p>
+            By creating an account or using BiteWorthy, you agree to these Terms and to our{' '}
+            <a href="/privacy">Privacy Policy</a>. If you don’t agree, please don’t use the service.
+            You must be at least 13 years old to use BiteWorthy.
+          </p>
+        </Section>
+
         <Section title="The bargain">
           <p>
             BiteWorthy is a free dietary filter for restaurant menus. By using it you agree to use
-            it in good faith and to understand what it can and can&rsquo;t promise (see &ldquo;The
-            allergen disclaimer&rdquo; below). If those don&rsquo;t work for you, please don&rsquo;t
-            use the service.
+            it in good faith and to understand what it can and can’t promise (see “The allergen
+            disclaimer” below). If those don’t work for you, please don’t use the service.
           </p>
         </Section>
 
@@ -53,18 +68,57 @@ export default function TermsPage(): ReactElement {
           </p>
           <ul>
             <li>
+              <strong>We can be wrong in the dangerous direction.</strong> We may fail to flag an
+              allergen the menu text didn’t spell out, so a dish that isn’t safe for you can still
+              appear in your filtered results. Treat every result as a starting point, not a
+              guarantee.
+            </li>
+            <li>
               Always confirm with the restaurant before ordering anything that triggers a serious
               allergy.
             </li>
             <li>
-              The &ldquo;hidden — contains dairy (cheese)&rdquo; chip is our best guess. The
-              &ldquo;visible&rdquo; chip is also our best guess.
+              The “hidden — contains dairy (cheese)” chip is our best guess. The “visible” chip is
+              also our best guess.
             </li>
             <li>
               We do not recommend BiteWorthy as the sole tool for managing anaphylactic allergies.
               Carry your prescribed treatment.
             </li>
           </ul>
+        </Section>
+
+        <Section title="Disclaimer of warranties">
+          <p>
+            BiteWorthy is provided <strong>“as is”</strong> and <strong>“as available,”</strong>{' '}
+            without warranties of any kind, whether express or implied — including implied
+            warranties of merchantability, fitness for a particular purpose, accuracy, and
+            non-infringement. We do not warrant that the dietary information is accurate, complete,
+            or current, or that the service will be uninterrupted or error-free. Some jurisdictions
+            don’t allow the exclusion of certain warranties, so parts of this may not apply to you.
+          </p>
+        </Section>
+
+        <Section title="Limitation of liability">
+          <p>
+            To the maximum extent permitted by law, BiteWorthy and its operators will not be liable
+            for any indirect, incidental, special, consequential, or punitive damages, or for any
+            loss arising from your reliance on the dietary information — including any allergic
+            reaction, illness, or injury. Our total liability for any claim relating to the service
+            is limited to USD 100. Some jurisdictions don’t allow these limitations, and{' '}
+            <strong>
+              nothing in these Terms limits any liability that can’t be limited by law.
+            </strong>
+          </p>
+        </Section>
+
+        <Section title="Indemnification">
+          <p>
+            You agree to indemnify and hold harmless BiteWorthy and its operators from any claim or
+            demand arising out of content you submit (reviews, photos, suggested edits), any URL or
+            menu you submit to the ingestion pipeline, your violation of these Terms, or your
+            violation of any law or third-party right.
+          </p>
         </Section>
 
         <Section title="Content you submit">
@@ -81,41 +135,63 @@ export default function TermsPage(): ReactElement {
             </li>
             <li>
               <strong>Photos:</strong> you grant BiteWorthy a license to display them alongside the
-              dish or restaurant. Don&rsquo;t upload anything you don&rsquo;t have rights to.
+              dish or restaurant. Don’t upload anything you don’t have rights to.
             </li>
           </ul>
         </Section>
 
+        <Section title="Copyright & DMCA" id="copyright">
+          <p>
+            BiteWorthy respects intellectual property. If you believe content on BiteWorthy
+            infringes your copyright — including a menu image or a dish photo — send a notice to{' '}
+            <a href="mailto:legal@bite-worthy.com">legal@bite-worthy.com</a> that includes: (1)
+            identification of the work; (2) the URL or location of the material on BiteWorthy; (3)
+            your contact information; (4) a statement that you have a good-faith belief the use
+            isn’t authorized; (5) a statement, under penalty of perjury, that the notice is accurate
+            and that you’re the owner or authorized to act for them; and (6) your signature.
+          </p>
+          <p>
+            We remove material that infringes and terminate repeat infringers. If you believe your
+            content was removed in error, you may send a counter-notice to the same address.
+          </p>
+        </Section>
+
         <Section title="Restaurant claims">
           <p>
-            Phase 4.9&rsquo;s claim flow lets a restaurant owner verify ownership via a domain-email
+            Phase 4.9’s claim flow lets a restaurant owner verify ownership via a domain-email
             check. Once verified, the owner can edit menu items and respond to reviews. Verifying
-            doesn&rsquo;t grant the owner the right to delete unfavorable reviews — moderation
-            still goes through the queue.
+            doesn’t grant the owner the right to delete unfavorable reviews — moderation still goes
+            through the queue.
           </p>
         </Section>
 
         <Section title="Acceptable use">
           <ul>
             <li>No spam, abuse, harassment, or bot-driven submissions.</li>
-            <li>Don&rsquo;t scrape the API at a rate that affects other users.</li>
+            <li>Don’t scrape the API at a rate that affects other users.</li>
             <li>
-              Don&rsquo;t pretend to be a restaurant owner you&rsquo;re not. The claim flow exists
-              for a reason.
+              Don’t pretend to be a restaurant owner you’re not. The claim flow exists for a reason.
             </li>
             <li>
-              Don&rsquo;t upload menu images you don&rsquo;t have permission to share. Most public
-              menus are fine; some restaurants explicitly forbid republication.
+              Don’t upload menu images you don’t have permission to share. Most public menus are
+              fine; some restaurants explicitly forbid republication.
+            </li>
+            <li>
+              When you submit a menu URL or upload for ingestion, you confirm you have the right to
+              share that content with us and that doing so doesn’t violate the source site’s terms
+              or anyone’s copyright.
             </li>
           </ul>
         </Section>
 
         <Section title="Analytics" id="analytics">
           <p>
-            On web, BiteWorthy uses PostHog for funnel analytics (anonymous events like{' '}
-            <em>app_open</em>, <em>menu_filtered</em>; never review text or profile fields). We
-            honor browser <em>Do-Not-Track</em> automatically and a per-user opt-out at{' '}
-            <em>/profile/settings</em>.
+            On web, BiteWorthy uses PostHog for funnel analytics (events like <em>app_open</em>,{' '}
+            <em>menu_filtered</em>). When you’re signed in these events are linked to your account
+            and include coarse signals like your strictness setting, which dietary preset you use,
+            and counts of hidden/visible items — never review text, your email, or your specific
+            avoid-lists. We honor browser <em>Do-Not-Track</em> automatically and a per-user opt-out
+            at <em>/profile/settings</em>.
           </p>
           <p>
             On mobile, analytics are <strong>off by default</strong>. They only fire if you
@@ -124,25 +200,41 @@ export default function TermsPage(): ReactElement {
           </p>
         </Section>
 
-        <Section title="Termination">
+        <Section title="Dispute resolution" id="disputes">
           <p>
-            You can delete your account at any time (see <a href="/privacy">Privacy Policy</a>). We
-            can suspend accounts that violate these terms; we&rsquo;ll explain why if it happens.
+            Please contact us first — most issues can be resolved by email. For any dispute that
+            can’t be resolved informally, you and BiteWorthy agree to resolve it through{' '}
+            <strong>binding individual arbitration</strong>, not in court, and you each waive the
+            right to a jury trial and to participate in a <strong>class action</strong>.
+          </p>
+          <p>
+            You may opt out of this arbitration agreement by emailing{' '}
+            <a href="mailto:legal@bite-worthy.com">legal@bite-worthy.com</a> within 30 days of first
+            accepting these Terms; opting out won’t affect the rest of the Terms. This section
+            doesn’t apply to small-claims matters or to requests for injunctive relief.
           </p>
         </Section>
 
         <Section title="Governing law">
           <p>
-            These terms are governed by the laws of the State of Colorado, USA. Disputes go to the
-            state or federal courts located in La Plata County, Colorado.
+            These terms are governed by the laws of the State of Colorado, USA. Subject to the
+            arbitration agreement above, disputes go to the state or federal courts located in La
+            Plata County, Colorado.
+          </p>
+        </Section>
+
+        <Section title="Termination">
+          <p>
+            You can delete your account at any time (see <a href="/privacy">Privacy Policy</a>). We
+            can suspend accounts that violate these terms; we’ll explain why if it happens.
           </p>
         </Section>
 
         <Section title="Contact">
           <p>
             <a href="mailto:hello@bite-worthy.com">hello@bite-worthy.com</a> for anything in these
-            terms. Legal notices to{' '}
-            <a href="mailto:legal@bite-worthy.com">legal@bite-worthy.com</a>.
+            terms. Legal notices to <a href="mailto:legal@bite-worthy.com">legal@bite-worthy.com</a>
+            .
           </p>
         </Section>
       </article>
