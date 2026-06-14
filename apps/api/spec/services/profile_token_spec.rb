@@ -38,17 +38,43 @@ RSpec.describe ProfileToken do
     # same payload here. These fixtures are the byte-for-byte output
     # of `encodeProfileToken({ avoid_ingredient_ids, avoid_tag_ids,
     # strictness })` for the two payloads below.
+    # Fixed exp (2100-01-01 UTC) so the bytes are deterministic across
+    # languages. Produced by encodeProfileToken(sample, { expiresAt:
+    # 4102444800 }) in the TS module.
+    FIXED_EXP = 4_102_444_800
+    TS_TOKEN  = "eyJ2IjoyLCJhaSI6WyJpbmctZGFpcnkiLCJpbmctZWdnIl0sImF0IjpbInRhZy1jb250YWlucy1kYWlyeSJdLCJzIjoiYmFsYW5jZWQiLCJleHAiOjQxMDI0NDQ4MDB9".freeze
+
     it "decodes a token produced by the TS encoder (sample payload)" do
-      ts_token = "eyJ2IjoxLCJhaSI6WyJpbmctZGFpcnkiLCJpbmctZWdnIl0sImF0IjpbInRhZy1jb250YWlucy1kYWlyeSJdLCJzIjoiYmFsYW5jZWQifQ"
-      decoded  = described_class.decode(ts_token)
+      decoded = described_class.decode(TS_TOKEN)
       expect(decoded.avoid_ingredient_ids).to eq(%w[ing-dairy ing-egg])
       expect(decoded.avoid_tag_ids).to        eq(%w[tag-contains-dairy])
       expect(decoded.strictness).to           eq("balanced")
     end
 
     it "encodes the same payload to the same string the TS encoder produces" do
-      ours = described_class.encode(**sample_payload)
-      expect(ours).to eq("eyJ2IjoxLCJhaSI6WyJpbmctZGFpcnkiLCJpbmctZWdnIl0sImF0IjpbInRhZy1jb250YWlucy1kYWlyeSJdLCJzIjoiYmFsYW5jZWQifQ")
+      ours = described_class.encode(**sample_payload, expires_at: FIXED_EXP)
+      expect(ours).to eq(TS_TOKEN)
+    end
+  end
+
+  describe "expiry (legal E6)" do
+    it "round-trips a token with a future expiry" do
+      token = described_class.encode(**sample_payload, expires_at: Time.now.to_i + 3600)
+      expect(described_class.decode(token).strictness).to eq("balanced")
+    end
+
+    it "rejects an expired token" do
+      token = described_class.encode(**sample_payload, expires_at: Time.now.to_i - 1)
+      expect { described_class.decode(token) }
+        .to raise_error(ProfileToken::InvalidTokenError, /expired/)
+    end
+
+    it "rejects a token whose exp is missing or non-numeric" do
+      bad = Base64.urlsafe_encode64(
+        JSON.generate(v: 2, ai: [], at: [], s: "balanced"), padding: false
+      )
+      expect { described_class.decode(bad) }
+        .to raise_error(ProfileToken::InvalidTokenError, /exp must be a number/)
     end
   end
 
@@ -69,13 +95,17 @@ RSpec.describe ProfileToken do
     end
 
     it "rejects invalid strictness values" do
-      bad = Base64.urlsafe_encode64(JSON.generate(v: 1, ai: [], at: [], s: "YOLO"), padding: false)
+      bad = Base64.urlsafe_encode64(
+        JSON.generate(v: 2, ai: [], at: [], s: "YOLO", exp: 4_102_444_800), padding: false
+      )
       expect { described_class.decode(bad) }
         .to raise_error(ProfileToken::InvalidTokenError, /s must be one of/)
     end
 
     it "rejects non-string ids" do
-      bad = Base64.urlsafe_encode64(JSON.generate(v: 1, ai: [42], at: [], s: "balanced"), padding: false)
+      bad = Base64.urlsafe_encode64(
+        JSON.generate(v: 2, ai: [42], at: [], s: "balanced", exp: 4_102_444_800), padding: false
+      )
       expect { described_class.decode(bad) }
         .to raise_error(ProfileToken::InvalidTokenError, /ai must be an array of strings/)
     end
