@@ -1,0 +1,12 @@
+# Solid Queue recurring tasks. Loaded by `solid_queue:start` (the
+# worker the deploy boots; see config/deploy.yml). Dev/test don't run
+# the supervisor, so no schedule fires there.
+#
+# Legal remediation E5 — the visit-history retention backstop. Runs
+# daily so any orphaned visit row (owner already deleted) is gone well
+# inside the Privacy Policy's 12-month "fully purged" guarantee.
+production:
+  purge_orphaned_restaurant_visits:
+    class: PurgeOrphanedRestaurantVisitsJob
+    queue: default
+    schedule: "every day at 4am"
