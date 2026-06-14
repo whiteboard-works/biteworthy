@@ -314,6 +314,36 @@
           },
           "required": true
         }
+      },
+      "delete": {
+        "summary": "Delete the caller's account (legal remediation E2)",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt>",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "account deleted — personal data removed, menu-graph attribution nulled"
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        }
       }
     },
     "/api/v1/profile": {

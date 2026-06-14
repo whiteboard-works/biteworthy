@@ -19,6 +19,23 @@ class User < ApplicationRecord
   has_many :overridden_items, through: :user_item_overrides, source: :item
   has_many :restaurant_visits, dependent: :destroy
 
+  # Legal remediation E2 — back-references with no ON DELETE rule at the
+  # DB level. Account deletion would hit a foreign-key violation unless
+  # these are nullified in Ruby first. The rows are part of the shared,
+  # crowd-built menu graph (see docs/vision.md) — it shouldn't vanish
+  # when one contributor leaves — so we drop the attribution, not the
+  # row. The user's own personal records (reviews, profile, overrides,
+  # visits) are destroyed above.
+  has_many :ingestion_runs, inverse_of: :user, dependent: :nullify
+  has_many :created_items, class_name: "Item", foreign_key: :created_by_user_id,
+           inverse_of: :created_by_user, dependent: :nullify
+  has_many :created_restaurants, class_name: "Restaurant", foreign_key: :created_by_user_id,
+           inverse_of: :created_by_user, dependent: :nullify
+  has_many :claimed_restaurants, class_name: "Restaurant", foreign_key: :claimed_by_user_id,
+           inverse_of: :claimed_by_user, dependent: :nullify
+  has_many :resolved_suggestions, class_name: "Suggestion", foreign_key: :resolved_by_user_id,
+           inverse_of: :resolved_by_user, dependent: :nullify
+
   validates :handle, presence: true, uniqueness: true,
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
 

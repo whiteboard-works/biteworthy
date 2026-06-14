@@ -6,6 +6,7 @@ module Api
         respond_to :json
 
         before_action :configure_permitted_parameters
+        before_action :authenticate_user!, only: [:destroy]
 
         # Override Devise's create to avoid the automatic sign_up flow
         # that writes to the session — sessions are disabled in API
@@ -22,6 +23,20 @@ module Api
             clean_up_passwords(resource)
             render json: { errors: resource.errors.as_json }, status: :unprocessable_entity
           end
+        end
+
+        # DELETE /api/v1/auth/signup — permanently deletes the caller's
+        # account. Legal remediation E2 (Privacy Policy "Delete your
+        # account"). Routes the delete through the ORM so the model's
+        # `dependent:` rules run — the FKs have no ON DELETE CASCADE, so
+        # a raw DB delete would either orphan rows or violate a
+        # constraint. Personal records are destroyed; shared menu-graph
+        # rows are nullified (see User associations). The JWT is
+        # invalidated implicitly — its `jti`/`sub` no longer match any
+        # user once the row is gone.
+        def destroy
+          current_user.destroy!
+          head :no_content
         end
 
         private
