@@ -4,6 +4,69 @@
  */
 
 export interface paths {
+    "/api/v1/account/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the caller's personal data as a JSON archive (legal E3) */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the personal-data archive */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: date-time */
+                            exported_at: string;
+                            account: {
+                                /** Format: uuid */
+                                id: string;
+                                email: string;
+                                handle: string;
+                                display_name: string | null;
+                                provider: string | null;
+                                /** Format: date-time */
+                                created_at: string;
+                            };
+                            profile: Record<string, never> | null;
+                            reviews: Record<string, never>[];
+                            suggestions: Record<string, never>[];
+                            restaurant_visits: Record<string, never>[];
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
