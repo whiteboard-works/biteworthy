@@ -29,9 +29,12 @@ export default function RootLayout({ children }: { children: ReactNode }): React
  * front of users everywhere, not only on the Terms page.
  */
 function SiteDisclaimer(): ReactElement {
+  // role="note", not a <footer>/contentinfo landmark — pages like the
+  // marketing landing already have their own footer, and a second
+  // contentinfo landmark is an accessibility smell.
   return (
-    <footer
-      role="contentinfo"
+    <div
+      role="note"
       data-testid="site-disclaimer"
       className="border-t border-zinc-200 px-6 py-4 text-center text-xs text-zinc-500"
     >
@@ -45,6 +48,6 @@ function SiteDisclaimer(): ReactElement {
         Privacy Policy
       </a>
       .
-    </footer>
+    </div>
   );
 }
