@@ -16,6 +16,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async () => {
@@ -31,9 +32,13 @@ export default function SignupScreen() {
       Alert.alert('Age confirmation required', 'You must confirm you are at least 13 years old.');
       return;
     }
+    if (!termsAccepted) {
+      Alert.alert('Agreement required', 'You must agree to the Terms of Service and Privacy Policy.');
+      return;
+    }
     try {
       setSubmitting(true);
-      await signup(email, password, ageConfirmed);
+      await signup(email, password, ageConfirmed, termsAccepted);
       router.replace(next);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 0;
@@ -84,10 +89,33 @@ export default function SignupScreen() {
       </Pressable>
 
       <Pressable
+        accessibilityLabel="terms-accept"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: termsAccepted }}
+        onPress={() => setTermsAccepted((v) => !v)}
+        style={styles.ageRow}
+      >
+        <View style={[styles.ageBox, termsAccepted && styles.ageBoxChecked]}>
+          {termsAccepted && <Text style={styles.ageCheck}>✓</Text>}
+        </View>
+        <Text style={styles.ageText}>
+          I agree to the{' '}
+          <Link href="/terms" style={styles.linkInline}>
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" style={styles.linkInline}>
+            Privacy Policy
+          </Link>
+          .
+        </Text>
+      </Pressable>
+
+      <Pressable
         accessibilityLabel="signup-submit"
         onPress={onSubmit}
-        disabled={submitting || !ageConfirmed}
-        style={[styles.primary, (submitting || !ageConfirmed) && { opacity: 0.5 }]}
+        disabled={submitting || !ageConfirmed || !termsAccepted}
+        style={[styles.primary, (submitting || !ageConfirmed || !termsAccepted) && { opacity: 0.5 }]}
       >
         {submitting ? (
           <ActivityIndicator color={colors.bg} />
@@ -164,6 +192,10 @@ const styles = StyleSheet.create({
   ageText: {
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  linkInline: {
+    color: colors.bite,
+    fontWeight: '600',
   },
   primary: {
     backgroundColor: colors.bite,

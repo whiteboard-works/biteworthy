@@ -41,16 +41,19 @@ describe('login', () => {
 describe('signup', () => {
   it('POSTs to /api/auth/signup', async () => {
     const fetchImpl = fakeFetch(200, { user: { id: 'u2', email: 'b@c.com', handle: null, display_name: null } });
-    await signup('b@c.com', 'longerpw1', true, { fetchImpl });
+    await signup('b@c.com', 'longerpw1', true, true, { fetchImpl });
     expect(String(fetchImpl.mock.calls[0]![0])).toBe('/api/auth/signup');
-    // Legal remediation E4 — the affirmation rides in the body.
+    // The affirmations ride in the body.
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
-    expect(JSON.parse(init.body as string)).toMatchObject({ age_confirmation: true });
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      age_confirmation: true,
+      terms_acceptance: true,
+    });
   });
 
   it('throws AuthError on duplicate email', async () => {
     const fetchImpl = fakeFetch(422, { error: 'taken' });
-    await expect(signup('b@c.com', 'longerpw1', true, { fetchImpl })).rejects.toBeInstanceOf(AuthError);
+    await expect(signup('b@c.com', 'longerpw1', true, true, { fetchImpl })).rejects.toBeInstanceOf(AuthError);
   });
 });
 

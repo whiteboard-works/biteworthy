@@ -10,7 +10,9 @@ RSpec.describe "POST /api/v1/auth/signup", type: :request do
         handle: "new_user",
         display_name: "New User",
         # Legal remediation E4 — the 13+ affirmation is required.
-        age_confirmation: true
+        age_confirmation: true,
+        # Clickwrap — agreeing to the Terms + Privacy Policy is required.
+        terms_acceptance: true
       }
     }
   end
@@ -29,8 +31,9 @@ RSpec.describe "POST /api/v1/auth/signup", type: :request do
     user = User.find_by(email: "new@example.com")
     expect(user.profile).to be_present
     expect(user.profile.strictness).to eq("balanced")
-    # Legal remediation E4 — the affirmation is recorded server-side.
+    # Affirmations are recorded server-side.
     expect(user.age_confirmed_at).to be_present
+    expect(user.terms_accepted_at).to be_present
   end
 
   it "rejects signup without the 13+ age confirmation (legal E4)" do
@@ -42,6 +45,17 @@ RSpec.describe "POST /api/v1/auth/signup", type: :request do
 
     expect(response).to have_http_status(:unprocessable_entity)
     expect(response.parsed_body["errors"]).to have_key("age_confirmation")
+  end
+
+  it "rejects signup without agreeing to the Terms (clickwrap)" do
+    expect {
+      post "/api/v1/auth/signup",
+           params: valid_params.tap { |p| p[:user].delete(:terms_acceptance) },
+           as: :json
+    }.not_to change(User, :count)
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["errors"]).to have_key("terms_acceptance")
   end
 
   it "rejects a duplicate email with 422" do

@@ -12,7 +12,7 @@ RSpec.describe "auth/signup", type: :request do
         properties: {
           user: {
             type: :object,
-            required: %w[email password password_confirmation handle age_confirmation],
+            required: %w[email password password_confirmation handle age_confirmation terms_acceptance],
             properties: {
               email:                 { type: :string, format: :email },
               password:              { type: :string, minLength: 8 },
@@ -21,7 +21,10 @@ RSpec.describe "auth/signup", type: :request do
               display_name:          { type: :string, nullable: true },
               # Legal remediation E4 — must be true; the user affirms the
               # 13+ minimum. The server stamps users.age_confirmed_at.
-              age_confirmation:      { type: :boolean }
+              age_confirmation:      { type: :boolean },
+              # Clickwrap — must be true; the user agrees to the Terms +
+              # Privacy Policy. The server stamps users.terms_accepted_at.
+              terms_acceptance:      { type: :boolean }
             }
           }
         }
@@ -32,10 +35,12 @@ RSpec.describe "auth/signup", type: :request do
         let(:user) do
           { user: { email: "fresh@example.com", password: "password123",
                     password_confirmation: "password123", handle: "fresh_user",
-                    display_name: "Fresh User", age_confirmation: true } }
+                    display_name: "Fresh User", age_confirmation: true, terms_acceptance: true } }
         end
         run_test! do
-          expect(User.find_by(email: "fresh@example.com").age_confirmed_at).to be_present
+          created = User.find_by(email: "fresh@example.com")
+          expect(created.age_confirmed_at).to be_present
+          expect(created.terms_accepted_at).to be_present
         end
       end
 
@@ -45,7 +50,7 @@ RSpec.describe "auth/signup", type: :request do
           create(:user, email: "taken@example.com")
           { user: { email: "taken@example.com", password: "password123",
                     password_confirmation: "password123", handle: "taken_user",
-                    age_confirmation: true } }
+                    age_confirmation: true, terms_acceptance: true } }
         end
         run_test!
       end
@@ -54,10 +59,23 @@ RSpec.describe "auth/signup", type: :request do
         schema "$ref" => "#/components/schemas/ValidationErrors"
         let(:user) do
           { user: { email: "minor@example.com", password: "password123",
-                    password_confirmation: "password123", handle: "young_user" } }
+                    password_confirmation: "password123", handle: "young_user",
+                    terms_acceptance: true } }
         end
         run_test! do
           expect(User.find_by(email: "minor@example.com")).to be_nil
+        end
+      end
+
+      response(422, "terms not accepted — clickwrap gate") do
+        schema "$ref" => "#/components/schemas/ValidationErrors"
+        let(:user) do
+          { user: { email: "noterms@example.com", password: "password123",
+                    password_confirmation: "password123", handle: "no_terms",
+                    age_confirmation: true } }
+        end
+        run_test! do
+          expect(User.find_by(email: "noterms@example.com")).to be_nil
         end
       end
     end

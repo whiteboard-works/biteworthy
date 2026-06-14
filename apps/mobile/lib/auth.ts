@@ -87,10 +87,14 @@ export async function signup(
   password: string,
   // Legal remediation E4 — the 13+ affirmation, sent as age_confirmation.
   ageConfirmation: boolean,
+  // Clickwrap — agreement to the Terms + Privacy Policy, sent as
+  // terms_acceptance.
+  termsAcceptance: boolean,
   opts: AuthOptions = {},
 ): Promise<UserPayload> {
   return await postCredentials('/api/v1/auth/signup', email, password, opts, {
     age_confirmation: ageConfirmation,
+    terms_acceptance: termsAcceptance,
   });
 }
 
