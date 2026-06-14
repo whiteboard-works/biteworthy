@@ -182,3 +182,8 @@ Date: ______________________________
    §8 reflects the founder's chosen default; adjust if counsel advises.
 4. For a counterparty that will also share sensitive information with you,
    ask counsel for a **mutual** version instead of this one-way form.
+5. **This NDA only covers confidentiality — it does not assign ownership.**
+   For anyone who *creates* work for BiteWorthy (a contractor writing
+   code, designs, or content), pair it with a separate IP-assignment /
+   work-for-hire agreement; otherwise the creator may retain rights in
+   what they produce.
