@@ -15,6 +15,7 @@ export default function SignupScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async () => {
@@ -26,9 +27,13 @@ export default function SignupScreen() {
       Alert.alert('Password too short', 'Use 8 or more characters.');
       return;
     }
+    if (!ageConfirmed) {
+      Alert.alert('Age confirmation required', 'You must confirm you are at least 13 years old.');
+      return;
+    }
     try {
       setSubmitting(true);
-      await signup(email, password);
+      await signup(email, password, ageConfirmed);
       router.replace(next);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 0;
@@ -66,10 +71,23 @@ export default function SignupScreen() {
       />
 
       <Pressable
+        accessibilityLabel="age-confirm"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: ageConfirmed }}
+        onPress={() => setAgeConfirmed((v) => !v)}
+        style={styles.ageRow}
+      >
+        <View style={[styles.ageBox, ageConfirmed && styles.ageBoxChecked]}>
+          {ageConfirmed && <Text style={styles.ageCheck}>✓</Text>}
+        </View>
+        <Text style={styles.ageText}>I am at least 13 years old.</Text>
+      </Pressable>
+
+      <Pressable
         accessibilityLabel="signup-submit"
         onPress={onSubmit}
-        disabled={submitting}
-        style={[styles.primary, submitting && { opacity: 0.5 }]}
+        disabled={submitting || !ageConfirmed}
+        style={[styles.primary, (submitting || !ageConfirmed) && { opacity: 0.5 }]}
       >
         {submitting ? (
           <ActivityIndicator color={colors.bg} />
@@ -116,6 +134,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: space['3'],
     fontSize: fontSize.base,
+    color: colors.text,
+  },
+  ageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['2'],
+    marginTop: space['2'],
+  },
+  ageBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ageBoxChecked: {
+    borderColor: colors.bite,
+    backgroundColor: colors.bite,
+  },
+  ageCheck: {
+    color: colors.bg,
+    fontWeight: '700',
+    fontSize: fontSize.sm,
+  },
+  ageText: {
+    fontSize: fontSize.sm,
     color: colors.text,
   },
   primary: {

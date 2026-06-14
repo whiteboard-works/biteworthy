@@ -230,6 +230,7 @@ export interface paths {
                             password_confirmation: string;
                             handle: string;
                             display_name?: string | null;
+                            age_confirmation: boolean;
                         };
                     };
                 };
@@ -244,7 +245,7 @@ export interface paths {
                         "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
-                /** @description validation failed (e.g. duplicate email or invalid handle) */
+                /** @description age not confirmed — under-13 gate (legal E4) */
                 422: {
                     headers: {
                         [name: string]: unknown;

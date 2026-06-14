@@ -13,7 +13,17 @@ module Api
         # devise-jwt's warden hook dispatches a token in the response
         # Authorization header.
         def create
+          # Legal remediation E4 — age gate. The client must affirm the
+          # 13+ minimum (COPPA; Privacy Policy + ToS). We record only the
+          # affirmation time, never a birth date.
+          unless ActiveModel::Type::Boolean.new.cast(params.dig(:user, :age_confirmation))
+            return render json: {
+              errors: { age_confirmation: ["You must confirm you are at least 13 years old."] }
+            }, status: :unprocessable_entity
+          end
+
           build_resource(sign_up_params)
+          resource.age_confirmed_at = Time.current
 
           if resource.save
             sign_in(resource_name, resource, store: false)

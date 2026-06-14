@@ -258,7 +258,7 @@
             }
           },
           "422": {
-            "description": "validation failed (e.g. duplicate email or invalid handle)",
+            "description": "age not confirmed — under-13 gate (legal E4)",
             "content": {
               "application/json": {
                 "schema": {
@@ -283,7 +283,8 @@
                       "email",
                       "password",
                       "password_confirmation",
-                      "handle"
+                      "handle",
+                      "age_confirmation"
                     ],
                     "properties": {
                       "email": {
@@ -305,6 +306,9 @@
                       "display_name": {
                         "type": "string",
                         "nullable": true
+                      },
+                      "age_confirmation": {
+                        "type": "boolean"
                       }
                     }
                   }

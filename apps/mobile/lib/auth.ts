@@ -65,9 +65,13 @@ export async function login(
 export async function signup(
   email: string,
   password: string,
+  // Legal remediation E4 — the 13+ affirmation, sent as age_confirmation.
+  ageConfirmation: boolean,
   opts: AuthOptions = {},
 ): Promise<UserPayload> {
-  return await postCredentials('/api/v1/auth/signup', email, password, opts);
+  return await postCredentials('/api/v1/auth/signup', email, password, opts, {
+    age_confirmation: ageConfirmation,
+  });
 }
 
 export async function logout(opts: AuthOptions = {}): Promise<void> {
@@ -89,12 +93,15 @@ async function postCredentials(
   email: string,
   password: string,
   opts: AuthOptions,
+  // Extra user fields merged into the request (e.g. age_confirmation on
+  // signup). Login passes nothing.
+  extraUserFields: Record<string, unknown> = {},
 ): Promise<UserPayload> {
   const { fetchImpl = fetch } = opts;
   const res = await fetchImpl(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ user: { email, password } }),
+    body: JSON.stringify({ user: { email, password, ...extraUserFields } }),
   });
   if (!res.ok) {
     let detail: string | null = null;
