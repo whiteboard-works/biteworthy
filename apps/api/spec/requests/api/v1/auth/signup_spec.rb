@@ -8,7 +8,9 @@ RSpec.describe "POST /api/v1/auth/signup", type: :request do
         password: "password123",
         password_confirmation: "password123",
         handle: "new_user",
-        display_name: "New User"
+        display_name: "New User",
+        # Legal remediation E4 — the 13+ affirmation is required.
+        age_confirmation: true
       }
     }
   end
@@ -27,6 +29,19 @@ RSpec.describe "POST /api/v1/auth/signup", type: :request do
     user = User.find_by(email: "new@example.com")
     expect(user.profile).to be_present
     expect(user.profile.strictness).to eq("balanced")
+    # Legal remediation E4 — the affirmation is recorded server-side.
+    expect(user.age_confirmed_at).to be_present
+  end
+
+  it "rejects signup without the 13+ age confirmation (legal E4)" do
+    expect {
+      post "/api/v1/auth/signup",
+           params: valid_params.tap { |p| p[:user].delete(:age_confirmation) },
+           as: :json
+    }.not_to change(User, :count)
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["errors"]).to have_key("age_confirmation")
   end
 
   it "rejects a duplicate email with 422" do

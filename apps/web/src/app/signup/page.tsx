@@ -18,6 +18,7 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,9 +33,13 @@ export default function SignupPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (!ageConfirmed) {
+      setError('You must confirm you are at least 13 years old.');
+      return;
+    }
     try {
       setSubmitting(true);
-      await signup(email, password);
+      await signup(email, password, ageConfirmed);
       // `next` is a runtime query value — typedRoutes can't prove it.
       router.replace(next as Route);
     } catch (err) {
@@ -80,6 +85,17 @@ export default function SignupPage() {
           <span className="text-bw-xs text-zinc-500">8+ characters.</span>
         </label>
 
+        <label className="flex items-start gap-bw-2 text-bw-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={ageConfirmed}
+            onChange={(e) => setAgeConfirmed(e.target.checked)}
+            data-testid="age-confirm"
+            className="mt-bw-1 h-4 w-4 shrink-0"
+          />
+          <span>I am at least 13 years old.</span>
+        </label>
+
         {error && (
           <p className="rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
             {error}
@@ -88,11 +104,11 @@ export default function SignupPage() {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !ageConfirmed}
           data-testid="signup-submit"
           className={[
             'mt-bw-2 rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
-            submitting ? 'opacity-60' : 'hover:bg-bite-dark',
+            submitting || !ageConfirmed ? 'opacity-60' : 'hover:bg-bite-dark',
           ].join(' ')}
         >
           {submitting ? 'Creating…' : 'Create account'}

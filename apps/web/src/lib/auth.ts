@@ -74,9 +74,16 @@ export function login(
 export function signup(
   email: string,
   password: string,
+  // Legal remediation E4 — the 13+ affirmation, forwarded to Rails as
+  // age_confirmation. The form gates submit on it being true.
+  ageConfirmation: boolean,
   opts: FetchOptions = {},
 ): Promise<AuthResponse> {
-  return authPost<AuthResponse>('/api/auth/signup', { email, password }, opts);
+  return authPost<AuthResponse>(
+    '/api/auth/signup',
+    { email, password, age_confirmation: ageConfirmation },
+    opts,
+  );
 }
 
 export async function logout(opts: FetchOptions = {}): Promise<void> {

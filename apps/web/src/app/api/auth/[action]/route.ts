@@ -25,6 +25,8 @@ const ACTIONS = new Set(['login', 'signup', 'logout']);
 interface CredentialsBody {
   email?: string;
   password?: string;
+  // Legal remediation E4 — present on signup only; the 13+ affirmation.
+  age_confirmation?: boolean;
 }
 
 export async function POST(
@@ -50,10 +52,15 @@ async function handleLoginOrSignup(action: string, body: CredentialsBody) {
   }
 
   const path = action === 'login' ? '/api/v1/auth/login' : '/api/v1/auth/signup';
+  // Forward the 13+ affirmation on signup only (login ignores it).
+  const user =
+    action === 'signup'
+      ? { email: body.email, password: body.password, age_confirmation: body.age_confirmation }
+      : { email: body.email, password: body.password };
   const upstream = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ user: { email: body.email, password: body.password } }),
+    body: JSON.stringify({ user }),
   });
 
   if (!upstream.ok) {
