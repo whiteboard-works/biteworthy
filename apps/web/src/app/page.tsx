@@ -67,6 +67,16 @@ function Hero(): ReactElement {
         <ComingSoonBadge label="Android app" />
       </div>
 
+      <p className="mt-bw-4">
+        <a
+          href="/story"
+          data-testid="hero-story"
+          className="text-bw-base font-bold text-bite hover:text-bite-dark"
+        >
+          Read our story →
+        </a>
+      </p>
+
       <p className="mt-bw-4 text-bw-xs text-zinc-500">
         Free during the Durango beta. No ads, no email signup until you choose to save a profile.
       </p>
