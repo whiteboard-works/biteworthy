@@ -1,8 +1,21 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import { AuthError, signup } from '../lib/auth';
+
+// The legal pages are web-only; open the hosted versions in the device
+// browser (there are no in-app /terms or /privacy routes).
+const LEGAL_SITE = 'https://bite-worthy.com';
 
 /**
  * Phase 4.1 — mobile signup screen. Mirrors the web signup; defaults
@@ -98,18 +111,17 @@ export default function SignupScreen() {
         <View style={[styles.ageBox, termsAccepted && styles.ageBoxChecked]}>
           {termsAccepted && <Text style={styles.ageCheck}>✓</Text>}
         </View>
-        <Text style={styles.ageText}>
-          I agree to the{' '}
-          <Link href="/terms" style={styles.linkInline}>
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link href="/privacy" style={styles.linkInline}>
-            Privacy Policy
-          </Link>
-          .
-        </Text>
+        <Text style={styles.ageText}>I agree to the Terms of Service and Privacy Policy.</Text>
       </Pressable>
+      <View style={styles.legalLinks}>
+        <Pressable accessibilityLabel="open-terms" onPress={() => void Linking.openURL(`${LEGAL_SITE}/terms`)}>
+          <Text style={styles.linkInline}>Terms of Service</Text>
+        </Pressable>
+        <Text style={styles.ageText}> · </Text>
+        <Pressable accessibilityLabel="open-privacy" onPress={() => void Linking.openURL(`${LEGAL_SITE}/privacy`)}>
+          <Text style={styles.linkInline}>Privacy Policy</Text>
+        </Pressable>
+      </View>
 
       <Pressable
         accessibilityLabel="signup-submit"
@@ -196,6 +208,12 @@ const styles = StyleSheet.create({
   linkInline: {
     color: colors.bite,
     fontWeight: '600',
+    fontSize: fontSize.sm,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 30,
   },
   primary: {
     backgroundColor: colors.bite,
