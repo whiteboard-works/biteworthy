@@ -94,7 +94,9 @@ describe('decodeProfileToken — error cases', () => {
   });
 
   it('rejects invalid strictness values', () => {
-    const badToken = Buffer.from(JSON.stringify({ v: 1, ai: [], at: [], s: 'YOLO' }))
+    const badToken = Buffer.from(
+      JSON.stringify({ v: 2, ai: [], at: [], s: 'YOLO', exp: 4102444800 }),
+    )
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
@@ -103,12 +105,45 @@ describe('decodeProfileToken — error cases', () => {
   });
 
   it('rejects non-string ids', () => {
-    const badToken = Buffer.from(JSON.stringify({ v: 1, ai: [42], at: [], s: 'balanced' }))
+    const badToken = Buffer.from(
+      JSON.stringify({ v: 2, ai: [42], at: [], s: 'balanced', exp: 4102444800 }),
+    )
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
     expect(() => decodeProfileToken(badToken)).toThrow(/ai must be string\[\]/);
+  });
+});
+
+describe('profile token expiry (legal E6)', () => {
+  it('round-trips a token with a future expiry', () => {
+    const token = encodeProfileToken(sample, { expiresAt: 4102444800 });
+    expect(decodeProfileToken(token)).toEqual(sample);
+  });
+
+  it('sets a ~30-day default expiry when none is given', () => {
+    const now = 1_000_000;
+    const token = encodeProfileToken(sample, { nowSeconds: now });
+    // Decoding "just before" the default TTL succeeds; "just after" fails.
+    expect(decodeProfileToken(token, { nowSeconds: now + 1 })).toEqual(sample);
+    expect(() => decodeProfileToken(token, { nowSeconds: now + 31 * 24 * 60 * 60 })).toThrow(
+      /expired/,
+    );
+  });
+
+  it('rejects an expired token', () => {
+    const token = encodeProfileToken(sample, { expiresAt: 500 });
+    expect(() => decodeProfileToken(token, { nowSeconds: 1000 })).toThrow(/expired/);
+  });
+
+  it('rejects a token whose exp is missing', () => {
+    const noExp = Buffer.from(JSON.stringify({ v: 2, ai: [], at: [], s: 'balanced' }))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(() => decodeProfileToken(noExp)).toThrow(/exp must be a number/);
   });
 });
 

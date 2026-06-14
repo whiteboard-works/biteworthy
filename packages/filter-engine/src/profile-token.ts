@@ -8,20 +8,44 @@
  * format. The Ruby side has its own implementation (mirrored byte-
  * for-byte by the spec) so this module is the canonical contract.
  *
- * Token shape: base64url of JSON `{ v: 1, ai, at, s }`. Short keys
+ * Token shape: base64url of JSON `{ v: 2, ai, at, s, exp }`. Short keys
  * keep URLs reasonable; the `v` lets us evolve the schema later
  * without breaking old links.
+ *
+ * Legal remediation E6 — v2 adds `exp` (a Unix-seconds expiry). A
+ * shared link carries the sharer's avoid-lists + strictness (dietary
+ * data), so it must not live forever; decoders reject an expired token.
+ * v1 tokens (no expiry) are intentionally no longer accepted.
+ *
+ * Note on signing: these tokens are minted client-side (the Share
+ * button), so an HMAC secret would have to ship in the browser bundle
+ * and could be forged — signing here would be theater. The token grants
+ * no privilege (it only carries the sharer's own filter), so tamper-
+ * resistance has no security value; strict structural validation +
+ * expiry are the real protections. True signing would require minting
+ * the token server-side, a larger change deferred for now.
  */
 
 import type { FilterProfile, Strictness } from './index';
 
-export const PROFILE_TOKEN_VERSION = 1;
+export const PROFILE_TOKEN_VERSION = 2;
+
+/** Default lifetime of a shared link: 30 days (in seconds). */
+export const PROFILE_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 interface TokenPayload {
   v: number;
   ai: string[];
   at: string[];
   s: Strictness;
+  exp: number;
+}
+
+export interface EncodeProfileTokenOptions {
+  /** Absolute expiry, Unix seconds. Overrides the default TTL (tests/parity). */
+  expiresAt?: number;
+  /** "Now" in Unix seconds. Defaults to the real clock (tests). */
+  nowSeconds?: number;
 }
 
 export interface ShareableProfile {
@@ -39,17 +63,26 @@ export class InvalidProfileTokenError extends Error {
 
 const STRICTNESSES: ReadonlyArray<Strictness> = ['relaxed', 'balanced', 'strict'];
 
-export function encodeProfileToken(profile: ShareableProfile): string {
+export function encodeProfileToken(
+  profile: ShareableProfile,
+  opts: EncodeProfileTokenOptions = {},
+): string {
+  const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const exp = opts.expiresAt ?? now + PROFILE_TOKEN_TTL_SECONDS;
   const payload: TokenPayload = {
     v: PROFILE_TOKEN_VERSION,
     ai: profile.avoid_ingredient_ids,
     at: profile.avoid_tag_ids,
     s: profile.strictness,
+    exp,
   };
   return base64UrlEncode(JSON.stringify(payload));
 }
 
-export function decodeProfileToken(token: string): ShareableProfile {
+export function decodeProfileToken(
+  token: string,
+  opts: { nowSeconds?: number } = {},
+): ShareableProfile {
   if (typeof token !== 'string' || token.length === 0) {
     throw new InvalidProfileTokenError('empty');
   }
@@ -83,6 +116,14 @@ export function decodeProfileToken(token: string): ShareableProfile {
   }
   if (typeof s !== 'string' || !STRICTNESSES.includes(s as Strictness)) {
     throw new InvalidProfileTokenError(`s must be one of ${STRICTNESSES.join('|')}`);
+  }
+  const exp = obj.exp;
+  if (typeof exp !== 'number' || !Number.isFinite(exp)) {
+    throw new InvalidProfileTokenError('exp must be a number');
+  }
+  const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
+  if (exp <= now) {
+    throw new InvalidProfileTokenError('expired');
   }
   return {
     avoid_ingredient_ids: ai,
