@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -98,6 +98,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_130000) do
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_dietary_profiles_on_slug", unique: true
+  end
+
+  create_table "dmca_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "accuracy_sworn", default: false, null: false
+    t.string "complainant_email", null: false
+    t.string "complainant_name", null: false
+    t.datetime "created_at", null: false
+    t.boolean "good_faith", default: false, null: false
+    t.text "infringing_url", null: false
+    t.string "signature", null: false
+    t.string "status", default: "received", null: false
+    t.datetime "updated_at", null: false
+    t.text "work_description", null: false
+    t.index ["created_at"], name: "index_dmca_notices_on_created_at"
+    t.index ["status"], name: "index_dmca_notices_on_status"
   end
 
   create_table "hours", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

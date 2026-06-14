@@ -95,6 +95,8 @@ Rails.application.routes.draw do
       end
       # Phase 5.10 — soft-launch waitlist; public + unauthenticated.
       resources :waitlist_signups, only: [:create]
+      # Legal remediation E10 — DMCA takedown intake; public.
+      resources :dmca_notices, only: [:create]
       # Phase 4.10 — owner accepts/rejects a suggestion.
       resources :suggestions, only: [:update]
       # Phase 4.7 — public profile by handle. Constraint allows
