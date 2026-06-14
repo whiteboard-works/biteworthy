@@ -23,7 +23,7 @@ class User < ApplicationRecord
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
 
   before_validation :ensure_jti, on: :create
-  before_validation :default_handle_from_email, on: :create
+  before_validation :assign_default_handle, on: :create
   after_create_commit :ensure_profile
 
   # Find or create a user from an OmniAuth auth hash. Used by both the
@@ -72,13 +72,18 @@ class User < ApplicationRecord
     self.jti ||= SecureRandom.uuid
   end
 
-  def default_handle_from_email
-    return if handle.present? || email.blank?
-    base = email.split("@", 2).first.gsub(/[^a-z0-9_]/i, "_").downcase
-    candidate = base
-    suffix = 1
-    candidate = "#{base}_#{suffix += 1}" while User.exists?(handle: candidate)
-    self.handle = candidate
+  # Legal remediation E9 — give accounts that didn't choose a handle a
+  # NEUTRAL default. The handle is shown publicly (on reviews and at
+  # /u/:handle), so it must not leak the email local-part the way the
+  # old `default_handle_from_email` did ("jane.doe@…" → "jane_doe").
+  # `diner_<random>` carries no PII; a user can still set a custom
+  # handle at signup.
+  def assign_default_handle
+    return if handle.present?
+    self.handle = loop do
+      candidate = "diner_#{SecureRandom.hex(4)}"
+      break candidate unless User.exists?(handle: candidate)
+    end
   end
 
   def ensure_profile
