@@ -144,11 +144,10 @@ export default function OnboardingScreen() {
       // Legal remediation E1 — the done step gates this save behind the
       // allergen-disclaimer toggle, so record the acknowledgment.
       await saveProfile({ ...payload, acknowledge_disclaimer: true }, jwt);
+      // Legal remediation E7 — funnel conversion only; the dietary
+      // profile (preset/strictness/avoid sizes) is health data and is
+      // never attached to this identified event.
       tracker.track('profile_set', {
-        preset_slug: draft.selectedPresetSlugs[0] ?? null,
-        avoid_ingredient_count: payload.avoid_ingredient_ids.length,
-        avoid_tag_count: payload.avoid_tag_ids.length,
-        strictness: payload.strictness,
         taste_signal_count: tasteSignalCount,
       });
       Alert.alert('Profile saved', 'Your dietary filter is ready.');
