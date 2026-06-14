@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_13_002000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -359,6 +359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_002000) do
     t.uuid "avoid_ingredient_ids", default: [], null: false, array: true
     t.uuid "avoid_tag_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
+    t.datetime "disclaimer_acknowledged_at"
     t.uuid "disliked_ingredient_ids", default: [], null: false, array: true
     t.uuid "disliked_tag_ids", default: [], null: false, array: true
     t.uuid "liked_ingredient_ids", default: [], null: false, array: true

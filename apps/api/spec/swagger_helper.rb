@@ -77,7 +77,8 @@ RSpec.configure do |config|
             required: %w[avoid_ingredient_ids avoid_tag_ids prefer_tag_ids
                          liked_ingredient_ids liked_tag_ids
                          disliked_ingredient_ids disliked_tag_ids
-                         strictness primary_dietary_profile],
+                         strictness primary_dietary_profile
+                         disclaimer_acknowledged_at],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
               avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
@@ -96,7 +97,11 @@ RSpec.configure do |config|
                   slug: { type: :string },
                   name: { type: :string }
                 }
-              }
+              },
+              # Legal remediation E1 — ISO-8601 timestamp of when the
+              # user accepted the in-app allergen disclaimer, or null if
+              # they never have. Server-stamped.
+              disclaimer_acknowledged_at: { type: :string, format: "date-time", nullable: true }
             }
           }
         }

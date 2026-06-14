@@ -118,3 +118,36 @@ describe('OnboardingPage — taste step in the full flow', () => {
     expect(screen.getByText('Ready?')).toBeInTheDocument();
   });
 });
+
+describe('OnboardingPage — allergen acknowledgment (legal E1)', () => {
+  beforeEach(() => mockGet.mockReturnValue(null));
+
+  const goToReview = async () => {
+    render(<OnboardingPage />);
+    fireEvent.click(await screen.findByTestId('next-to-ingredients'));
+    fireEvent.click(screen.getByTestId('next-to-strictness'));
+    fireEvent.click(screen.getByTestId('next-to-taste'));
+    fireEvent.click(screen.getByTestId('skip-taste'));
+  };
+
+  it('blocks the save until the disclaimer is acknowledged, then records it', async () => {
+    await goToReview();
+
+    // Save is disabled and saveProfile is never called while unchecked.
+    expect(screen.getByTestId('finish')).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('finish'));
+    });
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+
+    // Check the box → save enables and sends acknowledge_disclaimer.
+    fireEvent.click(screen.getByTestId('acknowledge-disclaimer'));
+    expect(screen.getByTestId('finish')).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('finish'));
+    });
+    await waitFor(() => expect(mockSaveProfile).toHaveBeenCalledTimes(1));
+    expect(mockSaveProfile.mock.calls[0]![0]).toMatchObject({ acknowledge_disclaimer: true });
+  });
+});

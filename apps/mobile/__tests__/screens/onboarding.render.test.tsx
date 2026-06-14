@@ -252,11 +252,36 @@ describe('OnboardingScreen — Step 5: review', () => {
     fireEvent.press(screen.getByLabelText('next-to-taste'));
     fireEvent.press(screen.getByLabelText('next-to-done'));
 
+    // Legal remediation E1 — the allergen disclaimer gates the save.
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('acknowledge-disclaimer'));
+    });
+
     await act(async () => {
       fireEvent.press(screen.getByLabelText('finish'));
     });
 
     expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fonboarding');
     expect(mockSaveProfile).not.toHaveBeenCalled();
+  });
+
+  // Legal remediation E1 — finalize must not run until the user accepts
+  // the allergen disclaimer.
+  it('does not finalize until the allergen disclaimer is acknowledged', async () => {
+    render(<OnboardingScreen />);
+    await screen.findByLabelText('preset-vegan');
+
+    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
+    fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByLabelText('next-to-taste'));
+    fireEvent.press(screen.getByLabelText('next-to-done'));
+
+    // Press finish while unacknowledged — the disabled Pressable swallows
+    // the press, so neither the save nor the login redirect fires.
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('finish'));
+    });
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

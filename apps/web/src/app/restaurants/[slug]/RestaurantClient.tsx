@@ -195,6 +195,8 @@ export function RestaurantClient({
         </p>
       )}
 
+      <AllergenNotice />
+
       <TopPicksRow items={rawItems} restaurantSlug={slug} />
 
       {overriddenSections.length === 0 && (
@@ -214,6 +216,28 @@ export function RestaurantClient({
         />
       ))}
     </main>
+  );
+}
+
+/**
+ * Legal remediation E1 — the point-of-use allergen disclaimer.
+ *
+ * Persistent and non-dismissable: it sits at the top of every filtered
+ * menu so the "safe to eat" framing is never read as a guarantee. Names
+ * the false-negative case explicitly (a result can still miss an
+ * allergen), matching the ToS allergen disclaimer.
+ */
+export function AllergenNotice() {
+  return (
+    <div
+      role="note"
+      data-testid="allergen-notice"
+      className="mt-bw-4 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-3 text-bw-sm text-zinc-800"
+    >
+      <strong>A filter, not a guarantee.</strong> BiteWorthy reads menus with AI and your
+      dietary filter — but recipes change and a result can still miss an allergen. Always
+      confirm with the restaurant before ordering for a serious allergy.
+    </div>
   );
 }
 

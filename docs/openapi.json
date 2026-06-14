@@ -267,7 +267,7 @@
         ],
         "responses": {
           "200": {
-            "description": "updated profile payload",
+            "description": "acknowledging the allergen disclaimer stamps a timestamp",
             "content": {
               "application/json": {
                 "schema": {
@@ -363,6 +363,10 @@
                   },
                   "dietary_profile_slug": {
                     "type": "string"
+                  },
+                  "acknowledge_disclaimer": {
+                    "type": "boolean",
+                    "description": "When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding."
                   }
                 }
               }
@@ -728,7 +732,8 @@
           "disliked_ingredient_ids",
           "disliked_tag_ids",
           "strictness",
-          "primary_dietary_profile"
+          "primary_dietary_profile",
+          "disclaimer_acknowledged_at"
         ],
         "properties": {
           "avoid_ingredient_ids": {
@@ -803,6 +808,11 @@
                 "type": "string"
               }
             }
+          },
+          "disclaimer_acknowledged_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       }
