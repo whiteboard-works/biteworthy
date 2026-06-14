@@ -15,6 +15,9 @@ gem "solid_cable"
 # --- API ---------------------------------------------------------------------
 gem "jbuilder"
 gem "rack-cors"
+# Legal remediation E12 — request throttling so "don't scrape the API"
+# (ToS Acceptable use) is enforced, not just stated.
+gem "rack-attack"
 gem "rswag-api"
 gem "rswag-ui"
 
