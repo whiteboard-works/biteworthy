@@ -232,6 +232,8 @@ export default function RestaurantScreen() {
       <ShareLinkButton slug={restaurant.slug} filter={filter} />
       <RescanButton restaurantId={restaurant.id} restaurantName={restaurant.name} />
 
+      <AllergenNotice />
+
       <TopPicksRow items={rawItems} />
 
       {overriddenSections.map((section) => (
@@ -250,6 +252,26 @@ export default function RestaurantScreen() {
         <Text style={styles.empty}>No published items at this restaurant yet.</Text>
       )}
     </ScrollView>
+  );
+}
+
+/**
+ * Legal remediation E1 — point-of-use allergen disclaimer.
+ *
+ * Persistent and non-dismissable: it sits at the top of every filtered
+ * menu so "safe to eat" is never read as a guarantee. Mirrors the web
+ * <AllergenNotice> and the ToS allergen disclaimer.
+ */
+function AllergenNotice() {
+  return (
+    <View style={styles.allergenNotice} accessibilityLabel="allergen-notice">
+      <Text style={styles.allergenText}>
+        <Text style={styles.allergenStrong}>A filter, not a guarantee. </Text>
+        BiteWorthy reads menus with AI and your dietary filter — but recipes change and a result
+        can still miss an allergen. Always confirm with the restaurant before ordering for a
+        serious allergy.
+      </Text>
+    </View>
   );
 }
 
@@ -574,6 +596,22 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.hide,
     fontWeight: '600',
+  },
+  allergenNotice: {
+    marginTop: space['2'],
+    padding: space['3'],
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.warn,
+    backgroundColor: 'rgba(245, 159, 0, 0.1)',
+  },
+  allergenText: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  allergenStrong: {
+    fontWeight: '700',
   },
   hiddenToggle: {
     paddingVertical: space['2'],

@@ -80,6 +80,12 @@ export interface SaveProfilePayload {
   disliked_tag_ids?: string[];
   liked_ingredient_ids?: string[];
   disliked_ingredient_ids?: string[];
+  /**
+   * Legal remediation E1 — when true, the server stamps
+   * `disclaimer_acknowledged_at`. Onboarding sends it on the final
+   * save once the user accepts the allergen disclaimer.
+   */
+  acknowledge_disclaimer?: boolean;
 }
 
 export interface SaveTastePayload {

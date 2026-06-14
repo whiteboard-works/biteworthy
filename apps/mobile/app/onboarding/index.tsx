@@ -68,6 +68,9 @@ export default function OnboardingScreen() {
   const [tasteQuery, setTasteQuery] = useState('');
   const [tasteResults, setTasteResults] = useState<IngredientSearchResult[]>([]);
   const [saving, setSaving] = useState(false);
+  // Legal remediation E1 — the user must accept the allergen disclaimer
+  // before the profile saves; the acceptance is recorded server-side.
+  const [acknowledged, setAcknowledged] = useState(false);
 
   // Load presets once.
   useEffect(() => {
@@ -138,7 +141,9 @@ export default function OnboardingScreen() {
     try {
       setSaving(true);
       const payload = toProfilePayload(draft, presets);
-      await saveProfile(payload, jwt);
+      // Legal remediation E1 — the done step gates this save behind the
+      // allergen-disclaimer toggle, so record the acknowledgment.
+      await saveProfile({ ...payload, acknowledge_disclaimer: true }, jwt);
       tracker.track('profile_set', {
         preset_slug: draft.selectedPresetSlugs[0] ?? null,
         avoid_ingredient_count: payload.avoid_ingredient_ids.length,
@@ -438,10 +443,26 @@ export default function OnboardingScreen() {
       </Text>
 
       <Pressable
+        accessibilityLabel="acknowledge-disclaimer"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: acknowledged }}
+        onPress={() => setAcknowledged((v) => !v)}
+        style={styles.ackRow}
+      >
+        <View style={[styles.ackBox, acknowledged && styles.ackBoxChecked]}>
+          {acknowledged && <Text style={styles.ackCheck}>✓</Text>}
+        </View>
+        <Text style={styles.ackText}>
+          I understand BiteWorthy is a planning tool, not a guarantee — results can miss an
+          allergen, and I’ll confirm with the restaurant before ordering for a serious allergy.
+        </Text>
+      </Pressable>
+
+      <Pressable
         accessibilityLabel="finish"
         onPress={finalize}
-        disabled={saving}
-        style={[styles.primary, saving && { opacity: 0.5 }]}
+        disabled={saving || !acknowledged}
+        style={[styles.primary, (saving || !acknowledged) && { opacity: 0.5 }]}
       >
         <Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save profile'}</Text>
       </Pressable>
@@ -560,6 +581,42 @@ const styles = StyleSheet.create({
     color: colors.bg,
     fontWeight: '700',
     fontSize: fontSize.base,
+  },
+  ackRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space['3'],
+    padding: space['3'],
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.warn,
+    backgroundColor: 'rgba(245, 159, 0, 0.1)',
+    marginTop: space['2'],
+  },
+  ackBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ackBoxChecked: {
+    borderColor: colors.bite,
+    backgroundColor: colors.bite,
+  },
+  ackCheck: {
+    color: colors.bg,
+    fontWeight: '700',
+    fontSize: fontSize.sm,
+  },
+  ackText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
   },
   skip: {
     alignItems: 'center',

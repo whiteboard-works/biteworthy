@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { HiddenReasonChip, StrictnessToggle } from '../RestaurantClient';
+import { AllergenNotice, HiddenReasonChip, StrictnessToggle } from '../RestaurantClient';
 
 /**
  * Phase post-5 — first JSX render tests for the web app.
@@ -52,6 +52,21 @@ describe('HiddenReasonChip', () => {
       />,
     );
     expect(screen.getByTestId('chip-unconfirmed_strict')).toHaveTextContent('inferred');
+  });
+});
+
+describe('AllergenNotice', () => {
+  // Legal remediation E1 — the point-of-use disclaimer must be present
+  // and non-dismissable on every filtered menu, and must name the
+  // false-negative case (a result can still miss an allergen).
+  it('renders the disclaimer with no dismiss control', () => {
+    render(<AllergenNotice />);
+    const notice = screen.getByTestId('allergen-notice');
+    expect(notice).toHaveTextContent(/not a guarantee/i);
+    expect(notice).toHaveTextContent(/miss an allergen/i);
+    expect(notice).toHaveTextContent(/confirm with the restaurant/i);
+    // Non-dismissable: no button inside the notice to close it.
+    expect(notice.querySelector('button')).toBeNull();
   });
 });
 

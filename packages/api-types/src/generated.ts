@@ -265,11 +265,13 @@ export interface paths {
                         /** @enum {string} */
                         strictness?: "relaxed" | "balanced" | "strict";
                         dietary_profile_slug?: string;
+                        /** @description When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding. */
+                        acknowledge_disclaimer?: boolean;
                     };
                 };
             };
             responses: {
-                /** @description updated profile payload */
+                /** @description acknowledging the allergen disclaimer stamps a timestamp */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -454,6 +456,8 @@ export interface components {
                 slug?: string;
                 name?: string;
             } | null;
+            /** Format: date-time */
+            disclaimer_acknowledged_at: string | null;
         };
     };
     responses: never;

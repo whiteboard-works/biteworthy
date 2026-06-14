@@ -139,7 +139,9 @@ function OnboardingFlow() {
       setSaving(true);
       setSaveError(null);
       const payload = toProfilePayload(draft, presets);
-      await saveProfile(payload);
+      // Legal remediation E1 — the review step gates this submit behind
+      // the allergen-disclaimer checkbox, so record the acknowledgment.
+      await saveProfile({ ...payload, acknowledge_disclaimer: true });
       tracker.track('profile_set', {
         preset_slug: draft.selectedPresetSlugs[0] ?? null,
         avoid_ingredient_count: payload.avoid_ingredient_ids.length,
@@ -682,6 +684,9 @@ function ReviewStep({
   error: string | null;
   onSubmit: (e: FormEvent) => void;
 }) {
+  // Legal remediation E1 — the user must accept the allergen disclaimer
+  // before the profile saves; the acceptance is recorded server-side.
+  const [acknowledged, setAcknowledged] = useState(false);
   return (
     <form onSubmit={onSubmit}>
       <StepHeader step={5} title="Ready?" body="Saving will replace any existing avoid lists on your profile." />
@@ -698,6 +703,20 @@ function ReviewStep({
         , strictness <span className="font-bold">{strictness}</span>.
       </p>
 
+      <label className="mt-bw-6 flex items-start gap-bw-3 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-3 text-bw-sm text-zinc-800">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          data-testid="acknowledge-disclaimer"
+          className="mt-bw-1 h-4 w-4 shrink-0"
+        />
+        <span>
+          I understand BiteWorthy is a planning tool, not a guarantee — results can miss an
+          allergen, and I’ll confirm with the restaurant before ordering for a serious allergy.
+        </span>
+      </label>
+
       {error && (
         <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
           {error}
@@ -706,11 +725,11 @@ function ReviewStep({
 
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || !acknowledged}
         data-testid="finish"
         className={[
           'mt-bw-6 w-full rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
-          saving ? 'opacity-60' : 'hover:bg-bite-dark',
+          saving || !acknowledged ? 'opacity-60' : 'hover:bg-bite-dark',
         ].join(' ')}
       >
         {saving ? 'Saving…' : 'Save profile'}

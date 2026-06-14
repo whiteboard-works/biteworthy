@@ -38,6 +38,16 @@ module Api
           apply_preset!(profile, preset)
         end
 
+        # Legal remediation E1 — `acknowledge_disclaimer: true` records
+        # that the user saw and accepted the in-app allergen disclaimer
+        # (onboarding sends it on the final save). The time is stamped
+        # server-side, not taken from the client, and only the first
+        # acknowledgment is kept.
+        if ActiveModel::Type::Boolean.new.cast(params[:acknowledge_disclaimer]) &&
+           profile.disclaimer_acknowledged_at.nil?
+          profile.disclaimer_acknowledged_at = Time.current
+        end
+
         if profile.save
           render json: profile_payload(profile)
         else
@@ -85,7 +95,8 @@ module Api
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
           strictness:           profile.strictness,
-          primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile)
+          primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
+          disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
       end
 
