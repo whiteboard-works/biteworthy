@@ -2,6 +2,7 @@ import {
   createReview,
   deleteReview,
   fetchReviews,
+  reportReview,
   ReviewError,
   updateReview,
   type ReviewPayload,
@@ -136,5 +137,22 @@ describe('deleteReview', () => {
   it('throws on non-2xx', async () => {
     const fetchImpl = fakeFetch(403, { error: 'forbidden' });
     await expect(deleteReview('rev-1', 'jwt', { fetchImpl })).rejects.toBeInstanceOf(ReviewError);
+  });
+});
+
+describe('reportReview (legal E8)', () => {
+  it('POSTs /api/v1/reviews/:id/report with the bearer token', async () => {
+    const fetchImpl = fakeFetch(204, {});
+    await reportReview('rev-1', 'jwt', { fetchImpl });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toContain('/api/v1/reviews/rev-1/report');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jwt');
+  });
+
+  it('throws on non-2xx', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'Not signed in' });
+    await expect(reportReview('rev-1', 'jwt', { fetchImpl })).rejects.toBeInstanceOf(ReviewError);
   });
 });

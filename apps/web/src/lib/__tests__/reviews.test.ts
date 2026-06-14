@@ -3,6 +3,7 @@ import {
   createReview,
   deleteReview,
   fetchReviews,
+  reportReview,
   ReviewError,
   updateReview,
   type ReviewPayload,
@@ -138,5 +139,22 @@ describe('deleteReview', () => {
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect(init.method).toBe('DELETE');
     expect(init.credentials).toBe('same-origin');
+  });
+});
+
+describe('reportReview (legal E8)', () => {
+  it('POSTs to the report proxy URL with credentials', async () => {
+    const fetchImpl = fakeFetch(204, {});
+    await reportReview('rev-1', { fetchImpl });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toBe('/api/reviews/rev-1/report');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('same-origin');
+  });
+
+  it('throws a 401 ReviewError so the UI can prompt sign-in', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'Not signed in' });
+    await expect(reportReview('rev-1', { fetchImpl })).rejects.toMatchObject({ status: 401 });
   });
 });

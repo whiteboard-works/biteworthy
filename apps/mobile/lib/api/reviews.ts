@@ -150,6 +150,23 @@ export async function deleteReview(
   if (!res.ok) throw await reviewError(res, `deleteReview ${reviewId}`);
 }
 
+/**
+ * Legal remediation E8 — report a review into the moderation queue.
+ * Signed-in only; a 401 means the reader needs to log in first.
+ */
+export async function reportReview(
+  reviewId: string,
+  jwt: string,
+  opts: FetchOptions = {},
+): Promise<void> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/reviews/${encodeURIComponent(reviewId)}/report`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) throw await reviewError(res, `reportReview ${reviewId}`);
+}
+
 function filenameFromUri(uri: string): string {
   const last = uri.split('/').pop();
   return last && last.length > 0 ? last : 'photo.jpg';

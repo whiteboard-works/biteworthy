@@ -13,7 +13,7 @@ module Api
     class ReviewsController < BaseController
       skip_before_action :authenticate_user!, only: [:index]
       before_action :load_item,    only: [:index, :create]
-      before_action :load_review,  only: [:update, :destroy]
+      before_action :load_review,  only: [:update, :destroy, :report]
       before_action :gate_owner!,  only: [:update, :destroy]
 
       DEFAULT_LIMIT = 20
@@ -55,6 +55,15 @@ module Api
 
       def destroy
         @review.destroy!
+        head :no_content
+      end
+
+      # POST /api/v1/reviews/:id/report — legal remediation E8.
+      # Any signed-in reader can report a review; it routes into the
+      # existing admin moderation queue (sets flagged_at, doesn't hide).
+      # Idempotent, so a re-report is a harmless no-op.
+      def report
+        @review.report!
         head :no_content
       end
 

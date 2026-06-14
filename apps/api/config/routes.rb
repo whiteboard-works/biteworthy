@@ -88,7 +88,11 @@ Rails.application.routes.draw do
         # Phase 4.10 — anyone can suggest a fix.
         resources :suggestions, only: [:create]
       end
-      resources :reviews, only: [:update, :destroy]
+      resources :reviews, only: [:update, :destroy] do
+        # Legal remediation E8 — readers report a review into the
+        # moderation queue.
+        member { post :report }
+      end
       # Phase 5.10 — soft-launch waitlist; public + unauthenticated.
       resources :waitlist_signups, only: [:create]
       # Phase 4.10 — owner accepts/rejects a suggestion.

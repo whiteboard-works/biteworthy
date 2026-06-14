@@ -151,6 +151,23 @@ export async function deleteReview(
   if (!res.ok) throw await reviewError(res, `deleteReview ${reviewId}`);
 }
 
+/**
+ * Legal remediation E8 — report a review into the moderation queue.
+ * Routes through the Next proxy so the cookie JWT is attached. 401
+ * means the reader isn't signed in.
+ */
+export async function reportReview(
+  reviewId: string,
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`/api/reviews/${encodeURIComponent(reviewId)}/report`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw await reviewError(res, `reportReview ${reviewId}`);
+}
+
 async function reviewError(res: Response, label: string): Promise<ReviewError> {
   let body: { error?: string } | null = null;
   try {
