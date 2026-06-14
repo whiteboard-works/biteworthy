@@ -42,6 +42,8 @@ export default function TermsPage(): ReactElement {
 
       <DraftBanner />
 
+      <SummaryDisclaimer />
+
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="Acceptance of these terms">
           <p>
@@ -89,27 +91,41 @@ export default function TermsPage(): ReactElement {
         </Section>
 
         <Section title="Disclaimer of warranties">
-          <p>
-            BiteWorthy is provided <strong>“as is”</strong> and <strong>“as available,”</strong>{' '}
-            without warranties of any kind, whether express or implied — including implied
-            warranties of merchantability, fitness for a particular purpose, accuracy, and
-            non-infringement. We do not warrant that the dietary information is accurate, complete,
-            or current, or that the service will be uninterrupted or error-free. Some jurisdictions
-            don’t allow the exclusion of certain warranties, so parts of this may not apply to you.
-          </p>
+          {/*
+            Conspicuous per UCC §2-316 — a warranty disclaimer must stand
+            out to be enforceable, so the operative language is boxed and
+            partly capitalized rather than buried in prose.
+          */}
+          <Conspicuous>
+            <p>
+              BITEWORTHY IS PROVIDED <strong>“AS IS”</strong> AND{' '}
+              <strong>“AS AVAILABLE,”</strong> WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR
+              IMPLIED — INCLUDING THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+              PARTICULAR PURPOSE, ACCURACY, AND NON-INFRINGEMENT.
+            </p>
+            <p className="mt-bw-2">
+              We do not warrant that the dietary information is accurate, complete, or current, or
+              that the service will be uninterrupted or error-free. Some jurisdictions don’t allow
+              the exclusion of certain warranties, so parts of this may not apply to you.
+            </p>
+          </Conspicuous>
         </Section>
 
         <Section title="Limitation of liability">
-          <p>
-            To the maximum extent permitted by law, BiteWorthy and its operators will not be liable
-            for any indirect, incidental, special, consequential, or punitive damages, or for any
-            loss arising from your reliance on the dietary information — including any allergic
-            reaction, illness, or injury. Our total liability for any claim relating to the service
-            is limited to USD 100. Some jurisdictions don’t allow these limitations, and{' '}
-            <strong>
-              nothing in these Terms limits any liability that can’t be limited by law.
-            </strong>
-          </p>
+          <Conspicuous>
+            <p>
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, BITEWORTHY AND ITS OPERATORS WILL NOT BE
+              LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
+              FOR ANY LOSS ARISING FROM YOUR RELIANCE ON THE DIETARY INFORMATION — INCLUDING ANY
+              ALLERGIC REACTION, ILLNESS, OR INJURY. OUR TOTAL LIABILITY FOR ANY CLAIM RELATING TO
+              THE SERVICE IS LIMITED TO USD 100.
+            </p>
+            <p className="mt-bw-2">
+              Some jurisdictions don’t allow these limitations, and{' '}
+              <strong>nothing in these Terms limits any liability that can’t be limited by law</strong>
+              .
+            </p>
+          </Conspicuous>
         </Section>
 
         <Section title="Indemnification">
@@ -251,6 +267,42 @@ function DraftBanner(): ReactElement {
     >
       <strong>Draft.</strong> Has not yet had final lawyer review; the launch checklist (Phase 5.9)
       requires that pass before App Store / Play Store submission.
+    </div>
+  );
+}
+
+/**
+ * A prominent, plain-language "read this first" disclaimer at the top of
+ * the Terms. Conspicuous on purpose — the protective clauses below only
+ * help if a user can't miss the gist.
+ */
+function SummaryDisclaimer(): ReactElement {
+  return (
+    <div
+      role="note"
+      data-testid="summary-disclaimer"
+      className="mt-bw-4 rounded-bw-md border-2 border-bite/50 bg-bite-light p-bw-4 text-bw-base text-bite-dark"
+    >
+      <p className="font-bold uppercase tracking-wide">Please read — use at your own risk</p>
+      <p className="mt-bw-2">
+        BiteWorthy is a planning aid, not a guarantee of safety. The dietary information can be
+        wrong, incomplete, out of date, or mislabeled, and a dish that isn’t safe for you can still
+        appear in your results. <strong>Always confirm with the restaurant before you order</strong>
+        , especially for a serious allergy. Your use of BiteWorthy is at your own risk; see the
+        allergen disclaimer and limitation of liability below.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Conspicuous callout for the warranty + liability disclaimers — boxed
+ * and set off so they're "conspicuous" (UCC §2-316) rather than buried.
+ */
+function Conspicuous({ children }: { children: ReactElement | ReactElement[] }): ReactElement {
+  return (
+    <div className="rounded-bw-md border border-zinc-300 bg-zinc-50 p-bw-4 text-bw-sm font-semibold text-zinc-900">
+      {children}
     </div>
   );
 }
