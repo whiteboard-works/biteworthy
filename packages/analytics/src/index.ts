@@ -72,14 +72,18 @@ export interface EventPropsMap {
     distinct_id?: string;
   };
   profile_set: {
-    preset_slug: string | null;
-    avoid_ingredient_count: number;
-    avoid_tag_count: number;
-    strictness: 'relaxed' | 'balanced' | 'strict';
     /**
-     * Phase 8.5 — total taste signals set during onboarding (liked +
-     * disliked tags + ingredients). Optional: pre-8.5 callers and the
-     * standalone "Improve my picks" save omit it.
+     * Legal remediation E7 — `profile_set` is a funnel conversion
+     * marker only. The dietary profile is special-category health data
+     * (a celiac/allergy preset, strictness, avoid-list sizes), so it is
+     * deliberately NOT sent on this identified event — associating a
+     * health condition with an account is the existential privacy risk
+     * (memo Issue 6). Fields removed: preset_slug, strictness,
+     * avoid_ingredient_count, avoid_tag_count.
+     *
+     * `taste_signal_count` stays — taste preferences (cuisine/flavor)
+     * are not health data. Optional: the standalone "Improve my picks"
+     * save omits it.
      */
     taste_signal_count?: number;
   };

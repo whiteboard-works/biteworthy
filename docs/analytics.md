@@ -27,13 +27,15 @@ First event in every session. Fired by web on page load, by mobile on cold + war
 ### `profile_set`
 Fired when the user finishes the 6-tap onboarding (Phase 3.2 / 3.8) OR updates their profile.
 
+**Legal remediation E7:** this is a funnel-conversion marker only. The dietary
+profile is special-category health data, so `preset_slug`, `strictness`,
+`avoid_ingredient_count`, and `avoid_tag_count` were **removed** — a health
+condition must never be attached to an identified analytics event (memo Issue
+6). Only the (non-health) taste-signal count remains.
+
 | Field | Type | Notes |
 |---|---|---|
-| `preset_slug` | `string \| null` | One of the curated DietaryProfiles, or null when manual. |
-| `avoid_ingredient_count` | `number` | Final count after onboarding. |
-| `avoid_tag_count` | `number` | Final count after onboarding. |
-| `strictness` | `"relaxed" \| "balanced" \| "strict"` | The Phase 3.5 toggle value. |
-| `taste_signal_count` | `number?` | Phase 8.5 — liked + disliked tags + ingredients set in the "What do you love?" step. Optional; absent when the step was skipped or for pre-8.5 callers. |
+| `taste_signal_count` | `number?` | Phase 8.5 — liked + disliked tags + ingredients set in the "What do you love?" step. Optional; absent when the step was skipped or for pre-8.5 callers. Taste (cuisine/flavor) is not health data. |
 
 ### `menu_filtered`
 Fired when the user lands on a filtered restaurant page and the items endpoint returns. Once per page render, not per item.
