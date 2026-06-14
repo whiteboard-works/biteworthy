@@ -50,6 +50,45 @@ RSpec.describe "GET /api/v1/users/:handle", type: :request do
     end
   end
 
+  # Legal remediation E13 — the dietary profile is special-category
+  # health data and must NEVER appear in the public profile response.
+  # The "no email/jti" test above uses an empty profile, so it couldn't
+  # catch a real leak; this one POPULATES every dietary field with a
+  # sentinel value and asserts none of them — keys or values — escape.
+  it "never exposes the dietary profile, even when fully populated" do
+    liked_ingredient = create(:ingredient)
+    liked_tag        = create(:tag)
+    avoid_ingredient = "11111111-1111-1111-1111-111111111111"
+    avoid_tag        = "22222222-2222-2222-2222-222222222222"
+
+    user.profile.update!(
+      strictness:            "strict",
+      avoid_ingredient_ids:  [avoid_ingredient],
+      avoid_tag_ids:         [avoid_tag],
+      liked_ingredient_ids:  [liked_ingredient.id],
+      liked_tag_ids:         [liked_tag.id]
+    )
+    create(:review, user: user, item: item, rating: 5)
+
+    get "/api/v1/users/#{user.handle}"
+    expect(response).to have_http_status(:ok)
+
+    # No dietary field NAME appears anywhere in the payload (recursive).
+    dietary_keys = %w[
+      strictness avoid_ingredient_ids avoid_tag_ids prefer_tag_ids
+      liked_ingredient_ids liked_tag_ids disliked_ingredient_ids
+      disliked_tag_ids primary_dietary_profile
+    ]
+    all_keys = deep_keys(response.parsed_body)
+    expect(all_keys & dietary_keys).to be_empty,
+      "public payload exposed dietary key(s): #{(all_keys & dietary_keys).inspect}"
+
+    # No dietary VALUE leaks into the raw body either.
+    [avoid_ingredient, avoid_tag, liked_ingredient.id, liked_tag.id, "strict"].each do |secret|
+      expect(response.body).not_to include(secret), "leaked dietary value #{secret}"
+    end
+  end
+
   it "excludes hidden reviews from the count + recent list" do
     visible = create(:review, user: user, item: item, rating: 5, body: "Loved it.")
     hidden  = create(:review, user: user, item: create(:item, :published, restaurant: restaurant), rating: 1, body: "spam at https://x/")
@@ -79,5 +118,15 @@ RSpec.describe "GET /api/v1/users/:handle", type: :request do
   it "404s on an unknown handle" do
     get "/api/v1/users/no-such-handle"
     expect(response).to have_http_status(:not_found)
+  end
+
+  # Recursively collect every Hash key in a parsed JSON payload so a
+  # dietary field can't hide inside a nested object.
+  def deep_keys(obj)
+    case obj
+    when Hash  then obj.keys + obj.values.flat_map { |v| deep_keys(v) }
+    when Array then obj.flat_map { |v| deep_keys(v) }
+    else []
+    end
   end
 end
