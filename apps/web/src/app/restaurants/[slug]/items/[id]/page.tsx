@@ -7,6 +7,7 @@ import {
   type RestaurantItem,
 } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
+import { getServerUserId } from '../../../../../lib/server-auth';
 import { ReviewsClient } from './ReviewsClient';
 import { SuggestFixClient } from './SuggestFixClient';
 
@@ -28,16 +29,22 @@ export default async function ItemDetailPage({
 }) {
   const { slug, id } = await params;
 
-  const [restaurant, item, initialReviews] = await Promise.all([
+  const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
     fetchRestaurant(slug).catch(() => null),
     fetchItem(slug, id).catch(() => null),
     fetchReviewsServer(id).catch(() => null),
+    getServerUserId(),
   ]);
 
   if (!restaurant || !item) notFound();
 
   return (
-    <Page restaurant={restaurant} item={item} initialReviews={initialReviews ?? emptyReviews(id)} />
+    <Page
+      restaurant={restaurant}
+      item={item}
+      initialReviews={initialReviews ?? emptyReviews(id)}
+      currentUserId={currentUserId}
+    />
   );
 }
 
@@ -45,10 +52,12 @@ function Page({
   restaurant,
   item,
   initialReviews,
+  currentUserId,
 }: {
   restaurant: Restaurant;
   item: RestaurantItem;
   initialReviews: ReviewsResponse;
+  currentUserId: string | null;
 }) {
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
@@ -62,7 +71,12 @@ function Page({
         <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>
       )}
 
-      <ReviewsClient itemId={item.id} restaurantSlug={restaurant.slug} initial={initialReviews} />
+      <ReviewsClient
+        itemId={item.id}
+        restaurantSlug={restaurant.slug}
+        initial={initialReviews}
+        currentUserId={currentUserId}
+      />
       <SuggestFixClient itemId={item.id} restaurantSlug={restaurant.slug} />
     </main>
   );

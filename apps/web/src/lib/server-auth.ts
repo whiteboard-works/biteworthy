@@ -21,3 +21,27 @@ export async function getServerJwt(): Promise<string | null> {
   const value = jar.get(SESSION_COOKIE)?.value;
   return value && value.length > 0 ? value : null;
 }
+
+/**
+ * The signed-in user's id, read from the JWT's `sub` claim (devise-jwt
+ * puts the user id there). Used only to decide which UI to show — e.g.
+ * the owner-only edit/delete controls on a review (E11). We do NOT
+ * verify the signature here: the server still gates every mutation by
+ * ownership (403), so a forged id only changes which buttons render,
+ * never what the API allows. Returns null when signed out or malformed.
+ */
+export async function getServerUserId(): Promise<string | null> {
+  const jwt = await getServerJwt();
+  if (!jwt) return null;
+  const payload = jwt.split('.')[1];
+  if (!payload) return null;
+  try {
+    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+      'utf8',
+    );
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub.length > 0 ? sub : null;
+  } catch {
+    return null;
+  }
+}
