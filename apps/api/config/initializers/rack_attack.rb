@@ -8,6 +8,17 @@
 # Disabled in the test env by default so the request specs (which fire
 # many requests from 127.0.0.1) don't trip a throttle — the dedicated
 # throttle spec flips `Rack::Attack.enabled` on with its own cache.
+#
+# OPERATIONAL CAVEAT (per-IP attribution): throttling keys on `req.ip`,
+# which is the real client only for traffic that reaches Rails directly
+# (mobile) or through a proxy that sets `X-Forwarded-For` and that Rails
+# trusts. The web app proxies some calls server-side (auth, profile,
+# dmca, review mutations), so those arrive from the Next server's IP —
+# meaning web users would share one bucket and could trip the tight auth
+# throttle together. Before relying on per-client auth throttling in
+# production, forward the client IP from the Next proxy (X-Forwarded-For)
+# and trust it in Rails; otherwise treat the auth limit as a per-edge
+# guard, not per-user.
 class Rack::Attack
   # In-memory counter store. Single-process is fine for the launch
   # footprint; swap to a shared store (Solid Cache / Redis) when the API
