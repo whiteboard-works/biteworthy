@@ -77,11 +77,14 @@ export function signup(
   // Legal remediation E4 — the 13+ affirmation, forwarded to Rails as
   // age_confirmation. The form gates submit on it being true.
   ageConfirmation: boolean,
+  // Clickwrap — agreement to the Terms + Privacy Policy, forwarded as
+  // terms_acceptance. Also gated by the form.
+  termsAcceptance: boolean,
   opts: FetchOptions = {},
 ): Promise<AuthResponse> {
   return authPost<AuthResponse>(
     '/api/auth/signup',
-    { email, password, age_confirmation: ageConfirmation },
+    { email, password, age_confirmation: ageConfirmation, terms_acceptance: termsAcceptance },
     opts,
   );
 }

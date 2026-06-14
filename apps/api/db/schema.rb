@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -411,6 +411,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_140000) do
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
     t.integer "sign_in_count", default: 0, null: false
+    t.datetime "terms_accepted_at"
     t.string "uid"
     t.string "unconfirmed_email"
     t.datetime "updated_at", null: false

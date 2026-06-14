@@ -106,13 +106,16 @@ describe('signup', () => {
       { user: { id: 'u2', email: 'b@c.com', handle: null, display_name: null } },
       { Authorization: 'Bearer fresh.token.here' },
     );
-    await signup('b@c.com', 'longerpw1', true, { fetchImpl });
+    await signup('b@c.com', 'longerpw1', true, true, { fetchImpl });
     const url = String(fetchImpl.mock.calls[0]![0]);
     expect(url).toContain('/api/v1/auth/signup');
     expect(await getJwt()).toBe('fresh.token.here');
-    // Legal remediation E4 — the affirmation rides in the body.
+    // The affirmations ride in the body.
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
-    expect(JSON.parse(init.body as string).user).toMatchObject({ age_confirmation: true });
+    expect(JSON.parse(init.body as string).user).toMatchObject({
+      age_confirmation: true,
+      terms_acceptance: true,
+    });
   });
 });
 

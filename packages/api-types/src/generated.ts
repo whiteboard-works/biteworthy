@@ -231,6 +231,7 @@ export interface paths {
                             handle: string;
                             display_name?: string | null;
                             age_confirmation: boolean;
+                            terms_acceptance: boolean;
                         };
                     };
                 };
@@ -245,7 +246,7 @@ export interface paths {
                         "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
-                /** @description age not confirmed — under-13 gate (legal E4) */
+                /** @description terms not accepted — clickwrap gate */
                 422: {
                     headers: {
                         [name: string]: unknown;

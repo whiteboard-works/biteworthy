@@ -19,6 +19,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,9 +38,13 @@ export default function SignupPage() {
       setError('You must confirm you are at least 13 years old.');
       return;
     }
+    if (!termsAccepted) {
+      setError('You must agree to the Terms of Service and Privacy Policy.');
+      return;
+    }
     try {
       setSubmitting(true);
-      await signup(email, password, ageConfirmed);
+      await signup(email, password, ageConfirmed, termsAccepted);
       // `next` is a runtime query value — typedRoutes can't prove it.
       router.replace(next as Route);
     } catch (err) {
@@ -96,6 +101,27 @@ export default function SignupPage() {
           <span>I am at least 13 years old.</span>
         </label>
 
+        <label className="flex items-start gap-bw-2 text-bw-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            data-testid="terms-accept"
+            className="mt-bw-1 h-4 w-4 shrink-0"
+          />
+          <span>
+            I agree to the{' '}
+            <Link href="/terms" className="font-semibold text-bite hover:text-bite-dark">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" className="font-semibold text-bite hover:text-bite-dark">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+
         {error && (
           <p className="rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
             {error}
@@ -104,11 +130,11 @@ export default function SignupPage() {
 
         <button
           type="submit"
-          disabled={submitting || !ageConfirmed}
+          disabled={submitting || !ageConfirmed || !termsAccepted}
           data-testid="signup-submit"
           className={[
             'mt-bw-2 rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
-            submitting || !ageConfirmed ? 'opacity-60' : 'hover:bg-bite-dark',
+            submitting || !ageConfirmed || !termsAccepted ? 'opacity-60' : 'hover:bg-bite-dark',
           ].join(' ')}
         >
           {submitting ? 'Creating…' : 'Create account'}

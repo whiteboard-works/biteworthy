@@ -23,8 +23,19 @@ module Api
             }, status: :unprocessable_entity
           end
 
+          # Clickwrap assent — the client must affirmatively agree to the
+          # Terms + Privacy Policy. Recorded as terms_accepted_at, which
+          # is what makes the ToS (incl. arbitration + class waiver)
+          # enforceable rather than weak browsewrap.
+          unless ActiveModel::Type::Boolean.new.cast(params.dig(:user, :terms_acceptance))
+            return render json: {
+              errors: { terms_acceptance: ["You must agree to the Terms of Service and Privacy Policy."] }
+            }, status: :unprocessable_entity
+          end
+
           build_resource(sign_up_params)
           resource.age_confirmed_at = Time.current
+          resource.terms_accepted_at = Time.current
 
           if resource.save
             sign_in(resource_name, resource, store: false)

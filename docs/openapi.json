@@ -258,7 +258,7 @@
             }
           },
           "422": {
-            "description": "age not confirmed — under-13 gate (legal E4)",
+            "description": "terms not accepted — clickwrap gate",
             "content": {
               "application/json": {
                 "schema": {
@@ -284,7 +284,8 @@
                       "password",
                       "password_confirmation",
                       "handle",
-                      "age_confirmation"
+                      "age_confirmation",
+                      "terms_acceptance"
                     ],
                     "properties": {
                       "email": {
@@ -308,6 +309,9 @@
                         "nullable": true
                       },
                       "age_confirmation": {
+                        "type": "boolean"
+                      },
+                      "terms_acceptance": {
                         "type": "boolean"
                       }
                     }
