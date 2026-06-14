@@ -37,8 +37,17 @@ jest.mock('../../lib/auth', () => ({
   getJwt: jest.fn(() => Promise.resolve(null)),
 }));
 
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
 import OnboardingScreen from '../../app/onboarding/index';
+
+// Flake fix: the screen fires two fire-and-forget mount fetches
+// (fetchDietaryProfiles + fetchTags); every test waits for the result
+// with a `findBy*`. On a loaded CI runner the default 1s async timeout
+// occasionally elapsed before React flushed those resolutions, failing
+// "renders a chip per preset…" intermittently. A generous timeout
+// removes the race without restructuring the tests (the queries still
+// resolve in milliseconds locally).
+configure({ asyncUtilTimeout: 10_000 });
 
 /**
  * Phase 3.2 deferred snapshot — finally landing.
