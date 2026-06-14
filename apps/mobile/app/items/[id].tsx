@@ -17,6 +17,7 @@ import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   createReview,
   fetchReviews,
+  reportReview,
   type ReviewPayload,
 } from '../../lib/api/reviews';
 import { getJwt } from '../../lib/auth';
@@ -134,6 +135,26 @@ export default function ItemDetailScreen() {
 }
 
 function ReviewCard({ review }: { review: ReviewPayload }) {
+  // Legal remediation E8 — report routes the review into the moderation
+  // queue. Signed-in only; a 401 prompts the reader to log in.
+  const [reportState, setReportState] = useState<'idle' | 'sending' | 'done'>('idle');
+
+  const onReport = async () => {
+    const jwt = await getJwt();
+    if (!jwt) {
+      Alert.alert('Sign in to report', 'You need an account to report a review.');
+      return;
+    }
+    setReportState('sending');
+    try {
+      await reportReview(review.id, jwt);
+      setReportState('done');
+    } catch (e) {
+      setReportState('idle');
+      Alert.alert('Could not report', (e as Error).message);
+    }
+  };
+
   return (
     <View style={styles.reviewCard} testID={`review-${review.id}`}>
       <Text style={styles.reviewAuthor}>
@@ -144,6 +165,20 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
       {review.photo_url ? (
         <Image source={{ uri: review.photo_url }} style={styles.reviewPhoto} accessibilityLabel="review-photo" />
       ) : null}
+      {reportState === 'done' ? (
+        <Text style={styles.reportedNote} accessibilityLabel={`reported-${review.id}`}>
+          Reported — a moderator will take a look.
+        </Text>
+      ) : (
+        <Pressable
+          accessibilityLabel={`report-${review.id}`}
+          onPress={onReport}
+          disabled={reportState === 'sending'}
+          style={styles.reportButton}
+        >
+          <Text style={styles.reportText}>{reportState === 'sending' ? 'Reporting…' : 'Report'}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -362,6 +397,20 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     backgroundColor: colors.bgAlt,
+  },
+  reportButton: {
+    marginTop: space['2'],
+    alignSelf: 'flex-start',
+  },
+  reportText: {
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  reportedNote: {
+    marginTop: space['2'],
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
   },
   composerSheet: {
     position: 'absolute',

@@ -58,6 +58,16 @@ class Review < ApplicationRecord
     update!(hidden_at: nil, hidden_reason: nil, flagged_at: nil)
   end
 
+  # Legal remediation E8 — a reader reported this review. Routes it
+  # into the same moderation queue the spam heuristic feeds (sets
+  # flagged_at without hiding — only a moderator hides). Idempotent: an
+  # already-flagged review keeps its original flag time, so repeated
+  # reports can't reset the queue ordering.
+  def report!
+    update!(flagged_at: Time.current) if flagged_at.blank?
+    self
+  end
+
   # Whether the body looks like spam under the lightweight heuristic.
   # Public so specs + the Avo "rerun heuristic" action can call it.
   def suspicious?

@@ -175,6 +175,36 @@ RSpec.describe "Reviews API", type: :request do
     end
   end
 
+  describe "POST /api/v1/reviews/:id/report (legal E8)" do
+    let!(:review) { create(:review, item: item, user: owner, rating: 5, body: "Great.") }
+
+    it "flags the review into the moderation queue for any signed-in reader" do
+      expect {
+        post "/api/v1/reviews/#{review.id}/report", headers: auth_headers_for(other_user)
+      }.to change { review.reload.flagged_at }.from(nil).to(be_present)
+
+      expect(response).to have_http_status(:no_content)
+      # The admin queue surfaces flagged-but-not-hidden reviews.
+      expect(Review.awaiting_moderation).to include(review)
+      # Reporting does not hide it — only a moderator does.
+      expect(review.reload).not_to be_hidden
+    end
+
+    it "is idempotent — a second report doesn't reset the flag time" do
+      post "/api/v1/reviews/#{review.id}/report", headers: auth_headers_for(other_user)
+      first_flagged = review.reload.flagged_at
+
+      post "/api/v1/reviews/#{review.id}/report", headers: auth_headers_for(owner)
+      expect(review.reload.flagged_at).to eq(first_flagged)
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "401s anonymously" do
+      post "/api/v1/reviews/#{review.id}/report"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   # Synthesize a multipart upload from in-memory bytes — avoids
   # checking real binary fixtures into the repo.
   def upload_fixture(filename:, type:, size: 32)

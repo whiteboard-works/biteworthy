@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   createReview,
   fetchReviews,
+  reportReview,
   ReviewError,
   type ReviewPayload,
   type ReviewsResponse,
@@ -136,7 +137,51 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
           className="mt-bw-2 max-h-80 w-full rounded-bw-md object-cover"
         />
       )}
+      <ReportControl reviewId={review.id} />
     </li>
+  );
+}
+
+/**
+ * Legal remediation E8 — "Report" affordance. Routes the review into
+ * the moderation queue (the same queue the spam heuristic feeds).
+ * Signed-in only; a 401 nudges the reader to sign in.
+ */
+function ReportControl({ reviewId }: { reviewId: string }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'signin' | 'error'>('idle');
+
+  if (state === 'done') {
+    return <p className="mt-1 text-bw-xs text-zinc-500" data-testid={`reported-${reviewId}`}>Reported — thanks. A moderator will take a look.</p>;
+  }
+
+  const onReport = async () => {
+    setState('sending');
+    try {
+      await reportReview(reviewId);
+      setState('done');
+    } catch (e) {
+      setState(e instanceof ReviewError && e.status === 401 ? 'signin' : 'error');
+    }
+  };
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={onReport}
+        disabled={state === 'sending'}
+        data-testid={`report-${reviewId}`}
+        className="text-bw-xs font-semibold text-zinc-400 hover:text-zinc-600"
+      >
+        {state === 'sending' ? 'Reporting…' : 'Report'}
+      </button>
+      {state === 'signin' && (
+        <span className="ml-2 text-bw-xs text-zinc-500">Sign in to report.</span>
+      )}
+      {state === 'error' && (
+        <span className="ml-2 text-bw-xs text-bite-dark">Couldn’t report — try again.</span>
+      )}
+    </div>
   );
 }
 
