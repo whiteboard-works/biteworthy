@@ -6,7 +6,7 @@
  * fetcher shapes have to line up too.
  */
 
-import type { DietaryPreset } from '@biteworthy/filter-engine';
+import type { DietaryPreset, Strictness } from '@biteworthy/filter-engine';
 import { api, type ApiOptions } from './api';
 
 export interface IngredientSearchResult {
@@ -28,7 +28,7 @@ export interface SaveProfilePayload {
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
   prefer_tag_ids: string[];
-  strictness: 'relaxed' | 'balanced' | 'strict';
+  strictness: Strictness;
   liked_tag_ids?: string[];
   disliked_tag_ids?: string[];
   liked_ingredient_ids?: string[];

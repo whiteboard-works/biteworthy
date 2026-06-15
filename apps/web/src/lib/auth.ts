@@ -13,16 +13,11 @@
  */
 'use client';
 
-export interface UserPayload {
-  id: string;
-  email: string;
-  handle: string | null;
-  display_name: string | null;
-}
-
-export interface AuthResponse {
-  user: UserPayload;
-}
+// The auth response shapes are the codegen'd contract — import them
+// from @biteworthy/api-types rather than re-declaring (the generated
+// UserPayload also carries the OAuth `provider` field).
+import type { UserPayload, AuthResponse } from '@biteworthy/api-types';
+export type { UserPayload, AuthResponse };
 
 export class AuthError extends Error {
   constructor(

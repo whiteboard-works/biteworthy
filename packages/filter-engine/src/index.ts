@@ -16,10 +16,15 @@
  * camelCase happens at UI boundaries if needed.
  */
 
+import type { Strictness, Confidence } from '@biteworthy/api-types';
+
 // ─── Wire-format types ──────────────────────────────────────────────
 
-export type Strictness = 'relaxed' | 'balanced' | 'strict';
-export type Confidence = 'confirmed' | 'suggested' | 'inferred';
+// Strictness + Confidence are the canonical wire enums — declared once
+// in @biteworthy/api-types (codegen-anchored) and re-exported here so
+// every consumer keeps importing the filter contract from one place.
+export type { Strictness, Confidence };
+
 export type ItemStatus = 'visible' | 'hidden';
 
 /**
