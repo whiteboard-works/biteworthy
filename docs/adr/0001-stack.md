@@ -34,7 +34,7 @@ Clean rewrite in a monorepo. Stack:
 | Mobile | Expo SDK 52 + React Native | Camera / OAuth / OTA built in. Same TS as web. |
 | State | TanStack Query + Zustand | Server vs UI state separation. |
 | AI | Claude Sonnet 4.6 (vision + structured outputs) | Prompt-cached taxonomy. |
-| Hosting | Fly.io (api) + Vercel (web) + EAS (mobile) | Cheap, app-shaped. |
+| Hosting | Fly.io (api) + Vercel (web) + EAS (mobile) | **Superseded by ADR 0007** — api hosting is now Kamal + Hetzner + Neon; Fly.io retired. |
 | CI | GitHub Actions | Two jobs: `js` (web/mobile/packages) and `api` (Rails). |
 | Errors | Sentry | One project, three DSNs. |
 

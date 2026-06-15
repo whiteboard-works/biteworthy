@@ -1,5 +1,14 @@
 # Launch readiness — what's done, what's left for the human
 
+> **Heads up (2026-06-14):** the "What's on master right now" inventory
+> below is a point-in-time snapshot from tick #88 and predates Phases 6–8
+> (anyone-can-scan, mobile scan loop, taste ranking) and the full legal
+> remediation arc (#327–#346). For the current feature state see
+> `docs/roadmap.md`; for the legal launch gates see
+> `docs/plans/legal-remediation-followups.md` (L1–L5). The **human-action
+> checklist** in the back half of this doc is still the source of truth
+> for provisioning and is current.
+
 Snapshot at the end of tick #88 (2026-04-30 22:51 UTC). After PR #183 merged, **every loop-shippable Phase-5 piece is on master**. The remaining work is entirely human-gated: credentials to drop, accounts to create, one cassette to record, one lawyer pass.
 
 The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:00 UTC) will attempt the cassette retry. Other items wait for human action.
@@ -43,7 +52,7 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Analytics wired: posthog-js into the 9 funnel events (#218); no-op until `NEXT_PUBLIC_POSTHOG_KEY` is set — Phases 5.8, 5.8-wiring.
 - 99 vitest passing.
 
-### Mobile (Expo SDK 52, `apps/mobile/`)
+### Mobile (Expo SDK 56, `apps/mobile/`)
 
 - Onboarding (6-tap profile) + login/signup with secure-store — Phases 3.2, 4.1.
 - Filtered restaurant page with show-anyway, never-hide, strictness toggle, hidden-reason chips, dish photos — Phases 3.3, 3.4, 3.5, 4.2, 4.11.4.
@@ -109,7 +118,7 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
 - Sign up for Postmark (https://postmarkapp.com).
 - Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records).
 - Generate a Server API token.
-- `fly secrets set` — wait, no, that's the old wording. **Add to `.kamal/secrets`** and re-run `kamal env push`:
+- **Add to `.kamal/secrets`** and re-run `kamal env push`:
   ```
   SMTP_USERNAME=<postmark-token>
   SMTP_PASSWORD=<same-postmark-token>
