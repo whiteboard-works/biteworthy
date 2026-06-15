@@ -73,7 +73,7 @@ group :development do
 end
 
 group :test do
-  gem "shoulda-matchers", "~> 7.0"
+  gem "shoulda-matchers", "~> 8.0"
   gem "webmock"
   # Cassette-based playback for the live Anthropic calls in Phase 2.3+.
   # Cassettes are recorded locally with ANTHROPIC_API_KEY; CI replays them
