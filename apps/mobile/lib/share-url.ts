@@ -6,12 +6,12 @@
  * without needing an account. The token is the same base64url
  * encoding the Rails controller decodes via `?profile_token=`.
  */
-import { encodeProfileToken } from '@biteworthy/filter-engine';
+import { encodeProfileToken, type Strictness } from '@biteworthy/filter-engine';
 
 export interface FilterForSharing {
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
-  strictness: 'relaxed' | 'balanced' | 'strict';
+  strictness: Strictness;
 }
 
 export function buildShareUrl(

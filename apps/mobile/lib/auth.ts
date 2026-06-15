@@ -14,15 +14,14 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
+// The auth user shape is the codegen'd contract — import it from
+// @biteworthy/api-types rather than re-declaring.
+import type { UserPayload } from '@biteworthy/api-types';
+
 import { API_BASE } from './api-base';
 const TOKEN_KEY = 'bw_jwt';
 
-export interface UserPayload {
-  id: string;
-  email: string;
-  handle: string | null;
-  display_name: string | null;
-}
+export type { UserPayload };
 
 export class AuthError extends Error {
   constructor(

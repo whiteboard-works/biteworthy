@@ -7,7 +7,7 @@
  * taps Done (Phase 1.3 endpoint, wholesale-replace semantics).
  */
 
-import type { DietaryPreset } from '@biteworthy/filter-engine';
+import type { DietaryPreset, Strictness } from '@biteworthy/filter-engine';
 
 import { API_BASE } from '../api-base';
 
@@ -75,7 +75,7 @@ export interface SaveProfilePayload {
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
   prefer_tag_ids: string[];
-  strictness: 'relaxed' | 'balanced' | 'strict';
+  strictness: Strictness;
   liked_tag_ids?: string[];
   disliked_tag_ids?: string[];
   liked_ingredient_ids?: string[];

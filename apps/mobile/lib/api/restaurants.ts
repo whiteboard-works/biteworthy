@@ -112,7 +112,7 @@ export async function fetchRestaurant(
 export interface FetchItemsOptions extends FetchOptions {
   jwt?: string;
   presetSlug?: string;
-  strictness?: 'relaxed' | 'balanced' | 'strict';
+  strictness?: Strictness;
 }
 
 export async function fetchRestaurantItems(
