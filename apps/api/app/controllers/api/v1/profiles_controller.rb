@@ -75,13 +75,8 @@ module Api
       end
 
       def apply_preset!(profile, preset)
-        avoid_ingredients = preset.dietary_profile_ingredients
-                                  .where(rule: "avoid").pluck(:ingredient_id)
-        avoid_tags        = preset.dietary_profile_tags
-                                  .where(rule: "avoid").pluck(:tag_id)
-
-        profile.avoid_ingredient_ids = (profile.avoid_ingredient_ids + avoid_ingredients).uniq
-        profile.avoid_tag_ids        = (profile.avoid_tag_ids        + avoid_tags).uniq
+        profile.avoid_ingredient_ids = (profile.avoid_ingredient_ids + preset.avoid_ingredient_ids).uniq
+        profile.avoid_tag_ids        = (profile.avoid_tag_ids        + preset.avoid_tag_ids).uniq
         profile.primary_dietary_profile_id = preset.id
       end
 

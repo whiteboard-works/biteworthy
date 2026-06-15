@@ -5,6 +5,8 @@ module Api
       # DELETE /api/v1/auth/logout  → 204, rotates user.jti to invalidate token
       # POST   /api/v1/auth/refresh → 200 + new JWT, rotates jti
       class SessionsController < Devise::SessionsController
+        include AuthTokenResponse
+
         respond_to :json
 
         skip_before_action :verify_signed_out_user, only: [:destroy]
@@ -37,20 +39,8 @@ module Api
         def refresh
           self.resource = warden.authenticate!(scope: :user)
           resource.update!(jti: SecureRandom.uuid)
-          token, _ = Warden::JWTAuth::UserEncoder.new.call(resource, :user, nil)
-          response.set_header("Authorization", "Bearer #{token}")
+          attach_jwt_header(resource)
           render json: { user: user_payload(resource) }, status: :ok
-        end
-
-        private
-
-        def user_payload(user)
-          {
-            id: user.id,
-            email: user.email,
-            handle: user.handle,
-            display_name: user.display_name
-          }
         end
       end
     end

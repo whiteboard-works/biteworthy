@@ -28,8 +28,8 @@ module Api
           slug:                 p.slug,
           name:                 p.name,
           description:          p.description,
-          avoid_ingredient_ids: p.dietary_profile_ingredients.where(rule: "avoid").pluck(:ingredient_id),
-          avoid_tag_ids:        p.dietary_profile_tags.where(rule: "avoid").pluck(:tag_id)
+          avoid_ingredient_ids: p.avoid_ingredient_ids,
+          avoid_tag_ids:        p.avoid_tag_ids
         }
       end
     end

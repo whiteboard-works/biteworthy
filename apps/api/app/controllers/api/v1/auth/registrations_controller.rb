@@ -3,6 +3,8 @@ module Api
     module Auth
       # POST /api/v1/auth/signup → 201 + JWT in Authorization header
       class RegistrationsController < Devise::RegistrationsController
+        include AuthTokenResponse
+
         respond_to :json
 
         before_action :configure_permitted_parameters
@@ -67,15 +69,6 @@ module Api
             :sign_up,
             keys: [:handle, :display_name]
           )
-        end
-
-        def user_payload(user)
-          {
-            id: user.id,
-            email: user.email,
-            handle: user.handle,
-            display_name: user.display_name
-          }
         end
       end
     end
