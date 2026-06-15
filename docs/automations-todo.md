@@ -7,6 +7,8 @@ the org move, and master was broken for ~3 weeks unnoticed.
 
 Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked (needs human)
 
+> **P0 + P1 are complete** (the June 2026 merge-safety remediation, #278–#283 + branch protection; kept below for reference). The only open work is **P2** (blocked on launch provisioning) and **P3** (the agent loop). Skip to those.
+
 ## P0 — merge safety net
 
 1. [x] **CI workflows report on every PR** so required checks can be

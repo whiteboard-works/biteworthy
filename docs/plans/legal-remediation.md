@@ -160,53 +160,53 @@ gap. **Direction:** `code→legal` = build code to honor a promise · `legal→c
 The build work that closes the `code→legal` rows above. Priority order; each is
 its own PR.
 
-- [ ] **E1. Point-of-use allergen disclaimer + onboarding acknowledgment.**
+- [x] **E1. Point-of-use allergen disclaimer + onboarding acknowledgment.** (#328)
       (Row 1; Memo Issue 1 — top exposure.) Persistent, non-dismissable disclaimer
       on the filtered-menu view (web `restaurants/[slug]/RestaurantClient.tsx` +
       mobile equivalent); a one-time acknowledgment at onboarding (especially when
       an allergen avoid-list or strict mode is selected), recorded with a timestamp
       on the user/profile. Then ToS can truthfully say "shown in the app" (T5
       follow-up). Single highest-leverage item.
-- [ ] **E2. Account deletion endpoint.** (Row 3; Memo Issue 2.) Implement
+- [x] **E2. Account deletion endpoint.** (#329) (Row 3; Memo Issue 2.) Implement
       `destroy` in `api/v1/auth/registrations_controller.rb`; route through the ORM
       (DB FKs have no `ON DELETE CASCADE`); add `dependent:` to the orphan FKs
       (`created_by_user_id`, `claimed_by_user_id`, `ingestion_runs.user_id`);
       implement the review delete/anonymize the policy describes. rswag + codegen.
-- [ ] **E3. Data-export endpoint.** (Row 2; Memo Issue 2.) JSON archive of the
+- [x] **E3. Data-export endpoint.** (#330) (Row 2; Memo Issue 2.) JSON archive of the
       user's account, profile, reviews, suggestions, visits. rswag + codegen.
-- [ ] **E4. Age gate (13+).** (Row 11; Memo Issue 3.) Collect/confirm age at
+- [x] **E4. Age gate (13+).** (#331) (Row 11; Memo Issue 3.) Collect/confirm age at
       signup; gate account creation. Store no more than needed (a boolean
       over-13 flag or birth year — not full DOB).
-- [ ] **E5. Visit-history retention purge.** (Row 12; Memo Issue 3.) On account
+- [x] **E5. Visit-history retention purge.** (#332) (Row 12; Memo Issue 3.) On account
       deletion, purge `restaurant_visits` from active stores within 30 days and a
       backstop sweep within 12 months. Recurring job; no rolling age cap while the
       account is open.
-- [ ] **E6. Harden share tokens.** (Row 13; Memo Issue 3.) Add an expiry to the
+- [x] **E6. Harden share tokens.** (#333) (Row 13; Memo Issue 3.) Add an expiry to the
       `?p=` profile token (`packages/filter-engine/src/profile-token.ts` +
       `apps/api/app/services/profile_token.rb`); sign it; keep the decoded dietary
       fields out of access logs. Both implementations + the parity tests stay green.
-- [ ] **E7. Analytics: opt-in + strip dietary fields.** (Rows 6/7/8; Decision 5.) - **E7a** — web `/profile/settings` page with an analytics toggle that
+- [x] **E7. Analytics: opt-in + strip dietary fields.** (#334) (Rows 6/7/8; Decision 5.) - **E7a** — web `/profile/settings` page with an analytics toggle that
       writes `bw_analytics_opt_out` (the read path already exists in `track.ts`). - **E7b** — mobile Settings → Analytics screen that flips `optedIn`
       (default-off already enforced in `apps/mobile/lib/track.ts`). - **E7c** — remove `strictness` / preset-slug / dietary counts from
       identified events in `packages/analytics`, then reword the privacy/ToS
       analytics copy back to the cleaner "anonymous" promise.
-- [ ] **E8. User-facing "report this review."** (Row 17-adjacent; Memo Issue 6.) A
+- [x] **E8. User-facing "report this review."** (#335) (Row 17-adjacent; Memo Issue 6.) A
       report affordance that routes into the existing moderation queue (today it's
       heuristic + admin-only). Defensive; no current legal claim depends on it.
-- [ ] **E9. Public-handle email leak.** (Row 19; Memo Issue 6.) Stop deriving the
+- [x] **E9. Public-handle email leak.** (#336) (Row 19; Memo Issue 6.) Stop deriving the
       public handle from the email local-part (`user.rb` `default_handle_from_email`);
       use a neutral default.
-- [ ] **E10. DMCA takedown intake.** (Row 15; Memo Issue 4.) A `/dmca` page/form +
+- [x] **E10. DMCA takedown intake.** (#337) (Row 15; Memo Issue 4.) A `/dmca` page/form +
       a repeat-infringer tracking process backing the ToS § Copyright clause.
       Pairs with L2 (register the agent).
-- [ ] **E11. Review edit/delete UI.** (Row 5.) Wire the existing review PATCH/DELETE
+- [x] **E11. Review edit/delete UI.** (#339) (Row 5.) Wire the existing review PATCH/DELETE
       API into the web (`ReviewsClient.tsx`) and mobile (`items/[id].tsx`) screens so
       "correct your data" is true in-app, not just by email.
-- [ ] **E12. API rate limiting (optional).** (Row 17.) Add rack-attack throttling so
+- [x] **E12. API rate limiting (optional).** (#340) (Row 17.) Add rack-attack throttling so
       "don't scrape the API" is enforced, not just stated. Low priority — a ToS rule
       is valid without technical enforcement; do it for abuse protection, not legal
       necessity.
-- [ ] **E13. Strengthen the "profile never public" test.** (Row 10.) The current
+- [x] **E13. Strengthen the "profile never public" test.** (#341) (Row 10.) The current
       spec asserts exact public keys (solid but indirect); add explicit assertions
       that named dietary fields (`avoid_ingredient_ids`, `strictness`, taste arrays)
       never appear in any public response. (CLAUDE.md Rule 7.)

@@ -54,7 +54,7 @@ Pnpm + Turborepo monorepo. Three apps + five shared packages:
 
 - `apps/api` — Rails 8 (Ruby 3.3.6) JSON API on Postgres 16. **Not** part of the pnpm workspace; lives as its own Bundler tree.
 - `apps/web` — Next.js 15 App Router + Tailwind. Dev port `:3001`.
-- `apps/mobile` — Expo SDK 52 + expo-router.
+- `apps/mobile` — Expo SDK 56 + expo-router.
 - `packages/api-types` — TS types codegen'd from `docs/openapi.json` (see Cross-package contracts below).
 - `packages/filter-engine` — pure-TS dietary filter, shared by web + mobile, with Vitest tests. Mirrors the server-side SQL.
 - `packages/analytics` — the 9-event funnel taxonomy (`EVENTS` map + `EventPropsMap`). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
@@ -142,7 +142,7 @@ The same filter lives in `packages/filter-engine/src/index.ts` for the client. *
 
 Taxonomy (`ingredients`, `tags`) is hierarchical via Postgres `ltree`. Adding/removing nodes is admin-gated. `aliases[]` is what lets "garbanzo" resolve to "chickpea".
 
-See `docs/schema.md` for the 60-second tour of all 25-ish tables, and `docs/ingestion.md` for how the AI pipeline writes into them.
+See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingestion.md` for how the AI pipeline writes into them.
 
 ## Cross-package contracts
 
@@ -177,6 +177,8 @@ See `docs/schema.md` for the 60-second tour of all 25-ish tables, and `docs/inge
 Two workflows gate PRs:
 
 - `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, `docs/openapi.json`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test` → api-types codegen drift check.
-- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. Brakeman + Rubocop run with `continue-on-error: true` (informational, not blocking).
+- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman runs in the same job and blocks** (no `continue-on-error`); **Rubocop** runs with `continue-on-error: true` (informational only).
 
 Both are required for auto-merge. Don't request human review on red.
+
+Other workflows run but don't gate auto-merge: `migration-guard.yml` (blocks edits to previously-shipped migrations under `apps/api/db/migrate/`), `ci-nightly.yml` (nightly full suite), `codeql.yml` (security scan), `expo-align.yml` (mobile Expo-SDK dependency alignment), `labeler.yml` (auto-labels PRs, feeds the auto-merge opt-in), `pr-title.yml` (conventional-commit title check), `auto-merge.yml` (the merge driver).

@@ -11,12 +11,19 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Phases 6–8** ⭐ The product-vision arc (owner-approved 2026-06-12):
-**6** anyone-can-scan ingestion (`docs/plans/phase-6.md`) → **7** close
-the real-world mobile scan loop (`docs/plans/phase-7.md`) → **8**
-"most likely to enjoy" taste ranking (`docs/plans/phase-8.md`).
-Queue below runs top-down; the launch wiring items stay `[BLOCKED]`
-at the bottom until credentials drop.
+**Phases 6–8** ✅ The product-vision arc (owner-approved 2026-06-12)
+shipped end-to-end: **6** anyone-can-scan ingestion
+(`docs/plans/phase-6.md`) → **7** close the real-world mobile scan loop
+(`docs/plans/phase-7.md`) → **8** "most likely to enjoy" taste ranking
+(`docs/plans/phase-8.md`). All on master (#297–#314).
+
+**Legal remediation** ⭐ ran after Phase 8 (interactive, not the loop):
+honest privacy/ToS copy + E1–E13 engineering + clickwrap/disclaimers
+(#327–#346). Plan + remaining gates in
+`docs/plans/legal-remediation.md` and
+`docs/plans/legal-remediation-followups.md` — **L1–L5 launch gates**
+(remove `/privacy` + `/terms` DRAFT banners, lawyer sign-off) are the
+human-gated blockers there, alongside the launch wiring below.
 
 **Phase 5** ⭐ Launch (Durango). Subplan: `docs/plans/phase-5.md`. **Loop work complete** — every code-only Phase-5 PR is on master. The full state-of-the-world checklist for the human is at `docs/launch-readiness.md`.
 
@@ -106,6 +113,8 @@ Test-infra wiring shipped both sides (web in #189, mobile in #191). Mobile ItemR
 - ✅ Phase 8.4 — Top Picks UI (mobile); selector + reason-line moved into filter-engine so web/mobile share one implementation (#312)
 - ✅ Phase 8.5a — taste onboarding foundations: tags endpoint (Phase-0 route had no action), reducer taste cycle + payload helpers (#313)
 - ✅ Phase 8.5b — taste onboarding UI (web + mobile): "What do you love?" step (cuisine/flavor chips + optional ingredient search, skippable) between strictness and review; ?step=taste standalone "Improve my picks" save (taste-only, can't wipe avoid lists); taste_signal_count on profile_set (this PR) — **Phase 8 feature-complete: safety filters, taste ranks, end to end**
+- ✅ Local-dev + refactor wave — Docker local-dev stack (#315); single-source `API_BASE` web+mobile (#316, #319); BaseController shared pagination / `photo_url_for` / `public_host` (#317, #318); proxyAuthed/relayUpstream web `/api` routes (#320); ResolveStageJob + ResolvePrompt + TimedAnthropicCall ingestion extractions (#321–#323); `docs/vision.md` + `/story` page (#324–#325)
+- ✅ Legal remediation — honest privacy/ToS copy + plan (#327); E1–E13: allergen disclaimer + onboarding ack (#328), data-export / account-deletion endpoints (#329, #330), age gate 13+ (#331), visit-history retention job (#332), expiring + redacted share tokens (#333), analytics opt-in + dietary-field stripping (#334), report-a-review + DMCA intake (#335, #337), neutral handle (#336), rack-attack throttling (#340), review edit/delete (#339), public-profile leak test (#341); ToS disclaimers + footer (#343); clickwrap Terms at signup (#344); mobile hosted legal pages (#345); one-way NDA template (#346)
 
 **🎉 Phase 5 loop work is complete.** Every loop-shippable launch piece is on master. The remaining queue is entirely human-credential-gated; see `docs/launch-readiness.md` for the linear path from "code complete" to "real users on a Friday night."
 
