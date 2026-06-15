@@ -471,8 +471,12 @@ export interface paths {
                                     kind: "avoid_ingredient" | "avoid_tag" | "unconfirmed_strict";
                                     /** Format: uuid */
                                     ingredient_id?: string;
+                                    ingredient_name?: string | null;
+                                    ingredient_family?: string | null;
                                     /** Format: uuid */
                                     tag_id?: string;
+                                    tag_name?: string | null;
+                                    tag_family?: string | null;
                                     /** @enum {string} */
                                     confidence?: "confirmed" | "suggested" | "inferred";
                                 }[];
