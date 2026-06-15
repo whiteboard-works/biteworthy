@@ -87,8 +87,8 @@ module Api
           preset = DietaryProfile.includes(:dietary_profile_ingredients, :dietary_profile_tags)
                                  .find_by!(slug: params[:profile])
           Filter.new(
-            avoid_ingredient_ids: preset.dietary_profile_ingredients.where(rule: "avoid").pluck(:ingredient_id),
-            avoid_tag_ids:        preset.dietary_profile_tags.where(rule: "avoid").pluck(:tag_id),
+            avoid_ingredient_ids: preset.avoid_ingredient_ids,
+            avoid_tag_ids:        preset.avoid_tag_ids,
             strictness:           strictness_param || "balanced",
             source:               "preset",
             preset_slug:          preset.slug

@@ -29,8 +29,8 @@ module Cities
     # Returns an Array<Ranked>. Empty when the city has no published
     # restaurants.
     def call
-      avoid_ingredient_ids = @profile.dietary_profile_ingredients.where(rule: "avoid").pluck(:ingredient_id)
-      avoid_tag_ids        = @profile.dietary_profile_tags.where(rule: "avoid").pluck(:tag_id)
+      avoid_ingredient_ids = @profile.avoid_ingredient_ids
+      avoid_tag_ids        = @profile.avoid_tag_ids
 
       rows = Restaurant
         .published

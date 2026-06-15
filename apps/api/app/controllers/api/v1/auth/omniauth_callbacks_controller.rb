@@ -10,6 +10,8 @@ module Api
       # responds with JSON. There's no session — JWT is the only
       # piece of state on the client.
       class OmniauthCallbacksController < Devise::OmniauthCallbacksController
+        include AuthTokenResponse
+
         respond_to :json
 
         # No `skip_before_action :verify_authenticity_token` needed:
@@ -50,23 +52,11 @@ module Api
             return
           end
 
-          # Mint a JWT. This is the same code path devise-jwt uses for
-          # the dispatch hook on signup/login — UserEncoder reads
-          # `jwt.expiration_time` and `jwt.secret` from the initializer.
-          token, _payload = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
-          response.set_header("Authorization", "Bearer #{token}")
+          # Mint a JWT — the same code path devise-jwt uses for the
+          # dispatch hook on signup/login.
+          attach_jwt_header(user)
 
-          render json: { user: user_payload(user) }, status: :ok
-        end
-
-        def user_payload(user)
-          {
-            id: user.id,
-            email: user.email,
-            handle: user.handle,
-            display_name: user.display_name,
-            provider: user.provider
-          }
+          render json: { user: user_payload(user, include_provider: true) }, status: :ok
         end
       end
     end

@@ -1,9 +1,5 @@
 class Review < ApplicationRecord
-  # Phase 4.3 — adds the optional photo + content/size validation. The
-  # rating + body columns shipped in Phase 0; this only changes the
-  # behavior, no migration.
-  MAX_PHOTO_BYTES = 5 * 1024 * 1024 # 5 MB
-  ALLOWED_PHOTO_TYPES = %w[image/jpeg image/jpg image/png image/heic image/heif image/webp].freeze
+  include HasPhotoValidation
 
   # Phase 4.6 — moderation reasons. Stored as a string column rather
   # than a Postgres enum so we can add new reasons without a data
@@ -25,8 +21,6 @@ class Review < ApplicationRecord
 
   validates :rating,        presence: true, inclusion: { in: 1..5 }
   validates :hidden_reason, inclusion: { in: HIDDEN_REASONS }, allow_nil: true
-  validate  :photo_within_size_limit
-  validate  :photo_is_an_allowed_image_type
 
   scope :newest_first,        -> { order(created_at: :desc) }
   scope :visible,             -> { where(hidden_at: nil) }
@@ -79,18 +73,6 @@ class Review < ApplicationRecord
   end
 
   private
-
-  def photo_within_size_limit
-    return unless photo.attached?
-    return if photo.byte_size <= MAX_PHOTO_BYTES
-    errors.add(:photo, "must be #{MAX_PHOTO_BYTES / 1.megabyte} MB or smaller")
-  end
-
-  def photo_is_an_allowed_image_type
-    return unless photo.attached?
-    return if ALLOWED_PHOTO_TYPES.include?(photo.content_type)
-    errors.add(:photo, "must be one of #{ALLOWED_PHOTO_TYPES.join(', ')}")
-  end
 
   # Phase 4.6 — pre-save callback that drops a flag for moderation
   # when the body trips the heuristic. Doesn't hide the review (only
