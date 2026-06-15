@@ -18,8 +18,6 @@ import type { AnalyticsClient } from '@biteworthy/analytics';
 
 export const EXTENSION_NAME = 'biteworthy';
 
-export type PostHogRNInstance = PostHog;
-
 /**
  * posthog-react-native 4.45+ narrowed event properties from
  * `Record<string, unknown>` to `{ [key: string]: JsonType }`, and the

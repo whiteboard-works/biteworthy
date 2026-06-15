@@ -2,9 +2,9 @@
  * BiteWorthy analytics — typed Tracker abstraction shared by web +
  * mobile.
  *
- * Phase 5.8 ships the abstraction + the canonical event taxonomy;
- * the actual posthog-js / posthog-react-native install + the 9
- * call-site instrumentations are a follow-up PR (see
+ * Phase 5.8 shipped the abstraction + the canonical event taxonomy;
+ * the posthog-js / posthog-react-native install and the 9 call-site
+ * instrumentations are now wired in `apps/web` + `apps/mobile` (see
  * `docs/analytics.md` + `docs/adr/0006-analytics.md`).
  *
  * Design choices that matter:

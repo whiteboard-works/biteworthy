@@ -30,13 +30,6 @@ export interface PublicUserProfile {
   recent_reviews: UserReview[];
 }
 
-export class UserProfileNotFoundError extends Error {
-  constructor(handle: string) {
-    super(`User profile not found: ${handle}`);
-    this.name = 'UserProfileNotFoundError';
-  }
-}
-
 export async function fetchPublicUserProfile(
   handle: string,
   opts: ApiOptions = {},

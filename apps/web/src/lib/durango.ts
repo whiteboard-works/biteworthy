@@ -18,8 +18,6 @@
 
 import { API_BASE } from './api-base';
 
-export const DURANGO_CITY_SLUG = 'durango';
-
 /**
  * Curated dietary-profile slugs Phase 3.1 seeded. Order is the
  * sitemap order (priority is the same for all, so order is just

@@ -9,12 +9,12 @@
  *   * The user has opted out via the in-app analytics toggle
  *     (`localStorage.bw_analytics_opt_out === '1'`)
  *
- * Otherwise it constructs a tracker around an injected
- * `AnalyticsClient`. **Phase 5.8 ships the wrapper without
- * `posthog-js` as a hard dep** — the follow-up wiring PR adds the
- * package + replaces `null` below with the real client. Keeping
- * this file noop-by-default means we can ship + review the
- * abstraction without committing to a posthog-js install yet.
+ * Otherwise it constructs a tracker around the injected
+ * `AnalyticsClient`. The client is supplied by `_PostHogProvider`,
+ * which initializes `posthog-js` and passes
+ * `createPostHogClient(posthog)` in. When no client is injected (SSR,
+ * tests, or any caller outside the provider) the tracker stays
+ * `noopTracker` — an apiKey alone is not enough to make it live.
  */
 
 import {
@@ -34,11 +34,10 @@ interface BuildOptions {
   /** Test override for the localStorage opt-out flag. */
   optedOut?: boolean;
   /**
-   * Test override / Phase-5.8-wiring hook: inject a constructed
-   * AnalyticsClient (e.g. a configured posthog-js instance). When
-   * absent + `apiKey` is set, the tracker still no-ops because we
-   * haven't installed the SDK yet — Phase 5.8-wiring follow-up
-   * fills this in.
+   * The constructed AnalyticsClient — a configured posthog-js instance
+   * in production (injected by `_PostHogProvider`), or a mock in tests.
+   * When absent the tracker no-ops even if `apiKey` is set: a live
+   * tracker requires an injected client.
    */
   client?: AnalyticsClient | null;
 }
@@ -54,9 +53,8 @@ export function buildWebTracker(opts: BuildOptions = {}): Tracker {
   if (optedOut) return noopTracker;
 
   if (!opts.client) {
-    // Phase 5.8 ships without posthog-js installed. The presence of
-    // an apiKey alone isn't enough — a follow-up PR injects the
-    // real client here.
+    // No client injected (SSR, tests, or a caller outside
+    // _PostHogProvider) — an apiKey alone doesn't make a live tracker.
     return noopTracker;
   }
   return createTracker({ client: opts.client });
