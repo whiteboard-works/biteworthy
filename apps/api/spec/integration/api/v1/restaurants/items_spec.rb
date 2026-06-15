@@ -51,10 +51,14 @@ RSpec.describe "restaurants/items", type: :request do
                            type: :object,
                            required: %w[kind],
                            properties: {
-                             kind:          { type: :string, enum: %w[avoid_ingredient avoid_tag unconfirmed_strict] },
-                             ingredient_id: { type: :string, format: :uuid },
-                             tag_id:        { type: :string, format: :uuid },
-                             confidence:    { type: :string, enum: %w[confirmed suggested inferred] }
+                             kind:              { type: :string, enum: %w[avoid_ingredient avoid_tag unconfirmed_strict] },
+                             ingredient_id:     { type: :string, format: :uuid },
+                             ingredient_name:   { type: :string, nullable: true },
+                             ingredient_family: { type: :string, nullable: true },
+                             tag_id:            { type: :string, format: :uuid },
+                             tag_name:          { type: :string, nullable: true },
+                             tag_family:        { type: :string, nullable: true },
+                             confidence:        { type: :string, enum: %w[confirmed suggested inferred] }
                            }
                          }
                        },
