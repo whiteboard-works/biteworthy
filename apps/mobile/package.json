@@ -27,7 +27,7 @@
     "expo-router": "~56.2.10",
     "expo-secure-store": "~56.0.4",
     "expo-status-bar": "~56.0.4",
-    "posthog-react-native": "^4.46.32",
+    "posthog-react-native": "^4.47.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
