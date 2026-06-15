@@ -11,10 +11,10 @@
  * opt-in is explicit (default off until the user accepts in
  * `/settings/analytics`).
  *
- * Phase 5.8 ships the wrapper without `posthog-react-native` as a
- * hard dep — the follow-up wiring PR adds the package + replaces
- * `null` below with a real client. Same ship-the-abstraction
- * pattern as the web wrapper.
+ * The client is supplied by `_layout.tsx`, which constructs the
+ * `posthog-react-native` instance and passes `createPostHogClient(...)`
+ * in. When no client is injected (tests, or before init) the tracker
+ * stays `noopTracker`. Same shape as the web wrapper.
  */
 
 import {
@@ -30,8 +30,9 @@ interface BuildOptions {
   /** Test override for the analytics-opt-in flag. */
   optedIn?: boolean;
   /**
-   * Test override / Phase-5.8-wiring hook: inject a constructed
-   * AnalyticsClient (e.g. the posthog-react-native instance).
+   * The constructed AnalyticsClient — the posthog-react-native instance
+   * in production (injected by `_layout.tsx`), or a mock in tests. When
+   * absent the tracker no-ops.
    */
   client?: AnalyticsClient | null;
 }
@@ -46,7 +47,7 @@ export function buildMobileTracker(opts: BuildOptions = {}): Tracker {
   if (!optedIn) return noopTracker;
 
   if (!opts.client) {
-    // Same Phase 5.8 ship-abstraction-first guard as web.
+    // No client injected (tests, or before init) — same guard as web.
     return noopTracker;
   }
   return createTracker({ client: opts.client });
