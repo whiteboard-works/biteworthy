@@ -39,7 +39,8 @@ from it. If the loop's behavior diverges from this file, the file wins.
 9. **Subplans for depth.** Each phase has a `docs/plans/phase-N.md`
    that decomposes the phase into ordered tasks, gotchas, and
    acceptance criteria. The roadmap's "Next up" links into the
-   relevant subplan.
+   relevant subplan. Completed subplans move to
+   `docs/plans/archive/` once their phase ships (read-only history).
 
 ## The loop
 
@@ -81,7 +82,8 @@ applicable branch.
 
 - Read `docs/roadmap.md` "Next up" queue.
 - Take the topmost unblocked item.
-- Open the relevant `docs/plans/phase-N.md` to confirm scope.
+- Open the relevant `docs/plans/phase-N.md` (or `docs/plans/archive/`
+  for a shipped phase) to confirm scope.
 - Create a branch: `claude/<phase-slug>` from origin/master.
 
 ### 5. Do the work

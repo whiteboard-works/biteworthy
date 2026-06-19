@@ -46,6 +46,17 @@ and flag the other for cleanup. Don't blend conflicting patterns. Conformance
 to existing repo convention wins inside this codebase — if you think a
 convention is harmful, surface it; don't fork silently.
 
+### Rule 9 — Keep the tracking docs current as work changes
+The docs under `docs/` are the project's memory; treat them as part of the
+change, not an afterthought. In the same PR that ships work: tick the item in
+`docs/roadmap.md` (and add a `docs/status.md` line for anything non-trivial),
+update any plan/checklist whose state changed, and fix doc facts the change
+made stale (paths, infra, contracts). When a phase or plan fully ships, move
+its subplan to `docs/plans/archive/` and collapse its detail out of the living
+roadmap into the archive — the living docs should show what's left, not relitigate
+what's done. A doc that lies is worse than no doc; if you can't verify a claim,
+soften or flag it rather than leaving it stale.
+
 ---
 
 ## Stack at a glance
@@ -164,7 +175,7 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 
 - `docs/roadmap.md` — phase plan + the **Next up** queue (the autonomous delivery loop reads this top-down).
 - `docs/delivery-playbook.md` — the source-of-truth procedure for the `/loop 30m` autonomous loop. If you're picking up loop work, read this first.
-- `docs/plans/phase-N.md` — per-task acceptance criteria for the current phase.
+- `docs/plans/` — per-task acceptance criteria for live work; completed phase subplans are archived under `docs/plans/archive/` (read-only).
 - `docs/status.md` — running log, newest first; what the previous tick left mid-flight.
 - `docs/schema.md` — the data model in 60 seconds.
 - `docs/ingestion.md` — how Claude vision + prompt-cached taxonomy turns a menu photo into staged `IngestionItem`s.
