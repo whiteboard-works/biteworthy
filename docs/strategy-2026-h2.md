@@ -176,6 +176,9 @@ product.
 | Top Picks UI + "Because you like X & Y" reasons (web + mobile), hides for zero-signal | `apps/web/.../TopPicksRow.tsx`, `items_controller.rb:154` |
 | Taste tags separable from dietary via `families` param (`cuisine`/`prep`/`flavor` vs `diet`/`allergen`) | `apps/api/app/models/tag.rb:2` |
 
+**Quiz flow spec:** see `docs/plans/taste-quiz.md` (screen-by-screen, reducer
+actions, the thin-flavor-taxonomy prerequisite).
+
 **The gap (UX + positioning only):**
 - Taste is buried — onboarding is dietary-first; taste is **skippable step 4**
   (`apps/web/src/app/onboarding/page.tsx:224`). Discovery-led → **taste becomes
