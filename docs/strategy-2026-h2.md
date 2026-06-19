@@ -57,7 +57,17 @@ Nov 2025. They will own the B2B/ordering-integrated side. Our defensible ground 
 
 ## 3. The core strategic bet
 
-**Make the contribution loop the product's heartbeat, and freemium the business model.**
+**Make the contribution loop the product's heartbeat, freemium the business
+model — and open the front door to *everyone*, not just restricted diners.**
+
+**Positioning (decided 2026-06-18 — discovery-led, safety underneath):**
+
+> Biteworthy tells you what to order at any restaurant — and if you have
+> restrictions, it never shows you what you can't eat.
+
+The headline question becomes **"what should I order here?"** (universal),
+with dietary restrictions demoted to an optional *setting*. Restrictions are no
+longer the product's identity; they're a guarantee underneath it. See §7.
 
 1. **Coverage via crowdsourcing (the moat).** Anyone-can-scan already shipped
    (Phase 6). Every user who scans a new menu *creates* coverage — HappyCow's
@@ -65,10 +75,14 @@ Nov 2025. They will own the B2B/ordering-integrated side. Our defensible ground 
 2. **Frequency via a contribution identity (the retention fix).** Turn
    `suggestion_submitted` + self-verify into "I'm the person who keeps my city's
    menus accurate." Public profiles (`/u/[handle]`) already exist.
-3. **Revenue via consumer freemium (the proven model).** Yuka: ~98% of revenue
+3. **Reach via taste discovery (the TAM unlock).** "What should I order?" fires
+   for ~everyone at every new restaurant — the mass-market answer to the
+   frequency problem the restricted-only loop can't reach. The scoring engine is
+   already built (§7).
+4. **Revenue via consumer freemium (the proven model).** Yuka: ~98% of revenue
    from subs, ad-free. **Avoid the restaurant-ad trap** (Find Me Gluten Free's
    founder: "almost impossible"). Premium = unlimited scans, multi-profile
-   (family), strict mode, offline.
+   (family), strict mode, offline, and **table/group mode** (§7).
 
 ---
 
@@ -92,6 +106,10 @@ Nov 2025. They will own the B2B/ordering-integrated side. Our defensible ground 
 - [ ] Ship to one zip code. Do not scale — *learn*.
 - [ ] Add the one derived metric the 9-event funnel is missing: **week-2 return rate** (the frequency canary)
 - [ ] Watch `menu_filtered.visible_count` in strict mode — near-zero confirms the sparsity risk
+- [ ] **Discovery-led onboarding (§7)** — frontend-only, can build during Month-1 provisioning (no credential dependency): reorder so the **taste quiz is step 1**, dietary becomes an optional setting
+- [ ] Build the **forced-choice taste quiz** (~6–10 taps) writing to existing `liked_tag_ids`; keep skippable after ~3 taps
+- [ ] Add **starter taste profiles** (taste analog of dietary presets)
+- [ ] Instrument **rec acceptance** (tap/save on a Top Pick) — the discovery-quality metric
 
 ### Month 3 (Aug) — The contribution loop *(highest-leverage build)*.
 
@@ -102,7 +120,8 @@ Nov 2025. They will own the B2B/ordering-integrated side. Our defensible ground 
 ### Month 4 (Sep) — Frequency surface beyond the venue lookup.
 
 - [ ] **"Safe near me"** — given avoid lists + location, what can I eat *right now* across nearby venues
-- [ ] **Household/multi-profile** filtering (also the first premium hook)
+- [ ] **"What should I order?" near me** — taste-ranked picks across nearby venues (discovery analog)
+- [ ] **Household/multi-profile + table/group mode (§7)** — combine taste profiles → "what should we all get?" (first premium hook)
 
 ### Month 5 (Oct) — Monetize + harden.
 
@@ -136,6 +155,55 @@ Nov 2025. They will own the B2B/ordering-integrated side. Our defensible ground 
 
 ---
 
+## 7. Expansion bet — the taste recommender for everyone (discovery-led)
+
+**The idea:** serve the ~70% of diners with *no* dietary restrictions by
+answering "what's the best thing to order at this new restaurant?" via a fast
+taste-profile quiz. This is the mass-market frequency answer (§1) and roughly
+3–4× the addressable audience.
+
+**Why it's cheap: the engine already exists (Phase 8).** This is a frontend
+reorder + a better onboarding UX on top of finished infrastructure — not a new
+product.
+
+| Already built | File |
+|---|---|
+| Taste model — `liked/disliked_{tag,ingredient}_ids` arrays, disjoint-set validated | `apps/api/app/models/user_profile.rb:8` |
+| `PATCH /api/v1/profile` already accepts taste arrays (no schema/API change) | `apps/api/app/controllers/api/v1/profiles_controller.rb:62` |
+| Scoring engine: `+2/liked tag, +1/liked ing, −2/−1 disliked` + popularity + rating | `apps/api/app/services/taste_scoring.rb` |
+| **"Filter wins"** — avoid lists subtracted *before* scoring (safety guaranteed) | `taste_scoring.rb:37` |
+| TS mirror w/ parity tests | `packages/filter-engine/src/taste.ts` |
+| Top Picks UI + "Because you like X & Y" reasons (web + mobile), hides for zero-signal | `apps/web/.../TopPicksRow.tsx`, `items_controller.rb:154` |
+| Taste tags separable from dietary via `families` param (`cuisine`/`prep`/`flavor` vs `diet`/`allergen`) | `apps/api/app/models/tag.rb:2` |
+
+**The gap (UX + positioning only):**
+- Taste is buried — onboarding is dietary-first; taste is **skippable step 4**
+  (`apps/web/src/app/onboarding/page.tsx:224`). Discovery-led → **taste becomes
+  step 1, dietary becomes an optional setting.**
+- Capture is a cold chip/search picker, not a quiz. Build a **forced-choice
+  visual wizard** (~6–10 taps: "which would you order?") that writes the *same*
+  `liked_tag_ids`. Keep it skippable/progressive — let users in after ~3 taps.
+- No profile-edit UI, append-only, no **starter taste profiles** (the taste
+  analog of dietary presets) — add these.
+
+**Killer premium feature — table/group mode:** combine several taste profiles →
+"order these 4 dishes the whole table will love." Group-ordering paralysis is
+universal (MFP: 80%+ find restaurant choices hard).
+
+**The two guardrails:**
+1. **Don't let discovery erode safety trust.** Strict-mode / honest-disclosure
+   must stay rock-solid for restricted users even as marketing goes wide. Safety
+   is the moat; discovery is the funnel.
+2. **Higher rec-quality bar.** Foodies just want the pick to be *good*;
+   tag-overlap scoring is a fine v1 but thin. **Instrument rec acceptance** (did
+   they tap/save the pick?) from day one; plan collaborative filtering once there
+   is data. Remember Yummly ($100M, shut down Dec 2024) — discovery without
+   per-venue grounding wasn't defensible. Our grounding (real item data for the
+   actual menu) is the defense; never lose it.
+
+---
+
 ## Log
 
 - **2026-06-18** — Doc created from strategic review (internal product brief + competitive landscape research). Direction confirmed with Skylar: pure utility filter tool, **not** a game. Core bet = contribution loop + consumer freemium.
+- **2026-06-18** — Added §7 taste-recommender expansion. Decision: **discovery-led, safety underneath** — open the app to non-restricted diners via a taste quiz; restrictions become an optional setting. Key finding: the Phase 8 scoring engine is already built; the gap is UX + positioning (reorder onboarding, build a forced-choice quiz, add starter profiles). Premium unlock = table/group mode.
