@@ -6,8 +6,8 @@ the Phase 3 attorney/ops items that can't be closed by code. Created
 2026-06-14 after E1–E13 landed.
 
 Phase 1 (privacy/ToS copy) and Phase 2 (E1–E13) are **done** — see
-`docs/plans/legal-remediation.md` for the full plan + the legal↔code
-alignment matrix. This file is only the leftovers.
+`docs/plans/archive/legal-remediation.md` for the full plan + the
+legal↔code alignment matrix. This file is only the leftovers.
 
 ---
 
@@ -73,7 +73,7 @@ controls as the primary route.
 
 These gate launch and cannot be closed by code. Restated here so the
 follow-up list is complete; the canonical entries live in
-`docs/plans/legal-remediation.md` § Phase 3.
+`docs/plans/archive/legal-remediation.md` § Phase 3.
 
 - **L1 — Licensed Colorado attorney review** of the finalized Privacy +
   ToS, including the warranty/liability/indemnity/arbitration clauses.
