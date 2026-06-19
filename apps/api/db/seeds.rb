@@ -1,10 +1,12 @@
 # Seed the canonical taxonomy (ingredients + tags + dietary profiles).
 # Idempotent: re-running upserts and never destroys.
 #
-# Real ingredient data is loaded from db/seeds/ingredients.yml. The 2020
-# code had a giant Ruby module with ~1500 ingredients hand-curated; that
-# list is being ported forward into structured YAML so it can be diffed
-# and reviewed.
+# Real ingredient data is loaded from db/seeds/ingredients.yml. It was
+# backfilled from the 2020 catalog, then cleaned + curated into a solid
+# menu-focused base: exotic non-menu species pruned, cross-root duplicates
+# collapsed to one allergen-correct canonical, synonyms backfilled into
+# aliases[], and the common cured/prepared forms + staples added. See the
+# header of ingredients.yml. Edit that file directly.
 
 require "yaml"
 

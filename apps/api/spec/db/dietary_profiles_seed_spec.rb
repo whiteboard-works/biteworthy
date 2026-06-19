@@ -76,7 +76,7 @@ RSpec.describe "dietary profiles seed", type: :model do
       seed_ingredients(%w[
         dairy dairy-cheese dairy-butter
         egg egg-chicken-egg
-        meat meat-beef-cattle meat-swine-domestic-pig
+        meat meat-beef-veal meat-swine-domestic-pig
         poultry poultry-domestic-chicken
         fish fish-salmon
         shellfish shellfish-crustacean-shrimp
@@ -107,7 +107,7 @@ RSpec.describe "dietary profiles seed", type: :model do
       seed_ingredients(%w[
         dairy dairy-cheddar dairy-butter
         egg egg-chicken-egg
-        meat meat-beef-cattle
+        meat meat-beef-veal
         poultry poultry-domestic-chicken
         fish fish-salmon
         shellfish shellfish-crustacean-shrimp
@@ -123,7 +123,7 @@ RSpec.describe "dietary profiles seed", type: :model do
       avoid_paths = vegan.ingredients.map(&:path).map(&:to_s)
       expect(avoid_paths).to include("dairy", "dairy.cheddar", "dairy.butter")
       expect(avoid_paths).to include("egg", "egg.chicken_egg")
-      expect(avoid_paths).to include("meat", "meat.beef.cattle")
+      expect(avoid_paths).to include("meat", "meat.beef.veal")
       expect(avoid_paths).to include("poultry", "poultry.domestic.chicken")
       expect(avoid_paths).to include("fish", "fish.salmon")
       expect(avoid_paths).to include("shellfish", "shellfish.crustacean.shrimp")
@@ -157,7 +157,7 @@ RSpec.describe "dietary profiles seed", type: :model do
 
   describe "Halal preset (canary for path + alcohol)" do
     before do
-      seed_ingredients(%w[meat-swine-domestic-pig alcohol alcohol-red-wine meat-beef-cattle])
+      seed_ingredients(%w[meat-swine-domestic-pig alcohol alcohol-red-wine meat-beef-veal])
       run_seeds!
     end
 
@@ -166,7 +166,7 @@ RSpec.describe "dietary profiles seed", type: :model do
       avoid_paths = halal.ingredients.map(&:path).map(&:to_s)
       expect(avoid_paths).to include("meat.swine.domestic_pig")
       expect(avoid_paths).to include("alcohol", "alcohol.red_wine")
-      expect(avoid_paths).not_to include("meat.beef.cattle")
+      expect(avoid_paths).not_to include("meat.beef.veal")
     end
   end
 
