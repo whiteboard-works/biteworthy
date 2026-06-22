@@ -66,8 +66,8 @@ importers:
         specifier: ~56.0.4
         version: 56.0.4(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       posthog-react-native:
-        specifier: ^4.47.1
-        version: 4.47.1(@react-navigation/native@7.2.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(expo-file-system@56.0.8(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))
+        specifier: ^4.50.0
+        version: 4.50.0(@react-navigation/native@7.2.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(expo-file-system@56.0.8(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -1628,8 +1628,14 @@ packages:
   '@posthog/core@1.32.4':
     resolution: {integrity: sha512-xmc6JGLS+HK9gG354e3ws8wRQSQFaekI/QC/uwslokfG1csXjxW7xlGGipLS4juDJ1W1fVM6j2MeHyatmvF22w==}
 
+  '@posthog/core@1.35.3':
+    resolution: {integrity: sha512-EsGPbSLl39Jgo2KZ+kI9UAxFnh5nddaN5bNm2rXvUwF+vGmam9eN1EXeNbxhRU7ulEeIiGdm7XjoU7pzavkgIQ==}
+
   '@posthog/types@1.386.4':
     resolution: {integrity: sha512-UgE9+5+wkZg7yc2MpW5G32/6zYW8fAbXJkG8WGnrb4X8OKWzNa9cWeNCd82vKok+TSoRpM4qiYQFtBSpJS1dsw==}
+
+  '@posthog/types@1.390.2':
+    resolution: {integrity: sha512-WcfKz2GNn2vfDX8vXmJYbKxegPxVWHuDQ/pHdAn0HoZDXDFnEp/+x3qBQA+fEvtbPjjtjgAt2wIgJMlM7asx7g==}
 
   '@radix-ui/primitive@1.1.4':
     resolution: {integrity: sha512-7AdCK9PQyiljKoBDbN8OuctCbd/esdwZPQ8RtOE3SsyQtUpiPb+ND75q0jEhC1m1ecBI0MFNeLJvwIh9iKHRcQ==}
@@ -4972,8 +4978,8 @@ packages:
   posthog-js@1.386.8:
     resolution: {integrity: sha512-L4cJD1sleUULE7K4mZQI5wpS24NHGtNmFw1rPHruc579unVzHuooHiVDEHp/qyNnhNxtNE6alBTiVORbYnRTSw==}
 
-  posthog-react-native@4.47.1:
-    resolution: {integrity: sha512-wpoVLO4gpKRFDCSf81Jf0K8gzmh0SaWOJcwi67syFjsQjuoO5y/HNsOhl9iFN3Kh2u/k9dBMi4g3aTH+c2IzvQ==}
+  posthog-react-native@4.50.0:
+    resolution: {integrity: sha512-2hlp+RbmbHFgZ+Ztry0EHyXvh5u8hgfq65apjTk5Qb1vG75Blq1m/xQJSe6axUelLcD+61rX24zRF400bHhdGQ==}
     peerDependencies:
       '@posthog/react-native-plugin': '>= 2.0.1'
       '@react-native-async-storage/async-storage': '>=1.0.0'
@@ -7883,9 +7889,15 @@ snapshots:
 
   '@posthog/core@1.32.4':
     dependencies:
-      '@posthog/types': 1.386.4
+      '@posthog/types': 1.390.2
+
+  '@posthog/core@1.35.3':
+    dependencies:
+      '@posthog/types': 1.390.2
 
   '@posthog/types@1.386.4': {}
+
+  '@posthog/types@1.390.2': {}
 
   '@radix-ui/primitive@1.1.4': {}
 
@@ -11877,10 +11889,10 @@ snapshots:
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.3.0
 
-  posthog-react-native@4.47.1(@react-navigation/native@7.2.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(expo-file-system@56.0.8(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)):
+  posthog-react-native@4.50.0(@react-navigation/native@7.2.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(expo-file-system@56.0.8(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)):
     dependencies:
-      '@posthog/core': 1.32.4
-      '@posthog/types': 1.386.4
+      '@posthog/core': 1.35.3
+      '@posthog/types': 1.390.2
     optionalDependencies:
       '@react-navigation/native': 7.2.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       expo-file-system: 56.0.8(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))
