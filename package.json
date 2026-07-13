@@ -20,7 +20,7 @@
     "mobile": "pnpm --filter @biteworthy/mobile"
   },
   "devDependencies": {
-    "turbo": "^2.10.0",
+    "turbo": "^2.10.4",
     "typescript": "^6.0.3",
     "prettier": "^3.9.4"
   },
