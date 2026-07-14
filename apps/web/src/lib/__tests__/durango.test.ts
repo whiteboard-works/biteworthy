@@ -66,7 +66,9 @@ describe('DURANGO_DIET_SLUGS', () => {
   it('contains the curated production-ready presets seeded in Phase 3.1', () => {
     expect(DURANGO_DIET_SLUGS).toContain('vegan');
     expect(DURANGO_DIET_SLUGS).toContain('celiac');
-    expect(DURANGO_DIET_SLUGS).toContain('tree-nut-free');
+    expect(DURANGO_DIET_SLUGS).toContain('tree-nut-allergy');
+    // Guard against the slugs that drifted from dietary_profiles.yml and 404'd.
+    expect(DURANGO_DIET_SLUGS).not.toContain('tree-nut-free');
     // Order matters for stable sitemap output.
     expect(DURANGO_DIET_SLUGS[0]).toBe('vegan');
   });
