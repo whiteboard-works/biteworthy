@@ -17,6 +17,15 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-14 — planning (interactive, no tick). Added `docs/launch-plan.md`
+(two-track launch: manual Track A critical path + loop-shippable Track B
+lower-the-gate + QR program) and `docs/plans/six-month-plan.md` (the
+"how do we win, not just launch" reversal — three steelman-resolved
+decisions on sequencing/positioning/trust, tasks split [MANUAL]/[CODE]
+across 6 months, gated on the strategy §5 canaries). No code changed yet;
+recommended first build = the P0 safety guardrails (filter-engine↔SQL
+parity, array-sync invariant, adversarial hidden-allergen test).
+
 2026-06-14 — post-loop interactive work (no tick number; the cron loop
 stayed paused). Two workstreams landed on master after tick #147, neither
 of which had a status entry until now:
