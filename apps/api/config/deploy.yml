@@ -28,13 +28,23 @@
 service: biteworthy-api
 image: whiteboard-works/biteworthy-api
 
+# First boot runs db:prepare (schema + 1k-ingredient seed) against Neon
+# over the WAN inside the entrypoint; the default 30s health window
+# SIGKILLs puma mid-boot. Subsequent boots are no-ops but keep the
+# margin for box rebuilds.
+deploy_timeout: 300
+
 servers:
   web:
     hosts:
-      - <REPLACE_WITH_HETZNER_IP>
+      - 87.99.137.181
+    # The Dockerfile has ENTRYPOINT but no CMD; without an explicit cmd
+    # the entrypoint execs nothing and the container exits 0 silently.
+    # These exact two trailing args also arm the entrypoint's db:prepare.
+    cmd: ./bin/rails server
   worker:
     hosts:
-      - <REPLACE_WITH_HETZNER_IP>
+      - 87.99.137.181
     cmd: bundle exec rake solid_queue:start
 
 # Kamal 2's built-in proxy (replaces the older Traefik integration).
@@ -62,12 +72,11 @@ builder:
   context: .
   dockerfile: Dockerfile
 
-# Run db:prepare once per release as a release command (Phase 5.1
-# pattern; Kamal's hook fires before the new image's web role
-# starts taking traffic).
-hooks:
-  pre-deploy: ".kamal/hooks/pre-deploy"
-
+# db:prepare runs on puma boot via bin/docker-entrypoint. A failed
+# migration exits the container, the /up healthcheck never passes,
+# and kamal-proxy keeps traffic on the old release — same protection
+# the old pre-deploy hook aimed for (removed: it ran `kamal app exec`
+# before any container/env existed, which can't work on first deploy).
 env:
   clear:
     RAILS_ENV: production

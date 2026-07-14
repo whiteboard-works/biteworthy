@@ -58,11 +58,10 @@ Rails.application.routes.draw do
       # Legal remediation E3 — JSON archive of the caller's personal
       # data (Privacy Policy "Access / export your data").
       get "/account/export", to: "account_exports#show"
-      resources :cities, only: [:index, :show]
       # Phase 5.6 — backs the SSR /durango/[diet] SEO pages. Flat
-      # route (not nested) so the `:city_slug` param name is explicit;
-      # the parent `resources :cities` has no controller yet (Phase 0
-      # stub) so nesting would be misleading.
+      # route (not nested) so the `:city_slug` param name is explicit.
+      # There is no CitiesController yet, so only this restaurants-by-city
+      # read is exposed; a bare `resources :cities` would 500.
       get "/cities/:city_slug/restaurants",
           to: "city_restaurants#index",
           as: :city_restaurants_ranking
