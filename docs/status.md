@@ -17,6 +17,24 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-14 (post-launch fixes 2) — CORS + email. Branch `fix/production-cors`.
+
+- **Onboarding was broken ("Could not load presets — Failed to fetch")** — the
+  page is a client component that reads public taxonomy from the Rails API
+  directly (`${NEXT_PUBLIC_API_BASE}/api/v1/...`), a cross-origin browser call.
+  `rack-cors` (`initializers/cors.rb`) defaults `ALLOWED_ORIGINS` to localhost
+  and it was never set in prod, so the API sent no `Access-Control-Allow-Origin`
+  for `https://bite-worthy.com`. Fixed: `ALLOWED_ORIGINS=https://bite-worthy.com
+  https://www.bite-worthy.com` in `deploy.yml` env.clear + `kamal deploy`.
+  Verified header present and all 10 presets load.
+- **Mailgun snag:** `SMTP_ADDRESS` switched to `smtp.mailgun.org` in deploy.yml,
+  BUT the WBW Mailgun account only has `whiteboardworks.com` + a sandbox —
+  **`bite-worthy.com` is NOT a domain there**, so the zone's Mailgun DNS records
+  don't map to a usable sending domain and there are no bite-worthy.com SMTP
+  creds. Email still unwired pending a decision (add bite-worthy.com to Mailgun /
+  send from whiteboardworks.com / different account). `kamal deploy` gotcha
+  recap: run `kamal` directly (not `bundle exec kamal` — it's not in the Gemfile).
+
 2026-07-14 (post-launch fixes) — content seeding + Durango SEO. Branch
 `fix/durango-diet-slugs`.
 
