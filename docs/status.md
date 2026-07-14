@@ -42,15 +42,21 @@ the Phase 5 pause) are archived in
   manual items). A record `api → 87.99.137.181` (DNS only) already in the
   new zone. R2 bucket **biteworthy-blobs** created (billing already
   enabled) — **no R2 API token yet**.
-- First `kamal deploy` (user-approved) attempt FAILED in the Docker build:
-  `chown -R rails:rails db log tmp` — `log/` absent from the build context
-  (.dockerignore). Dockerfile fixed (`mkdir -p db log tmp storage` before
-  chown; fix landed on disk from a parallel session and is committed here).
-  A retry deploy was launched in the background as this session ended —
-  heavy layers are cached, so if it died with the session, **re-run
-  `kamal deploy` from `apps/api/` (fast)**. Verify with
-  `curl http://87.99.137.181/up` (Host header api.bite-worthy.com) or
-  `kamal app logs` once up.
+- **DEPLOYED AND HEALTHY.** `kamal deploy` succeeded after a four-bug
+  chain, each fixed + committed on this branch: (1) `hooks:` is not a
+  valid Kamal 2 config key; (2) Dockerfile chown failed on dockerignored
+  `log/` (mkdir -p first); (3) the pre-deploy hook ran `kamal app exec`
+  before any container existed — removed, entrypoint db:prepare +
+  healthcheck gate cutover instead; (4) **the web role needs
+  `cmd: ./bin/rails server`** — the Dockerfile has ENTRYPOINT but no CMD,
+  so the container execd nothing and exited 0 silently (empty logs,
+  failed healthcheck). Web + worker both healthy on the box;
+  `deploy_timeout: 300` added for cold boots. db:prepare ran clean against
+  Neon (~3s). `kamal smoke` passes DB-side ("no published restaurant" =
+  correct pre-seed state) and fails ONLY on public DNS resolution —
+  expected until the NS flip. External probe:
+  `curl --resolve api.bite-worthy.com:80:87.99.137.181 http://api.bite-worthy.com/up`
+  → 301 to https (proxy routing works; TLS cert issues itself after DNS).
 - `apps/mobile/.env.example`: documented previously-missing
   `EXPO_PUBLIC_WEB_BASE` (share links break to localhost without it).
 
