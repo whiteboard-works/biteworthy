@@ -17,6 +17,61 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-14 (later) — LAUNCH PROVISIONING, interactive (no tick), branch
+`chore/launch-provisioning`. Handoff state for the next session:
+
+**Done this session:**
+- Hetzner server LIVE: `biteworthy-api`, **cpx21** (not cx22 — the CX/Intel
+  line doesn't exist in US DCs; cpx21 = 3 vCPU/4 GB/80 GB, ~$8.5/mo — ADR
+  0007 needs this correction), ash-dc1, IP **87.99.137.181**, ubuntu-24.04,
+  SSH key `skylar`, root SSH verified, Docker bootstrapped via
+  `kamal server bootstrap`.
+- `apps/api/.kamal/secrets` built (gitignored): DATABASE_URL rewritten to
+  Neon **pooler** host + sslmode=require (user's `.env` had the unpooled
+  one), fresh DEVISE_JWT_SECRET_KEY, RAILS_MASTER_KEY from newly generated
+  credentials (`config/master.key` + committed `credentials.yml.enc` —
+  repo previously had NO credentials at all), ANTHROPIC/ADMIN from `.env`,
+  KAMAL_REGISTRY_PASSWORD = fresh GitHub classic PAT
+  `biteworthy-kamal-ghcr-laptop` (90d, write:packages, owner @wbwSoftware;
+  `docker login ghcr.io` verified). SMTP_*/R2_* still EMPTY placeholders.
+- `config/deploy.yml`: real IP in both roles; removed invalid `hooks:` key
+  (Kamal 2 auto-discovers `.kamal/hooks/`; the key errors as
+  "unknown key: hooks").
+- Cloudflare: bite-worthy.com zone added to the WBW account
+  (14eec3b118e3baabc516aac5d7ae869c) — **PENDING nameserver flip** (see
+  manual items). A record `api → 87.99.137.181` (DNS only) already in the
+  new zone. R2 bucket **biteworthy-blobs** created (billing already
+  enabled) — **no R2 API token yet**.
+- First `kamal deploy` (user-approved) attempt FAILED in the Docker build:
+  `chown -R rails:rails db log tmp` — `log/` absent from the build context
+  (.dockerignore). Dockerfile fixed (`mkdir -p db log tmp storage` before
+  chown; fix landed on disk from a parallel session and is committed here).
+  A retry deploy was launched in the background as this session ended —
+  heavy layers are cached, so if it died with the session, **re-run
+  `kamal deploy` from `apps/api/` (fast)**. Verify with
+  `curl http://87.99.137.181/up` (Host header api.bite-worthy.com) or
+  `kamal app logs` once up.
+- `apps/mobile/.env.example`: documented previously-missing
+  `EXPO_PUBLIC_WEB_BASE` (share links break to localhost without it).
+
+**Next steps (in order):** (1) confirm `kamal deploy` completed →
+`kamal app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"`;
+(2) after NS flip lands, `curl https://api.bite-worthy.com/up` (Let's
+Encrypt cert issues on first request); (3) R2: create Object-R&W API
+token for biteworthy-blobs, fill R2_* in `.kamal/secrets`
+(R2_ENDPOINT = https://14eec3b118e3baabc516aac5d7ae869c.r2.cloudflarestorage.com),
+redeploy; (4) Postmark + Vercel + PostHog wiring (accounts may not exist
+yet — account creation is user-only); (5) icon SVG drafts, attorney email
+draft, cassette, seed. Gotcha: `kamal env push` does NOT exist in Kamal 2
+(docs are stale) — secrets ship with `kamal deploy`.
+
+**Manual items outstanding (user):** flip bite-worthy.com nameservers to
+cris/janet.ns.cloudflare.com in whichever Cloudflare account currently
+serves malcolm/paloma (registrar = Cloudflare; zone wasn't visible to the
+info@whiteboardworks login); Anthropic billing?; Postmark/Vercel/PostHog
+signups; Apple/Google dev accounts + individual-vs-org (D-U-N-S) decision;
+attorney engagement (L1); DMCA agent ($6); icon-source.svg approval.
+
 2026-07-14 — planning (interactive, no tick). Added `docs/launch-plan.md`
 (two-track launch: manual Track A critical path + loop-shippable Track B
 lower-the-gate + QR program) and `docs/plans/six-month-plan.md` (the

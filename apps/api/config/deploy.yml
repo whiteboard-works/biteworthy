@@ -31,10 +31,10 @@ image: whiteboard-works/biteworthy-api
 servers:
   web:
     hosts:
-      - <REPLACE_WITH_HETZNER_IP>
+      - 87.99.137.181
   worker:
     hosts:
-      - <REPLACE_WITH_HETZNER_IP>
+      - 87.99.137.181
     cmd: bundle exec rake solid_queue:start
 
 # Kamal 2's built-in proxy (replaces the older Traefik integration).
@@ -62,12 +62,9 @@ builder:
   context: .
   dockerfile: Dockerfile
 
-# Run db:prepare once per release as a release command (Phase 5.1
-# pattern; Kamal's hook fires before the new image's web role
-# starts taking traffic).
-hooks:
-  pre-deploy: ".kamal/hooks/pre-deploy"
-
+# db:prepare runs once per release via the .kamal/hooks/pre-deploy
+# hook (auto-discovered by Kamal 2 — hooks are files, not config;
+# fires before the new image's web role starts taking traffic).
 env:
   clear:
     RAILS_ENV: production
