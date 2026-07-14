@@ -62,9 +62,11 @@ builder:
   context: .
   dockerfile: Dockerfile
 
-# db:prepare runs once per release via the .kamal/hooks/pre-deploy
-# hook (auto-discovered by Kamal 2 — hooks are files, not config;
-# fires before the new image's web role starts taking traffic).
+# db:prepare runs on puma boot via bin/docker-entrypoint. A failed
+# migration exits the container, the /up healthcheck never passes,
+# and kamal-proxy keeps traffic on the old release — same protection
+# the old pre-deploy hook aimed for (removed: it ran `kamal app exec`
+# before any container/env existed, which can't work on first deploy).
 env:
   clear:
     RAILS_ENV: production
