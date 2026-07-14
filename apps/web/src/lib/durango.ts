@@ -23,15 +23,19 @@ import { API_BASE } from './api-base';
  * sitemap order (priority is the same for all, so order is just
  * stable URL listing).
  */
+// These MUST be exact `dietary_profiles.yml` slugs — the API 404s on an
+// unknown profile, which 404s the SEO page. The earlier list drifted
+// (tree-nut-free / shellfish-free / lactose-free / low-fodmap were never
+// seeded); replaced with the real allergy/intolerance slugs.
 export const DURANGO_DIET_SLUGS = [
   'vegan',
   'vegetarian',
   'celiac',
-  'tree-nut-free',
-  'shellfish-free',
-  'lactose-free',
-  'low-fodmap',
   'pescatarian',
+  'gluten-free',
+  'dairy-free',
+  'tree-nut-allergy',
+  'peanut-allergy',
 ] as const;
 
 export type DurangoDietSlug = (typeof DURANGO_DIET_SLUGS)[number];

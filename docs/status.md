@@ -17,6 +17,35 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-14 (post-launch fixes) — content seeding + Durango SEO. Branch
+`fix/durango-diet-slugs`.
+
+- **CRITICAL, now fixed — production DB was empty of taxonomy.** The running
+  API container (Neon `neondb`, pooler host) had `ingredients=0 tags=0
+  dietary_profiles=0 restaurants=0`: `db:seed` never populated the *current*
+  database — during the multi-db→single-db churn, seeds ran against a Neon
+  database that was later deleted, and `db:prepare` only seeds on fresh
+  creation. **Solid Cache masked it** — `/api/v1/ingredients` served stale
+  cached JSON, so the endpoints looked healthy while the DB was bare (the
+  filter product was actually non-functional). Fixed by running
+  `kamal app exec --reuse "bin/rails db:seed"` → **36 tags, 1088 ingredients,
+  10 dietary profiles** (idempotent upsert). Verified via direct psql, not the
+  cached endpoint. Gotcha: `kamal app exec` runs on ALL roles (web+worker)
+  concurrently → the two seed runs raced ("Slug has already been taken"); the
+  web run completed fully, so the data is correct. Use a single role for
+  one-off data tasks (`--role web` before `app exec`, not after).
+- **Durango city created** (empty) via psql INSERT so the `/durango/[diet]`
+  SEO pages resolve; they self-heal from the build-time 404 via `revalidate`
+  ISR once the API returns 200. Verified vegan/vegetarian/celiac/pescatarian
+  now 200.
+- **Fixed `DURANGO_DIET_SLUGS` drift** (this PR): `tree-nut-free`,
+  `shellfish-free`, `lactose-free`, `low-fodmap` were never seeded and 404'd.
+  Replaced with real slugs (`gluten-free`, `dairy-free`, `tree-nut-allergy`,
+  `peanut-allergy`); updated the test to guard against the drift.
+- **Still open:** real Durango restaurant content (pages show the empty state);
+  Mailgun SMTP creds (SMTP_* empty); the Vercel prod deploy needed a manual
+  Force-Promote (master merge didn't auto-trigger — verify future pushes).
+
 2026-07-14 (latest) — LAUNCH: DNS cutover complete, API live over HTTPS, web
 build fixed. Continuation of the provisioning session below; same branch
 `chore/launch-provisioning`.
