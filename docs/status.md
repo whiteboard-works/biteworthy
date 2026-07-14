@@ -17,6 +17,43 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-14 (latest) — LAUNCH: DNS cutover complete, API live over HTTPS, web
+build fixed. Continuation of the provisioning session below; same branch
+`chore/launch-provisioning`.
+
+**Done:**
+- **Nameserver flip landed** (user migrated the registrar to the WBW
+  Cloudflare account). `bite-worthy.com` NS = cris/janet.ns.cloudflare.com,
+  zone active. Verified resolving: `api → 87.99.137.181`, apex + www → Vercel
+  edge (216.150.x.x via CNAME flattening).
+- **API LIVE over HTTPS:** `https://api.bite-worthy.com/up` → 200 with a valid
+  Let's Encrypt cert (issued automatically once DNS resolved). Taxonomy is
+  seeded — `/api/v1/ingredients` and `/api/v1/dietary_profiles` return real
+  data.
+- **Vercel DNS staged in Cloudflare** (both DNS-only, per Vercel's new IP
+  range): apex CNAME + www CNAME → `311e341e12f61b6e.vercel-dns-016.com`
+  (www is a 308→apex redirect in Vercel). Cloudflare CNAME-flattening lets the
+  apex CNAME coexist with the pre-existing Mailgun MX/SPF/DKIM records.
+- **Web production build fixed + pushed** (commit d73c1fb): tailwind pinned to
+  v3 (v4 broke postcss/config), login+signup `<Suspense>` boundaries, and
+  `durango/[diet]` `revalidate=300` + empty-state fallback. `pnpm build` green
+  (typecheck + lint + 180 tests).
+- **Removed dead `resources :cities` route** — no controller existed, so
+  `GET /api/v1/cities` returned 500. The used `/cities/:city_slug/restaurants`
+  route stays; spec green on a clean test DB.
+
+**Discovered:** production DB has the taxonomy but NO city/restaurant/menu
+content — `db/seeds.rb` seeds taxonomy only; Durango restaurants come from the
+ingestion/onboarding flow, not seeds, so `/durango/[diet]` shows the
+empty-state fallback until content is loaded. Also: pre-existing **Mailgun**
+email records (MX/SPF/DKIM) already on the zone — could serve transactional
+email instead of the pending Postmark signup.
+
+**Still manual (user):** SMTP provider (Postmark signup OR wire existing
+Mailgun SMTP creds — `SMTP_*` still empty in `.kamal/secrets`); Vercel
+production deploy fires on merge to `master`; Apple/Google dev accounts +
+D-U-N-S; attorney (L1); DMCA agent; icon-source.svg pick; Anthropic billing.
+
 2026-07-14 (later) — LAUNCH PROVISIONING, interactive (no tick), branch
 `chore/launch-provisioning`. Handoff state for the next session:
 
@@ -41,7 +78,38 @@ the Phase 5 pause) are archived in
   (14eec3b118e3baabc516aac5d7ae869c) — **PENDING nameserver flip** (see
   manual items). A record `api → 87.99.137.181` (DNS only) already in the
   new zone. R2 bucket **biteworthy-blobs** created (billing already
-  enabled) — **no R2 API token yet**.
+  enabled) + Account API token `biteworthy-api-storage` (Object R&W,
+  bucket-scoped) — R2_* filled in `.kamal/secrets` and deployed.
+- **Worker was NOT healthy after bug (4)** — it crash-looped on
+  `solid_queue_recurring_tasks does not exist`. Root cause: the multi-db
+  database.yml never worked — ENV["DATABASE_URL"]'s database name
+  overrides each entry's `database:` key, so primary/cache/queue/cable
+  all resolved to the same Neon db while the solid_* tables existed
+  nowhere (the repo's queue/cache/cable schema files were empty
+  version-0 stubs; solid_queue:install had never completed). Fixed by
+  flattening to a SINGLE database: real solid_queue/solid_cache tables
+  added to the primary schema via migration
+  `20260714120000_create_solid_queue_and_solid_cache_tables`, installers'
+  config/queue.yml + cache.yml committed, connects_to dropped, unused
+  ActionCable switched to async. **Verified live: Solid Queue
+  supervisor/worker/dispatcher/scheduler all running, BOTH recurring
+  tasks registered (purge_orphaned_restaurant_visits preserved after the
+  installer clobbered recurring.yml — restored), Rails.cache round-trip
+  works.** Deleted the three empty per-db Neon databases this session
+  briefly created.
+- **Vercel:** project `biteworthy-web` imported (team Skylar,
+  whiteboard-works/biteworthy, root apps/web, Next.js preset) with
+  NEXT_PUBLIC_API_BASE / COOKIE_DOMAIN / SITE_URL / POSTHOG_KEY set for
+  Production+Preview; first deployment building at handoff. Custom
+  domains bite-worthy.com + www still to add after build.
+- **PostHog:** the WBW Cross-Product project (id 370116) lives in the
+  PostHog account the browser is logged into; project token
+  `phc_tstSvpFjyUwgb8wD9rbL97SvgBgQe8oUWFGubrWTVavZ` (public client
+  token) — used for NEXT_PUBLIC_POSTHOG_KEY, same value for
+  EXPO_PUBLIC_POSTHOG_KEY at EAS time.
+- Attorney engagement email + legal review packet + 3 icon-source.svg
+  drafts delivered to the user as files (Gmail connector is read-only;
+  draft couldn't be placed directly).
 - **DEPLOYED AND HEALTHY.** `kamal deploy` succeeded after a four-bug
   chain, each fixed + committed on this branch: (1) `hooks:` is not a
   valid Kamal 2 config key; (2) Dockerfile chown failed on dockerignored
