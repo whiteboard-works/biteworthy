@@ -83,15 +83,20 @@ env:
     RAILS_LOG_TO_STDOUT: "true"
     RAILS_SERVE_STATIC_FILES: "true"
     PUBLIC_HOST: https://api.bite-worthy.com
+    # Browser (bite-worthy.com) reads public taxonomy from the Rails API
+    # directly (onboarding presets/tags/ingredient search), so rack-cors
+    # must allow the web origins. Space-separated; see initializers/cors.rb.
+    ALLOWED_ORIGINS: https://bite-worthy.com https://www.bite-worthy.com
     SOLID_QUEUE_IN_PUMA: "false"
     # libjemalloc trims puma RSS by ~30%; the Dockerfile installs
     # the lib but the loader has to be told to use it.
     LD_PRELOAD: /usr/lib/x86_64-linux-gnu/libjemalloc.so.2
     # Mailer host is the WEB origin (Phase 5.4 Vercel), not the API.
     MAILER_HOST: https://bite-worthy.com
-    # SMTP defaults — Postmark per ADR 0003. Override via secrets if
-    # the human picks a different provider.
-    SMTP_ADDRESS: smtp.postmarkapp.com
+    # SMTP — the zone was already wired for Mailgun (MX/SPF/DKIM), so we
+    # use it instead of Postmark. SMTP_USERNAME/SMTP_PASSWORD are the
+    # Mailgun SMTP credentials (secrets).
+    SMTP_ADDRESS: smtp.mailgun.org
     SMTP_PORT: "587"
     SMTP_DOMAIN: bite-worthy.com
   secret:
