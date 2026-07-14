@@ -39,6 +39,11 @@ export async function generateStaticParams(): Promise<Params[]> {
   return DURANGO_DIET_SLUGS.map((diet) => ({ diet }));
 }
 
+// Re-render on a short interval so a page built while the API was
+// unreachable (see the fetch fallback below) self-heals without a
+// redeploy, and ranking changes flow through between deploys.
+export const revalidate = 300;
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { diet } = await params;
   if (!isCuratedDiet(diet)) {
@@ -65,7 +70,15 @@ export default async function DurangoDietPage({ params }: PageProps): Promise<Re
     ranking = await fetchCityRanking('durango', diet);
   } catch (e) {
     if (e instanceof CityRankingError && e.status === 404) notFound();
-    throw e;
+    // API unreachable or erroring (e.g. web building before the API is
+    // publicly resolvable): render the empty state instead of failing
+    // the whole build; `revalidate` refetches once the API is back.
+    return (
+      <main className="bg-white">
+        <Hero dietName={humanizeDietSlug(diet)} totalRestaurants={0} visibleRestaurants={0} />
+        <EmptyState />
+      </main>
+    );
   }
 
   const visibleSlugs = ranking.restaurants.filter((r) => r.visible_count > 0);

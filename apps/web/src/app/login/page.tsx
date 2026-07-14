@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
@@ -15,6 +15,16 @@ import { login, AuthError } from '../../lib/auth';
  * no token in the URL.
  */
 export default function LoginPage() {
+  // useSearchParams (in LoginForm) needs a Suspense boundary or the
+  // production build fails prerendering — same pattern as /onboarding.
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get('next') ?? '/';
