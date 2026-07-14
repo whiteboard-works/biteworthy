@@ -21,6 +21,7 @@ Rails.application.configure do
 
   config.cache_store = :solid_cache_store
   config.active_job.queue_adapter = :solid_queue
+  config.solid_queue.connects_to = { database: { writing: :queue } }
   config.active_record.dump_schema_after_migration = false
 
   config.action_mailer.perform_caching = false
