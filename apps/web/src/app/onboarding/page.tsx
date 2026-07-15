@@ -9,6 +9,7 @@ import {
   toProfilePayload,
   toTastePayload,
   type DietaryPreset,
+  type DraftProfile,
   type Strictness,
   type TasteState,
 } from '@biteworthy/filter-engine';
@@ -51,6 +52,39 @@ const STRICTNESS_BLURB: Record<Strictness, string> = {
   strict: 'Also hide items the AI marked suggested or inferred.',
 };
 
+// Persist the in-progress draft so an anonymous user who fills out the flow,
+// hits "Done", and gets bounced through sign-up (the 401 → /login redirect in
+// `finalize`) comes back to their selections instead of a blank form.
+// sessionStorage: scoped to the tab session (survives the client-side redirect,
+// gone when the tab closes — no stale health-adjacent draft left behind).
+const DRAFT_KEY = 'bw_onboarding_draft';
+
+function loadDraft(): DraftProfile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as DraftProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: DraftProfile): void {
+  try {
+    window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Private mode / quota — persistence is best-effort, never fatal.
+  }
+}
+
+function clearDraft(): void {
+  try {
+    window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // no-op
+  }
+}
+
 export default function OnboardingPage() {
   // useSearchParams (in OnboardingFlow) needs a Suspense boundary or
   // Next 15's prod build bails the whole page out of static rendering.
@@ -79,6 +113,25 @@ function OnboardingFlow() {
   const [tasteResults, setTasteResults] = useState<IngredientSearchResult[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore a persisted draft once, after mount. A lazy useReducer initializer
+  // would read sessionStorage during render and mismatch the SSR HTML, so
+  // hydrate post-mount instead. Skipped in standalone taste mode so an old
+  // full-onboarding draft can't leak into "Improve my picks".
+  useEffect(() => {
+    if (!standalone) {
+      const saved = loadDraft();
+      if (saved) dispatch({ type: 'HYDRATE', draft: saved });
+    }
+    setHydrated(true);
+  }, [standalone]);
+
+  // Persist on change, but only after hydration so the empty initialDraft on
+  // the first render can't clobber a saved draft.
+  useEffect(() => {
+    if (hydrated && !standalone) saveDraft(draft);
+  }, [draft, hydrated, standalone]);
 
   useEffect(() => {
     fetchDietaryProfiles()
@@ -142,6 +195,7 @@ function OnboardingFlow() {
       // Legal remediation E1 — the review step gates this submit behind
       // the allergen-disclaimer checkbox, so record the acknowledgment.
       await saveProfile({ ...payload, acknowledge_disclaimer: true });
+      clearDraft();
       // Legal remediation E7 — funnel conversion only; the dietary
       // profile (preset/strictness/avoid sizes) is health data and is
       // never attached to this identified event.

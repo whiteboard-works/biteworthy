@@ -33,4 +33,9 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(?:.pnpm/)?(?:(jest-)?react-native|@react-native|@react-native-community|expo|@expo|react-native-.+|@react-navigation/.+))',
   ],
+  // The async screen-render tests (e.g. onboarding.render — findBy* polling for
+  // a preset chip after a mocked fetch resolves) occasionally overran Jest's
+  // 5s default under CI load and flaked ("Exceeded timeout of 5000 ms"). They
+  // pass fast locally; give slow CI runners headroom instead.
+  testTimeout: 15000,
 };
