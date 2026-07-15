@@ -1,0 +1,88 @@
+name: Deploy API
+
+# Ships apps/api to the Hetzner box (87.99.137.181) via Kamal on every merge to
+# master that touches the API. ci-api (rspec + brakeman) is a required PR check,
+# so master is already green by the time this runs. Trigger it by hand from the
+# Actions tab (workflow_dispatch) to redeploy the current master.
+#
+# ── Required repo secrets (Settings → Secrets and variables → Actions) ──
+#   KAMAL_SECRETS_B64   base64 of apps/api/.kamal/secrets — the same file Kamal
+#                       reads locally, holding every app secret AND
+#                       KAMAL_REGISTRY_PASSWORD. Regenerate after rotating any
+#                       value with:  base64 -i apps/api/.kamal/secrets | pbcopy
+#   SSH_PRIVATE_KEY     private key with root@87.99.137.181 access (the box's
+#                       provisioning key), full text including the BEGIN/END lines.
+#
+# Kamal builds the amd64 image on the runner and pushes it to GHCR itself (it
+# logs in with KAMAL_REGISTRY_PASSWORD from the secrets file), then SSHes to the
+# box to pull + boot. The entrypoint runs db:prepare on boot, so migrations ride
+# along; kamal-proxy keeps traffic on the old release until /up passes.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  # Serialize deploys; never cancel one mid-flight (would leave a half cutover).
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3.6'
+          bundler-cache: false
+
+      - name: Install Kamal
+        run: gem install kamal -v 2.12.0 --no-document
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Preflight — required secrets present
+        env:
+          KAMAL_SECRETS_B64: ${{ secrets.KAMAL_SECRETS_B64 }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          : "${KAMAL_SECRETS_B64:?Set the KAMAL_SECRETS_B64 repo secret (base64 of apps/api/.kamal/secrets)}"
+          : "${SSH_PRIVATE_KEY:?Set the SSH_PRIVATE_KEY repo secret (key with root@87.99.137.181 access)}"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H 87.99.137.181 >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'CFG'
+          Host 87.99.137.181
+            User root
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Materialize Kamal secrets
+        env:
+          KAMAL_SECRETS_B64: ${{ secrets.KAMAL_SECRETS_B64 }}
+        run: |
+          printf '%s' "$KAMAL_SECRETS_B64" | base64 -d > apps/api/.kamal/secrets
+          test -s apps/api/.kamal/secrets
+
+      - name: Kamal deploy
+        working-directory: apps/api
+        run: kamal deploy
+
+      - name: Scrub secrets from the runner
+        if: always()
+        run: rm -f apps/api/.kamal/secrets ~/.ssh/id_deploy

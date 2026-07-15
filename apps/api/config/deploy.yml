@@ -22,8 +22,10 @@
 #   kamal env push         # uploads secrets
 #   kamal deploy           # full deploy with db:prepare release
 #
-# Subsequent deploys: `kamal deploy` from the laptop. CI automation
-# is a separate small follow-up after manual deploys are proven.
+# Subsequent deploys: automatic. `.github/workflows/deploy-api.yml` runs
+# `kamal deploy` on every merge to master touching apps/api (or on manual
+# workflow_dispatch). Run `kamal deploy` from the laptop for out-of-band
+# ships; it needs .kamal/secrets + SSH access to the box + Docker.
 
 service: biteworthy-api
 image: whiteboard-works/biteworthy-api
