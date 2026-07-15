@@ -28,7 +28,12 @@ the Phase 5 pause) are archived in
   base64 of `apps/api/.kamal/secrets` (decoded to the file in CI, holds every
   app secret + KAMAL_REGISTRY_PASSWORD), plus `SSH_PRIVATE_KEY` (root@box key).
   **MANUAL, user: add both repo secrets before the first run**, else the
-  preflight step fails loudly.
+  preflight step fails loudly. First run (on the #405 merge) went green —
+  pipeline validated end-to-end.
+- **Secret rotation helper** `apps/api/bin/kamal-secrets-push`: re-encodes
+  `.kamal/secrets` → the `KAMAL_SECRETS_B64` repo secret via `gh secret set`
+  (add `--deploy` to also dispatch deploy-api). Run it after changing any
+  secret value so auto-deploy picks up the new values.
 
 2026-07-14 (post-launch fixes 2) — CORS + email. Branch `fix/production-cors`.
 
