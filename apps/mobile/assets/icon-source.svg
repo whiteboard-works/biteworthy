@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- BiteWorthy app icon — Draft "B" (plate). PLACEHOLDER, slated for a redraw.
+       White ground, brand-red plate (#E14E2A) with a biteLight rim, white "BW",
+       and a bite out of the upper-right. This SVG is the single source for every
+       rendered size — after editing, run: pnpm mobile render:assets -->
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <circle cx="512" cy="512" r="416" fill="#E14E2A"/>
+  <clipPath id="plate"><circle cx="512" cy="512" r="416"/></clipPath>
+  <g clip-path="url(#plate)">
+    <circle cx="512" cy="512" r="332" fill="none" stroke="#FFE9E1" stroke-width="14"/>
+    <circle cx="852" cy="212" r="148" fill="#FFFFFF"/>
+    <circle cx="716" cy="120" r="76" fill="#FFFFFF"/>
+    <circle cx="928" cy="352" r="64" fill="#FFFFFF"/>
+  </g>
+  <text x="512" y="650" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="360" letter-spacing="-14" fill="#FFFFFF">BW</text>
+</svg>

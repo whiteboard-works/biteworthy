@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
+    "render:assets": "node scripts/render-assets.mjs",
     "clean": "rm -rf .expo .turbo dist *.tsbuildinfo"
   },
   "dependencies": {

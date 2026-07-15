@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1284 2778" width="1284" height="2778">
+  <!-- Launch screen. White ground + centered plate + wordmark. app.json splash
+       uses resizeMode "contain" on backgroundColor #FFFFFF. -->
+  <rect width="1284" height="2778" fill="#FFFFFF"/>
+  <g transform="translate(642 1230)">
+    <circle cx="0" cy="0" r="300" fill="#E14E2A"/>
+    <clipPath id="plates"><circle cx="0" cy="0" r="300"/></clipPath>
+    <g clip-path="url(#plates)">
+      <circle cx="0" cy="0" r="239" fill="none" stroke="#FFE9E1" stroke-width="10"/>
+      <circle cx="245" cy="-216" r="107" fill="#FFFFFF"/>
+      <circle cx="147" cy="-282" r="55" fill="#FFFFFF"/>
+      <circle cx="300" cy="-115" r="46" fill="#FFFFFF"/>
+    </g>
+    <text x="0" y="99" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="260" letter-spacing="-10" fill="#FFFFFF">BW</text>
+  </g>
+  <text x="642" y="1690" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="132" letter-spacing="-3" fill="#E14E2A">BiteWorthy</text>
+</svg>
