@@ -8,8 +8,9 @@ name: Deploy API
 # ── Required repo secrets (Settings → Secrets and variables → Actions) ──
 #   KAMAL_SECRETS_B64   base64 of apps/api/.kamal/secrets — the same file Kamal
 #                       reads locally, holding every app secret AND
-#                       KAMAL_REGISTRY_PASSWORD. Regenerate after rotating any
-#                       value with:  base64 -i apps/api/.kamal/secrets | pbcopy
+#                       KAMAL_REGISTRY_PASSWORD. After changing any value in
+#                       .kamal/secrets, resync it with:
+#                         apps/api/bin/kamal-secrets-push   (add --deploy to ship)
 #   SSH_PRIVATE_KEY     private key with root@87.99.137.181 access (the box's
 #                       provisioning key), full text including the BEGIN/END lines.
 #
