@@ -17,6 +17,19 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-15 — API auto-deploy. Branch `chore/api-auto-deploy`.
+
+- Added `.github/workflows/deploy-api.yml`: runs `kamal deploy` on merge to
+  master touching `apps/api/**` (or manual `workflow_dispatch`). Builds the
+  amd64 image on the runner, pushes to GHCR, SSHes root@87.99.137.181 to boot;
+  `concurrency: deploy-api` serializes, `cancel-in-progress: false`. Web already
+  auto-deploys via Vercel; this closes the API gap (was manual `kamal deploy`).
+- **Secrets model:** one blob instead of ~17 keys — `KAMAL_SECRETS_B64` =
+  base64 of `apps/api/.kamal/secrets` (decoded to the file in CI, holds every
+  app secret + KAMAL_REGISTRY_PASSWORD), plus `SSH_PRIVATE_KEY` (root@box key).
+  **MANUAL, user: add both repo secrets before the first run**, else the
+  preflight step fails loudly.
+
 2026-07-14 (post-launch fixes 2) — CORS + email. Branch `fix/production-cors`.
 
 - **Onboarding was broken ("Could not load presets — Failed to fetch")** — the
