@@ -128,6 +128,21 @@ describe('onboardingReducer', () => {
       expect(onboardingReducer(seeded, { type: 'RESET' })).toEqual(initialDraft);
     });
   });
+
+  describe('HYDRATE', () => {
+    it('replaces the whole draft (restores a persisted draft after sign-up)', () => {
+      const saved: DraftProfile = {
+        ...initialDraft,
+        selectedPresetSlugs: ['vegan', 'celiac'],
+        manualIngredientIds: ['ing-x'],
+        strictness: 'strict',
+        likedTagIds: ['t1'],
+      };
+      // Whatever the current (blank) state is, HYDRATE must overwrite it wholesale
+      // so the user's pre-sign-up selections come back intact.
+      expect(onboardingReducer(initialDraft, { type: 'HYDRATE', draft: saved })).toEqual(saved);
+    });
+  });
 });
 
 describe('toProfilePayload', () => {

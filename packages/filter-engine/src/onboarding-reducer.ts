@@ -63,6 +63,9 @@ export type OnboardingAction =
   | { type: 'SET_STRICTNESS'; strictness: Strictness }
   | { type: 'CYCLE_TASTE_TAG'; tagId: string }
   | { type: 'CYCLE_TASTE_INGREDIENT'; ingredientId: string }
+  /** Replace the whole draft — used to restore a persisted draft (e.g. after
+   *  an anonymous user is bounced through sign-up mid-onboarding). */
+  | { type: 'HYDRATE'; draft: DraftProfile }
   | { type: 'RESET' };
 
 export function tasteStateOf(
@@ -128,6 +131,8 @@ export function onboardingReducer(state: DraftProfile, action: OnboardingAction)
       );
       return { ...state, likedIngredientIds: next.liked, dislikedIngredientIds: next.disliked };
     }
+    case 'HYDRATE':
+      return action.draft;
     case 'RESET':
       return initialDraft;
   }
