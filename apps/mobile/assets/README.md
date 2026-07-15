@@ -1,8 +1,13 @@
 # BiteWorthy mobile — assets
 
-Binary assets the app bundle ships. Phase 5.9 documents the specs;
-Phase 5.9-wiring follow-up generates the actual PNGs from the
-ui-tokens-derived SVG sources.
+Binary assets the app bundle ships, rendered from the SVG sources here.
+
+**Current icon is the "B" (plate) placeholder** — white ground, brand-red
+plate, white "BW", a bite out of the corner — chosen to ship something now and
+slated for a redraw. Sources: `icon-source.svg` (iOS icon + web + favicon),
+`adaptive-foreground.svg` (Android), `splash-source.svg` (launch). Wired in
+`app.json`; web favicons land in `apps/web/src/app/{icon,apple-icon}.png` (Next
+App Router auto-links them). Regenerate with `pnpm mobile render:assets`.
 
 ## Required for store submission
 
@@ -20,9 +25,10 @@ ui-tokens-derived SVG sources.
    - Single fill: `var(--bite, #E14E2A)`.
    - 1024×1024 viewBox so all PNG variants downscale cleanly.
 
-2. **Render pipeline:** an `apps/mobile/scripts/render-assets.mjs` script
-   uses `sharp` to convert the SVG into the four PNG sizes above.
-   Run with `pnpm --filter @biteworthy/mobile run render:assets`.
+2. **Render pipeline:** `apps/mobile/scripts/render-assets.mjs` shells out to
+   `rsvg-convert` (librsvg) — it rasterizes the SVG's "BW" text reliably via
+   Pango, no native-module install or font-outlining step (macOS:
+   `brew install librsvg`). Run with `pnpm mobile render:assets`.
 
 3. **Commit the rendered PNGs.** They're tiny (under 50KB each).
    The SVG source is the master; the PNGs are derived but checked in
