@@ -28,6 +28,12 @@ Devise.setup do |config|
       ["DELETE", %r{^/api/v1/auth/logout$}]
     ]
 
-    jwt.expiration_time = 30.minutes.to_i
+    # Token lifetime matches the web `bw_session` cookie (30 days) so a
+    # signed-in session doesn't silently die mid-use — the web client
+    # has no refresh wired, so a shorter access token would 401 every
+    # authenticated call once it lapsed while the cookie still lived.
+    # Revocation still works: logout rotates the user's jti, killing the
+    # token immediately regardless of its expiry.
+    jwt.expiration_time = 30.days.to_i
   end
 end
