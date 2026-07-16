@@ -13,11 +13,12 @@ name: Deploy API
 #                         apps/api/bin/kamal-secrets-push   (add --deploy to ship)
 #   SSH_PRIVATE_KEY     private key with root@87.99.137.181 access (the box's
 #                       provisioning key), full text including the BEGIN/END lines.
-#   SSH_KNOWN_HOSTS     pinned known_hosts lines for the box (public host keys —
-#                       not secret, kept here only to keep the pin in one place).
-#                       Deploys verify the box against these instead of trusting
-#                       whatever a deploy-time ssh-keyscan returns. Refresh only
-#                       when the box is genuinely rebuilt — see the note below.
+#   SSH_KNOWN_HOSTS     pinned known_hosts lines for the box. Host keys are
+#                       public, not secret — this lives in secrets only to keep
+#                       the pin rotatable in one place. Deploys verify the box
+#                       against these instead of trusting whatever a deploy-time
+#                       ssh-keyscan returns. Re-pin only after independently
+#                       confirming a rebuild — see the note by Configure SSH.
 #
 # Kamal builds the amd64 image on the runner and pushes it to GHCR itself (it
 # logs in with KAMAL_REGISTRY_PASSWORD from the secrets file), then SSHes to the
@@ -64,18 +65,25 @@ jobs:
           : "${SSH_PRIVATE_KEY:?Set the SSH_PRIVATE_KEY repo secret (key with root@87.99.137.181 access)}"
           : "${SSH_KNOWN_HOSTS:?Set the SSH_KNOWN_HOSTS repo secret (pinned known_hosts lines for 87.99.137.181)}"
 
-      # The host keys are pinned rather than scanned. A deploy-time `ssh-keyscan`
-      # re-derives trust from the network on every run: it would trust a spoofed
-      # host, and when it returned an empty/partial answer Kamal failed with a
-      # confusing Net::SSH::HostKeyMismatch naming the box's *real* fingerprint.
-      # Pinning makes the check deterministic and actually meaningful.
+      # The host keys are pinned rather than scanned. The previous
+      # `ssh-keyscan -H … >> known_hosts` re-derived trust from the network on
+      # every run, which is trust-on-first-use: whatever answered got trusted.
+      # That is what broke the 6de948a deploy — the scan returned an ed25519 key
+      # that was not the box's, so Kamal died on Net::SSH::HostKeyMismatch naming
+      # the box's *real* fingerprint. Probed against net-ssh 7.3.3 (Kamal's own
+      # client): an empty or partial known_hosts is silently ACCEPTED, so the
+      # scan never bought any safety — it only ever risked pinning a wrong key.
       #
-      # If a deploy fails host verification, do NOT just re-pin whatever the box
-      # now offers — that hands the trust decision back to the network. Confirm
-      # the box was actually rebuilt (Hetzner console), then refresh the pin from
-      # a machine whose known_hosts already trusts it:
-      #   ssh-keyscan -t ed25519,ecdsa,rsa 87.99.137.181 | grep -v '^#' \
-      #     | gh secret set SSH_KNOWN_HOSTS --repo whiteboard-works/biteworthy
+      # If a deploy fails host verification, do NOT re-pin whatever the box now
+      # offers — a bare `ssh-keyscan` consults nothing and would just launder an
+      # attacker's key into the pin. The trust anchor has to be out-of-band.
+      # Compare what you already trust against what is being offered:
+      #   ssh-keygen -F 87.99.137.181 | ssh-keygen -lf -          # trusted
+      #   ssh-keyscan -t ed25519,ecdsa,rsa 87.99.137.181 | ssh-keygen -lf -  # offered
+      # These may legitimately differ ONLY if you independently confirmed a
+      # rebuild (you rebuilt it, or the Hetzner console shows the new
+      # fingerprints). Re-pin from that verified material, never from the scan
+      # alone. If they differ and nothing was rebuilt, treat it as an incident.
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -87,8 +95,12 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          grep -q 'ssh-ed25519' ~/.ssh/known_hosts \
-            || { echo "::error::SSH_KNOWN_HOSTS has no ed25519 entry for 87.99.137.181 — Kamal will fail host verification."; exit 1; }
+          # Anchored to the host: net-ssh negotiates ed25519 and silently ACCEPTS
+          # a host it finds no entry for, so a pin that names the wrong host would
+          # fail open rather than loudly. Assert the entry we rely on is present
+          # and bound to this box.
+          grep -qE '^87\.99\.137\.181 ssh-ed25519 ' ~/.ssh/known_hosts \
+            || { echo "::error::SSH_KNOWN_HOSTS has no plaintext '87.99.137.181 ssh-ed25519 ...' line — refusing to deploy against an unpinned host. (Pin unhashed lines; ssh-keyscan -H output is hashed and won't match this check.)"; exit 1; }
           cat > ~/.ssh/config <<'CFG'
           Host 87.99.137.181
             User root

@@ -20,27 +20,35 @@ the Phase 5 pause) are archived in
 2026-07-16 — Deploy-api host-key pinning. Branch `fix/deploy-api-pin-host-keys`.
 
 - **The 6de948a deploy failed** with `Net::SSH::HostKeyMismatch … fingerprint
-  SHA256:GlR1Zi0t… does not match`. Not a compromise and not a rebuilt box:
-  all three host-key fingerprints (rsa/ecdsa/ed25519) still match what was
-  recorded at provisioning, and the "mismatched" key is the box's *real*
-  ed25519 key. The a701eea run had SSH'd fine 7 min earlier on identical
-  logic (6de948a changed only comments) — i.e. the failure was
-  nondeterministic.
-- **Root cause:** `ssh-keyscan -H … >> known_hosts 2>/dev/null` re-derived
-  trust from the network on every deploy, discarded its errors, and never
-  checked it produced a usable entry. An empty/partial scan leaves
-  known_hosts not covering the key Net::SSH negotiates → HostKeyMismatch
-  naming the genuine fingerprint. The exact partial-scan mode isn't
-  recoverable from the logs (stderr was discarded), but pinning removes the
-  whole class.
+  SHA256:GlR1Zi0t… does not match`. The box itself is intact: all three
+  host-key fingerprints (rsa/ecdsa/ed25519) still match what was recorded at
+  provisioning, and the "mismatched" key is the box's *real* ed25519 key. The
+  a701eea run had SSH'd fine 7 min earlier on identical logic (6de948a changed
+  only comments), so the failure was nondeterministic.
+- **Root cause:** the deploy-time `ssh-keyscan -H … >> known_hosts 2>/dev/null`
+  returned an ed25519 key that was **not** the box's, and net-ssh correctly
+  refused it. Established by probing net-ssh 7.3.3 (Kamal's own client)
+  against the live box — the first hypothesis (empty/partial scan) was
+  **refuted**:
+  - empty known_hosts → **accepted**; partial (rsa+ecdsa, no ed25519) →
+    **accepted**; hashed `-H` output (exact CI config) → **accepted**.
+    net-ssh's default verifier accepts unknown hosts, so the scan never bought
+    any safety — it only ever risked pinning a *wrong* key.
+  - a truncated/corrupt ed25519 line → `ArgumentError`, not HostKeyMismatch.
+  - only a well-formed **wrong** ed25519 entry reproduces the exact error.
+- **Why the scan got a wrong key is unknown and not recoverable** — the runner
+  is gone and the step discarded stderr. Most likely a transient Hetzner
+  routing/IP anomaly; **interception on the runner's egress path cannot be
+  ruled out**. The box shows no sign of compromise. This is precisely the
+  failure TOFU invites, and pinning makes it fail closed.
 - **Fix:** pinned host keys via a new `SSH_KNOWN_HOSTS` repo secret; dropped
-  the scan; `set -euo pipefail` + preflight + an ed25519-present assertion so
-  a bad pin fails loudly instead of at Kamal. Also closes a real hole —
-  deploy-time keyscan is TOFU and would have trusted a spoofed host.
-  Verified against the live box: correct pin passes host verification,
-  a tampered pin is refused ("REMOTE HOST IDENTIFICATION HAS CHANGED").
-  Re-pin *only* after confirming a genuine rebuild — see the note in
-  `deploy-api.yml`.
+  the scan; `set -euo pipefail` + preflight + a host-anchored ed25519
+  assertion (`^87\.99\.137\.181 ssh-ed25519 `) so a wrong-host pin fails loudly
+  instead of failing open. Verified with net-ssh 7.3.3 against the live box:
+  the pin passes host verification; a tampered pin reproduces the original
+  `HostKeyMismatch` exactly. Re-pin *only* from out-of-band-verified material
+  after independently confirming a rebuild — never from a bare `ssh-keyscan`.
+  See the note in `deploy-api.yml`.
 - Gitignored `biteworthy-deploy{,.pub}` (the CI deploy keypair, root on the
   API box) — it was sitting untracked and uncovered in the repo root. History
   checked: never committed. **MANUAL, user: move that keypair out of the repo
