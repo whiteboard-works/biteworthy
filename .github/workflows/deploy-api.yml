@@ -13,6 +13,12 @@ name: Deploy API
 #                         apps/api/bin/kamal-secrets-push   (add --deploy to ship)
 #   SSH_PRIVATE_KEY     private key with root@87.99.137.181 access (the box's
 #                       provisioning key), full text including the BEGIN/END lines.
+#   SSH_KNOWN_HOSTS     pinned known_hosts lines for the box. Host keys are
+#                       public, not secret — this lives in secrets only to keep
+#                       the pin rotatable in one place. Deploys verify the box
+#                       against these instead of trusting whatever a deploy-time
+#                       ssh-keyscan returns. Re-pin only after independently
+#                       confirming a rebuild — see the note by Configure SSH.
 #
 # Kamal builds the amd64 image on the runner and pushes it to GHCR itself (it
 # logs in with KAMAL_REGISTRY_PASSWORD from the secrets file), then SSHes to the
@@ -53,18 +59,88 @@ jobs:
         env:
           KAMAL_SECRETS_B64: ${{ secrets.KAMAL_SECRETS_B64 }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           : "${KAMAL_SECRETS_B64:?Set the KAMAL_SECRETS_B64 repo secret (base64 of apps/api/.kamal/secrets)}"
           : "${SSH_PRIVATE_KEY:?Set the SSH_PRIVATE_KEY repo secret (key with root@87.99.137.181 access)}"
+          : "${SSH_KNOWN_HOSTS:?Set the SSH_KNOWN_HOSTS repo secret (pinned known_hosts lines for 87.99.137.181)}"
 
+      # Host keys are pinned rather than scanned, for two independent reasons.
+      #
+      # 1. It fixes the 6de948a failure, which was a RACE, not a bad key. The old
+      #    `ssh-keyscan -H` wrote rsa/ecdsa/ed25519 in network ARRIVAL order, and
+      #    SSHKit's KnownHostsKeys#keys_for returns on the FIRST matching hashed
+      #    entry — so Kamal saw exactly one key type: whichever won the race. When
+      #    rsa landed first, net-ssh negotiated ed25519, compared it against the
+      #    lone rsa entry, and raised HostKeyMismatch naming the box's *real*
+      #    ed25519 fingerprint. When ed25519 landed first, the deploy passed. Same
+      #    code, two outcomes, seven minutes apart. Reproduced both ways locally.
+      #    Plaintext pins yield every type for the host, so they can't lose it.
+      #
+      # 2. Scanning at deploy time is trust-on-first-use regardless: verifying the
+      #    box against keys the network just handed you is circular. The pin has
+      #    to come from somewhere the network cannot supply.
+      #
+      # If a deploy fails host verification, do NOT re-pin whatever the box now
+      # offers — a bare `ssh-keyscan` consults nothing and would launder an
+      # attacker's key into the pin.
+      #   ssh-keyscan -t ed25519 87.99.137.181 | ssh-keygen -lf -   # offered now
+      #   ssh-keygen -F 87.99.137.181 | ssh-keygen -lf -            # your laptop
+      # Treat the laptop copy as a cross-check, NOT an anchor: it was itself
+      # TOFU-established at `kamal setup`. The only sound anchor is out-of-band —
+      # a rebuild you performed, or fingerprints read from the Hetzner console.
+      # Once confirmed, write the verified lines back (note: no -H):
+      #   ssh-keyscan -t ed25519,ecdsa,rsa 87.99.137.181 | grep -v '^#' \
+      #     | gh secret set SSH_KNOWN_HOSTS --repo whiteboard-works/biteworthy
+      # — run that ONLY after the out-of-band check above, never to clear a red
+      # deploy. Mismatch with nothing rebuilt is an incident, not a chore.
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -H 87.99.137.181 >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          # A pin the deploy can't actually match is worse than none: net-ssh
+          # ACCEPTS a host it finds no key for, so a bad pin fails *open* and
+          # ships every .kamal/secret to whatever answered. So assert the pin
+          # yields at least one key — using Kamal's own lookup rather than an
+          # imitation of it. Kamal → SSHKit, and SSHKit replaces net-ssh's
+          # known_hosts matcher with its own (backends/netssh.rb: `known_hosts:
+          # SSHKit::Backend::Netssh::KnownHosts.new`), which is stricter than
+          # OpenSSH: exact host-field match only. `ssh-keygen -F` and grep both
+          # pass wildcard/@cert-authority pins that SSHKit yields nothing for —
+          # green check, unverified deploy. Calling search_for is the only check
+          # that cannot disagree with the deploy.
+          # Reject hashed pins: this is the bug that caused the incident. SSHKit's
+          # KnownHostsKeys#keys_for RETURNS ON THE FIRST matching hash entry, so a
+          # hashed file yields exactly one key type — whichever ssh-keyscan wrote
+          # first, i.e. whichever the network returned first. Plaintext entries
+          # yield all types for the host, so they can't lose that race.
+          grep -qE '^[[:space:]]*\|1\|' ~/.ssh/known_hosts \
+            && { echo "::error::SSH_KNOWN_HOSTS contains hashed (|1|...) entries. Pin PLAINTEXT lines: SSHKit uses only the first hashed entry, so a hashed pin enforces one arbitrary key type and deploys fail at random (this caused the 6de948a incident). Re-pin without ssh-keyscan -H."; exit 1; } || true
+          ruby -e '
+            host = "87.99.137.181"
+            begin
+              require "sshkit"
+              found = SSHKit::Backend::Netssh::KnownHosts.new.search_for(host).to_a
+            rescue Exception => e
+              abort("::error::Host-key pin check could not run (#{e.class}: #{e.message}). It calls SSHKit::Backend::Netssh::KnownHosts#search_for, which is internal API, and sshkit floats within kamal 2.12.0 (>= 1.23.0, < 2.0). If it moved, repair this guard — do not delete it; without it a bad pin deploys unverified.")
+            end
+            abort("::error::SSH_KNOWN_HOSTS resolves to no key for #{host} — refusing to deploy, because Kamal would accept the host unverified. Pin lines whose host field is exactly #{host}; wildcard and @cert-authority forms are not matched by SSHKit and fail open.") if found.empty?
+            types = found.map(&:ssh_type).uniq
+            # Resolving *some* key is not enough: the incident was a pin whose type
+            # was not the one negotiated. net-ssh heads DEFAULT_ALGORITHMS[:host_key]
+            # with ssh-ed25519, and an rsa-only pin cannot steer negotiation (modern
+            # OpenSSH no longer offers SHA-1 ssh-rsa), so it would pass a count-only
+            # check and then die on HostKeyMismatch — the exact 6de948a symptom.
+            abort("::error::SSH_KNOWN_HOSTS resolves only #{types.join(", ")} for #{host}, no ssh-ed25519. net-ssh negotiates ed25519 and would fail HostKeyMismatch against this pin. Re-pin all types: ssh-keyscan -t ed25519,ecdsa,rsa #{host} | grep -v \"^#\"") unless types.include?("ssh-ed25519")
+            puts "host key pin OK: #{found.size} key(s) for #{host} (#{types.join(", ")})"
+          '
           cat > ~/.ssh/config <<'CFG'
           Host 87.99.137.181
             User root

@@ -61,3 +61,8 @@ report.*.json
 **/android/app/build/
 *.keystore
 !debug.keystore
+
+# Deploy credentials — the CI deploy keypair grants root on the API box.
+# Keep it out of the repo entirely; this is a backstop against `git add .`.
+/biteworthy-deploy
+/biteworthy-deploy.pub
