@@ -29,39 +29,48 @@ the Phase 5 pause) are archived in
   host-key comparison is **not** a compromise assessment either way. The
   a701eea run had SSH'd fine 7 min earlier on identical logic (6de948a changed
   only comments), so the failure was nondeterministic.
-- **Root cause:** the deploy-time `ssh-keyscan -H … >> known_hosts 2>/dev/null`
-  returned an ed25519 key that was **not** the box's, and net-ssh correctly
-  refused it. Established by probing net-ssh 7.3.3 (Kamal's own client)
-  against the live box. The first hypothesis (empty/partial scan) was
-  **refuted**, and so was the follow-up guess that hashed entries are ignored:
-  - empty known_hosts → **accepted**; partial (rsa+ecdsa, no ed25519) →
-    **accepted**. net-ssh's default verifier accepts a host it has no entry
-    for, so those shapes cannot produce this error.
-  - a truncated/corrupt ed25519 line → `ArgumentError`, not HostKeyMismatch.
-  - hashed `-H` entries **are** parsed and enforced (a hashed *wrong* key
-    raises HostKeyMismatch). So the scanned pin was checked — the check was
-    just circular: verifying the box against keys the same network hop had
-    just supplied. Scanning buys enforcement, not trust.
-  - only a well-formed **wrong** ed25519 entry reproduces the exact error.
-- **Why the scan got a wrong key is unknown and not recoverable** — the runner
-  is gone and the step discarded stderr. Most likely a transient Hetzner
-  routing/IP anomaly; **interception on the runner's egress path cannot be
-  ruled out** on the available evidence. This is precisely the failure TOFU
-  invites, and pinning makes it fail closed.
-- **Fix:** pinned host keys via a new `SSH_KNOWN_HOSTS` repo secret; dropped
-  the scan; `set -euo pipefail` + preflight + an ed25519-for-this-host
-  assertion so a wrong-host pin fails loudly instead of failing open (net-ssh
-  accepts unknown hosts). The assertion delegates matching to `ssh-keygen -F`
-  rather than a regex — a regex rejected valid pins net-ssh honours
-  (`host,ip` lists, tabs, hashed). Verified with net-ssh 7.3.3 against the
-  live box: the pin passes host verification; a tampered pin reproduces the
-  original `HostKeyMismatch` exactly. Re-pin *only* from out-of-band-verified
-  material — never from a bare `ssh-keyscan`. See the note in
-  `deploy-api.yml`.
-- **Known gap:** the guard checks the port-22 form. If an `ssh: port:` is ever
-  added to `apps/api/config/deploy.yml`, net-ssh looks up `[ip]:port`, the pin
-  stops matching, and it silently accepts the host unverified while the guard
+- **Root cause — a race in `ssh-keyscan -H`, reproduced both ways locally.**
+  Nothing was wrong with the box's keys and nothing was intercepted:
+  - `ssh-keyscan -H` writes rsa/ecdsa/ed25519 in network **arrival order**.
+  - Kamal → SSHKit, and SSHKit **replaces net-ssh's known_hosts matcher** with
+    its own (`backends/netssh.rb`). Its `KnownHostsKeys#keys_for` **returns on
+    the first matching hashed entry**, so a hashed file yields exactly **one**
+    key type — whichever won the race.
+  - rsa first → SSHKit yields only the rsa key → net-ssh negotiates ed25519 →
+    compares it against the lone rsa entry → `HostKeyMismatch` naming the box's
+    *real* ed25519 fingerprint. **ed25519 first → verifies, deploy proceeds.**
+    Same code, two outcomes, 7 min apart — exactly a701eea (pass) vs 6de948a
+    (fail).
+  - Plaintext entries yield *all* types for the host (`keys[h]`), so they can't
+    lose this race. That is why pinning fixes it.
+- **Two earlier hypotheses were wrong; recorded so the next reader doesn't
+  re-run them.** (a) "Empty/partial scan" — refuted: empty known_hosts is
+  silently *accepted* (net-ssh accepts a host it has no entry for), and a
+  truncated line raises `ArgumentError`, so neither yields this error.
+  (b) "The scan returned a wrong key, so interception can't be ruled out" —
+  **withdrawn**: it came from probing `Net::SSH.start` directly, which uses
+  net-ssh's own matcher and returns *all* matching keys. Kamal never takes that
+  path. Probing SSHKit's matcher — the real consumer — reproduced the failure
+  from correct keys alone. No security event.
+- **Fix:** pinned **plaintext** host keys via a new `SSH_KNOWN_HOSTS` repo
+  secret (3 lines, all types); dropped the scan; `set -euo pipefail` +
+  preflight. The guard calls **SSHKit's own `KnownHosts#search_for`** rather
+  than imitating it with grep/`ssh-keygen -F`, so the check cannot disagree
+  with the deploy: both regex and `ssh-keygen -F` *passed* wildcard and
+  `@cert-authority` pins that SSHKit yields **zero** keys for — a green check
+  over an unverified deploy — and the regex also *blocked* valid rsa/ecdsa
+  pins. It also rejects hashed pins outright, since those reintroduce the
+  first-hash-only race that caused this incident. Verified against the live
+  box: the pin resolves to 3 keys and passes; wildcard/`@cert-authority`/empty
+  are blocked. Re-pin *only* from out-of-band-verified material, unhashed —
+  never from a bare `ssh-keyscan`. See the note in `deploy-api.yml`.
+- **Known gap:** the guard assumes port 22. If an `ssh: port:` is ever added to
+  `apps/api/config/deploy.yml`, net-ssh looks up `[ip]:port`, the pin stops
+  matching, and Kamal silently accepts the host unverified while the guard
   still passes. Re-pin in the `[ip]:port` form if that day comes.
+- **Method note:** probe the client the code actually uses. Driving
+  `Net::SSH.start` directly produced confidently wrong conclusions twice,
+  because SSHKit swaps out the matcher underneath Kamal.
 - Gitignored `biteworthy-deploy{,.pub}` (the CI deploy keypair, root on the
   API box) — it was sitting untracked and uncovered in the repo root. History
   checked: never committed. **MANUAL, user: move that keypair out of the repo

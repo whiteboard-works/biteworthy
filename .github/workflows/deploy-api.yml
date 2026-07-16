@@ -65,26 +65,31 @@ jobs:
           : "${SSH_PRIVATE_KEY:?Set the SSH_PRIVATE_KEY repo secret (key with root@87.99.137.181 access)}"
           : "${SSH_KNOWN_HOSTS:?Set the SSH_KNOWN_HOSTS repo secret (pinned known_hosts lines for 87.99.137.181)}"
 
-      # The host keys are pinned rather than scanned. The previous
-      # `ssh-keyscan -H … >> known_hosts` re-derived trust from the network on
-      # every run, which is trust-on-first-use: whatever answered got trusted.
-      # That is what broke the 6de948a deploy — the scan returned an ed25519 key
-      # that was not the box's, so Kamal died on Net::SSH::HostKeyMismatch naming
-      # the box's *real* fingerprint. Probing net-ssh 7.3.3 (Kamal's own client):
-      # it does parse and enforce scanned-in entries, including hashed `-H` ones
-      # — so the check ran, it just had nothing trustworthy to check against.
-      # Scanning and then verifying against the scan is circular; the pin has to
-      # come from somewhere the network cannot supply.
+      # Host keys are pinned rather than scanned, for two independent reasons.
+      #
+      # 1. It fixes the 6de948a failure, which was a RACE, not a bad key. The old
+      #    `ssh-keyscan -H` wrote rsa/ecdsa/ed25519 in network ARRIVAL order, and
+      #    SSHKit's KnownHostsKeys#keys_for returns on the FIRST matching hashed
+      #    entry — so Kamal saw exactly one key type: whichever won the race. When
+      #    rsa landed first, net-ssh negotiated ed25519, compared it against the
+      #    lone rsa entry, and raised HostKeyMismatch naming the box's *real*
+      #    ed25519 fingerprint. When ed25519 landed first, the deploy passed. Same
+      #    code, two outcomes, seven minutes apart. Reproduced both ways locally.
+      #    Plaintext pins yield every type for the host, so they can't lose it.
+      #
+      # 2. Scanning at deploy time is trust-on-first-use regardless: verifying the
+      #    box against keys the network just handed you is circular. The pin has
+      #    to come from somewhere the network cannot supply.
       #
       # If a deploy fails host verification, do NOT re-pin whatever the box now
-      # offers — a bare `ssh-keyscan` consults nothing and would just launder an
+      # offers — a bare `ssh-keyscan` consults nothing and would launder an
       # attacker's key into the pin.
       #   ssh-keyscan -t ed25519 87.99.137.181 | ssh-keygen -lf -   # offered now
       #   ssh-keygen -F 87.99.137.181 | ssh-keygen -lf -            # your laptop
       # Treat the laptop copy as a cross-check, NOT an anchor: it was itself
       # TOFU-established at `kamal setup`. The only sound anchor is out-of-band —
       # a rebuild you performed, or fingerprints read from the Hetzner console.
-      # Once confirmed, write the verified lines back with:
+      # Once confirmed, write the verified lines back (note: no -H):
       #   ssh-keyscan -t ed25519,ecdsa,rsa 87.99.137.181 | grep -v '^#' \
       #     | gh secret set SSH_KNOWN_HOSTS --repo whiteboard-works/biteworthy
       # — run that ONLY after the out-of-band check above, never to clear a red
@@ -100,18 +105,31 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          # net-ssh negotiates ed25519 and silently ACCEPTS a host it has no entry
-          # for, so a pin naming the wrong host fails *open*. Assert we really do
-          # have an ed25519 entry bound to this box. Matching is delegated to
-          # `ssh-keygen -F` rather than a regex: it applies OpenSSH's own host
-          # matching, so every form net-ssh honours (plain, `host,ip` lists, tab
-          # separators, hashed `-H` output) passes, and only a genuinely absent or
-          # wrong-host pin is rejected. A regex here rejected valid pins.
-          matched="$(ssh-keygen -F 87.99.137.181 -f ~/.ssh/known_hosts 2>/dev/null || true)"
-          case "$matched" in
-            *ssh-ed25519*) ;;
-            *) echo "::error::SSH_KNOWN_HOSTS has no ed25519 entry for 87.99.137.181 — refusing to deploy against an unpinned host (net-ssh would accept it unverified)."; exit 1 ;;
-          esac
+          # A pin the deploy can't actually match is worse than none: net-ssh
+          # ACCEPTS a host it finds no key for, so a bad pin fails *open* and
+          # ships every .kamal/secret to whatever answered. So assert the pin
+          # yields at least one key — using Kamal's own lookup rather than an
+          # imitation of it. Kamal → SSHKit, and SSHKit replaces net-ssh's
+          # known_hosts matcher with its own (backends/netssh.rb: `known_hosts:
+          # SSHKit::Backend::Netssh::KnownHosts.new`), which is stricter than
+          # OpenSSH: exact host-field match only. `ssh-keygen -F` and grep both
+          # pass wildcard/@cert-authority pins that SSHKit yields nothing for —
+          # green check, unverified deploy. Calling search_for is the only check
+          # that cannot disagree with the deploy.
+          # Reject hashed pins: this is the bug that caused the incident. SSHKit's
+          # KnownHostsKeys#keys_for RETURNS ON THE FIRST matching hash entry, so a
+          # hashed file yields exactly one key type — whichever ssh-keyscan wrote
+          # first, i.e. whichever the network returned first. Plaintext entries
+          # yield all types for the host, so they can't lose that race.
+          grep -q '^|1|' ~/.ssh/known_hosts \
+            && { echo "::error::SSH_KNOWN_HOSTS contains hashed (|1|...) entries. Pin PLAINTEXT lines: SSHKit uses only the first hashed entry, so a hashed pin enforces one arbitrary key type and deploys fail at random (this caused the 6de948a incident). Re-pin without ssh-keyscan -H."; exit 1; } || true
+          ruby -e '
+            require "sshkit"
+            host = "87.99.137.181"
+            found = SSHKit::Backend::Netssh::KnownHosts.new.search_for(host).to_a
+            abort("::error::SSH_KNOWN_HOSTS resolves to no key for #{host} — refusing to deploy, because Kamal would accept the host unverified. Pin lines whose host field is exactly #{host}; wildcard and @cert-authority forms are not matched by SSHKit and fail open.") if found.empty?
+            puts "host key pin OK: #{found.size} key(s) for #{host} (#{found.map(&:ssh_type).uniq.join(", ")})"
+          '
           cat > ~/.ssh/config <<'CFG'
           Host 87.99.137.181
             User root
