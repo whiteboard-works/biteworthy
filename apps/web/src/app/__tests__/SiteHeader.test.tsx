@@ -11,6 +11,7 @@ const mockReplace = vi.fn();
 const mockRefresh = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, refresh: mockRefresh }),
+  usePathname: () => '/',
 }));
 
 const mockLogout = vi.fn();

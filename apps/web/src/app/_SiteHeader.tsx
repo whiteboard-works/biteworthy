@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '../lib/auth';
 
 /**
@@ -17,11 +17,17 @@ import { logout } from '../lib/auth';
  */
 export function SiteHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   // null = not yet known; render a neutral bar to avoid a Sign-in →
   // Account flash and the layout shift that comes with it.
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // Re-read on every navigation (keyed on pathname), not just mount: a
+  // login/logout redirect is a soft nav that keeps this component
+  // mounted, so a mount-only check would show stale "Sign in" right
+  // after signing in. The previous value stays put while re-fetching,
+  // so there's no flash between routes.
   useEffect(() => {
     let active = true;
     fetch('/api/auth/session', { credentials: 'same-origin' })
@@ -35,7 +41,7 @@ export function SiteHeader() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname]);
 
   const onLogout = async () => {
     setLoggingOut(true);
