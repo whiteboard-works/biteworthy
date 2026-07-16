@@ -17,6 +17,21 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-15 — Web camera capture + PWA hygiene. Branch `feat/web-camera-pwa`.
+
+- `/ingest`: added a rear-camera capture control (`<input capture="environment">`)
+  beside the existing PDF/photo picker, so mobile web can snap a menu before/without
+  the native app. Shared `onPickFile`; selected-file name is echoed as feedback since
+  the camera input is visually hidden. Reuses `ingestFromFile` — no new API. Live
+  camera / getUserMedia / offline stays the native app's job.
+- PWA hygiene, no service worker: `app/manifest.ts` (→ `/manifest.webmanifest`,
+  `display: standalone`, theme/bg from `@biteworthy/ui-tokens`), `viewport.themeColor`
+  + `appleWebApp` metadata in `layout.tsx`, and `public/icons/icon-{192,512}.png`
+  generated from the #407 512² `app/icon.png`. Favicon + apple-touch-icon come from
+  the `app/icon.png` + `app/apple-icon.png` convention (#407). Verified on a dev boot:
+  manifest 200 `application/manifest+json`, head tags inject, icons serve, `/ingest`
+  shows the camera input.
+
 2026-07-15 — API auto-deploy. Branch `chore/api-auto-deploy`.
 
 - Added `.github/workflows/deploy-api.yml`: runs `kamal deploy` on merge to

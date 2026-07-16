@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import {
@@ -30,6 +30,8 @@ export default function IngestPage() {
   const [error, setError] = useState<string | null>(null);
 
   const restaurantId = restaurant?.id ?? manualId;
+
+  const onPickFile = (e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null);
 
   const submit = async (mode: 'url' | 'file') => {
     setError(null);
@@ -138,12 +140,34 @@ export default function IngestPage() {
 
       <section className="space-y-3 rounded-xl border border-zinc-200 p-4">
         <h2 className="text-lg font-semibold">Or drop a PDF / photo</h2>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block"
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* capture="environment" opens the phone's rear camera directly.
+              Kept separate from the picker below because `capture` would
+              otherwise block PDF + existing-photo selection on mobile. */}
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-orange-600 px-4 py-2 font-semibold text-orange-700 hover:bg-orange-50">
+            📷 Take a photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={onPickFile}
+              className="sr-only"
+              data-testid="camera-input"
+            />
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            onChange={onPickFile}
+            className="block text-sm"
+            data-testid="file-input"
+          />
+        </div>
+        {file && (
+          <p className="text-sm text-zinc-700" data-testid="selected-file">
+            Selected <span className="font-medium">{file.name}</span>
+          </p>
+        )}
         <button
           type="button"
           onClick={() => void submit('file')}
