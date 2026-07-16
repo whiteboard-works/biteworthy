@@ -64,10 +64,15 @@ the Phase 5 pause) are archived in
   box: the pin resolves to 3 keys and passes; wildcard/`@cert-authority`/empty
   are blocked. Re-pin *only* from out-of-band-verified material, unhashed —
   never from a bare `ssh-keyscan`. See the note in `deploy-api.yml`.
-- **Known gap:** the guard assumes port 22. If an `ssh: port:` is ever added to
-  `apps/api/config/deploy.yml`, net-ssh looks up `[ip]:port`, the pin stops
-  matching, and Kamal silently accepts the host unverified while the guard
-  still passes. Re-pin in the `[ip]:port` form if that day comes.
+- **Known gap — the guard looks the host up exactly as Kamal does *today*.**
+  net-ssh derives its lookup key from the connection, so changing
+  `apps/api/config/deploy.yml` can silently move it out from under the pin:
+  `ssh: port:` → `[ip]:port`; an `ssh: proxy:` or a DNS hostname in
+  `servers.web.hosts` → `host,peer_ip` (SSHKit intersects the per-name key
+  sets, so a single-host-field pin yields **zero** keys). Zero keys means
+  Kamal accepts the host unverified while the guard still prints OK. If any of
+  those change, re-pin in the matching form. The guard fails closed on
+  everything it can see; it cannot see deploy.yml.
 - **Method note:** probe the client the code actually uses. Driving
   `Net::SSH.start` directly produced confidently wrong conclusions twice,
   because SSHKit swaps out the matcher underneath Kamal.

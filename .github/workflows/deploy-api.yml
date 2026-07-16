@@ -121,14 +121,25 @@ jobs:
           # hashed file yields exactly one key type — whichever ssh-keyscan wrote
           # first, i.e. whichever the network returned first. Plaintext entries
           # yield all types for the host, so they can't lose that race.
-          grep -q '^|1|' ~/.ssh/known_hosts \
+          grep -qE '^[[:space:]]*\|1\|' ~/.ssh/known_hosts \
             && { echo "::error::SSH_KNOWN_HOSTS contains hashed (|1|...) entries. Pin PLAINTEXT lines: SSHKit uses only the first hashed entry, so a hashed pin enforces one arbitrary key type and deploys fail at random (this caused the 6de948a incident). Re-pin without ssh-keyscan -H."; exit 1; } || true
           ruby -e '
-            require "sshkit"
             host = "87.99.137.181"
-            found = SSHKit::Backend::Netssh::KnownHosts.new.search_for(host).to_a
+            begin
+              require "sshkit"
+              found = SSHKit::Backend::Netssh::KnownHosts.new.search_for(host).to_a
+            rescue Exception => e
+              abort("::error::Host-key pin check could not run (#{e.class}: #{e.message}). It calls SSHKit::Backend::Netssh::KnownHosts#search_for, which is internal API, and sshkit floats within kamal 2.12.0 (>= 1.23.0, < 2.0). If it moved, repair this guard — do not delete it; without it a bad pin deploys unverified.")
+            end
             abort("::error::SSH_KNOWN_HOSTS resolves to no key for #{host} — refusing to deploy, because Kamal would accept the host unverified. Pin lines whose host field is exactly #{host}; wildcard and @cert-authority forms are not matched by SSHKit and fail open.") if found.empty?
-            puts "host key pin OK: #{found.size} key(s) for #{host} (#{found.map(&:ssh_type).uniq.join(", ")})"
+            types = found.map(&:ssh_type).uniq
+            # Resolving *some* key is not enough: the incident was a pin whose type
+            # was not the one negotiated. net-ssh heads DEFAULT_ALGORITHMS[:host_key]
+            # with ssh-ed25519, and an rsa-only pin cannot steer negotiation (modern
+            # OpenSSH no longer offers SHA-1 ssh-rsa), so it would pass a count-only
+            # check and then die on HostKeyMismatch — the exact 6de948a symptom.
+            abort("::error::SSH_KNOWN_HOSTS resolves only #{types.join(", ")} for #{host}, no ssh-ed25519. net-ssh negotiates ed25519 and would fail HostKeyMismatch against this pin. Re-pin all types: ssh-keyscan -t ed25519,ecdsa,rsa #{host} | grep -v \"^#\"") unless types.include?("ssh-ed25519")
+            puts "host key pin OK: #{found.size} key(s) for #{host} (#{types.join(", ")})"
           '
           cat > ~/.ssh/config <<'CFG'
           Host 87.99.137.181
