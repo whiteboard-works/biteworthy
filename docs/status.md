@@ -17,6 +17,35 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-16 — Deploy-api host-key pinning. Branch `fix/deploy-api-pin-host-keys`.
+
+- **The 6de948a deploy failed** with `Net::SSH::HostKeyMismatch … fingerprint
+  SHA256:GlR1Zi0t… does not match`. Not a compromise and not a rebuilt box:
+  all three host-key fingerprints (rsa/ecdsa/ed25519) still match what was
+  recorded at provisioning, and the "mismatched" key is the box's *real*
+  ed25519 key. The a701eea run had SSH'd fine 7 min earlier on identical
+  logic (6de948a changed only comments) — i.e. the failure was
+  nondeterministic.
+- **Root cause:** `ssh-keyscan -H … >> known_hosts 2>/dev/null` re-derived
+  trust from the network on every deploy, discarded its errors, and never
+  checked it produced a usable entry. An empty/partial scan leaves
+  known_hosts not covering the key Net::SSH negotiates → HostKeyMismatch
+  naming the genuine fingerprint. The exact partial-scan mode isn't
+  recoverable from the logs (stderr was discarded), but pinning removes the
+  whole class.
+- **Fix:** pinned host keys via a new `SSH_KNOWN_HOSTS` repo secret; dropped
+  the scan; `set -euo pipefail` + preflight + an ed25519-present assertion so
+  a bad pin fails loudly instead of at Kamal. Also closes a real hole —
+  deploy-time keyscan is TOFU and would have trusted a spoofed host.
+  Verified against the live box: correct pin passes host verification,
+  a tampered pin is refused ("REMOTE HOST IDENTIFICATION HAS CHANGED").
+  Re-pin *only* after confirming a genuine rebuild — see the note in
+  `deploy-api.yml`.
+- Gitignored `biteworthy-deploy{,.pub}` (the CI deploy keypair, root on the
+  API box) — it was sitting untracked and uncovered in the repo root. History
+  checked: never committed. **MANUAL, user: move that keypair out of the repo
+  (e.g. `~/.ssh/`); the gitignore is only a backstop.**
+
 2026-07-15 — Web camera capture + PWA hygiene. Branch `feat/web-camera-pwa`.
 
 - `/ingest`: added a rear-camera capture control (`<input capture="environment">`)
@@ -44,7 +73,8 @@ the Phase 5 pause) are archived in
   app secret + KAMAL_REGISTRY_PASSWORD), plus `SSH_PRIVATE_KEY` (root@box key).
   **MANUAL, user: add both repo secrets before the first run**, else the
   preflight step fails loudly. First run (on the #405 merge) went green —
-  pipeline validated end-to-end.
+  pipeline validated end-to-end. (A third secret, `SSH_KNOWN_HOSTS`, was added
+  2026-07-16 — see the top entry.)
 - **Secret rotation helper** `apps/api/bin/kamal-secrets-push`: re-encodes
   `.kamal/secrets` → the `KAMAL_SECRETS_B64` repo secret via `gh secret set`
   (add `--deploy` to also dispatch deploy-api). Run it after changing any
