@@ -82,7 +82,7 @@ GEM
       public_suffix (>= 2.0.2, < 8.0)
     aes_key_wrap (1.1.0)
     ast (2.4.3)
-    avo (4.0.11)
+    avo (4.0.13)
       actionview (>= 6.1)
       active_link_to
       activerecord (>= 6.1)
@@ -578,7 +578,7 @@ CHECKSUMS
   addressable (2.9.0) sha256=7fdf6ac3660f7f4e867a0838be3f6cf722ace541dd97767fa42bc6cfa980c7af
   aes_key_wrap (1.1.0) sha256=b935f4756b37375895db45669e79dfcdc0f7901e12d4e08974d5540c8e0776a5
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
-  avo (4.0.11) sha256=3e1d93402b393f73e994d8180ac6087c3e9019624a127dc587a9d6ce8ef92eec
+  avo (4.0.13) sha256=ed70258111fc067aca4c5fadd4fa13a3fe7f7ef4ce516cd4dba07dcfca0e520c
   avo-icons (0.1.6) sha256=6f1c985aca238d81446e517cee4924752e7ada1604971f6bb59913472e123f4c
   aws-eventstream (1.4.0) sha256=116bf85c436200d1060811e6f5d2d40c88f65448f2125bc77ffce5121e6e183b
   aws-partitions (1.1271.0) sha256=a078db0fa59bb5beeceef56b3a482140179ece702ee94fbc94196e2281296c0c
