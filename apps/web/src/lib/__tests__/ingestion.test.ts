@@ -154,6 +154,7 @@ describe('ingestFromFile', () => {
 // ---------------------------------------------------------------------------
 
 import {
+  acceptAllRunItems,
   createRestaurant,
   decideRunItem,
   fetchRunItems,
@@ -165,6 +166,7 @@ const sampleItem: IngestionItemPayload = {
   id: 'item-1',
   ingestion_run_id: 'rrrr-1111',
   item_id: null,
+  position: 0,
   name: 'Pad Thai',
   description: 'Rice noodles, peanut, lime.',
   section_name: 'Noodles',
@@ -246,6 +248,26 @@ describe('fetchRunItems / decideRunItem', () => {
     expect(url).toBe('/api/ingestion_runs/rrrr-1111/items/item-1');
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(init.body as string)).toEqual({ decision: 'accepted' });
+  });
+
+  it('Undo PATCHes decision: pending', async () => {
+    const fetchImpl = fakeFetch(200, { ...sampleItem, decision: 'pending' });
+
+    await decideRunItem({ runId: 'rrrr-1111', itemId: 'item-1', decision: 'pending', fetchImpl });
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ decision: 'pending' });
+  });
+
+  it('acceptAll POSTs to the collection route and unwraps items', async () => {
+    const fetchImpl = fakeFetch(200, { items: [{ ...sampleItem, decision: 'accepted' }] });
+
+    const items = await acceptAllRunItems('rrrr-1111', fetchImpl);
+
+    expect(items[0]!.decision).toBe('accepted');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/ingestion_runs/rrrr-1111/items/accept_all');
+    expect(init.method).toBe('POST');
   });
 });
 

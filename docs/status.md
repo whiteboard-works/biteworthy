@@ -17,6 +17,19 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Verify-flow redesign PR-3: verify page UI. Branch `feat/verify-page-redesign`.
+
+- Surfaces the PR-1/PR-2 backend to users. The verify page now shows dishes from
+  `:resolving` on (not just `:staged`), **grouped by sub-menu** (section), each
+  row's ingredient/tag chips reading **"matching…"** until enrichment fills them.
+  Added **Accept All** (bulk) and **Undo** (per row → un-promote), and publish
+  messaging that reflects "finalizes once matching finishes." lib:
+  `acceptAllRunItems` + `decideRunItem(pending)`; new `/items/accept_all` proxy;
+  `position` on the item payload type.
+- Web vitest 214 (+4), typecheck/lint green. Verify-flow redesign (PR-1/2/3) done;
+  mobile verify screen mirrors this as a follow-up. Still open: confirm the new
+  pipeline with a live scan; the resolve JSON-parse robustness follow-up.
+
 2026-07-21 — Homepage discovery: show restaurants + menu links everywhere.
 Branch `feat/homepage-discovery`.
 

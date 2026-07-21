@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  acceptAllRunItems,
   fetchRun,
   fetchRunItems,
   friendlyIngestionError,
@@ -14,7 +15,7 @@ import { VerifyItemRow } from './_VerifyItemRow';
 const PIPELINE_LABELS: Record<IngestionRunPayload['status'], string> = {
   queued: 'Waiting in line…',
   extracting: 'Reading the menu…',
-  resolving: 'Matching ingredients…',
+  resolving: 'Dishes found — matching ingredients…',
   staged: 'Ready to verify',
   published: 'Published!',
   failed: 'Extraction failed',
@@ -22,11 +23,27 @@ const PIPELINE_LABELS: Record<IngestionRunPayload['status'], string> = {
 
 const POLL_MS = 3_000;
 
+// Group items by sub-menu (section), preserving first-seen (menu) order; items
+// with no section land under a neutral "Menu" header.
+function groupBySection(
+  items: IngestionItemPayload[],
+): Array<[string, IngestionItemPayload[]]> {
+  const groups = new Map<string, IngestionItemPayload[]>();
+  for (const it of items) {
+    const key = it.section_name?.trim() || 'Menu';
+    const arr = groups.get(key) ?? [];
+    arr.push(it);
+    groups.set(key, arr);
+  }
+  return [...groups.entries()];
+}
+
 /**
- * Phase 6.5 — web verify page. Polls the run while the pipeline is
- * working, then renders the staged items for accept/reject. The 80%
- * threshold (Phase 2.5) flips the run + restaurant to published as
- * decisions come in; we re-poll after each decision to notice.
+ * Verify page (verify-flow redesign). Dishes are materialized at extraction, so
+ * they show up during `:resolving` — grouped by sub-menu, each with its
+ * ingredient/tag chips "matching…" until enrichment lands. Accept / Reject /
+ * Undo per dish, plus Accept All. Publishing only fires once matching finishes
+ * (`:staged`), so a dish never goes live without its allergen data.
  */
 export default function VerifyRunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = use(params);
@@ -34,15 +51,20 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
   const [run, setRun] = useState<IngestionRunPayload | null>(null);
   const [items, setItems] = useState<IngestionItemPayload[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [acceptingAll, setAcceptingAll] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const latest = await fetchRun(runId);
       setRun(latest);
-      if (latest.status === 'staged' || latest.status === 'published') {
+      // Dishes exist from :resolving on — show them (and keep them fresh as
+      // enrichment fills in), not just at :staged.
+      if (['resolving', 'staged', 'published'].includes(latest.status)) {
         setItems(await fetchRunItems(runId));
-      } else if (latest.status !== 'failed') {
+      }
+      // Keep polling until enrichment settles or the run terminates.
+      if (!['staged', 'published', 'failed'].includes(latest.status)) {
         pollTimer.current = setTimeout(() => void refresh(), POLL_MS);
       }
     } catch (e) {
@@ -63,7 +85,23 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
     void fetchRun(runId).then(setRun).catch(() => undefined);
   };
 
+  const onAcceptAll = async () => {
+    setError(null);
+    try {
+      setAcceptingAll(true);
+      setItems(await acceptAllRunItems(runId));
+      await fetchRun(runId).then(setRun);
+    } catch (e) {
+      setError(friendlyIngestionError(e));
+    } finally {
+      setAcceptingAll(false);
+    }
+  };
+
+  const enriched = run?.status === 'staged' || run?.status === 'published';
   const decidedCount = items?.filter((it) => it.decision !== 'pending').length ?? 0;
+  const pendingCount = items?.filter((it) => it.decision === 'pending').length ?? 0;
+  const stillWorking = run != null && ['queued', 'extracting', 'resolving'].includes(run.status);
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
@@ -74,7 +112,7 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
         <h1 className="mt-1 text-3xl font-bold">
           {run ? PIPELINE_LABELS[run.status] : 'Loading…'}
         </h1>
-        {run && run.status !== 'staged' && run.status !== 'published' && run.status !== 'failed' && (
+        {stillWorking && !items && (
           <p className="mt-2 text-zinc-600" role="status">
             This usually takes under a minute. The page refreshes itself.
           </p>
@@ -99,16 +137,46 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
         </div>
       )}
 
-      {items && (
+      {items && items.length > 0 && (
         <>
-          <p className="text-sm text-zinc-500" role="status">
-            {decidedCount} of {items.length} decided — accept at least 80% to publish.
-          </p>
-          <ul className="space-y-3">
-            {items.map((item) => (
-              <VerifyItemRow key={item.id} runId={runId} item={item} onDecided={onDecided} />
-            ))}
-          </ul>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="text-sm text-zinc-600" role="status">
+              <span className="font-semibold text-zinc-900">{items.length} dishes</span>
+              {!enriched && <span className="text-zinc-500"> · still matching ingredients &amp; tags…</span>}
+              <span className="mt-1 block">
+                {decidedCount} of {items.length} decided — accept at least 80% to publish
+                {!enriched && ' (publishing finalizes once matching finishes)'}.
+              </span>
+            </div>
+            {pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void onAcceptAll()}
+                disabled={acceptingAll}
+                data-testid="accept-all"
+                className="shrink-0 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {acceptingAll ? 'Accepting…' : `Accept all ${pendingCount}`}
+              </button>
+            )}
+          </div>
+
+          {groupBySection(items).map(([section, sectionItems]) => (
+            <section key={section} className="space-y-3" data-testid={`verify-section-${section}`}>
+              <h2 className="text-xs font-bold uppercase tracking-wide text-zinc-400">{section}</h2>
+              <ul className="space-y-3">
+                {sectionItems.map((it) => (
+                  <VerifyItemRow
+                    key={it.id}
+                    runId={runId}
+                    item={it}
+                    enriched={enriched}
+                    onDecided={onDecided}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
         </>
       )}
 
