@@ -15,6 +15,7 @@ const item: IngestionItemPayload = {
   id: 'item-1',
   ingestion_run_id: 'run-1',
   item_id: null,
+  position: 0,
   name: 'Pad Thai',
   description: 'Rice noodles, peanut, lime.',
   section_name: 'Noodles',
@@ -32,22 +33,27 @@ const item: IngestionItemPayload = {
 // beforeEach (empirically verified). Per-test mockImplementation
 // overrides + toHaveBeenLastCalledWith give the same isolation.
 describe('VerifyItemRow', () => {
-
-  it('renders name, price, section, and payload chips', () => {
-    render(<VerifyItemRow runId="run-1" item={item} onDecided={vi.fn()} />);
+  it('renders name, price, and payload chips when enriched', () => {
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
 
     expect(screen.getByText('Pad Thai')).toBeInTheDocument();
     expect(screen.getByText('$14.50')).toBeInTheDocument();
-    expect(screen.getByText('Noodles')).toBeInTheDocument();
     expect(screen.getByText('nut-peanut')).toBeInTheDocument();
     expect(screen.getByText('cuisine-thai')).toBeInTheDocument();
+  });
+
+  it('shows "matching…" instead of chips while the run is still enriching', () => {
+    render(<VerifyItemRow runId="run-1" item={item} enriched={false} onDecided={vi.fn()} />);
+
+    expect(screen.getByTestId('item-matching')).toBeInTheDocument();
+    expect(screen.queryByText('nut-peanut')).toBeNull();
   });
 
   it('accept wires through decideRunItem and reports the updated item', async () => {
     const updated = { ...item, decision: 'accepted' as const };
     decideMock.mockResolvedValue(updated);
     const onDecided = vi.fn();
-    render(<VerifyItemRow runId="run-1" item={item} onDecided={onDecided} />);
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={onDecided} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
 
@@ -59,24 +65,49 @@ describe('VerifyItemRow', () => {
     });
   });
 
-  it('decided items show a status badge instead of buttons', () => {
+  it('decided items show a status badge + Undo (no Accept/Reject)', () => {
     render(
       <VerifyItemRow
         runId="run-1"
         item={{ ...item, decision: 'accepted' }}
+        enriched
         onDecided={vi.fn()}
       />,
     );
 
     expect(screen.getByText('accepted')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull();
+    expect(screen.getByTestId('undo')).toBeInTheDocument();
+  });
+
+  it('Undo reverts the decision via decideRunItem(pending)', async () => {
+    const reverted = { ...item, decision: 'pending' as const };
+    decideMock.mockResolvedValue(reverted);
+    const onDecided = vi.fn();
+    render(
+      <VerifyItemRow
+        runId="run-1"
+        item={{ ...item, decision: 'accepted' }}
+        enriched
+        onDecided={onDecided}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('undo'));
+
+    await waitFor(() => expect(onDecided).toHaveBeenCalledWith(reverted));
+    expect(decideMock).toHaveBeenLastCalledWith({
+      runId: 'run-1',
+      itemId: 'item-1',
+      decision: 'pending',
+    });
   });
 
   it('renders the friendly error when the decision fails', async () => {
     decideMock.mockImplementation(() =>
       Promise.reject(new ingestion.IngestionRequestError(503, { error: 'cost_ceiling_reached' })),
     );
-    render(<VerifyItemRow runId="run-1" item={item} onDecided={vi.fn()} />);
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
 

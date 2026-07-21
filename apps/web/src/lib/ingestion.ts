@@ -126,6 +126,8 @@ export interface IngestionItemPayload {
   id: string;
   ingestion_run_id: string;
   item_id: string | null;
+  /** Flat index within the run's extraction order — used to keep verify stable. */
+  position: number | null;
   name: string | null;
   description: string | null;
   section_name: string | null;
@@ -173,7 +175,8 @@ export async function fetchRunItems(
 export async function decideRunItem(opts: {
   runId: string;
   itemId: string;
-  decision: 'accepted' | 'rejected';
+  /** `pending` is Undo — reverts a decision (and un-promotes if it went live). */
+  decision: 'accepted' | 'rejected' | 'pending';
   fetchImpl?: typeof fetch;
 }): Promise<IngestionItemPayload> {
   const { fetchImpl = fetch } = opts;
@@ -196,6 +199,28 @@ export async function decideRunItem(opts: {
     throw new IngestionRequestError(res.status, parsed);
   }
   return (await res.json()) as IngestionItemPayload;
+}
+
+/** Bulk-accept every pending item on a run (Accept All). Returns all items. */
+export async function acceptAllRunItems(
+  runId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<IngestionItemPayload[]> {
+  const res = await fetchImpl(
+    `/api/ingestion_runs/${encodeURIComponent(runId)}/items/accept_all`,
+    { method: 'POST', credentials: 'same-origin' },
+  );
+  if (!res.ok) {
+    let parsed: IngestionApiError | null = null;
+    try {
+      parsed = (await res.json()) as IngestionApiError;
+    } catch {
+      // ignore
+    }
+    throw new IngestionRequestError(res.status, parsed);
+  }
+  const body = (await res.json()) as { items: IngestionItemPayload[] };
+  return body.items;
 }
 
 /**
