@@ -164,11 +164,21 @@ export function SiteHeader() {
         <nav className="flex min-h-[1.5rem] items-center gap-bw-4 text-bw-sm">
           {signedIn === true && (
             <>
+              {/* Scanning is the core action and needs a home — a signed-in
+                  user otherwise has no way to reach /ingest, and onboarding
+                  (which scanning doesn't require) becomes a dead end. */}
+              <Link
+                href="/ingest"
+                data-testid="nav-scan"
+                className="font-semibold text-bite hover:text-bite-dark"
+              >
+                Scan a menu
+              </Link>
               {needsProfile && (
                 <Link
                   href="/onboarding"
                   data-testid="nav-food-profile"
-                  className="font-semibold text-bite hover:text-bite-dark"
+                  className="font-semibold text-zinc-700 hover:text-bite-dark"
                 >
                   Food profile
                 </Link>
