@@ -17,6 +17,24 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Verify-flow redesign PR-1: instant dishes + background enrichment
+(backend pipeline). Branch `feat/verify-flow-redesign`. See
+`docs/plans/verify-flow-redesign.md`.
+
+- The safety invariant: `promote!` (creates the real filterable Item + ingredient/
+  tag joins) must never run before a dish is enriched. The pipeline now:
+  extract → **materialize dishes now** (empty payloads, `position`) → resolve
+  ENRICHES the items in place (ingredients then tags) → at `:staged`, batch-promote
+  any items accepted during resolving, then the publish check.
+- ExtractMenuJob materializes items (moved off ResolveTagsJob); ResolveStageJob
+  writes resolution onto items by position (dropped the staging-mutation);
+  ResolveTagsJob enriches tags + promotes deferred accepts + stages + publishes.
+  Controller: accept while `:resolving` records the decision but DEFERS promote
+  (no Item without payloads). Migration: `position` on ingestion_items.
+- Specs rewritten (extract/resolve×2/controller) — couldn't run rspec locally
+  (no gem bundle), so ci-api is the first real run; expect to iterate. PR-2
+  (Accept All + Undo) and PR-3 (verify page: grouping, matching status) next.
+
 2026-07-21 — Failed runs no longer burn the per-user scan quota. Branch `fix/quota-excludes-failed`.
 
 - Verifying the earlier fixes was blocked: all 5 of the reporter's daily quota

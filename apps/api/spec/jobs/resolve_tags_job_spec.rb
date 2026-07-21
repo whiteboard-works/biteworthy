@@ -22,13 +22,31 @@ RSpec.describe ResolveTagsJob, type: :job do
     }
   end
 
+  # ExtractMenuJob materializes items up front; by the time ResolveTagsJob runs,
+  # ResolveIngredientsJob has already enriched them with ingredients. Recreate
+  # that state: items exist (position + ingredients_payload), tags still empty.
   let(:run) do
     r = create(:ingestion_run,
-               restaurant: restaurant,
-               status:     "resolving",
+               restaurant: restaurant, status: "resolving",
                staging:    staging_with_ingredients,
                state_history: { "extracting" => 5.minutes.ago.utc.iso8601,
                                 "resolving"  => Time.current.utc.iso8601 })
+    pos = 0
+    Array(staging_with_ingredients["sections"]).each do |section|
+      Array(section["items"]).each do |it|
+        r.ingestion_items.create!(
+          name:                   it["name"],
+          section_name:           section["name"],
+          position:               pos,
+          prices_payload:         Array(it["prices"]),
+          ingredients_payload:    Array(it["ingredients"]),
+          unresolved_ingredients: Array(it["unresolved_ingredients"]),
+          image_bbox:             it["image_bbox"],
+          decision:               "pending"
+        )
+        pos += 1
+      end
+    end
     r
   end
 
@@ -63,16 +81,17 @@ RSpec.describe ResolveTagsJob, type: :job do
         .to receive(:messages_create).and_return(tag_response)
     end
 
-    it "writes resolved tags into staging and creates IngestionItems" do
+    it "enriches the existing items with tags in place (by position) — no new items" do
       expect {
         described_class.perform_now(run.id)
-      }.to change(IngestionItem, :count).by(2)
+      }.not_to change(IngestionItem, :count)
 
-      run.reload
-      tacos = run.staging["sections"][0]["items"]
-      expect(tacos[0]["tags"]).to include({ "slug" => "cuisine-mexican", "confidence" => 0.99 })
-      expect(tacos[1]["tags"]).to include({ "slug" => "allergen-contains-dairy", "confidence" => 0.97 })
-      expect(tacos[1]["unresolved_tags"]).to eq(["queso-style"])
+      items = run.ingestion_items.order(:position)
+      expect(items[0].tags_payload).to include({ "slug" => "cuisine-mexican", "confidence" => 0.99 })
+      expect(items[1].tags_payload).to include({ "slug" => "allergen-contains-dairy", "confidence" => 0.97 })
+      expect(items[1].unresolved_tags).to eq(["queso-style"])
+      # Ingredients from the prior stage are preserved.
+      expect(items[0].ingredients_payload).to eq([{ "slug" => "meat-beef", "confidence" => 0.97 }])
     end
 
     it "transitions the run to :staged" do
@@ -82,28 +101,40 @@ RSpec.describe ResolveTagsJob, type: :job do
       expect(run.staged?).to be true
       expect(run.state_history.keys).to include("staged")
     end
+  end
 
-    it "materializes the IngestionItems with the right payloads" do
+  describe "deferred accepts (accepted while enrichment was running)" do
+    before do
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(tag_response)
+      # promote! needs the ingredient rows to build the joins.
+      create(:ingredient, slug: "meat-beef")
+    end
+
+    it "promotes items accepted during resolving once they're enriched, at :staged" do
+      # Accepted while :resolving — recorded but NOT promoted (empty payloads then).
+      accepted = run.ingestion_items.order(:position).first
+      accepted.update!(decision: "accepted", decided_at: Time.current)
+      expect(accepted.item_id).to be_nil
+
+      expect {
+        described_class.perform_now(run.id)
+      }.to change(Item, :count).by(1)
+
+      accepted.reload
+      expect(accepted.item_id).to be_present
+      # Safety property: the promoted Item carries the ingredient it was enriched
+      # with — nothing goes live without its allergen data.
+      expect(accepted.item.ingredients.pluck(:slug)).to include("meat-beef")
+    end
+
+    it "auto-publishes when the pre-accepted items cross the 80% threshold at :staged" do
+      run.ingestion_items.find_each { |i| i.update!(decision: "accepted", decided_at: Time.current) }
+
       described_class.perform_now(run.id)
 
-      first_item = IngestionItem.find_by(name: "Carne Asada Taco")
-      expect(first_item).to have_attributes(
-        ingestion_run:        run,
-        section_name:         "Tacos",
-        decision:             "pending"
-      )
-      expect(first_item.ingredients_payload).to eq(
-        [{ "slug" => "meat-beef", "confidence" => 0.97 }]
-      )
-      expect(first_item.tags_payload).to include(
-        { "slug" => "cuisine-mexican", "confidence" => 0.99 }
-      )
-      expect(first_item.prices_payload).to eq(
-        [{ "size" => nil, "price_cents" => 450 }]
-      )
-
-      cheese = IngestionItem.find_by(name: "Cheese Quesadilla")
-      expect(cheese.unresolved_tags).to eq(["queso-style"])
+      run.reload
+      expect(run.published?).to be true
     end
   end
 
@@ -113,71 +144,13 @@ RSpec.describe ResolveTagsJob, type: :job do
         .and_raise(AnthropicClient::ApiError.new(status: 500, body: "boom"))
     end
 
-    it "fails the run + does not create IngestionItems" do
-      expect {
-        described_class.perform_now(run.id)
-      }.not_to change(IngestionItem, :count)
+    it "fails the run and leaves the items un-enriched (tags still empty)" do
+      described_class.perform_now(run.id)
 
       run.reload
       expect(run.failed?).to be true
       expect(run.failure_message).to start_with("resolve_tags_api_error: 500")
-    end
-  end
-
-  # Phase 4.11.2 — when the extractor's payload included image_bbox
-  # (per-item bounding box for the inline dish photo), materialize
-  # must copy it onto the IngestionItem so Phase 4.11.3's promote!
-  # can crop + attach. Items without a bbox carry nil so the
-  # promote-time cropper skip kicks in cleanly.
-  describe "image_bbox from extraction" do
-    let(:staging_with_bbox) do
-      {
-        "sections" => [
-          { "name" => "Appetizers", "items" => [
-              { "name" => "Spring Rolls",
-                "description" => "Crispy veggie.",
-                "prices" => [{ "size" => nil, "price_cents" => 600 }],
-                "ingredients" => [],
-                "unresolved_ingredients" => [],
-                "image_bbox" => { "x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25 } },
-              { "name" => "Tom Yum",
-                "description" => "Hot + sour soup.",
-                "prices" => [{ "size" => nil, "price_cents" => 800 }],
-                "ingredients" => [],
-                "unresolved_ingredients" => [] }
-            ] }
-        ]
-      }
-    end
-
-    let(:run_with_bbox) do
-      create(:ingestion_run,
-             restaurant: restaurant, status: "resolving",
-             staging:    staging_with_bbox,
-             state_history: { "extracting" => 5.minutes.ago.utc.iso8601,
-                              "resolving"  => Time.current.utc.iso8601 })
-    end
-
-    let(:empty_tag_response) do
-      { "items" => [
-        { "index" => 0, "resolved" => [], "unresolved" => [] },
-        { "index" => 1, "resolved" => [], "unresolved" => [] }
-      ] }
-    end
-
-    before do
-      allow_any_instance_of(AnthropicClient)
-        .to receive(:messages_create).and_return(empty_tag_response)
-    end
-
-    it "copies image_bbox onto the IngestionItem when present, leaves nil otherwise" do
-      described_class.perform_now(run_with_bbox.id)
-
-      with_photo    = IngestionItem.find_by(name: "Spring Rolls")
-      without_photo = IngestionItem.find_by(name: "Tom Yum")
-
-      expect(with_photo.image_bbox).to eq("x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25)
-      expect(without_photo.image_bbox).to be_nil
+      expect(run.ingestion_items.first.tags_payload).to eq([])
     end
   end
 end

@@ -15,10 +15,12 @@ class ResolveIngredientsJob < ResolveStageJob
   def catalog_text = Ingestion::CatalogBuilder.ingredients_text
 
   def apply_and_advance(run, result, elapsed_ms)
-    run.update!(
-      staging:    apply_resolution(run.staging, result, key: :ingredients),
-      latency_ms: elapsed_ms
+    apply_resolution_to_items!(
+      run, result,
+      resolved_col:   :ingredients_payload,
+      unresolved_col: :unresolved_ingredients
     )
+    run.update!(latency_ms: elapsed_ms)
     ResolveTagsJob.perform_later(run.id)
   end
 end

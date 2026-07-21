@@ -139,6 +139,33 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       end
     end
 
+    context "decision: accepted while the run is still enriching (:resolving)" do
+      # Verify-flow redesign: a resolving run's dishes are visible + acceptable,
+      # but promote! must wait until enrichment fills the ingredient/tag payloads
+      # — an Item can't go live without them. The acceptance is recorded now and
+      # ResolveTagsJob batch-promotes it at :staged.
+      let(:resolving_run) do
+        create(:ingestion_run, restaurant: restaurant, user: non_admin, status: "resolving")
+      end
+      let!(:resolving_item) do
+        create(:ingestion_item, ingestion_run: resolving_run, name: "Enchilada", position: 0)
+      end
+
+      it "records the acceptance but defers promotion (no Item created yet)" do
+        expect {
+          patch "/api/v1/ingestion_runs/#{resolving_run.id}/items/#{resolving_item.id}",
+                params: { decision: "accepted" }.to_json,
+                headers: auth_for(non_admin)
+        }.not_to change(Item, :count)
+
+        expect(response).to have_http_status(:ok)
+        body = response.parsed_body
+        expect(body["decision"]).to eq("accepted")
+        expect(body["item_id"]).to  be_nil
+        expect(resolving_item.reload.decided_at).to be_present
+      end
+    end
+
     context "decision: edited (without accepting)" do
       it "saves the edited fields but does NOT materialize an Item" do
         expect {

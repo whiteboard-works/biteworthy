@@ -56,9 +56,20 @@ RSpec.describe ResolveIngredientsJob, type: :job do
     create(:ingredient, slug: "grain-rice")
   end
 
-  # Move the run to :resolving so transition_to! doesn't fail
-  # (transition queued → resolving is invalid).
-  before { run.transition_to!(:resolving) }
+  # ExtractMenuJob now materializes items up front (position = flat index),
+  # and the run is at :resolving when the resolve stages run. Mirror that here.
+  before do
+    pos = 0
+    Array(run.staging["sections"]).each do |section|
+      Array(section["items"]).each do |it|
+        run.ingestion_items.create!(
+          name: it["name"], section_name: section["name"], position: pos, decision: "pending"
+        )
+        pos += 1
+      end
+    end
+    run.transition_to!(:resolving)
+  end
 
   describe "happy path" do
     before do
@@ -66,22 +77,19 @@ RSpec.describe ResolveIngredientsJob, type: :job do
         .to receive(:messages_create).and_return(resolution_response)
     end
 
-    it "writes resolved + unresolved arrays back into staging" do
+    it "writes resolved + unresolved arrays onto the items in place, by position" do
       described_class.perform_now(run.id)
 
-      run.reload
-      tacos = run.staging["sections"][0]["items"]
-      expect(tacos[0]["ingredients"]).to contain_exactly(
+      items = run.ingestion_items.order(:position)
+      expect(items[0].ingredients_payload).to contain_exactly(
         { "slug" => "meat-beef", "confidence" => 0.97 },
         { "slug" => "vegetable-onion", "confidence" => 0.92 }
       )
-      expect(tacos[1]["ingredients"]).to eq(
+      expect(items[1].ingredients_payload).to eq(
         [{ "slug" => "poultry-domestic-chicken", "confidence" => 0.95 }]
       )
-      expect(tacos[1]["unresolved_ingredients"]).to eq(["salsa verde"])
-
-      drinks = run.staging["sections"][1]["items"]
-      expect(drinks[0]["ingredients"]).to include(
+      expect(items[1].unresolved_ingredients).to eq(["salsa verde"])
+      expect(items[2].ingredients_payload).to include(
         { "slug" => "grain-rice", "confidence" => 0.99 }
       )
     end
