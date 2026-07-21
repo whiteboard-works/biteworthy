@@ -77,9 +77,11 @@ describe('SignupPage analytics', () => {
     expect(mockSignup).not.toHaveBeenCalled();
   });
 
-  it('tracks auth_failed:terms_unaccepted when the terms box is unchecked', async () => {
+  it('tracks auth_failed:terms_unaccepted — and the submit stays reachable so it fires', async () => {
     render(<SignupPage />);
     fill({ terms: false });
+    // The gate must be REACHABLE — a disabled button would emit nothing.
+    expect(screen.getByTestId('signup-submit')).not.toBeDisabled();
     await submit();
 
     expect(track).toHaveBeenCalledWith('auth_failed', {
@@ -89,7 +91,7 @@ describe('SignupPage analytics', () => {
     expect(mockSignup).not.toHaveBeenCalled();
   });
 
-  it('tracks auth_failed:email_taken with the 422 status', async () => {
+  it('tracks auth_failed:rejected with the 422 status (422 is any server validation failure)', async () => {
     mockSignup.mockRejectedValue(new AuthError(422, 'taken'));
     render(<SignupPage />);
     fill();
@@ -98,7 +100,7 @@ describe('SignupPage analytics', () => {
     await waitFor(() =>
       expect(track).toHaveBeenCalledWith('auth_failed', {
         method: 'signup',
-        reason: 'email_taken',
+        reason: 'rejected',
         status: 422,
       }),
     );

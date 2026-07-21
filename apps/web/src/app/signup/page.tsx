@@ -4,7 +4,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { signup, AuthError } from '../../lib/auth';
+import { signup, AuthError, authFailureReason } from '../../lib/auth';
 import { useTracker } from '../_PostHogProvider';
 
 /**
@@ -15,16 +15,11 @@ import { useTracker } from '../_PostHogProvider';
  * Instrumented with the auth funnel events (auth_started → auth_completed
  * / auth_failed) — the client-side gates (weak password, age, terms) each
  * report their own coarse reason so we can see which one blocks people.
- * Never sends the email or password.
+ * That measurement needs the gates to be REACHABLE, so the submit button
+ * only disables while submitting (not on the age/terms boxes) — an
+ * unchecked box surfaces its error + event on submit instead of a dead,
+ * un-clickable button. Never sends the email or password.
  */
-
-/** Map an AuthError status to a coarse, PII-free failure reason. */
-function signupFailureReason(status: number): string {
-  if (status === 422) return 'email_taken';
-  if (status >= 500) return 'server';
-  if (status === 0) return 'network';
-  return 'unknown';
-}
 export default function SignupPage() {
   // useSearchParams (in SignupForm) needs a Suspense boundary or the
   // production build fails prerendering — same pattern as /onboarding.
@@ -83,7 +78,7 @@ function SignupForm() {
       setError(status === 422 ? 'That email is already in use.' : (err as Error).message);
       tracker.track('auth_failed', {
         method: 'signup',
-        reason: signupFailureReason(status),
+        reason: authFailureReason(status, { 422: 'rejected' }),
         // Only attach a real HTTP status; 0 means it never reached the API.
         ...(status > 0 ? { status } : {}),
       });
@@ -167,11 +162,11 @@ function SignupForm() {
 
         <button
           type="submit"
-          disabled={submitting || !ageConfirmed || !termsAccepted}
+          disabled={submitting}
           data-testid="signup-submit"
           className={[
             'mt-bw-2 rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
-            submitting || !ageConfirmed || !termsAccepted ? 'opacity-60' : 'hover:bg-bite-dark',
+            submitting ? 'opacity-60' : 'hover:bg-bite-dark',
           ].join(' ')}
         >
           {submitting ? 'Creating…' : 'Create account'}

@@ -4,7 +4,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { login, AuthError } from '../../lib/auth';
+import { login, AuthError, authFailureReason } from '../../lib/auth';
 import { useTracker } from '../_PostHogProvider';
 
 /**
@@ -19,14 +19,6 @@ import { useTracker } from '../_PostHogProvider';
  * / auth_failed) so we can see conversion + where sign-in breaks. Only a
  * coarse failure reason is sent — never the email or password.
  */
-
-/** Map an AuthError status to a coarse, PII-free failure reason. */
-function loginFailureReason(status: number): string {
-  if (status === 401) return 'wrong_credentials';
-  if (status >= 500) return 'server';
-  if (status === 0) return 'network';
-  return 'unknown';
-}
 export default function LoginPage() {
   // useSearchParams (in LoginForm) needs a Suspense boundary or the
   // production build fails prerendering — same pattern as /onboarding.
@@ -68,7 +60,7 @@ function LoginForm() {
       setError(status === 401 ? 'Wrong email or password.' : (err as Error).message);
       tracker.track('auth_failed', {
         method: 'login',
-        reason: loginFailureReason(status),
+        reason: authFailureReason(status, { 401: 'wrong_credentials' }),
         // Only attach a real HTTP status; 0 means it never reached the API.
         ...(status > 0 ? { status } : {}),
       });

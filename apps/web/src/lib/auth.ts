@@ -29,6 +29,25 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Coarse, PII-free failure reason for the auth analytics events, derived
+ * from an AuthError status. `specific` maps a status to a form-specific
+ * reason (login: 401 → wrong_credentials; signup: 422 → rejected — Rails
+ * returns 422 for any registration validation failure, not only a taken
+ * email, so we don't over-claim). Everything else collapses to
+ * server / network / unknown to keep the taxonomy small. `status === 0`
+ * means the request never reached the API.
+ */
+export function authFailureReason(
+  status: number,
+  specific: Record<number, string> = {},
+): string {
+  if (specific[status]) return specific[status]!;
+  if (status >= 500) return 'server';
+  if (status === 0) return 'network';
+  return 'unknown';
+}
+
 interface FetchOptions {
   fetchImpl?: typeof fetch;
 }

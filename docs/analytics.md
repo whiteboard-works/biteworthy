@@ -123,7 +123,7 @@ Fired on any failure — both client-side gates and API errors — so drop-off i
 | Field | Type | Notes |
 |---|---|---|
 | `method` | `"login" \| "signup"` | |
-| `reason` | `string` | Coarse category, never the raw error. Login: `missing_fields`, `wrong_credentials`, `server`, `network`, `unknown`. Signup adds the client gates: `weak_password`, `age_unconfirmed`, `terms_unaccepted`, `email_taken`. |
+| `reason` | `string` | Coarse category, never the raw error. Login: `missing_fields`, `wrong_credentials`, `server`, `network`, `unknown`. Signup adds the client gates (`weak_password`, `age_unconfirmed`, `terms_unaccepted`) and `rejected` for a server-side 422 (Rails returns 422 for any registration validation failure — duplicate email, invalid email, etc. — so it isn't labelled as specifically email-taken). |
 | `status` | `number?` | Upstream HTTP status when the failure came from the API (401 / 422 / 5xx); absent for client-side gates and network errors. |
 
 ## Privacy posture

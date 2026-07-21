@@ -19,6 +19,7 @@ import {
   saveProfile,
   saveTaste,
   searchIngredients,
+  ONBOARDED_HINT_KEY,
   type IngredientSearchResult,
   type TasteTag,
 } from '../../lib/onboarding';
@@ -196,6 +197,15 @@ function OnboardingFlow() {
       // the allergen-disclaimer checkbox, so record the acknowledgment.
       await saveProfile({ ...payload, acknowledge_disclaimer: true });
       clearDraft();
+      // Tell the header the profile is now set up so its resume nudge
+      // turns off immediately on the redirect home (no flash while the
+      // /api/auth/onboarded read is still in flight).
+      try {
+        sessionStorage.setItem(ONBOARDED_HINT_KEY, '1');
+      } catch {
+        // Best-effort — a missed hint just means the header confirms via
+        // the normal fetch instead.
+      }
       // Legal remediation E7 — funnel conversion only; the dietary
       // profile (preset/strictness/avoid sizes) is health data and is
       // never attached to this identified event.

@@ -7,55 +7,26 @@
  * means the SSR/static pages don't have to read cookies in the root
  * layout, so the marketing + SEO pages stay statically rendered.
  *
- * It also reports `onboarded` — whether the signed-in user has finished
- * the dietary-profile onboarding — so the header can nudge users who
- * signed up but skipped setup. The signal is the profile's
- * `disclaimer_acknowledged_at` (stamped on the final onboarding save;
- * null for a brand-new account). We read it from `GET /api/v1/profile`
- * rather than the JWT, which doesn't carry it.
+ * Deliberately a purely-local cookie read (no upstream call): signed-in
+ * state must resolve fast and stay independent of Rails health, so the
+ * header never blanks out when the API is slow. The onboarding-status
+ * signal, which DOES need the API, lives in the separate
+ * `/api/auth/onboarded` route so it can't hold this one up.
  *
  * A static `session/` segment sits alongside the dynamic `[action]/`
  * proxy; Next resolves this exact path here (the proxy only handles
  * login/signup/logout POSTs).
  */
 import { NextResponse } from 'next/server';
-import { getServerJwt, getServerUserId } from '../../../../lib/server-auth';
-import { API_BASE } from '../../../../lib/api-base';
+import { getServerUserId } from '../../../../lib/server-auth';
 
 export async function GET() {
   const userId = await getServerUserId();
-  if (userId === null) {
-    return json({ signedIn: false, onboarded: false });
-  }
-  return json({ signedIn: true, onboarded: await hasOnboarded() });
-}
-
-/**
- * Whether the signed-in user has completed onboarding. `true` on any
- * lookup failure — we fail safe so a transient API hiccup never nags an
- * already-set-up user to "finish" a profile they already have.
- */
-async function hasOnboarded(): Promise<boolean> {
-  const jwt = await getServerJwt();
-  if (!jwt) return true;
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/profile`, {
-      headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!res.ok) return true;
-    const body = (await res.json()) as { disclaimer_acknowledged_at?: string | null };
-    return Boolean(body.disclaimer_acknowledged_at);
-  } catch {
-    return true;
-  }
-}
-
-function json(payload: { signedIn: boolean; onboarded: boolean }) {
-  return NextResponse.json(payload, {
+  return NextResponse.json(
+    { signedIn: userId !== null },
     // Auth state is per-user and must never be cached by the browser or
     // any shared cache — otherwise a signed-out visitor could read a
     // signed-in response (or vice-versa).
-    headers: { 'Cache-Control': 'no-store' },
-  });
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }

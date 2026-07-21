@@ -39,9 +39,17 @@ the Phase 5 pause) are archived in
   (coarse `method`/`reason`/`status`, never email/password). login + signup
   pages fire started→completed/failed; each client gate (weak_password,
   age_unconfirmed, terms_unaccepted) and API error (wrong_credentials 401,
-  email_taken 422, server, network) reports its own reason. Mobile can adopt
+  rejected 422, server, network) reports its own reason. Mobile can adopt
   the same events later (deliberately deferred). No `identify()` — keeps the
   anonymous-id posture. `docs/analytics.md` + CLAUDE.md updated.
+- **xhigh review addressed** (8 findings): signedIn stays a fast local read
+  (onboarding status split into `/api/auth/onboarded`, so the header nav never
+  blocks on Rails); nudge-dismissed flag cleared on logout + onboarded latch
+  reset per user (no leak across accounts on a shared browser); signup submit
+  no longer disabled on the age/terms boxes so those gate events actually fire;
+  onboarded fetch latches once true (no per-nav round-trip); one-shot
+  sessionStorage hint kills the post-onboarding nudge flash; shared
+  `authFailureReason` helper; 422 relabelled `rejected`.
 - Web vitest 201 (+13), analytics vitest 12 (+1 taxonomy assertion); typecheck
   + lint green across the workspace. No apps/api changes → ci-api untouched.
 

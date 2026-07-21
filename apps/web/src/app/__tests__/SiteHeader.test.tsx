@@ -3,10 +3,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 /**
  * The site-wide nav that gives a signed-in user any indication they're
- * logged in (and everyone a way to reach /login and /signup). Auth state
- * comes from GET /api/auth/session; logout goes through lib/auth. A
- * signed-in user who hasn't finished onboarding gets a Food-profile link
- * plus a dismissible nudge.
+ * logged in (and everyone a way to reach /login and /signup). Signed-in
+ * state comes from GET /api/auth/session (fast, local); onboarding status
+ * from GET /api/auth/onboarded (separate, so a slow API only delays the
+ * nudge). A signed-in user who hasn't finished onboarding gets a
+ * Food-profile link plus a dismissible banner; the dismissal is cleared
+ * on logout so it never leaks to the next account on a shared browser.
  */
 
 const mockReplace = vi.fn();
@@ -23,10 +25,18 @@ vi.mock('../../lib/auth', () => ({
 
 import { SiteHeader } from '../_SiteHeader';
 
-function stubSession(signedIn: boolean, onboarded = true) {
+const DISMISSED_KEY = 'bw_profile_nudge_dismissed';
+
+function stubAuth({ signedIn, onboarded = true }: { signedIn: boolean; onboarded?: boolean }) {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({ ok: true, json: async () => ({ signedIn, onboarded }) }),
+    vi.fn((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).includes('/api/auth/onboarded') ? { onboarded } : { signedIn },
+      }),
+    ),
   );
 }
 
@@ -43,7 +53,7 @@ afterEach(() => {
 
 describe('SiteHeader', () => {
   it('shows Sign in + Sign up when signed out and never the account controls', async () => {
-    stubSession(false);
+    stubAuth({ signedIn: false });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
     expect(screen.getByTestId('nav-signup')).toBeInTheDocument();
@@ -52,7 +62,7 @@ describe('SiteHeader', () => {
   });
 
   it('shows Account + Log out when signed in, and logging out returns home', async () => {
-    stubSession(true);
+    stubAuth({ signedIn: true });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
     expect(screen.queryByTestId('nav-signin')).not.toBeInTheDocument();
@@ -66,7 +76,7 @@ describe('SiteHeader', () => {
   });
 
   it('does not nudge a signed-in user who has already onboarded', async () => {
-    stubSession(true, true);
+    stubAuth({ signedIn: true, onboarded: true });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
     expect(screen.queryByTestId('profile-nudge')).not.toBeInTheDocument();
@@ -74,7 +84,7 @@ describe('SiteHeader', () => {
   });
 
   it('nudges a signed-in user who has not onboarded, and Dismiss sticks', async () => {
-    stubSession(true, false);
+    stubAuth({ signedIn: true, onboarded: false });
     render(<SiteHeader />);
 
     expect(await screen.findByTestId('profile-nudge')).toBeInTheDocument();
@@ -83,8 +93,26 @@ describe('SiteHeader', () => {
     fireEvent.click(screen.getByTestId('profile-nudge-dismiss'));
 
     expect(screen.queryByTestId('profile-nudge')).not.toBeInTheDocument();
-    expect(localStorage.getItem('bw_profile_nudge_dismissed')).toBe('1');
+    expect(localStorage.getItem(DISMISSED_KEY)).toBe('1');
     // The quiet nav link stays even after the banner is dismissed.
     expect(screen.getByTestId('nav-food-profile')).toBeInTheDocument();
+  });
+
+  it('clears the dismissed flag on logout so the next account is nudged fresh', async () => {
+    // A prior account already dismissed the banner on this browser.
+    localStorage.setItem(DISMISSED_KEY, '1');
+    stubAuth({ signedIn: true, onboarded: false });
+    render(<SiteHeader />);
+
+    // Not-onboarded but the stale dismissal suppresses the banner.
+    expect(await screen.findByTestId('nav-food-profile')).toBeInTheDocument();
+    expect(screen.queryByTestId('profile-nudge')).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nav-logout'));
+    });
+
+    await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem(DISMISSED_KEY)).toBeNull();
   });
 });
