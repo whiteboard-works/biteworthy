@@ -1,5 +1,5 @@
 class IngestionRun < ApplicationRecord
-  INPUT_KINDS = %w[photo url pdf].freeze
+  INPUT_KINDS = %w[photo url pdf text].freeze
   STATUSES    = %w[queued extracting resolving staged published failed].freeze
 
   # The pipeline marches forward through these states. `failed` is

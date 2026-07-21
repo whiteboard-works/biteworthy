@@ -6,6 +6,7 @@ import type { Route } from 'next';
 import {
   ingestFromFile,
   ingestFromUrl,
+  ingestFromText,
   friendlyIngestionError,
   IngestionRequestError,
 } from '../../lib/ingestion';
@@ -25,6 +26,7 @@ export default function IngestPage() {
   const [restaurant, setRestaurant] = useState<{ id: string; name: string } | null>(null);
   const [manualId, setManualId] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceText, setSourceText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export default function IngestPage() {
 
   const onPickFile = (e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null);
 
-  const submit = async (mode: 'url' | 'file') => {
+  const submit = async (mode: 'url' | 'file' | 'text') => {
     setError(null);
     if (!restaurantId) {
       setError('Pick or create a restaurant first.');
@@ -47,13 +49,19 @@ export default function IngestPage() {
       setError('Drop a file.');
       return;
     }
+    if (mode === 'text' && !sourceText.trim()) {
+      setError('Paste the menu text.');
+      return;
+    }
 
     try {
       setSubmitting(true);
       const run =
         mode === 'url'
           ? await ingestFromUrl({ restaurantId, sourceUrl })
-          : await ingestFromFile({ restaurantId, file: file! });
+          : mode === 'file'
+            ? await ingestFromFile({ restaurantId, file: file! })
+            : await ingestFromText({ restaurantId, sourceText });
       router.push(`/ingest/verify/${run.id}` as Route);
     } catch (e) {
       if (e instanceof IngestionRequestError && e.status === 401) {
@@ -175,6 +183,31 @@ export default function IngestPage() {
           className="rounded bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
           {submitting ? 'Uploading…' : 'Upload file'}
+        </button>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-zinc-200 p-4">
+        <h2 className="text-lg font-semibold">Or paste the menu text</h2>
+        <p className="text-sm text-zinc-600">
+          Copy the menu from a website, email, or PDF and paste it here — handy when there’s no
+          clean link or photo.
+        </p>
+        <textarea
+          value={sourceText}
+          onChange={(e) => setSourceText(e.target.value)}
+          placeholder={'Appetizers\nHummus — chickpeas, tahini, olive oil … 8\n…'}
+          rows={8}
+          data-testid="paste-input"
+          className="w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => void submit('text')}
+          disabled={submitting}
+          data-testid="paste-submit"
+          className="rounded bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
+        >
+          {submitting ? 'Submitting…' : 'Import pasted text'}
         </button>
       </section>
 

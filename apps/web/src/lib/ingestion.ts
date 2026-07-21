@@ -242,3 +242,16 @@ export async function ingestFromFile(opts: {
   form.append('inputs[]', file, file.name);
   return postIngestionRun(form, fetchImpl, true);
 }
+
+export async function ingestFromText(opts: {
+  restaurantId: string;
+  sourceText: string;
+  fetchImpl?: typeof fetch;
+}): Promise<IngestionRunPayload> {
+  const { restaurantId, sourceText, fetchImpl = fetch } = opts;
+  return postIngestionRun(
+    JSON.stringify({ restaurant_id: restaurantId, source_text: sourceText }),
+    fetchImpl,
+    false,
+  );
+}

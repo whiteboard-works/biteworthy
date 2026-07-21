@@ -163,6 +163,30 @@ class AnthropicClient
     }
   end
 
+  # Build a document content block (Claude reads PDFs natively) from an
+  # ActiveStorage::Blob or a raw IO/String. Menu PDFs go through here —
+  # Anthropic's vision `image` block only accepts jpeg/png/gif/webp, so a
+  # PDF sent as an image 400s.
+  def document_block(source, media_type: nil)
+    if source.respond_to?(:download)
+      data       = source.download
+      media_type ||= source.content_type
+    elsif source.respond_to?(:read)
+      data = source.read
+    else
+      data = source.to_s
+    end
+
+    {
+      type: "document",
+      source: {
+        type:       "base64",
+        media_type: media_type || "application/pdf",
+        data:       Base64.strict_encode64(data)
+      }
+    }
+  end
+
   private
 
   def connection

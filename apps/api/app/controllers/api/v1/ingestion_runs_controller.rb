@@ -14,9 +14,10 @@ module Api
     # trust handling (suggested-confidence promotion) is Phase 6.3.
     class IngestionRunsController < BaseController
       def create
-        restaurant = Restaurant.find(params.require(:restaurant_id))
-        files      = Array(params[:inputs]).reject(&:blank?)
-        source_url = params[:source_url].to_s.presence
+        restaurant  = Restaurant.find(params.require(:restaurant_id))
+        files       = Array(params[:inputs]).reject(&:blank?)
+        source_url  = params[:source_url].to_s.presence
+        source_text = params[:source_text].to_s.presence
 
         # Phase 6.2 ownership rule: non-admins may scan drafts they
         # created (the new-restaurant flow) or published restaurants
@@ -27,12 +28,13 @@ module Api
           return
         end
 
-        if files.empty? && source_url.nil?
+        if files.empty? && source_url.nil? && source_text.nil?
           render json: { error: "no_inputs" }, status: :unprocessable_entity
           return
         end
 
         return unless validate_files!(files)
+        return unless validate_source_text!(source_text)
 
         # Cheap unlocked pre-check so an over-quota caller can't make
         # us do an outbound URL fetch (codex P2 on #298). Advisory only
@@ -62,6 +64,8 @@ module Api
 
           if fetched
             create_from_fetched(restaurant, source_url, fetched)
+          elsif source_text
+            create_from_text(restaurant, source_text)
           else
             create_from_files(restaurant, files)
           end
@@ -109,10 +113,31 @@ module Api
         render json: serialize_run(run), status: :created
       end
 
+      # Copy/paste path — the user pastes raw menu text instead of a
+      # file/URL. Stored as a text/plain input blob so it flows through
+      # the same pipeline; ExtractMenuPrompt sends text blobs as a text
+      # content block (not an image).
+      def create_from_text(restaurant, text)
+        run = IngestionRun.create!(
+          user:       current_user,
+          restaurant: restaurant,
+          input_kind: "text"
+        )
+        run.inputs.attach(
+          io:           StringIO.new(text),
+          filename:     "pasted-menu.txt",
+          content_type: "text/plain"
+        )
+        run.transition_to!(:extracting)
+
+        render json: serialize_run(run), status: :created
+      end
+
       PER_USER_DAILY_RUNS_DEFAULT      = 5
       DAILY_COST_CEILING_CENTS_DEFAULT = 2_000 # $20/day across all non-admin spend
       MAX_INPUT_FILES_DEFAULT          = 10
       MAX_INPUT_FILE_BYTES_DEFAULT     = 10 * 1024 * 1024 # match UrlFetcher's 10 MB cap
+      MAX_SOURCE_TEXT_CHARS_DEFAULT    = 50_000           # a very long menu is well under this
 
       ALLOWED_INPUT_CONTENT_TYPES = %w[
         image/jpeg image/png image/heic image/heif image/webp application/pdf
@@ -209,6 +234,25 @@ module Api
 
       def max_input_file_bytes
         Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", MAX_INPUT_FILE_BYTES_DEFAULT))
+      end
+
+      def max_source_text_chars
+        Integer(ENV.fetch("INGESTION_MAX_SOURCE_TEXT_CHARS", MAX_SOURCE_TEXT_CHARS_DEFAULT))
+      end
+
+      # Pasted-text bound — mirrors the multipart file caps (codex P2 on
+      # #297): the extraction prompt puts the whole thing in the request,
+      # so cap it regardless of who sent it.
+      def validate_source_text!(text)
+        return true if text.nil?
+
+        if text.length > max_source_text_chars
+          render json: { error: "text_too_large", limit_chars: max_source_text_chars },
+                 status: :unprocessable_entity
+          return false
+        end
+
+        true
       end
 
       def detect_input_kind(file)

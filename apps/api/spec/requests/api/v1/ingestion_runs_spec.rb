@@ -85,6 +85,40 @@ RSpec.describe "Ingestion runs API", type: :request do
       expect(response.parsed_body["input_kind"]).to eq("pdf")
     end
 
+    context "with source_text (copy/paste — no file or URL)" do
+      it "creates a text run, stores the text as a text/plain blob, and 201s" do
+        allow(ExtractMenuJob).to receive(:perform_later)
+
+        expect {
+          post "/api/v1/ingestion_runs",
+               params: { restaurant_id: restaurant.id, source_text: "Appetizers\nHummus 8" },
+               headers: auth_for(non_admin)
+        }.to change(IngestionRun, :count).by(1)
+
+        expect(response).to have_http_status(:created)
+        expect(response.parsed_body).to include("status" => "extracting", "input_kind" => "text")
+
+        run = IngestionRun.last
+        expect(run.inputs.attached?).to be(true)
+        expect(run.inputs.blobs.first.content_type).to eq("text/plain")
+        expect(run.inputs.blobs.first.download).to include("Hummus")
+      end
+
+      it "422s text_too_large when the pasted text exceeds the char cap" do
+        old = ENV["INGESTION_MAX_SOURCE_TEXT_CHARS"]
+        ENV["INGESTION_MAX_SOURCE_TEXT_CHARS"] = "10"
+
+        post "/api/v1/ingestion_runs",
+             params: { restaurant_id: restaurant.id, source_text: "x" * 50 },
+             headers: auth_for(non_admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to include("error" => "text_too_large", "limit_chars" => 10)
+      ensure
+        ENV["INGESTION_MAX_SOURCE_TEXT_CHARS"] = old
+      end
+    end
+
     context "with source_url (Phase 2.8)" do
       let(:menu_url) { "https://durango-restaurants.example/cream-bean-berry/menu" }
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   ingestFromFile,
   ingestFromUrl,
+  ingestFromText,
   IngestionRequestError,
   type IngestionRunPayload,
 } from '../ingestion';
@@ -70,6 +71,37 @@ describe('ingestFromUrl', () => {
       status: 422,
       body: { error: 'url_fetch_failed', reason: 'non_2xx', status: 503 },
     });
+  });
+});
+
+describe('ingestFromText', () => {
+  it('POSTs source_text as JSON to the Next proxy (no file, no Authorization)', async () => {
+    const fetchImpl = fakeFetch(201, { ...sampleRun, input_kind: 'text' });
+
+    const result = await ingestFromText({
+      restaurantId: 'rest-1',
+      sourceText: 'Appetizers\nHummus — chickpeas, tahini … 8',
+      fetchImpl,
+    });
+
+    expect(result.input_kind).toBe('text');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/ingestion_runs');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+    expect(JSON.parse(init.body as string)).toEqual({
+      restaurant_id: 'rest-1',
+      source_text: 'Appetizers\nHummus — chickpeas, tahini … 8',
+    });
+  });
+
+  it('propagates a text_too_large 422', async () => {
+    const fetchImpl = fakeFetch(422, { error: 'text_too_large', limit_chars: 50000 });
+    await expect(
+      ingestFromText({ restaurantId: 'rest-1', sourceText: 'x'.repeat(10), fetchImpl }),
+    ).rejects.toMatchObject({ status: 422, body: { error: 'text_too_large' } });
   });
 });
 
