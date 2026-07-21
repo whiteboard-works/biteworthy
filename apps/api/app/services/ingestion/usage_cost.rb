@@ -21,6 +21,14 @@ module Ingestion
         output:      1_500,
         cache_read:  30,
         cache_write: 375
+      },
+      # claude-haiku-4-5: $1/MTok input, $5/MTok output (cache read 0.1x
+      # input, cache write 1.25x). Used by the resolve stages.
+      "claude-haiku-4-5-20251001" => {
+        input:       100,
+        output:      500,
+        cache_read:  10,
+        cache_write: 125
       }
     }.freeze
 

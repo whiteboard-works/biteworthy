@@ -26,7 +26,12 @@ class ResolveStageJob < ApplicationJob
       return
     end
 
-    out = timed_anthropic_call(run, api_error: "#{stage}_api_error", validation_error: "#{stage}_validation_failed") do |client|
+    out = timed_anthropic_call(
+      run,
+      api_error:        "#{stage}_api_error",
+      validation_error: "#{stage}_validation_failed",
+      model:            resolve_model
+    ) do |client|
       client.messages_create(
         system:          prompt.system(client, catalog_text),
         messages:        prompt.user_messages(items),
@@ -49,6 +54,14 @@ class ResolveStageJob < ApplicationJob
 
   # The curated catalog text the prompt is primed with.
   def catalog_text = raise(NotImplementedError)
+
+  # Resolve is catalog slug-mapping, not deep reasoning, so it runs on a
+  # faster/cheaper model than extraction's vision call — the dominant
+  # cut to the "Matching ingredients…" wait. Overridable per-env for
+  # tuning/rollback without a redeploy.
+  DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
+
+  def resolve_model = ENV.fetch("INGESTION_RESOLVE_MODEL", DEFAULT_RESOLVE_MODEL)
 
   # Persist a successful resolution and advance the pipeline. Receives
   # the run, the API result, and the elapsed milliseconds.

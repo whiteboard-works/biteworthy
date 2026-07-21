@@ -94,6 +94,13 @@ RSpec.describe ResolveIngredientsJob, type: :job do
       run.reload
       expect(run.latency_ms).to be >= 0
     end
+
+    it "runs on the faster resolve model, not the default extraction model" do
+      expect(AnthropicClient).to receive(:new)
+        .with(model: "claude-haiku-4-5-20251001").and_call_original
+
+      described_class.perform_now(run.id)
+    end
   end
 
   describe "no items in staging" do
