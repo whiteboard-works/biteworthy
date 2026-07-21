@@ -11,9 +11,9 @@ module Ingestion
     SYSTEM_INSTRUCTIONS = <<~MD.strip
       You are an OCR + structuring system for restaurant menus.
 
-      You will be given a restaurant menu as one or more images, a PDF,
-      or pasted/scraped text (potentially multi-page). Extract every
-      visible menu item and group them by section heading.
+      You will be given one or more images of a menu (potentially
+      multi-page). Extract every visible menu item and group them by
+      section heading.
 
       Respond with **STRICT JSON ONLY** that matches this shape:
 
@@ -60,9 +60,13 @@ module Ingestion
         physically closest to the item's name + description.
     MD
 
-    USER_INSTRUCTIONS = "Extract every menu item from the menu above."
-
-    IMAGE_TYPES = %w[image/jpeg image/png image/gif image/webp].freeze
+    # NOTE: kept verbatim ("these images") on purpose — the ExtractMenuJob
+    # live-cassette smoke matches the recorded request on body, so editing
+    # this text (or SYSTEM_INSTRUCTIONS) invalidates the committed cassette
+    # and needs a re-record with a real API key. The content-type routing
+    # below is what makes PDF/text work; the wording is cosmetic. Generalize
+    # it only alongside a cassette re-record.
+    USER_INSTRUCTIONS = "Extract every menu item from these images."
 
     # Build the system blocks array. Marks the instructions as
     # cached so a re-extraction within the 5-minute window pays
