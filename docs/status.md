@@ -17,6 +17,32 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-16 — Web auth UX + session lifetime. Branch `fix/web-auth-nav-and-onboarding-exit`.
+
+- **User report**: onboarding had no exit/skip, and "logging in does not work"
+  on the live site (redirects but authed calls 401; no indication of login or
+  profile anywhere). Read-only prod probes confirmed the login→Rails path is
+  wired correctly and the `bw_session` cookie is valid on the `bite-worthy.com`
+  apex — so login itself works. Two real defects produced the symptoms:
+  - **No auth UI**: root `layout.tsx` had no header/nav — no way to reach
+    `/login`, and a signed-in user saw no logged-in state. Added a client
+    `SiteHeader` (Sign in ↔ Account + Log out) backed by a new
+    `GET /api/auth/session` `{ signedIn }` read, so the SSR/SEO pages stay
+    static instead of the root layout reading cookies.
+  - **30-min session death**: `devise_jwt.rb` issued 30-minute JWTs while the
+    cookie lived 30 days with no web-side refresh, so any authed call ~30 min
+    post-login 401'd. Bumped `jwt.expiration_time` to 30 days to match the
+    cookie (logout still revokes via jti). User chose the match-cookie option
+    over wiring refresh.
+  - **Onboarding exit**: persistent "Exit" on every step of the main flow
+    (clears the draft, routes home); standalone "Improve my picks" keeps its
+    own Cancel.
+- Web: 188 vitest pass, typecheck + lint clean. API: new login-spec assertion
+  (token TTL > 1 day) passes; rubocop adds no new offenses. Note: the
+  `signup_spec` account-deletion example fails **locally only** (leftover seed
+  data in an undroppable local test DB → review slug collision); `ci-api` is
+  green for it on master, so a clean seedless CI run passes.
+
 2026-07-16 — Deploy-api host-key pinning. Branch `fix/deploy-api-pin-host-keys`.
 
 - **The 6de948a deploy failed** with `Net::SSH::HostKeyMismatch … fingerprint

@@ -66,6 +66,12 @@ describe('OnboardingPage — taste step (standalone "Improve my picks")', () => 
     expect(screen.getByTestId('save-taste')).toBeInTheDocument();
   });
 
+  it('does not show the full-flow Exit control (standalone has its own Cancel)', async () => {
+    render(<OnboardingPage />);
+    await screen.findByText('What do you love?');
+    expect(screen.queryByTestId('onboarding-exit')).not.toBeInTheDocument();
+  });
+
   it('cycles a tag chip neutral → liked on tap and saves only taste arrays', async () => {
     render(<OnboardingPage />);
     const chip = await screen.findByTestId('taste-tag-cuisine-thai');
@@ -101,6 +107,16 @@ describe('OnboardingPage — taste step (standalone "Improve my picks")', () => 
 
 describe('OnboardingPage — taste step in the full flow', () => {
   beforeEach(() => mockGet.mockReturnValue(null));
+
+  it('offers a persistent Exit from the very first step that returns home', async () => {
+    render(<OnboardingPage />);
+    // Rendered on presets (step 1) — the flow used to have no way out
+    // but completing it, so Exit must be reachable from the start.
+    const exit = await screen.findByTestId('onboarding-exit');
+    fireEvent.click(exit);
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+  });
 
   it('sits at step 4 of 5 between strictness and review, and is skippable', async () => {
     render(<OnboardingPage />);

@@ -240,6 +240,25 @@ function OnboardingFlow() {
 
   return (
     <main className="mx-auto max-w-2xl px-bw-6 py-bw-12">
+      {/* Persistent escape hatch — without it the only way out of the
+          multi-step flow was to complete it (or edit the URL). Standalone
+          "Improve my picks" already has its own Cancel on the taste step. */}
+      {!standalone && (
+        <div className="mb-bw-6 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              clearDraft();
+              router.replace('/');
+            }}
+            data-testid="onboarding-exit"
+            className="text-bw-sm font-semibold text-zinc-500 hover:text-zinc-800"
+          >
+            Exit
+          </button>
+        </div>
+      )}
+
       {step === 'presets' && (
         <PresetsStep
           presets={presets}

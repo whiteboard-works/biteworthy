@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 import { colors } from '@biteworthy/ui-tokens';
 import { PostHogProvider } from './_PostHogProvider';
+import { SiteHeader } from './_SiteHeader';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -24,7 +25,10 @@ export default function RootLayout({ children }: { children: ReactNode }): React
   return (
     <html lang="en">
       <body className="bg-white text-zinc-900 antialiased">
-        <PostHogProvider>{children}</PostHogProvider>
+        <PostHogProvider>
+          <SiteHeader />
+          {children}
+        </PostHogProvider>
         <SiteDisclaimer />
       </body>
     </html>
