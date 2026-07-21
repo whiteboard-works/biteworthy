@@ -46,7 +46,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # pnpm version is sourced from the `packageManager` field in
       # package.json. Don't pass `version:` here — pnpm/action-setup@v6
