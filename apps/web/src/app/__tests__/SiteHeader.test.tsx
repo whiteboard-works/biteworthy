@@ -52,19 +52,22 @@ afterEach(() => {
 });
 
 describe('SiteHeader', () => {
-  it('shows Sign in + Sign up when signed out and never the account controls', async () => {
+  it('shows Sign in + Sign up when signed out and never the account/scan controls', async () => {
     stubAuth({ signedIn: false });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
     expect(screen.getByTestId('nav-signup')).toBeInTheDocument();
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();
   });
 
-  it('shows Account + Log out when signed in, and logging out returns home', async () => {
+  it('shows Scan + Account + Log out when signed in, and logging out returns home', async () => {
     stubAuth({ signedIn: true });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
+    // Signed-in users always get a path to the scanner (regardless of onboarding).
+    expect(screen.getByTestId('nav-scan')).toHaveAttribute('href', '/ingest');
     expect(screen.queryByTestId('nav-signin')).not.toBeInTheDocument();
 
     await act(async () => {
