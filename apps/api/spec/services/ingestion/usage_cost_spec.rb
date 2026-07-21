@@ -30,6 +30,13 @@ RSpec.describe Ingestion::UsageCost do
       expect(described_class.cents({})).to eq(0)
     end
 
+    it "prices the faster resolve model (haiku) at its own lower rate" do
+      # 1M input at $1/MTok = 100 cents; 1M output at $5/MTok = 500 cents
+      usage = { "input_tokens" => 1_000_000, "output_tokens" => 1_000_000 }
+
+      expect(described_class.cents(usage, model: "claude-haiku-4-5-20251001")).to eq(600)
+    end
+
     it "falls back to default-model pricing for unknown models" do
       usage = { "input_tokens" => 1_000_000 }
 

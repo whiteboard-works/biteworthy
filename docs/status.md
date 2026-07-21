@@ -17,6 +17,26 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Faster resolve stage (scan speed, Phase 1 of 2). Branch `feat/parallel-resolve`.
+
+- User: "Matching ingredients…" is slow + no feedback. Traced it: ingestion is
+  **3 sequential LLM calls** (extract → resolve ingredients → resolve tags) and
+  the verify page shows nothing until all 3 finish. The two resolve calls are the
+  wait. Agreed plan = "Both": **Phase 1** (this) faster resolve; **Phase 2** show
+  dishes right after extraction + enrich (ingredients/tags) in the background,
+  gating publish on enrichment.
+- **Phase 1**: the resolve stages do catalog **slug-mapping**, not deep reasoning,
+  so they now run on a fast Haiku model (`INGESTION_RESOLVE_MODEL`, default
+  `claude-haiku-4-5-20251001`) instead of the Sonnet vision model. Extraction
+  stays on Sonnet. Threaded `model:` through `timed_anthropic_call` (one place —
+  request + cost pricing); added Haiku to `UsageCost` ($1/$5 per MTok). Kept the
+  sequential chain — **parallelizing the two resolve jobs was deliberately NOT
+  done**: `record_api_usage!`/staging are read-modify-write ("jobs run
+  sequentially per run" invariant), so concurrency would need row-lock hardening
+  that Phase 2's background-per-item enrichment restructures anyway.
+- Specs: resolve job asserts the Haiku model; UsageCost prices Haiku. `ruby -c`
+  clean; full rspec on ci-api. **Next: Phase 2 (instant dishes + bg enrich).**
+
 2026-07-21 — Route ingestion inputs by content-type + copy/paste import.
 Branch `feat/ingest-content-types` (the "next PR" from the fence entry below).
 

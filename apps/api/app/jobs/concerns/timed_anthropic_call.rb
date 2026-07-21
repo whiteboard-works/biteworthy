@@ -19,8 +19,8 @@ module TimedAnthropicCall
   #
   # Returns `[result, elapsed_ms]`, or `nil` when the call failed and the
   # run was already marked failed (so callers `return if out.nil?`).
-  def timed_anthropic_call(run, api_error:, validation_error:)
-    client  = AnthropicClient.new
+  def timed_anthropic_call(run, api_error:, validation_error:, model: nil)
+    client  = AnthropicClient.new(model: model)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     begin
