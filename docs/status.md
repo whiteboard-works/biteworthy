@@ -17,6 +17,26 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Fix broken Vercel web deploys (Tailwind v4 regression). Branch `fix/tailwind-v3-repin-vercel-build`.
+
+- **Every Vercel web deploy had been failing** since Dependabot #421 (527025b)
+  bumped `tailwindcss` 3.4.19 → 4.3.3. v4 moved its PostCSS plugin to
+  `@tailwindcss/postcss` + CSS-first config, but `apps/web/postcss.config.mjs`
+  still uses the v3-style `tailwindcss: {}` plugin, so a fresh install throws
+  `pluginFactory` on `globals.css` under Next 16's Turbopack build. Confirmed on
+  both #411 (fa847f5) and #422 (9329efe); the site was stuck on the last good
+  deploy. Local builds passed only because `node_modules` held a stale v3.
+- **Silent because CI doesn't build**: `ci-js` runs typecheck/lint/test, not
+  `next build`, so only Vercel caught it — and Vercel isn't an auto-merge gate.
+- **Fix**: re-pinned `tailwindcss` to `^3.4.19` (the team's prior v3 decision),
+  regenerated `pnpm-lock.yaml`, and added a Dependabot `version-update:semver-major`
+  ignore for tailwindcss so it can't re-bump. Verified `pnpm --filter web build`
+  green with a fresh v3 install (34/34 static pages); web vitest 204, typecheck,
+  lint green.
+- **Follow-up (not in this PR)**: add `pnpm build` to `ci-js` so build breaks
+  gate PRs instead of silently failing Vercel. A full Tailwind v4 migration
+  (postcss + ui-tokens→tailwind.config rework) remains the deferred alternative.
+
 2026-07-20 — Web auth entry, deferrable onboarding, auth analytics. Branch `feature/web-auth-entry-onboarding-skip`.
 
 - **User asks**: (1) a direct login/signup button that doesn't route through
