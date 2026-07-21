@@ -11,9 +11,9 @@ module Ingestion
     SYSTEM_INSTRUCTIONS = <<~MD.strip
       You are an OCR + structuring system for restaurant menus.
 
-      You will be given one or more images of a menu (potentially
-      multi-page). Extract every visible menu item and group them by
-      section heading.
+      You will be given a restaurant menu as one or more images, a PDF,
+      or pasted/scraped text (potentially multi-page). Extract every
+      visible menu item and group them by section heading.
 
       Respond with **STRICT JSON ONLY** that matches this shape:
 
@@ -60,7 +60,9 @@ module Ingestion
         physically closest to the item's name + description.
     MD
 
-    USER_INSTRUCTIONS = "Extract every menu item from these images."
+    USER_INSTRUCTIONS = "Extract every menu item from the menu above."
+
+    IMAGE_TYPES = %w[image/jpeg image/png image/gif image/webp].freeze
 
     # Build the system blocks array. Marks the instructions as
     # cached so a re-extraction within the 5-minute window pays
@@ -69,12 +71,33 @@ module Ingestion
       client.system_blocks(text: SYSTEM_INSTRUCTIONS, cache: true)
     end
 
-    # Build the user message: every input attachment is added as an
-    # image block, then the short text instruction.
+    # Build the user message: each input attachment becomes the content
+    # block Anthropic expects for its type, then the short instruction.
     def self.user_messages(client, blobs)
-      content = blobs.map { |blob| client.image_block(blob) }
+      content = blobs.map { |blob| content_block(client, blob) }
       content << { type: "text", text: USER_INSTRUCTIONS }
       [{ role: "user", content: content }]
+    end
+
+    # Route each input by content-type. Anthropic's vision `image` block
+    # only accepts jpeg/png/gif/webp, so PDFs and text (URL scrapes come
+    # back as text/html; pasted menus as text/plain) must NOT be sent as
+    # images — doing so 400s with "media_type should be image/...".
+    #   * PDF   → document block (Claude reads PDFs natively)
+    #   * text/*→ text block (the model reads the menu text directly)
+    #   * else  → image block (jpeg/png/gif/webp — and, unchanged,
+    #             heic/heif, which still 400; converting them is a
+    #             follow-up, but a text block of raw HEIC bytes would be
+    #             worse, so they stay on the image path)
+    def self.content_block(client, blob)
+      ct = blob.content_type.to_s
+      if ct == "application/pdf"
+        client.document_block(blob)
+      elsif ct.start_with?("text/")
+        { type: "text", text: blob.download.to_s }
+      else
+        client.image_block(blob)
+      end
     end
   end
 end
