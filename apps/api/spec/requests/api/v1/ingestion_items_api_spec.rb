@@ -234,4 +234,62 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(run.reload.published?).to be true
     end
   end
+
+  describe "POST /api/v1/ingestion_runs/:run_id/items/accept_all" do
+    it "promotes every pending item at once for an enriched (:staged) run" do
+      create(:ingestion_item, ingestion_run: run, name: "Bean Taco", position: 1)
+
+      expect {
+        post "/api/v1/ingestion_runs/#{run.id}/items/accept_all", headers: auth_for(admin)
+      }.to change(Item, :count).by(2)
+
+      expect(response).to have_http_status(:ok)
+      run.reload
+      expect(run.ingestion_items.pluck(:decision)).to all(eq("accepted"))
+      expect(run.ingestion_items.pluck(:item_id)).to all(be_present)
+    end
+
+    it "defers promotion for a still-resolving run (records accepts, creates no Items)" do
+      resolving = create(:ingestion_run, restaurant: restaurant, user: non_admin, status: "resolving")
+      create(:ingestion_item, ingestion_run: resolving, name: "A", position: 0)
+      create(:ingestion_item, ingestion_run: resolving, name: "B", position: 1)
+
+      expect {
+        post "/api/v1/ingestion_runs/#{resolving.id}/items/accept_all", headers: auth_for(non_admin)
+      }.not_to change(Item, :count)
+
+      expect(resolving.ingestion_items.pluck(:decision)).to all(eq("accepted"))
+      expect(resolving.ingestion_items.pluck(:item_id)).to all(be_nil)
+    end
+
+    it "403s a stranger" do
+      other    = create(:ingestion_run, :staged, restaurant: restaurant, user: non_admin)
+      stranger = create(:user, password: "password123")
+
+      post "/api/v1/ingestion_runs/#{other.id}/items/accept_all", headers: auth_for(stranger)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "undo (PATCH decision: pending)" do
+    it "reverts an accepted+promoted item to pending and removes its live Item + joins" do
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: { decision: "accepted" }.to_json, headers: auth_for(admin)
+      promoted_id = response.parsed_body["item_id"]
+      expect(Item.exists?(promoted_id)).to be true
+
+      expect {
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "pending" }.to_json, headers: auth_for(admin)
+      }.to change(Item, :count).by(-1)
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["decision"]).to eq("pending")
+      expect(body["item_id"]).to be_nil
+      expect(Item.exists?(promoted_id)).to be false
+      expect(ItemIngredient.where(item_id: promoted_id)).to be_empty
+    end
+  end
 end

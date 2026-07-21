@@ -103,7 +103,9 @@ Rails.application.routes.draw do
       # validation).
       get "/users/:handle", to: "users#show", as: :user, constraints: { handle: /[A-Za-z0-9_]{3,30}/ }
       resources :ingestion_runs, only: [:create, :show] do
-        resources :items, only: [:index, :update], controller: "ingestion_items"
+        resources :items, only: [:index, :update], controller: "ingestion_items" do
+          collection { post :accept_all }
+        end
       end
     end
   end

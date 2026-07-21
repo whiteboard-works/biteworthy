@@ -17,6 +17,17 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Verify-flow redesign PR-2: Accept All + Undo. Branch `feat/verify-accept-all-undo`.
+
+- `POST /ingestion_runs/:id/items/accept_all` — bulk-accepts every pending item,
+  same defer-or-promote rule as a single accept (promote now if enriched, else
+  record for the :staged batch-promote). Undo = `PATCH decision: pending` — reverts
+  a decision to pending and, if the item was promoted, destroys its live Item +
+  ingredient/tag joins (FK is RESTRICT, so item_id is released first). Shared
+  `apply_acceptance!`; items now serialized with `position` + ordered by it.
+- Next: PR-3 (verify page redesign — grouping, matching status, Accept All / Undo
+  buttons). PR-1 (pipeline) deployed; re-verifying end-to-end via Chrome.
+
 2026-07-21 — Verify-flow redesign PR-1: instant dishes + background enrichment
 (backend pipeline). Branch `feat/verify-flow-redesign`. See
 `docs/plans/verify-flow-redesign.md`.
