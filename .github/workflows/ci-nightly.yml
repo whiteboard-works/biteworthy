@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # pnpm version is sourced from the `packageManager` field in
       # package.json. Don't pass `version:` here — pnpm/action-setup@v6
@@ -79,7 +79,7 @@ jobs:
       DATABASE_PASSWORD: postgres
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Ingestion::DishPhotoCropper depends on MiniMagick which shells
       # out to `magick`/`identify`. The ubuntu-latest runner ships
