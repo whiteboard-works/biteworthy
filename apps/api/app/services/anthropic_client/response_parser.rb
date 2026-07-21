@@ -31,7 +31,7 @@ class AnthropicClient::ResponseParser
     # AnthropicClient::ValidationError on either JSON parse failure
     # or schema mismatch.
     def parse_and_validate(text, schema)
-      payload = JSON.parse(text)
+      payload = JSON.parse(strip_code_fence(text))
     rescue JSON::ParserError => e
       raise AnthropicClient::ValidationError.new(
         raw_body: text, errors: ["JSON parse failed: #{e.message}"]
@@ -41,6 +41,21 @@ class AnthropicClient::ResponseParser
       raise AnthropicClient::ValidationError.new(raw_body: text, errors: errors) if errors.any?
 
       payload
+    end
+
+    # Despite the "STRICT JSON ONLY, no fences" system instruction, the
+    # model sometimes wraps its response in a ```json … ``` markdown fence
+    # (seen live in the resolve stage: "unexpected character: '```json'").
+    # Strip a surrounding fence so a well-formed body inside it still
+    # parses; text without a leading fence is returned unchanged.
+    def strip_code_fence(text)
+      stripped = text.to_s.strip
+      return stripped unless stripped.start_with?("```")
+
+      stripped
+        .sub(/\A```[a-z0-9]*[ \t]*\r?\n?/i, "") # opening ``` or ```json
+        .sub(/\r?\n?```\s*\z/, "")              # closing ```
+        .strip
     end
   end
 end
