@@ -52,6 +52,12 @@ export const EVENTS = {
   share_link_copied:    'share_link_copied',
   restaurant_claimed:   'restaurant_claimed',
   suggestion_submitted: 'suggestion_submitted',
+  // Auth flow — auxiliary to the core funnel (they fire after app_open,
+  // before profile_set). Track sign-in / sign-up attempt → outcome so we
+  // can see conversion + where the flow breaks. No PII (see below).
+  auth_started:         'auth_started',
+  auth_completed:       'auth_completed',
+  auth_failed:          'auth_failed',
 } as const;
 
 export type EventName = keyof typeof EVENTS;
@@ -127,6 +133,27 @@ export interface EventPropsMap {
     restaurant_slug: string;
     /** add_ingredient | rename | etc. — see Phase 4.10. */
     kind: string;
+  };
+  // Auth events carry a coarse method/reason/status only — never the
+  // email, password, or any PII (docs/analytics.md privacy rule).
+  auth_started: {
+    /** Which auth form the user submitted. */
+    method: 'login' | 'signup';
+  };
+  auth_completed: {
+    method: 'login' | 'signup';
+  };
+  auth_failed: {
+    method: 'login' | 'signup';
+    /**
+     * Coarse failure category — never the raw error text. Login:
+     * `missing_fields | wrong_credentials | server | network | unknown`.
+     * Signup adds the client-side gates:
+     * `weak_password | age_unconfirmed | terms_unaccepted | email_taken`.
+     */
+    reason: string;
+    /** Upstream HTTP status when the failure came from the API (else absent). */
+    status?: number;
   };
 }
 

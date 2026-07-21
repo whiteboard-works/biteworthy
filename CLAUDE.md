@@ -68,7 +68,7 @@ Pnpm + Turborepo monorepo. Three apps + five shared packages:
 - `apps/mobile` — Expo SDK 56 + expo-router.
 - `packages/api-types` — TS types codegen'd from `docs/openapi.json` (see Cross-package contracts below).
 - `packages/filter-engine` — pure-TS dietary filter, shared by web + mobile, with Vitest tests. Mirrors the server-side SQL.
-- `packages/analytics` — the 9-event funnel taxonomy (`EVENTS` map + `EventPropsMap`). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
+- `packages/analytics` — the funnel-event taxonomy (`EVENTS` map + `EventPropsMap`; 9 core funnel/engagement events + 3 auth events). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add new events + optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
 - `packages/ui-tokens` — design tokens consumed by Tailwind (web) and `StyleSheet.create` (mobile).
 - `packages/eslint-config` — minimal flat config; framework rules live per-app.
 

@@ -19,6 +19,9 @@ describe('EVENTS taxonomy', () => {
         'share_link_copied',
         'restaurant_claimed',
         'suggestion_submitted',
+        'auth_started',
+        'auth_completed',
+        'auth_failed',
       ].sort(),
     );
   });

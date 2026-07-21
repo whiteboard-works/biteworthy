@@ -118,6 +118,14 @@ describe('OnboardingPage — taste step in the full flow', () => {
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
+  it('offers a labelled Skip-for-now on step 1 that returns home without saving', async () => {
+    render(<OnboardingPage />);
+    const skip = await screen.findByTestId('onboarding-skip');
+    fireEvent.click(skip);
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+  });
+
   it('sits at step 4 of 5 between strictness and review, and is skippable', async () => {
     render(<OnboardingPage />);
     // presets (1) → ingredients (2) → strictness (3) → taste (4)

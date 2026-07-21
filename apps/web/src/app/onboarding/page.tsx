@@ -267,6 +267,10 @@ function OnboardingFlow() {
           selectedSlugs={draft.selectedPresetSlugs}
           onToggle={(slug) => dispatch({ type: 'TOGGLE_PRESET', slug })}
           onNext={() => setStep('ingredients')}
+          onSkip={() => {
+            clearDraft();
+            router.replace('/');
+          }}
         />
       )}
 
@@ -382,6 +386,7 @@ function PresetsStep({
   selectedSlugs,
   onToggle,
   onNext,
+  onSkip,
 }: {
   presets: DietaryPreset[];
   loading: boolean;
@@ -389,6 +394,7 @@ function PresetsStep({
   selectedSlugs: string[];
   onToggle: (slug: string) => void;
   onNext: () => void;
+  onSkip: () => void;
 }) {
   return (
     <>
@@ -437,6 +443,16 @@ function PresetsStep({
         </div>
       )}
       <NextButton label="Next →" onClick={onNext} testId="next-to-ingredients" />
+      {/* Safety is the whole product, but it's optional to set up right now —
+          a signed-in skipper gets nudged to finish later (SiteHeader). */}
+      <button
+        type="button"
+        onClick={onSkip}
+        data-testid="onboarding-skip"
+        className="mt-bw-3 w-full text-bw-sm font-semibold text-zinc-500 hover:text-zinc-700"
+      >
+        Skip for now — you can set this up later
+      </button>
     </>
   );
 }

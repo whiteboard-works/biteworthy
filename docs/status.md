@@ -17,6 +17,34 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-20 — Web auth entry, deferrable onboarding, auth analytics. Branch `feature/web-auth-entry-onboarding-skip`.
+
+- **User asks**: (1) a direct login/signup button that doesn't route through
+  onboarding, (2) a way to skip onboarding and finish it later, (3) more
+  analytics on the sign-in/sign-up flows. All web.
+- **Sign up in the header**: `_SiteHeader` signed-out state now shows Sign in +
+  a primary **Sign up** button (was only a "Sign in" text link). Landing hero
+  unchanged.
+- **Resume nudge**: `GET /api/auth/session` now also returns `onboarded` — when
+  signed in it reads Rails `GET /api/v1/profile` and reports
+  `disclaimer_acknowledged_at != null` (fails safe to `true` on any lookup
+  error, so a hiccup never nags a set-up user; no API change — the field was
+  already in the payload). When `signedIn && !onboarded` the header shows a
+  quiet "Food profile" link + a dismissible banner (localStorage
+  `bw_profile_nudge_dismissed`); both hidden on /onboarding·/login·/signup and
+  gone for good once onboarding completes. Onboarding step 1 gained a labelled
+  **"Skip for now"** (same clear-draft + home as the existing Exit).
+- **Auth analytics**: 3 new events in `packages/analytics` (`auth_started`,
+  `auth_completed`, `auth_failed`) — auxiliary to the core funnel, PII-free
+  (coarse `method`/`reason`/`status`, never email/password). login + signup
+  pages fire started→completed/failed; each client gate (weak_password,
+  age_unconfirmed, terms_unaccepted) and API error (wrong_credentials 401,
+  email_taken 422, server, network) reports its own reason. Mobile can adopt
+  the same events later (deliberately deferred). No `identify()` — keeps the
+  anonymous-id posture. `docs/analytics.md` + CLAUDE.md updated.
+- Web vitest 201 (+13), analytics vitest 12 (+1 taxonomy assertion); typecheck
+  + lint green across the workspace. No apps/api changes → ci-api untouched.
+
 2026-07-16 — Web auth UX + session lifetime. Branch `fix/web-auth-nav-and-onboarding-exit`.
 
 - **User report**: onboarding had no exit/skip, and "logging in does not work"
