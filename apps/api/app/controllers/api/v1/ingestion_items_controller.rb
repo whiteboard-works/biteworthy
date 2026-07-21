@@ -47,7 +47,16 @@ module Api
           # promotion step.
           if decision == "accepted"
             item.save! if item.changed?
-            item.promote!(decided_by: current_user)
+            if run.staged? || run.published?
+              item.promote!(decided_by: current_user)
+            else
+              # Verify-flow redesign: dishes are visible + acceptable while
+              # enrichment (resolve) is still running, but promote! must wait
+              # until the item has its ingredient/tag payloads — an Item can't
+              # go live without them. Record the acceptance now; ResolveTagsJob
+              # batch-promotes it when the run reaches :staged.
+              item.update!(decision: "accepted", decided_at: Time.current)
+            end
           else
             item.update!(decision: "edited", decided_at: Time.current)
           end

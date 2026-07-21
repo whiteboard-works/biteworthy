@@ -84,28 +84,24 @@ class ResolveStageJob < ApplicationJob
 
   def collect_items(staging) = self.class.collect_items(staging)
 
-  # Mutate a deep copy of staging by zipping the API response back onto
-  # each item by index, writing two new keys: `<key>` (resolved) and
-  # `unresolved_<key>`.
-  def apply_resolution(staging, result, key:)
-    new_staging = JSON.parse(staging.to_json) # deep copy + stringify
-    flat_index  = 0
-    by_index    = result["items"].index_by { |row| row["index"] }
+  # Verify-flow redesign: enrich the IngestionItems (materialized up front by
+  # ExtractMenuJob) in place — write this stage's resolution onto each item by
+  # `position`. The items, not staging, are now the source of truth the verify
+  # UI + promote! read. `collect_items(staging)` (flat order) and the item
+  # positions were both assigned in the same section→item order, so the model's
+  # row index maps straight to `item.position`. An item whose index the model
+  # didn't return keeps its empty defaults.
+  def apply_resolution_to_items!(run, result, resolved_col:, unresolved_col:)
+    by_index = Array(result["items"]).index_by { |row| row["index"] }
 
-    Array(new_staging["sections"]).each do |section|
-      Array(section["items"]).each do |item|
-        row = by_index[flat_index]
-        if row
-          item[key.to_s]            = row["resolved"]
-          item["unresolved_#{key}"] = row["unresolved"]
-        else
-          item[key.to_s]            ||= []
-          item["unresolved_#{key}"] ||= []
-        end
-        flat_index += 1
-      end
+    run.ingestion_items.where.not(position: nil).find_each do |item|
+      row = by_index[item.position]
+      next unless row
+
+      item.update!(
+        resolved_col   => Array(row["resolved"]),
+        unresolved_col => Array(row["unresolved"])
+      )
     end
-
-    new_staging
   end
 end

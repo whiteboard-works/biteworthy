@@ -1,55 +1,51 @@
-# Phase 2.4 — third stage of the AI ingestion pipeline.
+# Phase 2.4 — third (final) stage of the AI ingestion pipeline.
 #
 # Triggered by ResolveIngredientsJob on success. Same shape as the
-# ingredient stage (skeleton in ResolveStageJob) but with the tag
-# catalog. After writing the tag resolution back to staging, this job:
+# ingredient stage (skeleton in ResolveStageJob) but with the tag catalog.
 #
-# 1. Materializes IngestionItem rows (one per item in staging) with
-#    `decision: pending` so the swipe-verify UI in Phase 2.7 has
-#    something to show.
-# 2. Transitions the run to `:staged` (Phase 2.5's verify UI takes
-#    over from there).
+# Verify-flow redesign: the items were already materialized up front by
+# ExtractMenuJob, so this stage ENRICHES them in place (tags) rather than
+# creating them. Once every item carries its ingredient + tag payloads it:
+#   1. Promotes any item the user accepted while enrichment was still
+#      running (recorded then, but NOT promoted — an Item must never go live
+#      without its ingredients/tags).
+#   2. Transitions the run to :staged and runs the 80%-accepted publish check
+#      (a bulk pre-accept may already have crossed the threshold).
 class ResolveTagsJob < ResolveStageJob
   def stage        = "resolve_tags"
   def prompt       = Ingestion::ResolveTagsPrompt
   def catalog_text = Ingestion::CatalogBuilder.tags_text
 
   def apply_and_advance(run, result, elapsed_ms)
-    new_staging = apply_resolution(run.staging, result, key: :tags)
-
     run.transaction do
-      run.update!(staging: new_staging, latency_ms: elapsed_ms)
-      materialize_ingestion_items!(run)
+      apply_resolution_to_items!(
+        run, result,
+        resolved_col:   :tags_payload,
+        unresolved_col: :unresolved_tags
+      )
+      run.update!(latency_ms: elapsed_ms)
+      promote_accepted_items!(run)
       run.transition_to!(:staged)
+      run.maybe_publish!
     end
   end
 
   private
 
-  # Walk the resolved staging payload and create one IngestionItem
-  # per extracted item, ready for the swipe-verify UI to operate on.
-  def materialize_ingestion_items!(run)
-    Array(run.staging["sections"]).each do |section|
-      section_name = section["name"]
-      Array(section["items"]).each do |item|
-        IngestionItem.create!(
-          ingestion_run:           run,
-          name:                    item["name"],
-          description:             item["description"],
-          section_name:            section_name,
-          prices_payload:          Array(item["prices"]),
-          ingredients_payload:     Array(item["ingredients"]),
-          tags_payload:            Array(item["tags"]),
-          unresolved_ingredients:  Array(item["unresolved_ingredients"]),
-          unresolved_tags:         Array(item["unresolved_tags"]),
-          # Phase 4.11.2 — bbox is optional in the schema; nil is the
-          # signal "no inline photo for this dish." Phase 4.11.3's
-          # IngestionItem#promote! reads this column to decide whether
-          # to crop + attach.
-          image_bbox:              item["image_bbox"],
-          decision:                "pending"
-        )
-      end
+  # Items accepted while the run was still :resolving were recorded but not
+  # promoted (their payloads were empty then). Now that they're enriched,
+  # materialize the real Items. decided_by is the run's user, matching the
+  # community self-verify trust model (creator → suggested; admin-owned run /
+  # no user → confirmed). Best-effort per item so one bad promotion can't
+  # block the whole run from reaching :staged; promote! is idempotent.
+  def promote_accepted_items!(run)
+    run.ingestion_items.where(decision: "accepted", item_id: nil).find_each do |item|
+      item.promote!(decided_by: run.user)
+    rescue StandardError => e
+      Rails.logger.error(
+        "ResolveTagsJob: promote of pre-accepted IngestionItem##{item.id} failed: " \
+        "#{e.class} #{e.message}"
+      )
     end
   end
 end

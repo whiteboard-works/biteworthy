@@ -47,6 +47,19 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.state_history.keys).to include("extracting", "resolving")
     end
 
+    it "materializes an IngestionItem per extracted dish up front (empty payloads) for instant review" do
+      described_class.perform_now(run.id)
+
+      item = run.ingestion_items.sole
+      expect(item).to have_attributes(
+        name: "Carne Asada Taco", section_name: "Tacos", position: 0, decision: "pending"
+      )
+      expect(item.prices_payload).to eq([{ "size" => nil, "price_cents" => 450 }])
+      # Enrichment fills these in the background — empty now so the dish shows immediately.
+      expect(item.ingredients_payload).to eq([])
+      expect(item.tags_payload).to eq([])
+    end
+
     it "is a no-op on already-staged runs" do
       run.update!(status: "staged")
       expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
@@ -68,6 +81,38 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.api_cost_cents).to be > 0
       expect(run.uncached_input_tokens).to eq(100_000)
       expect(run.model).to eq(AnthropicClient::DEFAULT_MODEL)
+    end
+  end
+
+  # Phase 4.11.2 — image_bbox handling moved here (materialize is now at
+  # extraction). promote! later reads it to crop + attach the inline dish photo.
+  describe "image_bbox from extraction" do
+    let(:extraction_with_bbox) do
+      {
+        "sections" => [
+          { "name" => "Appetizers", "items" => [
+              { "name" => "Spring Rolls", "description" => "Crispy veggie.",
+                "prices" => [{ "size" => nil, "price_cents" => 600 }],
+                "image_bbox" => { "x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25 } },
+              { "name" => "Tom Yum", "description" => "Hot + sour soup.",
+                "prices" => [{ "size" => nil, "price_cents" => 800 }] }
+            ] }
+        ]
+      }
+    end
+
+    before do
+      attach_fake_input!
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(extraction_with_bbox)
+    end
+
+    it "copies image_bbox onto the item when present, leaves nil otherwise" do
+      described_class.perform_now(run.id)
+
+      expect(run.ingestion_items.find_by(name: "Spring Rolls").image_bbox)
+        .to eq("x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.25)
+      expect(run.ingestion_items.find_by(name: "Tom Yum").image_bbox).to be_nil
     end
   end
 
