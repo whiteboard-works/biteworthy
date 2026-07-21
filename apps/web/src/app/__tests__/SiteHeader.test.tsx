@@ -57,6 +57,8 @@ describe('SiteHeader', () => {
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
     expect(screen.getByTestId('nav-signup')).toBeInTheDocument();
+    // Discovery link is always present, signed in or out.
+    expect(screen.getByTestId('nav-restaurants')).toHaveAttribute('href', '/restaurants');
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();

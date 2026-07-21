@@ -3,9 +3,11 @@ import {
   clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
+  fetchRestaurants,
   setNeverHide,
   type Restaurant,
   type RestaurantItemsResponse,
+  type RestaurantSummary,
 } from '../restaurants';
 
 const restaurantPayload: Restaurant = {
@@ -148,5 +150,37 @@ describe('setNeverHide / clearNeverHide (Phase 4.2)', () => {
   it('throws on non-2xx', async () => {
     const fetchImpl = fakeFetch(401, { error: 'unauth' });
     await expect(setNeverHide('item-1', { fetchImpl })).rejects.toThrow(/401/);
+  });
+});
+
+describe('fetchRestaurants', () => {
+  const summary: RestaurantSummary = {
+    id: 'r1',
+    slug: 'marias',
+    name: "Maria's Tacos",
+    status: 'published',
+    city: { slug: 'durango', name: 'Durango', region: 'CO' },
+    street: null,
+    latitude: null,
+    longitude: null,
+  };
+
+  it('GETs the published list and unwraps { restaurants }', async () => {
+    const fetchImpl = fakeFetch(200, { restaurants: [summary] });
+
+    const result = await fetchRestaurants({ fetchImpl });
+
+    expect(result).toEqual([summary]);
+    const [url] = fetchImpl.mock.calls[0] as unknown as [string];
+    expect(url).toContain('/api/v1/restaurants');
+  });
+
+  it('appends ?q= when a search term is given', async () => {
+    const fetchImpl = fakeFetch(200, { restaurants: [] });
+
+    await fetchRestaurants({ q: 'taco', fetchImpl });
+
+    const [url] = fetchImpl.mock.calls[0] as unknown as [string];
+    expect(url).toContain('/restaurants?q=taco');
   });
 });
