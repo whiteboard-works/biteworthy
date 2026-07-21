@@ -17,8 +17,26 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Route ingestion inputs by content-type + copy/paste import.
+Branch `feat/ingest-content-types` (the "next PR" from the fence entry below).
+
+- Fixes the URL-import 400 (`media_type should be image/...`): `ExtractMenuPrompt`
+  sent every input as a vision `image` block, but URL fetches come back as
+  `text/html` and PDFs as `application/pdf` — neither is a valid image. Now
+  routed per content-type: PDF → document block (Claude reads PDFs natively),
+  text/* (URL HTML + pasted) → text block, images (jpeg/png/gif/webp) → image
+  block. HEIC/HEIF still route as images (deferred; a text block of raw HEIC
+  bytes would be worse — conversion is the real follow-up).
+- Delivers the requested **copy/paste import**: `POST /api/v1/ingestion_runs`
+  now accepts `source_text` → a `text` run storing the paste as a text/plain
+  input blob through the same pipeline; capped at 50k chars
+  (`INGESTION_MAX_SOURCE_TEXT_CHARS`). New `/ingest` textarea + `ingestFromText`.
+- Added `AnthropicClient#document_block`, `input_kind: "text"`. Specs: prompt
+  routing (image/pdf/text) + request (text run, text_too_large) + web (lib +
+  paste page). Web vitest 208, typecheck/lint green; Ruby specs on ci-api.
+
 2026-07-21 — Ingestion pipeline bugs surfaced once R2 upload worked. Branches
-`fix/anthropic-json-fence` (this one) + follow-ups.
+`fix/anthropic-json-fence` + follow-ups.
 
 - After the R2 fix, real scans exposed downstream failures (from prod runs):
   1. **Photo (jpeg)**: extraction succeeds, then resolve fails —
