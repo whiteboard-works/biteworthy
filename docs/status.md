@@ -17,6 +17,19 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Homepage discovery: show restaurants + menu links everywhere.
+Branch `feat/homepage-discovery`.
+
+- Owner: "the homepage feels dead — show restaurants, add menu links to the top
+  pages." Now that RGP's Wraps is published (37 items) there's real content to
+  surface. Added: `fetchRestaurants()` (published list) → a homepage "Menus you
+  can filter right now" section (server-fetched, ISR 5m, graceful empty state),
+  a new `/restaurants` browse index, a persistent **Restaurants** nav link in the
+  header (every page, signed in or out) + a footer link. Cards link to each
+  `/restaurants/[slug]` filtered menu.
+- Web vitest 210 (+2), typecheck/lint green; `next build` regenerates the typed
+  route for /restaurants. Verify-flow redesign PR-3 (verify UI) still queued.
+
 2026-07-21 — Verify-flow redesign PR-2: Accept All + Undo. Branch `feat/verify-accept-all-undo`.
 
 - `POST /ingestion_runs/:id/items/accept_all` — bulk-accepts every pending item,

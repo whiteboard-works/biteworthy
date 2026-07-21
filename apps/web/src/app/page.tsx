@@ -1,7 +1,13 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { buildLandingMetadata } from '../lib/landing-meta';
+import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
+import { RestaurantCards } from './_RestaurantCards';
 import WaitlistForm from './_waitlist-form';
+
+// ISR: keep the landing static + fast, but let the live restaurant list
+// refresh every 5 minutes as menus get published.
+export const revalidate = 300;
 
 /**
  * Phase 5.5 — marketing landing.
@@ -33,10 +39,50 @@ export default function HomePage(): ReactElement {
   return (
     <main className="bg-white">
       <Hero />
+      <BrowseRestaurants />
       <FeatureRow />
       <DurangoNote />
       <Footer />
     </main>
+  );
+}
+
+async function BrowseRestaurants(): Promise<ReactElement> {
+  let restaurants: RestaurantSummary[] = [];
+  try {
+    restaurants = await fetchRestaurants({ revalidate: 300 });
+  } catch {
+    // API hiccup — show the empty state, never break the landing page.
+  }
+
+  return (
+    <section className="mx-auto max-w-5xl px-bw-6 py-bw-16">
+      <div className="flex flex-wrap items-end justify-between gap-bw-3">
+        <h2 className="text-bw-2xl font-bold text-zinc-900">Menus you can filter right now</h2>
+        {restaurants.length > 0 && (
+          <a
+            href="/restaurants"
+            data-testid="home-browse-all"
+            className="text-bw-sm font-bold text-bite hover:text-bite-dark"
+          >
+            Browse all restaurants →
+          </a>
+        )}
+      </div>
+
+      {restaurants.length === 0 ? (
+        <div className="mt-bw-4 rounded-bw-lg border border-zinc-200 bg-zinc-50 p-bw-6 text-bw-base text-zinc-600">
+          We&rsquo;re adding Durango menus now. Know a spot that isn&rsquo;t here?{' '}
+          <a href="/ingest" className="font-bold text-bite hover:text-bite-dark">
+            Scan its menu →
+          </a>
+        </div>
+      ) : (
+        <div className="mt-bw-6">
+          <RestaurantCards restaurants={restaurants.slice(0, 6)} />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -151,6 +197,9 @@ function Footer(): ReactElement {
           &copy; {new Date().getFullYear()} BiteWorthy &middot; Made in Durango, CO.
         </p>
         <nav className="flex flex-wrap gap-bw-4">
+          <a href="/restaurants" className="hover:text-zinc-700" data-testid="footer-restaurants">
+            Restaurants
+          </a>
           <a href="/story" className="hover:text-zinc-700" data-testid="footer-story">
             Our story
           </a>

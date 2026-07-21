@@ -45,6 +45,18 @@ export interface Restaurant {
   city: RestaurantCity;
 }
 
+/** The lighter shape `GET /api/v1/restaurants` returns for browse/discovery. */
+export interface RestaurantSummary {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  city: { slug: string; name: string; region: string };
+  street: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 /**
  * Items endpoint payload. The server enriches reasons with name +
  * family — same shape `applyProfile` from filter-engine produces, so
@@ -109,6 +121,24 @@ export async function fetchRestaurant(
   return api<Restaurant>(`/restaurants/${encodeURIComponent(slugOrId)}`, {
     fetchImpl: opts.fetchImpl,
   });
+}
+
+/**
+ * The published-restaurants list for the homepage + /restaurants browse
+ * surfaces. Optional `q` filters by name (server-side ILIKE). Server-side
+ * callers can pass a `revalidate` window for ISR caching.
+ */
+export async function fetchRestaurants(
+  opts: FetchOptions & { q?: string; revalidate?: number } = {},
+): Promise<RestaurantSummary[]> {
+  const qs = opts.q ? `?q=${encodeURIComponent(opts.q)}` : '';
+  const init =
+    opts.revalidate !== undefined ? { next: { revalidate: opts.revalidate } } : {};
+  const body = await api<{ restaurants: RestaurantSummary[] }>(`/restaurants${qs}`, {
+    fetchImpl: opts.fetchImpl,
+    ...init,
+  });
+  return body.restaurants;
 }
 
 /** Phase 4.5 — fetch a single item by id under a restaurant. */

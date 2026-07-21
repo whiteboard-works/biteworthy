@@ -162,6 +162,14 @@ export function SiteHeader() {
 
         {/* Reserve height while auth state resolves so the bar doesn't jump. */}
         <nav className="flex min-h-[1.5rem] items-center gap-bw-4 text-bw-sm">
+          {/* Discovery — visible to everyone, signed in or not. */}
+          <Link
+            href="/restaurants"
+            data-testid="nav-restaurants"
+            className="font-semibold text-zinc-700 hover:text-bite-dark"
+          >
+            Restaurants
+          </Link>
           {signedIn === true && (
             <>
               {/* Scanning is the core action and needs a home — a signed-in
