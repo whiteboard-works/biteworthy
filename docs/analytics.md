@@ -1,6 +1,6 @@
 # Analytics — event taxonomy
 
-The 9 stable funnel events for Phase 5.8. Names + payload schemas are the contract between the call sites (web, mobile, api) and the dashboard. **Renaming any of these breaks downstream funnels** — add new optional fields freely; rename only with a coordinated dashboard update.
+The stable funnel + engagement events (9 core, plus 3 auth events). Names + payload schemas are the contract between the call sites (web, mobile, api) and the dashboard. **Renaming any of these breaks downstream funnels** — add new events + optional fields freely; rename only with a coordinated dashboard update.
 
 The canonical type definitions live in `packages/analytics/src/index.ts` (`EVENTS` map + `EventPropsMap`). When this doc and that file disagree, the type definitions win — they're the compile-time contract.
 
@@ -98,6 +98,33 @@ Fired when a Suggestion is submitted (Phase 4.10). The follow-up `decideSuggesti
 | `item_slug` | `string` | |
 | `restaurant_slug` | `string` | |
 | `kind` | `string` | `"add_ingredient"`, `"rename"`, etc. — see Phase 4.10. |
+
+## Auth events
+
+Auxiliary to the core funnel (they fire after `app_open`, before `profile_set`) — they measure the sign-in / sign-up flow so we can see conversion and *where* it breaks. **No PII**: never the email or password, only a coarse `method` / `reason` / `status`. Currently instrumented on **web** (`login/page.tsx`, `signup/page.tsx`); mobile can adopt the same events.
+
+### `auth_started`
+Fired on every submit of the login or signup form (before validation), so it counts intent.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | `"login" \| "signup"` | Which form was submitted. |
+
+### `auth_completed`
+Fired once the account is signed in (before the post-auth redirect). `auth_started → auth_completed` is the conversion funnel.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | `"login" \| "signup"` | |
+
+### `auth_failed`
+Fired on any failure — both client-side gates and API errors — so drop-off is attributable.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | `"login" \| "signup"` | |
+| `reason` | `string` | Coarse category, never the raw error. Login: `missing_fields`, `wrong_credentials`, `server`, `network`, `unknown`. Signup adds the client gates (`weak_password`, `age_unconfirmed`, `terms_unaccepted`) and `rejected` for a server-side 422 (Rails returns 422 for any registration validation failure — duplicate email, invalid email, etc. — so it isn't labelled as specifically email-taken). |
+| `status` | `number?` | Upstream HTTP status when the failure came from the API (401 / 422 / 5xx); absent for client-side gates and network errors. |
 
 ## Privacy posture
 

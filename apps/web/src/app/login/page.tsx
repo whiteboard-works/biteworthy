@@ -4,7 +4,8 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { login, AuthError } from '../../lib/auth';
+import { login, AuthError, authFailureReason } from '../../lib/auth';
+import { useTracker } from '../_PostHogProvider';
 
 /**
  * Phase 4.1 — web login page.
@@ -13,6 +14,10 @@ import { login, AuthError } from '../../lib/auth';
  * Rails and sets the HttpOnly `bw_session` cookie. After success the
  * user is bounced to `?next=…` (or the home page) — no JWT-paste,
  * no token in the URL.
+ *
+ * Instrumented with the auth funnel events (auth_started → auth_completed
+ * / auth_failed) so we can see conversion + where sign-in breaks. Only a
+ * coarse failure reason is sent — never the email or password.
  */
 export default function LoginPage() {
   // useSearchParams (in LoginForm) needs a Suspense boundary or the
@@ -27,6 +32,7 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const tracker = useTracker();
   const next = params.get('next') ?? '/';
 
   const [email, setEmail] = useState('');
@@ -37,18 +43,27 @@ function LoginForm() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    tracker.track('auth_started', { method: 'login' });
     if (!email || !password) {
       setError('Email and password required.');
+      tracker.track('auth_failed', { method: 'login', reason: 'missing_fields' });
       return;
     }
     try {
       setSubmitting(true);
       await login(email, password);
+      tracker.track('auth_completed', { method: 'login' });
       // `next` is a runtime query value — typedRoutes can't prove it.
       router.replace(next as Route);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 0;
       setError(status === 401 ? 'Wrong email or password.' : (err as Error).message);
+      tracker.track('auth_failed', {
+        method: 'login',
+        reason: authFailureReason(status, { 401: 'wrong_credentials' }),
+        // Only attach a real HTTP status; 0 means it never reached the API.
+        ...(status > 0 ? { status } : {}),
+      });
     } finally {
       setSubmitting(false);
     }

@@ -7,6 +7,12 @@
  * means the SSR/static pages don't have to read cookies in the root
  * layout, so the marketing + SEO pages stay statically rendered.
  *
+ * Deliberately a purely-local cookie read (no upstream call): signed-in
+ * state must resolve fast and stay independent of Rails health, so the
+ * header never blanks out when the API is slow. The onboarding-status
+ * signal, which DOES need the API, lives in the separate
+ * `/api/auth/onboarded` route so it can't hold this one up.
+ *
  * A static `session/` segment sits alongside the dynamic `[action]/`
  * proxy; Next resolves this exact path here (the proxy only handles
  * login/signup/logout POSTs).

@@ -9,6 +9,15 @@
 import type { DietaryPreset, Strictness } from '@biteworthy/filter-engine';
 import { api, type ApiOptions } from './api';
 
+/**
+ * One-shot, tab-scoped hint the onboarding flow sets on a successful
+ * final save. The SiteHeader reads (and clears) it to flip its resume
+ * nudge off instantly on the redirect home, instead of waiting on the
+ * `/api/auth/onboarded` round-trip — otherwise the "set up your profile"
+ * banner briefly flashes on the page the user just finished setting up.
+ */
+export const ONBOARDED_HINT_KEY = 'bw_onboarded_hint';
+
 export interface IngredientSearchResult {
   id: string;
   slug: string;

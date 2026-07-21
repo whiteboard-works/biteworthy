@@ -19,6 +19,7 @@ import {
   saveProfile,
   saveTaste,
   searchIngredients,
+  ONBOARDED_HINT_KEY,
   type IngredientSearchResult,
   type TasteTag,
 } from '../../lib/onboarding';
@@ -196,6 +197,15 @@ function OnboardingFlow() {
       // the allergen-disclaimer checkbox, so record the acknowledgment.
       await saveProfile({ ...payload, acknowledge_disclaimer: true });
       clearDraft();
+      // Tell the header the profile is now set up so its resume nudge
+      // turns off immediately on the redirect home (no flash while the
+      // /api/auth/onboarded read is still in flight).
+      try {
+        sessionStorage.setItem(ONBOARDED_HINT_KEY, '1');
+      } catch {
+        // Best-effort — a missed hint just means the header confirms via
+        // the normal fetch instead.
+      }
       // Legal remediation E7 — funnel conversion only; the dietary
       // profile (preset/strictness/avoid sizes) is health data and is
       // never attached to this identified event.
@@ -267,6 +277,10 @@ function OnboardingFlow() {
           selectedSlugs={draft.selectedPresetSlugs}
           onToggle={(slug) => dispatch({ type: 'TOGGLE_PRESET', slug })}
           onNext={() => setStep('ingredients')}
+          onSkip={() => {
+            clearDraft();
+            router.replace('/');
+          }}
         />
       )}
 
@@ -382,6 +396,7 @@ function PresetsStep({
   selectedSlugs,
   onToggle,
   onNext,
+  onSkip,
 }: {
   presets: DietaryPreset[];
   loading: boolean;
@@ -389,6 +404,7 @@ function PresetsStep({
   selectedSlugs: string[];
   onToggle: (slug: string) => void;
   onNext: () => void;
+  onSkip: () => void;
 }) {
   return (
     <>
@@ -437,6 +453,16 @@ function PresetsStep({
         </div>
       )}
       <NextButton label="Next →" onClick={onNext} testId="next-to-ingredients" />
+      {/* Safety is the whole product, but it's optional to set up right now —
+          a signed-in skipper gets nudged to finish later (SiteHeader). */}
+      <button
+        type="button"
+        onClick={onSkip}
+        data-testid="onboarding-skip"
+        className="mt-bw-3 w-full text-bw-sm font-semibold text-zinc-500 hover:text-zinc-700"
+      >
+        Skip for now — you can set this up later
+      </button>
     </>
   );
 }

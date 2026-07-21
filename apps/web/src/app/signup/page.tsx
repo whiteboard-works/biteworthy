@@ -4,12 +4,21 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { signup, AuthError } from '../../lib/auth';
+import { signup, AuthError, authFailureReason } from '../../lib/auth';
+import { useTracker } from '../_PostHogProvider';
 
 /**
  * Phase 4.1 — web signup page. Posts to `/api/auth/signup` (Next
  * proxy → Rails) and gets the user signed in via the same HttpOnly
  * cookie path as login.
+ *
+ * Instrumented with the auth funnel events (auth_started → auth_completed
+ * / auth_failed) — the client-side gates (weak password, age, terms) each
+ * report their own coarse reason so we can see which one blocks people.
+ * That measurement needs the gates to be REACHABLE, so the submit button
+ * only disables while submitting (not on the age/terms boxes) — an
+ * unchecked box surfaces its error + event on submit instead of a dead,
+ * un-clickable button. Never sends the email or password.
  */
 export default function SignupPage() {
   // useSearchParams (in SignupForm) needs a Suspense boundary or the
@@ -24,6 +33,7 @@ export default function SignupPage() {
 function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const tracker = useTracker();
   const next = params.get('next') ?? '/onboarding';
 
   const [email, setEmail] = useState('');
@@ -36,30 +46,42 @@ function SignupForm() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    tracker.track('auth_started', { method: 'signup' });
     if (!email || !password) {
       setError('Email and password required.');
+      tracker.track('auth_failed', { method: 'signup', reason: 'missing_fields' });
       return;
     }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
+      tracker.track('auth_failed', { method: 'signup', reason: 'weak_password' });
       return;
     }
     if (!ageConfirmed) {
       setError('You must confirm you are at least 13 years old.');
+      tracker.track('auth_failed', { method: 'signup', reason: 'age_unconfirmed' });
       return;
     }
     if (!termsAccepted) {
       setError('You must agree to the Terms of Service and Privacy Policy.');
+      tracker.track('auth_failed', { method: 'signup', reason: 'terms_unaccepted' });
       return;
     }
     try {
       setSubmitting(true);
       await signup(email, password, ageConfirmed, termsAccepted);
+      tracker.track('auth_completed', { method: 'signup' });
       // `next` is a runtime query value — typedRoutes can't prove it.
       router.replace(next as Route);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 0;
       setError(status === 422 ? 'That email is already in use.' : (err as Error).message);
+      tracker.track('auth_failed', {
+        method: 'signup',
+        reason: authFailureReason(status, { 422: 'rejected' }),
+        // Only attach a real HTTP status; 0 means it never reached the API.
+        ...(status > 0 ? { status } : {}),
+      });
     } finally {
       setSubmitting(false);
     }
@@ -140,11 +162,11 @@ function SignupForm() {
 
         <button
           type="submit"
-          disabled={submitting || !ageConfirmed || !termsAccepted}
+          disabled={submitting}
           data-testid="signup-submit"
           className={[
             'mt-bw-2 rounded-bw-md bg-bite px-bw-4 py-bw-3 font-bold text-white',
-            submitting || !ageConfirmed || !termsAccepted ? 'opacity-60' : 'hover:bg-bite-dark',
+            submitting ? 'opacity-60' : 'hover:bg-bite-dark',
           ].join(' ')}
         >
           {submitting ? 'Creating…' : 'Create account'}
