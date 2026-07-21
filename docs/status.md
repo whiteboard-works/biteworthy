@@ -17,6 +17,17 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Tolerate bare-array resolve responses. Branch `fix/resolve-array-response`.
+
+- Live scan failed: `resolve_ingredients_validation_failed: property '#/' of type
+  array did not match ... object`. The resolve model returned a bare `[...]`
+  instead of the schema's `{"items":[...]}` wrapper (any model does this
+  occasionally; faster models more so). `ResponseParser#coerce_root` now wraps a
+  bare array under the schema's single array-typed property before validation —
+  conservative (only the unambiguous single-array-object case; genuinely-wrong
+  shapes still fail). Covered against the real `ResolutionSchema` + a fenced
+  variant.
+
 2026-07-21 — Faster resolve stage (scan speed, Phase 1 of 2). Branch `feat/parallel-resolve`.
 
 - User: "Matching ingredients…" is slow + no feedback. Traced it: ingestion is
