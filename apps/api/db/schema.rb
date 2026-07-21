@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -136,6 +136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_120000) do
     t.jsonb "ingredients_payload", default: []
     t.uuid "item_id"
     t.string "name"
+    t.integer "position"
     t.jsonb "prices_payload", default: []
     t.string "section_name"
     t.jsonb "tags_payload", default: []

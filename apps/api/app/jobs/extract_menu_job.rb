@@ -22,7 +22,7 @@ class ExtractMenuJob < ApplicationJob
 
   def perform(ingestion_run_id)
     run = IngestionRun.find(ingestion_run_id)
-    return if run.staged? || run.published? || run.failed?
+    return if run.resolving? || run.staged? || run.published? || run.failed?
 
     # Job dispatch fires when the run enters `:extracting` — being
     # called BEFORE that means we got dispatched manually; flip the
@@ -45,10 +45,40 @@ class ExtractMenuJob < ApplicationJob
     return if out.nil?
     result, elapsed_ms = out
 
-    run.update!(
-      staging:    result,
-      latency_ms: elapsed_ms
-    )
-    run.transition_to!(:resolving)
+    # Verify-flow redesign: materialize the dishes NOW (empty ingredient/tag
+    # payloads) so the verify page shows them immediately, then transition to
+    # :resolving where the resolve stages enrich each item in the background.
+    # Atomic with the transition so a run never sits in :resolving without its
+    # items. Guarded above (return if resolving?) against a re-run.
+    run.transaction do
+      run.update!(staging: result, latency_ms: elapsed_ms)
+      materialize_items!(run)
+      run.transition_to!(:resolving)
+    end
+  end
+
+  private
+
+  # One IngestionItem per extracted item, in flat order, carrying the
+  # position so the resolve stages can write their indexed results back onto
+  # the right row. ingredients_payload / tags_payload stay empty ([] default)
+  # until enrichment fills them.
+  def materialize_items!(run)
+    position = 0
+    Array(run.staging["sections"]).each do |section|
+      section_name = section["name"]
+      Array(section["items"]).each do |item|
+        run.ingestion_items.create!(
+          name:           item["name"],
+          description:    item["description"],
+          section_name:   section_name,
+          prices_payload: Array(item["prices"]),
+          image_bbox:     item["image_bbox"],
+          position:       position,
+          decision:       "pending"
+        )
+        position += 1
+      end
+    end
   end
 end
