@@ -82,7 +82,7 @@ GEM
       public_suffix (>= 2.0.2, < 8.0)
     aes_key_wrap (1.1.0)
     ast (2.4.3)
-    avo (4.0.13)
+    avo (4.0.14)
       actionview (>= 6.1)
       active_link_to
       activerecord (>= 6.1)
@@ -301,7 +301,7 @@ GEM
       actionpack (>= 4.2)
       omniauth (~> 2.0)
     orm_adapter (0.5.0)
-    pagy (43.6.0)
+    pagy (43.6.1)
       json
       uri
       yaml
@@ -578,7 +578,7 @@ CHECKSUMS
   addressable (2.9.0) sha256=7fdf6ac3660f7f4e867a0838be3f6cf722ace541dd97767fa42bc6cfa980c7af
   aes_key_wrap (1.1.0) sha256=b935f4756b37375895db45669e79dfcdc0f7901e12d4e08974d5540c8e0776a5
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
-  avo (4.0.13) sha256=ed70258111fc067aca4c5fadd4fa13a3fe7f7ef4ce516cd4dba07dcfca0e520c
+  avo (4.0.14) sha256=c752b0f8abbad78306ab31a767f10474794207684c972fe4232447f99d855be2
   avo-icons (0.1.6) sha256=6f1c985aca238d81446e517cee4924752e7ada1604971f6bb59913472e123f4c
   aws-eventstream (1.4.0) sha256=116bf85c436200d1060811e6f5d2d40c88f65448f2125bc77ffce5121e6e183b
   aws-partitions (1.1271.0) sha256=a078db0fa59bb5beeceef56b3a482140179ece702ee94fbc94196e2281296c0c
@@ -667,7 +667,7 @@ CHECKSUMS
   omniauth-oauth2 (1.9.0) sha256=ed15f6d9d20991807ce114cc5b9c1453bce3645b64e51c68c90cff5ff153fee8
   omniauth-rails_csrf_protection (2.0.1) sha256=c6e3204d7e3925bb537cb52d50fdfc9f05293f1a9d87c5d4ab4ca3a39ba8c32d
   orm_adapter (0.5.0) sha256=aa5d0be5d540cbb46d3a93e88061f4ece6a25f6e97d6a47122beb84fe595e9b9
-  pagy (43.6.0) sha256=2ae1ff353f81a0ff8a0b20b163edfa751d7d21b786fa1aa496c4417bc1e5e7ab
+  pagy (43.6.1) sha256=59fb6a58ea956480094a167b43a86796638ceb3a3917a25ae67973b584ace2eb
   parallel (2.1.0) sha256=b35258865c2e31134c5ecb708beaaf6772adf9d5efae28e93e99260877b09356
   parser (3.3.11.1) sha256=d17ace7aabe3e72c3cc94043714be27cc6f852f104d81aa284c2281aecc65d54
   pg (1.6.3) sha256=1388d0563e13d2758c1089e35e973a3249e955c659592d10e5b77c468f628a99
