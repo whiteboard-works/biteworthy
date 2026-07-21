@@ -17,6 +17,27 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Ingestion pipeline bugs surfaced once R2 upload worked. Branches
+`fix/anthropic-json-fence` (this one) + follow-ups.
+
+- After the R2 fix, real scans exposed downstream failures (from prod runs):
+  1. **Photo (jpeg)**: extraction succeeds, then resolve fails —
+     `resolve_ingredients_validation_failed: JSON parse failed: unexpected
+     character: '` + "```json" + `'`. The model wraps its strict-JSON reply in a
+     markdown fence and `ResponseParser` fed it straight to `JSON.parse`.
+  2. **URL import**: `UrlFetcher` fetches the menu web page (`text/html`) but
+     `ExtractMenuPrompt` sends every input as an `image_block` → Anthropic 400
+     `media_type should be image/jpeg|png|gif|webp`. Same for direct PDF uploads.
+- **This PR** fixes #1: `ResponseParser#strip_code_fence` strips a surrounding
+  ```` ```json … ``` ```` fence before parsing (falls through unchanged when
+  there's no fence; malformed JSON still raises). Unblocks the photo flow
+  end-to-end. Spec: `spec/services/anthropic_client/response_parser_spec.rb`.
+- **Next PR** fixes #2 + delivers the requested copy/paste import: route the
+  extraction content block by content-type — image → image_block, application/pdf
+  → document block, text/* (html + pasted) → text block — plus a `source_text`
+  param + `/ingest` textarea. (HEIC/HEIF still route as images for now; iOS web
+  uploads arrived as jpeg, so deferred.)
+
 2026-07-21 — Fix menu-scan 500 (Cloudflare R2 checksum incompatibility). Branch `fix/r2-checksum-ingestion-500`.
 
 - **User report**: signed in but "can't scan menus" — `POST /api/v1/ingestion_runs`
