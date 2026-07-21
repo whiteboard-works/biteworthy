@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
+import { HeroCta } from './_HeroCta';
 import { RestaurantCards } from './_RestaurantCards';
 import WaitlistForm from './_waitlist-form';
 
@@ -102,13 +103,7 @@ function Hero(): ReactElement {
       </p>
 
       <div className="mt-bw-8 flex flex-wrap gap-bw-3">
-        <a
-          href="/onboarding"
-          data-testid="cta-web"
-          className="rounded-bw-md bg-bite px-bw-6 py-bw-3 text-bw-base font-bold text-white shadow-sm hover:bg-bite-dark"
-        >
-          Try the web app →
-        </a>
+        <HeroCta />
         <ComingSoonBadge label="iOS app" />
         <ComingSoonBadge label="Android app" />
       </div>
