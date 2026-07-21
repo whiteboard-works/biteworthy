@@ -17,6 +17,29 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Fix menu-scan 500 (Cloudflare R2 checksum incompatibility). Branch `fix/r2-checksum-ingestion-500`.
+
+- **User report**: signed in but "can't scan menus" — `POST /api/v1/ingestion_runs`
+  returned `Ingestion request failed: 500` on both URL and photo. Prod logs
+  (via `kamal app logs`) showed the blob uploads to R2 ("Uploaded file to key")
+  then `Aws::S3::Errors::InvalidRequest (You can only specify one non-default
+  checksum at a time.)` at `ingestion_runs_controller.rb:159`.
+- **Root cause**: `aws-sdk-core 3.254` / `aws-sdk-s3 1.228` default to adding a
+  CRC32 request checksum (`request_checksum_calculation: when_supported`, the
+  default since 3.201). Cloudflare R2 rejects requests carrying more than one
+  checksum, so every Active Storage blob op 500s (menu ingestion + dish photos).
+- **Fix**: pin `request_checksum_calculation` + `response_checksum_validation`
+  to `when_required` on the `r2` service in `config/storage.yml` (Active Storage
+  forwards leftover keys to `Aws::S3::Client`). Added `spec/config/storage_spec.rb`
+  guarding it. Needs an API deploy (deploy-api.yml auto-deploys on master merge).
+- **Fallout**: each failed attempt still persisted an IngestionRun (stuck in
+  `extracting`, 0 items) that counts against the 5/user/day quota — the reporter
+  burned all 5 slots and now hits `quota_exceeded`. Cleaning up those dead runs
+  post-deploy to unblock. **Follow-up**: a create that 500s shouldn't leave a
+  committed run / shouldn't burn quota (transaction/rollback gap).
+- **Also reported (queued)**: no nav path to `/ingest` for signed-in users; add
+  a copy/paste (raw menu text) import option alongside URL/photo.
+
 2026-07-21 — Fix broken Vercel web deploys (Tailwind v4 regression). Branch `fix/tailwind-v3-repin-vercel-build`.
 
 - **Every Vercel web deploy had been failing** since Dependabot #421 (527025b)

@@ -28,3 +28,12 @@ r2:
   region: <%= ENV.fetch("R2_REGION", "auto") %>
   bucket: <%= ENV["R2_BUCKET"] %>
   force_path_style: true
+  # aws-sdk-core >= 3.201 defaults to adding a CRC32 request checksum
+  # (request_checksum_calculation: "when_supported"). Cloudflare R2 rejects
+  # any request carrying more than one checksum — "You can only specify one
+  # non-default checksum at a time" — which 500s EVERY blob upload (menu
+  # ingestion + dish photos). Only send a checksum when the operation
+  # actually requires it. Active Storage forwards these straight to
+  # Aws::S3::Client (S3Service passes leftover storage.yml keys through).
+  request_checksum_calculation: when_required
+  response_checksum_validation: when_required
