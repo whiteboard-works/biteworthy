@@ -25,7 +25,9 @@ RSpec.describe ResolveTagsJob, type: :job do
   # ExtractMenuJob materializes items up front; by the time ResolveTagsJob runs,
   # ResolveIngredientsJob has already enriched them with ingredients. Recreate
   # that state: items exist (position + ingredients_payload), tags still empty.
-  let(:run) do
+  # let! (eager) so the items exist BEFORE a `change(IngestionItem, :count)`
+  # block measures the job — the job must not create new items.
+  let!(:run) do
     r = create(:ingestion_run,
                restaurant: restaurant, status: "resolving",
                staging:    staging_with_ingredients,
