@@ -17,7 +17,7 @@ module Api
 
       def index
         run = authorized_run
-        items = run.ingestion_items.order(:created_at)
+        items = run.ingestion_items.order(:position, :created_at)
         render json: { items: items.map { |it| serialize_item(it) } }
       end
 
@@ -40,28 +40,17 @@ module Api
         end
 
         case decision
-        when "accepted", "edited"
-          # Edited+then-accepted: a separate request will resubmit
-          # decision: accepted. Editing alone records the change but
-          # doesn't promote — keeps the human in control of the final
-          # promotion step.
-          if decision == "accepted"
-            item.save! if item.changed?
-            if run.staged? || run.published?
-              item.promote!(decided_by: current_user)
-            else
-              # Verify-flow redesign: dishes are visible + acceptable while
-              # enrichment (resolve) is still running, but promote! must wait
-              # until the item has its ingredient/tag payloads — an Item can't
-              # go live without them. Record the acceptance now; ResolveTagsJob
-              # batch-promotes it when the run reaches :staged.
-              item.update!(decision: "accepted", decided_at: Time.current)
-            end
-          else
-            item.update!(decision: "edited", decided_at: Time.current)
-          end
+        when "accepted"
+          item.save! if item.changed?
+          apply_acceptance!(run, item)
+        when "edited"
+          # Editing alone records the change but doesn't promote — keeps the
+          # human in control of the final acceptance step.
+          item.update!(decision: "edited", decided_at: Time.current)
         when "rejected"
           item.update!(decision: "rejected", decided_at: Time.current)
+        when "pending"
+          undo_decision!(item)
         end
 
         run.maybe_publish!
@@ -69,7 +58,47 @@ module Api
         render json: serialize_item(item.reload)
       end
 
+      # POST /api/v1/ingestion_runs/:run_id/items/accept_all
+      #
+      # Bulk-accept every still-pending item, applying the same rule as a
+      # single accept: promote now if the run is enriched (:staged/:published),
+      # else record the acceptance for ResolveTagsJob to promote at :staged.
+      def accept_all
+        run = authorized_run
+
+        ActiveRecord::Base.transaction do
+          run.ingestion_items.where(decision: "pending").find_each do |item|
+            apply_acceptance!(run, item)
+          end
+        end
+
+        run.maybe_publish!
+
+        items = run.ingestion_items.order(:position, :created_at)
+        render json: { items: items.map { |it| serialize_item(it) } }
+      end
+
       private
+
+      # Accept an item: promote it to a real Item now if the run is enriched,
+      # otherwise record the acceptance and defer promote! to the :staged
+      # batch-promote — an Item must never go live without its payloads.
+      def apply_acceptance!(run, item)
+        if run.staged? || run.published?
+          item.promote!(decided_by: current_user)
+        else
+          item.update!(decision: "accepted", decided_at: Time.current)
+        end
+      end
+
+      # Undo — revert a decision to pending. If the item was promoted (its Item
+      # is live on the restaurant), remove that Item + its ingredient/tag joins.
+      # The FK ingestion_items.item_id → items is RESTRICT, so release it first.
+      def undo_decision!(item)
+        promoted = item.item
+        item.update!(decision: "pending", item_id: nil, decided_at: nil)
+        promoted&.destroy
+      end
 
       # The run's creator or an admin. Memoized so index/update don't
       # re-fetch what the before_action already loaded.
@@ -99,6 +128,7 @@ module Api
           id:                     item.id,
           ingestion_run_id:       item.ingestion_run_id,
           item_id:                item.item_id,
+          position:               item.position,
           name:                   item.name,
           description:            item.description,
           section_name:           item.section_name,
