@@ -315,6 +315,15 @@ RSpec.describe "Ingestion runs API", type: :request do
         expect(response).to have_http_status(:created)
       end
 
+      it "does not count failed runs — a user whose scans errored can still retry" do
+        # Two failed runs in the window would exceed the limit of 2 if counted.
+        create(:ingestion_run, :failed, user: non_admin, restaurant: restaurant)
+        create(:ingestion_run, :failed, user: non_admin, restaurant: restaurant)
+
+        create_run_as(non_admin)
+        expect(response).to have_http_status(:created)
+      end
+
       it "is per-user — another user's runs don't count against mine" do
         other = create(:user, password: "password123", is_admin: false)
         2.times { create(:ingestion_run, user: other, restaurant: restaurant) }

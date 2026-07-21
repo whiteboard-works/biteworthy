@@ -17,6 +17,16 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Failed runs no longer burn the per-user scan quota. Branch `fix/quota-excludes-failed`.
+
+- Verifying the earlier fixes was blocked: all 5 of the reporter's daily quota
+  slots were consumed by *failed* test runs (media_type/fence/bare-array errors,
+  each now fixed + deployed). `runs_in_last_24h` counted every run regardless of
+  status, so a user whose scans errored couldn't retry. Now excludes
+  `status: "failed"` — spend is still guarded by the daily cost ceiling
+  (`todays_spend_cents` sums all runs, failures included). This auto-frees the
+  reporter's 5 dead slots. Spec: a failed run doesn't count toward the quota.
+
 2026-07-21 — Tolerate bare-array resolve responses. Branch `fix/resolve-array-response`.
 
 - Live scan failed: `resolve_ingredients_validation_failed: property '#/' of type

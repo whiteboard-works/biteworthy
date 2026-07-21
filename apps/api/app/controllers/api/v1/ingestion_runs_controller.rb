@@ -209,9 +209,16 @@ module Api
         true
       end
 
+      # Failed runs don't count against the per-user quota — a scan that
+      # errored produced no value and the user must be able to retry. Spend
+      # is still guarded separately by the daily cost ceiling
+      # (`todays_spend_cents` sums EVERY run's billed cost, failures included),
+      # so a burst of failing calls can't leak past the budget. In-flight +
+      # successful runs still count, so the quota bounds real usage.
       def runs_in_last_24h
         IngestionRun.where(user_id: current_user.id)
                     .where(created_at: 24.hours.ago..)
+                    .where.not(status: "failed")
                     .count
       end
 
