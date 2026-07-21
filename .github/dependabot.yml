@@ -36,6 +36,14 @@ updates:
       - dependency-name: "jest"
       - dependency-name: "@types/jest"
       - dependency-name: "react-test-renderer"
+      # Stay on Tailwind v3. v4 moved its PostCSS plugin to
+      # @tailwindcss/postcss and switched to CSS-first config, which breaks
+      # apps/web's v3-style postcss.config.mjs + tailwind.config.ts under
+      # Next 16's Turbopack build (silent — CI runs typecheck/lint/test, not
+      # build, so only Vercel catches it). #421 bumped to 4.3.3 and broke
+      # every deploy. Allow 3.x, block the major until a deliberate migration.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
     groups:
       types:
         patterns: ["@types/*"]
