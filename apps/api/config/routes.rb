@@ -54,6 +54,9 @@ Rails.application.routes.draw do
         # Phase 4.8 — "My filtered menus" history (recent restaurant
         # visits with the visible/hidden item counts at view time).
         get :history, to: "profile_history#index"
+        # The caller's own reviews for the account page — includes their
+        # hidden reviews (unlike the public by-handle feed), newest first.
+        get :reviews, to: "profile_reviews#index"
       end
       # Legal remediation E3 — JSON archive of the caller's personal
       # data (Privacy Policy "Access / export your data").

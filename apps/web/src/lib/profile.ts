@@ -76,3 +76,41 @@ export async function updateProfile(
   });
   return readJsonOrThrow(res, 'updateProfile');
 }
+
+// ─── My reviews (account page) ────────────────────────────────────
+
+/** A row from GET /api/profile/reviews — the caller's own review. */
+export interface MyReview {
+  id: string;
+  item: {
+    id: string;
+    name: string;
+    restaurant: { id: string; slug: string; name: string };
+  };
+  rating: number;
+  body: string | null;
+  photo_url: string | null;
+  /** True when a moderator hid it; the author still sees it here. */
+  hidden: boolean;
+  hidden_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MyReviewsResponse {
+  reviews: MyReview[];
+  total: number;
+}
+
+export async function fetchMyReviews(
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<MyReviewsResponse> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl('/api/profile/reviews', {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  if (!res.ok) throw new Error(`fetchMyReviews failed: ${res.status}`);
+  return (await res.json()) as MyReviewsResponse;
+}

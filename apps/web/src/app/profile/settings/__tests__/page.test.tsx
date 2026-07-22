@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({
 
 const mockFetchProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
+const mockFetchMyReviews = vi.fn();
 vi.mock('../../../../lib/profile', () => {
   // Defined inside the hoisted factory — a top-level class can't be
   // referenced here (only `mock`-prefixed vars are hoist-exempt).
@@ -27,6 +28,7 @@ vi.mock('../../../../lib/profile', () => {
   return {
     fetchProfile: (...a: unknown[]) => mockFetchProfile(...a),
     updateProfile: (...a: unknown[]) => mockUpdateProfile(...a),
+    fetchMyReviews: (...a: unknown[]) => mockFetchMyReviews(...a),
     NotSignedInError,
   };
 });
@@ -73,6 +75,7 @@ beforeEach(() => {
     { slug: 'keto', name: 'Keto', description: 'Low carb' },
   ]);
   mockSearchIngredients.mockReset().mockResolvedValue([]);
+  mockFetchMyReviews.mockReset().mockResolvedValue({ reviews: [], total: 0 });
 });
 
 afterEach(() => localStorage.clear());
@@ -151,6 +154,50 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fprofile%2Fsettings'),
     );
+  });
+});
+
+describe('ProfileSettingsPage — my reviews', () => {
+  it('shows an empty state when the user has no reviews', async () => {
+    render(<ProfileSettingsPage />);
+    expect(await screen.findByTestId('my-reviews-empty')).toBeInTheDocument();
+  });
+
+  it('lists the user reviews with restaurant/item context and a hidden badge', async () => {
+    mockFetchMyReviews.mockResolvedValue({
+      total: 2,
+      reviews: [
+        {
+          id: 'rev-1',
+          item: { id: 'item-1', name: 'Carne Asada Taco', restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' } },
+          rating: 5,
+          body: 'Best in town.',
+          photo_url: null,
+          hidden: false,
+          hidden_reason: null,
+          created_at: '2026-07-01T00:00:00Z',
+          updated_at: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 'rev-2',
+          item: { id: 'item-2', name: 'Bean Burrito', restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' } },
+          rating: 2,
+          body: 'spammy',
+          photo_url: null,
+          hidden: true,
+          hidden_reason: 'spam',
+          created_at: '2026-06-01T00:00:00Z',
+          updated_at: '2026-06-01T00:00:00Z',
+        },
+      ],
+    });
+    render(<ProfileSettingsPage />);
+
+    const first = await screen.findByTestId('my-review-rev-1');
+    expect(first).toHaveTextContent('Carne Asada Taco');
+    expect(first.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis/items/item-1');
+    // The hidden review tells the author why it's hidden.
+    expect(screen.getByTestId('my-review-hidden-rev-2')).toHaveTextContent(/spam/i);
   });
 });
 

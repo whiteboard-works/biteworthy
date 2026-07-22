@@ -7,9 +7,11 @@ import { OPT_OUT_KEY } from '../../../lib/track';
 import {
   fetchProfile,
   updateProfile,
+  fetchMyReviews,
   NotSignedInError,
   type ProfilePatch,
   type ProfilePayload,
+  type MyReview,
 } from '../../../lib/profile';
 import {
   fetchDietaryProfiles,
@@ -34,6 +36,7 @@ export default function ProfileSettingsPage() {
     <main className="mx-auto max-w-2xl px-bw-6 pt-bw-12 pb-bw-16">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Account</h1>
       <PreferencesSection />
+      <MyReviewsSection />
       <AnalyticsSection />
     </main>
   );
@@ -498,6 +501,84 @@ function TasteRow({
         <span className="text-bw-sm text-zinc-400">none</span>
       )}
     </div>
+  );
+}
+
+// ─── My reviews ───────────────────────────────────────────────────
+
+function MyReviewsSection() {
+  const router = useRouter();
+  const [reviews, setReviews] = useState<MyReview[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchMyReviews()
+      .then((r) => setReviews(r.reviews))
+      .catch((e) => {
+        if (e instanceof NotSignedInError) {
+          router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+          return;
+        }
+        setError((e as Error).message);
+      });
+  }, [router]);
+
+  return (
+    <section className="mt-bw-8 border-t border-zinc-100 pt-bw-8" data-testid="my-reviews">
+      <h2 className="text-bw-lg font-bold text-zinc-900">My reviews</h2>
+      {error ? (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          Could not load your reviews — {error}
+        </p>
+      ) : reviews === null ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500" data-testid="my-reviews-loading">
+          Loading your reviews…
+        </p>
+      ) : reviews.length === 0 ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-400" data-testid="my-reviews-empty">
+          You haven’t written any reviews yet.
+        </p>
+      ) : (
+        <ul className="mt-bw-4 space-y-bw-3">
+          {reviews.map((r) => (
+            <MyReviewRow key={r.id} review={r} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function MyReviewRow({ review }: { review: MyReview }) {
+  const { item } = review;
+  return (
+    <li
+      className="rounded-bw-md border border-zinc-200 p-bw-4"
+      data-testid={`my-review-${review.id}`}
+    >
+      <div className="flex items-baseline justify-between gap-bw-3">
+        <a
+          href={`/restaurants/${item.restaurant.slug}/items/${item.id}`}
+          className="font-semibold text-zinc-900 hover:text-bite"
+        >
+          {item.name}
+        </a>
+        <span className="shrink-0 text-bw-sm text-warn" aria-label={`${review.rating} out of 5`}>
+          {'★'.repeat(review.rating)}
+          {'☆'.repeat(5 - review.rating)}
+        </span>
+      </div>
+      <p className="text-bw-sm text-zinc-500">{item.restaurant.name}</p>
+      {review.body && <p className="mt-bw-2 text-bw-sm text-zinc-700">{review.body}</p>}
+      {review.hidden && (
+        <p
+          className="mt-bw-2 text-bw-xs font-semibold text-hide"
+          data-testid={`my-review-hidden-${review.id}`}
+        >
+          Hidden by moderation{review.hidden_reason ? ` — ${review.hidden_reason}` : ''}
+        </p>
+      )}
+    </li>
   );
 }
 
