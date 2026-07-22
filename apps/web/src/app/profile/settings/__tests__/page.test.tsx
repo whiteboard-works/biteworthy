@@ -177,13 +177,20 @@ describe('ProfileSettingsPage — favorites', () => {
           id: 'i1',
           name: 'Carne Asada Taco',
           status: 'published',
-          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
         },
         {
           id: 'i2',
           name: 'Gone Dish',
           status: 'removed',
-          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
+        },
+        {
+          // Published dish, but its restaurant is closed → still must not link.
+          id: 'i3',
+          name: 'Orphan Dish',
+          status: 'published',
+          restaurant: { id: 'r2', slug: 'closed-spot', name: 'Closed Spot', status: 'closed' },
         },
       ],
     });
@@ -198,7 +205,11 @@ describe('ProfileSettingsPage — favorites', () => {
     // A removed dish is shown but not linked.
     const gone = screen.getByTestId('favorite-dish-i2');
     expect(gone.querySelector('a')).toBeNull();
-    expect(gone).toHaveTextContent(/no longer on the menu/i);
+    expect(gone).toHaveTextContent(/no longer available/i);
+
+    // A published dish at an unpublished restaurant must not link either.
+    const orphan = screen.getByTestId('favorite-dish-i3');
+    expect(orphan.querySelector('a')).toBeNull();
   });
 });
 

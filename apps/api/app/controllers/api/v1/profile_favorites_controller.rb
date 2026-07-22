@@ -41,9 +41,14 @@ module Api
           name:   item.name,
           status: item.status,
           restaurant: {
-            id:   item.restaurant_id,
-            slug: item.restaurant.slug,
-            name: item.restaurant.name
+            id:     item.restaurant_id,
+            slug:   item.restaurant.slug,
+            name:   item.restaurant.name,
+            # The dish page is published-only AND resolves through the
+            # restaurant, so the web needs the restaurant's status too to
+            # decide whether the dish link is safe (a dish stays
+            # 'published' when its restaurant is later closed/unpublished).
+            status: item.restaurant.status
           }
         }
       end

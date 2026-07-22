@@ -3,10 +3,10 @@ import Link from 'next/link';
 import {
   fetchItem,
   fetchRestaurant,
+  setItemFavorite,
   type Restaurant,
   type RestaurantItem,
 } from '../../../../../lib/restaurants';
-import { setItemFavorite } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
 import FavoriteButton from '../../_FavoriteButton';

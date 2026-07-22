@@ -23,7 +23,9 @@ RSpec.describe "GET /api/v1/profile/favorites", type: :request do
       hash_including("slug" => restaurant.slug, "name" => "Ninis Taqueria", "status" => "published")
     )
     expect(body["items"].first).to include("name" => "Carne Asada Taco", "status" => "published")
-    expect(body["items"].first["restaurant"]).to include("slug" => restaurant.slug)
+    expect(body["items"].first["restaurant"]).to include(
+      "slug" => restaurant.slug, "status" => "published"
+    )
   end
 
   it "scopes to the current user (no leak across users)" do

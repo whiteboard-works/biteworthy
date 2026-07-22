@@ -28,6 +28,16 @@ RSpec.describe "POST/DELETE /api/v1/items/:id/favorite", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    it "stays idempotent (200, not 500) when a concurrent insert wins the race" do
+      allow(FavoriteItem).to receive(:find_or_create_by!)
+        .and_raise(ActiveRecord::RecordNotUnique)
+
+      post "/api/v1/items/#{item.id}/favorite", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("item_id" => item.id, "favorited" => true)
+    end
+
     it "404s for an unpublished item" do
       draft_item = create(:item, restaurant: restaurant) # default :draft
       post "/api/v1/items/#{draft_item.id}/favorite", headers: headers

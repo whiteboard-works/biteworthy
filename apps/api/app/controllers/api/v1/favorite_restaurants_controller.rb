@@ -11,6 +11,10 @@ module Api
       def create
         FavoriteRestaurant.find_or_create_by!(user: current_user, restaurant: @restaurant)
         render json: serialize(true), status: :ok
+      rescue ActiveRecord::RecordNotUnique
+        # A concurrent duplicate POST lost the race to the unique index.
+        # The favorite exists either way — stay idempotent (200), not 500.
+        render json: serialize(true), status: :ok
       end
 
       def destroy

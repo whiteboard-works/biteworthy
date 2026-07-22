@@ -577,23 +577,28 @@ function FavoritesSection() {
             <div data-testid="favorite-dishes">
               <h3 className="text-bw-base font-semibold text-zinc-800">Dishes</h3>
               <ul className="mt-bw-2 space-y-bw-2">
-                {items.map((d) => (
-                  <li key={d.id} data-testid={`favorite-dish-${d.id}`}>
-                    {d.status === 'published' ? (
-                      <a
-                        href={`/restaurants/${encodeURIComponent(d.restaurant.slug)}/items/${encodeURIComponent(d.id)}`}
-                        className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
-                      >
-                        {d.name}
-                      </a>
-                    ) : (
-                      <span className="text-bw-base font-semibold text-zinc-500">
-                        {d.name} <span className="text-bw-xs">(no longer on the menu)</span>
-                      </span>
-                    )}
-                    <span className="text-bw-sm text-zinc-500"> · {d.restaurant.name}</span>
-                  </li>
-                ))}
+                {items.map((d) => {
+                  // Safe to link only when the dish AND its restaurant are
+                  // published — the dish page 404s otherwise.
+                  const linkable = d.status === 'published' && d.restaurant.status === 'published';
+                  return (
+                    <li key={d.id} data-testid={`favorite-dish-${d.id}`}>
+                      {linkable ? (
+                        <a
+                          href={`/restaurants/${encodeURIComponent(d.restaurant.slug)}/items/${encodeURIComponent(d.id)}`}
+                          className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
+                        >
+                          {d.name}
+                        </a>
+                      ) : (
+                        <span className="text-bw-base font-semibold text-zinc-500">
+                          {d.name} <span className="text-bw-xs">(no longer available)</span>
+                        </span>
+                      )}
+                      <span className="text-bw-sm text-zinc-500"> · {d.restaurant.name}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
