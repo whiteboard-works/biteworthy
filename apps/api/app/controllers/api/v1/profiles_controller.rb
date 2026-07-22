@@ -80,7 +80,23 @@ module Api
         profile.primary_dietary_profile_id = preset.id
       end
 
+      # The raw id arrays stay (mobile onboarding + filter-engine read
+      # them); the `*_ingredients` / `*_tags` arrays add the resolved
+      # {id, slug, name} rows the web account page renders without a
+      # second round-trip. Unknown/stale ids resolve to nothing and drop
+      # out — the same way scoring silently ignores them.
+      #
+      # Two queries total: every ingredient id is looked up once, every
+      # tag id once, then each list is sliced from the in-memory maps in
+      # its stored order.
       def profile_payload(profile)
+        ing = ingredient_lookup(
+          profile.avoid_ingredient_ids + profile.liked_ingredient_ids + profile.disliked_ingredient_ids
+        )
+        tag = tag_lookup(
+          profile.avoid_tag_ids + profile.liked_tag_ids + profile.disliked_tag_ids
+        )
+
         {
           avoid_ingredient_ids: profile.avoid_ingredient_ids,
           avoid_tag_ids:        profile.avoid_tag_ids,
@@ -89,10 +105,28 @@ module Api
           liked_tag_ids:           profile.liked_tag_ids,
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
+          avoid_ingredients:    resolve(profile.avoid_ingredient_ids, ing, &INGREDIENT_ROW),
+          avoid_tags:           resolve(profile.avoid_tag_ids, tag, &TAG_ROW),
+          liked_ingredients:    resolve(profile.liked_ingredient_ids, ing, &INGREDIENT_ROW),
+          liked_tags:           resolve(profile.liked_tag_ids, tag, &TAG_ROW),
+          disliked_ingredients: resolve(profile.disliked_ingredient_ids, ing, &INGREDIENT_ROW),
+          disliked_tags:        resolve(profile.disliked_tag_ids, tag, &TAG_ROW),
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
+      end
+
+      INGREDIENT_ROW = ->(i) { { id: i.id, slug: i.slug, name: i.name } }
+      TAG_ROW        = ->(t) { { id: t.id, slug: t.slug, name: t.name, family: t.family } }
+
+      def ingredient_lookup(ids) = Ingredient.where(id: ids.uniq).index_by { |i| i.id.to_s }
+      def tag_lookup(ids)        = Tag.where(id: ids.uniq).index_by { |t| t.id.to_s }
+
+      # Slice an id array into ordered rows from a pre-built lookup map,
+      # dropping any id the map doesn't cover (stale/removed).
+      def resolve(ids, lookup, &row)
+        ids.filter_map { |id| lookup[id.to_s] }.map(&row)
       end
 
       def dietary_profile_summary(preset)

@@ -23,6 +23,44 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
       get "/api/v1/profile"
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # The account page renders names, not UUIDs, so GET resolves each id
+    # array to ordered {id, slug, name} rows in one payload. The raw id
+    # arrays stay for the mobile/onboarding clients that read them.
+    describe "resolved name rows" do
+      let(:cheese)    { create(:ingredient, slug: "dairy-cheese") }
+      let(:wheat)     { create(:ingredient, slug: "wheat") }
+      let(:fried_tag) { create(:tag, slug: "prep-fried") }
+
+      it "resolves avoid ids to {id, slug, name} rows in stored order" do
+        user.profile.update!(
+          avoid_ingredient_ids: [wheat.id, cheese.id],
+          avoid_tag_ids:        [fried_tag.id]
+        )
+
+        get "/api/v1/profile", headers: headers
+
+        body = response.parsed_body
+        expect(body["avoid_ingredients"]).to eq([
+          { "id" => wheat.id,  "slug" => "wheat",       "name" => "Wheat" },
+          { "id" => cheese.id, "slug" => "dairy-cheese", "name" => "Cheese" }
+        ])
+        expect(body["avoid_tags"]).to eq([
+          { "id" => fried_tag.id, "slug" => "prep-fried", "name" => "Fried", "family" => "prep" }
+        ])
+      end
+
+      it "drops ids that no longer resolve to a live row (stale ids)" do
+        stale = SecureRandom.uuid
+        user.profile.update!(avoid_ingredient_ids: [cheese.id, stale])
+
+        get "/api/v1/profile", headers: headers
+
+        body = response.parsed_body
+        expect(body["avoid_ingredient_ids"]).to contain_exactly(cheese.id, stale)
+        expect(body["avoid_ingredients"].map { |r| r["id"] }).to eq([cheese.id])
+      end
+    end
   end
 
   describe "PATCH /api/v1/profile" do
@@ -206,6 +244,23 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.parsed_body["errors"]).to have_key("liked_tag_ids")
+      end
+
+      # A taste id can go stale when an admin removes its taxonomy node.
+      # A partial edit that doesn't touch taste must still succeed — it
+      # must not re-validate (and reject on) the untouched stale array,
+      # or the user is soft-locked out of editing every preference,
+      # including their safety filter. update_columns seeds the stale id
+      # past validation to mimic post-hoc taxonomy removal.
+      it "does not re-validate an untouched taste array (stale id can't block an unrelated edit)" do
+        user.profile.update_columns(liked_ingredient_ids: [SecureRandom.uuid])
+
+        patch "/api/v1/profile",
+              params: { strictness: "strict" }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["strictness"]).to eq("strict")
       end
 
       it "accepts an id that also sits in an avoid list (filter wins; scoring ignores it)" do

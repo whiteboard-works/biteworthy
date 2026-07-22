@@ -25,6 +25,8 @@ import type { components } from './generated';
 export type UserPayload    = components['schemas']['UserPayload'];
 export type AuthResponse   = components['schemas']['AuthResponse'];
 export type ProfilePayload = components['schemas']['ProfilePayload'];
+export type IngredientRef  = components['schemas']['IngredientRef'];
+export type TagRef         = components['schemas']['TagRef'];
 
 /**
  * The shape `filter-engine` cares about — a subset of ProfilePayload

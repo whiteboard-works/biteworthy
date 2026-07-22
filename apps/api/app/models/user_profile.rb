@@ -32,8 +32,19 @@ class UserProfile < ApplicationRecord
     end
   end
 
+  # Only validate a taste array that this save actually changes. The
+  # goal is to catch a client sending a bad/typo'd UUID — not to
+  # re-check arrays we're leaving alone. Re-checking untouched arrays
+  # meant a partial PATCH (e.g. just `strictness`) would 422 whenever a
+  # stored taste id had gone stale (its taxonomy node was later removed
+  # by an admin), soft-locking the user out of editing ANY preference,
+  # including their safety filter. GET already tolerates stale ids by
+  # dropping them on read; writes must be just as forgiving of arrays
+  # they don't touch.
   def taste_ids_exist
     TASTE_FIELDS.each do |attr, kind|
+      next unless will_save_change_to_attribute?(attr)
+
       ids = self[attr].compact.uniq
       next if ids.empty?
 
