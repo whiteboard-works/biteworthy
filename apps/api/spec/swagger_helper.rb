@@ -96,7 +96,7 @@ RSpec.configure do |config|
             required: %w[avoid_ingredient_ids avoid_tag_ids prefer_tag_ids
                          liked_ingredient_ids liked_tag_ids
                          disliked_ingredient_ids disliked_tag_ids
-                         avoid_ingredients avoid_tags prefer_tags
+                         avoid_ingredients avoid_tags
                          liked_ingredients liked_tags
                          disliked_ingredients disliked_tags
                          strictness primary_dietary_profile
@@ -116,7 +116,6 @@ RSpec.configure do |config|
               # ingredient/tag lookup. Stale ids drop out.
               avoid_ingredients:    { type: :array, items: { "$ref" => "#/components/schemas/IngredientRef" } },
               avoid_tags:           { type: :array, items: { "$ref" => "#/components/schemas/TagRef" } },
-              prefer_tags:          { type: :array, items: { "$ref" => "#/components/schemas/TagRef" } },
               liked_ingredients:    { type: :array, items: { "$ref" => "#/components/schemas/IngredientRef" } },
               liked_tags:           { type: :array, items: { "$ref" => "#/components/schemas/TagRef" } },
               disliked_ingredients: { type: :array, items: { "$ref" => "#/components/schemas/IngredientRef" } },

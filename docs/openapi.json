@@ -948,7 +948,6 @@
           "disliked_tag_ids",
           "avoid_ingredients",
           "avoid_tags",
-          "prefer_tags",
           "liked_ingredients",
           "liked_tags",
           "disliked_ingredients",
@@ -1014,12 +1013,6 @@
             }
           },
           "avoid_tags": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TagRef"
-            }
-          },
-          "prefer_tags": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TagRef"

@@ -45,7 +45,7 @@ const PROFILE: ProfilePayload = {
   avoid_ingredient_ids: ['ing-cheese', 'ing-wheat'],
   avoid_tag_ids: ['tag-fried'],
   prefer_tag_ids: [],
-  liked_ingredient_ids: [],
+  liked_ingredient_ids: ['ing-basil'],
   liked_tag_ids: ['tag-thai'],
   disliked_ingredient_ids: [],
   disliked_tag_ids: [],
@@ -54,8 +54,7 @@ const PROFILE: ProfilePayload = {
     { id: 'ing-wheat', slug: 'wheat', name: 'Wheat' },
   ],
   avoid_tags: [{ id: 'tag-fried', slug: 'prep-fried', name: 'Fried', family: 'prep' }],
-  prefer_tags: [],
-  liked_ingredients: [],
+  liked_ingredients: [{ id: 'ing-basil', slug: 'herb-basil', name: 'Basil' }],
   liked_tags: [{ id: 'tag-thai', slug: 'cuisine-thai', name: 'Thai', family: 'cuisine' }],
   disliked_ingredients: [],
   disliked_tags: [],
@@ -87,7 +86,9 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     expect(screen.getByText('Wheat')).toBeInTheDocument();
     expect(screen.getByTestId('pref-avoid-tags')).toHaveTextContent('Fried');
     expect(screen.getByTestId('pref-preset')).toHaveTextContent('Vegan');
+    // Taste shows both tag (Thai) and ingredient (Basil) love signals.
     expect(screen.getByTestId('pref-taste')).toHaveTextContent('Thai');
+    expect(screen.getByTestId('pref-taste')).toHaveTextContent('Basil');
     expect(screen.getByTestId('set-strictness-balanced')).toHaveAttribute('aria-pressed', 'true');
   });
 

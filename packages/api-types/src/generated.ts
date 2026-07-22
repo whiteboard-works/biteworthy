@@ -561,7 +561,6 @@ export interface components {
             disliked_tag_ids: string[];
             avoid_ingredients: components["schemas"]["IngredientRef"][];
             avoid_tags: components["schemas"]["TagRef"][];
-            prefer_tags: components["schemas"]["TagRef"][];
             liked_ingredients: components["schemas"]["IngredientRef"][];
             liked_tags: components["schemas"]["TagRef"][];
             disliked_ingredients: components["schemas"]["IngredientRef"][];

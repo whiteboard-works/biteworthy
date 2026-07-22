@@ -168,7 +168,12 @@ function PreferencesSection() {
         onRemove={(id) => save({ avoid_tag_ids: profile.avoid_tag_ids.filter((x) => x !== id) })}
       />
 
-      <TasteSubsection liked={profile.liked_tags} disliked={profile.disliked_tags} />
+      <TasteSubsection
+        likedTags={profile.liked_tags}
+        likedIngredients={profile.liked_ingredients}
+        dislikedTags={profile.disliked_tags}
+        dislikedIngredients={profile.disliked_ingredients}
+      />
 
       <p className="mt-bw-6 text-bw-xs text-zinc-400" data-testid="disclaimer-status">
         {profile.disclaimer_acknowledged_at
@@ -431,12 +436,20 @@ function AvoidTagsSubsection({
 }
 
 function TasteSubsection({
-  liked,
-  disliked,
+  likedTags,
+  likedIngredients,
+  dislikedTags,
+  dislikedIngredients,
 }: {
-  liked: ProfilePayload['liked_tags'];
-  disliked: ProfilePayload['disliked_tags'];
+  likedTags: ProfilePayload['liked_tags'];
+  likedIngredients: ProfilePayload['liked_ingredients'];
+  dislikedTags: ProfilePayload['disliked_tags'];
+  dislikedIngredients: ProfilePayload['disliked_ingredients'];
 }) {
+  // Taste covers both tags (cuisines/flavors) and specific ingredients;
+  // show them together per love/pass row.
+  const love = [...likedTags, ...likedIngredients];
+  const pass = [...dislikedTags, ...dislikedIngredients];
   return (
     <div className="mt-bw-6" data-testid="pref-taste">
       <SubsectionHeader
@@ -444,8 +457,8 @@ function TasteSubsection({
         hint="Soft signals that rank your Top Picks — they never hide safe food."
       />
       <div className="mt-bw-3 space-y-bw-2">
-        <TasteRow label="Love" tone="text-ok" items={liked} />
-        <TasteRow label="Pass" tone="text-bite" items={disliked} />
+        <TasteRow label="Love" tone="text-ok" items={love} />
+        <TasteRow label="Pass" tone="text-bite" items={pass} />
       </div>
       {/* Editing taste reuses the existing "Improve my picks" flow so the
           love/pass cycling logic lives in one place. */}
@@ -467,7 +480,7 @@ function TasteRow({
 }: {
   label: string;
   tone: string;
-  items: ProfilePayload['liked_tags'];
+  items: Array<{ id: string; name: string }>;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-bw-2">

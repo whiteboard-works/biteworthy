@@ -85,7 +85,18 @@ module Api
       # {id, slug, name} rows the web account page renders without a
       # second round-trip. Unknown/stale ids resolve to nothing and drop
       # out — the same way scoring silently ignores them.
+      #
+      # Two queries total: every ingredient id is looked up once, every
+      # tag id once, then each list is sliced from the in-memory maps in
+      # its stored order.
       def profile_payload(profile)
+        ing = ingredient_lookup(
+          profile.avoid_ingredient_ids + profile.liked_ingredient_ids + profile.disliked_ingredient_ids
+        )
+        tag = tag_lookup(
+          profile.avoid_tag_ids + profile.liked_tag_ids + profile.disliked_tag_ids
+        )
+
         {
           avoid_ingredient_ids: profile.avoid_ingredient_ids,
           avoid_tag_ids:        profile.avoid_tag_ids,
@@ -94,36 +105,28 @@ module Api
           liked_tag_ids:           profile.liked_tag_ids,
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
-          avoid_ingredients:    resolve_ingredients(profile.avoid_ingredient_ids),
-          avoid_tags:           resolve_tags(profile.avoid_tag_ids),
-          prefer_tags:          resolve_tags(profile.prefer_tag_ids),
-          liked_ingredients:    resolve_ingredients(profile.liked_ingredient_ids),
-          liked_tags:           resolve_tags(profile.liked_tag_ids),
-          disliked_ingredients: resolve_ingredients(profile.disliked_ingredient_ids),
-          disliked_tags:        resolve_tags(profile.disliked_tag_ids),
+          avoid_ingredients:    resolve(profile.avoid_ingredient_ids, ing, &INGREDIENT_ROW),
+          avoid_tags:           resolve(profile.avoid_tag_ids, tag, &TAG_ROW),
+          liked_ingredients:    resolve(profile.liked_ingredient_ids, ing, &INGREDIENT_ROW),
+          liked_tags:           resolve(profile.liked_tag_ids, tag, &TAG_ROW),
+          disliked_ingredients: resolve(profile.disliked_ingredient_ids, ing, &INGREDIENT_ROW),
+          disliked_tags:        resolve(profile.disliked_tag_ids, tag, &TAG_ROW),
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
       end
 
-      # Resolve an id array to ordered {id, slug, name} rows, dropping
-      # any id that no longer maps to a live row. One query, order
-      # preserved from the stored array.
-      def resolve_ingredients(ids)
-        by_id = Ingredient.where(id: ids).index_by { |i| i.id.to_s }
-        ids.filter_map do |id|
-          ing = by_id[id.to_s]
-          { id: ing.id, slug: ing.slug, name: ing.name } if ing
-        end
-      end
+      INGREDIENT_ROW = ->(i) { { id: i.id, slug: i.slug, name: i.name } }
+      TAG_ROW        = ->(t) { { id: t.id, slug: t.slug, name: t.name, family: t.family } }
 
-      def resolve_tags(ids)
-        by_id = Tag.where(id: ids).index_by { |t| t.id.to_s }
-        ids.filter_map do |id|
-          tag = by_id[id.to_s]
-          { id: tag.id, slug: tag.slug, name: tag.name, family: tag.family } if tag
-        end
+      def ingredient_lookup(ids) = Ingredient.where(id: ids.uniq).index_by { |i| i.id.to_s }
+      def tag_lookup(ids)        = Tag.where(id: ids.uniq).index_by { |t| t.id.to_s }
+
+      # Slice an id array into ordered rows from a pre-built lookup map,
+      # dropping any id the map doesn't cover (stale/removed).
+      def resolve(ids, lookup, &row)
+        ids.filter_map { |id| lookup[id.to_s] }.map(&row)
       end
 
       def dietary_profile_summary(preset)
