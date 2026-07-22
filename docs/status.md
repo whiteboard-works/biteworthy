@@ -17,6 +17,23 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Account page PR-3: favorites (restaurants + dishes). Branch `feat/account-favorites`.
+
+- Final item of the account-page arc. Users can now save **restaurants and dishes**
+  and see them on `/profile/settings`. Two join tables `favorite_restaurants` /
+  `favorite_items` (migrations 20260721130000/130001), mirroring `user_item_overrides`
+  (presence-of-row = favorited, real FKs, unique (user, target) index).
+- API: toggle endpoints `POST/DELETE /api/v1/restaurants/:id/favorite` +
+  `/items/:id/favorite` (idempotent, mirror ItemOverridesController); list endpoint
+  `GET /api/v1/profile/favorites` (restaurants + items with status). `favorited` flag
+  added to `restaurants#show` + `items#show` (authed → seeds the detail-page button).
+  Model + request specs; brakeman clean.
+- Web: `FavoriteButton` island (optimistic, reverts on error) on the restaurant +
+  dish detail pages (SSR-seeded via a JWT-authed fetch, gated on signed-in); account
+  page "Favorites" section; proxies + `setItemFavorite`/`setRestaurantFavorite` +
+  `fetchMyFavorites`. Hand-written web types (no rswag), matching the history/reviews
+  siblings. Web vitest 234 (+7); typecheck/lint green. Account-page arc complete.
+
 2026-07-21 — Account page PR-2: "My reviews" list. Branch `feat/account-my-reviews`.
 
 - Adds a **My reviews** section to `/profile/settings`: the caller's own reviews,

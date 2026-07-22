@@ -18,6 +18,10 @@ class User < ApplicationRecord
   has_many :user_item_overrides, dependent: :destroy
   has_many :overridden_items, through: :user_item_overrides, source: :item
   has_many :restaurant_visits, dependent: :destroy
+  has_many :favorite_restaurants, dependent: :destroy
+  has_many :favorited_restaurants, through: :favorite_restaurants, source: :restaurant
+  has_many :favorite_items, dependent: :destroy
+  has_many :favorited_items, through: :favorite_items, source: :item
 
   # Legal remediation E2 — back-references with no ON DELETE rule at the
   # DB level. Account deletion would hit a foreign-key violation unless

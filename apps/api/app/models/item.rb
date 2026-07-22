@@ -16,6 +16,7 @@ class Item < ApplicationRecord
   has_many :tags,        through: :item_tags
   has_many :reviews,          dependent: :destroy
   has_many :user_item_overrides, dependent: :destroy
+  has_many :favorite_items,   dependent: :destroy
 
   has_one_attached :photo
 

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../lib/restaurants';
+import { getServerJwt } from '../../../lib/server-auth';
 import { RestaurantClient } from './RestaurantClient';
 
 /**
@@ -31,8 +32,11 @@ export default async function RestaurantPage({
   const { slug } = await params;
   const { p: profileToken } = await searchParams;
 
+  // The JWT lets fetchRestaurant populate `favorited` for the save button;
+  // its presence also gates the button (the endpoint is authed).
+  const jwt = await getServerJwt();
   const [restaurant, initialItems] = await Promise.all([
-    fetchRestaurant(slug).catch(() => null),
+    fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null),
     fetchRestaurantItems(slug, { profileToken }).catch(() => null),
   ]);
 
@@ -44,6 +48,7 @@ export default async function RestaurantPage({
       restaurant={restaurant}
       initialItems={initialItems}
       profileToken={profileToken ?? null}
+      signedIn={Boolean(jwt)}
     />
   );
 }

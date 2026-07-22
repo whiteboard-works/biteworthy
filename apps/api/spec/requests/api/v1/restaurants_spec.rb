@@ -30,6 +30,16 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
     )
   end
 
+  it "reports favorited=false anonymously and true for a user who saved it" do
+    get "/api/v1/restaurants/#{restaurant.id}"
+    expect(response.parsed_body["favorited"]).to be(false)
+
+    user = create(:user)
+    create(:favorite_restaurant, user: user, restaurant: restaurant)
+    get "/api/v1/restaurants/#{restaurant.id}", headers: auth_headers_for(user)
+    expect(response.parsed_body["favorited"]).to be(true)
+  end
+
   it "404s on a non-existent id" do
     get "/api/v1/restaurants/00000000-0000-0000-0000-000000000000"
     expect(response).to have_http_status(:not_found)

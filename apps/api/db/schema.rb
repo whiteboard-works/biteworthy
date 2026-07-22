@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -113,6 +113,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
     t.text "work_description", null: false
     t.index ["created_at"], name: "index_dmca_notices_on_created_at"
     t.index ["status"], name: "index_dmca_notices_on_status"
+  end
+
+  create_table "favorite_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "item_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["item_id"], name: "index_favorite_items_on_item_id"
+    t.index ["user_id", "item_id"], name: "index_favorite_items_on_user_id_and_item_id", unique: true
+    t.index ["user_id"], name: "index_favorite_items_on_user_id"
+  end
+
+  create_table "favorite_restaurants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "restaurant_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["restaurant_id"], name: "index_favorite_restaurants_on_restaurant_id"
+    t.index ["user_id", "restaurant_id"], name: "index_favorite_restaurants_on_user_id_and_restaurant_id", unique: true
+    t.index ["user_id"], name: "index_favorite_restaurants_on_user_id"
   end
 
   create_table "hours", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -573,6 +593,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_120000) do
   add_foreign_key "dietary_profile_ingredients", "ingredients"
   add_foreign_key "dietary_profile_tags", "dietary_profiles"
   add_foreign_key "dietary_profile_tags", "tags"
+  add_foreign_key "favorite_items", "items"
+  add_foreign_key "favorite_items", "users"
+  add_foreign_key "favorite_restaurants", "restaurants"
+  add_foreign_key "favorite_restaurants", "users"
   add_foreign_key "hours", "restaurants"
   add_foreign_key "ingestion_items", "ingestion_runs"
   add_foreign_key "ingestion_items", "items"

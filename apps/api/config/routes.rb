@@ -57,6 +57,8 @@ Rails.application.routes.draw do
         # The caller's own reviews for the account page — includes their
         # hidden reviews (unlike the public by-handle feed), newest first.
         get :reviews, to: "profile_reviews#index"
+        # The caller's saved restaurants + dishes for the account page.
+        get :favorites, to: "profile_favorites#index"
       end
       # Legal remediation E3 — JSON archive of the caller's personal
       # data (Privacy Policy "Access / export your data").
@@ -75,6 +77,9 @@ Rails.application.routes.draw do
         # Phase 4.9 — restaurant claim flow.
         post   "claim",        to: "restaurant_claims#create"
         get    "claim/verify", to: "restaurant_claims#verify"
+        # Save/unsave a restaurant (authed).
+        post   "favorite", to: "favorite_restaurants#create"
+        delete "favorite", to: "favorite_restaurants#destroy"
         # Phase 4.10 — owner's pending-suggestion queue.
         resources :suggestions, only: [:index]
       end
@@ -85,6 +90,9 @@ Rails.application.routes.draw do
         member do
           post   :never_hide, to: "item_overrides#create"
           delete :never_hide, to: "item_overrides#destroy"
+          # Save/unsave a dish (authed).
+          post   :favorite, to: "favorite_items#create"
+          delete :favorite, to: "favorite_items#destroy"
         end
         resources :reviews, only: [:index, :create]
         # Phase 4.10 — anyone can suggest a fix.

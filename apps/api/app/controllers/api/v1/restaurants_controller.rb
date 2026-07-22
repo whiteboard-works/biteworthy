@@ -51,7 +51,8 @@ module Api
 
       def show
         restaurant = Restaurant.published.includes(:city).find_by_id_or_slug!(params[:id])
-        render json: serialize(restaurant)
+        # `favorited` seeds the detail page's save button. Anonymous → false.
+        render json: serialize(restaurant).merge(favorited: current_user_favorited_restaurant?(restaurant))
       end
 
       def create
@@ -144,6 +145,12 @@ module Api
           city:        city.name,
           region:      city.region
         )
+      end
+
+      # Whether the signed-in caller has saved this restaurant (false anonymously).
+      def current_user_favorited_restaurant?(restaurant)
+        return false unless current_user
+        FavoriteRestaurant.exists?(user_id: current_user.id, restaurant_id: restaurant.id)
       end
 
       def serialize(r)

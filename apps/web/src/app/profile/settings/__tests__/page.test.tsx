@@ -24,6 +24,7 @@ vi.mock('next/navigation', () => ({
 const mockFetchProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
 const mockFetchMyReviews = vi.fn();
+const mockFetchMyFavorites = vi.fn();
 vi.mock('../../../../lib/profile', () => {
   // Defined inside the hoisted factory — a top-level class can't be
   // referenced here (only `mock`-prefixed vars are hoist-exempt).
@@ -32,6 +33,7 @@ vi.mock('../../../../lib/profile', () => {
     fetchProfile: (...a: unknown[]) => mockFetchProfile(...a),
     updateProfile: (...a: unknown[]) => mockUpdateProfile(...a),
     fetchMyReviews: (...a: unknown[]) => mockFetchMyReviews(...a),
+    fetchMyFavorites: (...a: unknown[]) => mockFetchMyFavorites(...a),
     NotSignedInError,
   };
 });
@@ -79,6 +81,7 @@ beforeEach(() => {
   ]);
   mockSearchIngredients.mockReset().mockResolvedValue([]);
   mockFetchMyReviews.mockReset().mockResolvedValue({ reviews: [], total: 0 });
+  mockFetchMyFavorites.mockReset().mockResolvedValue({ restaurants: [], items: [] });
 });
 
 afterEach(() => localStorage.clear());
@@ -157,6 +160,56 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fprofile%2Fsettings'),
     );
+  });
+});
+
+describe('ProfileSettingsPage — favorites', () => {
+  it('shows an empty state when nothing is saved', async () => {
+    render(<ProfileSettingsPage />);
+    expect(await screen.findByTestId('favorites-empty')).toBeInTheDocument();
+  });
+
+  it('lists saved restaurants and dishes, linking published ones', async () => {
+    mockFetchMyFavorites.mockResolvedValue({
+      restaurants: [{ id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' }],
+      items: [
+        {
+          id: 'i1',
+          name: 'Carne Asada Taco',
+          status: 'published',
+          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
+        },
+        {
+          id: 'i2',
+          name: 'Gone Dish',
+          status: 'removed',
+          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
+        },
+        {
+          // Published dish, but its restaurant is closed → still must not link.
+          id: 'i3',
+          name: 'Orphan Dish',
+          status: 'published',
+          restaurant: { id: 'r2', slug: 'closed-spot', name: 'Closed Spot', status: 'closed' },
+        },
+      ],
+    });
+    render(<ProfileSettingsPage />);
+
+    const rest = await screen.findByTestId('favorite-restaurant-r1');
+    expect(rest.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis');
+
+    const dish = screen.getByTestId('favorite-dish-i1');
+    expect(dish.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis/items/i1');
+
+    // A removed dish is shown but not linked.
+    const gone = screen.getByTestId('favorite-dish-i2');
+    expect(gone.querySelector('a')).toBeNull();
+    expect(gone).toHaveTextContent(/no longer available/i);
+
+    // A published dish at an unpublished restaurant must not link either.
+    const orphan = screen.getByTestId('favorite-dish-i3');
+    expect(orphan.querySelector('a')).toBeNull();
   });
 });
 

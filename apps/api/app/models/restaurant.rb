@@ -12,6 +12,7 @@ class Restaurant < ApplicationRecord
   has_many :menus,         dependent: :destroy
   has_many :menu_sections, through: :menus
   has_many :items,         dependent: :destroy
+  has_many :favorite_restaurants, dependent: :destroy
 
   validates :slug, :name, presence: true
   validates :slug, uniqueness: true

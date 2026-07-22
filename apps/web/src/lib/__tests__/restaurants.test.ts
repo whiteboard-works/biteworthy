@@ -4,7 +4,9 @@ import {
   fetchRestaurant,
   fetchRestaurantItems,
   fetchRestaurants,
+  setItemFavorite,
   setNeverHide,
+  setRestaurantFavorite,
   type Restaurant,
   type RestaurantItemsResponse,
   type RestaurantSummary,
@@ -150,6 +152,32 @@ describe('setNeverHide / clearNeverHide (Phase 4.2)', () => {
   it('throws on non-2xx', async () => {
     const fetchImpl = fakeFetch(401, { error: 'unauth' });
     await expect(setNeverHide('item-1', { fetchImpl })).rejects.toThrow(/401/);
+  });
+});
+
+describe('setItemFavorite / setRestaurantFavorite', () => {
+  it('POSTs to favorite a dish and DELETEs to unfavorite', async () => {
+    const post = fakeFetch(200, { item_id: 'item-1', favorited: true });
+    expect((await setItemFavorite('item-1', true, { fetchImpl: post })).favorited).toBe(true);
+    expect(String(post.mock.calls[0]![0])).toBe('/api/items/item-1/favorite');
+    expect((post.mock.calls[0]![1] as RequestInit).method).toBe('POST');
+
+    const del = fakeFetch(200, { item_id: 'item-1', favorited: false });
+    expect((await setItemFavorite('item-1', false, { fetchImpl: del })).favorited).toBe(false);
+    expect((del.mock.calls[0]![1] as RequestInit).method).toBe('DELETE');
+  });
+
+  it('favorites a restaurant by slug', async () => {
+    const fetchImpl = fakeFetch(200, { restaurant_id: 'r1', favorited: true });
+    const result = await setRestaurantFavorite('ninis', true, { fetchImpl });
+    expect(result.favorited).toBe(true);
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe('/api/restaurants/ninis/favorite');
+    expect((fetchImpl.mock.calls[0]![1] as RequestInit).method).toBe('POST');
+  });
+
+  it('throws on non-2xx', async () => {
+    const fetchImpl = fakeFetch(401, { error: 'unauth' });
+    await expect(setItemFavorite('item-1', true, { fetchImpl })).rejects.toThrow(/401/);
   });
 });
 
