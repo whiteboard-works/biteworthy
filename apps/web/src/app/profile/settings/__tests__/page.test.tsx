@@ -14,12 +14,16 @@ import { OPT_OUT_KEY } from '../../../../lib/track';
  */
 
 const mockReplace = vi.fn();
+// Stable router object — the real useRouter is referentially stable, so a
+// fresh object per render would spuriously re-fire the [router]-dep effects.
+const mockRouter = { replace: mockReplace };
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mockReplace }),
+  useRouter: () => mockRouter,
 }));
 
 const mockFetchProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
+const mockFetchMyReviews = vi.fn();
 vi.mock('../../../../lib/profile', () => {
   // Defined inside the hoisted factory — a top-level class can't be
   // referenced here (only `mock`-prefixed vars are hoist-exempt).
@@ -27,6 +31,7 @@ vi.mock('../../../../lib/profile', () => {
   return {
     fetchProfile: (...a: unknown[]) => mockFetchProfile(...a),
     updateProfile: (...a: unknown[]) => mockUpdateProfile(...a),
+    fetchMyReviews: (...a: unknown[]) => mockFetchMyReviews(...a),
     NotSignedInError,
   };
 });
@@ -73,6 +78,7 @@ beforeEach(() => {
     { slug: 'keto', name: 'Keto', description: 'Low carb' },
   ]);
   mockSearchIngredients.mockReset().mockResolvedValue([]);
+  mockFetchMyReviews.mockReset().mockResolvedValue({ reviews: [], total: 0 });
 });
 
 afterEach(() => localStorage.clear());
@@ -151,6 +157,122 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fprofile%2Fsettings'),
     );
+  });
+});
+
+describe('ProfileSettingsPage — my reviews', () => {
+  it('shows an empty state when the user has no reviews', async () => {
+    render(<ProfileSettingsPage />);
+    expect(await screen.findByTestId('my-reviews-empty')).toBeInTheDocument();
+  });
+
+  it('lists the user reviews with restaurant/item context and a hidden badge', async () => {
+    mockFetchMyReviews.mockResolvedValue({
+      total: 2,
+      reviews: [
+        {
+          id: 'rev-1',
+          item: {
+            id: 'item-1',
+            name: 'Carne Asada Taco',
+            status: 'published',
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+          },
+          rating: 5,
+          body: 'Best in town.',
+          photo_url: null,
+          hidden: false,
+          hidden_reason: null,
+          created_at: '2026-07-01T00:00:00Z',
+          updated_at: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 'rev-2',
+          item: {
+            id: 'item-2',
+            name: 'Bean Burrito',
+            status: 'published',
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+          },
+          rating: 2,
+          body: 'spammy',
+          photo_url: null,
+          hidden: true,
+          hidden_reason: 'spam',
+          created_at: '2026-06-01T00:00:00Z',
+          updated_at: '2026-06-01T00:00:00Z',
+        },
+      ],
+    });
+    render(<ProfileSettingsPage />);
+
+    const first = await screen.findByTestId('my-review-rev-1');
+    expect(first).toHaveTextContent('Carne Asada Taco');
+    expect(first.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis/items/item-1');
+    // The hidden review tells the author why it's hidden.
+    expect(screen.getByTestId('my-review-hidden-rev-2')).toHaveTextContent(/spam/i);
+  });
+
+  it('renders a removed dish as plain text (no dead link) with a note', async () => {
+    mockFetchMyReviews.mockResolvedValue({
+      total: 1,
+      reviews: [
+        {
+          id: 'rev-x',
+          item: {
+            id: 'item-x',
+            name: 'Old Taco',
+            status: 'removed',
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+          },
+          rating: 3,
+          body: null,
+          photo_url: null,
+          hidden: false,
+          hidden_reason: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
+    render(<ProfileSettingsPage />);
+
+    const row = await screen.findByTestId('my-review-rev-x');
+    expect(row.querySelector('a')).toBeNull(); // no dead link to a 404
+    expect(row).toHaveTextContent('Old Taco');
+    expect(row).toHaveTextContent(/no longer on the menu/i);
+  });
+
+  it('paginates: a Show more control loads the next page and shows the total', async () => {
+    const mk = (id: string) => ({
+      id,
+      item: {
+        id: `i-${id}`,
+        name: `Dish ${id}`,
+        status: 'published',
+        restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+      },
+      rating: 4,
+      body: null,
+      photo_url: null,
+      hidden: false,
+      hidden_reason: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    mockFetchMyReviews
+      .mockResolvedValueOnce({ reviews: [mk('a')], total: 3 })
+      .mockResolvedValueOnce({ reviews: [mk('b'), mk('c')], total: 3 });
+    render(<ProfileSettingsPage />);
+
+    const more = await screen.findByTestId('my-reviews-load-more');
+    expect(more).toHaveTextContent('Show more (2)');
+    expect(screen.getByTestId('my-reviews').querySelector('h2')).toHaveTextContent('My reviews (3)');
+
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.getByTestId('my-review-c')).toBeInTheDocument());
+    // All three loaded → the control is gone.
+    expect(screen.queryByTestId('my-reviews-load-more')).toBeNull();
   });
 });
 

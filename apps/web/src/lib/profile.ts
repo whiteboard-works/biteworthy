@@ -13,6 +13,7 @@
  */
 import type { ProfilePayload } from '@biteworthy/api-types';
 import type { Strictness } from '@biteworthy/filter-engine';
+import type { UserReviewItem } from './users';
 
 export type { ProfilePayload };
 
@@ -38,7 +39,7 @@ export class NotSignedInError extends Error {
   }
 }
 
-async function readJsonOrThrow(res: Response, action: string): Promise<ProfilePayload> {
+async function readJsonOrThrow<T>(res: Response, action: string): Promise<T> {
   if (res.status === 401) throw new NotSignedInError();
   if (!res.ok) {
     let body: unknown = null;
@@ -49,7 +50,7 @@ async function readJsonOrThrow(res: Response, action: string): Promise<ProfilePa
     }
     throw new Error(`${action} failed: ${res.status} ${JSON.stringify(body)}`);
   }
-  return (await res.json()) as ProfilePayload;
+  return (await res.json()) as T;
 }
 
 export async function fetchProfile(
@@ -60,7 +61,7 @@ export async function fetchProfile(
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
   });
-  return readJsonOrThrow(res, 'fetchProfile');
+  return readJsonOrThrow<ProfilePayload>(res, 'fetchProfile');
 }
 
 export async function updateProfile(
@@ -74,5 +75,45 @@ export async function updateProfile(
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(patch),
   });
-  return readJsonOrThrow(res, 'updateProfile');
+  return readJsonOrThrow<ProfilePayload>(res, 'updateProfile');
+}
+
+// ─── My reviews (account page) ────────────────────────────────────
+
+/**
+ * A row from GET /api/profile/reviews — the caller's own review. The
+ * item shape is the public `UserReviewItem` plus `status`, which the
+ * account page uses to skip the link for a dish that's no longer
+ * viewable (the public item page is published-only).
+ */
+export interface MyReview {
+  id: string;
+  item: UserReviewItem & { status: string };
+  rating: number;
+  body: string | null;
+  photo_url: string | null;
+  /** True when a moderator hid it; the author still sees it here. */
+  hidden: boolean;
+  hidden_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MyReviewsResponse {
+  reviews: MyReview[];
+  total: number;
+}
+
+export async function fetchMyReviews(
+  opts: { limit?: number; offset?: number; fetchImpl?: typeof fetch } = {},
+): Promise<MyReviewsResponse> {
+  const { fetchImpl = fetch, limit, offset } = opts;
+  const url = new URL('/api/profile/reviews', 'http://placeholder');
+  if (typeof limit === 'number') url.searchParams.set('limit', String(limit));
+  if (typeof offset === 'number') url.searchParams.set('offset', String(offset));
+  const res = await fetchImpl(`${url.pathname}${url.search}`, {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  return readJsonOrThrow<MyReviewsResponse>(res, 'fetchMyReviews');
 }

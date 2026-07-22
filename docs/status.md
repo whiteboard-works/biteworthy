@@ -17,6 +17,19 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Account page PR-2: "My reviews" list. Branch `feat/account-my-reviews`.
+
+- Adds a **My reviews** section to `/profile/settings`: the caller's own reviews,
+  newest first, each linking back to the dish, with the star rating and — unlike the
+  public by-handle feed — the user's **hidden** reviews shown with the moderation
+  reason. New authed `GET /api/v1/profile/reviews` (`ProfileReviewsController`,
+  paginated, includes hidden own reviews) mirroring `profile/history`'s shape; route
+  under the `resource :profile` block. Hand-written web type (`MyReview` in
+  `lib/profile.ts`) + `GET /api/profile/reviews` proxy, matching the history/users
+  sibling precedent (no rswag — those siblings hand-write too).
+- API request spec 5 ex green; web vitest 225 (+2); typecheck/lint green. PR-3
+  (favorites: restaurants + dishes) is the remaining item.
+
 2026-07-21 — Account page PR-1: dietary preferences (show + edit). Branch `feat/account-preferences`.
 
 - User-requested rework of `/profile/settings` (the "Account" nav link): it now
