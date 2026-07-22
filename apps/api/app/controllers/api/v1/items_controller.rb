@@ -64,7 +64,9 @@ module Api
         item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
                           .items.published.includes(photo_attachment: :blob).find(params[:id])
         filter = build_filter
-        render json: serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]), review_counts_for([item]))
+        payload = serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]), review_counts_for([item]))
+        # `favorited` seeds the detail page's save button. Anonymous → false.
+        render json: payload.merge(favorited: current_user_favorited_item?(item))
       end
 
       private
@@ -285,6 +287,12 @@ module Api
         Set.new(
           UserItemOverride.where(user_id: current_user.id, item_id: ids, never_hide: true).pluck(:item_id)
         )
+      end
+
+      # Whether the signed-in caller has saved this dish (false anonymously).
+      def current_user_favorited_item?(item)
+        return false unless current_user
+        FavoriteItem.exists?(user_id: current_user.id, item_id: item.id)
       end
 
       def filter_summary(filter)

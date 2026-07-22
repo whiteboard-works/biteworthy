@@ -43,6 +43,8 @@ export interface Restaurant {
   claimed_at: string | null;
   claimed_by_user_id: string | null;
   city: RestaurantCity;
+  /** Set by GET show when the caller is authed; false anonymously. */
+  favorited?: boolean;
 }
 
 /** The lighter shape `GET /api/v1/restaurants` returns for browse/discovery. */
@@ -86,6 +88,8 @@ export interface RestaurantItem extends FilterableItem {
   taste_score?: number | null;
   /** Which liked tags/ingredients matched — the "because you like…" line. */
   taste_reasons?: TasteReason[];
+  /** Set by GET show when the caller is authed; false anonymously. */
+  favorited?: boolean;
 }
 
 export interface FilterSummary {
@@ -104,6 +108,8 @@ export interface RestaurantItemsResponse {
 
 export interface FetchOptions {
   fetchImpl?: typeof fetch;
+  /** Bearer token — pass on the server so `favorited` reflects the caller. */
+  jwt?: string;
 }
 
 export interface FetchItemsOptions extends FetchOptions {
@@ -118,7 +124,10 @@ export async function fetchRestaurant(
   slugOrId: string,
   opts: FetchOptions = {},
 ): Promise<Restaurant> {
+  const headers: Record<string, string> = {};
+  if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<Restaurant>(`/restaurants/${encodeURIComponent(slugOrId)}`, {
+    headers,
     fetchImpl: opts.fetchImpl,
   });
 }
@@ -147,9 +156,11 @@ export async function fetchItem(
   itemId: string,
   opts: FetchOptions = {},
 ): Promise<RestaurantItem> {
+  const headers: Record<string, string> = {};
+  if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<RestaurantItem>(
     `/restaurants/${encodeURIComponent(restaurantSlugOrId)}/items/${encodeURIComponent(itemId)}`,
-    { fetchImpl: opts.fetchImpl },
+    { headers, fetchImpl: opts.fetchImpl },
   );
 }
 
@@ -196,4 +207,37 @@ export async function clearNeverHide(
   });
   if (!res.ok) throw new Error(`clearNeverHide failed: ${res.status}`);
   return (await res.json()) as { item_id: string; overridden_by_user: boolean };
+}
+
+/**
+ * Save/unsave a dish via the Next proxy at /api/items/:id/favorite.
+ * `favorite` is true to save, false to unsave; returns the new state.
+ */
+export async function setItemFavorite(
+  itemId: string,
+  favorite: boolean,
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<{ item_id: string; favorited: boolean }> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`/api/items/${encodeURIComponent(itemId)}/favorite`, {
+    method: favorite ? 'POST' : 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`setItemFavorite failed: ${res.status}`);
+  return (await res.json()) as { item_id: string; favorited: boolean };
+}
+
+/** Save/unsave a restaurant via /api/restaurants/:slug/favorite. */
+export async function setRestaurantFavorite(
+  slug: string,
+  favorite: boolean,
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<{ restaurant_id: string; favorited: boolean }> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`/api/restaurants/${encodeURIComponent(slug)}/favorite`, {
+    method: favorite ? 'POST' : 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`setRestaurantFavorite failed: ${res.status}`);
+  return (await res.json()) as { restaurant_id: string; favorited: boolean };
 }

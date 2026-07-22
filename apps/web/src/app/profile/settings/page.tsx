@@ -8,10 +8,13 @@ import {
   fetchProfile,
   updateProfile,
   fetchMyReviews,
+  fetchMyFavorites,
   NotSignedInError,
   type ProfilePatch,
   type ProfilePayload,
   type MyReview,
+  type FavoriteRestaurant,
+  type FavoriteDish,
 } from '../../../lib/profile';
 import {
   fetchDietaryProfiles,
@@ -36,6 +39,7 @@ export default function ProfileSettingsPage() {
     <main className="mx-auto max-w-2xl px-bw-6 pt-bw-12 pb-bw-16">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Account</h1>
       <PreferencesSection />
+      <FavoritesSection />
       <MyReviewsSection />
       <AnalyticsSection />
     </main>
@@ -501,6 +505,101 @@ function TasteRow({
         <span className="text-bw-sm text-zinc-400">none</span>
       )}
     </div>
+  );
+}
+
+// ─── Favorites ────────────────────────────────────────────────────
+
+function FavoritesSection() {
+  const router = useRouter();
+  const [restaurants, setRestaurants] = useState<FavoriteRestaurant[] | null>(null);
+  const [items, setItems] = useState<FavoriteDish[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchMyFavorites()
+      .then((f) => {
+        setRestaurants(f.restaurants);
+        setItems(f.items);
+      })
+      .catch((e) => {
+        if (e instanceof NotSignedInError) {
+          router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+          return;
+        }
+        setError((e as Error).message);
+      });
+  }, [router]);
+
+  const empty = restaurants !== null && restaurants.length === 0 && items.length === 0;
+
+  return (
+    <section className="mt-bw-8 border-t border-zinc-100 pt-bw-8" data-testid="favorites">
+      <h2 className="text-bw-lg font-bold text-zinc-900">Favorites</h2>
+      {error ? (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          Could not load your favorites — {error}
+        </p>
+      ) : restaurants === null ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500" data-testid="favorites-loading">
+          Loading your favorites…
+        </p>
+      ) : empty ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-400" data-testid="favorites-empty">
+          You haven’t saved any restaurants or dishes yet.
+        </p>
+      ) : (
+        <div className="mt-bw-4 space-y-bw-6">
+          {restaurants.length > 0 && (
+            <div data-testid="favorite-restaurants">
+              <h3 className="text-bw-base font-semibold text-zinc-800">Restaurants</h3>
+              <ul className="mt-bw-2 space-y-bw-2">
+                {restaurants.map((r) => (
+                  <li key={r.id} data-testid={`favorite-restaurant-${r.id}`}>
+                    {r.status === 'published' ? (
+                      <a
+                        href={`/restaurants/${encodeURIComponent(r.slug)}`}
+                        className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
+                      >
+                        {r.name}
+                      </a>
+                    ) : (
+                      <span className="text-bw-base font-semibold text-zinc-500">
+                        {r.name} <span className="text-bw-xs">(unavailable)</span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {items.length > 0 && (
+            <div data-testid="favorite-dishes">
+              <h3 className="text-bw-base font-semibold text-zinc-800">Dishes</h3>
+              <ul className="mt-bw-2 space-y-bw-2">
+                {items.map((d) => (
+                  <li key={d.id} data-testid={`favorite-dish-${d.id}`}>
+                    {d.status === 'published' ? (
+                      <a
+                        href={`/restaurants/${encodeURIComponent(d.restaurant.slug)}/items/${encodeURIComponent(d.id)}`}
+                        className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
+                      >
+                        {d.name}
+                      </a>
+                    ) : (
+                      <span className="text-bw-base font-semibold text-zinc-500">
+                        {d.name} <span className="text-bw-xs">(no longer on the menu)</span>
+                      </span>
+                    )}
+                    <span className="text-bw-sm text-zinc-500"> · {d.restaurant.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

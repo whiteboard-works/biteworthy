@@ -16,11 +16,13 @@ import {
   clearNeverHide,
   fetchRestaurantItems,
   setNeverHide,
+  setRestaurantFavorite,
   type FilterSummary,
   type Restaurant,
   type RestaurantItem,
   type RestaurantItemsResponse,
 } from '../../../lib/restaurants';
+import FavoriteButton from './_FavoriteButton';
 import { ItemRow } from './ItemRow';
 import { TopPicksRow } from './TopPicksRow';
 import { useTracker } from '../../_PostHogProvider';
@@ -42,12 +44,15 @@ export function RestaurantClient({
   restaurant,
   initialItems,
   profileToken = null,
+  signedIn = false,
 }: {
   slug: string;
   restaurant: Restaurant;
   initialItems: RestaurantItemsResponse;
   /** Phase 3.9 — passed from SSR when the URL had ?p=<token>. */
   profileToken?: string | null;
+  /** Gates the save button — the favorite endpoint is authed. */
+  signedIn?: boolean;
 }) {
   const tracker = useTracker();
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
@@ -164,6 +169,17 @@ export function RestaurantClient({
         {restaurant.city.name}, {restaurant.city.region}
       </p>
       <h1 className="mt-bw-2 text-bw-3xl font-bold">{restaurant.name}</h1>
+      {signedIn && (
+        <div className="mt-bw-3">
+          <FavoriteButton
+            initialFavorited={restaurant.favorited ?? false}
+            onToggle={(next) => setRestaurantFavorite(slug, next)}
+            savedLabel="Saved"
+            unsavedLabel="Save restaurant"
+            testId="favorite-restaurant"
+          />
+        </div>
+      )}
       <p className="mt-bw-2 text-bw-base text-zinc-700">
         Showing <span className="font-bold">{totalVisible}</span> item
         {totalVisible === 1 ? '' : 's'} that match your filter

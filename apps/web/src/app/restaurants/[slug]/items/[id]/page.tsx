@@ -6,8 +6,10 @@ import {
   type Restaurant,
   type RestaurantItem,
 } from '../../../../../lib/restaurants';
+import { setItemFavorite } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
-import { getServerUserId } from '../../../../../lib/server-auth';
+import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
+import FavoriteButton from '../../_FavoriteButton';
 import { ReviewsClient } from './ReviewsClient';
 import { SuggestFixClient } from './SuggestFixClient';
 
@@ -29,9 +31,12 @@ export default async function ItemDetailPage({
 }) {
   const { slug, id } = await params;
 
+  // The JWT lets fetchItem populate `favorited` for the save button;
+  // anonymous callers still render (favorited defaults false, button hidden).
+  const jwt = await getServerJwt();
   const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
     fetchRestaurant(slug).catch(() => null),
-    fetchItem(slug, id).catch(() => null),
+    fetchItem(slug, id, { jwt: jwt ?? undefined }).catch(() => null),
     fetchReviewsServer(id).catch(() => null),
     getServerUserId(),
   ]);
@@ -69,6 +74,18 @@ function Page({
       <h1 className="mt-bw-2 text-bw-3xl font-bold">{item.name}</h1>
       {item.description && (
         <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>
+      )}
+
+      {currentUserId && (
+        <div className="mt-bw-4">
+          <FavoriteButton
+            initialFavorited={item.favorited ?? false}
+            onToggle={(next) => setItemFavorite(item.id, next)}
+            savedLabel="Saved"
+            unsavedLabel="Save this dish"
+            testId="favorite-dish"
+          />
+        </div>
       )}
 
       <ReviewsClient

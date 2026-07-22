@@ -117,3 +117,35 @@ export async function fetchMyReviews(
   });
   return readJsonOrThrow<MyReviewsResponse>(res, 'fetchMyReviews');
 }
+
+// ─── Favorites (account page) ─────────────────────────────────────
+
+export interface FavoriteRestaurant {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+}
+
+export interface FavoriteDish {
+  id: string;
+  name: string;
+  status: string;
+  restaurant: { id: string; slug: string; name: string };
+}
+
+export interface MyFavoritesResponse {
+  restaurants: FavoriteRestaurant[];
+  items: FavoriteDish[];
+}
+
+export async function fetchMyFavorites(
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<MyFavoritesResponse> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl('/api/profile/favorites', {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  return readJsonOrThrow<MyFavoritesResponse>(res, 'fetchMyFavorites');
+}
