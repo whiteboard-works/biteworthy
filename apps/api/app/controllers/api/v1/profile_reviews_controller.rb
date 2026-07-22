@@ -39,6 +39,10 @@ module Api
           item: {
             id:   item.id,
             name: item.name,
+            # Lets the account page skip the link when the dish is no
+            # longer viewable — the public item page is published-only,
+            # so linking a removed/draft item would 404 the author.
+            status: item.status,
             restaurant: {
               id:   item.restaurant_id,
               slug: item.restaurant.slug,

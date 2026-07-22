@@ -26,9 +26,21 @@ RSpec.describe "GET /api/v1/profile/reviews", type: :request do
 
     first = body["reviews"].first
     expect(first).to include("rating" => 3, "body" => "Fine.", "hidden" => false, "hidden_reason" => nil)
+    expect(first["item"]).to include("name" => "Bean Burrito", "status" => "published")
     expect(first["item"]["restaurant"]).to include(
       "slug" => restaurant.slug, "name" => "Ninis Taqueria"
     )
+  end
+
+  it "still lists a review whose item was later removed, exposing the item status" do
+    create(:review, user: user, item: taco, rating: 4, body: "was great")
+    taco.update!(status: "removed")
+
+    get "/api/v1/profile/reviews", headers: headers
+
+    body = response.parsed_body
+    expect(body["total"]).to eq(1)
+    expect(body["reviews"].first["item"]).to include("status" => "removed")
   end
 
   it "includes the caller's own HIDDEN reviews and says why (unlike the public feed)" do

@@ -506,26 +506,54 @@ function TasteRow({
 
 // ─── My reviews ───────────────────────────────────────────────────
 
+const MY_REVIEWS_PAGE = 20;
+
 function MyReviewsSection() {
   const router = useRouter();
   const [reviews, setReviews] = useState<MyReview[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const onError = (e: unknown) => {
+    if (e instanceof NotSignedInError) {
+      router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+      return;
+    }
+    setError((e as Error).message);
+  };
 
   useEffect(() => {
-    fetchMyReviews()
-      .then((r) => setReviews(r.reviews))
-      .catch((e) => {
-        if (e instanceof NotSignedInError) {
-          router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
-          return;
-        }
-        setError((e as Error).message);
-      });
+    fetchMyReviews({ limit: MY_REVIEWS_PAGE, offset: 0 })
+      .then((r) => {
+        setReviews(r.reviews);
+        setTotal(r.total);
+      })
+      .catch(onError);
+    // onError closes over `router` only; re-running on router change is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // Offset pagination so a prolific reviewer isn't capped at the first page.
+  const loadMore = async () => {
+    if (!reviews) return;
+    try {
+      setLoadingMore(true);
+      const r = await fetchMyReviews({ limit: MY_REVIEWS_PAGE, offset: reviews.length });
+      setReviews((prev) => [...(prev ?? []), ...r.reviews]);
+      setTotal(r.total);
+    } catch (e) {
+      onError(e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <section className="mt-bw-8 border-t border-zinc-100 pt-bw-8" data-testid="my-reviews">
-      <h2 className="text-bw-lg font-bold text-zinc-900">My reviews</h2>
+      <h2 className="text-bw-lg font-bold text-zinc-900">
+        My reviews{reviews && total > 0 ? ` (${total})` : ''}
+      </h2>
       {error ? (
         <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
           Could not load your reviews — {error}
@@ -539,11 +567,24 @@ function MyReviewsSection() {
           You haven’t written any reviews yet.
         </p>
       ) : (
-        <ul className="mt-bw-4 space-y-bw-3">
-          {reviews.map((r) => (
-            <MyReviewRow key={r.id} review={r} />
-          ))}
-        </ul>
+        <>
+          <ul className="mt-bw-4 space-y-bw-3">
+            {reviews.map((r) => (
+              <MyReviewRow key={r.id} review={r} />
+            ))}
+          </ul>
+          {reviews.length < total && (
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              data-testid="my-reviews-load-more"
+              className="mt-bw-4 w-full rounded-bw-md border border-zinc-200 py-bw-2 text-bw-sm font-semibold text-zinc-700 hover:border-zinc-300 disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : `Show more (${total - reviews.length})`}
+            </button>
+          )}
+        </>
       )}
     </section>
   );
@@ -551,25 +592,35 @@ function MyReviewsSection() {
 
 function MyReviewRow({ review }: { review: MyReview }) {
   const { item } = review;
+  // The public item page is published-only, so only link a dish that
+  // still resolves — otherwise the author lands on a 404 for their own
+  // review. Encode both segments like every sibling link (slugs are
+  // only presence/uniqueness-validated, not auto-parameterized).
+  const linkable = item.status === 'published';
+  const href = `/restaurants/${encodeURIComponent(item.restaurant.slug)}/items/${encodeURIComponent(item.id)}`;
   return (
     <li
       className="rounded-bw-md border border-zinc-200 p-bw-4"
       data-testid={`my-review-${review.id}`}
     >
       <div className="flex items-baseline justify-between gap-bw-3">
-        <a
-          href={`/restaurants/${item.restaurant.slug}/items/${item.id}`}
-          className="font-semibold text-zinc-900 hover:text-bite"
-        >
-          {item.name}
-        </a>
-        <span className="shrink-0 text-bw-sm text-warn" aria-label={`${review.rating} out of 5`}>
-          {'★'.repeat(review.rating)}
-          {'☆'.repeat(5 - review.rating)}
+        {linkable ? (
+          <a href={href} className="font-semibold text-zinc-900 hover:text-bite">
+            {item.name}
+          </a>
+        ) : (
+          <span className="font-semibold text-zinc-900">{item.name}</span>
+        )}
+        <span className="shrink-0 text-bw-sm" aria-label={`${review.rating} out of 5`}>
+          <span className="text-warn">{'★'.repeat(review.rating)}</span>
+          <span className="text-zinc-300">{'☆'.repeat(5 - review.rating)}</span>
         </span>
       </div>
       <p className="text-bw-sm text-zinc-500">{item.restaurant.name}</p>
       {review.body && <p className="mt-bw-2 text-bw-sm text-zinc-700">{review.body}</p>}
+      {!linkable && (
+        <p className="mt-bw-1 text-bw-xs text-zinc-400">This dish is no longer on the menu.</p>
+      )}
       {review.hidden && (
         <p
           className="mt-bw-2 text-bw-xs font-semibold text-hide"
