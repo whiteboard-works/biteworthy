@@ -537,6 +537,20 @@ export interface components {
         AuthResponse: {
             user: components["schemas"]["UserPayload"];
         };
+        IngredientRef: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+        };
+        TagRef: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            /** @enum {string} */
+            family: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+        };
         ProfilePayload: {
             avoid_ingredient_ids: string[];
             avoid_tag_ids: string[];
@@ -545,6 +559,13 @@ export interface components {
             liked_tag_ids: string[];
             disliked_ingredient_ids: string[];
             disliked_tag_ids: string[];
+            avoid_ingredients: components["schemas"]["IngredientRef"][];
+            avoid_tags: components["schemas"]["TagRef"][];
+            prefer_tags: components["schemas"]["TagRef"][];
+            liked_ingredients: components["schemas"]["IngredientRef"][];
+            liked_tags: components["schemas"]["TagRef"][];
+            disliked_ingredients: components["schemas"]["IngredientRef"][];
+            disliked_tags: components["schemas"]["TagRef"][];
             /** @enum {string} */
             strictness: "relaxed" | "balanced" | "strict";
             primary_dietary_profile: {

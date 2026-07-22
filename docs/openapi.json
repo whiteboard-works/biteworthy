@@ -885,6 +885,57 @@
           }
         }
       },
+      "IngredientRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "TagRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "family"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "diet",
+              "allergen",
+              "cuisine",
+              "prep",
+              "flavor"
+            ]
+          }
+        }
+      },
       "ProfilePayload": {
         "type": "object",
         "required": [
@@ -895,6 +946,13 @@
           "liked_tag_ids",
           "disliked_ingredient_ids",
           "disliked_tag_ids",
+          "avoid_ingredients",
+          "avoid_tags",
+          "prefer_tags",
+          "liked_ingredients",
+          "liked_tags",
+          "disliked_ingredients",
+          "disliked_tags",
           "strictness",
           "primary_dietary_profile",
           "disclaimer_acknowledged_at"
@@ -947,6 +1005,48 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "avoid_ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientRef"
+            }
+          },
+          "avoid_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
+            }
+          },
+          "prefer_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
+            }
+          },
+          "liked_ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientRef"
+            }
+          },
+          "liked_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
+            }
+          },
+          "disliked_ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientRef"
+            }
+          },
+          "disliked_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagRef"
             }
           },
           "strictness": {

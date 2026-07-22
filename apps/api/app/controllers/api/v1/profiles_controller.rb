@@ -80,6 +80,11 @@ module Api
         profile.primary_dietary_profile_id = preset.id
       end
 
+      # The raw id arrays stay (mobile onboarding + filter-engine read
+      # them); the `*_ingredients` / `*_tags` arrays add the resolved
+      # {id, slug, name} rows the web account page renders without a
+      # second round-trip. Unknown/stale ids resolve to nothing and drop
+      # out — the same way scoring silently ignores them.
       def profile_payload(profile)
         {
           avoid_ingredient_ids: profile.avoid_ingredient_ids,
@@ -89,10 +94,36 @@ module Api
           liked_tag_ids:           profile.liked_tag_ids,
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
+          avoid_ingredients:    resolve_ingredients(profile.avoid_ingredient_ids),
+          avoid_tags:           resolve_tags(profile.avoid_tag_ids),
+          prefer_tags:          resolve_tags(profile.prefer_tag_ids),
+          liked_ingredients:    resolve_ingredients(profile.liked_ingredient_ids),
+          liked_tags:           resolve_tags(profile.liked_tag_ids),
+          disliked_ingredients: resolve_ingredients(profile.disliked_ingredient_ids),
+          disliked_tags:        resolve_tags(profile.disliked_tag_ids),
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
+      end
+
+      # Resolve an id array to ordered {id, slug, name} rows, dropping
+      # any id that no longer maps to a live row. One query, order
+      # preserved from the stored array.
+      def resolve_ingredients(ids)
+        by_id = Ingredient.where(id: ids).index_by { |i| i.id.to_s }
+        ids.filter_map do |id|
+          ing = by_id[id.to_s]
+          { id: ing.id, slug: ing.slug, name: ing.name } if ing
+        end
+      end
+
+      def resolve_tags(ids)
+        by_id = Tag.where(id: ids).index_by { |t| t.id.to_s }
+        ids.filter_map do |id|
+          tag = by_id[id.to_s]
+          { id: tag.id, slug: tag.slug, name: tag.name, family: tag.family } if tag
+        end
       end
 
       def dietary_profile_summary(preset)

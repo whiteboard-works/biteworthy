@@ -23,6 +23,44 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
       get "/api/v1/profile"
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # The account page renders names, not UUIDs, so GET resolves each id
+    # array to ordered {id, slug, name} rows in one payload. The raw id
+    # arrays stay for the mobile/onboarding clients that read them.
+    describe "resolved name rows" do
+      let(:cheese)    { create(:ingredient, slug: "dairy-cheese") }
+      let(:wheat)     { create(:ingredient, slug: "wheat") }
+      let(:fried_tag) { create(:tag, slug: "prep-fried") }
+
+      it "resolves avoid ids to {id, slug, name} rows in stored order" do
+        user.profile.update!(
+          avoid_ingredient_ids: [wheat.id, cheese.id],
+          avoid_tag_ids:        [fried_tag.id]
+        )
+
+        get "/api/v1/profile", headers: headers
+
+        body = response.parsed_body
+        expect(body["avoid_ingredients"]).to eq([
+          { "id" => wheat.id,  "slug" => "wheat",       "name" => "Wheat" },
+          { "id" => cheese.id, "slug" => "dairy-cheese", "name" => "Cheese" }
+        ])
+        expect(body["avoid_tags"]).to eq([
+          { "id" => fried_tag.id, "slug" => "prep-fried", "name" => "Fried", "family" => "prep" }
+        ])
+      end
+
+      it "drops ids that no longer resolve to a live row (stale ids)" do
+        stale = SecureRandom.uuid
+        user.profile.update!(avoid_ingredient_ids: [cheese.id, stale])
+
+        get "/api/v1/profile", headers: headers
+
+        body = response.parsed_body
+        expect(body["avoid_ingredient_ids"]).to contain_exactly(cheese.id, stale)
+        expect(body["avoid_ingredients"].map { |r| r["id"] }).to eq([cheese.id])
+      end
+    end
   end
 
   describe "PATCH /api/v1/profile" do

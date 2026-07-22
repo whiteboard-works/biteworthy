@@ -17,6 +17,26 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-21 — Account page PR-1: dietary preferences (show + edit). Branch `feat/account-preferences`.
+
+- User-requested rework of `/profile/settings` (the "Account" nav link): it now
+  shows **all** dietary preferences with resolved names — diet preset, strictness,
+  avoid ingredients/tags, taste love/pass — and edits them in place. Previously
+  they could only be set once, in the onboarding wizard.
+- API: `GET /api/v1/profile` now returns resolved `{id, slug, name}` rows
+  (`avoid_ingredients`, `avoid_tags`, `liked_tags`, …) alongside the raw id arrays
+  the mobile/onboarding clients still read. New `IngredientRef`/`TagRef` swagger
+  components; openapi + api-types regenerated. Web: added the `GET /api/profile`
+  proxy (was PATCH-only) + `lib/profile.ts` (`fetchProfile`/`updateProfile`).
+- Each edit is a **partial** PATCH; the load-bearing property (tested) is that
+  removing one avoid item submits the *remaining* ids, never a wipe — the endpoint
+  replaces each array it receives wholesale. Taste editing links to the existing
+  "Improve my picks" flow. Web vitest 223 (+9); typecheck/lint/codegen green.
+- Part of a 3-PR arc (favorites = restaurants + dishes, and a "my reviews" list are
+  PR-2/PR-3, still to come). ⚠️ Found a local-dev footgun: `apps/api/.env` sets
+  `DATABASE_URL` to production Neon, so `RAILS_ENV=test` rails tasks hit prod — ran
+  specs against a LOCAL `biteworthy_test` via an explicit localhost `DATABASE_URL`.
+
 2026-07-21 — Verify-flow redesign PR-3: verify page UI. Branch `feat/verify-page-redesign`.
 
 - Surfaces the PR-1/PR-2 backend to users. The verify page now shows dishes from
