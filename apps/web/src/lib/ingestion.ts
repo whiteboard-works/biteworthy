@@ -158,7 +158,10 @@ export async function fetchRun(
   runId: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<IngestionRunPayload> {
-  return getJson<IngestionRunPayload>(`/api/ingestion_runs/${encodeURIComponent(runId)}`, fetchImpl);
+  return getJson<IngestionRunPayload>(
+    `/api/ingestion_runs/${encodeURIComponent(runId)}`,
+    fetchImpl,
+  );
 }
 
 export async function fetchRunItems(
@@ -206,10 +209,10 @@ export async function acceptAllRunItems(
   runId: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<IngestionItemPayload[]> {
-  const res = await fetchImpl(
-    `/api/ingestion_runs/${encodeURIComponent(runId)}/items/accept_all`,
-    { method: 'POST', credentials: 'same-origin' },
-  );
+  const res = await fetchImpl(`/api/ingestion_runs/${encodeURIComponent(runId)}/items/accept_all`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
   if (!res.ok) {
     let parsed: IngestionApiError | null = null;
     try {
@@ -258,13 +261,17 @@ export async function ingestFromUrl(opts: {
 
 export async function ingestFromFile(opts: {
   restaurantId: string;
-  file: File;
+  files: File[];
   fetchImpl?: typeof fetch;
 }): Promise<IngestionRunPayload> {
-  const { restaurantId, file, fetchImpl = fetch } = opts;
+  const { restaurantId, files, fetchImpl = fetch } = opts;
   const form = new FormData();
   form.append('restaurant_id', restaurantId);
-  form.append('inputs[]', file, file.name);
+  // One run can carry several pages — each menu page/photo becomes an
+  // `inputs[]` entry (the Rails endpoint caps this at INGESTION_MAX_INPUT_FILES).
+  for (const file of files) {
+    form.append('inputs[]', file, file.name);
+  }
   return postIngestionRun(form, fetchImpl, true);
 }
 

@@ -24,4 +24,44 @@ describe('IngestPage — camera capture', () => {
     fireEvent.change(screen.getByTestId('camera-input'), { target: { files: [photo] } });
     expect(screen.getByTestId('selected-file')).toHaveTextContent('menu.jpg');
   });
+
+  it('accepts multiple files at once via the picker', () => {
+    render(<IngestPage />);
+    // The file picker is multi-select so a whole menu can upload as one run.
+    expect(screen.getByTestId('file-input')).toHaveAttribute('multiple');
+
+    const page1 = new File(['a'], 'page-1.jpg', { type: 'image/jpeg' });
+    const page2 = new File(['b'], 'page-2.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('file-input'), { target: { files: [page1, page2] } });
+
+    const list = screen.getByTestId('selected-file');
+    expect(list).toHaveTextContent('page-1.jpg');
+    expect(list).toHaveTextContent('page-2.jpg');
+  });
+
+  it('accumulates repeated camera captures into the same run instead of replacing', () => {
+    render(<IngestPage />);
+    const shot1 = new File(['a'], 'shot-1.jpg', { type: 'image/jpeg' });
+    const shot2 = new File(['b'], 'shot-2.jpg', { type: 'image/jpeg' });
+
+    fireEvent.change(screen.getByTestId('camera-input'), { target: { files: [shot1] } });
+    fireEvent.change(screen.getByTestId('camera-input'), { target: { files: [shot2] } });
+
+    const list = screen.getByTestId('selected-file');
+    expect(list).toHaveTextContent('shot-1.jpg');
+    expect(list).toHaveTextContent('shot-2.jpg');
+  });
+
+  it('removes a single selected file without clearing the rest', () => {
+    render(<IngestPage />);
+    const page1 = new File(['a'], 'page-1.jpg', { type: 'image/jpeg' });
+    const page2 = new File(['b'], 'page-2.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('file-input'), { target: { files: [page1, page2] } });
+
+    fireEvent.click(screen.getByLabelText('Remove page-1.jpg'));
+
+    const list = screen.getByTestId('selected-file');
+    expect(list).not.toHaveTextContent('page-1.jpg');
+    expect(list).toHaveTextContent('page-2.jpg');
+  });
 });
