@@ -17,6 +17,21 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-29 — Restaurant menu renders as a photo grid with placeholders. Branch `claude/placeholder-photos-restaurant-grid-rh7ich`.
+
+- The restaurant page (`apps/web/.../restaurants/[slug]`) listed items as a flat
+  vertical list; only items with a cropped `photo_url` showed an image, leaving
+  photo-less items visually bare. Reworked `ItemRow` into a card (photo on top,
+  content below) and switched `SectionBlock`'s visible + hidden lists to a
+  responsive grid (`grid-cols-1 sm:2 lg:3`).
+- Items with no `photo_url` now get a deterministic monogram placeholder
+  (first letter over an id-seeded HSL tint, `role="img"` + aria-label) so the
+  grid never has empty photo slots. Real-photo `<img>` contract from Phase
+  4.11.4 is unchanged; placeholder uses a distinct testid so the existing
+  "no `<img>` when photo_url is null" test still holds.
+- Purely presentational — no API/serializer changes. Added placeholder render
+  tests; web typecheck + lint clean, 34/34 restaurant tests pass.
+
 2026-07-28 — Web scan menu accepts multiple photos/uploads. Branch `claude/scan-menu-multiple-photos-qnjml8`.
 
 - The web `/ingest` "drop a PDF / photo" section was single-file only, while the

@@ -63,6 +63,28 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
   });
 });
 
+describe('ItemRow — placeholder photo', () => {
+  // Every card fills its photo slot: a real photo when we have one,
+  // otherwise a monogram placeholder so the grid never shows empty
+  // gaps. The two are mutually exclusive.
+  it('renders a monogram placeholder when photo_url is null', () => {
+    renderRow({ photo_url: null });
+    const placeholder = screen.getByTestId('item-photo-placeholder-item-1');
+    expect(placeholder).toBeInTheDocument();
+    // Monogram is the dish name's first letter, uppercased.
+    expect(placeholder).toHaveTextContent('P');
+    // Labelled for assistive tech, since it stands in for the photo.
+    expect(placeholder).toHaveAttribute('role', 'img');
+    expect(placeholder).toHaveAttribute('aria-label', expect.stringContaining('Pad Thai'));
+  });
+
+  it('renders the real photo and no placeholder when photo_url is set', () => {
+    renderRow({ photo_url: 'https://example.test/dish.jpg' });
+    expect(screen.getByTestId('item-photo-item-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('item-photo-placeholder-item-1')).not.toBeInTheDocument();
+  });
+});
+
 describe('ItemRow — name + description + open link', () => {
   it('renders the item name + description', () => {
     renderRow({});
@@ -78,17 +100,12 @@ describe('ItemRow — name + description + open link', () => {
   it('encodes the slug + id in the open-item link', () => {
     renderRow({});
     const link = screen.getByTestId('open-item-item-1');
-    expect(link).toHaveAttribute(
-      'href',
-      '/restaurants/cream-bean-berry/items/item-1',
-    );
+    expect(link).toHaveAttribute('href', '/restaurants/cream-bean-berry/items/item-1');
   });
 
   it('shows "Be the first to review" when reviews_count is 0 / undefined', () => {
     renderRow({});
-    expect(screen.getByTestId('open-item-item-1')).toHaveTextContent(
-      'Be the first to review',
-    );
+    expect(screen.getByTestId('open-item-item-1')).toHaveTextContent('Be the first to review');
   });
 
   it('pluralizes the reviews badge correctly', () => {
