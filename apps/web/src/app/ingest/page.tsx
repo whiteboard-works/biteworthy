@@ -27,13 +27,23 @@ export default function IngestPage() {
   const [manualId, setManualId] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceText, setSourceText] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const restaurantId = restaurant?.id ?? manualId;
 
-  const onPickFile = (e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null);
+  // Both the camera and the file picker append to the same list, so a
+  // multi-page menu can mix rear-camera shots and picked PDFs/photos.
+  // Clearing the input's value lets the same file (or another camera
+  // shot) be picked again — React won't refire change on an unchanged value.
+  const onPickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length > 0) setFiles((prev) => [...prev, ...picked]);
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
   const submit = async (mode: 'url' | 'file' | 'text') => {
     setError(null);
@@ -45,7 +55,7 @@ export default function IngestPage() {
       setError('Paste a URL.');
       return;
     }
-    if (mode === 'file' && !file) {
+    if (mode === 'file' && files.length === 0) {
       setError('Drop a file.');
       return;
     }
@@ -60,7 +70,7 @@ export default function IngestPage() {
         mode === 'url'
           ? await ingestFromUrl({ restaurantId, sourceUrl })
           : mode === 'file'
-            ? await ingestFromFile({ restaurantId, file: file! })
+            ? await ingestFromFile({ restaurantId, files })
             : await ingestFromText({ restaurantId, sourceText });
       router.push(`/ingest/verify/${run.id}` as Route);
     } catch (e) {
@@ -82,9 +92,8 @@ export default function IngestPage() {
         </p>
         <h1 className="mt-1 text-3xl font-bold">Add a restaurant’s menu</h1>
         <p className="mt-2 text-zinc-600">
-          Pick the restaurant (or create it if it’s new), then give us the menu — a
-          URL or a PDF. The AI extracts the items and you verify them before they go
-          live.
+          Pick the restaurant (or create it if it’s new), then give us the menu — a URL or a PDF.
+          The AI extracts the items and you verify them before they go live.
         </p>
       </header>
 
@@ -147,11 +156,16 @@ export default function IngestPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-zinc-200 p-4">
-        <h2 className="text-lg font-semibold">Or drop a PDF / photo</h2>
+        <h2 className="text-lg font-semibold">Or drop PDFs / photos</h2>
+        <p className="text-sm text-zinc-600">
+          Add as many pages as the menu has — take several photos or pick multiple files. They’re
+          extracted together as one menu.
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           {/* capture="environment" opens the phone's rear camera directly.
               Kept separate from the picker below because `capture` would
-              otherwise block PDF + existing-photo selection on mobile. */}
+              otherwise block PDF + existing-photo selection on mobile. Each
+              tap adds one more page to the list. */}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-orange-600 px-4 py-2 font-semibold text-orange-700 hover:bg-orange-50">
             📷 Take a photo
             <input
@@ -166,15 +180,28 @@ export default function IngestPage() {
           <input
             type="file"
             accept="application/pdf,image/*"
+            multiple
             onChange={onPickFile}
             className="block text-sm"
             data-testid="file-input"
           />
         </div>
-        {file && (
-          <p className="text-sm text-zinc-700" data-testid="selected-file">
-            Selected <span className="font-medium">{file.name}</span>
-          </p>
+        {files.length > 0 && (
+          <ul className="space-y-1 text-sm text-zinc-700" data-testid="selected-file">
+            {files.map((f, i) => (
+              <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-3">
+                <span className="font-medium">{f.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(i)}
+                  className="text-xs font-semibold text-zinc-500 underline hover:text-zinc-800"
+                  aria-label={`Remove ${f.name}`}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
         <button
           type="button"
@@ -182,7 +209,11 @@ export default function IngestPage() {
           disabled={submitting}
           className="rounded bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
-          {submitting ? 'Uploading…' : 'Upload file'}
+          {submitting
+            ? 'Uploading…'
+            : files.length > 1
+              ? `Upload ${files.length} files`
+              : 'Upload file'}
         </button>
       </section>
 

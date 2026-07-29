@@ -23,12 +23,13 @@ const sampleRun: IngestionRunPayload = {
 };
 
 function fakeFetch(status: number, body: unknown) {
-  return vi.fn(async () =>
-    ({
-      ok: status >= 200 && status < 300,
-      status,
-      json: async () => body,
-    }) as unknown as Response,
+  return vi.fn(
+    async () =>
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      }) as unknown as Response,
   );
 }
 
@@ -112,7 +113,7 @@ describe('ingestFromFile', () => {
 
     const result = await ingestFromFile({
       restaurantId: 'rest-1',
-      file,
+      files: [file],
       fetchImpl,
     });
 
@@ -125,24 +126,42 @@ describe('ingestFromFile', () => {
     // No Content-Type either — let fetch set the multipart boundary itself.
     expect((init.headers as Record<string, string>)['Content-Type']).toBeUndefined();
     expect(init.body).toBeInstanceOf(FormData);
+    const body = init.body as FormData;
+    expect(body.getAll('inputs[]')).toHaveLength(1);
+  });
+
+  it('appends every file under inputs[] so a multi-page menu uploads as one run', async () => {
+    const fetchImpl = fakeFetch(201, { ...sampleRun, input_kind: 'photo' });
+    const page1 = new File(['a'], 'page-1.jpg', { type: 'image/jpeg' });
+    const page2 = new File(['b'], 'page-2.jpg', { type: 'image/jpeg' });
+
+    await ingestFromFile({ restaurantId: 'rest-1', files: [page1, page2], fetchImpl });
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = init.body as FormData;
+    const inputs = body.getAll('inputs[]') as File[];
+    expect(inputs).toHaveLength(2);
+    expect(inputs.map((f) => f.name)).toEqual(['page-1.jpg', 'page-2.jpg']);
+    expect(body.get('restaurant_id')).toBe('rest-1');
   });
 
   it('returns a typed IngestionRequestError on non-JSON 5xx', async () => {
-    const fetchImpl = vi.fn(async () =>
-      ({
-        ok: false,
-        status: 500,
-        json: async () => {
-          throw new Error('not json');
-        },
-      }) as unknown as Response,
+    const fetchImpl = vi.fn(
+      async () =>
+        ({
+          ok: false,
+          status: 500,
+          json: async () => {
+            throw new Error('not json');
+          },
+        }) as unknown as Response,
     );
     const file = new File(['x'], 'x.pdf', { type: 'application/pdf' });
 
     await expect(
       ingestFromFile({
         restaurantId: 'rest-1',
-        file,
+        files: [file],
         fetchImpl: fetchImpl as unknown as typeof fetch,
       }),
     ).rejects.toBeInstanceOf(IngestionRequestError);
@@ -181,7 +200,12 @@ const sampleItem: IngestionItemPayload = {
 
 describe('createRestaurant', () => {
   it('returns created on 201', async () => {
-    const fetchImpl = fakeFetch(201, { id: 'r-1', slug: 'marias', name: "Maria's", status: 'draft' });
+    const fetchImpl = fakeFetch(201, {
+      id: 'r-1',
+      slug: 'marias',
+      name: "Maria's",
+      status: 'draft',
+    });
 
     const result = await createRestaurant({ name: "Maria's", citySlug: 'durango', fetchImpl });
 
@@ -191,12 +215,21 @@ describe('createRestaurant', () => {
     });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/restaurants');
-    expect(JSON.parse(init.body as string)).toMatchObject({ name: "Maria's", city_slug: 'durango' });
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      name: "Maria's",
+      city_slug: 'durango',
+    });
   });
 
   it('returns the candidate list on 409 instead of throwing', async () => {
     const candidates = [
-      { id: 'r-9', slug: 'marias', name: "Maria's Tacos", status: 'published', street: '742 Main Ave' },
+      {
+        id: 'r-9',
+        slug: 'marias',
+        name: "Maria's Tacos",
+        status: 'published',
+        street: '742 Main Ave',
+      },
     ];
     const fetchImpl = fakeFetch(409, { error: 'possible_duplicate', candidates });
 
@@ -274,7 +307,9 @@ describe('fetchRunItems / decideRunItem', () => {
 describe('friendlyIngestionError', () => {
   it('maps 429 quota errors with the limit', () => {
     const err = new IngestionRequestError(429, { error: 'quota_exceeded', limit: 5 } as never);
-    expect(friendlyIngestionError(err)).toBe('Daily scan limit reached (5/day) — try again tomorrow.');
+    expect(friendlyIngestionError(err)).toBe(
+      'Daily scan limit reached (5/day) — try again tomorrow.',
+    );
   });
 
   it('maps 503 ceiling errors', () => {

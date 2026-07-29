@@ -17,6 +17,22 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-28 — Web scan menu accepts multiple photos/uploads. Branch `claude/scan-menu-multiple-photos-qnjml8`.
+
+- The web `/ingest` "drop a PDF / photo" section was single-file only, while the
+  Rails endpoint (`inputs[]`, capped at `INGESTION_MAX_INPUT_FILES` = 10) and the
+  mobile multi-page capture already supported many. Closed the web gap so a whole
+  multi-page menu uploads as one run.
+- `apps/web/src/lib/ingestion.ts`: `ingestFromFile` now takes `files: File[]` and
+  appends each as `inputs[]` (was a single `file`).
+- `apps/web/src/app/ingest/page.tsx`: `file` state → `File[]`; file picker gets
+  `multiple`; both the camera and picker inputs accumulate (repeat captures + picks
+  add pages rather than replace), input value cleared so the same file can re-add;
+  removable per-file list; "Upload N files" button label.
+- No API/mobile change needed — API + mobile were already multi-input.
+- Tests: +1 lib test (multi-file → 2 `inputs[]`), +3 page tests (multiple picker
+  files, camera accumulation, single-file removal). Web vitest 238; typecheck/lint green.
+
 2026-07-21 — Account page PR-3: favorites (restaurants + dishes). Branch `feat/account-favorites`.
 
 - Final item of the account-page arc. Users can now save **restaurants and dishes**
