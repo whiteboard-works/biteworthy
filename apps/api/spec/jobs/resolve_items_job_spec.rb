@@ -124,18 +124,18 @@ RSpec.describe ResolveItemsJob, type: :job do
       expect(row.match_score).to be_nil
     end
 
-    it "matches pre-accepted items before the batch promote sees them" do
+    it "matches pre-accepted items before the batch promote, which applies the update" do
       row = make_item(run, position: 0, name: "Tacos", description: "steak",
                            decision: "accepted")
 
-      described_class.perform_now(run.id)
+      expect { described_class.perform_now(run.id) }.not_to change(Item, :count)
 
       row.reload
       expect(row.matched_item_id).to eq(existing.id)
-      # PR boundary: promote! doesn't branch on the match yet, so the
-      # accept still creates a fresh Item — behavior ships dark here.
-      expect(row.item_id).to be_present
-      expect(row.item_id).not_to eq(existing.id)
+      # The accept recorded during :resolving promotes as an UPDATE at
+      # :staged — dedup working end-to-end for the eager-accept flow.
+      expect(row.item_id).to eq(existing.id)
+      expect(existing.reload.description).to eq("steak")
     end
   end
 

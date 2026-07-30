@@ -51,7 +51,7 @@ module Api
         when "rejected"
           item.update!(decision: "rejected", decided_at: Time.current)
         when "pending"
-          undo_decision!(item)
+          item.undo!
         end
 
         run.maybe_publish!
@@ -91,15 +91,6 @@ module Api
         else
           item.update!(decision: "accepted", decided_at: Time.current)
         end
-      end
-
-      # Undo — revert a decision to pending. If the item was promoted (its Item
-      # is live on the restaurant), remove that Item + its ingredient/tag joins.
-      # The FK ingestion_items.item_id → items is RESTRICT, so release it first.
-      def undo_decision!(item)
-        promoted = item.item
-        item.update!(decision: "pending", item_id: nil, decided_at: nil)
-        promoted&.destroy
       end
 
       # The run's creator or an admin. Memoized so index/update don't

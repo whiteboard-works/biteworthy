@@ -35,6 +35,20 @@ RSpec.describe Avo::Actions::IngestionItems::Accept do
     expect(item.reload.item.id).to eq(original_item_id)
   end
 
+  it "counts update-accepts separately from creates" do
+    existing = create(:item, restaurant: restaurant, name: "Carne Asada Taco")
+    matched = create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco",
+                                      matched_item_id: existing.id, match_score: 1.0,
+                                      ingredients_payload: [], tags_payload: [])
+
+    promoted, updated, skipped = described_class.accept_all([item, matched])
+
+    expect(promoted).to eq(1)
+    expect(updated).to  eq(1)
+    expect(skipped).to  eq(0)
+    expect(matched.reload.item_id).to eq(existing.id)
+  end
+
   it "calls maybe_publish! on the run after accepting" do
     # 5 items total: 4 already accepted, this Accept makes the 5th.
     # → 100% accepted → run flips to :published.
