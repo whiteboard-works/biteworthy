@@ -345,6 +345,390 @@
         }
       }
     },
+    "/api/v1/admin/ingestion_runs": {
+      "get": {
+        "summary": "Cross-user ingestion runs queue",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "extracting",
+                "resolving",
+                "staged",
+                "published",
+                "failed"
+              ]
+            },
+            "description": "Filter by run status (unknown values are ignored)"
+          },
+          {
+            "name": "community",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "description": "Only runs scanned by non-admin users"
+          },
+          {
+            "name": "restaurant_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter to one restaurant",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (default 25, max 100)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "runs newest-first + pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "runs",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "status",
+                          "decision_counts"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "extracting",
+                              "resolving",
+                              "staged",
+                              "published",
+                              "failed"
+                            ]
+                          },
+                          "enrichment_status": {
+                            "type": "string"
+                          },
+                          "input_kind": {
+                            "type": "string"
+                          },
+                          "failure_message": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "api_cost_cents": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "user": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "handle": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              },
+                              "is_admin": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          "restaurant": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "slug": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "draft",
+                                  "published",
+                                  "closed"
+                                ]
+                              }
+                            }
+                          },
+                          "decision_counts": {
+                            "type": "object",
+                            "required": [
+                              "pending",
+                              "accepted",
+                              "rejected",
+                              "edited"
+                            ],
+                            "properties": {
+                              "pending": {
+                                "type": "integer"
+                              },
+                              "accepted": {
+                                "type": "integer"
+                              },
+                              "rejected": {
+                                "type": "integer"
+                              },
+                              "edited": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "authenticated but not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ingestion_runs/{id}/re_extract": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Rewind a run to :queued and re-fire extraction",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "run rewound and ExtractMenuJob enqueued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "refused: already_published, or has_promoted_items (a staged row already materialized a live Item — undo accepts first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/confirm_community": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Graduate community data to strict-mode visibility",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Flips the restaurant's suggested human-sourced joins to confirmed, then graduates items whose every association is confirmed. Idempotent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "counts of rows flipped by this call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "confirmed"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "confirmed": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "ingredients",
+                        "tags"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "integer"
+                        },
+                        "ingredients": {
+                          "type": "integer"
+                        },
+                        "tags": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not an admin, or unknown restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "summary": "Log in with email + password",
@@ -579,6 +963,327 @@
           },
           "401": {
             "description": "missing or invalid bearer token"
+          }
+        }
+      }
+    },
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items": {
+      "parameters": [
+        {
+          "name": "ingestion_run_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List a run's staged items (owner or admin)",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items in position order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IngestionItemPayload"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "not the run's creator and not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items/{id}": {
+      "parameters": [
+        {
+          "name": "ingestion_run_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Decide a staged item: accept / edit / reject / undo",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionItemPayload"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "unknown decision value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "allowed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision"
+                ],
+                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks.",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "accepted",
+                      "edited",
+                      "rejected",
+                      "pending"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "ingredients_payload": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "tags_payload": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "addons_payload": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "unresolved_ingredients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "unresolved_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items/accept_all": {
+      "parameters": [
+        {
+          "name": "ingestion_run_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Bulk-accept every still-pending item",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "all items after the bulk accept",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IngestionItemPayload"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestion_runs/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read a run's status + counters (owner or admin)",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> — the run's creator or an admin",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionRunPayload"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "someone else's run (deliberately not 403), or unknown id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1092,6 +1797,235 @@
         "properties": {
           "error": {
             "type": "string"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "IngestionItemPayload": {
+        "type": "object",
+        "required": [
+          "id",
+          "ingestion_run_id",
+          "name",
+          "decision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingestion_run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "section_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected",
+              "edited"
+            ]
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "ingredients_payload": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "tags_payload": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "prices_payload": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "addons_payload": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "unresolved_ingredients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "match": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "score": {
+                "type": "number",
+                "nullable": true
+              },
+              "existing": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "prices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              },
+              "diff": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "no_changes": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "IngestionRunPayload": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "restaurant_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "extracting",
+              "resolving",
+              "staged",
+              "published",
+              "failed"
+            ]
+          },
+          "enrichment_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "input_kind": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "url",
+              "pdf",
+              "text"
+            ]
+          },
+          "restaurant_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "state_history": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "failure_message": {
+            "type": "string",
+            "nullable": true
+          },
+          "api_cost_cents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "latency_ms": {
+            "type": "integer",
+            "nullable": true
+          },
+          "input_count": {
+            "type": "integer"
+          },
+          "ingestion_items_count": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

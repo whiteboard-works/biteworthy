@@ -43,7 +43,7 @@ it lands):
 - [x] A1 — admin auth foundation: `require_admin!` (404) base controller, `GET /api/v1/me`, `GET /api/v1/admin/dashboard`, `is_admin` in `UserPayload`, `admin:grant/revoke/sync` rake tasks
 - [x] W1 — web /admin shell: server layout guard via `/me`, nav, header link, robots/noindex (`adminProxy` moved to W2 with its first consumer)
 - [x] W2 — ops dashboard page (cost buckets, community spend vs ceiling, queue counts; `adminProxy` + `lib/admin/` data layer)
-- [ ] A2 — admin ingestion moderation: cross-user runs index, re-extract (extracted from Avo action), confirm-community; rswag for the 4 existing ingestion endpoints
+- [x] A2 — admin ingestion moderation: cross-user runs index, re-extract (`Ingestion::ReExtractRun`, shared with Avo), confirm-community; rswag docs for the 4 existing verify endpoints
 - [ ] W3 — ingestion moderation UI (runs queue, item review, confirm-community)
 - [ ] A3 — review + suggestion moderation endpoints
 - [ ] W4 — review + suggestions queue pages

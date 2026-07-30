@@ -127,6 +127,12 @@ Rails.application.routes.draw do
       # ERB /admin/dashboard capability by capability.
       namespace :admin do
         get :dashboard, to: "dashboards#show"
+        resources :ingestion_runs, only: [:index] do
+          member { post :re_extract }
+        end
+        resources :restaurants, only: [] do
+          member { post :confirm_community }
+        end
       end
     end
   end

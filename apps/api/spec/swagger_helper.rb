@@ -44,6 +44,77 @@ RSpec.configure do |config|
               error: { type: :string }
             }
           },
+          Pagination: {
+            type: :object,
+            required: %w[total limit offset],
+            properties: {
+              total:  { type: :integer },
+              limit:  { type: :integer },
+              offset: { type: :integer }
+            }
+          },
+          # The IngestionItemsController serialization — shared by the
+          # items index, single-item PATCH, and accept_all responses.
+          IngestionItemPayload: {
+            type: :object,
+            required: %w[id ingestion_run_id name decision],
+            properties: {
+              id:               { type: :string, format: :uuid },
+              ingestion_run_id: { type: :string, format: :uuid },
+              item_id:          { type: :string, format: :uuid, nullable: true },
+              position:         { type: :integer, nullable: true },
+              name:             { type: :string },
+              description:      { type: :string, nullable: true },
+              section_name:     { type: :string, nullable: true },
+              decision:         { type: :string, enum: %w[pending accepted rejected edited] },
+              decided_at:       { type: :string, format: "date-time", nullable: true },
+              ingredients_payload:    { type: :array, items: { type: :object, additionalProperties: true } },
+              tags_payload:           { type: :array, items: { type: :object, additionalProperties: true } },
+              prices_payload:         { type: :array, items: { type: :object, additionalProperties: true } },
+              addons_payload:         { type: :array, items: { type: :object, additionalProperties: true } },
+              unresolved_ingredients: { type: :array, items: { type: :string } },
+              unresolved_tags:        { type: :array, items: { type: :string } },
+              # Re-scan dedup: present when this staged row matched an
+              # existing Item (diff computed at serialize time).
+              match: {
+                type: :object, nullable: true,
+                properties: {
+                  item_id: { type: :string, format: :uuid },
+                  score:   { type: :number, nullable: true },
+                  existing: {
+                    type: :object,
+                    properties: {
+                      name:        { type: :string },
+                      description: { type: :string, nullable: true },
+                      prices: { type: :array, items: { type: :object, additionalProperties: true } }
+                    }
+                  },
+                  diff:       { type: :object, additionalProperties: true },
+                  no_changes: { type: :boolean }
+                }
+              }
+            }
+          },
+          # The IngestionRunsController#serialize_run shape (run show).
+          IngestionRunPayload: {
+            type: :object,
+            required: %w[id status restaurant_id],
+            properties: {
+              id:                { type: :string, format: :uuid },
+              status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
+              enrichment_status: { type: :string, enum: %w[pending completed failed] },
+              input_kind:        { type: :string, enum: %w[photo url pdf text] },
+              restaurant_id:     { type: :string, format: :uuid, nullable: true },
+              state_history:     { type: :object, additionalProperties: true },
+              failure_message:   { type: :string, nullable: true },
+              api_cost_cents:    { type: :integer, nullable: true },
+              latency_ms:        { type: :integer, nullable: true },
+              input_count:       { type: :integer },
+              ingestion_items_count: { type: :integer },
+              created_at:        { type: :string, format: "date-time" },
+              updated_at:        { type: :string, format: "date-time" }
+            }
+          },
           ValidationErrors: {
             type: :object,
             properties: {
