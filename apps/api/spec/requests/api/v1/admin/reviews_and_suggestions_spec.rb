@@ -28,6 +28,24 @@ RSpec.describe "Admin review + suggestion moderation", type: :request do
       expect(row.dig("item", "restaurant", "slug")).to be_present
     end
 
+    it "maps visible and all to the right row sets" do
+      flagged = create(:review)
+      flagged.report!
+      plain  = create(:review)
+      hidden = create(:review)
+      hidden.hide!(reason: "abuse")
+
+      get "/api/v1/admin/reviews", params: { visibility: "visible" },
+                                   headers: auth_headers_for(admin)
+      expect(response.parsed_body["reviews"].map { |r| r["id"] })
+        .to contain_exactly(flagged.id, plain.id)
+
+      get "/api/v1/admin/reviews", params: { visibility: "all" },
+                                   headers: auth_headers_for(admin)
+      expect(response.parsed_body["reviews"].map { |r| r["id"] })
+        .to contain_exactly(flagged.id, plain.id, hidden.id)
+    end
+
     it "filters by visibility=hidden and rejects unknown visibilities" do
       hidden = create(:review)
       hidden.hide!(reason: "spam")

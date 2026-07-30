@@ -18,7 +18,7 @@ module Api
           "flagged" => :awaiting_moderation,
           "hidden"  => :hidden,
           "visible" => :visible,
-          "all"     => :newest_first
+          "all"     => :all
         }.freeze
 
         def index
@@ -31,7 +31,7 @@ module Api
 
           reviews = Review.public_send(scope_name)
                           .order(created_at: :desc)
-                          .includes(:user, item: :restaurant)
+                          .includes(:user, { item: :restaurant }, photo_attachment: :blob)
           reviews = reviews.where(item_id: params[:item_id]) if params[:item_id].present?
           reviews = reviews.where(user_id: params[:user_id]) if params[:user_id].present?
 
