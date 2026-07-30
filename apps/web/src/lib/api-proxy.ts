@@ -42,6 +42,18 @@ export interface ProxyInit {
  * signed in. Pass `body` for mutations (GET/DELETE omit it, and the
  * JSON Content-Type that goes with it).
  */
+/**
+ * `proxyAuthed` + `Cache-Control: no-store` on the relayed response.
+ * Admin JSON must never be browser/CDN-cacheable; `relayUpstream`
+ * only mirrors Content-Type, so every `/api/admin/*` handler goes
+ * through this wrapper instead of calling `proxyAuthed` directly.
+ */
+export async function adminProxy(apiPath: string, init: ProxyInit = {}): Promise<NextResponse> {
+  const res = await proxyAuthed(apiPath, init);
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}
+
 export async function proxyAuthed(apiPath: string, init: ProxyInit = {}): Promise<NextResponse> {
   const jwt = await getServerJwt();
   if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
