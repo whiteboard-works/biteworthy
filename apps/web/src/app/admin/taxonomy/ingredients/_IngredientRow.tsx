@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   deleteIngredient,
   deleteRefusalCounts,
+  formatRefusal,
   updateIngredient,
   type AdminIngredient,
 } from '../../../../lib/admin/taxonomy';
@@ -31,11 +32,20 @@ export function IngredientRow({
   const [name, setName] = useState(ingredient.name);
   const [aliases, setAliases] = useState(ingredient.aliases.join(', '));
   const [allergen, setAllergen] = useState(ingredient.allergen);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Re-seed from the (possibly refreshed) prop on every open, so a
+  // closed-without-save draft never masquerades as the saved value.
+  const openEditor = () => {
+    setName(ingredient.name);
+    setAliases(ingredient.aliases.join(', '));
+    setAllergen(ingredient.allergen);
+    setEditing(true);
+  };
+
   const save = async () => {
-    setBusy(true);
+    setBusy('save');
     setError(null);
     try {
       const updated = await updateIngredient(ingredient.id, {
@@ -48,29 +58,21 @@ export function IngredientRow({
     } catch (e) {
       setError(friendlyAdminError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const destroy = async () => {
-    setBusy(true);
+    setBusy('delete');
     setError(null);
     try {
       await deleteIngredient(ingredient.id);
       onDeleted(ingredient.id);
     } catch (e) {
       const refs = deleteRefusalCounts(e);
-      if (refs) {
-        const held = Object.entries(refs)
-          .filter(([, n]) => n > 0)
-          .map(([k, n]) => `${n} ${k}`)
-          .join(', ');
-        setError(`Still referenced — ${held}. Remove those references first.`);
-      } else {
-        setError(friendlyAdminError(e));
-      }
+      setError(refs ? formatRefusal(refs) : friendlyAdminError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -98,7 +100,7 @@ export function IngredientRow({
         <div className="flex shrink-0 items-center gap-bw-2 text-bw-sm">
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
+            onClick={() => (editing ? setEditing(false) : openEditor())}
             data-testid={`ingredient-edit-${ingredient.slug}`}
             className="font-semibold text-zinc-600 hover:text-bite"
           >
@@ -106,7 +108,8 @@ export function IngredientRow({
           </button>
           <ConfirmButton
             label="Delete"
-            busy={busy}
+            busy={busy === 'delete'}
+            disabled={busy === 'save'}
             onConfirm={() => void destroy()}
             testId={`ingredient-delete-${ingredient.slug}`}
           />
@@ -146,7 +149,7 @@ export function IngredientRow({
             <button
               type="button"
               onClick={() => void save()}
-              disabled={busy}
+              disabled={busy === 'save'}
               data-testid={`ingredient-save-${ingredient.slug}`}
               className="rounded-bw-md bg-bite px-bw-3 py-bw-1 font-semibold text-white disabled:opacity-50"
             >

@@ -105,6 +105,37 @@ describe('AdminIngredientsPage', () => {
     });
   });
 
+  it('a successful delete refreshes the list from the server', async () => {
+    mockFetchList
+      .mockResolvedValueOnce(listPayload([node()]))
+      .mockResolvedValueOnce(listPayload([]));
+    mockDelete.mockResolvedValue(undefined);
+    render(<AdminIngredientsPage />);
+    const row = await screen.findByTestId('ingredient-dairy-milk');
+
+    fireEvent.click(within(row).getByTestId('ingredient-delete-dairy-milk'));
+    fireEvent.click(within(row).getByTestId('ingredient-delete-dairy-milk-confirm'));
+
+    await vi.waitFor(() =>
+      expect(screen.queryByTestId('ingredient-dairy-milk')).not.toBeInTheDocument(),
+    );
+    expect(mockFetchList).toHaveBeenCalledTimes(2);
+  });
+
+  it('search sends q and resets paging', async () => {
+    mockFetchList.mockResolvedValue(listPayload([]));
+    render(<AdminIngredientsPage />);
+    await screen.findByTestId('ingredient-search');
+
+    fireEvent.change(screen.getByTestId('ingredient-search'), { target: { value: 'kef' } });
+
+    await vi.waitFor(() =>
+      expect(mockFetchList).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'kef', offset: 0 }),
+      ),
+    );
+  });
+
   it('a refused delete lists what still references the node', async () => {
     mockFetchList.mockResolvedValue(listPayload([node()]));
     mockDelete.mockRejectedValue(

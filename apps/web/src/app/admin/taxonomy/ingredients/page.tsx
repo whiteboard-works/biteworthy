@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
+  createErrorCopy,
   createIngredient,
   fetchAdminIngredients,
   type AdminIngredient,
@@ -38,7 +39,13 @@ export default function AdminIngredientsPage() {
     setError(null);
     fetchAdminIngredients({ q: q || undefined, limit: PAGE_SIZE, offset })
       .then((d) => {
-        if (active) setData(d);
+        if (!active) return;
+        // A delete can strand the offset past the shrunken total.
+        if (d.ingredients.length === 0 && offset > 0 && d.pagination.total <= offset) {
+          setOffset(0);
+          return;
+        }
+        setData(d);
       })
       .catch((e: unknown) => {
         if (active) setError(friendlyAdminError(e));
@@ -74,7 +81,7 @@ export default function AdminIngredientsPage() {
       setForm(EMPTY_FORM);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setCreateError(friendlyAdminError(err));
+      setCreateError(createErrorCopy(err));
     } finally {
       setCreating(false);
     }

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import {
+  createErrorCopy,
   createTag,
   deleteRefusalCounts,
   deleteTag,
   fetchAdminTags,
+  formatRefusal,
   updateTag,
   type AdminTag,
   type AdminTagsResponse,
@@ -22,7 +24,7 @@ import { TaxonomyTabs } from '../_TaxonomyTabs';
 
 const FAMILIES = ['diet', 'allergen', 'cuisine', 'prep', 'flavor'] as const;
 const PAGE_SIZE = 100;
-const EMPTY_FORM = { slug: '', name: '', path: '', family: 'diet', description: '' };
+const EMPTY_FORM = { slug: '', name: '', path: '', family: 'diet' };
 
 export default function AdminTagsPage() {
   const [family, setFamily] = useState('');
@@ -39,7 +41,13 @@ export default function AdminTagsPage() {
     setError(null);
     fetchAdminTags({ family: family || undefined, limit: PAGE_SIZE, offset })
       .then((d) => {
-        if (active) setData(d);
+        if (!active) return;
+        // A delete can strand the offset past the shrunken total.
+        if (d.tags.length === 0 && offset > 0 && d.pagination.total <= offset) {
+          setOffset(0);
+          return;
+        }
+        setData(d);
       })
       .catch((e: unknown) => {
         if (active) setError(friendlyAdminError(e));
@@ -59,12 +67,11 @@ export default function AdminTagsPage() {
         name: form.name.trim(),
         path: form.path.trim(),
         family: form.family,
-        description: form.description.trim() || undefined,
       });
       setForm(EMPTY_FORM);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setCreateError(friendlyAdminError(err));
+      setCreateError(createErrorCopy(err));
     } finally {
       setCreating(false);
     }
@@ -207,11 +214,19 @@ function TagRow({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(tag.name);
   const [description, setDescription] = useState(tag.description ?? '');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Re-seed from the (possibly refreshed) prop on every open, so a
+  // closed-without-save draft never masquerades as the saved value.
+  const openEditor = () => {
+    setName(tag.name);
+    setDescription(tag.description ?? '');
+    setEditing(true);
+  };
+
   const save = async () => {
-    setBusy(true);
+    setBusy('save');
     setError(null);
     try {
       onUpdated(await updateTag(tag.id, { name, description }));
@@ -219,29 +234,21 @@ function TagRow({
     } catch (e) {
       setError(friendlyAdminError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const destroy = async () => {
-    setBusy(true);
+    setBusy('delete');
     setError(null);
     try {
       await deleteTag(tag.id);
       onDeleted(tag.id);
     } catch (e) {
       const refs = deleteRefusalCounts(e);
-      if (refs) {
-        const held = Object.entries(refs)
-          .filter(([, n]) => n > 0)
-          .map(([k, n]) => `${n} ${k}`)
-          .join(', ');
-        setError(`Still referenced — ${held}. Remove those references first.`);
-      } else {
-        setError(friendlyAdminError(e));
-      }
+      setError(refs ? formatRefusal(refs) : friendlyAdminError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -264,7 +271,7 @@ function TagRow({
         <div className="flex shrink-0 items-center gap-bw-2 text-bw-sm">
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
+            onClick={() => (editing ? setEditing(false) : openEditor())}
             data-testid={`tag-edit-${tag.slug}`}
             className="font-semibold text-zinc-600 hover:text-bite"
           >
@@ -272,7 +279,8 @@ function TagRow({
           </button>
           <ConfirmButton
             label="Delete"
-            busy={busy}
+            busy={busy === 'delete'}
+            disabled={busy === 'save'}
             onConfirm={() => void destroy()}
             testId={`tag-delete-${tag.slug}`}
           />
@@ -303,7 +311,7 @@ function TagRow({
             <button
               type="button"
               onClick={() => void save()}
-              disabled={busy}
+              disabled={busy === 'save'}
               data-testid={`tag-save-${tag.slug}`}
               className="rounded-bw-md bg-bite px-bw-3 py-bw-1 font-semibold text-white disabled:opacity-50"
             >

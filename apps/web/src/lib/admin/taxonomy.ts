@@ -5,7 +5,14 @@
  * and surfaces the 409 reference counts via AdminError.body.
  */
 import type { paths } from '@biteworthy/api-types';
-import { deleteAdmin, getAdminJson, patchAdminJson, postAdminJson } from './shared';
+import {
+  AdminError,
+  deleteAdmin,
+  friendlyAdminError,
+  getAdminJson,
+  patchAdminJson,
+  postAdminJson,
+} from './shared';
 
 export type AdminIngredientsResponse =
   paths['/api/v1/admin/ingredients']['get']['responses']['200']['content']['application/json'];
@@ -86,13 +93,33 @@ export function deleteTag(id: string, fetchImpl?: typeof fetch): Promise<void> {
 
 /** "still referenced" counts from a 409 delete refusal, or null. */
 export function deleteRefusalCounts(err: unknown): Record<string, number> | null {
-  if (
-    err instanceof Error &&
-    'body' in err &&
-    typeof (err as { body?: unknown }).body === 'object'
-  ) {
-    const body = (err as { body?: { error?: string; references?: Record<string, number> } }).body;
-    if (body?.error === 'in_use' && body.references) return body.references;
+  if (err instanceof AdminError && err.code === 'in_use') {
+    const references = (err.body as { references?: Record<string, number> } | undefined)
+      ?.references;
+    if (references) return references;
   }
   return null;
+}
+
+/** One shared sentence for a refused delete — pinned once, used by both rows. */
+export function formatRefusal(refs: Record<string, number>): string {
+  const held = Object.entries(refs)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(', ');
+  return `Still referenced — ${held}. Remove those references first.`;
+}
+
+/** Actionable copy for a failed taxonomy create. */
+export function createErrorCopy(err: unknown): string {
+  if (err instanceof AdminError && err.code) {
+    if (err.code === 'invalid_path') {
+      return 'Path must be lowercase letters/digits/underscores, dot-separated (e.g. dairy.kefir).';
+    }
+    if (err.code === 'parent_missing') return 'Parent path does not exist — create it first.';
+    // Validation failures arrive as full sentences ("Validation failed:
+    // Slug has already been taken") — show them as-is.
+    return err.code;
+  }
+  return friendlyAdminError(err);
 }
