@@ -6,7 +6,7 @@
 # extraction prompt, validates the response against
 # `Ingestion::MENU_EXTRACTION_SCHEMA`, writes the structured output
 # to `IngestionRun#staging`, and transitions to `:resolving` (which
-# fires Phase 2.4's ResolveIngredientsJob).
+# fires the deterministic ResolveItemsJob).
 #
 # Failure modes:
 #   * No input attachments → fail!("no_inputs_attached")

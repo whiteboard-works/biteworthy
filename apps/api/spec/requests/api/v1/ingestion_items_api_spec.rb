@@ -143,7 +143,7 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       # Verify-flow redesign: a resolving run's dishes are visible + acceptable,
       # but promote! must wait until enrichment fills the ingredient/tag payloads
       # — an Item can't go live without them. The acceptance is recorded now and
-      # ResolveTagsJob batch-promotes it at :staged.
+      # ResolveItemsJob batch-promotes it at :staged.
       let(:resolving_run) do
         create(:ingestion_run, restaurant: restaurant, user: non_admin, status: "resolving")
       end

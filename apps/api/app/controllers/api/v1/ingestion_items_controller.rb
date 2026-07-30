@@ -62,7 +62,7 @@ module Api
       #
       # Bulk-accept every still-pending item, applying the same rule as a
       # single accept: promote now if the run is enriched (:staged/:published),
-      # else record the acceptance for ResolveTagsJob to promote at :staged.
+      # else record the acceptance for ResolveItemsJob to promote at :staged.
       def accept_all
         run = authorized_run
 
@@ -116,8 +116,8 @@ module Api
       def edit_params
         params.permit(
           :name, :description,
-          ingredients_payload:    [:slug, :confidence],
-          tags_payload:           [:slug, :confidence],
+          ingredients_payload:    [:slug, :confidence, :source],
+          tags_payload:           [:slug, :confidence, :source],
           unresolved_ingredients: [],
           unresolved_tags:        []
         )

@@ -272,6 +272,7 @@ module Api
         {
           id:               run.id,
           status:           run.status,
+          enrichment_status: run.enrichment_status,
           input_kind:       run.input_kind,
           restaurant_id:    run.restaurant_id,
           state_history:    run.state_history,

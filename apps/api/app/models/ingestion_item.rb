@@ -35,7 +35,16 @@ class IngestionItem < ApplicationRecord
 
     confidence = decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
 
-    transaction do
+    # requires_new: callers (ResolveItemsJob's batch promote) rescue a
+    # failed promote and keep going inside their own transaction — a
+    # savepoint makes this promote's partial writes roll back instead of
+    # committing a live Item with missing allergen joins.
+    transaction(requires_new: true) do
+      # Re-read under lock: the gap-fill merge may have appended AI rows
+      # since this record was loaded, and its row lock serializes us.
+      lock!
+      return item if item.present?
+
       created = Item.create!(
         restaurant: ingestion_run.restaurant,
         name:        name,

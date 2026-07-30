@@ -17,6 +17,28 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-29 — Deterministic-first resolve: the two LLM resolve calls are gone. Branch `feature/deterministic-resolve`.
+
+- Owner's call: resolve was slow + over-relied on LLMs — it was asking Haiku to do
+  table lookups against data Postgres already indexes. New pipeline: `ResolveItemsJob`
+  (pure code — `IngredientMatcher` alias/longest-phrase matching + `TagDeriver`
+  per-family strategies; allergen tags ONLY ever derive from ingredient ltree
+  ancestry) stages the run in seconds; one background `GapFillResolveJob` Haiku call
+  covers only gap items (implied ingredients + cuisine), tracked by
+  `ingestion_runs.enrichment_status`, append-only, pending-items-only, soft-fail.
+- Deleted: `ResolveStageJob`/`ResolveIngredientsJob`/`ResolveTagsJob` + prompts +
+  `ResolutionSchema`. Quick fixes: batched payload writes (upsert_all; NOT NULL
+  columns must ride along — PG checks them before ON CONFLICT), AnthropicClient
+  open/read timeouts, tags-prompt wording bug retired.
+- Payload rows now carry `source: match | derived | ai`. Web + mobile poll through
+  `enrichment_status`; docs/ingestion.md rewritten (also fixed two stale claims:
+  extraction never carried the taxonomy; trgm re-ingestion dedup remains unbuilt).
+- Known trade-off (deliberate): Accept All right after staging promotes with
+  explicit-mention data only; gap-fill never mutates decided items.
+- Deploy runbook: in-flight runs at `:resolving` hold queued jobs for the deleted
+  classes (NameError). Post-deploy: `ResolveItemsJob.perform_later(id)` for
+  `IngestionRun.where(status: "resolving")` (idempotent) + clear failed executions.
+
 2026-07-29 — Restaurant menu renders as a photo grid with placeholders. Branch `claude/placeholder-photos-restaurant-grid-rh7ich`.
 
 - The restaurant page (`apps/web/.../restaurants/[slug]`) listed items as a flat

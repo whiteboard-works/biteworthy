@@ -1,5 +1,5 @@
 # Shared Anthropic-call handling for the ingestion jobs (ExtractMenuJob
-# + the ResolveStageJob subclasses).
+# + GapFillResolveJob).
 #
 # Every stage makes one timed `messages_create` and handles failure the
 # same way. Centralised here so the cost-accrual invariant lives in ONE
@@ -17,20 +17,25 @@ module TimedAnthropicCall
   # were billed). The `*_error` labels keep each stage's failure-message
   # prefix.
   #
-  # Returns `[result, elapsed_ms]`, or `nil` when the call failed and the
-  # run was already marked failed (so callers `return if out.nil?`).
-  def timed_anthropic_call(run, api_error:, validation_error:, model: nil)
+  # Returns `[result, elapsed_ms]`, or `nil` when the call failed (so
+  # callers `return if out.nil?`). With the default `fail_run: true` the
+  # run is marked failed; `fail_run: false` (the post-staged gap-fill —
+  # the run is already usable) logs instead, leaving the caller to
+  # record the degradation (e.g. enrichment_status).
+  def timed_anthropic_call(run, api_error:, validation_error:, model: nil, fail_run: true)
     client  = AnthropicClient.new(model: model)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     begin
       result = yield client
     rescue AnthropicClient::ApiError => e
-      run.fail!("#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}")
+      message = "#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}"
+      fail_run ? run.fail!(message) : log_soft_failure(run, message)
       return nil
     rescue AnthropicClient::ValidationError => e
       run.record_api_usage!(client.last_usage, model: client.model)
-      run.fail!("#{validation_error}: #{e.errors.first(3).join('; ')}")
+      message = "#{validation_error}: #{e.errors.first(3).join('; ')}"
+      fail_run ? run.fail!(message) : log_soft_failure(run, message)
       return nil
     end
 
@@ -38,4 +43,9 @@ module TimedAnthropicCall
     run.record_api_usage!(client.last_usage, model: client.model)
     [result, elapsed_ms]
   end
+
+  def log_soft_failure(run, message)
+    Rails.logger.error("#{self.class.name}: IngestionRun##{run.id} #{message}")
+  end
 end
+

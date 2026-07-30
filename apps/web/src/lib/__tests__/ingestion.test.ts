@@ -10,6 +10,7 @@ import {
 const sampleRun: IngestionRunPayload = {
   id: 'rrrr-1111',
   status: 'extracting',
+  enrichment_status: 'pending',
   input_kind: 'url',
   restaurant_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   state_history: { extracting: '2026-04-30T01:00:00Z' },
