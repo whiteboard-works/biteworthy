@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-30 — `promote!` now materializes `prices_payload` as `ItemVariant` rows (size + price_cents, payload order; priceless rows skipped). Previously extracted prices were silently dropped at accept. Branch `fix/promote-prices-item-variants`. First PR of the re-scan dedup + diff/merge arc (matching + apply-update PRs follow).
+
 2026-07-29 — Add-on guard: "Add X for $3" upsell lines no longer stage as dishes. Branch `feature/ingestion-addon-guard`.
 
 - Extraction prompt + schema now classify add-on lines and nest them under the
