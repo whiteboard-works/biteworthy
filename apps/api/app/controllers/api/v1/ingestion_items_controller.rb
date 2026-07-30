@@ -118,6 +118,7 @@ module Api
           :name, :description,
           ingredients_payload:    [:slug, :confidence, :source],
           tags_payload:           [:slug, :confidence, :source],
+          addons_payload:         [:name, :price_cents, :source],
           unresolved_ingredients: [],
           unresolved_tags:        []
         )
@@ -137,6 +138,7 @@ module Api
           ingredients_payload:    item.ingredients_payload,
           tags_payload:           item.tags_payload,
           prices_payload:         item.prices_payload,
+          addons_payload:         item.addons_payload,
           unresolved_ingredients: item.unresolved_ingredients,
           unresolved_tags:        item.unresolved_tags
         }

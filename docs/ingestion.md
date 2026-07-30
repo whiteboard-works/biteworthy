@@ -42,13 +42,25 @@ Output (validated against a JSON Schema):
         {
           "name": "Carne Asada Taco",
           "description": "Grilled steak, cilantro, onion, lime.",
-          "prices": [{ "size": null, "price_cents": 450 }]
+          "prices": [{ "size": null, "price_cents": 450 }],
+          "addons": [{ "name": "guacamole", "price_cents": 200 }]
         }
       ]
     }
   ]
 }
 ```
+
+Add-on/upsell lines ("Add guacamole $2") are classified by the model
+and nested under the dish they modify (`addons`, optional) — they must
+never surface as standalone items. A deterministic backstop at
+materialization catches stragglers: a top-level item whose name matches
+`/\Aadd\s/i` folds into the previous item's `addons_payload`
+(`source: "guard"`; the model's own nesting lands as
+`source: "extract"`). The pattern is deliberately just the "Add …"
+prefix — a false fold silently drops a dish, so anything more ambiguous
+(trailing `+`, "extra") stays a card a human can reject.
+First-in-section has no parent, so it stages as a normal item.
 
 ### 2. Resolve (deterministic — no LLM)
 
@@ -115,7 +127,9 @@ still duplicates its menu.
 Contributor opens a swipe UI:
 
 - ✅ Accept → `IngestionItem.decision = 'accepted'`, promote to a real
-  `Item` with `confidence = 'confirmed'`.
+  `Item` with `confidence = 'confirmed'`. Each `addons_payload` row
+  becomes an `ItemModifier` (`kind: "addition"`, name + price) on the
+  new Item.
 - ✏️ Edit → tweak ingredients / tags → `decision = 'edited'`, then
   promote.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.

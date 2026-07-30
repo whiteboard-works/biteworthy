@@ -166,6 +166,46 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       end
     end
 
+    context "addons (add-on guard)" do
+      before do
+        item.update!(addons_payload: [
+          { "name" => "guajillo-tomatillo salsa", "price_cents" => 400, "source" => "extract" },
+          { "name" => "chips", "price_cents" => 300, "source" => "guard" }
+        ])
+      end
+
+      it "serializes addons_payload on index" do
+        get "/api/v1/ingestion_runs/#{run.id}/items", headers: auth_for(admin)
+
+        addons = response.parsed_body["items"].first["addons_payload"]
+        expect(addons.map { |a| a["name"] }).to eq(["guajillo-tomatillo salsa", "chips"])
+      end
+
+      it "promotes addons to ItemModifiers on accept" do
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted" }.to_json,
+              headers: auth_for(admin)
+
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_modifiers.pluck(:name, :kind, :price_cents)).to contain_exactly(
+          ["guajillo-tomatillo salsa", "addition", 400],
+          ["chips", "addition", 300]
+        )
+      end
+
+      it "lets an edit replace addons_payload before accept (drop a wrongly-folded addon)" do
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: {
+                decision:       "accepted",
+                addons_payload: [{ name: "guajillo-tomatillo salsa", price_cents: 400, source: "extract" }]
+              }.to_json,
+              headers: auth_for(admin)
+
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_modifiers.pluck(:name)).to eq(["guajillo-tomatillo salsa"])
+      end
+    end
+
     context "decision: edited (without accepting)" do
       it "saves the edited fields but does NOT materialize an Item" do
         expect {

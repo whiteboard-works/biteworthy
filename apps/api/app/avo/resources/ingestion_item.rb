@@ -26,6 +26,7 @@ class Avo::Resources::IngestionItem < Avo::BaseResource
       field :ingredients_payload, as: :code, language: "json", name: "Ingredients (slug + confidence)"
       field :tags_payload,        as: :code, language: "json", name: "Tags (slug + confidence)"
       field :prices_payload,      as: :code, language: "json", name: "Prices (size + cents)"
+      field :addons_payload,      as: :code, language: "json", name: "Add-ons (name + cents)"
     end
 
     panel "Couldn't match" do

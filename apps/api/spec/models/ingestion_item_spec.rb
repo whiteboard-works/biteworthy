@@ -79,6 +79,36 @@ RSpec.describe IngestionItem, type: :model do
       expect { orphan_item.promote! }.to raise_error(/no restaurant/)
     end
 
+    # Add-on guard — upsell lines nested at extraction become ItemModifier
+    # rows on the live Item instead of publishing as their own dishes.
+    describe "addons_payload" do
+      it "creates an ItemModifier (kind: addition) per addon row" do
+        item.update!(addons_payload: [
+          { "name" => "guajillo-tomatillo salsa", "price_cents" => 400, "source" => "extract" },
+          { "name" => "chicken", "price_cents" => nil, "source" => "guard" }
+        ])
+
+        promoted = item.promote!
+
+        expect(promoted.item_modifiers.pluck(:name, :kind, :price_cents)).to contain_exactly(
+          ["guajillo-tomatillo salsa", "addition", 400],
+          ["chicken", "addition", nil]
+        )
+      end
+
+      it "creates no modifiers when addons_payload is empty" do
+        promoted = item.promote!
+        expect(promoted.item_modifiers).to be_empty
+      end
+
+      it "skips addon rows without a name" do
+        item.update!(addons_payload: [{ "price_cents" => 400, "source" => "extract" }])
+
+        promoted = item.promote!
+        expect(promoted.item_modifiers).to be_empty
+      end
+    end
+
     # Phase 4.11.3 — when Anthropic vision marked a per-dish photo on
     # the source page (image_bbox jsonb populated by 4.11.2), promote!
     # crops it out and attaches it to the new Item. Must be best-effort

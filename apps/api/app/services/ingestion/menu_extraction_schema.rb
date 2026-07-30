@@ -54,6 +54,21 @@ module Ingestion
                       }
                     }
                   },
+                  # Add-on / upsell lines ("Add chicken $3") nested under
+                  # the dish they modify instead of surfacing as items.
+                  # Optional — items without add-ons omit the field.
+                  addons: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["name"],
+                      additionalProperties: false,
+                      properties: {
+                        name:        { type: "string", minLength: 1 },
+                        price_cents: { type: %w[integer null], minimum: 0 }
+                      }
+                    }
+                  },
                   # Phase 4.11.2 — optional per-dish bounding box for the
                   # cropper (Phase 4.11.1 + 4.11.3). Coordinates are
                   # fractions of the source page so resolution-independent:

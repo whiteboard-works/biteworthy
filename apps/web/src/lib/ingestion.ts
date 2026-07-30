@@ -141,6 +141,12 @@ export interface IngestionItemPayload {
   ingredients_payload: Array<{ slug: string; confidence: number }>;
   tags_payload: Array<{ slug: string; confidence: number }>;
   prices_payload: Array<{ size: string | null; price_cents: number }>;
+  /**
+   * Add-on/upsell lines nested under this dish; promoted to ItemModifiers on
+   * accept. Optional: web and API deploy independently, so an older API may
+   * not send the field — always fall back to [].
+   */
+  addons_payload?: Array<{ name: string; price_cents: number | null; source: 'extract' | 'guard' }>;
   unresolved_ingredients: string[];
   unresolved_tags: string[];
 }

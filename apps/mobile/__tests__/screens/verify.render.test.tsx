@@ -59,6 +59,8 @@ const pendingItem = {
   decided_at: null,
   ingredients_payload: [{ slug: 'pork', confidence: 0.95 }],
   tags_payload: [],
+  // addons_payload deliberately absent — an older API doesn't send the field,
+  // and the card must render without it (deploy-skew guard).
   unresolved_ingredients: [],
   unresolved_tags: [],
 };
@@ -110,6 +112,21 @@ describe('VerifyScreen (Phase 7.3)', () => {
 
     await waitFor(() => expect(screen.getByText('All done!')).toBeTruthy());
     expect(screen.getByLabelText('view-menu')).toBeTruthy();
+  });
+
+  it('renders add-on rows on the card when the dish has them', async () => {
+    mockGetRun.mockResolvedValue(run('staged'));
+    mockListItems.mockResolvedValue([
+      {
+        ...pendingItem,
+        addons_payload: [{ name: 'guajillo salsa', price_cents: 400, source: 'extract' }],
+      },
+    ]);
+    render(<VerifyScreen />);
+
+    await waitFor(() => expect(screen.getByText('Carnitas Taco')).toBeTruthy());
+    expect(screen.getByText('Add-ons')).toBeTruthy();
+    expect(screen.getByText('+ guajillo salsa $4.00')).toBeTruthy();
   });
 
   it('"nothing to verify" still offers the menu link', async () => {

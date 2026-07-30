@@ -68,4 +68,37 @@ RSpec.describe Ingestion::MenuExtractionSchema do
     payload = { "sections" => [{ "name" => "Appetizers", "items" => [item] }] }
     expect(validate(payload)).not_to be_empty
   end
+
+  # Add-on guard — upsell lines nest under their parent item instead of
+  # surfacing as items, so the schema has to accept the nested shape.
+  describe "addons" do
+    it "accepts an item with well-formed addons" do
+      item = base_item.merge(
+        "addons" => [
+          { "name" => "guajillo-tomatillo salsa", "price_cents" => 400 },
+          { "name" => "chicken", "price_cents" => nil }
+        ]
+      )
+      payload = { "sections" => [{ "name" => "Appetizers", "items" => [item] }] }
+      expect(validate(payload)).to be_empty
+    end
+
+    it "rejects an addon without a name" do
+      item = base_item.merge("addons" => [{ "price_cents" => 400 }])
+      payload = { "sections" => [{ "name" => "Appetizers", "items" => [item] }] }
+      expect(validate(payload)).not_to be_empty
+    end
+
+    it "rejects an addon with unknown properties (additionalProperties: false)" do
+      item = base_item.merge("addons" => [{ "name" => "salsa", "spicy" => true }])
+      payload = { "sections" => [{ "name" => "Appetizers", "items" => [item] }] }
+      expect(validate(payload)).not_to be_empty
+    end
+
+    it "rejects a negative addon price" do
+      item = base_item.merge("addons" => [{ "name" => "salsa", "price_cents" => -1 }])
+      payload = { "sections" => [{ "name" => "Appetizers", "items" => [item] }] }
+      expect(validate(payload)).not_to be_empty
+    end
+  end
 end
