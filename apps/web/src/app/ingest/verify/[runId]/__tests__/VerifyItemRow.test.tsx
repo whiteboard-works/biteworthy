@@ -138,6 +138,71 @@ describe('VerifyItemRow', () => {
     });
   });
 
+  describe('re-scan update cards', () => {
+    const match: ingestion.IngestionItemMatch = {
+      item_id: 'existing-1',
+      score: 1.0,
+      existing: {
+        name: 'Pad Thai',
+        description: 'Old description.',
+        prices: [{ size: null, price_cents: 1250 }],
+      },
+      diff: {
+        description: { from: 'Old description.', to: 'Rice noodles, peanut, lime.' },
+        prices: {
+          from: [{ size: null, price_cents: 1250 }],
+          to: [{ size: null, price_cents: 1450 }],
+        },
+        added_ingredients: ['fruit-lime'],
+        added_tags: [],
+      },
+      no_changes: false,
+    };
+
+    it('renders the update badge, diff, and "Accept update" for a matched item', () => {
+      render(
+        <VerifyItemRow runId="run-1" item={{ ...item, match }} enriched onDecided={vi.fn()} />,
+      );
+
+      expect(screen.getByTestId('match-badge')).toHaveTextContent('Updates “Pad Thai”');
+      const diffBlock = screen.getByTestId('match-diff');
+      expect(diffBlock).toHaveTextContent('Old description.');
+      expect(diffBlock).toHaveTextContent('→ Rice noodles, peanut, lime.');
+      expect(diffBlock).toHaveTextContent('$12.50');
+      expect(diffBlock).toHaveTextContent('→ $14.50');
+      expect(diffBlock).toHaveTextContent('+ fruit-lime');
+      expect(screen.getByRole('button', { name: 'Accept update' })).toBeInTheDocument();
+    });
+
+    it('renders a no-changes badge without a diff block', () => {
+      const unchanged = {
+        ...match,
+        diff: { description: null, prices: null, added_ingredients: [], added_tags: [] },
+        no_changes: true,
+      };
+      render(
+        <VerifyItemRow
+          runId="run-1"
+          item={{ ...item, match: unchanged }}
+          enriched
+          onDecided={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByTestId('match-badge')).toHaveTextContent('Already on the menu');
+      expect(screen.queryByTestId('match-diff')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    });
+
+    it('renders a plain create card when the field is absent (old API)', () => {
+      render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+      expect(screen.queryByTestId('match-badge')).toBeNull();
+      expect(screen.queryByTestId('match-diff')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    });
+  });
+
   it('renders the friendly error when the decision fails', async () => {
     decideMock.mockImplementation(() =>
       Promise.reject(new ingestion.IngestionRequestError(503, { error: 'cost_ceiling_reached' })),
