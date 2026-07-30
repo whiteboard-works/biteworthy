@@ -10,6 +10,13 @@ module Api
       class BaseController < Api::V1::BaseController
         before_action :require_admin!
 
+        # Concurrent creates can slip past uniqueness validation and
+        # hit the unique index instead — surface as 422 like the
+        # sequential path, not a 500.
+        rescue_from ActiveRecord::RecordNotUnique do |error|
+          render json: { error: error.message }, status: :unprocessable_entity
+        end
+
         private
 
         def require_admin!

@@ -817,6 +817,437 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/admin/ingredients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ingredients in tree (path) order */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Substring match on name or aliases */
+                    q?: string;
+                    /** @description Default 100, max 500 */
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ingredients + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ingredients: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                /** @description ltree path; immutable after create */
+                                path: string;
+                                aliases: string[];
+                                allergen: boolean;
+                                items_count: number;
+                                /** Format: date-time */
+                                created_at?: string;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an ingredient (parent path must exist) */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        name: string;
+                        /** @description ltree labels: [a-z0-9_], dot-separated */
+                        path: string;
+                        aliases?: string[];
+                        allergen?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the created ingredient */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @description ltree path; immutable after create */
+                            path: string;
+                            aliases: string[];
+                            allergen: boolean;
+                            items_count: number;
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+                /** @description invalid_path, parent_missing, or model validation failure */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ingredients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an unreferenced leaf */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description still referenced — refused with per-source counts */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            references: {
+                                descendants: number;
+                                items: number;
+                                presets: number;
+                                modifiers: number;
+                                profiles: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update name / aliases / allergen (slug + path immutable) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        aliases?: string[];
+                        allergen?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated ingredient */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @description ltree path; immutable after create */
+                            path: string;
+                            aliases: string[];
+                            allergen: boolean;
+                            items_count: number;
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+                /** @description attempted slug/path change */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            fields?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tags in tree (path) order */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                    family?: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description tags + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            tags: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                /** @description ltree path; immutable after create */
+                                path: string;
+                                /** @enum {string} */
+                                family: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+                                description?: string | null;
+                                items_count: number;
+                                /** Format: date-time */
+                                created_at?: string;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a tag (parent path must exist) */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        slug: string;
+                        name: string;
+                        path: string;
+                        /** @enum {string} */
+                        family: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+                        description?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description the created tag */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @description ltree path; immutable after create */
+                            path: string;
+                            /** @enum {string} */
+                            family: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+                            description?: string | null;
+                            items_count: number;
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tags/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an unreferenced tag */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update name / description (slug + path + family immutable) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated tag */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @description ltree path; immutable after create */
+                            path: string;
+                            /** @enum {string} */
+                            family: "diet" | "allergen" | "cuisine" | "prep" | "flavor";
+                            description?: string | null;
+                            items_count: number;
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
