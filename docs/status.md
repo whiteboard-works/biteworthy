@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-30 — Mobile verify deck renders re-scan update cards: "Updates ‹name›" badge, description/price → diff lines, green `+slug` rows, "✓ Accept update" action; absent `match` field renders today's card (deploy-skew guard). Branch `feature/mobile-rescan-update-cards`. Closes out the re-scan dedup + diff/merge arc (API matching #463, apply #464, web #465).
+
 2026-07-30 — Re-scan matching ships dark: ResolveItemsJob now links staged items to the restaurant's existing Items (`Ingestion::ExistingItemMatcher` — normalized-token exact, else trgm ≥ 0.60 + token-subset veto; greedy 1:1) and the verify API serializes a `match` block with a serialize-time diff (`Ingestion::ItemUpdateDiff`). Accept still creates (dark) — apply-on-accept is the next PR. Threshold calibrated against live pg_trgm probes: raw similarity cannot separate "Chicken Burrito|Chicken Burrito Bowl" (0.800) from plurals (0.842), hence the subset veto instead of the originally-planned 0.70 raw threshold. Branch `feature/ingestion-rescan-matching`.
 
 2026-07-30 — `promote!` now materializes `prices_payload` as `ItemVariant` rows (size + price_cents, payload order; priceless rows skipped). Previously extracted prices were silently dropped at accept. Branch `fix/promote-prices-item-variants`. First PR of the re-scan dedup + diff/merge arc (matching + apply-update PRs follow).

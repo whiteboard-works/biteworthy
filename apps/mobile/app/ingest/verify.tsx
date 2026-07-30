@@ -252,6 +252,41 @@ export default function VerifyScreen() {
         <Text style={styles.headline} testID="card-name">
           {current.name}
         </Text>
+        {(current.match ?? null) && (
+          <Text style={styles.matchBadge} testID="card-match">
+            {current.match!.no_changes
+              ? 'Already on the menu — no changes'
+              : `Updates “${current.match!.existing.name}”`}
+          </Text>
+        )}
+        {(() => {
+          const match = current.match ?? null;
+          const diff = match && !match.no_changes ? match.diff : null;
+          if (!diff) return null;
+          const fmt = (rows: Array<{ size: string | null; price_cents: number }>) =>
+            rows
+              .map((r) => `${r.size ? `${r.size} ` : ''}$${(r.price_cents / 100).toFixed(2)}`)
+              .join(' · ');
+          return (
+            <View testID="card-match-diff" style={{ gap: space['1'] }}>
+              {diff.description && (
+                <Text style={styles.muted}>
+                  “{diff.description.from ?? '(none)'}” → “{diff.description.to}”
+                </Text>
+              )}
+              {diff.prices && (
+                <Text style={styles.muted}>
+                  {fmt(diff.prices.from) || '(no price)'} → {fmt(diff.prices.to)}
+                </Text>
+              )}
+              {[...diff.added_ingredients, ...diff.added_tags].map((slug) => (
+                <Text style={styles.matchAdded} key={slug}>
+                  + {slug}
+                </Text>
+              ))}
+            </View>
+          );
+        })()}
         {current.description ? (
           <Text style={styles.body} testID="card-description">
             {current.description}
@@ -348,7 +383,9 @@ export default function VerifyScreen() {
           onPress={() => decide('accepted')}
           style={[styles.actionButton, { backgroundColor: colors.ok }]}
         >
-          <Text style={styles.actionText}>✓ Accept</Text>
+          <Text style={styles.actionText}>
+            {current.match && !current.match.no_changes ? '✓ Accept update' : '✓ Accept'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -414,6 +451,15 @@ const styles = StyleSheet.create({
   },
   warn: {
     color: colors.warn,
+    fontSize: fontSize.sm,
+  },
+  matchBadge: {
+    color: colors.warn,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
+  matchAdded: {
+    color: colors.ok,
     fontSize: fontSize.sm,
   },
   divider: {

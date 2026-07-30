@@ -54,6 +54,35 @@ export class IngestionUploadError extends Error {
   }
 }
 
+/** A price row as the API serializes it (existing item or diff sides). */
+export interface MatchPriceRow {
+  size: string | null;
+  price_cents: number;
+}
+
+/**
+ * Re-scan dedup: the existing Item this staged row was matched against,
+ * plus a server-computed diff. Accepting a matched row APPLIES the diff
+ * to the existing Item instead of creating a duplicate. Keep in sync
+ * with the hand-written copy in apps/web/src/lib/ingestion.ts.
+ */
+export interface IngestionItemMatch {
+  item_id: string;
+  score: number | null;
+  existing: {
+    name: string;
+    description: string | null;
+    prices: MatchPriceRow[];
+  };
+  diff: {
+    description: { from: string | null; to: string | null } | null;
+    prices: { from: MatchPriceRow[]; to: MatchPriceRow[] } | null;
+    added_ingredients: string[];
+    added_tags: string[];
+  };
+  no_changes: boolean;
+}
+
 export interface IngestionItemPayload {
   id: string;
   ingestion_run_id: string;
@@ -74,6 +103,12 @@ export interface IngestionItemPayload {
   addons_payload?: Array<{ name: string; price_cents: number | null; source: 'extract' | 'guard' }>;
   unresolved_ingredients: string[];
   unresolved_tags: string[];
+  /**
+   * Present when this staged row matched an existing Item (re-scan).
+   * Optional for the same independent-deploy reason as addons_payload —
+   * always fall back to null.
+   */
+  match?: IngestionItemMatch | null;
 }
 
 export interface FetchOptions {
