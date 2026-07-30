@@ -12,6 +12,7 @@ import {
 import { confirmCommunity } from '../../../../lib/admin/runs';
 import { AdminError, friendlyAdminError } from '../../../../lib/admin/shared';
 import { ConfirmButton } from '../../_ConfirmButton';
+import { Pagination } from '../../_Pagination';
 import { StatusBadge } from '../../_StatusBadge';
 import { AdminItemRowEditor } from './_AdminItemRowEditor';
 
@@ -19,42 +20,73 @@ import { AdminItemRowEditor } from './_AdminItemRowEditor';
  * /admin/restaurants/[id] — the restaurant workbench: edit fields,
  * flip status (publish/unpublish/close), graduate community data to
  * strict-mode visibility, and manage every item regardless of status.
+ *
+ * Saves send optional fields as trimmed-string-or-NULL — an untouched
+ * empty field must never overwrite a NULL with "". The form only
+ * re-seeds on load and after its own save; confirm-community and item
+ * edits refresh data without stomping unsaved form input.
  */
 
 const RESTAURANT_STATUSES = ['draft', 'published', 'closed'] as const;
+const ITEMS_PAGE_SIZE = 50;
 
 export default function AdminRestaurantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
 
   const [restaurant, setRestaurant] = useState<AdminRestaurantDetail | null>(null);
   const [items, setItems] = useState<AdminItemsResponse | null>(null);
+  const [itemsOffset, setItemsOffset] = useState(0);
+  const [itemsRefreshKey, setItemsRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmResult, setConfirmResult] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', about: '', website: '', phone: '', status: 'draft' });
 
-  const refresh = useCallback(async () => {
-    setError(null);
-    try {
+  const seedForm = (detail: AdminRestaurantDetail) => {
+    setForm({
+      name: detail.name,
+      about: detail.about ?? '',
+      website: detail.website ?? '',
+      phone: detail.phone ?? '',
+      status: detail.status,
+    });
+  };
+
+  const loadRestaurant = useCallback(
+    async (seed: boolean) => {
       const detail = await fetchAdminRestaurant(id);
       setRestaurant(detail);
-      setForm({
-        name: detail.name,
-        about: detail.about ?? '',
-        website: detail.website ?? '',
-        phone: detail.phone ?? '',
-        status: detail.status,
-      });
-      setItems(await fetchAdminRestaurantItems(id, { limit: 200 }));
-    } catch (e) {
-      setError(friendlyAdminError(e));
-    }
-  }, [id]);
+      if (seed) seedForm(detail);
+      return detail;
+    },
+    [id],
+  );
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let active = true;
+    setError(null);
+    loadRestaurant(true).catch((e: unknown) => {
+      if (active) setError(friendlyAdminError(e));
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadRestaurant]);
+
+  useEffect(() => {
+    let active = true;
+    fetchAdminRestaurantItems(id, { limit: ITEMS_PAGE_SIZE, offset: itemsOffset })
+      .then((d) => {
+        if (active) setItems(d);
+      })
+      .catch((e: unknown) => {
+        if (active) setError(friendlyAdminError(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, itemsOffset, itemsRefreshKey]);
 
   const save = async () => {
     setSaving(true);
@@ -62,14 +94,17 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
     try {
       const updated = await updateAdminRestaurant(id, {
         name: form.name,
-        about: form.about,
-        website: form.website,
-        phone: form.phone,
+        about: form.about.trim() || null,
+        website: form.website.trim() || null,
+        phone: form.phone.trim() || null,
         status: form.status,
       });
       setRestaurant((prev) => (prev ? { ...prev, ...updated } : prev));
+      seedForm({ ...(restaurant as AdminRestaurantDetail), ...updated });
     } catch (e) {
-      const code = e instanceof AdminError ? e.code : null;
+      // 422s carry actionable codes/validation sentences; anything else
+      // (401/404 demotion, network) gets the shared friendly copy.
+      const code = e instanceof AdminError && e.status === 422 ? e.code : null;
       setError(code ?? friendlyAdminError(e));
     } finally {
       setSaving(false);
@@ -85,7 +120,10 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
       setConfirmResult(
         `Confirmed ${res.confirmed.items} item(s), ${res.confirmed.ingredients} ingredient link(s), ${res.confirmed.tags} tag link(s).`,
       );
-      await refresh();
+      // Refresh counts + item confidences without re-seeding the form —
+      // unsaved edits survive.
+      await loadRestaurant(false);
+      setItemsRefreshKey((k) => k + 1);
     } catch (e) {
       setError(friendlyAdminError(e));
     } finally {
@@ -222,11 +260,11 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
       )}
 
       {items && (
-        <section aria-labelledby="items-heading">
+        <section aria-labelledby="items-heading" className="space-y-bw-2">
           <h2 id="items-heading" className="text-bw-sm font-semibold text-zinc-600">
             Items ({items.pagination.total})
           </h2>
-          <ul className="mt-bw-2 space-y-bw-2">
+          <ul className="space-y-bw-2">
             {items.items.map((item) => (
               <AdminItemRowEditor
                 key={item.id}
@@ -241,6 +279,12 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
               />
             ))}
           </ul>
+          <Pagination
+            total={items.pagination.total}
+            limit={items.pagination.limit}
+            offset={items.pagination.offset}
+            onOffset={setItemsOffset}
+          />
         </section>
       )}
     </main>

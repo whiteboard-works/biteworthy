@@ -88,22 +88,27 @@ beforeEach(() => {
 });
 
 describe('AdminRestaurantPage', () => {
-  it('saves status changes through the form', async () => {
+  it('saves the whole form with empty optional fields as NULL, never ""', async () => {
     mockUpdateRestaurant.mockResolvedValue(detail({ status: 'closed' }));
     await renderPage();
 
     fireEvent.change(screen.getByTestId('restaurant-status'), { target: { value: 'closed' } });
     fireEvent.click(screen.getByTestId('restaurant-save'));
 
+    // Exact payload: untouched empty about/website/phone must ride
+    // along as null (a "" here would overwrite NULLs server-side).
     await vi.waitFor(() =>
-      expect(mockUpdateRestaurant).toHaveBeenCalledWith(
-        'r1',
-        expect.objectContaining({ status: 'closed' }),
-      ),
+      expect(mockUpdateRestaurant).toHaveBeenCalledWith('r1', {
+        name: 'Nini\u2019s Tacos',
+        about: null,
+        website: null,
+        phone: null,
+        status: 'closed',
+      }),
     );
   });
 
-  it('unpublishes an item via the status select and swaps to the server row', async () => {
+  it('removal requires the inline confirm; other transitions apply on change', async () => {
     mockUpdateItem.mockResolvedValue(item({ status: 'removed' }));
     await renderPage();
     const row = await screen.findByTestId('admin-item-i1');
@@ -111,12 +116,29 @@ describe('AdminRestaurantPage', () => {
     fireEvent.change(within(row).getByTestId('admin-item-status-i1'), {
       target: { value: 'removed' },
     });
+    // Not yet — a stray select change must not unpublish silently.
+    expect(mockUpdateItem).not.toHaveBeenCalled();
+
+    fireEvent.click(within(row).getByTestId('admin-item-remove-confirm-i1'));
 
     await vi.waitFor(() => expect(mockUpdateItem).toHaveBeenCalledWith('i1', { status: 'removed' }));
     expect(row).toHaveTextContent('removed');
     // Confidence renders as a badge only — no way to edit it here.
     expect(row).toHaveTextContent('suggested');
     expect(within(row).queryByDisplayValue('suggested')).not.toBeInTheDocument();
+  });
+
+  it('cancel keeps the dish published', async () => {
+    await renderPage();
+    const row = await screen.findByTestId('admin-item-i1');
+
+    fireEvent.change(within(row).getByTestId('admin-item-status-i1'), {
+      target: { value: 'removed' },
+    });
+    fireEvent.click(within(row).getByTestId('admin-item-remove-cancel-i1'));
+
+    expect(mockUpdateItem).not.toHaveBeenCalled();
+    expect(within(row).getByTestId('admin-item-status-i1')).toHaveValue('published');
   });
 
   it('confirm-community requires the armed click and reports graduated counts', async () => {

@@ -46,7 +46,10 @@ beforeEach(() => {
 describe('AdminUsersPage', () => {
   it('promotes through the two-step confirm and swaps to the server state', async () => {
     mockFetchUsers.mockResolvedValue(payload([user()]));
-    mockSetAdmin.mockResolvedValue(user({ is_admin: true }));
+    // The PATCH response omits the contribution counts — the page's
+    // merge must preserve them (a bare replace would zero the row).
+    const { reviews_count: _r, ingestion_runs_count: _i, ...patched } = user({ is_admin: true });
+    mockSetAdmin.mockResolvedValue(patched);
     render(<AdminUsersPage />);
     const row = await screen.findByTestId('user-row-diner_1');
 
@@ -62,6 +65,7 @@ describe('AdminUsersPage', () => {
     );
     expect(mockSetAdmin).toHaveBeenCalledWith('u1', true);
     expect(within(row).getByTestId('status-badge')).toHaveTextContent('admin');
+    expect(row).toHaveTextContent('2 reviews');
   });
 
   it('maps the self-demotion refusal to instructions', async () => {

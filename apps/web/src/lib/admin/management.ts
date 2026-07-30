@@ -47,7 +47,15 @@ export function fetchAdminRestaurant(
 
 export function updateAdminRestaurant(
   id: string,
-  body: { name?: string; about?: string; website?: string; phone?: string; status?: string },
+  // null clears an optional field server-side; sending '' would store
+  // an empty string over NULL.
+  body: {
+    name?: string;
+    about?: string | null;
+    website?: string | null;
+    phone?: string | null;
+    status?: string;
+  },
   fetchImpl?: typeof fetch,
 ): Promise<AdminRestaurantDetail> {
   return patchAdminJson(`/api/admin/restaurants/${encodeURIComponent(id)}`, body, fetchImpl);

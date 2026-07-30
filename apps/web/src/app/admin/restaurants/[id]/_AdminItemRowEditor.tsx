@@ -7,9 +7,10 @@ import { StatusBadge, type BadgeTone } from '../../_StatusBadge';
 
 /**
  * One item in the restaurant workbench. The status select is the
- * admin unpublish lever ("removed" hides it from every public menu
- * read); confidence renders as a badge but is deliberately not
- * editable — that stays on the promote/confirm rails.
+ * admin unpublish lever — but "removed" (hides the dish from every
+ * public menu read) requires an explicit confirm; the other
+ * transitions apply on change. Confidence renders as a badge and is
+ * deliberately not editable — that stays on the promote/confirm rails.
  */
 const ITEM_STATUSES = ['draft', 'published', 'removed'] as const;
 
@@ -33,11 +34,13 @@ export function AdminItemRowEditor({
   onUpdated: (updated: AdminItemRow) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const setStatus = async (status: string) => {
     setBusy(true);
     setError(null);
+    setPendingRemoval(false);
     try {
       onUpdated(await updateAdminItem(item.id, { status }));
     } catch (e) {
@@ -45,6 +48,17 @@ export function AdminItemRowEditor({
     } finally {
       setBusy(false);
     }
+  };
+
+  const onSelect = (status: string) => {
+    if (status === item.status) return;
+    // Removal disappears the dish from every public menu — a stray
+    // select change must not do that silently.
+    if (status === 'removed') {
+      setPendingRemoval(true);
+      return;
+    }
+    void setStatus(status);
   };
 
   const price = item.variants?.[0]?.price_cents;
@@ -76,8 +90,8 @@ export function AdminItemRowEditor({
           />
           <StatusBadge label={item.status} tone={STATUS_TONES[item.status] ?? 'muted'} />
           <select
-            value={item.status}
-            onChange={(e) => void setStatus(e.target.value)}
+            value={pendingRemoval ? 'removed' : item.status}
+            onChange={(e) => onSelect(e.target.value)}
             disabled={busy}
             data-testid={`admin-item-status-${item.id}`}
             className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 disabled:opacity-50"
@@ -90,6 +104,27 @@ export function AdminItemRowEditor({
           </select>
         </div>
       </div>
+      {pendingRemoval && (
+        <p className="mt-bw-2 flex items-center gap-bw-2 text-bw-sm text-zinc-700">
+          Remove “{item.name}” from the public menu?
+          <button
+            type="button"
+            onClick={() => void setStatus('removed')}
+            data-testid={`admin-item-remove-confirm-${item.id}`}
+            className="rounded-bw-md bg-danger px-bw-2 py-bw-1 font-bold text-white"
+          >
+            Remove
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingRemoval(false)}
+            data-testid={`admin-item-remove-cancel-${item.id}`}
+            className="font-semibold text-zinc-500 hover:text-zinc-800"
+          >
+            Cancel
+          </button>
+        </p>
+      )}
       {error && (
         <p role="alert" className="mt-bw-2 text-bw-sm text-red-700">
           {error}
