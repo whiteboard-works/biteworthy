@@ -94,9 +94,14 @@ module Ingestion
       nil
     end
 
+    # Leftover runs still split on connectives ("care and love" is two
+    # candidate phrases, not one) — matching already had its chance at
+    # the connective-spanning n-grams.
     def flush_leftover(run, leftovers)
-      trimmed = trim_stopwords(run)
-      leftovers << trimmed.join(" ") if trimmed.any?
+      MenuText.split_on_break_words(run).each do |sub|
+        trimmed = trim_stopwords(sub)
+        leftovers << trimmed.join(" ") if trimmed.any?
+      end
       run.clear
     end
 

@@ -77,6 +77,13 @@ export default function VerifyScreen() {
     if (!runId || !jwt) return;
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    // Hard stop (~10 min) so a wedged run can't poll the phone forever.
+    let pollsLeft = 300;
+
+    const schedule = () => {
+      pollsLeft -= 1;
+      if (pollsLeft > 0) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+    };
 
     const poll = async () => {
       try {
@@ -91,13 +98,11 @@ export default function VerifyScreen() {
               ? list.filter((it) => it.decision === 'pending')
               : prev.map((it) => list.find((f) => f.id === it.id) ?? it),
           );
-          if (fresh.enrichment_status === 'pending') {
-            timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-          }
+          if (fresh.enrichment_status === 'pending') schedule();
           return;
         }
         if (fresh.status === 'failed') return;
-        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+        schedule();
       } catch (e) {
         if (cancelled) return;
         Alert.alert('Polling error', (e as Error).message);

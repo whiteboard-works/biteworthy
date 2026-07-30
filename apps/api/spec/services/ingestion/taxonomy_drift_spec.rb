@@ -61,7 +61,34 @@ RSpec.describe "deterministic-resolve taxonomy drift" do
     end
   end
 
+  describe Ingestion::TagDeriver::Diet do
+    it "CONTRADICTED_BY keys are diet slugs and values are allergen slugs" do
+      diet_slugs     = tag_seeds.select { |r| r["family"] == "diet" }.map { |r| r["slug"] }.to_set
+      allergen_slugs = tag_seeds.select { |r| r["family"] == "allergen" }.map { |r| r["slug"] }.to_set
+      expect(described_class::CONTRADICTED_BY.keys.to_set).to be_subset(diet_slugs)
+      expect(described_class::CONTRADICTED_BY.values.flatten.to_set).to be_subset(allergen_slugs)
+    end
+  end
+
   it "the resolver's condiment gap heuristic still points at a live prefix" do
     expect(prefix_exists?(ingredient_paths, "condiment")).to be(true)
+  end
+
+  # Every catalog name and alias must survive normalization + segmentation
+  # as ONE matchable phrase — a term the scanner can never see (e.g. one
+  # destroyed by connective-word splitting) is a silent allergen miss.
+  it "every seed ingredient name and alias is reachable by the matcher" do
+    matcher = Ingestion::IngredientMatcher.new(
+      ingredient_seeds.map { |r| [r["slug"], r["name"], r["path"], r["aliases"]] }
+    )
+
+    unreachable = ingredient_seeds.flat_map do |row|
+      ([row["name"]] + Array(row["aliases"])).filter_map do |term|
+        matches, = matcher.scan(term)
+        "#{row['slug']}: #{term.inspect}" if matches.empty?
+      end
+    end
+
+    expect(unreachable).to eq([])
   end
 end

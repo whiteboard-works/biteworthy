@@ -22,6 +22,10 @@ const PIPELINE_LABELS: Record<IngestionRunPayload['status'], string> = {
 };
 
 const POLL_MS = 3_000;
+// Hard stop for the self-refresh loop (~10 min). A wedged run (e.g. a
+// gap-fill that never reports) shouldn't poll a phone forever; the page
+// stays usable, it just stops auto-refreshing.
+const MAX_POLLS = 200;
 
 // Group items by sub-menu (section), preserving first-seen (menu) order; items
 // with no section land under a neutral "Menu" header.
@@ -53,15 +57,27 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
   const [error, setError] = useState<string | null>(null);
   const [acceptingAll, setAcceptingAll] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopped = useRef(false);
+  const pollCount = useRef(0);
 
   const refresh = useCallback(async () => {
+    const reschedule = () => {
+      // The stopped check runs after every await: an unmount mid-fetch
+      // must not re-arm the timer the cleanup just cleared.
+      if (stopped.current || pollCount.current >= MAX_POLLS) return;
+      pollCount.current += 1;
+      pollTimer.current = setTimeout(() => void refresh(), POLL_MS);
+    };
     try {
       const latest = await fetchRun(runId);
+      if (stopped.current) return;
       setRun(latest);
       // Dishes exist from :resolving on — show them (and keep them fresh as
       // enrichment fills in), not just at :staged.
       if (['resolving', 'staged', 'published'].includes(latest.status)) {
-        setItems(await fetchRunItems(runId));
+        const list = await fetchRunItems(runId);
+        if (stopped.current) return;
+        setItems(list);
       }
       // Keep polling until the run terminates AND the background AI
       // gap-fill pass has settled (the run stages on deterministic
@@ -70,17 +86,21 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
         latest.status === 'failed' ||
         (['staged', 'published'].includes(latest.status) &&
           latest.enrichment_status !== 'pending');
-      if (!settled) {
-        pollTimer.current = setTimeout(() => void refresh(), POLL_MS);
-      }
+      if (!settled) reschedule();
     } catch (e) {
+      if (stopped.current) return;
       setError(friendlyIngestionError(e));
+      // A transient blip mid-pipeline shouldn't permanently stop the
+      // self-refresh — keep polling (still bounded by MAX_POLLS).
+      reschedule();
     }
   }, [runId]);
 
   useEffect(() => {
+    stopped.current = false;
     void refresh();
     return () => {
+      stopped.current = true;
       if (pollTimer.current) clearTimeout(pollTimer.current);
     };
   }, [refresh]);

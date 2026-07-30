@@ -79,6 +79,31 @@ RSpec.describe Ingestion::TagDeriver do
     it "never infers a diet from ingredient absence" do
       expect(derive(text: "Garden salad")).to be_empty
     end
+
+    it "suppresses gluten-free when a gluten ingredient resolved" do
+      tags = derive(
+        text: "crispy chicken sandwich - gluten free option",
+        ingredients: [ing("grain-wheat-brioche", "grain.wheat.bread.brioche")]
+      )
+      expect(tag_slugs(tags)).not_to include("gluten-free")
+      expect(tag_slugs(tags)).to include("contains-gluten")
+    end
+
+    it "suppresses dairy-free and nut-free on contradicting ingredients (incl. slug exceptions)" do
+      tags = derive(
+        text: "dairy free, nut free",
+        ingredients: [
+          ing("dairy-cheese", "dairy.cheese"),
+          ing("fruit-coconut", "fruit.coconut"), # tree nut via SLUG_TAGS
+        ]
+      )
+      expect(tag_slugs(tags)).not_to include("dairy-free", "nut-free")
+    end
+
+    it "keeps a gluten-free claim when nothing contradicts it" do
+      tags = derive(text: "gluten free bowl", ingredients: [ing("grain-rice", "grain.rice")])
+      expect(tag_slugs(tags)).to include("gluten-free")
+    end
   end
 
   describe "prep / flavor keywords" do

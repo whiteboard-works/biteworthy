@@ -24,13 +24,15 @@ module Ingestion
     end
 
     # Split one or more raw strings into segments: arrays of normalized
-    # word tokens that belong together. Breaks at punctuation first,
-    # then at connective words, which are themselves dropped.
+    # word tokens that belong together. Breaks at punctuation ONLY —
+    # connective words stay in the token stream so catalog terms that
+    # contain them ("half and half", "sweet and sour sauce") remain
+    # matchable as one phrase. Callers that want connective-free chunks
+    # (the matcher's leftover handling) apply split_on_break_words.
     def segments(*texts)
       texts
         .flat_map { |t| t.to_s.split(/[,;.:()\[\]+]/) }
         .map { |raw| normalize(raw).split(" ") }
-        .flat_map { |tokens| split_on_break_words(tokens) }
         .reject(&:empty?)
     end
 

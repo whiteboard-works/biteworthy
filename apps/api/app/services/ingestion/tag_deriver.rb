@@ -110,19 +110,34 @@ module Ingestion
         "pescatarian"  => ["pescatarian"]
       }.freeze
 
-      # A resolved animal ingredient vetoes the meat-free claims — menu
-      # keywords usually mark a variant option ("vegan available"), and
-      # a false diet claim is the dangerous direction for our users.
+      # Resolved ingredients veto contradicted claims — menu keywords
+      # usually mark a variant option ("vegan available", "GF option"),
+      # and a false diet claim is the dangerous direction for our users.
       ANIMAL_PREFIXES     = %w[meat poultry fish shellfish].freeze
       VEGAN_ONLY_PREFIXES = %w[dairy egg].freeze
 
+      # Diet claim → allergen tags (from this item's Allergen derivation)
+      # that make it a lie. Riding on Allergen keeps the gluten subtrees
+      # and cross-root oddballs (coconut → tree nut) in one place.
+      CONTRADICTED_BY = {
+        "gluten-free" => %w[contains-gluten],
+        "dairy-free"  => %w[contains-dairy],
+        "nut-free"    => %w[contains-tree-nut contains-peanut]
+      }.freeze
+
       def self.call(ctx)
         hits = TagDeriver.keyword_hits(ctx[:segments], KEYWORDS, confidence: 0.9)
+        return hits if hits.empty?
+
         paths = ctx[:resolved_ingredients].map { |i| i[:path].to_s }
         animal = paths.any? { |p| TagDeriver.under_any?(p, ANIMAL_PREFIXES) }
         animal_product = animal || paths.any? { |p| TagDeriver.under_any?(p, VEGAN_ONLY_PREFIXES) }
+        allergens = Allergen.call(ctx).map { |t| t[:slug] }
+
         hits.reject do |h|
-          (h[:slug] == "vegetarian" && animal) || (h[:slug] == "vegan" && animal_product)
+          (h[:slug] == "vegetarian" && animal) ||
+            (h[:slug] == "vegan" && animal_product) ||
+            Array(CONTRADICTED_BY[h[:slug]]).intersect?(allergens)
         end
       end
     end

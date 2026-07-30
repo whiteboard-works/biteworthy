@@ -33,7 +33,9 @@ class ResolveItemsJob < ApplicationJob
       write_payloads!(run, results)
       promote_accepted_items!(run)
       run.transition_to!(:staged)
-      run.update!(enrichment_status: "completed") unless gaps
+      # Written both ways so a re-run (Avo re-extract) can't inherit a
+      # stale value from the previous cycle.
+      run.update!(enrichment_status: gaps ? "pending" : "completed")
       run.maybe_publish!
     end
 

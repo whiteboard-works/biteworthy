@@ -104,8 +104,10 @@ class IngestionRun < ApplicationRecord
   # Phase 6.1.1 — accrue one Anthropic call's usage onto the run.
   # Called by each pipeline job after a successful API call. Safe
   # no-op when usage is nil (job specs stub messages_create without
-  # usage; VCR replays carry it). Jobs run sequentially per run, so
-  # read-modify-write here doesn't race.
+  # usage; VCR replays carry it). Read-modify-write: safe today because
+  # at most one job calls this at a time (extract, then a single
+  # gap-fill), but a duplicate gap-fill delivery could double-count —
+  # nothing else writes these columns.
   def record_api_usage!(usage, model: nil)
     return self if usage.blank?
 

@@ -89,6 +89,20 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(leftovers).to be_empty
   end
 
+  it "matches catalog terms that contain connective words" do
+    with_half = rows + [["dairy-half-and-half", "Half-and-Half", "dairy.half_and_half", ["half and half"]]]
+    m = described_class.new(with_half)
+
+    matches, leftovers = m.scan("mashed potatoes with half-and-half")
+    expect(matches.map { |r| r[:slug] }).to include("dairy-half-and-half")
+    expect(leftovers).to contain_exactly("mashed potatoes")
+  end
+
+  it "splits leftover runs on connectives so each side is its own gap phrase" do
+    _, leftovers = matcher.scan("chimichurri and cotija")
+    expect(leftovers).to contain_exactly("chimichurri", "cotija")
+  end
+
   it "handles nil text" do
     matches, leftovers = matcher.scan(nil)
     expect(matches).to be_empty

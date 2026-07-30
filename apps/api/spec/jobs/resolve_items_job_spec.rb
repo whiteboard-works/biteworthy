@@ -69,6 +69,21 @@ RSpec.describe ResolveItemsJob, type: :job do
       expect(run.reload.status).to eq("published")
     end
 
+    it "a promotion failing mid-joins rolls back its partial Item (no false-safe live dish)" do
+      make_item(run, position: 1, name: "Limeade", description: "lime", decision: "rejected")
+      # First join row raises AFTER Item.create! succeeded — the savepoint
+      # in promote! must roll the partial Item back even though the job
+      # rescues and carries on.
+      allow(ItemIngredient).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+      allow(Rails.logger).to receive(:error)
+
+      described_class.perform_now(run.id)
+
+      expect(Item.count).to eq(0)
+      expect(pre_accepted.reload.item_id).to be_nil
+      expect(run.reload.status).to eq("staged")
+    end
+
     it "one failing promotion doesn't block staging" do
       # A rejected sibling keeps the accept ratio under the publish
       # threshold so the run should land at :staged despite the failure.

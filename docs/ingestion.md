@@ -65,10 +65,12 @@ the taxonomy already in Postgres:
   family. `allergen` derives from the resolved ingredients' ltree
   ancestry (`dairy.* → contains-dairy`, plus cross-root exceptions like
   oyster sauce → shellfish) — **the only code path that emits allergen
-  tags**. `diet` is explicit menu claims with an ingredient-ancestry
-  veto (a resolved meat suppresses a "vegan" claim; never inferred from
-  absence). `prep`/`flavor` are keyword tables. `cuisine` is a weak
-  keyword pass, mostly delegated to gap-fill.
+  tags**. `diet` is explicit menu claims with contradiction vetoes: a
+  resolved meat suppresses "vegan"/"vegetarian", and a claim its own
+  derived allergen tags contradict (wheat → no "gluten-free" badge) is
+  dropped; never inferred from absence. `prep`/`flavor` are keyword
+  tables. `cuisine` is a weak keyword pass, mostly delegated to
+  gap-fill.
 
 The run transitions to `staged` right here — the verify UI gets
 populated dishes seconds after extraction.

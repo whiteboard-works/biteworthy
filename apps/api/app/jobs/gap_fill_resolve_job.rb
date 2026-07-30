@@ -56,6 +56,13 @@ class GapFillResolveJob < ApplicationJob
 
     merge!(run, gaps, result)
     run.update!(enrichment_status: "completed")
+  rescue StandardError
+    # Anything the soft-fail path didn't catch (transport errors bypass
+    # ApiError, DB hiccups, bugs): record the degradation so clients
+    # stop polling, then re-raise so retry_on gets its attempts — a
+    # successful retry flips this back to completed.
+    run&.update_columns(enrichment_status: "failed", updated_at: Time.current) if run&.persisted?
+    raise
   end
 
   private
@@ -87,9 +94,11 @@ class GapFillResolveJob < ApplicationJob
     cuisine_slugs     = Tag.where(family: "cuisine").pluck(:slug).to_set
 
     run.transaction do
+      # order(:id) keeps lock acquisition in PK order, matching
+      # accept_all's find_each — inconsistent ordering could deadlock.
       locked = run.ingestion_items
                   .where(id: gaps.map { |g| g[:item_id] }, decision: "pending")
-                  .lock.index_by(&:id)
+                  .order(:id).lock.index_by(&:id)
 
       rows = gaps.each_with_index.filter_map do |gap, index|
         item     = locked[gap[:item_id]]
@@ -137,19 +146,31 @@ class GapFillResolveJob < ApplicationJob
     merged
   end
 
+  # Machine provenance values. Anything else (no source at all, or a
+  # future "human") is a human-authored row and must survive rebuilds —
+  # Undo returns an edited item to `pending` WITHOUT resetting payloads,
+  # so a pending item can carry human tags (e.g. an added allergen).
+  MACHINE_SOURCES = %w[match derived ai].freeze
+
   def rebuild_tags(item, merged_ingredients, ai_cuisine_rows, ingredient_paths, cuisine_slugs)
     resolved = merged_ingredients.map do |r|
       { slug: r["slug"], path: ingredient_paths[r["slug"]].to_s,
         confidence: r["confidence"], source: r["source"] }
     end
 
-    tags = Ingestion::TagDeriver.derive(
+    tags = Array(item.tags_payload).reject { |r| MACHINE_SOURCES.include?(r["source"]) }
+    known = tags.map { |t| t["slug"] }.to_set
+
+    Ingestion::TagDeriver.derive(
       segments:             Ingestion::MenuText.segments(item.name, item.description),
       section_segments:     Ingestion::MenuText.segments(item.section_name),
       resolved_ingredients: resolved
-    ).map { |t| { "slug" => t[:slug], "confidence" => t[:confidence], "source" => t[:source] } }
+    ).each do |t|
+      next if known.include?(t[:slug])
 
-    known = tags.map { |t| t["slug"] }.to_set
+      tags << { "slug" => t[:slug], "confidence" => t[:confidence], "source" => t[:source] }
+      known << t[:slug]
+    end
     Array(ai_cuisine_rows).each do |row|
       slug = row["slug"]
       next if known.include?(slug)
