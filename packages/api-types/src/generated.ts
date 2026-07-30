@@ -384,6 +384,439 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review moderation queue */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Default flagged (reader-reported, not yet moderated) */
+                    visibility?: "flagged" | "hidden" | "visible" | "all";
+                    item_id?: string;
+                    user_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description reviews newest-first + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            reviews: {
+                                /** Format: uuid */
+                                id: string;
+                                rating: number;
+                                body?: string | null;
+                                photo_url?: string | null;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                flagged_at?: string | null;
+                                /** Format: date-time */
+                                hidden_at?: string | null;
+                                /** @enum {string|null} */
+                                hidden_reason?: "spam" | "abuse" | "duplicate" | "off_topic" | null;
+                                user: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    handle?: string;
+                                    display_name?: string | null;
+                                };
+                                item: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    restaurant?: {
+                                        /** Format: uuid */
+                                        id?: string;
+                                        name?: string;
+                                        slug?: string;
+                                    };
+                                };
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{id}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide a review with a moderation reason */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        reason: "spam" | "abuse" | "duplicate" | "off_topic";
+                    };
+                };
+            };
+            responses: {
+                /** @description the hidden review */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            flagged_at?: string | null;
+                            /** Format: date-time */
+                            hidden_at?: string | null;
+                            /** @enum {string|null} */
+                            hidden_reason?: "spam" | "abuse" | "duplicate" | "off_topic" | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string;
+                                handle?: string;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                restaurant?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description unknown reason */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            allowed?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{id}/unhide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a hidden review */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restored review */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            flagged_at?: string | null;
+                            /** Format: date-time */
+                            hidden_at?: string | null;
+                            /** @enum {string|null} */
+                            hidden_reason?: "spam" | "abuse" | "duplicate" | "off_topic" | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string;
+                                handle?: string;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                restaurant?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-restaurant suggestion queue
+         * @description The owner queue only covers claimed restaurants; this one covers everything. Accept/reject reuses PATCH /api/v1/suggestions/{id}.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Default pending */
+                    status?: "pending" | "accepted" | "rejected";
+                    restaurant_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description suggestions oldest-first (queue order) + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            suggestions: {
+                                /** Format: uuid */
+                                id: string;
+                                kind: string;
+                                /** @enum {string} */
+                                status: "pending" | "accepted" | "rejected";
+                                payload: {
+                                    [key: string]: unknown;
+                                };
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                resolved_at?: string | null;
+                                item?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    /** Format: uuid */
+                                    restaurant_id?: string;
+                                } | null;
+                                submitter?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    handle?: string;
+                                    display_name?: string | null;
+                                } | null;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suggestions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Accept or reject a suggestion (owner or admin)
+         * @description Documents the existing Phase 4.10 endpoint (no behavior change). Accept materializes the change via SuggestionResolver.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        decision: "accepted" | "rejected";
+                    };
+                };
+            };
+            responses: {
+                /** @description the resolved suggestion */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            kind: string;
+                            /** @enum {string} */
+                            status: "pending" | "accepted" | "rejected";
+                            payload: {
+                                [key: string]: unknown;
+                            };
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            resolved_at?: string | null;
+                            item?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** Format: uuid */
+                                restaurant_id?: string;
+                            } | null;
+                            submitter?: {
+                                /** Format: uuid */
+                                id?: string;
+                                handle?: string;
+                                display_name?: string | null;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description not the claimed owner and not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
