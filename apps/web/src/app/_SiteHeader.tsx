@@ -51,6 +51,12 @@ export function SiteHeader() {
   // login, so latch it and stop re-fetching /api/auth/onboarded on every
   // navigation. Reset on logout.
   const onboardedConfirmed = useRef(false);
+  // Admin-ness resolves once per sign-in state change (not per
+  // navigation — the common answer is `false`, and per-nav re-checks
+  // would cost every signed-in user a Rails round-trip on each route).
+  // A mid-session grant appears after the next full load; a mid-session
+  // demotion is handled by the /admin pages themselves.
+  const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     try {
@@ -112,6 +118,25 @@ export function SiteHeader() {
       active = false;
     };
   }, [signedIn, pathname]);
+
+  useEffect(() => {
+    if (signedIn !== true) {
+      setAdmin(false);
+      return;
+    }
+    let active = true;
+    fetch('/api/auth/admin', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { admin: false }))
+      .then((d: { admin?: boolean }) => {
+        if (active) setAdmin(d.admin === true);
+      })
+      .catch(() => {
+        if (active) setAdmin(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [signedIn]);
 
   const onLogout = async () => {
     setLoggingOut(true);
@@ -189,6 +214,15 @@ export function SiteHeader() {
                   className="font-semibold text-zinc-700 hover:text-bite-dark"
                 >
                   Food profile
+                </Link>
+              )}
+              {admin && (
+                <Link
+                  href="/admin"
+                  data-testid="nav-admin"
+                  className="font-semibold text-zinc-700 hover:text-bite-dark"
+                >
+                  Admin
                 </Link>
               )}
               <Link

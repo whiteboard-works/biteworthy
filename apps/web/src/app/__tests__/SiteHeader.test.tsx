@@ -27,16 +27,28 @@ import { SiteHeader } from '../_SiteHeader';
 
 const DISMISSED_KEY = 'bw_profile_nudge_dismissed';
 
-function stubAuth({ signedIn, onboarded = true }: { signedIn: boolean; onboarded?: boolean }) {
+function stubAuth({
+  signedIn,
+  onboarded = true,
+  admin = false,
+}: {
+  signedIn: boolean;
+  onboarded?: boolean;
+  admin?: boolean;
+}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn((url: string) =>
-      Promise.resolve({
+    vi.fn((url: string) => {
+      const u = String(url);
+      return Promise.resolve({
         ok: true,
-        json: async () =>
-          String(url).includes('/api/auth/onboarded') ? { onboarded } : { signedIn },
-      }),
-    ),
+        json: async () => {
+          if (u.includes('/api/auth/onboarded')) return { onboarded };
+          if (u.includes('/api/auth/admin')) return { admin };
+          return { signedIn };
+        },
+      });
+    }),
   );
 }
 
@@ -101,6 +113,19 @@ describe('SiteHeader', () => {
     expect(localStorage.getItem(DISMISSED_KEY)).toBe('1');
     // The quiet nav link stays even after the banner is dismissed.
     expect(screen.getByTestId('nav-food-profile')).toBeInTheDocument();
+  });
+
+  it('shows the Admin link only once /api/auth/admin confirms admin', async () => {
+    stubAuth({ signedIn: true, admin: true });
+    render(<SiteHeader />);
+    expect(await screen.findByTestId('nav-admin')).toHaveAttribute('href', '/admin');
+  });
+
+  it('never shows the Admin link for a regular signed-in user', async () => {
+    stubAuth({ signedIn: true, admin: false });
+    render(<SiteHeader />);
+    expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
+    expect(screen.queryByTestId('nav-admin')).not.toBeInTheDocument();
   });
 
   it('clears the dismissed flag on logout so the next account is nudged fresh', async () => {

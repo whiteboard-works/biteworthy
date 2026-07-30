@@ -41,7 +41,7 @@ Avo + the ERB `/admin/dashboard` are retired in the final PR. Sequence
 it lands):
 
 - [x] A1 — admin auth foundation: `require_admin!` (404) base controller, `GET /api/v1/me`, `GET /api/v1/admin/dashboard`, `is_admin` in `UserPayload`, `admin:grant/revoke/sync` rake tasks
-- [ ] W1 — web /admin shell: server layout guard via `/me`, nav, header link, `adminProxy` (no-store), robots/noindex
+- [x] W1 — web /admin shell: server layout guard via `/me`, nav, header link, robots/noindex (`adminProxy` moved to W2 with its first consumer)
 - [ ] W2 — ops dashboard page (cost buckets, community spend vs ceiling, queue badges)
 - [ ] A2 — admin ingestion moderation: cross-user runs index, re-extract (extracted from Avo action), confirm-community; rswag for the 4 existing ingestion endpoints
 - [ ] W3 — ingestion moderation UI (runs queue, item review, confirm-community)
@@ -62,6 +62,13 @@ entirely human-credential-gated.
 Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
+
+- **`/login?next=` is an open redirect** — `login/page.tsx` replaces to
+  whatever `?next=` holds without validating it starts with `/`, so
+  `/login?next=https://evil.com` bounces a successful login off-site.
+  Pre-dates the admin workstream (the suggestions queue minted these
+  links first) but W1 added another producer. Fix: `startsWith('/')`
+  guard (reject `//`) before `router.replace`.
 
 - **Onboarding-chip flake recurred (3rd occurrence)** — the test fixed
   in #199 ("renders a chip per preset once the fetch resolves") timed

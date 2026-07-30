@@ -5,4 +5,8 @@ Allow: /
 # server-side adapters to the Rails API, not user-facing pages.
 Disallow: /api/
 
+# The admin backoffice is signed-in, admin-only chrome — never index.
+# (Its layout also serves noindex metadata; this saves the crawl.)
+Disallow: /admin
+
 Sitemap: https://bite-worthy.com/sitemap.xml
