@@ -131,9 +131,8 @@ tags_payload: [
 (`source: "derived"` marks a tag derived from a deterministic
 ingredient's ancestry.) Matched items serialize a `match` block
 (existing item + a serialize-time diff: description, prices, added
-ingredients/tags) for the verify UI. **Known gap**: accepting a
-matched item still creates a duplicate — the apply-update-on-accept
-path is the next PR in the re-scan arc.
+ingredients/tags) for the verify UI; accepting one applies the diff to
+the existing Item — see "Update flow (re-scan)" below.
 
 ### 4. Verify
 
@@ -148,6 +147,34 @@ Contributor opens a swipe UI:
 - ✏️ Edit → tweak ingredients / tags → `decision = 'edited'`, then
   promote.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
+
+### 4b. Update flow (re-scan)
+
+When the resolve pass matched a staged item to an existing Item
+(`matched_item_id`), accept **applies the scan as an update** instead
+of creating a duplicate (`IngestionItem#apply_update!`):
+
+- **Description** — overwritten only when the scan carries one and it
+  differs. Absence of evidence never blanks data.
+- **Prices** — `ItemVariant` set replaced only when the scanned set is
+  non-empty and differs.
+- **Ingredients/tags** — append-only at accept-confidence
+  (`source: "human"`); existing joins are **never removed or
+  downgraded** by a scan.
+- **Trust** — same model as creation: admin accept → `confirmed` joins;
+  community accept → `suggested` joins, and if that adds unconfirmed
+  data to a `confirmed` Item, the Item downgrades to `suggested`
+  (strict-mode users must not see unvetted associations). Never
+  upgraded here — graduation stays with the admin confirm-all.
+- **Undo** — every change is snapshotted into
+  `ingestion_items.applied_changes`; undo restores the snapshot
+  (last-writer-wins over manual edits made in between) and the card
+  returns to pending still linked as an update card. If the matched
+  Item was deleted before accept, the FK nullifies the link and accept
+  falls back to creating a fresh Item.
+- **v1 non-goals** — item *name* (identity key, often human-curated),
+  `ItemModifier`s, and photos are untouched on update; removal
+  detection ("this dish left the menu") is deliberately out of scope.
 
 ### 5. Publish
 
