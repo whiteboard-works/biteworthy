@@ -642,6 +642,1032 @@
         }
       }
     },
+    "/api/v1/admin/restaurants": {
+      "get": {
+        "summary": "List/search restaurants (any status)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "closed"
+              ]
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "community_published"
+              ]
+            }
+          },
+          {
+            "name": "city_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "restaurants + pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurants",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "status"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "published",
+                              "closed"
+                            ]
+                          },
+                          "city": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "created_by_user_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "claimed_by_user_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "items_count": {
+                            "type": "integer"
+                          },
+                          "suggested_items_count": {
+                            "type": "integer"
+                          },
+                          "about": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "website": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "phone": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "claimed_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "items_by_confidence": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "authenticated but not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Restaurant detail + per-confidence item counts",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "closed"
+                      ]
+                    },
+                    "city": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "created_by_user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "claimed_by_user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "items_count": {
+                      "type": "integer"
+                    },
+                    "suggested_items_count": {
+                      "type": "integer"
+                    },
+                    "about": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "website": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "claimed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "items_by_confidence": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update fields + status (slug immutable)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "closed"
+                      ]
+                    },
+                    "city": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "created_by_user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "claimed_by_user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "items_count": {
+                      "type": "integer"
+                    },
+                    "suggested_items_count": {
+                      "type": "integer"
+                    },
+                    "about": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "website": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "claimed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "items_by_confidence": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "immutable slug change or invalid status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "about": {
+                    "type": "string"
+                  },
+                  "website": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "published",
+                      "closed"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{restaurant_id}/items": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List a restaurant's items — every status",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "removed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items + pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "restaurant_id",
+                          "name",
+                          "status",
+                          "confidence"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "restaurant_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "published",
+                              "removed"
+                            ]
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": [
+                              "confirmed",
+                              "suggested",
+                              "inferred"
+                            ]
+                          },
+                          "popularity": {
+                            "type": "integer"
+                          },
+                          "ingredient_count": {
+                            "type": "integer"
+                          },
+                          "tag_count": {
+                            "type": "integer"
+                          },
+                          "variants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "size": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "price_cents": {
+                                  "type": "integer",
+                                  "nullable": true
+                                }
+                              }
+                            }
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/items/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Update name / description / status (removed = unpublish)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "restaurant_id",
+                    "name",
+                    "status",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "removed"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "confirmed",
+                        "suggested",
+                        "inferred"
+                      ]
+                    },
+                    "popularity": {
+                      "type": "integer"
+                    },
+                    "ingredient_count": {
+                      "type": "integer"
+                    },
+                    "tag_count": {
+                      "type": "integer"
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "size": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "price_cents": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "confidence and the denormalized id arrays are deliberately not accepted — confidence stays on the promote/confirm rails.",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "published",
+                      "removed"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "summary": "List/search users",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "ILIKE against email, handle, display_name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "is_admin",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "users + pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "users",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "email",
+                          "handle",
+                          "is_admin"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "handle": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "provider": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "is_admin": {
+                            "type": "boolean"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "reviews_count": {
+                            "type": "integer"
+                          },
+                          "ingestion_runs_count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Toggle is_admin (self-demotion refused)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "email",
+                    "handle",
+                    "is_admin"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "type": "string"
+                    },
+                    "display_name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "provider": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "is_admin": {
+                      "type": "boolean"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reviews_count": {
+                      "type": "integer"
+                    },
+                    "ingestion_runs_count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "self-demotion refused — the system keeps >= 1 admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "is_admin"
+                ],
+                "properties": {
+                  "is_admin": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/admin/restaurants/{id}/confirm_community": {
       "parameters": [
         {

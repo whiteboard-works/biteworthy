@@ -319,6 +319,510 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/restaurants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List/search restaurants (any status) */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                    status?: "draft" | "published" | "closed";
+                    filter?: "community_published";
+                    city_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description restaurants + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            restaurants: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                /** @enum {string} */
+                                status: "draft" | "published" | "closed";
+                                city?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                } | null;
+                                /** Format: uuid */
+                                created_by_user_id?: string | null;
+                                /** Format: uuid */
+                                claimed_by_user_id?: string | null;
+                                /** Format: date-time */
+                                created_at?: string;
+                                items_count?: number;
+                                suggested_items_count?: number;
+                                about?: string | null;
+                                website?: string | null;
+                                phone?: string | null;
+                                /** Format: date-time */
+                                claimed_at?: string | null;
+                                items_by_confidence?: {
+                                    [key: string]: number;
+                                };
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Restaurant detail + per-confidence item counts */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restaurant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "closed";
+                            city?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                            } | null;
+                            /** Format: uuid */
+                            created_by_user_id?: string | null;
+                            /** Format: uuid */
+                            claimed_by_user_id?: string | null;
+                            /** Format: date-time */
+                            created_at?: string;
+                            items_count?: number;
+                            suggested_items_count?: number;
+                            about?: string | null;
+                            website?: string | null;
+                            phone?: string | null;
+                            /** Format: date-time */
+                            claimed_at?: string | null;
+                            items_by_confidence?: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update fields + status (slug immutable) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        about?: string;
+                        website?: string;
+                        phone?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "published" | "closed";
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated restaurant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "closed";
+                            city?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                            } | null;
+                            /** Format: uuid */
+                            created_by_user_id?: string | null;
+                            /** Format: uuid */
+                            claimed_by_user_id?: string | null;
+                            /** Format: date-time */
+                            created_at?: string;
+                            items_count?: number;
+                            suggested_items_count?: number;
+                            about?: string | null;
+                            website?: string | null;
+                            phone?: string | null;
+                            /** Format: date-time */
+                            claimed_at?: string | null;
+                            items_by_confidence?: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+                /** @description immutable slug change or invalid status */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{restaurant_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        /** List a restaurant's items — every status */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "draft" | "published" | "removed";
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description items + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                restaurant_id: string;
+                                name: string;
+                                description?: string | null;
+                                /** @enum {string} */
+                                status: "draft" | "published" | "removed";
+                                /** @enum {string} */
+                                confidence: "confirmed" | "suggested" | "inferred";
+                                popularity?: number;
+                                ingredient_count?: number;
+                                tag_count?: number;
+                                variants?: {
+                                    size?: string | null;
+                                    price_cents?: number | null;
+                                }[];
+                                /** Format: date-time */
+                                created_at?: string;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update name / description / status (removed = unpublish) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "published" | "removed";
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            name: string;
+                            description?: string | null;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "removed";
+                            /** @enum {string} */
+                            confidence: "confirmed" | "suggested" | "inferred";
+                            popularity?: number;
+                            ingredient_count?: number;
+                            tag_count?: number;
+                            variants?: {
+                                size?: string | null;
+                                price_cents?: number | null;
+                            }[];
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List/search users */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description ILIKE against email, handle, display_name */
+                    q?: string;
+                    is_admin?: "true";
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description users + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            users: {
+                                /** Format: uuid */
+                                id: string;
+                                email: string;
+                                handle: string;
+                                display_name?: string | null;
+                                provider?: string | null;
+                                is_admin: boolean;
+                                /** Format: date-time */
+                                created_at?: string;
+                                reviews_count?: number;
+                                ingestion_runs_count?: number;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Toggle is_admin (self-demotion refused) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        is_admin: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated user */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            email: string;
+                            handle: string;
+                            display_name?: string | null;
+                            provider?: string | null;
+                            is_admin: boolean;
+                            /** Format: date-time */
+                            created_at?: string;
+                            reviews_count?: number;
+                            ingestion_runs_count?: number;
+                        };
+                    };
+                };
+                /** @description self-demotion refused — the system keeps >= 1 admin */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/admin/restaurants/{id}/confirm_community": {
         parameters: {
             query?: never;
