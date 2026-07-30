@@ -250,9 +250,9 @@ export function AllergenNotice() {
       data-testid="allergen-notice"
       className="mt-bw-4 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-3 text-bw-sm text-zinc-800"
     >
-      <strong>A filter, not a guarantee.</strong> BiteWorthy reads menus with AI and your
-      dietary filter — but recipes change and a result can still miss an allergen. Always
-      confirm with the restaurant before ordering for a serious allergy.
+      <strong>A filter, not a guarantee.</strong> BiteWorthy reads menus with AI and your dietary
+      filter — but recipes change and a result can still miss an allergen. Always confirm with the
+      restaurant before ordering for a serious allergy.
     </div>
   );
 }
@@ -262,8 +262,8 @@ function FilterBadge({ filter }: { filter: FilterSummary }) {
     filter.source === 'preset'
       ? `Preset · ${filter.preset_slug ?? 'unknown'}`
       : filter.source === 'user_profile'
-      ? 'Your saved profile'
-      : 'No filter';
+        ? 'Your saved profile'
+        : 'No filter';
   return (
     <span
       data-testid="filter-badge"
@@ -330,7 +330,7 @@ function SectionBlock({
   return (
     <section className="mt-bw-6">
       <h2 className="text-bw-lg font-bold">{section.name}</h2>
-      <ul className="mt-bw-2 divide-y divide-zinc-100">
+      <ul className="mt-bw-2 grid grid-cols-1 gap-bw-4 sm:grid-cols-2 lg:grid-cols-3">
         {section.visible.map((item) => (
           <ItemRow
             key={item.id}
@@ -342,7 +342,7 @@ function SectionBlock({
           />
         ))}
         {section.visible.length === 0 && section.hidden.length > 0 && (
-          <li className="py-bw-2 text-bw-sm text-zinc-500">
+          <li className="col-span-full py-bw-2 text-bw-sm text-zinc-500">
             Every item in this section is hidden by your filter.
           </li>
         )}
@@ -363,7 +363,7 @@ function SectionBlock({
       {hiddenOpen && (
         <ul
           id={`hidden-${section.id ?? 'none'}`}
-          className="mt-bw-2 divide-y divide-zinc-100"
+          className="mt-bw-2 grid grid-cols-1 gap-bw-4 sm:grid-cols-2 lg:grid-cols-3"
         >
           {section.hidden.map((item) => (
             <ItemRow
@@ -430,7 +430,8 @@ function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaura
   if (done) {
     return (
       <p className="mt-bw-3 text-bw-sm text-zinc-700" data-testid="claim-sent">
-        Verification email sent to <strong>{done.email}</strong>. Click the link to confirm your claim.
+        Verification email sent to <strong>{done.email}</strong>. Click the link to confirm your
+        claim.
         {!done.auto && (
           <span className="ml-1 text-bw-xs text-zinc-500">
             (Domain didn&rsquo;t match this restaurant&rsquo;s website — admin review may follow.)
@@ -480,10 +481,15 @@ function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaura
   };
 
   return (
-    <form onSubmit={submit} className="mt-bw-3 rounded-bw-md border border-zinc-200 p-bw-3" data-testid="claim-form">
+    <form
+      onSubmit={submit}
+      className="mt-bw-3 rounded-bw-md border border-zinc-200 p-bw-3"
+      data-testid="claim-form"
+    >
       <p className="text-bw-sm font-semibold text-zinc-700">Claim this restaurant</p>
       <p className="mt-1 text-bw-xs text-zinc-500">
-        Use an email at the restaurant&rsquo;s own domain — we&rsquo;ll send a one-time verification link.
+        Use an email at the restaurant&rsquo;s own domain — we&rsquo;ll send a one-time verification
+        link.
       </p>
       <input
         type="email"
