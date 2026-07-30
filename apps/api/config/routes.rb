@@ -133,6 +133,13 @@ Rails.application.routes.draw do
         resources :restaurants, only: [] do
           member { post :confirm_community }
         end
+        resources :reviews, only: [:index] do
+          member do
+            post :hide
+            post :unhide
+          end
+        end
+        resources :suggestions, only: [:index]
       end
     end
   end

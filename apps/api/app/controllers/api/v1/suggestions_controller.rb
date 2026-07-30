@@ -18,6 +18,8 @@ module Api
     #     `{ decision: 'accepted' | 'rejected' }` — accept routes
     #     through SuggestionResolver to materialize the change.
     class SuggestionsController < BaseController
+      include SuggestionPayload
+
       skip_before_action :authenticate_user!, only: [:create]
       before_action :load_item,       only: [:create]
       before_action :load_restaurant, only: [:index]
@@ -99,20 +101,10 @@ module Api
         nil
       end
 
+      # Serialization moved to the SuggestionPayload concern (shared
+      # with the admin queue).
       def serialize(suggestion)
-        item = suggestion.subject
-        {
-          id:      suggestion.id,
-          kind:    suggestion.kind,
-          status:  suggestion.status,
-          payload: suggestion.payload,
-          created_at: suggestion.created_at,
-          resolved_at: suggestion.resolved_at,
-          item: item.is_a?(Item) ? { id: item.id, name: item.name, restaurant_id: item.restaurant_id } : nil,
-          submitter: suggestion.user.then { |u|
-            u ? { id: u.id, handle: u.handle, display_name: u.display_name } : nil
-          }
-        }
+        suggestion_payload(suggestion)
       end
     end
   end
