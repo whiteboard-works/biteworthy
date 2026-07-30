@@ -28,9 +28,13 @@ class ResolveItemsJob < ApplicationJob
 
     results = Ingestion::DeterministicResolver.call(items)
     gaps = results.any?(&:gap?)
+    # Re-scan dedup: link staged items to the restaurant's existing Items
+    # before the batch promote below, so items accepted while the run was
+    # still :resolving promote as updates instead of duplicates.
+    matches = Ingestion::ExistingItemMatcher.call(run: run, items: items)
 
     run.transaction do
-      write_payloads!(run, results)
+      write_payloads!(run, items, results, matches)
       promote_accepted_items!(run)
       run.transition_to!(:staged)
       # Written both ways so a re-run (Avo re-extract) can't inherit a
@@ -48,17 +52,28 @@ class ResolveItemsJob < ApplicationJob
   # conflicts on the PK (the ids were just read from the DB), so this is
   # a pure bulk UPDATE; bypassing validations/callbacks is safe —
   # IngestionItem has none that touch these columns.
-  def write_payloads!(run, results)
+  def write_payloads!(run, items, results, matches)
+    by_id = items.index_by(&:id)
     # ingestion_run_id rides along because Postgres checks NOT NULL on
     # the insert tuple before ON CONFLICT resolves; updated_at is
     # stamped by upsert_all itself (record_timestamps).
     rows = results.map do |r|
+      staged = by_id.fetch(r.item_id)
+      match  = matches[r.item_id]
+      # Already-promoted items keep their linkage; everyone else takes
+      # this pass's match — nil clears anything stale from a prior cycle
+      # (Avo re-extract re-runs resolve on the same rows).
+      promoted = staged.item_id.present?
       { id: r.item_id,
         ingestion_run_id: run.id,
         ingredients_payload: r.ingredients,
-        tags_payload: r.tags }
+        tags_payload: r.tags,
+        matched_item_id: promoted ? staged.matched_item_id : match&.dig(:item_id),
+        match_score:     promoted ? staged.match_score     : match&.dig(:score) }
     end
-    IngestionItem.upsert_all(rows, update_only: %i[ingredients_payload tags_payload])
+    IngestionItem.upsert_all(
+      rows, update_only: %i[ingredients_payload tags_payload matched_item_id match_score]
+    )
   end
 
   # Items accepted while the run was still :resolving were recorded but

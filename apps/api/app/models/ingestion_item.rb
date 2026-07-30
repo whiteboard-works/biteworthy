@@ -3,6 +3,10 @@ class IngestionItem < ApplicationRecord
 
   belongs_to :ingestion_run
   belongs_to :item, optional: true
+  # Re-scan dedup: the existing Item this staged row was matched against
+  # (Ingestion::ExistingItemMatcher). Distinct from :item, which is the
+  # promotion result.
+  belongs_to :matched_item, class_name: "Item", optional: true
 
   validates :decision, inclusion: { in: DECISIONS }
 

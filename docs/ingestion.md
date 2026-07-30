@@ -73,6 +73,17 @@ the taxonomy already in Postgres:
   hit = confidence 1.0, alias hit = 0.95, `source: "match"`. The
   description is the ingredient authority; dish-name leftovers only
   count when the name is all the evidence there is.
+- **Existing-item match** (`Ingestion::ExistingItemMatcher`): staged
+  items are linked (`matched_item_id` + `match_score`) to the
+  restaurant's existing Items so a re-scan stages updates instead of
+  duplicates. Deterministic and greedy one-to-one: normalized-token
+  equality (lowercase, punctuation stripped, singularized, stopwords
+  dropped) wins at 1.0; otherwise pg_trgm `similarity() >= 0.60` with a
+  token-subset veto — "Chicken Burrito" never matches "Chicken Burrito
+  Bowl" no matter how similar, because a name whose token set strictly
+  contains the other's is a different dish. Calibration data lives with
+  the constant. A false merge corrupts a live item; a missed match is
+  just a duplicate card a human can reject.
 - **Tag derivation** (`Ingestion::TagDeriver`): one strategy per tag
   family. `allergen` derives from the resolved ingredients' ltree
   ancestry (`dairy.* → contains-dairy`, plus cross-root exceptions like
@@ -118,9 +129,11 @@ tags_payload: [
 ```
 
 (`source: "derived"` marks a tag derived from a deterministic
-ingredient's ancestry.) Re-ingestion dedup (trgm name-match against
-existing items) remains a **known gap** — re-scanning a restaurant
-still duplicates its menu.
+ingredient's ancestry.) Matched items serialize a `match` block
+(existing item + a serialize-time diff: description, prices, added
+ingredients/tags) for the verify UI. **Known gap**: accepting a
+matched item still creates a duplicate — the apply-update-on-accept
+path is the next PR in the re-scan arc.
 
 ### 4. Verify
 

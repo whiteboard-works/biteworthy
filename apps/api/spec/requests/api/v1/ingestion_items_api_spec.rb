@@ -327,6 +327,60 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
     end
   end
 
+  # Re-scan dedup PR boundary: the match + diff serialize so clients can
+  # render update cards, but accept still CREATES — the apply-on-accept
+  # path ships separately. These examples prove the feature is dark.
+  describe "re-scan matching (serialization only)" do
+    let!(:existing_item) do
+      create(:item, restaurant: restaurant, name: "Carne Asada Taco",
+                    description: "The original.", status: "published", confidence: "confirmed")
+    end
+
+    before do
+      ItemVariant.create!(item: existing_item, size: nil, price_cents: 400, position: 0)
+      item.update!(matched_item_id: existing_item.id, match_score: 1.0)
+    end
+
+    it "serializes the match block with a serialize-time diff on index" do
+      get "/api/v1/ingestion_runs/#{run.id}/items", headers: auth_for(admin)
+
+      match = response.parsed_body["items"].first["match"]
+      expect(match["item_id"]).to eq(existing_item.id)
+      expect(match["score"]).to eq(1.0)
+      expect(match["existing"]).to eq(
+        "name" => "Carne Asada Taco", "description" => "The original.",
+        "prices" => [{ "size" => nil, "price_cents" => 400 }]
+      )
+      expect(match["diff"]["description"]).to eq(
+        "from" => "The original.", "to" => item.description
+      )
+      expect(match["diff"]["prices"]).to eq(
+        "from" => [{ "size" => nil, "price_cents" => 400 }],
+        "to"   => [{ "size" => nil, "price_cents" => 450 }]
+      )
+      expect(match["diff"]["added_ingredients"]).to eq(["meat-beef"])
+      expect(match["no_changes"]).to be false
+    end
+
+    it "serializes match: null for unmatched rows" do
+      unmatched = create(:ingestion_item, ingestion_run: run, name: "Pad Thai", position: 9)
+
+      get "/api/v1/ingestion_runs/#{run.id}/items", headers: auth_for(admin)
+
+      row = response.parsed_body["items"].find { |i| i["id"] == unmatched.id }
+      expect(row["match"]).to be_nil
+    end
+
+    it "accepting a matched item still creates a new Item (apply ships in the next PR)" do
+      expect {
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted" }.to_json, headers: auth_for(admin)
+      }.to change(Item, :count).by(1)
+
+      expect(response.parsed_body["item_id"]).not_to eq(existing_item.id)
+    end
+  end
+
   describe "undo (PATCH decision: pending)" do
     it "reverts an accepted+promoted item to pending and removes its live Item + joins" do
       patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
