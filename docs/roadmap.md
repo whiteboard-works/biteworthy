@@ -47,7 +47,7 @@ it lands):
 - [x] W3 — ingestion moderation UI (runs queue, item review via shared verify row, re-extract + confirm-community levers)
 - [x] A3 — review + suggestion moderation endpoints (visibility queues, hide/unhide, cross-restaurant suggestions; `SuggestionPayload` concern)
 - [x] W4 — review + suggestions queue pages (visibility pills, reason picker, cross-restaurant accept/reject)
-- [ ] A4 — taxonomy CRUD (slug/path/family immutable; referenced deletes 409)
+- [x] A4 — taxonomy CRUD (slug/path/family immutable; referenced deletes 409 with per-source counts)
 - [ ] W5 — taxonomy editor pages
 - [ ] A5 — restaurant/item/user management (status writes incl. `removed`, `is_admin` toggle w/ self-demotion guard)
 - [ ] W6 — restaurants/items/users pages

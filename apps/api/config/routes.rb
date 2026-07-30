@@ -140,6 +140,8 @@ Rails.application.routes.draw do
           end
         end
         resources :suggestions, only: [:index]
+        resources :ingredients, only: [:index, :create, :update, :destroy]
+        resources :tags, only: [:index, :create, :update, :destroy]
       end
     end
   end
