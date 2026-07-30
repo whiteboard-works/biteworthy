@@ -42,11 +42,16 @@ beforeEach(() => {
 });
 
 describe('AdminSuggestionsPage', () => {
-  it('accepting removes the row from the queue', async () => {
-    mockFetchAdminSuggestions.mockResolvedValue({
-      suggestions: [suggestion('s1'), suggestion('s2')],
-      pagination: { total: 2, limit: 25, offset: 0 },
-    });
+  it('accepting refetches the queue so the page reflects the server, not a local guess', async () => {
+    mockFetchAdminSuggestions
+      .mockResolvedValueOnce({
+        suggestions: [suggestion('s1'), suggestion('s2')],
+        pagination: { total: 2, limit: 25, offset: 0 },
+      })
+      .mockResolvedValueOnce({
+        suggestions: [suggestion('s2')],
+        pagination: { total: 1, limit: 25, offset: 0 },
+      });
     mockDecide.mockResolvedValue({ id: 's1', status: 'accepted' });
     render(<AdminSuggestionsPage />);
     await screen.findByTestId('admin-suggestion-s1');
@@ -58,6 +63,36 @@ describe('AdminSuggestionsPage', () => {
     );
     expect(screen.getByTestId('admin-suggestion-s2')).toBeInTheDocument();
     expect(mockDecide).toHaveBeenCalledWith('s1', 'accepted');
+    expect(mockFetchAdminSuggestions).toHaveBeenCalledTimes(2);
+  });
+
+  it('snaps back to the first page when the current page empties but the queue does not', async () => {
+    // Reaching page 2 (offset 25) that comes back empty while 5 pending
+    // remain — a false "Inbox zero" here would strand them unmoderated.
+    mockFetchAdminSuggestions
+      .mockResolvedValueOnce({
+        suggestions: Array.from({ length: 25 }, (_, i) => suggestion(`p1-${i}`)),
+        pagination: { total: 30, limit: 25, offset: 0 },
+      })
+      .mockResolvedValueOnce({
+        suggestions: [],
+        pagination: { total: 5, limit: 25, offset: 25 },
+      })
+      .mockResolvedValueOnce({
+        suggestions: [suggestion('s9')],
+        pagination: { total: 5, limit: 25, offset: 0 },
+      });
+    render(<AdminSuggestionsPage />);
+    await screen.findByTestId('admin-suggestion-p1-0');
+
+    fireEvent.click(screen.getByTestId('admin-pagination-next'));
+
+    expect(await screen.findByTestId('admin-suggestion-s9')).toBeInTheDocument();
+    expect(screen.queryByTestId('suggestions-empty')).not.toBeInTheDocument();
+    expect(mockFetchAdminSuggestions).toHaveBeenCalledTimes(3);
+    expect(mockFetchAdminSuggestions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 0 }),
+    );
   });
 
   it('a failed decision keeps the row and shows the error', async () => {

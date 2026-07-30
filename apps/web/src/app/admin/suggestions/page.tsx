@@ -7,7 +7,7 @@ import {
   type AdminSuggestionsResponse,
 } from '../../../lib/admin/suggestions';
 import { friendlyAdminError } from '../../../lib/admin/shared';
-import { decideSuggestion } from '../../../lib/suggestions';
+import { decideSuggestion, SuggestionError } from '../../../lib/suggestions';
 import { Pagination } from '../_Pagination';
 
 /**
@@ -20,6 +20,7 @@ const PAGE_SIZE = 25;
 
 export default function AdminSuggestionsPage() {
   const [offset, setOffset] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [data, setData] = useState<AdminSuggestionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -29,7 +30,15 @@ export default function AdminSuggestionsPage() {
     setError(null);
     fetchAdminSuggestions({ limit: PAGE_SIZE, offset })
       .then((d) => {
-        if (active) setData(d);
+        if (!active) return;
+        // Deciding rows shifts server offsets; a page that emptied out
+        // while the queue still has entries must snap back rather than
+        // show a false "Inbox zero".
+        if (d.suggestions.length === 0 && offset > 0 && d.pagination.total > 0) {
+          setOffset(0);
+          return;
+        }
+        setData(d);
       })
       .catch((e: unknown) => {
         if (active) setError(friendlyAdminError(e));
@@ -37,26 +46,28 @@ export default function AdminSuggestionsPage() {
     return () => {
       active = false;
     };
-  }, [offset]);
+  }, [offset, refreshKey]);
 
   const decide = async (id: string, decision: 'accepted' | 'rejected') => {
     setBusyId(id);
     setError(null);
     try {
       await decideSuggestion(id, decision);
-      // No longer pending — drop it from the queue and its total.
-      setData((prev) =>
-        prev
-          ? {
-              suggestions: prev.suggestions.filter((s) => s.id !== id),
-              pagination: { ...prev.pagination, total: Math.max(0, prev.pagination.total - 1) },
-            }
-          : prev,
-      );
+      // Refetch instead of filtering locally — local removal lies once
+      // a page empties or rows slide across the offset window.
+      setRefreshKey((k) => k + 1);
     } catch (e) {
-      setError(friendlyAdminError(e));
+      if (e instanceof SuggestionError && e.status === 401) {
+        setError('You are signed out — sign in again to continue.');
+      } else if (e instanceof SuggestionError && (e.status === 403 || e.status === 404)) {
+        setError('Admin access is gone — your account may have been changed.');
+      } else {
+        setError(friendlyAdminError(e));
+      }
     } finally {
-      setBusyId(null);
+      // Only clear our own marker — a concurrent decide on another row
+      // must keep its busy state.
+      setBusyId((cur) => (cur === id ? null : cur));
     }
   };
 

@@ -54,16 +54,20 @@ export default function AdminReviewsPage() {
     <main data-testid="admin-reviews">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Review moderation</h1>
 
-      <div className="mt-bw-4 flex flex-wrap items-center gap-bw-2 text-bw-sm" role="tablist">
+      {/* Filter pills, not ARIA tabs — tab semantics promise keyboard
+          behavior these don't have. */}
+      <div className="mt-bw-4 flex flex-wrap items-center gap-bw-2 text-bw-sm">
         {REVIEW_VISIBILITIES.map((v) => (
           <button
             key={v}
             type="button"
-            role="tab"
-            aria-selected={visibility === v}
+            aria-pressed={visibility === v}
             onClick={() => {
               setVisibility(v);
               setOffset(0);
+              // Clear the old tab's rows — stale rows under a new tab's
+              // error banner misread as that tab's content.
+              setData(null);
             }}
             data-testid={`reviews-visibility-${v}`}
             className={
