@@ -14,9 +14,9 @@ vi.mock('../../../lib/server-auth', () => ({
   getServerJwt: () => mockGetServerJwt(),
 }));
 
-const mockJwtIsAdmin = vi.fn();
+const mockAdminStatus = vi.fn();
 vi.mock('../../../lib/admin-auth', () => ({
-  jwtIsAdmin: (jwt: string | null) => mockJwtIsAdmin(jwt),
+  adminStatus: (jwt: string | null) => mockAdminStatus(jwt),
 }));
 
 const mockRedirect = vi.fn((_target: string): never => {
@@ -31,36 +31,48 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/admin',
 }));
 
-import AdminLayout from '../layout';
+import AdminLayout, { dynamic, metadata } from '../layout';
 
 beforeEach(() => {
   mockGetServerJwt.mockReset();
-  mockJwtIsAdmin.mockReset();
+  mockAdminStatus.mockReset();
   mockRedirect.mockClear();
   mockNotFound.mockClear();
 });
 
 describe('AdminLayout', () => {
-  it('redirects signed-out visitors to login with a return path, without an admin lookup', async () => {
+  it('redirects visitors without a usable session to login with a return path', async () => {
     mockGetServerJwt.mockResolvedValue(null);
+    mockAdminStatus.mockResolvedValue('unauthenticated');
     await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_REDIRECT');
     expect(mockRedirect).toHaveBeenCalledWith('/login?next=/admin');
-    expect(mockJwtIsAdmin).not.toHaveBeenCalled();
+  });
+
+  it('redirects an expired/revoked session (upstream 401) to login, not a 404', async () => {
+    mockGetServerJwt.mockResolvedValue('stale-jwt');
+    mockAdminStatus.mockResolvedValue('unauthenticated');
+    await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_REDIRECT');
+    expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   it('404s anyone not confirmed as admin', async () => {
     mockGetServerJwt.mockResolvedValue('jwt-1');
-    mockJwtIsAdmin.mockResolvedValue(false);
+    mockAdminStatus.mockResolvedValue('denied');
     await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_NOT_FOUND');
-    expect(mockJwtIsAdmin).toHaveBeenCalledWith('jwt-1');
+    expect(mockAdminStatus).toHaveBeenCalledWith('jwt-1');
   });
 
   it('renders the shell + nav + children for a confirmed admin', async () => {
     mockGetServerJwt.mockResolvedValue('jwt-1');
-    mockJwtIsAdmin.mockResolvedValue(true);
+    mockAdminStatus.mockResolvedValue('admin');
     render(await AdminLayout({ children: <p data-testid="child">hi</p> }));
     expect(screen.getByTestId('admin-shell')).toBeInTheDocument();
     expect(screen.getByTestId('admin-nav')).toBeInTheDocument();
     expect(screen.getByTestId('child')).toBeInTheDocument();
+  });
+
+  it('keeps the no-prerender + noindex exports the docstring calls load-bearing', () => {
+    expect(dynamic).toBe('force-dynamic');
+    expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });

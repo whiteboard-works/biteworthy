@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation';
 
 /**
  * Tab bar for the /admin section. Tabs are added PR-by-PR as their
- * routes ship — typedRoutes fails the build on links to routes that
- * don't exist yet.
+ * routes ship — typedRoutes fails the production (`next build`) build
+ * on links to routes that don't exist yet. (CI's bare `tsc` doesn't
+ * regenerate route types, so Vercel's build is where this actually
+ * bites.)
  */
 const TABS = [{ href: '/admin', label: 'Dashboard' }] as const;
 

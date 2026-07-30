@@ -1,14 +1,17 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getServerJwt } from '../../lib/server-auth';
-import { jwtIsAdmin } from '../../lib/admin-auth';
+import { adminStatus } from '../../lib/admin-auth';
 import { AdminNav } from './_AdminNav';
 
 /**
  * Server-side shell + guard for every /admin page. Signed-out visitors
- * go to login; anyone we can't CONFIRM as admin (non-admin, API error,
+ * (no cookie, or a JWT Rails rejects with 401 — expired/revoked) go to
+ * login; anyone else we can't CONFIRM as admin (non-admin, API error,
  * API without /me yet) gets the site's standard 404, which never
- * advertises that the surface exists.
+ * advertises that the surface exists. The login bounce flattens deep
+ * paths to /admin (a layout can't read the request pathname) — fine
+ * while the section is shallow; revisit if deep links start mattering.
  *
  * The guard is UX, not security: it re-runs on document requests and
  * server renders but NOT on soft navigations between /admin children,
@@ -26,9 +29,9 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const jwt = await getServerJwt();
-  if (!jwt) redirect('/login?next=/admin');
-  if (!(await jwtIsAdmin(jwt))) notFound();
+  const status = await adminStatus(await getServerJwt());
+  if (status === 'unauthenticated') redirect('/login?next=/admin');
+  if (status !== 'admin') notFound();
 
   return (
     <div className="mx-auto max-w-5xl px-bw-6 py-bw-6" data-testid="admin-shell">

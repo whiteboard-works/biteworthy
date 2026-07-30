@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
  * to a non-admin while a wrong `false` merely hides a link Rails
  * would still authorize.
  */
-import { jwtIsAdmin } from '../admin-auth';
+import { adminStatus, jwtIsAdmin } from '../admin-auth';
 
 function fetchResolving(body: unknown, ok = true) {
   return vi.fn().mockResolvedValue({ ok, json: async () => body });
@@ -53,6 +53,14 @@ describe('jwtIsAdmin', () => {
   it('fails closed on network errors', async () => {
     const impl = vi.fn().mockRejectedValue(new Error('boom'));
     expect(await jwtIsAdmin('jwt', impl as unknown as typeof fetch)).toBe(false);
+  });
+
+  it('distinguishes an expired/revoked session (401) so the layout can bounce to login', async () => {
+    const impl = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+    expect(await adminStatus('stale-jwt', impl as unknown as typeof fetch)).toBe('unauthenticated');
+    // Any other upstream failure stays a plain denial, not a login loop.
+    const impl500 = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    expect(await adminStatus('jwt', impl500 as unknown as typeof fetch)).toBe('denied');
   });
 
   it('sends the bearer token to /api/v1/me with caching disabled', async () => {

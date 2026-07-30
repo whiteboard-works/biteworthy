@@ -63,6 +63,13 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **`/login?next=` is an open redirect** — `login/page.tsx` replaces to
+  whatever `?next=` holds without validating it starts with `/`, so
+  `/login?next=https://evil.com` bounces a successful login off-site.
+  Pre-dates the admin workstream (the suggestions queue minted these
+  links first) but W1 added another producer. Fix: `startsWith('/')`
+  guard (reject `//`) before `router.replace`.
+
 - **Onboarding-chip flake recurred (3rd occurrence)** — the test fixed
   in #199 ("renders a chip per preset once the fetch resolves") timed
   out again on #304's CI runner (suite took 16.5s; 5s per-test cap).
