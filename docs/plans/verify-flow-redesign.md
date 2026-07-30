@@ -111,3 +111,20 @@ Mobile verify screen mirrors PR-3 as a follow-up.
   `tags_payload` are populated.
 - Publish (`maybe_publish!`) only fires when the run is `staged` (fully enriched).
 - Undo fully removes the promoted `Item` + joins (no orphan live items).
+
+## Addendum (2026-07-29) — deterministic resolve supersedes "staged = fully enriched"
+
+The resolve stage was reworked (see `docs/ingestion.md`): `staged` now
+means **deterministically enriched** — explicit-mention ingredients +
+code-derived tags land in seconds, and a single background LLM
+gap-fill (`enrichment_status` on the run) trails after, appending
+implied-ingredient/cuisine suggestions to still-pending items only.
+Consequences for the checklist above:
+
+- Promote-before-payloads still can't happen (payloads are written in
+  the same transaction that stages the run).
+- `maybe_publish!` still only fires at `staged`, but "fully enriched"
+  is no longer implied — an item accepted before gap-fill completes
+  ships with deterministic (explicit-mention) data only; the verify UI
+  shows "AI double-check still running" while `enrichment_status` is
+  `pending`.

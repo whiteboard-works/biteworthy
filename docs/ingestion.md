@@ -27,10 +27,9 @@ States: `queued → extracting → resolving → staged → published` (or
 
 ### 1. Extract
 
-Vision-capable Claude reads the input directly (no OCR step). The system
-prompt is **prompt-cached** — it carries the full ingredient and tag
-taxonomy as a structured table, which is the bulk of the tokens. After
-the first call, every subsequent extraction reads the cache for cents.
+Vision-capable Claude reads the input directly (no OCR step). This is
+the pipeline's one heavyweight LLM call. (The extraction prompt does
+**not** carry the taxonomy — that belongs to the gap-fill stage below.)
 
 Output (validated against a JSON Schema):
 
@@ -51,37 +50,63 @@ Output (validated against a JSON Schema):
 }
 ```
 
-### 2. Resolve
+### 2. Resolve (deterministic — no LLM)
 
-For each extracted item:
+`ResolveItemsJob` resolves every item in-process, in seconds, against
+the taxonomy already in Postgres:
 
-- **Name match.** `pg_trgm` similarity against existing items in the
-  same restaurant > 0.85 → same dish. Avoids duplicates on re-ingestion.
-- **Ingredient extract.** Second LLM call with the *full ingredient
-  catalog* in context (cached). Output: `[{ slug, confidence }]`.
-  Unknown strings → `unresolved_ingredients[]` for human curation.
-- **Tag suggestion.** "contains-dairy", "vegan", "fried", etc., with
-  confidence numbers.
+- **Ingredient match** (`Ingestion::IngredientMatcher`): explicit
+  mentions in the name/description matched against ingredient names +
+  `aliases[]` — normalized, longest-phrase-first, plural-bridged. Name
+  hit = confidence 1.0, alias hit = 0.95, `source: "match"`. The
+  description is the ingredient authority; dish-name leftovers only
+  count when the name is all the evidence there is.
+- **Tag derivation** (`Ingestion::TagDeriver`): one strategy per tag
+  family. `allergen` derives from the resolved ingredients' ltree
+  ancestry (`dairy.* → contains-dairy`, plus cross-root exceptions like
+  oyster sauce → shellfish) — **the only code path that emits allergen
+  tags**. `diet` is explicit menu claims with an ingredient-ancestry
+  veto (a resolved meat suppresses a "vegan" claim; never inferred from
+  absence). `prep`/`flavor` are keyword tables. `cuisine` is a weak
+  keyword pass, mostly delegated to gap-fill.
+
+The run transitions to `staged` right here — the verify UI gets
+populated dishes seconds after extraction.
+
+### 2b. Gap-fill (one background LLM call)
+
+Items the resolver flags as gaps (nothing matched, unknown leftover
+phrases, or a composite condiment like "caesar dressing") get ONE
+Haiku call after staging — `GapFillResolveJob`, tracked by
+`ingestion_runs.enrichment_status` (`pending | completed | failed`).
+The prompt carries the **prompt-cached** ingredient catalog plus the
+cuisine-family tag catalog only, and asks solely for what code can't
+do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine
+tags. Merge rules: append-only (`source: "ai"`), unknown slugs
+dropped, only items still `pending`, and allergen/diet tags re-derived
+in code over the merged ingredient set. A gap-fill failure never fails
+the run — it's already staged and usable on deterministic data.
 
 ### 3. Stage
 
-Write to `ingestion_items`:
+Items are materialized at extract time (empty payloads); resolve and
+gap-fill enrich them in place. Every payload row carries provenance:
 
 ```ruby
-IngestionItem.create!(
-  ingestion_run: run,
-  name: "Carne Asada Taco",
-  description: "Grilled steak, cilantro, onion, lime.",
-  ingredients_payload: [
-    { slug: "meat-beef", confidence: 0.97 },
-    { slug: "vegetable.onion", confidence: 0.93 },
-  ],
-  tags_payload: [
-    { slug: "cuisine.mexican", confidence: 0.99 },
-    { slug: "prep.grilled",    confidence: 0.95 },
-  ],
-)
+ingredients_payload: [
+  { slug: "meat-beef",    confidence: 1.0,  source: "match" },  # deterministic
+  { slug: "fish-anchovy", confidence: 0.85, source: "ai"    },  # gap-fill
+],
+tags_payload: [
+  { slug: "contains-fish", confidence: 0.85, source: "ai"      }, # derived from the AI ingredient
+  { slug: "grilled",       confidence: 0.9,  source: "match"   },
+]
 ```
+
+(`source: "derived"` marks a tag derived from a deterministic
+ingredient's ancestry.) Re-ingestion dedup (trgm name-match against
+existing items) remains a **known gap** — re-scanning a restaurant
+still duplicates its menu.
 
 ### 4. Verify
 
@@ -114,5 +139,6 @@ makes the disclaimer truthful.
 
 ## Cost target
 
-Under $0.25 per 50-item menu, end-to-end (extract + resolve + tag).
-Prompt-cached taxonomy is what makes this work.
+Under $0.25 per 50-item menu, end-to-end. Resolve is free (pure code);
+the only per-run LLM spend is extraction plus at most one gap-fill call
+whose prompt-cached catalog prefix costs cents to read.

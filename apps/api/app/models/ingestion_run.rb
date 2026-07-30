@@ -19,7 +19,7 @@ class IngestionRun < ApplicationRecord
 
   JOB_FOR = {
     "extracting" => "ExtractMenuJob",
-    "resolving"  => "ResolveIngredientsJob"
+    "resolving"  => "ResolveItemsJob"
   }.freeze
 
   class InvalidTransition < StandardError; end

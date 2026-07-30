@@ -18,11 +18,14 @@ export function VerifyItemRow({
   runId,
   item,
   enriched,
+  enriching = false,
   onDecided,
 }: {
   runId: string;
   item: IngestionItemPayload;
   enriched: boolean;
+  /** The staged run's background AI gap-fill pass is still running. */
+  enriching?: boolean;
   onDecided: (updated: IngestionItemPayload) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -56,6 +59,14 @@ export function VerifyItemRow({
           </p>
           {item.description && <p className="mt-1 text-sm text-zinc-600">{item.description}</p>}
 
+          {enriched &&
+            enriching &&
+            item.ingredients_payload.length === 0 &&
+            item.tags_payload.length === 0 && (
+              <p className="mt-2 text-xs italic text-zinc-400" data-testid="item-enriching">
+                AI is still checking this dish…
+              </p>
+            )}
           {enriched ? (
             <p className="mt-2 flex flex-wrap gap-1">
               {item.ingredients_payload.map((row) => (

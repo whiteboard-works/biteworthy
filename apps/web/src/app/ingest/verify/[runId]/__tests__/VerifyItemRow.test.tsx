@@ -42,6 +42,19 @@ describe('VerifyItemRow', () => {
     expect(screen.getByText('cuisine-thai')).toBeInTheDocument();
   });
 
+  it('shows an "AI is still checking" hint on a staged, empty-payload dish while gap-fill runs', () => {
+    const empty = { ...item, ingredients_payload: [], tags_payload: [] };
+    render(<VerifyItemRow runId="run-1" item={empty} enriched enriching onDecided={vi.fn()} />);
+
+    expect(screen.getByTestId('item-enriching')).toBeInTheDocument();
+  });
+
+  it('does not show the gap-fill hint once the dish has chips', () => {
+    render(<VerifyItemRow runId="run-1" item={item} enriched enriching onDecided={vi.fn()} />);
+
+    expect(screen.queryByTestId('item-enriching')).not.toBeInTheDocument();
+  });
+
   it('shows "matching…" instead of chips while the run is still enriching', () => {
     render(<VerifyItemRow runId="run-1" item={item} enriched={false} onDecided={vi.fn()} />);
 

@@ -10,6 +10,29 @@ RSpec.describe AnthropicClient::ResponseParser do
     }
   end
 
+  # Single-array-property object schema, the shape bare-array coercion
+  # targets (previously exercised via the deleted Ingestion::ResolutionSchema).
+  let(:items_schema) do
+    {
+      "type" => "object",
+      "required" => ["items"],
+      "properties" => {
+        "items" => {
+          "type" => "array",
+          "items" => {
+            "type" => "object",
+            "required" => %w[index resolved unresolved],
+            "properties" => {
+              "index"      => { "type" => "integer" },
+              "resolved"   => { "type" => "array" },
+              "unresolved" => { "type" => "array" }
+            }
+          }
+        }
+      }
+    }
+  end
+
   it "parses plain strict JSON" do
     expect(described_class.parse_and_validate('{"ok":true}', schema)).to eq("ok" => true)
   end
@@ -40,7 +63,7 @@ RSpec.describe AnthropicClient::ResponseParser do
       # ("property '#/' of type array did not match ... object").
       result = described_class.parse_and_validate(
         '[{"index":0,"resolved":[],"unresolved":[]}]',
-        Ingestion::ResolutionSchema
+        items_schema
       )
       expect(result["items"].first).to include("index" => 0)
     end
@@ -48,7 +71,7 @@ RSpec.describe AnthropicClient::ResponseParser do
     it "coerces a bare array that is also markdown-fenced" do
       result = described_class.parse_and_validate(
         "```json\n[{\"index\":0,\"resolved\":[],\"unresolved\":[]}]\n```",
-        Ingestion::ResolutionSchema
+        items_schema
       )
       expect(result["items"].size).to eq(1)
     end

@@ -69,7 +69,10 @@ export default function VerifyScreen() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
 
-  // Poll the run until staged, then load items once.
+  // Poll the run until staged, then load items. While the background AI
+  // gap-fill pass is still running (enrichment_status: "pending"), keep
+  // polling and merge fresher payloads into the deck by id — never
+  // reorder or re-filter, so the card under the user's thumb stays put.
   useEffect(() => {
     if (!runId || !jwt) return;
     let cancelled = false;
@@ -82,7 +85,15 @@ export default function VerifyScreen() {
         setRun(fresh);
         if (fresh.status === 'staged' || fresh.status === 'published') {
           const list = await listIngestionItems(runId, { jwt });
-          if (!cancelled) setItems(list.filter((it) => it.decision === 'pending'));
+          if (cancelled) return;
+          setItems((prev) =>
+            prev.length === 0
+              ? list.filter((it) => it.decision === 'pending')
+              : prev.map((it) => list.find((f) => f.id === it.id) ?? it),
+          );
+          if (fresh.enrichment_status === 'pending') {
+            timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+          }
           return;
         }
         if (fresh.status === 'failed') return;

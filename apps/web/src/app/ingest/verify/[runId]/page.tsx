@@ -63,8 +63,14 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
       if (['resolving', 'staged', 'published'].includes(latest.status)) {
         setItems(await fetchRunItems(runId));
       }
-      // Keep polling until enrichment settles or the run terminates.
-      if (!['staged', 'published', 'failed'].includes(latest.status)) {
+      // Keep polling until the run terminates AND the background AI
+      // gap-fill pass has settled (the run stages on deterministic
+      // matches; enrichment may still be appending suggestions).
+      const settled =
+        latest.status === 'failed' ||
+        (['staged', 'published'].includes(latest.status) &&
+          latest.enrichment_status !== 'pending');
+      if (!settled) {
         pollTimer.current = setTimeout(() => void refresh(), POLL_MS);
       }
     } catch (e) {
@@ -99,6 +105,7 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
   };
 
   const enriched = run?.status === 'staged' || run?.status === 'published';
+  const enriching = enriched && run?.enrichment_status === 'pending';
   const decidedCount = items?.filter((it) => it.decision !== 'pending').length ?? 0;
   const pendingCount = items?.filter((it) => it.decision === 'pending').length ?? 0;
   const stillWorking = run != null && ['queued', 'extracting', 'resolving'].includes(run.status);
@@ -143,6 +150,9 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
             <div className="text-sm text-zinc-600" role="status">
               <span className="font-semibold text-zinc-900">{items.length} dishes</span>
               {!enriched && <span className="text-zinc-500"> · still matching ingredients &amp; tags…</span>}
+              {enriching && (
+                <span className="text-zinc-500"> · AI double-check still running for some dishes…</span>
+              )}
               <span className="mt-1 block">
                 {decidedCount} of {items.length} decided — accept at least 80% to publish
                 {!enriched && ' (publishing finalizes once matching finishes)'}.
@@ -171,6 +181,7 @@ export default function VerifyRunPage({ params }: { params: Promise<{ runId: str
                     runId={runId}
                     item={it}
                     enriched={enriched}
+                    enriching={enriching}
                     onDecided={onDecided}
                   />
                 ))}

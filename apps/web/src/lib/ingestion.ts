@@ -9,6 +9,11 @@
 export interface IngestionRunPayload {
   id: string;
   status: 'queued' | 'extracting' | 'resolving' | 'staged' | 'published' | 'failed';
+  /**
+   * The run reaches `staged` on deterministic matches alone; the AI
+   * gap-fill pass may still be appending suggestions in the background.
+   */
+  enrichment_status: 'pending' | 'completed' | 'failed';
   input_kind: 'photo' | 'url' | 'pdf';
   restaurant_id: string;
   state_history: Record<string, string>;

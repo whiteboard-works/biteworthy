@@ -31,7 +31,8 @@ RSpec.describe "Ingestion runs API", type: :request do
 
       expect(response).to have_http_status(:created)
       body = response.parsed_body
-      expect(body).to include("status" => "extracting", "input_kind" => "photo", "input_count" => 2)
+      expect(body).to include("status" => "extracting", "input_kind" => "photo", "input_count" => 2,
+                              "enrichment_status" => "pending")
       expect(ExtractMenuJob).to have_received(:perform_later).with(IngestionRun.last.id)
     end
 

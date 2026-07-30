@@ -191,6 +191,11 @@ class AnthropicClient
 
   def connection
     @conn ||= Faraday.new(url: @base_url) do |f|
+      # Read timeout is generous: the non-streaming vision call with an
+      # 8k max_tokens budget legitimately runs minutes. faraday-retry
+      # can multiply the worst case ~3x.
+      f.options.open_timeout = Integer(ENV.fetch("ANTHROPIC_OPEN_TIMEOUT", 10))
+      f.options.timeout      = Integer(ENV.fetch("ANTHROPIC_READ_TIMEOUT", 240))
       f.request  :retry, max: 3,
                           interval: 0.5,
                           backoff_factor: 2,
