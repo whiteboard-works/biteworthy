@@ -116,6 +116,235 @@
         }
       }
     },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "summary": "Ops dashboard: ingestion cost metrics, community spend, queue counts",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "metrics buckets + community counters + queue counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "target_cents_per_item",
+                    "periods",
+                    "community",
+                    "queues"
+                  ],
+                  "properties": {
+                    "target_cents_per_item": {
+                      "type": "number"
+                    },
+                    "periods": {
+                      "type": "object",
+                      "required": [
+                        "today",
+                        "last_7_days",
+                        "last_30_days"
+                      ],
+                      "properties": {
+                        "today": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "run_count",
+                            "item_count",
+                            "total_cost_cents",
+                            "cost_per_item_cents",
+                            "cache_hit_rate"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "run_count": {
+                              "type": "integer"
+                            },
+                            "item_count": {
+                              "type": "integer"
+                            },
+                            "total_cost_cents": {
+                              "type": "integer"
+                            },
+                            "cost_per_item_cents": {
+                              "type": "number"
+                            },
+                            "avg_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "p95_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "cache_hit_rate": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "last_7_days": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "run_count",
+                            "item_count",
+                            "total_cost_cents",
+                            "cost_per_item_cents",
+                            "cache_hit_rate"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "run_count": {
+                              "type": "integer"
+                            },
+                            "item_count": {
+                              "type": "integer"
+                            },
+                            "total_cost_cents": {
+                              "type": "integer"
+                            },
+                            "cost_per_item_cents": {
+                              "type": "number"
+                            },
+                            "avg_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "p95_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "cache_hit_rate": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "last_30_days": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "run_count",
+                            "item_count",
+                            "total_cost_cents",
+                            "cost_per_item_cents",
+                            "cache_hit_rate"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "run_count": {
+                              "type": "integer"
+                            },
+                            "item_count": {
+                              "type": "integer"
+                            },
+                            "total_cost_cents": {
+                              "type": "integer"
+                            },
+                            "cost_per_item_cents": {
+                              "type": "number"
+                            },
+                            "avg_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "p95_latency_ms": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "cache_hit_rate": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "community": {
+                      "type": "object",
+                      "required": [
+                        "runs_today",
+                        "spend_today_cents",
+                        "ceiling_cents"
+                      ],
+                      "properties": {
+                        "runs_today": {
+                          "type": "integer"
+                        },
+                        "spend_today_cents": {
+                          "type": "integer"
+                        },
+                        "ceiling_cents": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "queues": {
+                      "type": "object",
+                      "required": [
+                        "flagged_reviews",
+                        "pending_suggestions",
+                        "community_published_restaurants",
+                        "staged_runs"
+                      ],
+                      "properties": {
+                        "flagged_reviews": {
+                          "type": "integer"
+                        },
+                        "pending_suggestions": {
+                          "type": "integer"
+                        },
+                        "community_published_restaurants": {
+                          "type": "integer"
+                        },
+                        "staged_runs": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          },
+          "404": {
+            "description": "authenticated but not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "summary": "Log in with email + password",
@@ -347,6 +576,45 @@
         "responses": {
           "204": {
             "description": "account deleted — personal data removed, menu-graph attribution nulled"
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "summary": "Read the caller's own identity payload",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt>",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the caller's user payload (incl. is_admin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "missing or invalid bearer token"
@@ -846,7 +1114,8 @@
         "required": [
           "id",
           "email",
-          "handle"
+          "handle",
+          "is_admin"
         ],
         "properties": {
           "id": {
@@ -863,6 +1132,9 @@
           "display_name": {
             "type": "string",
             "nullable": true
+          },
+          "is_admin": {
+            "type": "boolean"
           },
           "provider": {
             "type": "string",

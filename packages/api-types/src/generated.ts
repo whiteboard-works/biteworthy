@@ -67,6 +67,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ops dashboard: ingestion cost metrics, community spend, queue counts */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description metrics buckets + community counters + queue counts */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            target_cents_per_item: number;
+                            periods: {
+                                today: {
+                                    label: string;
+                                    run_count: number;
+                                    item_count: number;
+                                    total_cost_cents: number;
+                                    cost_per_item_cents: number;
+                                    avg_latency_ms?: number | null;
+                                    p95_latency_ms?: number | null;
+                                    cache_hit_rate: number;
+                                };
+                                last_7_days: {
+                                    label: string;
+                                    run_count: number;
+                                    item_count: number;
+                                    total_cost_cents: number;
+                                    cost_per_item_cents: number;
+                                    avg_latency_ms?: number | null;
+                                    p95_latency_ms?: number | null;
+                                    cache_hit_rate: number;
+                                };
+                                last_30_days: {
+                                    label: string;
+                                    run_count: number;
+                                    item_count: number;
+                                    total_cost_cents: number;
+                                    cost_per_item_cents: number;
+                                    avg_latency_ms?: number | null;
+                                    p95_latency_ms?: number | null;
+                                    cache_hit_rate: number;
+                                };
+                            };
+                            community: {
+                                runs_today: number;
+                                spend_today_cents: number;
+                                ceiling_cents: number;
+                            };
+                            queues: {
+                                flagged_reviews: number;
+                                pending_suggestions: number;
+                                community_published_restaurants: number;
+                                staged_runs: number;
+                            };
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -286,6 +386,52 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the caller's own identity payload */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the caller's user payload (incl. is_admin) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -531,6 +677,7 @@ export interface components {
             email: string;
             handle: string;
             display_name?: string | null;
+            is_admin: boolean;
             /** @enum {string|null} */
             provider?: "google_oauth2" | "apple" | null;
         };

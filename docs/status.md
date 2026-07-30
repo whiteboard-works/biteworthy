@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-30 — Web-admin workstream A1: admin auth foundation. New `Api::V1::Admin::BaseController` (`require_admin!` → unrevealing 404, matching the owner-or-404 precedent), `GET /api/v1/me` (re-reads the payload without `auth/refresh`'s jti rotation), `GET /api/v1/admin/dashboard` (JSON twin of the ERB cost dashboard + queue counts for nav badges), `is_admin` added to `user_payload`/`UserPayload` (required — regenerates web+mobile types, additive), `Biteworthy::AdminRoster` + `admin:grant/revoke/sync` rake tasks (idempotent; never pre-creates users). Kicks off the admin-backoffice workstream (see roadmap): full web /admin in `apps/web`, Avo retired at the end. Branch `feature/admin-auth-foundation`. MANUAL: set `ADMIN_EMAILS` in Kamal secrets + run `bin/rails admin:sync` after deploy.
+
 2026-07-30 — Mobile verify deck renders re-scan update cards: "Updates ‹name›" badge, description/price → diff lines, green `+slug` rows, "✓ Accept update" action; absent `match` field renders today's card (deploy-skew guard). Branch `feature/mobile-rescan-update-cards`. Closes out the re-scan dedup + diff/merge arc (API matching #463, apply #464, web #465).
 
 2026-07-30 — Web verify renders re-scan update cards: amber "Updates ‹name›" badge, strikethrough→new diff for description/prices, green `+slug` chips for added ingredients/tags, "Accept update" button label, "Already on the menu" for no-change matches. Absent `match` field falls back to today's create card (deploy-skew guard). Branch `feature/web-rescan-update-cards`.
