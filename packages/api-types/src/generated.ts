@@ -167,6 +167,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ingestion_runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cross-user ingestion runs queue */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Filter by run status (unknown values are ignored) */
+                    status?: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
+                    /** @description Only runs scanned by non-admin users */
+                    community?: "true";
+                    /** @description Filter to one restaurant */
+                    restaurant_id?: string;
+                    /** @description Page size (default 25, max 100) */
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description runs newest-first + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            runs: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                status: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
+                                enrichment_status?: string | null;
+                                input_kind?: string;
+                                failure_message?: string | null;
+                                api_cost_cents?: number | null;
+                                /** Format: date-time */
+                                created_at?: string;
+                                user?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    handle?: string;
+                                    email?: string;
+                                    is_admin?: boolean;
+                                } | null;
+                                restaurant?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                    /** @enum {string} */
+                                    status?: "draft" | "published" | "closed";
+                                } | null;
+                                decision_counts: {
+                                    pending: number;
+                                    accepted: number;
+                                    rejected: number;
+                                    edited: number;
+                                };
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ingestion_runs/{id}/re_extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rewind a run to :queued and re-fire extraction */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description run rewound and ExtractMenuJob enqueued */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "queued";
+                        };
+                    };
+                };
+                /** @description run is already published — its items are live */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/confirm_community": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Graduate community data to strict-mode visibility
+         * @description Flips the restaurant's suggested human-sourced joins to confirmed, then graduates items whose every association is confirmed. Idempotent.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description counts of rows flipped by this call */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            confirmed: {
+                                items: number;
+                                ingredients: number;
+                                tags: number;
+                            };
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -386,6 +603,241 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                ingestion_run_id: string;
+            };
+            cookie?: never;
+        };
+        /** List a run's staged items (owner or admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    ingestion_run_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description items in position order */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["IngestionItemPayload"][];
+                        };
+                    };
+                };
+                /** @description not the run's creator and not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                ingestion_run_id: string;
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Decide a staged item: accept / edit / reject / undo */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    ingestion_run_id: string;
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        decision: "accepted" | "edited" | "rejected" | "pending";
+                        name?: string;
+                        description?: string;
+                        ingredients_payload?: {
+                            [key: string]: unknown;
+                        }[];
+                        tags_payload?: {
+                            [key: string]: unknown;
+                        }[];
+                        addons_payload?: {
+                            [key: string]: unknown;
+                        }[];
+                        unresolved_ingredients?: string[];
+                        unresolved_tags?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IngestionItemPayload"];
+                    };
+                };
+                /** @description unknown decision value */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            allowed?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/ingestion_runs/{ingestion_run_id}/items/accept_all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                ingestion_run_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk-accept every still-pending item */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    ingestion_run_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description all items after the bulk accept */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["IngestionItemPayload"][];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion_runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Read a run's status + counters (owner or admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> — the run's creator or an admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the run */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IngestionRunPayload"];
+                    };
+                };
+                /** @description someone else's run (deliberately not 403), or unknown id */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -664,6 +1116,81 @@ export interface components {
     schemas: {
         Error: {
             error?: string;
+        };
+        Pagination: {
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        IngestionItemPayload: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            ingestion_run_id: string;
+            /** Format: uuid */
+            item_id?: string | null;
+            position?: number | null;
+            name: string;
+            description?: string | null;
+            section_name?: string | null;
+            /** @enum {string} */
+            decision: "pending" | "accepted" | "rejected" | "edited";
+            /** Format: date-time */
+            decided_at?: string | null;
+            ingredients_payload?: {
+                [key: string]: unknown;
+            }[];
+            tags_payload?: {
+                [key: string]: unknown;
+            }[];
+            prices_payload?: {
+                [key: string]: unknown;
+            }[];
+            addons_payload?: {
+                [key: string]: unknown;
+            }[];
+            unresolved_ingredients?: string[];
+            unresolved_tags?: string[];
+            match?: {
+                /** Format: uuid */
+                item_id?: string;
+                score?: number | null;
+                existing?: {
+                    name?: string;
+                    description?: string | null;
+                    prices?: {
+                        [key: string]: unknown;
+                    }[];
+                };
+                diff?: {
+                    [key: string]: unknown;
+                };
+                no_changes?: boolean;
+            } | null;
+        };
+        IngestionRunPayload: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
+            /** @enum {string|null} */
+            enrichment_status?: "pending" | "completed" | "failed" | null;
+            /** @enum {string} */
+            input_kind?: "photo" | "url" | "pdf" | "text";
+            /** Format: uuid */
+            restaurant_id: string;
+            state_history?: {
+                [key: string]: unknown;
+            };
+            failure_message?: string | null;
+            api_cost_cents?: number | null;
+            latency_ms?: number | null;
+            input_count?: number;
+            ingestion_items_count?: number;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
         };
         ValidationErrors: {
             errors?: {
