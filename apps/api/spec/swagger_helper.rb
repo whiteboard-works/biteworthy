@@ -102,9 +102,9 @@ RSpec.configure do |config|
             properties: {
               id:                { type: :string, format: :uuid },
               status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
-              enrichment_status: { type: :string, nullable: true, enum: %w[pending completed failed] },
+              enrichment_status: { type: :string, enum: %w[pending completed failed] },
               input_kind:        { type: :string, enum: %w[photo url pdf text] },
-              restaurant_id:     { type: :string, format: :uuid },
+              restaurant_id:     { type: :string, format: :uuid, nullable: true },
               state_history:     { type: :object, additionalProperties: true },
               failure_message:   { type: :string, nullable: true },
               api_cost_cents:    { type: :integer, nullable: true },

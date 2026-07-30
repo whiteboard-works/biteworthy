@@ -209,7 +209,7 @@ export interface paths {
                                 id: string;
                                 /** @enum {string} */
                                 status: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
-                                enrichment_status?: string | null;
+                                enrichment_status?: string;
                                 input_kind?: string;
                                 failure_message?: string | null;
                                 api_cost_cents?: number | null;
@@ -302,7 +302,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description run is already published — its items are live */
+                /** @description refused: already_published, or has_promoted_items (a staged row already materialized a live Item — undo accepts first) */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1173,12 +1173,12 @@ export interface components {
             id: string;
             /** @enum {string} */
             status: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
-            /** @enum {string|null} */
-            enrichment_status?: "pending" | "completed" | "failed" | null;
+            /** @enum {string} */
+            enrichment_status?: "pending" | "completed" | "failed";
             /** @enum {string} */
             input_kind?: "photo" | "url" | "pdf" | "text";
             /** Format: uuid */
-            restaurant_id: string;
+            restaurant_id: string | null;
             state_history?: {
                 [key: string]: unknown;
             };

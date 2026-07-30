@@ -3,19 +3,24 @@ require "swagger_helper"
 # Documents the existing verify endpoints (no behavior change): the
 # item list, the per-item decision PATCH, and bulk accept_all. The
 # creator-or-admin gate returns 403 for anyone else.
-RSpec.describe "ingestion_runs/items", type: :request do
-  def bearer_for(user)
-    token, _ = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
-    "Bearer #{token}"
-  end
-
-  ITEMS_RESPONSE = {
+# Shared response shape for the two list-returning operations (a
+# method, not a constant — a constant inside the describe block leaks
+# onto Object).
+def ingestion_items_response_schema
+  {
     type: :object,
     required: %w[items],
     properties: {
       items: { type: :array, items: { "$ref" => "#/components/schemas/IngestionItemPayload" } }
     }
-  }.freeze
+  }
+end
+
+RSpec.describe "ingestion_runs/items", type: :request do
+  def bearer_for(user)
+    token, _ = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
+    "Bearer #{token}"
+  end
 
   path "/api/v1/ingestion_runs/{ingestion_run_id}/items" do
     parameter name: :ingestion_run_id, in: :path, type: :string, format: :uuid
@@ -27,7 +32,7 @@ RSpec.describe "ingestion_runs/items", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
 
       response(200, "items in position order") do
-        schema ITEMS_RESPONSE
+        schema ingestion_items_response_schema
         let(:account) { create(:user) }
         let(:Authorization) { bearer_for(account) }
         let(:ingestion_run_id) do
@@ -113,7 +118,7 @@ RSpec.describe "ingestion_runs/items", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
 
       response(200, "all items after the bulk accept") do
-        schema ITEMS_RESPONSE
+        schema ingestion_items_response_schema
         let(:account) { create(:user) }
         let(:Authorization) { bearer_for(account) }
         let(:ingestion_run_id) do

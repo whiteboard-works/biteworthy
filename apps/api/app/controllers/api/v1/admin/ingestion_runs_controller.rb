@@ -41,6 +41,8 @@ module Api
           render json: { id: run.id, status: run.status }
         rescue Ingestion::ReExtractRun::AlreadyPublished
           render json: { error: "already_published" }, status: :unprocessable_entity
+        rescue Ingestion::ReExtractRun::HasPromotedItems
+          render json: { error: "has_promoted_items" }, status: :unprocessable_entity
         end
 
         private

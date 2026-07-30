@@ -462,8 +462,7 @@
                             ]
                           },
                           "enrichment_status": {
-                            "type": "string",
-                            "nullable": true
+                            "type": "string"
                           },
                           "input_kind": {
                             "type": "string"
@@ -631,7 +630,7 @@
             }
           },
           "422": {
-            "description": "run is already published — its items are live",
+            "description": "refused: already_published, or has_promoted_items (a staged row already materialized a live Item — undo accepts first)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1978,7 +1977,6 @@
           },
           "enrichment_status": {
             "type": "string",
-            "nullable": true,
             "enum": [
               "pending",
               "completed",
@@ -1996,7 +1994,8 @@
           },
           "restaurant_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true
           },
           "state_history": {
             "type": "object",

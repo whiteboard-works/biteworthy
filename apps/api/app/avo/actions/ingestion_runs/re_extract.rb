@@ -8,12 +8,13 @@ class Avo::Actions::IngestionRuns::ReExtract < Avo::BaseAction
     skipped = 0
     query.each do |run|
       Ingestion::ReExtractRun.call(run)
-    rescue Ingestion::ReExtractRun::AlreadyPublished
-      skipped += 1 # Don't blow up an already-published run
+    rescue Ingestion::ReExtractRun::AlreadyPublished,
+           Ingestion::ReExtractRun::HasPromotedItems
+      skipped += 1 # Live data — don't blow it up from a bulk action
     end
 
     msg = +"Re-extraction enqueued for #{query.size - skipped} run(s)."
-    msg << " Skipped #{skipped} published." if skipped.positive?
+    msg << " Skipped #{skipped} with live items." if skipped.positive?
     succeed msg
   end
 end

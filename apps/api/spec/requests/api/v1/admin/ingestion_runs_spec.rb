@@ -85,6 +85,37 @@ RSpec.describe "Admin ingestion runs", type: :request do
       )
     end
 
+    it "clears un-promoted staged rows so the fresh extraction doesn't double the deck" do
+      run = create(:ingestion_run, :staged, user: scanner)
+      create(:ingestion_item, ingestion_run: run)
+      create(:ingestion_item, :rejected, ingestion_run: run)
+
+      post "/api/v1/admin/ingestion_runs/#{run.id}/re_extract",
+           headers: auth_headers_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(run.reload.status).to eq("queued")
+      expect(run.ingestion_items.count).to eq(0)
+    end
+
+    it "refuses a staged run that already promoted an Item — re-extracting would orphan it" do
+      run  = create(:ingestion_run, :staged, user: scanner)
+      item = create(:item, restaurant: run.restaurant)
+      create(:ingestion_item, ingestion_run: run, decision: "accepted", item: item)
+      pending_row = create(:ingestion_item, ingestion_run: run)
+
+      post "/api/v1/admin/ingestion_runs/#{run.id}/re_extract",
+           headers: auth_headers_for(admin)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("error" => "has_promoted_items")
+      expect(run.reload.status).to eq("staged")
+      # Nothing was deleted — the refusal left the run untouched.
+      expect(run.ingestion_items.ids).to contain_exactly(
+        run.ingestion_items.find_by(decision: "accepted").id, pending_row.id
+      )
+    end
+
     it "refuses a published run — its items are already live" do
       run = create(:ingestion_run, user: scanner, status: "published")
 

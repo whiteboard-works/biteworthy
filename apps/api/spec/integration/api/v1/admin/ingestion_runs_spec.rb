@@ -37,7 +37,7 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                      properties: {
                        id:                { type: :string, format: :uuid },
                        status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
-                       enrichment_status: { type: :string, nullable: true },
+                       enrichment_status: { type: :string },
                        input_kind:        { type: :string },
                        failure_message:   { type: :string, nullable: true },
                        api_cost_cents:    { type: :integer, nullable: true },
@@ -121,7 +121,7 @@ RSpec.describe "admin/ingestion_runs", type: :request do
         run_test!
       end
 
-      response(422, "run is already published — its items are live") do
+      response(422, "refused: already_published, or has_promoted_items (a staged row already materialized a live Item — undo accepts first)") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id) { create(:ingestion_run, status: "published").id }
