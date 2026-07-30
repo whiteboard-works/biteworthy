@@ -19,7 +19,10 @@ module Biteworthy
     # Returns :granted, :already_admin, or :missing.
     def grant(email)
       with_user(email) do |user|
-        return :already_admin if user.is_admin?
+        if user.is_admin?
+          log "already admin — #{user.email}"
+          return :already_admin
+        end
 
         user.update!(is_admin: true)
         log "granted admin → #{user.email} (#{user.id})"
@@ -30,7 +33,10 @@ module Biteworthy
     # Returns :revoked, :not_admin, or :missing.
     def revoke(email)
       with_user(email) do |user|
-        return :not_admin unless user.is_admin?
+        unless user.is_admin?
+          log "not an admin — #{user.email}"
+          return :not_admin
+        end
 
         user.update!(is_admin: false)
         log "revoked admin → #{user.email} (#{user.id})"

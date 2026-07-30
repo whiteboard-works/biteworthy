@@ -21,7 +21,7 @@ namespace :admin do
     Biteworthy::AdminRoster.new.revoke(args[:email])
   end
 
-  desc "Grant is_admin to every email in ADMIN_EMAILS (comma-separated)"
+  desc "Grant is_admin to every email in ADMIN_EMAILS (comma-separated; never revokes)"
   task sync: :environment do
     abort("ADMIN_EMAILS must be set") if ENV["ADMIN_EMAILS"].blank?
     Biteworthy::AdminRoster.new.sync(ENV["ADMIN_EMAILS"])
