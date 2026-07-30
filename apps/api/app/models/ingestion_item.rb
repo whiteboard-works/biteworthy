@@ -91,6 +91,17 @@ class IngestionItem < ApplicationRecord
         )
       end
 
+      # A size with no price is noise, not a variant — skip it.
+      Array(prices_payload).each_with_index do |row, index|
+        price_cents = row["price_cents"] || row[:price_cents]
+        next if price_cents.blank?
+
+        ItemVariant.create!(
+          item: created, size: row["size"] || row[:size],
+          price_cents: price_cents, position: index
+        )
+      end
+
       attach_dish_photo!(created)
 
       update!(item: created, decision: "accepted", decided_at: Time.current)

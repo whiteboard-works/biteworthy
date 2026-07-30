@@ -19,6 +19,8 @@ the Phase 5 pause) are archived in
 
 2026-07-30 — Re-scan matching ships dark: ResolveItemsJob now links staged items to the restaurant's existing Items (`Ingestion::ExistingItemMatcher` — normalized-token exact, else trgm ≥ 0.60 + token-subset veto; greedy 1:1) and the verify API serializes a `match` block with a serialize-time diff (`Ingestion::ItemUpdateDiff`). Accept still creates (dark) — apply-on-accept is the next PR. Threshold calibrated against live pg_trgm probes: raw similarity cannot separate "Chicken Burrito|Chicken Burrito Bowl" (0.800) from plurals (0.842), hence the subset veto instead of the originally-planned 0.70 raw threshold. Branch `feature/ingestion-rescan-matching`.
 
+2026-07-30 — `promote!` now materializes `prices_payload` as `ItemVariant` rows (size + price_cents, payload order; priceless rows skipped). Previously extracted prices were silently dropped at accept. Branch `fix/promote-prices-item-variants`. First PR of the re-scan dedup + diff/merge arc (matching + apply-update PRs follow).
+
 2026-07-29 — Add-on guard: "Add X for $3" upsell lines no longer stage as dishes. Branch `feature/ingestion-addon-guard`.
 
 - Extraction prompt + schema now classify add-on lines and nest them under the

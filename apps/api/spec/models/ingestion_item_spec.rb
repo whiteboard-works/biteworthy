@@ -109,6 +109,51 @@ RSpec.describe IngestionItem, type: :model do
       end
     end
 
+    # Extraction captures per-size prices into prices_payload; promote!
+    # must land them as ItemVariant rows or the data is silently dropped
+    # at the exact moment a human confirmed it.
+    describe "prices_payload" do
+      it "creates an ItemVariant per priced row, preserving payload order" do
+        item.update!(prices_payload: [
+          { "size" => "small", "price_cents" => 450 },
+          { "size" => "large", "price_cents" => 750 }
+        ])
+
+        promoted = item.promote!
+
+        expect(promoted.item_variants.order(:position).pluck(:size, :price_cents, :position))
+          .to eq([["small", 450, 0], ["large", 750, 1]])
+      end
+
+      it "skips rows without a price — a bare size is noise, not a variant" do
+        item.update!(prices_payload: [
+          { "size" => "market", "price_cents" => nil },
+          { "size" => nil, "price_cents" => 1200 }
+        ])
+
+        promoted = item.promote!
+
+        expect(promoted.item_variants.pluck(:size, :price_cents)).to eq([[nil, 1200]])
+      end
+
+      it "creates no variants when prices_payload is empty" do
+        item.update!(prices_payload: [])
+
+        promoted = item.promote!
+        expect(promoted.item_variants).to be_empty
+      end
+
+      it "does not duplicate variants on idempotent re-promote" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 450 }])
+
+        first  = item.promote!
+        second = item.promote!
+
+        expect(second).to eq(first)
+        expect(first.item_variants.count).to eq(1)
+      end
+    end
+
     # Phase 4.11.3 — when Anthropic vision marked a per-dish photo on
     # the source page (image_bbox jsonb populated by 4.11.2), promote!
     # crops it out and attaches it to the new Item. Must be best-effort
