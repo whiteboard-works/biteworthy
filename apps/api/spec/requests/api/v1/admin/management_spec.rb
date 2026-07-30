@@ -13,7 +13,9 @@ RSpec.describe "Admin management endpoints", type: :request do
   describe "restaurants" do
     it "lists with status filter and suggested-items counts" do
       needs_review = create(:restaurant, :published)
-      create(:item, restaurant: needs_review, confidence: "suggested")
+      # Asymmetric on purpose: keying the count on the wrong confidence
+      # must fail the assertion.
+      2.times { create(:item, restaurant: needs_review, confidence: "suggested") }
       create(:item, restaurant: needs_review, confidence: "confirmed")
       create(:restaurant, name: "Draft Cafe", status: "draft")
 
@@ -23,7 +25,7 @@ RSpec.describe "Admin management endpoints", type: :request do
       expect(response).to have_http_status(:ok)
       rows = response.parsed_body["restaurants"]
       expect(rows.map { |r| r["id"] }).to eq([needs_review.id])
-      expect(rows.first).to include("items_count" => 2, "suggested_items_count" => 1)
+      expect(rows.first).to include("items_count" => 3, "suggested_items_count" => 2)
     end
 
     it "updates fields + status but refuses slug changes" do

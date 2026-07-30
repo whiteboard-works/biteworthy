@@ -20,7 +20,7 @@ module Api
         def index
           restaurant = Restaurant.find(params[:restaurant_id])
           scope = Item.where(restaurant_id: restaurant.id)
-                      .order(:menu_section_id, :name)
+                      .order(:menu_section_id, :name, :id) # :id — stable pagination on name ties
                       .includes(:item_variants)
           scope = scope.where(status: params[:status]) if Item::STATUSES.include?(params[:status].to_s)
 
@@ -38,8 +38,12 @@ module Api
           item = Item.find(params[:id])
 
           attrs = {}
-          attrs[:name]        = params[:name] if params.key?(:name)
-          attrs[:description] = params[:description] if params.key?(:description)
+          # Scalar-only — see RestaurantsController#update.
+          %i[name description].each do |field|
+            next unless params.key?(field)
+            value = params[field]
+            attrs[field] = value if value.nil? || value.is_a?(String)
+          end
           if params.key?(:status)
             unless Item::STATUSES.include?(params[:status].to_s)
               render json: { error: "invalid_status", allowed: Item::STATUSES },
@@ -59,6 +63,7 @@ module Api
           {
             id:               item.id,
             restaurant_id:    item.restaurant_id,
+            menu_section_id:  item.menu_section_id,
             name:             item.name,
             description:      item.description,
             status:           item.status,

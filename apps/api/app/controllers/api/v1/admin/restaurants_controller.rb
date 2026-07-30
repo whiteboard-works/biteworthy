@@ -69,7 +69,11 @@ module Api
 
           attrs = {}
           %i[name about website phone status].each do |field|
-            attrs[field] = params[field] if params.key?(field)
+            next unless params.key?(field)
+            # Scalar-only: a nested hash param would otherwise be
+            # stringified into the column by the type cast.
+            value = params[field]
+            attrs[field] = value if value.nil? || value.is_a?(String)
           end
           restaurant.update!(attrs)
 
