@@ -33,8 +33,29 @@ linear human path from "code complete" to launch.
 1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
 2. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
-**No remaining loop-shippable work.** Every loop-shippable launch piece
-is on master; the remaining queue is entirely human-credential-gated.
+**Admin backoffice workstream** (started 2026-07-30, session-driven —
+not the loop): move all admin capability into a first-class `/admin`
+section of `apps/web`, backed by a new `Api::V1::Admin` JSON namespace;
+Avo + the ERB `/admin/dashboard` are retired in the final PR. Sequence
+(A = API PR, W = web PR, interleaved so each capability is testable as
+it lands):
+
+- [x] A1 — admin auth foundation: `require_admin!` (404) base controller, `GET /api/v1/me`, `GET /api/v1/admin/dashboard`, `is_admin` in `UserPayload`, `admin:grant/revoke/sync` rake tasks
+- [ ] W1 — web /admin shell: server layout guard via `/me`, nav, header link, `adminProxy` (no-store), robots/noindex
+- [ ] W2 — ops dashboard page (cost buckets, community spend vs ceiling, queue badges)
+- [ ] A2 — admin ingestion moderation: cross-user runs index, re-extract (extracted from Avo action), confirm-community; rswag for the 4 existing ingestion endpoints
+- [ ] W3 — ingestion moderation UI (runs queue, item review, confirm-community)
+- [ ] A3 — review + suggestion moderation endpoints
+- [ ] W4 — review + suggestions queue pages
+- [ ] A4 — taxonomy CRUD (slug/path/family immutable; referenced deletes 409)
+- [ ] W5 — taxonomy editor pages
+- [ ] A5 — restaurant/item/user management (status writes incl. `removed`, `is_admin` toggle w/ self-demotion guard)
+- [ ] W6 — restaurants/items/users pages
+- [ ] F1 — retire Avo (gem, resources, ERB dashboard, `basicAuth` scheme, `ADMIN_USERNAME`/`ADMIN_PASSWORD`)
+
+Other than that workstream, **no remaining loop-shippable work.** Every
+loop-shippable launch piece is on master; the remaining queue is
+entirely human-credential-gated.
 
 ## Open follow-ups
 

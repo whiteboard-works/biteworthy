@@ -118,6 +118,16 @@ Rails.application.routes.draw do
           collection { post :accept_all }
         end
       end
+      # The caller's own identity incl. `is_admin` — the web /admin
+      # guard's probe. Read-only on purpose: auth/refresh also returns
+      # the user payload but rotates the jti, killing other sessions.
+      get "/me", to: "me#show"
+      # Web-admin backoffice JSON namespace. Admin-only; non-admins get
+      # 404 (see Api::V1::Admin::BaseController). Replaces Avo + the
+      # ERB /admin/dashboard capability by capability.
+      namespace :admin do
+        get :dashboard, to: "dashboards#show"
+      end
     end
   end
 

@@ -16,7 +16,8 @@ module AuthTokenResponse
       id: user.id,
       email: user.email,
       handle: user.handle,
-      display_name: user.display_name
+      display_name: user.display_name,
+      is_admin: user.is_admin
     }
     payload[:provider] = user.provider if include_provider
     payload

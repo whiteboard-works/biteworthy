@@ -55,12 +55,13 @@ RSpec.configure do |config|
           },
           UserPayload: {
             type: :object,
-            required: %w[id email handle],
+            required: %w[id email handle is_admin],
             properties: {
               id:           { type: :string, format: :uuid },
               email:        { type: :string, format: :email },
               handle:       { type: :string },
               display_name: { type: :string, nullable: true },
+              is_admin:     { type: :boolean },
               provider:     { type: :string, nullable: true,
                               enum: %w[google_oauth2 apple] }
             }

@@ -19,5 +19,9 @@ FactoryBot.define do
     # in Phase 4. No-op for now.
     trait :confirmed do
     end
+
+    trait :admin do
+      is_admin { true }
+    end
   end
 end
