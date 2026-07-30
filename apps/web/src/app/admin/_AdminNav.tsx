@@ -10,7 +10,10 @@ import { usePathname } from 'next/navigation';
  * regenerate route types, so Vercel's build is where this actually
  * bites.)
  */
-const TABS = [{ href: '/admin', label: 'Dashboard' }] as const;
+const TABS = [
+  { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/runs', label: 'Runs' },
+] as const;
 
 export function AdminNav() {
   const pathname = usePathname();
