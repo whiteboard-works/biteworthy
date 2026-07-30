@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -148,6 +148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_120000) do
 
   create_table "ingestion_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "addons_payload", default: [], null: false
+    t.jsonb "applied_changes"
     t.datetime "created_at", null: false
     t.datetime "decided_at"
     t.string "decision", default: "pending", null: false

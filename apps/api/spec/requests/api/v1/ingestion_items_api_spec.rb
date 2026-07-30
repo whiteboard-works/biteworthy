@@ -327,10 +327,10 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
     end
   end
 
-  # Re-scan dedup PR boundary: the match + diff serialize so clients can
-  # render update cards, but accept still CREATES — the apply-on-accept
-  # path ships separately. These examples prove the feature is dark.
-  describe "re-scan matching (serialization only)" do
+  # Re-scan dedup: matched items serialize a match block + diff, and
+  # accepting one APPLIES the scan to the existing Item instead of
+  # creating a duplicate. Undo restores what the accept changed.
+  describe "re-scan matching" do
     let!(:existing_item) do
       create(:item, restaurant: restaurant, name: "Carne Asada Taco",
                     description: "The original.", status: "published", confidence: "confirmed")
@@ -371,13 +371,70 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(row["match"]).to be_nil
     end
 
-    it "accepting a matched item still creates a new Item (apply ships in the next PR)" do
+    it "accepting a matched item applies the update instead of creating a duplicate" do
       expect {
         patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
               params: { decision: "accepted" }.to_json, headers: auth_for(admin)
+      }.not_to change(Item, :count)
+
+      expect(response.parsed_body["item_id"]).to eq(existing_item.id)
+      existing_item.reload
+      expect(existing_item.description).to eq(item.description)
+      expect(existing_item.item_variants.pluck(:price_cents)).to eq([450])
+      expect(existing_item.ingredients).to include(beef)
+    end
+
+    # The headline regression: before the apply path shipped, undoing an
+    # accepted card destroyed whatever item_id pointed at — for an
+    # update-accept that would delete a pre-existing live menu item.
+    it "undo after an update-accept restores the Item, never destroys it" do
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: { decision: "accepted" }.to_json, headers: auth_for(admin)
+      expect(response.parsed_body["item_id"]).to eq(existing_item.id)
+
+      expect {
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "pending" }.to_json, headers: auth_for(admin)
+      }.not_to change(Item, :count)
+
+      expect(Item.exists?(existing_item.id)).to be true
+      existing_item.reload
+      expect(existing_item.description).to eq("The original.")
+      expect(existing_item.item_variants.pluck(:price_cents)).to eq([400])
+
+      body = response.parsed_body
+      expect(body["decision"]).to eq("pending")
+      expect(body["item_id"]).to be_nil
+      expect(body["match"]["item_id"]).to eq(existing_item.id)
+    end
+
+    it "accept_all applies updates and creates side by side" do
+      fresh = create(:ingestion_item, ingestion_run: run, name: "Pad Thai", position: 9,
+                                      ingredients_payload: [], tags_payload: [])
+
+      expect {
+        post "/api/v1/ingestion_runs/#{run.id}/items/accept_all", headers: auth_for(admin)
       }.to change(Item, :count).by(1)
 
-      expect(response.parsed_body["item_id"]).not_to eq(existing_item.id)
+      expect(item.reload.item_id).to eq(existing_item.id)
+      expect(fresh.reload.item_id).to be_present
+      expect(fresh.item_id).not_to eq(existing_item.id)
+    end
+
+    it "a community update-accept downgrades a confirmed Item to suggested" do
+      community_run = create(:ingestion_run, :staged, restaurant: restaurant, user: non_admin)
+      community_item = create(:ingestion_item,
+                              ingestion_run: community_run, name: "Carne Asada Taco",
+                              matched_item_id: existing_item.id, match_score: 1.0,
+                              ingredients_payload: [{ "slug" => "meat-beef", "confidence" => 0.9 }],
+                              tags_payload: [])
+
+      patch "/api/v1/ingestion_runs/#{community_run.id}/items/#{community_item.id}",
+            params: { decision: "accepted" }.to_json, headers: auth_for(non_admin)
+
+      existing_item.reload
+      expect(existing_item.confidence).to eq("suggested")
+      expect(existing_item.item_ingredients.pluck(:confidence)).to all(eq("suggested"))
     end
   end
 
