@@ -79,6 +79,7 @@ export default function AdminRunPage({ params }: { params: Promise<{ runId: stri
   const onReExtract = async () => {
     setBusy('re_extract');
     setError(null);
+    setConfirmResult(null);
     try {
       await reExtractRun(runId);
       await refresh();
@@ -143,6 +144,7 @@ export default function AdminRunPage({ params }: { params: Promise<{ runId: stri
             label="Re-extract"
             confirmLabel="Confirm — wipe staged cards and re-extract"
             busy={busy === 're_extract'}
+            disabled={busy !== null && busy !== 're_extract'}
             onConfirm={() => void onReExtract()}
             testId="run-re-extract"
           />
@@ -169,6 +171,7 @@ export default function AdminRunPage({ params }: { params: Promise<{ runId: stri
           <ConfirmButton
             label="Confirm community menu"
             busy={busy === 'confirm'}
+            disabled={busy !== null && busy !== 'confirm'}
             onConfirm={() => void onConfirmCommunity()}
             testId="confirm-community"
           />
@@ -189,7 +192,15 @@ export default function AdminRunPage({ params }: { params: Promise<{ runId: stri
 
       {run && !items && !error && (
         <p role="status" className="text-bw-sm text-zinc-500">
-          No reviewable items yet — the run is {run.status}. Refresh once extraction finishes.
+          {run.status === 'failed'
+            ? 'Extraction failed — Re-extract to retry.'
+            : `No reviewable items yet — the run is ${run.status}. Refresh once extraction finishes.`}
+        </p>
+      )}
+
+      {items && items.length === 0 && (
+        <p role="status" className="text-bw-sm text-zinc-500">
+          The extraction staged no items on this run.
         </p>
       )}
 
@@ -205,7 +216,7 @@ export default function AdminRunPage({ params }: { params: Promise<{ runId: stri
               <button
                 type="button"
                 onClick={() => void onAcceptAll()}
-                disabled={busy === 'accept_all'}
+                disabled={busy !== null}
                 data-testid="admin-accept-all"
                 className="rounded-bw-md bg-ok px-bw-3 py-bw-1 font-semibold text-white disabled:opacity-50"
               >

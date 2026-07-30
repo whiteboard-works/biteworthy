@@ -18,7 +18,7 @@ import { Pagination } from '../_Pagination';
 const STATUSES = ['queued', 'extracting', 'resolving', 'staged', 'published', 'failed'] as const;
 const PAGE_SIZE = 25;
 
-const STATUS_TONES: Record<AdminRunRow['status'], BadgeTone> = {
+const STATUS_TONES: Record<string, BadgeTone> = {
   queued: 'muted',
   extracting: 'muted',
   resolving: 'muted',
@@ -26,6 +26,12 @@ const STATUS_TONES: Record<AdminRunRow['status'], BadgeTone> = {
   published: 'ok',
   failed: 'danger',
 };
+
+// Deploy-skew guard: a newer API introducing a status must not render
+// an undefined tone.
+function toneFor(status: AdminRunRow['status']): BadgeTone {
+  return STATUS_TONES[status] ?? 'muted';
+}
 
 function RunsQueue() {
   const router = useRouter();
@@ -118,9 +124,25 @@ function RunsQueue() {
         </p>
       )}
 
-      {data && data.runs.length === 0 && (
+      {data && data.runs.length === 0 && offset === 0 && (
         <p data-testid="runs-empty" className="mt-bw-6 text-bw-sm text-zinc-500">
           Nothing in the queue with these filters.
+        </p>
+      )}
+
+      {/* A stale ?offset= deep link past the end must offer a way back —
+          the pager hides itself when the queue fits on one page. */}
+      {data && data.runs.length === 0 && offset > 0 && (
+        <p data-testid="runs-past-end" className="mt-bw-6 text-bw-sm text-zinc-500">
+          This page is past the end of the queue.{' '}
+          <button
+            type="button"
+            onClick={() => setQuery({ offset: 0 })}
+            data-testid="runs-back-to-start"
+            className="font-semibold text-bite hover:text-bite-dark"
+          >
+            Back to the first page
+          </button>
         </p>
       )}
 
@@ -158,10 +180,14 @@ function RunRow({ run }: { run: AdminRunRow }) {
           <span className="font-semibold text-zinc-900">
             {run.restaurant?.name ?? 'Unknown restaurant'}
           </span>
-          <StatusBadge label={run.status} tone={STATUS_TONES[run.status]} />
+          <StatusBadge label={run.status} tone={toneFor(run.status)} />
         </div>
         <p className="mt-bw-1 text-bw-xs text-zinc-500">
-          {run.user ? `by ${run.user.handle} (${run.user.email})` : 'ownerless'}
+          {run.user
+            ? `by ${run.user.handle ?? run.user.email ?? 'unknown'}${
+                run.user.handle && run.user.email ? ` (${run.user.email})` : ''
+              }`
+            : 'ownerless'}
           {run.created_at && <> · {new Date(run.created_at).toLocaleString()}</>}
           {run.input_kind && <> · {run.input_kind}</>}
           {run.api_cost_cents != null && <> · {(run.api_cost_cents / 100).toFixed(2)} USD</>}

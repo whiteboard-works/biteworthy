@@ -15,6 +15,7 @@ export function ConfirmButton({
   confirmLabel,
   busyLabel,
   busy = false,
+  disabled = false,
   onConfirm,
   testId,
 }: {
@@ -23,6 +24,8 @@ export function ConfirmButton({
   confirmLabel?: string;
   busyLabel?: string;
   busy?: boolean;
+  /** e.g. a sibling action is mid-flight — render inert without the busy copy. */
+  disabled?: boolean;
   onConfirm: () => void;
   testId: string;
 }) {
@@ -35,18 +38,26 @@ export function ConfirmButton({
     };
   }, []);
 
+  // Every path that leaves the armed state must clear the timer, or a
+  // cancel + quick re-arm inherits the OLD timeout and disarms early.
+  const disarm = () => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    disarmTimer.current = null;
+    setArmed(false);
+  };
+
   const arm = () => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
     setArmed(true);
-    disarmTimer.current = setTimeout(() => setArmed(false), ARM_TIMEOUT_MS);
+    disarmTimer.current = setTimeout(disarm, ARM_TIMEOUT_MS);
   };
 
   const confirm = () => {
-    if (disarmTimer.current) clearTimeout(disarmTimer.current);
-    setArmed(false);
+    disarm();
     onConfirm();
   };
 
-  if (busy) {
+  if (busy || disabled) {
     return (
       <button
         type="button"
@@ -54,7 +65,7 @@ export function ConfirmButton({
         data-testid={testId}
         className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-500 opacity-60"
       >
-        {busyLabel ?? `${label}…`}
+        {busy ? (busyLabel ?? `${label}…`) : label}
       </button>
     );
   }
@@ -84,7 +95,7 @@ export function ConfirmButton({
       </button>
       <button
         type="button"
-        onClick={() => setArmed(false)}
+        onClick={disarm}
         data-testid={`${testId}-cancel`}
         className="text-bw-sm font-semibold text-zinc-500 hover:text-zinc-800"
       >

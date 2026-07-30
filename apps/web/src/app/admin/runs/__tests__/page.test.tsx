@@ -73,10 +73,22 @@ describe('AdminRunsPage', () => {
       pagination: { total: 0, limit: 25, offset: 50 },
     });
     render(<AdminRunsPage />);
-    await screen.findByTestId('runs-empty');
+    await screen.findByTestId('runs-past-end');
 
     fireEvent.change(screen.getByTestId('runs-status-filter'), { target: { value: 'staged' } });
     expect(mockReplace).toHaveBeenCalledWith('/admin/runs?status=staged');
+  });
+
+  it('offers a way back when a stale offset deep link lands past the end', async () => {
+    searchParams = new URLSearchParams('offset=50');
+    mockFetchAdminRuns.mockResolvedValue({
+      runs: [],
+      pagination: { total: 3, limit: 25, offset: 50 },
+    });
+    render(<AdminRunsPage />);
+
+    fireEvent.click(await screen.findByTestId('runs-back-to-start'));
+    expect(mockReplace).toHaveBeenCalledWith('/admin/runs');
   });
 
   it('honors community=false from a shared deep link', async () => {
