@@ -129,6 +129,51 @@ describe('VerifyScreen (Phase 7.3)', () => {
     expect(screen.getByText('+ guajillo salsa $4.00')).toBeTruthy();
   });
 
+  it('renders the update badge + diff + "Accept update" for a matched card', async () => {
+    mockGetRun.mockResolvedValue(run('staged'));
+    mockListItems.mockResolvedValue([
+      {
+        ...pendingItem,
+        match: {
+          item_id: 'existing-1',
+          score: 1.0,
+          existing: {
+            name: 'Carnitas Taco',
+            description: 'Old text',
+            prices: [{ size: null, price_cents: 400 }],
+          },
+          diff: {
+            description: { from: 'Old text', to: 'Slow-braised pork' },
+            prices: {
+              from: [{ size: null, price_cents: 400 }],
+              to: [{ size: null, price_cents: 450 }],
+            },
+            added_ingredients: ['pork'],
+            added_tags: [],
+          },
+          no_changes: false,
+        },
+      },
+    ]);
+    render(<VerifyScreen />);
+
+    await waitFor(() => expect(screen.getByText('Carnitas Taco')).toBeTruthy());
+    expect(screen.getByText('Updates “Carnitas Taco”')).toBeTruthy();
+    expect(screen.getByText('$4.00 → $4.50')).toBeTruthy();
+    expect(screen.getByText('+ pork')).toBeTruthy();
+    expect(screen.getByText('✓ Accept update')).toBeTruthy();
+  });
+
+  it('a match-less card renders exactly as before (old API deploy-skew guard)', async () => {
+    mockGetRun.mockResolvedValue(run('staged'));
+    mockListItems.mockResolvedValue([pendingItem]);
+    render(<VerifyScreen />);
+
+    await waitFor(() => expect(screen.getByText('Carnitas Taco')).toBeTruthy());
+    expect(screen.queryByTestId('card-match')).toBeNull();
+    expect(screen.getByText('✓ Accept')).toBeTruthy();
+  });
+
   it('"nothing to verify" still offers the menu link', async () => {
     mockGetRun.mockResolvedValue(run('published'));
     mockListItems.mockResolvedValue([]);

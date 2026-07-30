@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-30 — Mobile verify deck renders re-scan update cards: "Updates ‹name›" badge, description/price → diff lines, green `+slug` rows, "✓ Accept update" action; absent `match` field renders today's card (deploy-skew guard). Branch `feature/mobile-rescan-update-cards`. Closes out the re-scan dedup + diff/merge arc (API matching #463, apply #464, web #465).
+
 2026-07-30 — Web verify renders re-scan update cards: amber "Updates ‹name›" badge, strikethrough→new diff for description/prices, green `+slug` chips for added ingredients/tags, "Accept update" button label, "Already on the menu" for no-change matches. Absent `match` field falls back to today's create card (deploy-skew guard). Branch `feature/web-rescan-update-cards`.
 
 2026-07-30 — Re-scan apply-on-accept: accepting a matched card now merges the scan into the existing Item (description/prices refreshed, ingredients/tags append-only, community accepts downgrade confirmed Items to suggested) instead of duplicating; undo restores an `applied_changes` snapshot rather than destroying the live Item. Avo Accept counts "updated" separately. Branch `feature/ingestion-rescan-apply`. Remaining in arc: web + mobile update cards.
