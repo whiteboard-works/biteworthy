@@ -18,6 +18,7 @@ module Api
       def index
         run = authorized_run
         items = run.ingestion_items.order(:position, :created_at)
+                   .includes(matched_item: %i[item_variants ingredients tags])
         render json: { items: items.map { |it| serialize_item(it) } }
       end
 
@@ -50,7 +51,7 @@ module Api
         when "rejected"
           item.update!(decision: "rejected", decided_at: Time.current)
         when "pending"
-          undo_decision!(item)
+          item.undo!
         end
 
         run.maybe_publish!
@@ -75,6 +76,7 @@ module Api
         run.maybe_publish!
 
         items = run.ingestion_items.order(:position, :created_at)
+                   .includes(matched_item: %i[item_variants ingredients tags])
         render json: { items: items.map { |it| serialize_item(it) } }
       end
 
@@ -89,15 +91,6 @@ module Api
         else
           item.update!(decision: "accepted", decided_at: Time.current)
         end
-      end
-
-      # Undo — revert a decision to pending. If the item was promoted (its Item
-      # is live on the restaurant), remove that Item + its ingredient/tag joins.
-      # The FK ingestion_items.item_id → items is RESTRICT, so release it first.
-      def undo_decision!(item)
-        promoted = item.item
-        item.update!(decision: "pending", item_id: nil, decided_at: nil)
-        promoted&.destroy
       end
 
       # The run's creator or an admin. Memoized so index/update don't
@@ -140,7 +133,32 @@ module Api
           prices_payload:         item.prices_payload,
           addons_payload:         item.addons_payload,
           unresolved_ingredients: item.unresolved_ingredients,
-          unresolved_tags:        item.unresolved_tags
+          unresolved_tags:        item.unresolved_tags,
+          match:                  serialize_match(item)
+        }
+      end
+
+      # Re-scan dedup — the existing Item this staged row matched, with a
+      # serialize-time diff (never stored: gap-fill keeps appending to the
+      # payloads after :staged, so a stored diff would lie). nil for
+      # unmatched rows, i.e. plain "new item" cards.
+      def serialize_match(item)
+        target = item.matched_item
+        return nil if target.nil?
+
+        diff = Ingestion::ItemUpdateDiff.call(item, target)
+        {
+          item_id: target.id,
+          score:   item.match_score,
+          existing: {
+            name:        target.name,
+            description: target.description,
+            prices: target.item_variants.sort_by(&:position).map do |v|
+              { size: v.size, price_cents: v.price_cents }
+            end
+          },
+          diff:       diff.except(:no_changes),
+          no_changes: diff[:no_changes]
         }
       end
     end

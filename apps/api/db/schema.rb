@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -148,6 +148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_130000) do
 
   create_table "ingestion_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "addons_payload", default: [], null: false
+    t.jsonb "applied_changes"
     t.datetime "created_at", null: false
     t.datetime "decided_at"
     t.string "decision", default: "pending", null: false
@@ -156,6 +157,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_130000) do
     t.uuid "ingestion_run_id", null: false
     t.jsonb "ingredients_payload", default: []
     t.uuid "item_id"
+    t.float "match_score"
+    t.uuid "matched_item_id"
     t.string "name"
     t.integer "position"
     t.jsonb "prices_payload", default: []
@@ -167,6 +170,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_130000) do
     t.index ["ingestion_run_id", "decision"], name: "index_ingestion_items_on_ingestion_run_id_and_decision"
     t.index ["ingestion_run_id"], name: "index_ingestion_items_on_ingestion_run_id"
     t.index ["item_id"], name: "index_ingestion_items_on_item_id"
+    t.index ["matched_item_id"], name: "index_ingestion_items_on_matched_item_id"
   end
 
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -602,6 +606,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_130000) do
   add_foreign_key "hours", "restaurants"
   add_foreign_key "ingestion_items", "ingestion_runs"
   add_foreign_key "ingestion_items", "items"
+  add_foreign_key "ingestion_items", "items", column: "matched_item_id", on_delete: :nullify
   add_foreign_key "ingestion_runs", "restaurants"
   add_foreign_key "ingestion_runs", "users"
   add_foreign_key "item_ingredients", "ingredients"

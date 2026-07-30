@@ -73,6 +73,17 @@ the taxonomy already in Postgres:
   hit = confidence 1.0, alias hit = 0.95, `source: "match"`. The
   description is the ingredient authority; dish-name leftovers only
   count when the name is all the evidence there is.
+- **Existing-item match** (`Ingestion::ExistingItemMatcher`): staged
+  items are linked (`matched_item_id` + `match_score`) to the
+  restaurant's existing Items so a re-scan stages updates instead of
+  duplicates. Deterministic and greedy one-to-one: normalized-token
+  equality (lowercase, punctuation stripped, singularized, stopwords
+  dropped) wins at 1.0; otherwise pg_trgm `similarity() >= 0.60` with a
+  token-subset veto — "Chicken Burrito" never matches "Chicken Burrito
+  Bowl" no matter how similar, because a name whose token set strictly
+  contains the other's is a different dish. Calibration data lives with
+  the constant. A false merge corrupts a live item; a missed match is
+  just a duplicate card a human can reject.
 - **Tag derivation** (`Ingestion::TagDeriver`): one strategy per tag
   family. `allergen` derives from the resolved ingredients' ltree
   ancestry (`dairy.* → contains-dairy`, plus cross-root exceptions like
@@ -118,9 +129,10 @@ tags_payload: [
 ```
 
 (`source: "derived"` marks a tag derived from a deterministic
-ingredient's ancestry.) Re-ingestion dedup (trgm name-match against
-existing items) remains a **known gap** — re-scanning a restaurant
-still duplicates its menu.
+ingredient's ancestry.) Matched items serialize a `match` block
+(existing item + a serialize-time diff: description, prices, added
+ingredients/tags) for the verify UI; accepting one applies the diff to
+the existing Item — see "Update flow (re-scan)" below.
 
 ### 4. Verify
 
@@ -135,6 +147,34 @@ Contributor opens a swipe UI:
 - ✏️ Edit → tweak ingredients / tags → `decision = 'edited'`, then
   promote.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
+
+### 4b. Update flow (re-scan)
+
+When the resolve pass matched a staged item to an existing Item
+(`matched_item_id`), accept **applies the scan as an update** instead
+of creating a duplicate (`IngestionItem#apply_update!`):
+
+- **Description** — overwritten only when the scan carries one and it
+  differs. Absence of evidence never blanks data.
+- **Prices** — `ItemVariant` set replaced only when the scanned set is
+  non-empty and differs.
+- **Ingredients/tags** — append-only at accept-confidence
+  (`source: "human"`); existing joins are **never removed or
+  downgraded** by a scan.
+- **Trust** — same model as creation: admin accept → `confirmed` joins;
+  community accept → `suggested` joins, and if that adds unconfirmed
+  data to a `confirmed` Item, the Item downgrades to `suggested`
+  (strict-mode users must not see unvetted associations). Never
+  upgraded here — graduation stays with the admin confirm-all.
+- **Undo** — every change is snapshotted into
+  `ingestion_items.applied_changes`; undo restores the snapshot
+  (last-writer-wins over manual edits made in between) and the card
+  returns to pending still linked as an update card. If the matched
+  Item was deleted before accept, the FK nullifies the link and accept
+  falls back to creating a fresh Item.
+- **v1 non-goals** — item *name* (identity key, often human-curated),
+  `ItemModifier`s, and photos are untouched on update; removal
+  detection ("this dish left the menu") is deliberately out of scope.
 
 ### 5. Publish
 
