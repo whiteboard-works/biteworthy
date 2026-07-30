@@ -10,17 +10,36 @@
  */
 export class AdminError extends Error {
   readonly status: number;
+  /** The Rails `{ error: "…" }` code, when the body carried one. */
+  readonly code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'AdminError';
     this.status = status;
+    this.code = code;
   }
+}
+
+async function toAdminError(res: Response): Promise<AdminError> {
+  let code: string | undefined;
+  try {
+    code = ((await res.json()) as { error?: string }).error;
+  } catch {
+    // non-JSON body — status alone is enough
+  }
+  return new AdminError(`Admin request failed (${res.status})`, res.status, code);
 }
 
 export async function getAdminJson<T>(path: string, fetchImpl: typeof fetch = fetch): Promise<T> {
   const res = await fetchImpl(path, { credentials: 'same-origin' });
-  if (!res.ok) throw new AdminError(`Admin request failed (${res.status})`, res.status);
+  if (!res.ok) throw await toAdminError(res);
+  return (await res.json()) as T;
+}
+
+export async function postAdminJson<T>(path: string, fetchImpl: typeof fetch = fetch): Promise<T> {
+  const res = await fetchImpl(path, { method: 'POST', credentials: 'same-origin' });
+  if (!res.ok) throw await toAdminError(res);
   return (await res.json()) as T;
 }
 
