@@ -48,7 +48,7 @@ it lands):
 - [x] A3 — review + suggestion moderation endpoints (visibility queues, hide/unhide, cross-restaurant suggestions; `SuggestionPayload` concern)
 - [x] W4 — review + suggestions queue pages (visibility pills, reason picker, cross-restaurant accept/reject)
 - [x] A4 — taxonomy CRUD (slug/path/family immutable; referenced deletes 409 with per-source counts)
-- [ ] W5 — taxonomy editor pages
+- [x] W5 — taxonomy editor pages (inline row editing; 409 refs surfaced)
 - [ ] A5 — restaurant/item/user management (status writes incl. `removed`, `is_admin` toggle w/ self-demotion guard)
 - [ ] W6 — restaurants/items/users pages
 - [ ] F1 — retire Avo (gem, resources, ERB dashboard, `basicAuth` scheme, `ADMIN_USERNAME`/`ADMIN_PASSWORD`)

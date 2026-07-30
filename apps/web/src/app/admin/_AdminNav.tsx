@@ -15,6 +15,8 @@ const TABS = [
   { href: '/admin/runs', label: 'Runs' },
   { href: '/admin/reviews', label: 'Reviews' },
   { href: '/admin/suggestions', label: 'Suggestions' },
+  // `match` widens the active state to sibling sub-pages (tags).
+  { href: '/admin/taxonomy/ingredients', label: 'Taxonomy', match: '/admin/taxonomy' },
 ] as const;
 
 export function AdminNav() {
@@ -27,8 +29,8 @@ export function AdminNav() {
     >
       <span className="font-bold text-zinc-900">Admin</span>
       {TABS.map((tab) => {
-        const active =
-          tab.href === '/admin' ? pathname === '/admin' : pathname.startsWith(tab.href);
+        const prefix = 'match' in tab ? tab.match : tab.href;
+        const active = tab.href === '/admin' ? pathname === '/admin' : pathname.startsWith(prefix);
         return (
           <Link
             key={tab.href}
