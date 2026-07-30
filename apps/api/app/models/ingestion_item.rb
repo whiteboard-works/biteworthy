@@ -77,6 +77,16 @@ class IngestionItem < ApplicationRecord
         )
       end
 
+      Array(addons_payload).each do |row|
+        addon_name = row["name"] || row[:name]
+        next if addon_name.blank?
+
+        ItemModifier.create!(
+          item: created, name: addon_name, kind: "addition",
+          price_cents: row["price_cents"] || row[:price_cents]
+        )
+      end
+
       attach_dish_photo!(created)
 
       update!(item: created, decision: "accepted", decided_at: Time.current)

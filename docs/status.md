@@ -17,6 +17,17 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-29 — Add-on guard: "Add X for $3" upsell lines no longer stage as dishes. Branch `feature/ingestion-addon-guard`.
+
+- Extraction prompt + schema now classify add-on lines and nest them under the
+  parent dish (`addons`); a deterministic materialization backstop folds stray
+  top-level `/\Aadd\s/i` (or trailing `+`) items into the previous item's new
+  `ingestion_items.addons_payload` (`source: "guard"` vs `"extract"`). Accept
+  promotes each row to an `ItemModifier` (`kind: "addition"`) — first writer the
+  table has ever had. Verify UIs (web + mobile) render addon sub-rows. v1 is
+  name+price only — no ingredient/tag resolution on addons yet.
+- ⚠️ Prompt edit invalidated the ExtractMenuJob live cassette — re-record needed.
+
 2026-07-29 — Deterministic-first resolve: the two LLM resolve calls are gone. Branch `feature/deterministic-resolve`.
 
 - Owner's call: resolve was slow + over-relied on LLMs — it was asking Haiku to do

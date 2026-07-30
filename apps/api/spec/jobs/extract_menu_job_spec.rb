@@ -116,6 +116,99 @@ RSpec.describe ExtractMenuJob, type: :job do
     end
   end
 
+  # Add-on guard — upsell lines ("Add X for $3") must never materialize as
+  # dishes. The prompt nests them under their parent (`addons`); the
+  # deterministic backstop here catches the ones the model still emits as
+  # top-level items.
+  describe "add-on handling" do
+    def perform_with(extraction)
+      attach_fake_input!
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(extraction)
+      described_class.perform_now(run.id)
+    end
+
+    it "copies nested addons onto the parent's addons_payload with extract provenance" do
+      perform_with(
+        "sections" => [
+          { "name" => "Starters", "items" => [
+            { "name" => "Fire-Roasted Guacamole",
+              "prices" => [{ "size" => nil, "price_cents" => 1700 }],
+              "addons" => [{ "name" => "guajillo-tomatillo salsa", "price_cents" => 400 }] }
+          ] }
+        ]
+      )
+
+      item = run.ingestion_items.sole
+      expect(item.addons_payload).to eq(
+        [{ "name" => "guajillo-tomatillo salsa", "price_cents" => 400, "source" => "extract" }]
+      )
+    end
+
+    it "folds a stray top-level 'Add X' item into the previous item instead of materializing it" do
+      perform_with(
+        "sections" => [
+          { "name" => "Starters", "items" => [
+            { "name" => "Fire-Roasted Guacamole",
+              "prices" => [{ "size" => nil, "price_cents" => 1700 }] },
+            { "name" => "Add guajillo-tomatillo salsa",
+              "prices" => [{ "size" => nil, "price_cents" => 400 }] },
+            { "name" => "Roasted Brussels Sprouts",
+              "prices" => [{ "size" => nil, "price_cents" => 1700 }] }
+          ] }
+        ]
+      )
+
+      expect(run.ingestion_items.pluck(:name))
+        .to contain_exactly("Fire-Roasted Guacamole", "Roasted Brussels Sprouts")
+      expect(run.ingestion_items.find_by(name: "Fire-Roasted Guacamole").addons_payload).to eq(
+        [{ "name" => "guajillo-tomatillo salsa", "price_cents" => 400, "source" => "guard" }]
+      )
+      # Positions stay contiguous — only real dishes count.
+      expect(run.ingestion_items.order(:position).pluck(:position)).to eq([0, 1])
+    end
+
+    it "folds a trailing-plus name and strips the scaffolding" do
+      perform_with(
+        "sections" => [
+          { "name" => "Starters", "items" => [
+            { "name" => "Guacamole", "prices" => [{ "size" => nil, "price_cents" => 1700 }] },
+            { "name" => "chips & salsa +", "prices" => [{ "size" => nil, "price_cents" => 300 }] }
+          ] }
+        ]
+      )
+
+      expect(run.ingestion_items.sole.addons_payload).to eq(
+        [{ "name" => "chips & salsa", "price_cents" => 300, "source" => "guard" }]
+      )
+    end
+
+    it "materializes an addon-looking line normally when the section has no previous item" do
+      perform_with(
+        "sections" => [
+          { "name" => "Extras", "items" => [
+            { "name" => "Add chicken", "prices" => [{ "size" => nil, "price_cents" => 300 }] }
+          ] }
+        ]
+      )
+
+      expect(run.ingestion_items.sole.name).to eq("Add chicken")
+    end
+
+    it "does not fold ordinary dishes whose names merely start with common words" do
+      perform_with(
+        "sections" => [
+          { "name" => "Mains", "items" => [
+            { "name" => "Burger", "prices" => [{ "size" => nil, "price_cents" => 1200 }] },
+            { "name" => "Addictive Wings", "prices" => [{ "size" => nil, "price_cents" => 1400 }] }
+          ] }
+        ]
+      )
+
+      expect(run.ingestion_items.pluck(:name)).to contain_exactly("Burger", "Addictive Wings")
+    end
+  end
+
   describe "no inputs attached" do
     it "fails the run with the no_inputs_attached message" do
       # No attach_fake_input! call — this test is the one that exercises

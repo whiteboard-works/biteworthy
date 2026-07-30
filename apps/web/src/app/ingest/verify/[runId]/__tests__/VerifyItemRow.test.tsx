@@ -24,6 +24,7 @@ const item: IngestionItemPayload = {
   ingredients_payload: [{ slug: 'nut-peanut', confidence: 0.97 }],
   tags_payload: [{ slug: 'cuisine-thai', confidence: 0.99 }],
   prices_payload: [{ size: null, price_cents: 1450 }],
+  addons_payload: [],
   unresolved_ingredients: [],
   unresolved_tags: [],
 };
@@ -40,6 +41,26 @@ describe('VerifyItemRow', () => {
     expect(screen.getByText('$14.50')).toBeInTheDocument();
     expect(screen.getByText('nut-peanut')).toBeInTheDocument();
     expect(screen.getByText('cuisine-thai')).toBeInTheDocument();
+  });
+
+  it('renders add-on sub-rows with prices, and none when the dish has no add-ons', () => {
+    const withAddons = {
+      ...item,
+      addons_payload: [
+        { name: 'guajillo-tomatillo salsa', price_cents: 400, source: 'extract' as const },
+        { name: 'extra peanuts', price_cents: null, source: 'guard' as const },
+      ],
+    };
+    const { rerender } = render(
+      <VerifyItemRow runId="run-1" item={withAddons} enriched onDecided={vi.fn()} />,
+    );
+
+    expect(screen.getByTestId('item-addons')).toHaveTextContent('+ guajillo-tomatillo salsa');
+    expect(screen.getByTestId('item-addons')).toHaveTextContent('$4.00');
+    expect(screen.getByTestId('item-addons')).toHaveTextContent('+ extra peanuts');
+
+    rerender(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+    expect(screen.queryByTestId('item-addons')).toBeNull();
   });
 
   it('shows an "AI is still checking" hint on a staged, empty-payload dish while gap-fill runs', () => {

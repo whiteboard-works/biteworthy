@@ -195,6 +195,7 @@ const sampleItem: IngestionItemPayload = {
   ingredients_payload: [{ slug: 'nut-peanut', confidence: 0.97 }],
   tags_payload: [{ slug: 'cuisine-thai', confidence: 0.99 }],
   prices_payload: [{ size: null, price_cents: 1450 }],
+  addons_payload: [],
   unresolved_ingredients: [],
   unresolved_tags: [],
 };

@@ -31,6 +31,12 @@ module Ingestion
                     "price_cents": <integer cents, or null if absent>
                   }
                 ],
+                "addons": [
+                  {
+                    "name": "<the thing being added>",
+                    "price_cents": <integer cents, or null if absent>
+                  }
+                ],
                 "image_bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 }
               }
             ]
@@ -46,6 +52,20 @@ module Ingestion
         emit one element per price in the `prices` array.
       * `price_cents` is in CENTS. "$4.50" becomes 450.
       * Output JSON only — no markdown fences, no commentary.
+
+      Add-ons / upsells:
+      * A line offering to ADD something to a dish for extra money —
+        "Add chicken $3", "+ guajillo salsa 4.00", "add avocado +$2" —
+        is NOT a menu item. Emit it in the `addons` array of the item
+        it modifies (the dish it is printed under or beside).
+      * An addon's `name` is the thing being added, stripped of the
+        "Add"/"+"/price scaffolding: "Add guajillo-tomatillo salsa +
+        $4.00" becomes { "name": "guajillo-tomatillo salsa",
+        "price_cents": 400 }.
+      * A standalone dish that happens to be a side or extra ("Side of
+        Guacamole" in a Sides section) is still a normal item — only
+        lines that modify another dish become addons.
+      * If an item has no add-on lines, OMIT the `addons` field.
 
       Per-dish photos:
       * Many menus include a small photo of an individual dish next to

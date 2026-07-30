@@ -15,13 +15,24 @@ http_interactions:
         \"\u003cthe printed description, or null if absent\u003e\",\n          \"prices\":
         [\n            {\n              \"size\": \"\u003csize label, or null when
         there is only one price\u003e\",\n              \"price_cents\": \u003cinteger
-        cents, or null if absent\u003e\n            }\n          ],\n          \"image_bbox\":
+        cents, or null if absent\u003e\n            }\n          ],\n          \"addons\":
+        [\n            {\n              \"name\": \"\u003cthe thing being added\u003e\",\n              \"price_cents\":
+        \u003cinteger cents, or null if absent\u003e\n            }\n          ],\n          \"image_bbox\":
         { \"x\": 0.0, \"y\": 0.0, \"w\": 0.0, \"h\": 0.0 }\n        }\n      ]\n    }\n  ]\n}\n\nRules:\n*
         Do NOT invent items. If you can''t read it, omit it.\n* Preserve item names
         verbatim — including spelling, capitalization,\n  diacritics. Don''t translate.\n*
         If a single item has multiple prices (small / large / etc.),\n  emit one element
         per price in the `prices` array.\n* `price_cents` is in CENTS. \"$4.50\" becomes
-        450.\n* Output JSON only — no markdown fences, no commentary.\n\nPer-dish
+        450.\n* Output JSON only — no markdown fences, no commentary.\n\nAdd-ons /
+        upsells:\n* A line offering to ADD something to a dish for extra money —\n  \"Add
+        chicken $3\", \"+ guajillo salsa 4.00\", \"add avocado +$2\" —\n  is NOT a
+        menu item. Emit it in the `addons` array of the item\n  it modifies (the dish
+        it is printed under or beside).\n* An addon''s `name` is the thing being added,
+        stripped of the\n  \"Add\"/\"+\"/price scaffolding: \"Add guajillo-tomatillo
+        salsa +\n  $4.00\" becomes { \"name\": \"guajillo-tomatillo salsa\",\n  \"price_cents\":
+        400 }.\n* A standalone dish that happens to be a side or extra (\"Side of\n  Guacamole\"
+        in a Sides section) is still a normal item — only\n  lines that modify another
+        dish become addons.\n* If an item has no add-on lines, OMIT the `addons` field.\n\nPer-dish
         photos:\n* Many menus include a small photo of an individual dish next to\n  its
         name + description. When you see one, return its bounding\n  box as `image_bbox:
         { \"x\": \u003cleft\u003e, \"y\": \u003ctop\u003e, \"w\": \u003cwidth\u003e,\n  \"h\":
@@ -40,7 +51,7 @@ http_interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - Faraday v2.14.1
+      - Faraday v2.14.3
       Accept-Encoding:
       - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
       Accept:
@@ -51,7 +62,7 @@ http_interactions:
       message: OK
     headers:
       Date:
-      - Fri, 01 May 2026 00:13:23 GMT
+      - Thu, 30 Jul 2026 03:44:02 GMT
       Content-Type:
       - application/json
       Transfer-Encoding:
@@ -59,75 +70,100 @@ http_interactions:
       Connection:
       - keep-alive
       Anthropic-Ratelimit-Input-Tokens-Limit:
-      - '800000'
+      - '10000000'
       Anthropic-Ratelimit-Input-Tokens-Remaining:
-      - '799000'
+      - '9999000'
       Anthropic-Ratelimit-Input-Tokens-Reset:
-      - '2026-05-01T00:13:13Z'
+      - '2026-07-30T03:43:46Z'
       Anthropic-Ratelimit-Output-Tokens-Limit:
-      - '160000'
+      - '2000000'
       Anthropic-Ratelimit-Output-Tokens-Remaining:
-      - '159000'
+      - '2000000'
       Anthropic-Ratelimit-Output-Tokens-Reset:
-      - '2026-05-01T00:13:23Z'
+      - '2026-07-30T03:44:02Z'
       Anthropic-Ratelimit-Requests-Limit:
-      - '2000'
+      - '10000'
       Anthropic-Ratelimit-Requests-Remaining:
-      - '1999'
+      - '9999'
       Anthropic-Ratelimit-Requests-Reset:
-      - '2026-05-01T00:13:12Z'
+      - '2026-07-30T03:43:45Z'
       Anthropic-Ratelimit-Tokens-Limit:
-      - '960000'
+      - '12000000'
       Anthropic-Ratelimit-Tokens-Remaining:
-      - '958000'
+      - '11999000'
       Anthropic-Ratelimit-Tokens-Reset:
-      - '2026-05-01T00:13:13Z'
+      - '2026-07-30T03:43:46Z'
       Request-Id:
-      - req_011Caat8Q95BgZSkP5udWgkt
+      - req_011CdXYz5bKY7cKwdeYyf8FH
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Anthropic-Organization-Id:
       - 1ddf08a4-ce21-4dfb-bbf0-fd52d76d3811
+      Traceresponse:
+      - 00-49b3e0343e11078bf857d541cca23c0d-7730646cfea71fd2-01
       Server:
       - cloudflare
-      X-Envoy-Upstream-Service-Time:
-      - '11543'
       Vary:
       - Accept-Encoding
-      Set-Cookie:
-      - _cfuvid=AkCpGK3hD9Q1vsfST0yOSKgz49GgZmgiUafVKG5GZHw-1777594391.674771-1.0.1.1-9saPfXFHTfutDSIIBqycRREfjgcpO9Gz8pEBAoH9Jqs;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com
       X-Robots-Tag:
       - none
-      Cf-Cache-Status:
-      - DYNAMIC
       Content-Security-Policy:
       - default-src 'none'; frame-ancestors 'none'
+      Cf-Cache-Status:
+      - DYNAMIC
       Cf-Ray:
-      - 9f4a9433fac25660-ATL
+      - a2315c61aa5a4cb3-SLC
     body:
       encoding: ASCII-8BIT
-      string: '{"model":"claude-sonnet-4-6","id":"msg_01CRYFBkqc32UaNkk25PG9gn","type":"message","role":"assistant","content":[{"type":"text","text":"{\"sections\":[{\"name\":\"APPETIZERS\",\"items\":[{\"name\":\"SPRING
-        ROLLS\",\"description\":\"Crispy fried mini pork and vegetable roll. Vegetarian
-        spring rolls are available.\",\"prices\":[{\"size\":null,\"price_cents\":699}],\"image_bbox\":{\"x\":0.57,\"y\":0.11,\"w\":0.38,\"h\":0.16}},{\"name\":\"LUMPIA\",\"description\":\"Crispy
-        fried mini chicken and vegetable roll.\",\"prices\":[{\"size\":null,\"price_cents\":699}]},{\"name\":\"FORGET
-        ME NOT\",\"description\":\"Spring rolls in a cucumber salad, topped with plum
-        sauce, peanuts, and green onions.\",\"prices\":[{\"size\":null,\"price_cents\":799}],\"image_bbox\":{\"x\":0.57,\"y\":0.27,\"w\":0.38,\"h\":0.16}},{\"name\":\"FRESH
-        ROLL\",\"description\":\"Shrimp, lettuce, carrots, red cabbage, and plum sauce
-        wrapped in rice paper, served with peanut sauce.\",\"prices\":[{\"size\":\"Vegetarian\",\"price_cents\":699},{\"size\":\"Shrimp\",\"price_cents\":799}]},{\"name\":\"FRIED
-        TOFU\",\"description\":\"Crispy tofu served on top of cucumber salad and plum
-        sauce.\",\"prices\":[{\"size\":null,\"price_cents\":699}]},{\"name\":\"GOLDEN
-        MONEY BAGS\",\"description\":\"Marinated pork with Thai herbs. Served with
-        Thai chilli sauce.\",\"prices\":[{\"size\":null,\"price_cents\":699}],\"image_bbox\":{\"x\":0.03,\"y\":0.6,\"w\":0.3,\"h\":0.18}},{\"name\":\"CHICKEN
-        SATAY\",\"description\":\"Marinated and grilled in curry spices. Served with
-        peanut sauce.\",\"prices\":[{\"size\":null,\"price_cents\":799}],\"image_bbox\":{\"x\":0.03,\"y\":0.78,\"w\":0.3,\"h\":0.18}},{\"name\":\"CRAB
-        RANGOON\",\"description\":\"Crispy wontons with cream cheese and a curry seasoned
-        mix of real and imitation crab.\",\"prices\":[{\"size\":null,\"price_cents\":699}],\"image_bbox\":{\"x\":0.03,\"y\":0.96,\"w\":0.3,\"h\":0.18}},{\"name\":\"GYOZA\",\"description\":\"(Steamed
-        or fried) Pork pot-stickers served with vinegar soy sauce.\",\"prices\":[{\"size\":null,\"price_cents\":699}]},{\"name\":\"FRIED
-        CALAMARI\",\"description\":null,\"prices\":[{\"size\":null,\"price_cents\":799}]},{\"name\":\"THAI
-        MINI CURRY PUFF\",\"description\":\"Homemade mini pastry filled with minced
-        curry-chicken and potatoes. Served with plum sauce.\",\"prices\":[{\"size\":null,\"price_cents\":699}]},{\"name\":\"CRISPY
-        OCEAN\",\"description\":\"Jumbo seafood and vegetable tempura with shrimp,
-        mussels, squid, crab and scallops. Served with Sriracha plum sauce.\",\"prices\":[{\"size\":null,\"price_cents\":1999}]}]}]}"}],"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2079,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":774,"service_tier":"standard","inference_geo":"global"}}'
-  recorded_at: Fri, 01 May 2026 00:13:23 GMT
+      string: '{"model":"claude-sonnet-4-6","id":"msg_011CdXYz6sDXxY7o7g7CzLbu","type":"message","role":"assistant","content":[{"type":"text","text":"```json\n{\n  \"sections\":
+        [\n    {\n      \"name\": \"APPETIZERS\",\n      \"items\": [\n        {\n          \"name\":
+        \"SPRING ROLLS\",\n          \"description\": \"Crispy fried mini pork and
+        vegetable roll. Vegetarian spring rolls are available.\",\n          \"prices\":
+        [\n            {\n              \"size\": null,\n              \"price_cents\":
+        699\n            }\n          ],\n          \"image_bbox\": { \"x\": 0.57,
+        \"y\": 0.1, \"w\": 0.4, \"h\": 0.15 }\n        },\n        {\n          \"name\":
+        \"LUMPIA\",\n          \"description\": \"Crispy fried mini chicken and vegetable
+        roll.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 699\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"FORGET ME NOT\",\n          \"description\": \"Spring rolls in a cucumber
+        salad, topped with plum sauce, peanuts, and green onions.\",\n          \"prices\":
+        [\n            {\n              \"size\": null,\n              \"price_cents\":
+        799\n            }\n          ],\n          \"image_bbox\": { \"x\": 0.57,
+        \"y\": 0.26, \"w\": 0.4, \"h\": 0.15 }\n        },\n        {\n          \"name\":
+        \"FRESH ROLL\",\n          \"description\": \"Shrimp, lettuce, carrots, red
+        cabbage, and plum sauce wrapped in rice paper, served with peanut sauce.\",\n          \"prices\":
+        [\n            {\n              \"size\": \"Vegetarian\",\n              \"price_cents\":
+        699\n            },\n            {\n              \"size\": \"Shrimp\",\n              \"price_cents\":
+        799\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"FRIED TOFU\",\n          \"description\": \"Crispy tofu served on top of
+        cucumber salad and plum sauce.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 699\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"GOLDEN MONEY BAGS\",\n          \"description\": \"Marinated pork with Thai
+        herbs. Served with Thai chilli sauce.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 699\n            }\n          ],\n          \"image_bbox\":
+        { \"x\": 0.02, \"y\": 0.6, \"w\": 0.35, \"h\": 0.18 }\n        },\n        {\n          \"name\":
+        \"CHICKEN SATAY\",\n          \"description\": \"Marinated and grilled in
+        curry spices. Served with peanut sauce.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 799\n            }\n          ],\n          \"image_bbox\":
+        { \"x\": 0.02, \"y\": 0.74, \"w\": 0.35, \"h\": 0.18 }\n        },\n        {\n          \"name\":
+        \"CRAB RANGOON\",\n          \"description\": \"Crispy wontons with cream
+        cheese and a curry seasoned mix of real and imitation crab.\",\n          \"prices\":
+        [\n            {\n              \"size\": null,\n              \"price_cents\":
+        699\n            }\n          ],\n          \"image_bbox\": { \"x\": 0.02,
+        \"y\": 0.88, \"w\": 0.35, \"h\": 0.18 }\n        },\n        {\n          \"name\":
+        \"GYOZA\",\n          \"description\": \"(Steamed or fried) Pork pot-stickers
+        served with vinegar soy sauce.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 699\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"FRIED CALAMARI\",\n          \"description\": null,\n          \"prices\":
+        [\n            {\n              \"size\": null,\n              \"price_cents\":
+        799\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"THAI MINI CURRY PUFF\",\n          \"description\": \"Homemade mini pastry
+        filled with minced curry-chicken and potatoes. Served with plum sauce.\",\n          \"prices\":
+        [\n            {\n              \"size\": null,\n              \"price_cents\":
+        699\n            }\n          ]\n        },\n        {\n          \"name\":
+        \"CRISPY OCEAN\",\n          \"description\": \"Jumbo seafood and vegetable
+        tempura with shrimp, mussels, squid, crab and scallops. Served with Sriracha
+        plum sauce.\",\n          \"prices\": [\n            {\n              \"size\":
+        null,\n              \"price_cents\": 1999\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}\n```"}],"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2358,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1192,"service_tier":"standard","inference_geo":"global"}}'
+  recorded_at: Thu, 30 Jul 2026 03:44:02 GMT
 recorded_with: VCR 6.4.0

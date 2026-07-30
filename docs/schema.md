@@ -34,6 +34,8 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
   the join tables are the source of truth + audit log.
 - `item_variants` — sized pricing.
 - `item_modifiers` — choices/additions/sides collapsed into one table.
+  Ingestion writes these: a staged item's `addons_payload` promotes to
+  `kind: "addition"` rows on accept.
 
 Each join row carries `confidence` (`confirmed | suggested | inferred`)
 and `source` (`human | ai | owner`). This powers strict-mode honest
@@ -50,7 +52,8 @@ disclosure: *we know X, we suspect Y, we inferred Z*.
 - `ingestion_runs` — state machine: `queued → extracting → resolving →
   staged → published` (or `failed`). Tracks model used + cost.
 - `ingestion_items` — staged items waiting on contributor decisions
-  (`pending | accepted | rejected | edited`).
+  (`pending | accepted | rejected | edited`). `addons_payload` holds
+  nested add-on/upsell lines (`{name, price_cents, source}`).
 
 ## The filter query (Phase 3 punchline)
 

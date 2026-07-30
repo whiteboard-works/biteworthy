@@ -63,16 +63,29 @@ class ExtractMenuJob < ApplicationJob
   # position so the resolve stages can write their indexed results back onto
   # the right row. ingredients_payload / tags_payload stay empty ([] default)
   # until enrichment fills them.
+  #
+  # Add-on guard: the extraction prompt nests add-on/upsell lines under
+  # their parent dish (`addons`), but the model sometimes still emits an
+  # "Add X" line as a top-level item. Those fold into the PREVIOUS item's
+  # addons_payload here (source: "guard") instead of materializing — an
+  # upsell line must never publish as a dish. First-in-section has no
+  # parent to attach to, so it materializes normally.
   def materialize_items!(run)
     position = 0
     Array(run.staging["sections"]).each do |section|
-      section_name = section["name"]
+      previous = nil
       Array(section["items"]).each do |item|
-        run.ingestion_items.create!(
+        if previous && addon_line?(item["name"])
+          previous.update!(addons_payload: previous.addons_payload + [guard_addon_row(item)])
+          next
+        end
+
+        previous = run.ingestion_items.create!(
           name:           item["name"],
           description:    item["description"],
-          section_name:   section_name,
+          section_name:   section["name"],
           prices_payload: Array(item["prices"]),
+          addons_payload: addon_rows(item["addons"]),
           image_bbox:     item["image_bbox"],
           position:       position,
           decision:       "pending"
@@ -80,5 +93,24 @@ class ExtractMenuJob < ApplicationJob
         position += 1
       end
     end
+  end
+
+  # Deliberately narrow — "Add chicken", "Chips & salsa +". Not "extra"
+  # (collides with dish names like "Extra Crispy Wings").
+  def addon_line?(name)
+    stripped = name.to_s.strip
+    stripped.match?(/\Aadd\s/i) || stripped.end_with?("+")
+  end
+
+  def addon_rows(addons)
+    Array(addons).map do |addon|
+      { "name" => addon["name"], "price_cents" => addon["price_cents"], "source" => "extract" }
+    end
+  end
+
+  def guard_addon_row(item)
+    name = item["name"].to_s.strip.sub(/\Aadd\s+/i, "").sub(/\s*\+\z/, "").strip
+    first_price = Array(item["prices"]).first || {}
+    { "name" => name, "price_cents" => first_price["price_cents"], "source" => "guard" }
   end
 end

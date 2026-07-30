@@ -59,6 +59,21 @@ export function VerifyItemRow({
           </p>
           {item.description && <p className="mt-1 text-sm text-zinc-600">{item.description}</p>}
 
+          {item.addons_payload.length > 0 && (
+            <ul className="mt-2 space-y-0.5" data-testid="item-addons">
+              {item.addons_payload.map((addon, i) => (
+                <li key={`${addon.name}-${i}`} className="text-sm text-zinc-500">
+                  + {addon.name}
+                  {addon.price_cents != null && (
+                    <span className="ml-1 text-zinc-400">
+                      ${(addon.price_cents / 100).toFixed(2)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
           {enriched &&
             enriching &&
             item.ingredients_payload.length === 0 &&
