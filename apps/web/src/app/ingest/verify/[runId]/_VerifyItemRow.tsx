@@ -49,6 +49,11 @@ export function VerifyItemRow({
   // Nullish fallback: web (Vercel) and API (Kamal) deploy independently, so a
   // fresh client may briefly see responses without the field.
   const addons = item.addons_payload ?? [];
+  const match = item.match ?? null;
+  const diff = match && !match.no_changes ? match.diff : null;
+
+  const fmtPrices = (rows: Array<{ size: string | null; price_cents: number }>) =>
+    rows.map((r) => `${r.size ? `${r.size} ` : ''}$${(r.price_cents / 100).toFixed(2)}`).join(' · ');
 
   return (
     <li className="rounded-xl border border-zinc-200 p-4" data-testid={`verify-item-${item.id}`}>
@@ -60,7 +65,46 @@ export function VerifyItemRow({
               <span className="ml-2 font-normal text-zinc-500">${(price / 100).toFixed(2)}</span>
             )}
           </p>
+          {match && (
+            <span
+              data-testid="match-badge"
+              className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"
+            >
+              {match.no_changes
+                ? 'Already on the menu — no changes'
+                : `Updates “${match.existing.name}”`}
+            </span>
+          )}
           {item.description && <p className="mt-1 text-sm text-zinc-600">{item.description}</p>}
+
+          {diff && (
+            <div className="mt-2 space-y-1 text-xs" data-testid="match-diff">
+              {diff.description && (
+                <p className="text-zinc-500">
+                  <span className="line-through">{diff.description.from ?? '(none)'}</span>{' '}
+                  <span className="text-zinc-700">→ {diff.description.to}</span>
+                </p>
+              )}
+              {diff.prices && (
+                <p className="text-zinc-500">
+                  <span className="line-through">{fmtPrices(diff.prices.from) || '(no price)'}</span>{' '}
+                  <span className="text-zinc-700">→ {fmtPrices(diff.prices.to)}</span>
+                </p>
+              )}
+              {(diff.added_ingredients.length > 0 || diff.added_tags.length > 0) && (
+                <p className="flex flex-wrap gap-1">
+                  {[...diff.added_ingredients, ...diff.added_tags].map((slug) => (
+                    <span
+                      key={slug}
+                      className="rounded-full bg-green-50 px-2 py-0.5 text-green-800"
+                    >
+                      + {slug}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
+          )}
 
           {addons.length > 0 && (
             <ul className="mt-2 space-y-0.5" data-testid="item-addons">
@@ -141,7 +185,7 @@ export function VerifyItemRow({
                 onClick={() => void decide('accepted')}
                 className="rounded bg-green-600 px-3 py-1 text-sm font-semibold text-white disabled:opacity-50"
               >
-                Accept
+                {diff ? 'Accept update' : 'Accept'}
               </button>
               <button
                 type="button"

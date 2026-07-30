@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-07-30 — Web verify renders re-scan update cards: amber "Updates ‹name›" badge, strikethrough→new diff for description/prices, green `+slug` chips for added ingredients/tags, "Accept update" button label, "Already on the menu" for no-change matches. Absent `match` field falls back to today's create card (deploy-skew guard). Branch `feature/web-rescan-update-cards`.
+
 2026-07-30 — `promote!` now materializes `prices_payload` as `ItemVariant` rows (size + price_cents, payload order; priceless rows skipped). Previously extracted prices were silently dropped at accept. Branch `fix/promote-prices-item-variants`. First PR of the re-scan dedup + diff/merge arc (matching + apply-update PRs follow).
 
 2026-07-29 — Add-on guard: "Add X for $3" upsell lines no longer stage as dishes. Branch `feature/ingestion-addon-guard`.
