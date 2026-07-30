@@ -98,6 +98,47 @@ RSpec.describe ResolveItemsJob, type: :job do
     end
   end
 
+  # Re-scan dedup — the resolve pass links staged items to the
+  # restaurant's existing Items so the verify UI can stage updates
+  # instead of duplicates (and PR3's apply path can merge on accept).
+  describe "existing-item matching" do
+    let!(:existing) { create(:item, restaurant: restaurant, name: "Taco", status: "published") }
+
+    it "writes matched_item_id + match_score alongside the payloads" do
+      row = make_item(run, position: 0, name: "Tacos", description: "steak")
+
+      described_class.perform_now(run.id)
+
+      row.reload
+      expect(row.matched_item_id).to eq(existing.id)
+      expect(row.match_score).to eq(1.0)
+    end
+
+    it "clears a stale match from a previous cycle when the item no longer matches" do
+      row = make_item(run, position: 0, name: "Limeade", description: "lime")
+      row.update!(matched_item_id: existing.id, match_score: 1.0)
+
+      described_class.perform_now(run.id)
+
+      expect(row.reload.matched_item_id).to be_nil
+      expect(row.match_score).to be_nil
+    end
+
+    it "matches pre-accepted items before the batch promote sees them" do
+      row = make_item(run, position: 0, name: "Tacos", description: "steak",
+                           decision: "accepted")
+
+      described_class.perform_now(run.id)
+
+      row.reload
+      expect(row.matched_item_id).to eq(existing.id)
+      # PR boundary: promote! doesn't branch on the match yet, so the
+      # accept still creates a fresh Item — behavior ships dark here.
+      expect(row.item_id).to be_present
+      expect(row.item_id).not_to eq(existing.id)
+    end
+  end
+
   it "fails the run when there are no items" do
     described_class.perform_now(run.id)
     expect(run.reload.status).to eq("failed")

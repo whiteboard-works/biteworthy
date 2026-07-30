@@ -64,6 +64,17 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(Rails.logger).to have_received(:warn).with(/not-a-real-slug/)
     end
 
+    it "leaves the re-scan match columns alone (its upsert must not clobber the matcher)" do
+      target = create(:item, restaurant: restaurant, name: "Caesar Salad")
+      gap_item.update!(matched_item_id: target.id, match_score: 1.0)
+
+      described_class.perform_now(run.id)
+
+      gap_item.reload
+      expect(gap_item.matched_item_id).to eq(target.id)
+      expect(gap_item.match_score).to eq(1.0)
+    end
+
     it "re-derives allergen tags in code from the AI ingredients and appends AI cuisine" do
       create(:tag, slug: "contains-peanut", family: "allergen", path: "allergen.contains_peanut")
       described_class.perform_now(run.id)
