@@ -16,6 +16,7 @@ export function StatusBadge({ label, tone }: { label: string; tone: BadgeTone })
   return (
     <span
       data-testid="status-badge"
+      data-tone={tone}
       className={`inline-flex items-center whitespace-nowrap rounded-bw-pill border px-bw-2 py-bw-1 text-bw-xs font-semibold ${TONES[tone]}`}
     >
       {label}

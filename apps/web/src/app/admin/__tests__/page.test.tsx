@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 /**
  * The ops dashboard exists to answer three questions at a glance:
@@ -18,8 +18,9 @@ vi.mock('../../../lib/admin/metrics', async (importOriginal) => ({
 
 import AdminHomePage from '../page';
 import { AdminError } from '../../../lib/admin/shared';
+import type { AdminDashboardPayload, DashboardBucket } from '../../../lib/admin/metrics';
 
-function bucket(label: string, overrides: Record<string, unknown> = {}) {
+function bucket(label: string, overrides: Partial<DashboardBucket> = {}): DashboardBucket {
   return {
     label,
     run_count: 4,
@@ -33,7 +34,7 @@ function bucket(label: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function payload(overrides: Record<string, unknown> = {}) {
+function payload(overrides: Partial<AdminDashboardPayload> = {}): AdminDashboardPayload {
   return {
     target_cents_per_item: 0.5,
     periods: {
@@ -52,30 +53,45 @@ function payload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function spendBadgeFor(community: AdminDashboardPayload['community']) {
+  mockFetchDashboard.mockResolvedValue(payload({ community }));
+  const { unmount } = render(<AdminHomePage />);
+  const badge = within(await screen.findByTestId('spend-card')).getByTestId('status-badge');
+  const result = { tone: badge.getAttribute('data-tone'), text: badge.textContent };
+  unmount();
+  return result;
+}
+
 beforeEach(() => {
   mockFetchDashboard.mockReset();
 });
 
 describe('AdminHomePage', () => {
-  it('renders spend vs ceiling with a warn badge at ≥80%', async () => {
+  it('renders spend vs ceiling and tiers the badge tone on the exact guard thresholds', async () => {
     mockFetchDashboard.mockResolvedValue(payload());
     render(<AdminHomePage />);
-
     const card = await screen.findByTestId('spend-card');
     expect(card).toHaveTextContent('$17.00');
     expect(card).toHaveTextContent('$20.00');
-    expect(within(card).getByTestId('status-badge')).toHaveTextContent('85% of daily ceiling');
+    const badge = within(card).getByTestId('status-badge');
+    expect(badge).toHaveTextContent('85% of daily ceiling');
+    expect(badge).toHaveAttribute('data-tone', 'warn');
   });
 
-  it('flags the ceiling-reached state distinctly (scans are 503ing)', async () => {
-    mockFetchDashboard.mockResolvedValue(
-      payload({ community: { runs_today: 9, spend_today_cents: 2100, ceiling_cents: 2000 } }),
-    );
-    render(<AdminHomePage />);
-    const card = await screen.findByTestId('spend-card');
-    expect(within(card).getByTestId('status-badge')).toHaveTextContent(
-      'Ceiling reached — scans paused',
-    );
+  it('is ok below 80%, warn at exactly 80%, danger at exactly the ceiling (Rails 503s at >=)', async () => {
+    expect(await spendBadgeFor({ runs_today: 1, spend_today_cents: 1599, ceiling_cents: 2000 }))
+      .toEqual({ tone: 'ok', text: '79% of daily ceiling' });
+    expect(await spendBadgeFor({ runs_today: 1, spend_today_cents: 1600, ceiling_cents: 2000 }))
+      .toEqual({ tone: 'warn', text: '80% of daily ceiling' });
+    expect(await spendBadgeFor({ runs_today: 9, spend_today_cents: 2000, ceiling_cents: 2000 }))
+      .toEqual({ tone: 'danger', text: 'Ceiling reached — scans paused' });
+  });
+
+  it('treats a zero ceiling as scans-paused, matching the guard (0 >= 0 → 503)', async () => {
+    expect(await spendBadgeFor({ runs_today: 0, spend_today_cents: 0, ceiling_cents: 0 })).toEqual({
+      tone: 'danger',
+      text: 'Ceiling reached — scans paused',
+    });
   });
 
   it('marks a period over the cost-per-item target and dashes out missing latency', async () => {
@@ -103,5 +119,16 @@ describe('AdminHomePage', () => {
     mockFetchDashboard.mockRejectedValue(new AdminError('x', 404));
     render(<AdminHomePage />);
     expect(await screen.findByTestId('dashboard-error')).toHaveTextContent(/access is gone/i);
+  });
+
+  it('recovers via the Retry button after a transient failure', async () => {
+    mockFetchDashboard.mockRejectedValueOnce(new AdminError('x', 500)).mockResolvedValue(payload());
+    render(<AdminHomePage />);
+    expect(await screen.findByTestId('dashboard-error')).toHaveTextContent(/try again/i);
+
+    fireEvent.click(screen.getByTestId('dashboard-retry'));
+
+    expect(await screen.findByTestId('spend-card')).toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-error')).not.toBeInTheDocument();
   });
 });

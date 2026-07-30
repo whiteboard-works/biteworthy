@@ -25,10 +25,13 @@ function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+// Mirrors the Rails 503 guard exactly: `spend >= ceiling` pauses
+// community scans, which includes a ceiling of 0 (that's how you'd
+// deliberately pause scanning via env). Math.floor keeps the label
+// tier consistent with the tone — 79.9% must never read "80%" in ok.
 function spendBadge(spend: number, ceiling: number): { tone: BadgeTone; label: string } {
-  if (ceiling <= 0) return { tone: 'muted', label: 'No ceiling set' };
-  const pct = Math.round((spend / ceiling) * 100);
   if (spend >= ceiling) return { tone: 'danger', label: 'Ceiling reached — scans paused' };
+  const pct = Math.floor((spend / ceiling) * 100);
   if (spend >= ceiling * 0.8) return { tone: 'warn', label: `${pct}% of daily ceiling` };
   return { tone: 'ok', label: `${pct}% of daily ceiling` };
 }
@@ -43,6 +46,7 @@ const QUEUE_LABELS: Record<keyof AdminDashboardPayload['queues'], string> = {
 export default function AdminHomePage() {
   const [data, setData] = useState<AdminDashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +60,12 @@ export default function AdminHomePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
+
+  const retry = () => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
 
   return (
     <main data-testid="admin-home">
@@ -66,9 +75,17 @@ export default function AdminHomePage() {
         <div
           role="alert"
           data-testid="dashboard-error"
-          className="mt-bw-4 rounded border border-red-300 bg-red-50 p-4 text-red-900"
+          className="mt-bw-4 flex items-center justify-between gap-bw-3 rounded border border-red-300 bg-red-50 p-4 text-red-900"
         >
-          {error}
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={retry}
+            data-testid="dashboard-retry"
+            className="shrink-0 font-semibold underline hover:no-underline"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -162,7 +179,7 @@ function PeriodTile({
       <p className="mt-bw-2 text-bw-2xl font-bold text-zinc-900">
         {dollars(bucket.total_cost_cents)}
       </p>
-      <dl className="mt-bw-2 space-y-1 text-bw-xs text-zinc-600">
+      <dl className="mt-bw-2 space-y-bw-1 text-bw-xs text-zinc-600">
         <div className="flex justify-between">
           <dt>Runs / items</dt>
           <dd className="font-semibold text-zinc-800">
