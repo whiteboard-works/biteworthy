@@ -37,8 +37,18 @@ export async function getAdminJson<T>(path: string, fetchImpl: typeof fetch = fe
   return (await res.json()) as T;
 }
 
-export async function postAdminJson<T>(path: string, fetchImpl: typeof fetch = fetch): Promise<T> {
-  const res = await fetchImpl(path, { method: 'POST', credentials: 'same-origin' });
+export async function postAdminJson<T>(
+  path: string,
+  init: { body?: unknown } = {},
+  fetchImpl: typeof fetch = fetch,
+): Promise<T> {
+  const res = await fetchImpl(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    ...(init.body !== undefined
+      ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }
+      : {}),
+  });
   if (!res.ok) throw await toAdminError(res);
   return (await res.json()) as T;
 }

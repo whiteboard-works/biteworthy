@@ -47,6 +47,7 @@ export function reExtractRun(
 ): Promise<{ id: string; status: string }> {
   return postAdminJson(
     `/api/admin/ingestion_runs/${encodeURIComponent(runId)}/re_extract`,
+    {},
     fetchImpl,
   );
 }
@@ -57,6 +58,7 @@ export function confirmCommunity(
 ): Promise<ConfirmCommunityResponse> {
   return postAdminJson(
     `/api/admin/restaurants/${encodeURIComponent(restaurantId)}/confirm_community`,
+    {},
     fetchImpl,
   );
 }
