@@ -130,9 +130,12 @@ Rails.application.routes.draw do
         resources :ingestion_runs, only: [:index] do
           member { post :re_extract }
         end
-        resources :restaurants, only: [] do
+        resources :restaurants, only: [:index, :show, :update] do
           member { post :confirm_community }
+          resources :items, only: [:index]
         end
+        resources :items, only: [:update]
+        resources :users, only: [:index, :update]
         resources :reviews, only: [:index] do
           member do
             post :hide
