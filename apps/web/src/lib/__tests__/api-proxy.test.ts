@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { proxyAuthed, relayUpstream } from '../api-proxy';
+import { adminProxy, proxyAuthed, relayUpstream } from '../api-proxy';
 
 /**
  * The proxy plumbing shared by every authenticated `/api/*` route
@@ -93,5 +93,33 @@ describe('proxyAuthed', () => {
     const res = await proxyAuthed('/api/v1/restaurants', { method: 'POST', body: '{}' });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: 'nope' });
+  });
+});
+
+describe('adminProxy', () => {
+  // Admin JSON must never be cacheable: a shared/CDN cache replaying an
+  // admin payload to the next visitor would leak moderation data. The
+  // wrapper exists solely to make forgetting the header impossible.
+  it('stamps Cache-Control: no-store on relayed upstream responses', async () => {
+    vi.mocked(fetch).mockResolvedValue(upstream('{"ok":true}'));
+    const res = await adminProxy('/api/v1/admin/dashboard');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(`${API_BASE}/api/v1/admin/dashboard`);
+  });
+
+  it('keeps no-store on the local 401 (signed out) short-circuit too', async () => {
+    mockGetServerJwt.mockResolvedValue(null);
+    const res = await adminProxy('/api/v1/admin/dashboard');
+    expect(res.status).toBe(401);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('relays a Rails 404 (non-admin) verbatim', async () => {
+    vi.mocked(fetch).mockResolvedValue(upstream('{"error":"not_found"}', 404));
+    const res = await adminProxy('/api/v1/admin/dashboard');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not_found' });
   });
 });

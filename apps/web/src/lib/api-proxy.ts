@@ -60,3 +60,15 @@ export async function proxyAuthed(apiPath: string, init: ProxyInit = {}): Promis
   });
   return relayUpstream(upstream);
 }
+
+/**
+ * `proxyAuthed` + `Cache-Control: no-store` on the relayed response.
+ * Admin JSON must never be browser/CDN-cacheable; `relayUpstream`
+ * only mirrors Content-Type, so every `/api/admin/*` handler goes
+ * through this wrapper instead of calling `proxyAuthed` directly.
+ */
+export async function adminProxy(apiPath: string, init: ProxyInit = {}): Promise<NextResponse> {
+  const res = await proxyAuthed(apiPath, init);
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}
