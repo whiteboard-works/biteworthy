@@ -172,11 +172,12 @@ RSpec.describe "admin/taxonomy", type: :request do
                  error: { type: :string },
                  references: {
                    type: :object,
-                   required: %w[descendants items presets profiles],
+                   required: %w[descendants items presets modifiers profiles],
                    properties: {
                      descendants: { type: :integer },
                      items:       { type: :integer },
                      presets:     { type: :integer },
+                     modifiers:   { type: :integer },
                      profiles:    { type: :integer }
                    }
                  }

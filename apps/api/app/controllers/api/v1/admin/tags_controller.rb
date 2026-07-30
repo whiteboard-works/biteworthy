@@ -70,20 +70,25 @@ module Api
         def destroy
           tag = Tag.find(params[:id])
 
-          references = {
-            descendants: Tag.descendants_of(tag.path).where.not(id: tag.id).count,
-            items:       ItemTag.where(tag_id: tag.id).count,
-            presets:     DietaryProfileTag.where(tag_id: tag.id).count,
-            profiles:    profiles_referencing(tag.id)
-          }
+          # Same narrow-the-race transaction as the ingredients twin.
+          tag.transaction do
+            tag.lock!
 
-          if references.values.any?(&:positive?)
-            render json: { error: "in_use", references: references }, status: :conflict
-            return
+            references = {
+              descendants: Tag.descendants_of(tag.path).where.not(id: tag.id).count,
+              items:       ItemTag.where(tag_id: tag.id).count,
+              presets:     DietaryProfileTag.where(tag_id: tag.id).count,
+              modifiers:   ItemModifier.where("tag_ids @> ARRAY[:id]::uuid[]", id: tag.id).count,
+              profiles:    profiles_referencing(tag.id)
+            }
+
+            if references.values.any?(&:positive?)
+              render json: { error: "in_use", references: references }, status: :conflict
+            else
+              tag.destroy!
+              head :no_content
+            end
           end
-
-          tag.destroy!
-          head :no_content
         end
 
         private

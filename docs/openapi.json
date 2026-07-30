@@ -1992,6 +1992,7 @@
                         "descendants",
                         "items",
                         "presets",
+                        "modifiers",
                         "profiles"
                       ],
                       "properties": {
@@ -2002,6 +2003,9 @@
                           "type": "integer"
                         },
                         "presets": {
+                          "type": "integer"
+                        },
+                        "modifiers": {
                           "type": "integer"
                         },
                         "profiles": {

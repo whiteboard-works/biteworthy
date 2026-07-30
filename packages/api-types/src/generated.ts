@@ -986,6 +986,7 @@ export interface paths {
                                 descendants: number;
                                 items: number;
                                 presets: number;
+                                modifiers: number;
                                 profiles: number;
                             };
                         };

@@ -31,6 +31,19 @@ RSpec.describe "Admin taxonomy CRUD", type: :request do
         .to eq(%w[dairy dairy.kefir])
     end
 
+    it "reports per-node item counts in the index" do
+      used = create(:ingredient, slug: "used", name: "Used", path: "used")
+      create(:ingredient, slug: "unused", name: "Unused", path: "unused")
+      ItemIngredient.create!(item: create(:item), ingredient: used,
+                             confidence: "confirmed", source: "human")
+
+      get "/api/v1/admin/ingredients", headers: auth_headers_for(admin)
+
+      rows = response.parsed_body["ingredients"].index_by { |i| i["slug"] }
+      expect(rows["used"]["items_count"]).to eq(1)
+      expect(rows["unused"]["items_count"]).to eq(0)
+    end
+
     it "refuses a child whose parent path does not exist" do
       post "/api/v1/admin/ingredients",
            params: { slug: "x", name: "X", path: "ghost.x" },
@@ -64,6 +77,24 @@ RSpec.describe "Admin taxonomy CRUD", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body).to eq("error" => "immutable_field", "fields" => ["slug"])
       expect(ingredient.reload.slug).to eq("chickpea")
+
+      patch "/api/v1/admin/ingredients/#{ingredient.id}",
+            params: { path: "relocated" },
+            headers: auth_headers_for(admin)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["fields"]).to eq(["path"])
+      expect(ingredient.reload.path.to_s).to eq("legume_chickpea")
+    end
+
+    it "treats an explicit allergen: null as no-change, not a 500" do
+      ingredient = create(:ingredient, allergen: true)
+
+      patch "/api/v1/admin/ingredients/#{ingredient.id}",
+            params: { allergen: nil, name: "Renamed" }.to_json,
+            headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(ingredient.reload).to have_attributes(allergen: true, name: "Renamed")
     end
 
     it "refuses to delete a referenced node, with per-source counts" do
@@ -81,7 +112,7 @@ RSpec.describe "Admin taxonomy CRUD", type: :request do
       expect(response.parsed_body).to eq(
         "error" => "in_use",
         "references" => {
-          "descendants" => 1, "items" => 1, "presets" => 0, "profiles" => 1
+          "descendants" => 1, "items" => 1, "presets" => 0, "modifiers" => 0, "profiles" => 1
         }
       )
       expect(Ingredient.exists?(parent.id)).to be true
@@ -124,6 +155,11 @@ RSpec.describe "Admin taxonomy CRUD", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body["fields"]).to eq(["family"])
       expect(tag.reload.family).to eq("diet")
+
+      patch "/api/v1/admin/tags/#{tag.id}", params: { path: "elsewhere" },
+                                            headers: auth_headers_for(admin)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["fields"]).to eq(["path"])
 
       profile = create(:user).profile
       profile.update!(prefer_tag_ids: [tag.id])

@@ -66,9 +66,13 @@ module Api
           end
 
           attrs = {}
-          attrs[:name]     = params[:name] if params.key?(:name)
-          attrs[:aliases]  = Array(params[:aliases]).map(&:to_s).reject(&:blank?) if params.key?(:aliases)
-          attrs[:allergen] = ActiveModel::Type::Boolean.new.cast(params[:allergen]) if params.key?(:allergen)
+          attrs[:name]    = params[:name] if params.key?(:name)
+          attrs[:aliases] = Array(params[:aliases]).map(&:to_s).reject(&:blank?) if params.key?(:aliases)
+          # cast(nil) is nil and the column is NOT NULL — an explicit
+          # JSON null must not become a 500.
+          unless (allergen = ActiveModel::Type::Boolean.new.cast(params[:allergen])).nil?
+            attrs[:allergen] = allergen
+          end
           ingredient.update!(attrs)
 
           count = ItemIngredient.where(ingredient_id: ingredient.id).count
@@ -78,21 +82,29 @@ module Api
         def destroy
           ingredient = Ingredient.find(params[:id])
 
-          references = {
-            # `<@` includes the node itself — exclude it.
-            descendants: Ingredient.descendants_of(ingredient.path).where.not(id: ingredient.id).count,
-            items:       ItemIngredient.where(ingredient_id: ingredient.id).count,
-            presets:     DietaryProfileIngredient.where(ingredient_id: ingredient.id).count,
-            profiles:    profiles_referencing(ingredient.id)
-          }
+          # Transaction + row lock narrows the check-then-destroy race
+          # (dependent: :destroy would silently cascade a join added in
+          # between). A concurrent INSERT can still slip past — admin-only
+          # endpoint, accepted.
+          ingredient.transaction do
+            ingredient.lock!
 
-          if references.values.any?(&:positive?)
-            render json: { error: "in_use", references: references }, status: :conflict
-            return
+            references = {
+              # `<@` includes the node itself — exclude it.
+              descendants: Ingredient.descendants_of(ingredient.path).where.not(id: ingredient.id).count,
+              items:       ItemIngredient.where(ingredient_id: ingredient.id).count,
+              presets:     DietaryProfileIngredient.where(ingredient_id: ingredient.id).count,
+              modifiers:   ItemModifier.where("ingredient_ids @> ARRAY[:id]::uuid[]", id: ingredient.id).count,
+              profiles:    profiles_referencing(ingredient.id)
+            }
+
+            if references.values.any?(&:positive?)
+              render json: { error: "in_use", references: references }, status: :conflict
+            else
+              ingredient.destroy!
+              head :no_content
+            end
           end
-
-          ingredient.destroy!
-          head :no_content
         end
 
         private
