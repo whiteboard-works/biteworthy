@@ -21,12 +21,14 @@ the Phase 5 pause) are archived in
 
 - Extraction prompt + schema now classify add-on lines and nest them under the
   parent dish (`addons`); a deterministic materialization backstop folds stray
-  top-level `/\Aadd\s/i` (or trailing `+`) items into the previous item's new
+  top-level `/\Aadd\s/i` items into the previous item's new
   `ingestion_items.addons_payload` (`source: "guard"` vs `"extract"`). Accept
   promotes each row to an `ItemModifier` (`kind: "addition"`) — first writer the
   table has ever had. Verify UIs (web + mobile) render addon sub-rows. v1 is
-  name+price only — no ingredient/tag resolution on addons yet.
-- ⚠️ Prompt edit invalidated the ExtractMenuJob live cassette — re-record needed.
+  name+price only — no ingredient/tag resolution on addons yet; a folded line
+  keeps only its first price.
+- Live cassette re-recorded in this branch (prompt edit invalidates the request
+  match); clients guard `addons_payload` with `?? []` for API deploy skew.
 
 2026-07-29 — Deterministic-first resolve: the two LLM resolve calls are gone. Branch `feature/deterministic-resolve`.
 

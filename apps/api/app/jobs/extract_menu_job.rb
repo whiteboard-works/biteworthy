@@ -95,11 +95,14 @@ class ExtractMenuJob < ApplicationJob
     end
   end
 
-  # Deliberately narrow — "Add chicken", "Chips & salsa +". Not "extra"
-  # (collides with dish names like "Extra Crispy Wings").
+  # Deliberately narrow — a false fold silently drops a dish with no
+  # recovery path in verify, so only the unambiguous "Add …" prefix
+  # triggers. Not "extra" (collides with "Extra Crispy Wings") and not
+  # a trailing "+" (menus use it as a footnote/spice marker); those rely
+  # on the prompt's LLM classification, and a miss just stages a card a
+  # human can reject.
   def addon_line?(name)
-    stripped = name.to_s.strip
-    stripped.match?(/\Aadd\s/i) || stripped.end_with?("+")
+    name.to_s.strip.match?(/\Aadd\s/i)
   end
 
   def addon_rows(addons)

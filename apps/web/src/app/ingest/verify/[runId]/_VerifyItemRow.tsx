@@ -46,6 +46,9 @@ export function VerifyItemRow({
 
   const decided = item.decision === 'accepted' || item.decision === 'rejected';
   const price = item.prices_payload[0]?.price_cents;
+  // Nullish fallback: web (Vercel) and API (Kamal) deploy independently, so a
+  // fresh client may briefly see responses without the field.
+  const addons = item.addons_payload ?? [];
 
   return (
     <li className="rounded-xl border border-zinc-200 p-4" data-testid={`verify-item-${item.id}`}>
@@ -59,9 +62,9 @@ export function VerifyItemRow({
           </p>
           {item.description && <p className="mt-1 text-sm text-zinc-600">{item.description}</p>}
 
-          {item.addons_payload.length > 0 && (
+          {addons.length > 0 && (
             <ul className="mt-2 space-y-0.5" data-testid="item-addons">
-              {item.addons_payload.map((addon, i) => (
+              {addons.map((addon, i) => (
                 <li key={`${addon.name}-${i}`} className="text-sm text-zinc-500">
                   + {addon.name}
                   {addon.price_cents != null && (

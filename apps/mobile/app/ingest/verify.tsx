@@ -261,11 +261,11 @@ export default function VerifyScreen() {
           <Text style={styles.muted}>Section: {current.section_name}</Text>
         ) : null}
 
-        {current.addons_payload.length > 0 && (
+        {(current.addons_payload ?? []).length > 0 && (
           <>
             <View style={styles.divider} />
             <Text style={styles.label}>Add-ons</Text>
-            {current.addons_payload.map((addon, i) => (
+            {(current.addons_payload ?? []).map((addon, i) => (
               <Text style={styles.row} key={`${addon.name}-${i}`}>
                 + {addon.name}
                 {addon.price_cents != null ? ` $${(addon.price_cents / 100).toFixed(2)}` : ''}

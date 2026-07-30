@@ -24,7 +24,8 @@ const item: IngestionItemPayload = {
   ingredients_payload: [{ slug: 'nut-peanut', confidence: 0.97 }],
   tags_payload: [{ slug: 'cuisine-thai', confidence: 0.99 }],
   prices_payload: [{ size: null, price_cents: 1450 }],
-  addons_payload: [],
+  // addons_payload deliberately absent — an older API doesn't send the field,
+  // and the row must render without it (deploy-skew guard).
   unresolved_ingredients: [],
   unresolved_tags: [],
 };
@@ -43,7 +44,7 @@ describe('VerifyItemRow', () => {
     expect(screen.getByText('cuisine-thai')).toBeInTheDocument();
   });
 
-  it('renders add-on sub-rows with prices, and none when the dish has no add-ons', () => {
+  it('renders add-on sub-rows with prices, and none when the field is absent (old API)', () => {
     const withAddons = {
       ...item,
       addons_payload: [

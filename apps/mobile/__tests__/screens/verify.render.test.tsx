@@ -59,7 +59,8 @@ const pendingItem = {
   decided_at: null,
   ingredients_payload: [{ slug: 'pork', confidence: 0.95 }],
   tags_payload: [],
-  addons_payload: [],
+  // addons_payload deliberately absent — an older API doesn't send the field,
+  // and the card must render without it (deploy-skew guard).
   unresolved_ingredients: [],
   unresolved_tags: [],
 };

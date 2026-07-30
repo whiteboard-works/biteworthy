@@ -168,12 +168,12 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.ingestion_items.order(:position).pluck(:position)).to eq([0, 1])
     end
 
-    it "folds a trailing-plus name and strips the scaffolding" do
+    it "strips the Add/plus scaffolding from a folded name" do
       perform_with(
         "sections" => [
           { "name" => "Starters", "items" => [
             { "name" => "Guacamole", "prices" => [{ "size" => nil, "price_cents" => 1700 }] },
-            { "name" => "chips & salsa +", "prices" => [{ "size" => nil, "price_cents" => 300 }] }
+            { "name" => "Add chips & salsa +", "prices" => [{ "size" => nil, "price_cents" => 300 }] }
           ] }
         ]
       )
@@ -181,6 +181,19 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.ingestion_items.sole.addons_payload).to eq(
         [{ "name" => "chips & salsa", "price_cents" => 300, "source" => "guard" }]
       )
+    end
+
+    it "does not fold a trailing-plus name without the Add prefix (footnote/spice markers)" do
+      perform_with(
+        "sections" => [
+          { "name" => "Noodles", "items" => [
+            { "name" => "Pad Thai", "prices" => [{ "size" => nil, "price_cents" => 1400 }] },
+            { "name" => "Pad See Ew +", "prices" => [{ "size" => nil, "price_cents" => 1400 }] }
+          ] }
+        ]
+      )
+
+      expect(run.ingestion_items.pluck(:name)).to contain_exactly("Pad Thai", "Pad See Ew +")
     end
 
     it "materializes an addon-looking line normally when the section has no previous item" do

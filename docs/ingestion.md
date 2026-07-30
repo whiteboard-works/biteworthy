@@ -55,10 +55,12 @@ Add-on/upsell lines ("Add guacamole $2") are classified by the model
 and nested under the dish they modify (`addons`, optional) — they must
 never surface as standalone items. A deterministic backstop at
 materialization catches stragglers: a top-level item whose name matches
-`/\Aadd\s/i` or ends with `+` folds into the previous item's
-`addons_payload` (`source: "guard"`; the model's own nesting lands as
-`source: "extract"`). First-in-section has no parent, so it stages as a
-normal item for the human to judge.
+`/\Aadd\s/i` folds into the previous item's `addons_payload`
+(`source: "guard"`; the model's own nesting lands as
+`source: "extract"`). The pattern is deliberately just the "Add …"
+prefix — a false fold silently drops a dish, so anything more ambiguous
+(trailing `+`, "extra") stays a card a human can reject.
+First-in-section has no parent, so it stages as a normal item.
 
 ### 2. Resolve (deterministic — no LLM)
 
