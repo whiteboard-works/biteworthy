@@ -123,6 +123,21 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
         expect(promoted.tags).to        contain_exactly(taco_tag)
       end
 
+      it "materializes prices_payload as ItemVariants on the promoted Item" do
+        item.update!(prices_payload: [
+          { "size" => "small", "price_cents" => 450 },
+          { "size" => "large", "price_cents" => 750 }
+        ])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted" }.to_json,
+              headers: auth_for(admin)
+
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_variants.order(:position).pluck(:size, :price_cents))
+          .to eq([["small", 450], ["large", 750]])
+      end
+
       it "applies edit overrides BEFORE promoting (so the live Item has the human's tweaks)" do
         patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
               params: {
@@ -330,6 +345,9 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(body["item_id"]).to be_nil
       expect(Item.exists?(promoted_id)).to be false
       expect(ItemIngredient.where(item_id: promoted_id)).to be_empty
+      # Variants ride the Item's dependent: :destroy — undo must not strand
+      # price rows pointing at a dead Item.
+      expect(ItemVariant.where(item_id: promoted_id)).to be_empty
     end
   end
 end
