@@ -130,8 +130,10 @@ module Ingestion
       matches
     end
 
+    # Transliterate first so "Jalapeño" and "Jalapeno" tokenize
+    # identically instead of the ñ shattering into a stray token.
     def tokens(name)
-      name.to_s.downcase.gsub(/[^a-z0-9\s]/, " ").split
+      I18n.transliterate(name.to_s).downcase.gsub(/[^a-z0-9\s]/, " ").split
           .map(&:singularize) - STOPWORDS
     end
 

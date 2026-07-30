@@ -37,6 +37,13 @@ RSpec.describe Ingestion::ExistingItemMatcher do
 
       expect(matches[row.id]).to eq(item_id: target.id, score: 1.0)
     end
+
+    it "matches across diacritics ('Jalapeño Poppers' = 'Jalapeno Poppers')" do
+      target = existing("Jalapeno Poppers")
+      row    = staged("Jalapeño Poppers")
+
+      expect(matches[row.id]).to eq(item_id: target.id, score: 1.0)
+    end
   end
 
   describe "similarity band with token-subset veto" do
