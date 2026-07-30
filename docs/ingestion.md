@@ -142,7 +142,9 @@ Contributor opens a swipe UI:
 - ✅ Accept → `IngestionItem.decision = 'accepted'`, promote to a real
   `Item` with `confidence = 'confirmed'`. Each `addons_payload` row
   becomes an `ItemModifier` (`kind: "addition"`, name + price) on the
-  new Item.
+  new Item; each priced `prices_payload` row becomes an `ItemVariant`
+  (size + price_cents, payload order) — rows without a price are
+  skipped.
 - ✏️ Edit → tweak ingredients / tags → `decision = 'edited'`, then
   promote.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
