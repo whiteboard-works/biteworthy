@@ -77,9 +77,11 @@ export interface FilteredItem extends FilterableItem {
 
 /**
  * The filter contract. Avoid lists + strictness — exactly the inputs
- * the Rails `Filter` struct holds. `prefer_tag_ids` lives on the
- * profile too but only affects sort order (server-side); the engine
- * exposes it so callers can wire it in without churn.
+ * the Rails `Filter` struct holds. `prefer_tag_ids` rides along on the
+ * profile payload but nothing ranks by it: ordering comes from
+ * `scoreItem` (taste.ts) via liked/disliked signals, or from
+ * popularity. Kept on the type because the wire format still carries
+ * it.
  */
 export interface FilterProfile {
   avoid_ingredient_ids: string[];

@@ -28,9 +28,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 
 - `menus` → `menu_sections` → `items`.
 - `items` carry **denormalized arrays**: `ingredient_ids uuid[]`,
-  `tag_ids uuid[]`. Both have GIN indexes. The Active Record join models
-  (`ItemIngredient`, `ItemTag`) keep these in sync via after_save /
-  after_destroy callbacks. The arrays are what the filter query hits;
+  `tag_ids uuid[]`. The Active Record join models (`ItemIngredient`,
+  `ItemTag`) keep these in sync via after_save / after_destroy
+  callbacks. The arrays are what the filter and the taste scorer read;
   the join tables are the source of truth + audit log.
 - `item_variants` — sized pricing.
 - `item_modifiers` — choices/additions/sides collapsed into one table.
@@ -55,23 +55,53 @@ disclosure: *we know X, we suspect Y, we inferred Z*.
   (`pending | accepted | rejected | edited`). `addons_payload` holds
   nested add-on/upsell lines (`{name, price_cents, source}`).
 
-## The filter query (Phase 3 punchline)
+## The filter (Phase 3 punchline)
 
-```sql
-SELECT items.*
-FROM items
-WHERE items.restaurant_id = $1
-  AND items.status = 'published'
-  AND NOT (items.ingredient_ids && $avoid_ingredients_uuid_array)
-  AND NOT (items.tag_ids        && $avoid_tags_uuid_array)
-  AND ($strictness <> 'strict' OR items.confidence = 'confirmed')
-ORDER BY
-  cardinality(items.tag_ids & $prefer_tags_uuid_array) DESC,
-  items.popularity DESC;
+The filter does **not** run in SQL, and it never removes rows. The read
+path is:
+
+```ruby
+# ItemsController#index — apps/api/app/controllers/api/v1/items_controller.rb
+restaurant.items.published
+          .includes(menu_section: :menu, photo_attachment: :blob)
+          .order(popularity: :desc, name: :asc)
 ```
 
-`&&` is Postgres's "array overlap" operator and uses the GIN index. This
-is the entire reason the schema looks the way it does.
+…then, per item, in Ruby:
 
-The same shape lives in `packages/filter-engine/src/index.ts` for the
-client side; both are tested.
+```ruby
+(item.ingredient_ids & filter.avoid_ingredient_ids)  # → avoid_ingredient reasons
+(item.tag_ids        & filter.avoid_tag_ids)         # → avoid_tag reasons
+filter.strictness == "strict" && item.confidence != "confirmed"
+                                                     # → unconfirmed_strict reason
+```
+
+An item with a non-empty `reasons[]` serializes as `status: "hidden"`
+and carries the reasons. **That is deliberate**: honest disclosure means
+a hidden item has to be able to say why, so it can't be filtered out in
+the WHERE clause. A menu is tens-to-hundreds of rows, so loading all of
+them is the cheap option anyway.
+
+Ranking is a separate query. `TasteScoring.scores_for` (see
+`app/services/taste_scoring.rb`) computes, for every published item at
+the restaurant:
+
+```
+score = 2.0 * |tag_ids ∩ liked_tag_ids|
+      + 1.0 * |ingredient_ids ∩ liked_ingredient_ids|
+      - 2.0 * |tag_ids ∩ disliked_tag_ids|
+      - 1.0 * |ingredient_ids ∩ disliked_ingredient_ids|
+      + 0.5 * popularity / max_popularity_at_restaurant
+      + 0.5 * (avg_visible_rating - 3) / 2
+```
+
+It only runs for a signed-in user with taste signals; everyone else
+keeps the `popularity DESC, name ASC` order. Scores reorder and
+highlight — they never hide. Note that `user_profiles.prefer_tag_ids`
+is **not** an input to any of this.
+
+The filter computation is mirrored client-side by `applyProfile` in
+`packages/filter-engine/src/index.ts`, and the scorer by `scoreItem` in
+`packages/filter-engine/src/taste.ts` (shared fixture:
+`fixtures/taste-parity.json`). All are tested; all must change
+together.
