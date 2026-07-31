@@ -33,26 +33,53 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(response.parsed_body["tags"].first).to include("name" => "Vegan", "family" => "diet")
     end
 
-    # The filter query reads items.ingredient_ids, not the join table —
-    # a removal that skipped the callbacks would leave an allergen
-    # showing in the array long after the join was gone.
-    it "keeps the denormalized arrays in sync on add AND remove" do
+    # THE P0. The filter query reads the denormalized items.ingredient_ids
+    # COLUMN, not the join table — and `item.ingredient_ids` in Ruby is
+    # the has_many-through reader, which shadows that column and would
+    # pass even if the callbacks never ran. Read the raw attribute (and
+    # re-run the actual filter predicate) so a removal that skipped the
+    # after_destroy callbacks fails loudly instead of leaving an
+    # allergen visible on a dish that no longer lists it.
+    def denormalized_ingredient_ids
+      item.reload.read_attribute(:ingredient_ids)
+    end
+
+    def filter_sees_ingredient?(ingredient)
+      Item.where(id: item.id)
+          .where("items.ingredient_ids && ARRAY[?]::uuid[]", ingredient.id)
+          .exists?
+    end
+
+    it "keeps the denormalized column in sync on add AND remove" do
       patch_item(ingredient_slugs: %w[meat-beef soy-tofu])
-      expect(item.reload.ingredient_ids).to contain_exactly(beef.id, tofu.id)
+      expect(denormalized_ingredient_ids).to contain_exactly(beef.id, tofu.id)
+      expect(filter_sees_ingredient?(beef)).to be true
 
       patch_item(ingredient_slugs: %w[soy-tofu])
-      expect(item.reload.ingredient_ids).to eq([tofu.id])
+
+      expect(denormalized_ingredient_ids).to eq([tofu.id])
       expect(item.item_ingredients.count).to eq(1)
+      # The assertion that actually matters: the filter no longer sees
+      # beef on this dish.
+      expect(filter_sees_ingredient?(beef)).to be false
+    end
+
+    it "keeps the denormalized tag column in sync too" do
+      patch_item(tag_slugs: %w[diet-vegan])
+      expect(item.reload.read_attribute(:tag_ids)).to eq([vegan.id])
+
+      patch_item(tag_slugs: [])
+      expect(item.reload.read_attribute(:tag_ids)).to eq([])
     end
 
     it "clears every chip when an explicit empty list is sent" do
       patch_item(ingredient_slugs: %w[meat-beef])
-      expect(item.reload.ingredient_ids).to eq([beef.id])
+      expect(item.reload.read_attribute(:ingredient_ids)).to eq([beef.id])
 
       patch_item(ingredient_slugs: [])
 
       expect(response).to have_http_status(:ok)
-      expect(item.reload.ingredient_ids).to eq([])
+      expect(item.reload.read_attribute(:ingredient_ids)).to eq([])
       expect(item.item_ingredients).to be_empty
     end
 
@@ -60,7 +87,7 @@ RSpec.describe "Admin item deep edit", type: :request do
       patch_item(ingredient_slugs: %w[meat-beef])
       patch_item(name: "Renamed only")
 
-      expect(item.reload.ingredient_ids).to eq([beef.id])
+      expect(item.reload.read_attribute(:ingredient_ids)).to eq([beef.id])
       expect(item.name).to eq("Renamed only")
     end
 
@@ -117,6 +144,38 @@ RSpec.describe "Admin item deep edit", type: :request do
         .to eq([["Add avocado", "addition", 200], ["Side salad", "side", nil]])
       expect(response.parsed_body["modifiers"].map { |m| m["name"] })
         .to eq(["Add avocado", "Side salad"])
+    end
+  end
+
+  describe "price floors" do
+    # This endpoint writes to an ALREADY-published menu, so it needs at
+    # least the floor the staged-edit path enforces.
+    it "422s a negative or non-numeric variant price and writes nothing" do
+      item.item_variants.create!(size: "regular", price_cents: 1_200, position: 0)
+
+      patch_item(variants: [{ size: "neg", price_cents: -500 }])
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("error" => "invalid_price_cents", "values" => ["-500"])
+
+      patch_item(variants: [{ size: "junk", price_cents: "abc" }])
+      expect(response).to have_http_status(:unprocessable_entity)
+
+      # The live prices survived both attempts.
+      expect(item.reload.item_variants.pluck(:size, :price_cents)).to eq([["regular", 1_200]])
+    end
+
+    it "422s a negative modifier price" do
+      patch_item(modifiers: [{ name: "Add avocado", price_cents: -900 }])
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(item.reload.item_modifiers).to be_empty
+    end
+
+    it "still allows a free (zero) price" do
+      patch_item(variants: [{ size: "free", price_cents: 0 }])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.item_variants.pluck(:price_cents)).to eq([0])
     end
   end
 

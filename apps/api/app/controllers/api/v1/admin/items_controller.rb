@@ -46,6 +46,7 @@ module Api
                    status: :unprocessable_entity
             return
           end
+          return unless validate_prices!
 
           ::Admin::ItemEditor.new(item).call(edit_attrs)
           render json: serialize_item(item)
@@ -58,6 +59,28 @@ module Api
 
         private
 
+        # The same non-negative-integer floor the staged-edit endpoint
+        # enforces (ingestion_items_controller). This path writes to an
+        # ALREADY-published menu, so it needs it at least as badly.
+        def validate_prices!
+          bad = %i[variants modifiers].flat_map do |key|
+            rows = params[key]
+            next [] unless rows.is_a?(Array)
+
+            rows.filter_map do |row|
+              next unless row.respond_to?(:[])
+              value = row[:price_cents] || row["price_cents"]
+              next if value.nil? || value.to_s.strip.empty?
+              value.to_s unless value.to_s.match?(/\A\d+\z/)
+            end
+          end
+          return true if bad.empty?
+
+          render json: { error: "invalid_price_cents", values: bad },
+                 status: :unprocessable_entity
+          false
+        end
+
         # Only keys the caller actually sent — an absent key must leave
         # that facet alone rather than clearing it.
         def edit_attrs
@@ -68,13 +91,9 @@ module Api
             variants:  [:size, :price_cents, :currency],
             modifiers: [:name, :kind, :price_cents]
           )
-          attrs = permitted.to_h.symbolize_keys
-          # to_h drops keys whose value is an empty array, but "clear
-          # every chip" has to survive as an explicit empty list.
-          %i[ingredient_slugs tag_slugs variants modifiers].each do |key|
-            attrs[key] = [] if !attrs.key?(key) && params[key].is_a?(Array) && params[key].empty?
-          end
-          attrs
+          # permit keeps empty arrays, so an explicit `[]` survives as a
+          # "clear this facet" instruction rather than looking absent.
+          permitted.to_h.symbolize_keys
         end
 
         def serialize_item(item)
@@ -91,13 +110,15 @@ module Api
             tag_count:        item.tag_ids.size,
             # Names, not just counts — the admin panel edits by slug and
             # has to show a human what's attached.
-            ingredients: item.ingredients.order(:name).map { |i| { id: i.id, slug: i.slug, name: i.name } },
-            tags:        item.tags.order(:name).map { |t| { id: t.id, slug: t.slug, name: t.name, family: t.family } },
-            modifiers:   item.item_modifiers.order(:name).map do |m|
+            # sort_by, not .order — an ORDER BY would discard the
+            # index's preload and re-query per item.
+            ingredients: item.ingredients.sort_by(&:name).map { |i| { id: i.id, slug: i.slug, name: i.name } },
+            tags:        item.tags.sort_by(&:name).map { |t| { id: t.id, slug: t.slug, name: t.name, family: t.family } },
+            modifiers:   item.item_modifiers.sort_by(&:name).map do |m|
               { id: m.id, name: m.name, kind: m.kind, price_cents: m.price_cents }
             end,
             variants: item.item_variants.sort_by { |v| v.position.to_i }.map do |v|
-              { size: v.size, price_cents: v.price_cents }
+              { id: v.id, size: v.size, price_cents: v.price_cents, currency: v.currency }
             end,
             created_at: item.created_at
           }
