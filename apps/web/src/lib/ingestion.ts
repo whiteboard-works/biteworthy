@@ -220,11 +220,35 @@ export async function fetchRunItems(
   return body.items;
 }
 
+/**
+ * Corrections applied to a staged item before (or instead of) accept.
+ * Every payload array REPLACES the stored one — send the complete
+ * array, omit the key to leave it untouched, send [] to clear it.
+ * Callers must only send facets the human actually changed: the
+ * background gap-fill pass keeps appending chips, and a resent
+ * untouched array would wipe them.
+ *
+ * A superset of mobile's `DecideOptions.edits` (which has no prices
+ * yet); `confidence`/`source` ride along so provenance survives an edit.
+ */
+export interface IngestionItemEdits {
+  name?: string;
+  description?: string;
+  ingredients_payload?: Array<{ slug: string; confidence?: number; source?: string }>;
+  tags_payload?: Array<{ slug: string; confidence?: number; source?: string }>;
+  prices_payload?: Array<{ size: string | null; price_cents: number }>;
+}
+
 export async function decideRunItem(opts: {
   runId: string;
   itemId: string;
-  /** `pending` is Undo — reverts a decision (and un-promotes if it went live). */
-  decision: 'accepted' | 'rejected' | 'pending';
+  /**
+   * `edited` records corrections without promoting; `accepted` applies
+   * any edits first, so the live Item carries them. `pending` is Undo —
+   * reverts a decision (and un-promotes if it went live).
+   */
+  decision: 'accepted' | 'edited' | 'rejected' | 'pending';
+  edits?: IngestionItemEdits;
   fetchImpl?: typeof fetch;
 }): Promise<IngestionItemPayload> {
   const { fetchImpl = fetch } = opts;
@@ -234,7 +258,7 @@ export async function decideRunItem(opts: {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ decision: opts.decision }),
+      body: JSON.stringify({ decision: opts.decision, ...(opts.edits ?? {}) }),
     },
   );
   if (!res.ok) {
@@ -286,6 +310,9 @@ export function friendlyIngestionError(err: unknown): string {
     }
     if (err.status === 403 && err.body?.error === 'forbidden_restaurant') {
       return "That restaurant is someone else's draft — pick a published restaurant or create your own.";
+    }
+    if (err.status === 422 && err.body?.error === 'invalid_price_cents') {
+      return 'A price looks wrong — use a plain amount like 8.95.';
     }
   }
   return err instanceof Error ? err.message : String(err);

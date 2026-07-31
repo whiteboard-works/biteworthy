@@ -214,3 +214,110 @@ describe('VerifyItemRow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/budget/);
   });
 });
+
+describe('VerifyItemRow editing', () => {
+  it('Save edit sends decision: edited with only the changed facets', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'edited' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.change(screen.getByTestId('edit-name'), { target: { value: 'Pad Thai (spicy)' } });
+    fireEvent.change(screen.getByTestId('price-amount-0'), { target: { value: '16.00' } });
+    fireEvent.click(screen.getByTestId('remove-ingredients-nut-peanut'));
+    fireEvent.click(screen.getByTestId('save-edit'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    const call = decideMock.mock.calls.at(-1)![0];
+    expect(call.decision).toBe('edited');
+    expect(call.edits).toEqual({
+      name: 'Pad Thai (spicy)',
+      ingredients_payload: [],
+      prices_payload: [{ size: null, price_cents: 1600 }],
+    });
+    // Untouched — tags must not ride along and clobber gap-fill's work.
+    expect(call.edits).not.toHaveProperty('tags_payload');
+    expect(call.edits).not.toHaveProperty('description');
+  });
+
+  it('Accept while editing carries the pending corrections', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'accepted' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.change(screen.getByTestId('edit-name'), { target: { value: 'Corrected' } });
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    expect(decideMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        decision: 'accepted',
+        edits: { name: 'Corrected' },
+      }),
+    );
+  });
+
+  // An untouched row must not resend payloads: gap-fill keeps appending
+  // suggestions after :staged, and a stale resend would wipe them.
+  it('Accept without opening the editor sends no edits at all', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'accepted' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    expect(decideMock.mock.calls.at(-1)![0]).not.toHaveProperty('edits');
+  });
+
+  it('blocks saving a nameless dish rather than letting promote 500', () => {
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.change(screen.getByTestId('edit-name'), { target: { value: '  ' } });
+
+    expect(screen.getByTestId('save-edit')).toBeDisabled();
+    expect(screen.getByText('Accept')).toBeDisabled();
+    expect(screen.getByTestId('edit-blocker')).toBeInTheDocument();
+  });
+
+  // A saved edit isn't a decision: the dish still has to be accepted,
+  // and the run's 80% publish gate still counts it as undecided.
+  it('flags an edited row as still needing acceptance', () => {
+    render(
+      <VerifyItemRow
+        runId="run-1"
+        item={{ ...item, decision: 'edited' }}
+        enriched
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('edited-badge')).toHaveTextContent(/still needs accepting/i);
+    // Still actionable — Accept/Reject stay available.
+    expect(screen.getByText('Accept')).toBeInTheDocument();
+  });
+
+  it('discarding closes the editor without deciding', () => {
+    // This file deliberately doesn't clear mocks between tests (see the
+    // note above), so assert on the delta rather than absolute calls.
+    const before = decideMock.mock.calls.length;
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.click(screen.getByTestId('cancel-edit'));
+
+    expect(screen.queryByTestId('item-edit-panel')).not.toBeInTheDocument();
+    expect(decideMock.mock.calls.length).toBe(before);
+  });
+
+  it('rejecting with the panel open closes it', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'rejected' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.click(screen.getByText('Reject'));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('item-edit-panel')).not.toBeInTheDocument(),
+    );
+  });
+});

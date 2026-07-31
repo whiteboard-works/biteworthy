@@ -49,7 +49,7 @@ before accept, and admins able to edit anything at a restaurant (the
 CRUD parity Avo used to provide). Sequence:
 
 - [x] E1 — API: permit `prices_payload` in staged-item edits; real payload row schemas
-- [ ] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
+- [x] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
 - [ ] E3 — API: admin item deep-edit (variants, modifiers, ingredient/tag join sync, section move)
 - [ ] E4 — web: admin item deep-edit panel
 - [ ] E5 — API: admin menus, sections, addresses, hours
