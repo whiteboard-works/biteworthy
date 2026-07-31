@@ -17,6 +17,8 @@ const TABS = [
   { href: '/admin/suggestions', label: 'Suggestions' },
   // `match` widens the active state to sibling sub-pages (tags).
   { href: '/admin/taxonomy/ingredients', label: 'Taxonomy', match: '/admin/taxonomy' },
+  { href: '/admin/restaurants', label: 'Restaurants' },
+  { href: '/admin/users', label: 'Users' },
 ] as const;
 
 export function AdminNav() {
