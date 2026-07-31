@@ -41,6 +41,41 @@ def admin_item_row_schema
       popularity:       { type: :integer },
       ingredient_count: { type: :integer },
       tag_count:        { type: :integer },
+      ingredients: {
+        type: :array,
+        items: {
+          type: :object,
+          properties: {
+            id:   { type: :string, format: :uuid },
+            slug: { type: :string },
+            name: { type: :string }
+          }
+        }
+      },
+      tags: {
+        type: :array,
+        items: {
+          type: :object,
+          properties: {
+            id:     { type: :string, format: :uuid },
+            slug:   { type: :string },
+            name:   { type: :string },
+            family: { type: :string }
+          }
+        }
+      },
+      modifiers: {
+        type: :array,
+        items: {
+          type: :object,
+          properties: {
+            id:          { type: :string, format: :uuid },
+            name:        { type: :string },
+            kind:        { type: :string, enum: %w[choice addition side] },
+            price_cents: { type: :integer, nullable: true }
+          }
+        }
+      },
       variants: {
         type: :array,
         items: {
@@ -224,12 +259,50 @@ RSpec.describe "admin/management", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
       parameter name: :body, in: :body, required: true, schema: {
         type: :object,
-        description: "confidence and the denormalized id arrays are deliberately " \
-                     "not accepted — confidence stays on the promote/confirm rails.",
+        description: "Deep-edit a live dish. Absent keys are left alone; an explicit " \
+                     "empty array clears that facet. Ingredient/tag joins are synced " \
+                     "from slug lists and land confidence: confirmed, source: human " \
+                     "(an admin IS the trusted source). `confidence` itself and the " \
+                     "denormalized id arrays are deliberately not accepted — " \
+                     "confidence stays on the promote/confirm_community rails.",
         properties: {
-          name:        { type: :string },
-          description: { type: :string },
-          status:      { type: :string, enum: %w[draft published removed] }
+          name:            { type: :string },
+          description:     { type: :string },
+          status:          { type: :string, enum: %w[draft published removed] },
+          menu_section_id: { type: :string, format: :uuid, nullable: true,
+                             description: "must belong to this item's restaurant (422 otherwise)" },
+          ingredient_slugs: {
+            type: :array,
+            description: "Complete list; unknown slugs 422 with the offenders.",
+            items: { type: :string }
+          },
+          tag_slugs: { type: :array, items: { type: :string } },
+          variants: {
+            type: :array,
+            description: "Replaced wholesale; array order becomes position. " \
+                         "Rows without price_cents are dropped.",
+            items: {
+              type: :object,
+              properties: {
+                size:        { type: :string, nullable: true },
+                price_cents: { type: :integer },
+                currency:    { type: :string }
+              }
+            }
+          },
+          modifiers: {
+            type: :array,
+            description: "Replaced wholesale. kind defaults to addition.",
+            items: {
+              type: :object,
+              required: %w[name],
+              properties: {
+                name:        { type: :string },
+                kind:        { type: :string, enum: %w[choice addition side] },
+                price_cents: { type: :integer, nullable: true }
+              }
+            }
+          }
         }
       }
 
@@ -238,6 +311,18 @@ RSpec.describe "admin/management", type: :request do
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id)   { create(:item).id }
         let(:body) { { status: "removed" } }
+        run_test!
+      end
+
+      response(422, "invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section") do
+        schema type: :object,
+               properties: {
+                 error: { type: :string },
+                 slugs: { type: :array, items: { type: :string } }
+               }
+        let(:Authorization) { bearer_for(create(:user, :admin)) }
+        let(:id)   { create(:item).id }
+        let(:body) { { ingredient_slugs: ["no-such-ingredient"] } }
         run_test!
       end
     end
