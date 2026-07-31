@@ -83,7 +83,10 @@ def admin_item_row_schema
           type: :object,
           properties: {
             size: { type: :string, nullable: true },
-            price_cents: { type: :integer, nullable: true }
+            price_cents: { type: :integer, nullable: true },
+            # Echoed back so an editor can round-trip a non-USD row
+            # instead of rewriting it to the default on save.
+            currency: { type: :string }
           }
         }
       },
@@ -268,7 +271,8 @@ RSpec.describe "admin/management", type: :request do
                      "confidence stays on the promote/confirm_community rails.",
         properties: {
           name:            { type: :string },
-          description:     { type: :string },
+          description:     { type: :string, nullable: true,
+                             description: "null clears it; '' would store an empty string" },
           status:          { type: :string, enum: %w[draft published removed] },
           menu_section_id: { type: :string, format: :uuid, nullable: true,
                              description: "must belong to this item's restaurant (422 otherwise)" },
@@ -280,13 +284,14 @@ RSpec.describe "admin/management", type: :request do
           tag_slugs: { type: :array, items: { type: :string } },
           variants: {
             type: :array,
-            description: "Replaced wholesale; array order becomes position. " \
-                         "Rows without price_cents are dropped.",
+            description: "Replaced wholesale; array order becomes position. A row may " \
+                         "carry a size with no price (\"Large — market price\"); rows " \
+                         "with neither are dropped.",
             items: {
               type: :object,
               properties: {
                 size:        { type: :string, nullable: true },
-                price_cents: { type: :integer },
+                price_cents: { type: :integer, nullable: true },
                 currency:    { type: :string }
               }
             }

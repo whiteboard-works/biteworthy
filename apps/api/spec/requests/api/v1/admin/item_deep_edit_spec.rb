@@ -125,8 +125,20 @@ RSpec.describe "Admin item deep edit", type: :request do
         .to eq([["small", 650], ["large", 950]])
     end
 
-    it "drops priceless variant rows and clears on an empty list" do
-      patch_item(variants: [{ size: "no price" }, { size: "ok", price_cents: 500 }])
+    # "Large — market price" is a real menu row, and a re-scan apply
+    # writes them (IngestionItem#apply_update! passes price_cents
+    # through with no blank guard). If the editor dropped them, an admin
+    # fixing a typo on a sibling row would silently delete one.
+    it "keeps a size-only variant instead of dropping it" do
+      patch_item(variants: [{ size: "Large" }, { size: "Small", price_cents: 500 }])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.item_variants.order(:position).pluck(:size, :price_cents))
+        .to eq([["Large", nil], ["Small", 500]])
+    end
+
+    it "drops a wholly empty variant row and clears on an empty list" do
+      patch_item(variants: [{ size: "", price_cents: "" }, { size: "ok", price_cents: 500 }])
       expect(item.reload.item_variants.pluck(:size)).to eq(["ok"])
 
       patch_item(variants: [])

@@ -117,11 +117,15 @@ module Admin
     def replace_variants(rows)
       @item.item_variants.destroy_all
       Array(rows).each_with_index do |row, index|
-        price = row[:price_cents] || row["price_cents"]
-        next if price.blank?
+        price = (row[:price_cents] || row["price_cents"]).presence
+        size  = (row[:size] || row["size"]).presence
+        # A size with no amount is a real menu row ("Large — market
+        # price"), and re-scan writes them. Only a wholly empty row is
+        # noise worth dropping.
+        next if price.nil? && size.nil?
 
         @item.item_variants.create!(
-          size: (row[:size] || row["size"]).presence,
+          size: size,
           price_cents: price,
           currency: (row[:currency] || row["currency"]).presence || "USD",
           position: index

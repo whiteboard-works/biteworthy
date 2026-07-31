@@ -82,16 +82,14 @@ export function fetchAdminRestaurantItems(
  * confirmed/human server-side — `confidence` is deliberately not
  * settable here (it moves only through promote / confirm-community).
  */
-export interface AdminItemEdits {
-  name?: string;
-  description?: string;
-  status?: string;
-  menu_section_id?: string | null;
-  ingredient_slugs?: string[];
-  tag_slugs?: string[];
-  variants?: Array<{ size: string | null; price_cents: number }>;
-  modifiers?: Array<{ name: string; kind?: string; price_cents?: number | null }>;
-}
+export type AdminItemEdits = NonNullable<
+  paths['/api/v1/admin/items/{id}']['patch']['requestBody']
+>['content']['application/json'];
+
+/** The modifier kinds the server accepts, from the same generated contract. */
+export type AdminModifierKind = NonNullable<
+  NonNullable<AdminItemEdits['modifiers']>[number]['kind']
+>;
 
 export function updateAdminItem(
   id: string,
@@ -116,7 +114,12 @@ export function itemEditErrorCopy(err: unknown): string | null {
     case 'invalid_status':
       return 'Unknown status.';
     default:
-      return null;
+      // A rejected write must not fall through to the generic "went
+      // wrong loading admin data" copy — this is a save, and the 401/
+      // 403/404 cases still want that shared auth wording.
+      return err.status === 422
+        ? 'The server rejected that edit. Check the fields and retry.'
+        : null;
   }
 }
 
@@ -137,5 +140,9 @@ export function setUserAdmin(
   isAdmin: boolean,
   fetchImpl?: typeof fetch,
 ): Promise<AdminUserRow> {
-  return patchAdminJson(`/api/admin/users/${encodeURIComponent(id)}`, { is_admin: isAdmin }, fetchImpl);
+  return patchAdminJson(
+    `/api/admin/users/${encodeURIComponent(id)}`,
+    { is_admin: isAdmin },
+    fetchImpl,
+  );
 }

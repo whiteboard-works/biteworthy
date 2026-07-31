@@ -625,6 +625,7 @@ export interface paths {
                                 variants?: {
                                     size?: string | null;
                                     price_cents?: number | null;
+                                    currency?: string;
                                 }[];
                                 /** Format: date-time */
                                 created_at?: string;
@@ -676,7 +677,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         name?: string;
-                        description?: string;
+                        /** @description null clears it; '' would store an empty string */
+                        description?: string | null;
                         /** @enum {string} */
                         status?: "draft" | "published" | "removed";
                         /**
@@ -687,10 +689,10 @@ export interface paths {
                         /** @description Complete list; unknown slugs 422 with the offenders. */
                         ingredient_slugs?: string[];
                         tag_slugs?: string[];
-                        /** @description Replaced wholesale; array order becomes position. Rows without price_cents are dropped. */
+                        /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
                         variants?: {
                             size?: string | null;
-                            price_cents?: number;
+                            price_cents?: number | null;
                             currency?: string;
                         }[];
                         /** @description Replaced wholesale. kind defaults to addition. */
@@ -750,6 +752,7 @@ export interface paths {
                             variants?: {
                                 size?: string | null;
                                 price_cents?: number | null;
+                                currency?: string;
                             }[];
                             /** Format: date-time */
                             created_at?: string;

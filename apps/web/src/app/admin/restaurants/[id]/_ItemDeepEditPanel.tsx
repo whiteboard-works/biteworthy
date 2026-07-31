@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { searchIngredients, fetchTags, type TasteTag } from '../../../../lib/onboarding';
-import type { AdminItemEdits, AdminItemRow } from '../../../../lib/admin/management';
+import type {
+  AdminItemEdits,
+  AdminItemRow,
+  AdminModifierKind,
+} from '../../../../lib/admin/management';
 
 /**
  * Deep-edit a live dish: name, description, the ingredient/tag chips
@@ -24,12 +28,17 @@ export interface ItemDraft {
   sectionId: string;
   ingredientSlugs: string[];
   tagSlugs: string[];
-  variants: Array<{ size: string; price: string }>;
-  modifiers: Array<{ name: string; kind: string; price: string }>;
+  /** `currency` is carried, not edited — dropping it would rewrite a non-USD row to USD. */
+  variants: Array<{ size: string; price: string; currency: string }>;
+  modifiers: Array<{ name: string; kind: AdminModifierKind; price: string }>;
 }
 
-const MODIFIER_KINDS = ['addition', 'choice', 'side'] as const;
+const MODIFIER_KINDS: readonly AdminModifierKind[] = ['addition', 'choice', 'side'];
 const PRICE_INPUT = /^\d+(\.\d{1,2})?$/;
+
+function toModifierKind(raw: string | undefined): AdminModifierKind {
+  return MODIFIER_KINDS.find((kind) => kind === raw) ?? 'addition';
+}
 
 function centsToInput(cents: number | null | undefined): string {
   return cents == null ? '' : (cents / 100).toFixed(2);
@@ -45,10 +54,11 @@ export function draftFromItem(item: AdminItemRow): ItemDraft {
     variants: (item.variants ?? []).map((row) => ({
       size: row.size ?? '',
       price: centsToInput(row.price_cents),
+      currency: row.currency ?? 'USD',
     })),
     modifiers: (item.modifiers ?? []).map((row) => ({
       name: row.name ?? '',
-      kind: row.kind ?? 'addition',
+      kind: toModifierKind(row.kind),
       price: centsToInput(row.price_cents),
     })),
   };
@@ -64,11 +74,18 @@ export function draftBlockers(draft: ItemDraft): string | null {
   return null;
 }
 
+/**
+ * A size with no amount is a real menu row, so it survives; only a
+ * wholly empty row is dropped. Anything the admin typed must reach the
+ * server — silently discarding it would lose work behind a Save.
+ */
 function variantsPayload(draft: ItemDraft) {
   return draft.variants.flatMap((row) => {
     const price = row.price.trim();
-    if (!PRICE_INPUT.test(price)) return [];
-    return [{ size: row.size.trim() || null, price_cents: Math.round(Number(price) * 100) }];
+    const size = row.size.trim();
+    const cents = PRICE_INPUT.test(price) ? Math.round(Number(price) * 100) : null;
+    if (cents === null && size === '') return [];
+    return [{ size: size || null, price_cents: cents, currency: row.currency }];
   });
 }
 
@@ -92,15 +109,20 @@ export function editsFromDraft(draft: ItemDraft, baseline: ItemDraft): AdminItem
   const edits: AdminItemEdits = {};
   if (draft.name.trim() !== baseline.name.trim()) edits.name = draft.name.trim();
   if (draft.description.trim() !== baseline.description.trim()) {
-    edits.description = draft.description.trim();
+    // null clears the column; '' would store an empty string over NULL.
+    edits.description = draft.description.trim() || null;
   }
   if (draft.sectionId !== baseline.sectionId) {
     edits.menu_section_id = draft.sectionId === '' ? null : draft.sectionId;
   }
-  if (draft.ingredientSlugs.join() !== baseline.ingredientSlugs.join()) {
+  // Compared as JSON, not join() — a slug containing the separator would
+  // otherwise compare equal to a different list and drop the edit.
+  if (JSON.stringify(draft.ingredientSlugs) !== JSON.stringify(baseline.ingredientSlugs)) {
     edits.ingredient_slugs = draft.ingredientSlugs;
   }
-  if (draft.tagSlugs.join() !== baseline.tagSlugs.join()) edits.tag_slugs = draft.tagSlugs;
+  if (JSON.stringify(draft.tagSlugs) !== JSON.stringify(baseline.tagSlugs)) {
+    edits.tag_slugs = draft.tagSlugs;
+  }
 
   const variants = variantsPayload(draft);
   if (JSON.stringify(variants) !== JSON.stringify(variantsPayload(baseline))) {
@@ -259,7 +281,12 @@ export function ItemDeepEditPanel({
         </ul>
         <button
           type="button"
-          onClick={() => onChange({ ...draft, variants: [...draft.variants, { size: '', price: '' }] })}
+          onClick={() =>
+            onChange({
+              ...draft,
+              variants: [...draft.variants, { size: '', price: '', currency: 'USD' }],
+            })
+          }
           data-testid={`item-variant-add-${itemId}`}
           className="mt-bw-1 text-bw-xs font-semibold text-zinc-600 underline hover:text-zinc-900"
         >
@@ -293,7 +320,7 @@ export function ItemDeepEditPanel({
                   onChange({
                     ...draft,
                     modifiers: draft.modifiers.map((r, i) =>
-                      i === index ? { ...r, kind: e.target.value } : r,
+                      i === index ? { ...r, kind: toModifierKind(e.target.value) } : r,
                     ),
                   })
                 }
@@ -354,7 +381,11 @@ export function ItemDeepEditPanel({
 
       <div className="flex items-center justify-between gap-bw-3">
         {blocker ? (
-          <p role="alert" data-testid={`item-blocker-${itemId}`} className="text-bw-xs text-red-700">
+          <p
+            role="alert"
+            data-testid={`item-blocker-${itemId}`}
+            className="text-bw-xs text-red-700"
+          >
             {blocker}
           </p>
         ) : (

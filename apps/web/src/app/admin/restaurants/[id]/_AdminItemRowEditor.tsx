@@ -9,7 +9,12 @@ import {
 } from '../../../../lib/admin/management';
 import { friendlyAdminError } from '../../../../lib/admin/shared';
 import { StatusBadge, type BadgeTone } from '../../_StatusBadge';
-import { ItemDeepEditPanel, type ItemDraft, draftFromItem, editsFromDraft } from './_ItemDeepEditPanel';
+import {
+  ItemDeepEditPanel,
+  type ItemDraft,
+  draftFromItem,
+  editsFromDraft,
+} from './_ItemDeepEditPanel';
 
 /**
  * One item in the restaurant workbench. The status select is the admin
@@ -24,7 +29,9 @@ import { ItemDeepEditPanel, type ItemDraft, draftFromItem, editsFromDraft } from
  * land confirmed/human server-side, which is what makes them visible
  * to strict-mode users.
  */
-const ITEM_STATUSES = ['draft', 'published', 'removed'] as const;
+/** Sourced from the generated contract so a server-side change breaks the build. */
+type ItemStatus = NonNullable<AdminItemEdits['status']>;
+const ITEM_STATUSES: readonly ItemStatus[] = ['draft', 'published', 'removed'];
 
 const STATUS_TONES: Record<string, BadgeTone> = {
   draft: 'muted',
@@ -70,13 +77,14 @@ export function AdminItemRowEditor({
     }
   };
 
-  const setStatus = async (status: string) => {
+  const setStatus = async (status: ItemStatus) => {
     setPendingRemoval(false);
     await save({ status });
   };
 
-  const onSelect = (status: string) => {
-    if (status === item.status) return;
+  const onSelect = (raw: string) => {
+    const status = ITEM_STATUSES.find((s) => s === raw);
+    if (!status || status === item.status) return;
     // Removal disappears the dish from every public menu — a stray
     // select change must not do that silently.
     if (status === 'removed') {
@@ -109,14 +117,14 @@ export function AdminItemRowEditor({
           <p className="font-semibold text-zinc-900">
             {item.name}
             {price != null && (
-              <span className="ml-bw-2 font-normal text-zinc-500">
-                ${(price / 100).toFixed(2)}
-              </span>
+              <span className="ml-bw-2 font-normal text-zinc-500">${(price / 100).toFixed(2)}</span>
             )}
           </p>
           <p className="mt-bw-1 text-bw-xs text-zinc-500">
             {(item.ingredients ?? []).map((i) => i.name).join(', ') || 'no ingredients'}
-            {(item.tags ?? []).length > 0 && <> · {(item.tags ?? []).map((t) => t.name).join(', ')}</>}
+            {(item.tags ?? []).length > 0 && (
+              <> · {(item.tags ?? []).map((t) => t.name).join(', ')}</>
+            )}
             {item.description && <> · {item.description}</>}
           </p>
         </div>

@@ -72,12 +72,77 @@ describe('editsFromDraft', () => {
     const baseline = draftFromItem(item);
     const draft = structuredClone(baseline);
     draft.ingredientSlugs = ['meat-beef', 'vegetable-onion'];
-    draft.variants = [{ size: 'large', price: '9.75' }];
+    draft.variants = [{ size: 'large', price: '9.75', currency: 'USD' }];
 
     const edits = editsFromDraft(draft, baseline);
 
     expect(edits.ingredient_slugs).toEqual(['meat-beef', 'vegetable-onion']);
-    expect(edits.variants).toEqual([{ size: 'large', price_cents: 975 }]);
+    expect(edits.variants).toEqual([{ size: 'large', price_cents: 975, currency: 'USD' }]);
+  });
+
+  /**
+   * A half-typed price row must reach the server. Dropping it would
+   * lose the admin's typing behind an affirmative Save, with no error
+   * and nothing on screen to say it happened.
+   */
+  it('sends a size the admin typed even before they enter the amount', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.variants = [...baseline.variants, { size: 'Large', price: '', currency: 'USD' }];
+
+    expect(editsFromDraft(draft, baseline).variants).toEqual([
+      { size: null, price_cents: 450, currency: 'USD' },
+      { size: 'Large', price_cents: null, currency: 'USD' },
+    ]);
+  });
+
+  // Re-scan writes size-only rows; editing a sibling must not delete them.
+  it('preserves an existing size-only variant when another row is edited', () => {
+    const withNullPrice = {
+      ...item,
+      variants: [
+        { id: 'v1', size: 'Small', price_cents: 450, currency: 'USD' },
+        { id: 'v2', size: 'Large', price_cents: null, currency: 'USD' },
+      ],
+    } as unknown as AdminItemRow;
+    const baseline = draftFromItem(withNullPrice);
+    const draft = structuredClone(baseline);
+    draft.variants[0]!.price = '5.00';
+
+    expect(editsFromDraft(draft, baseline).variants).toEqual([
+      { size: 'Small', price_cents: 500, currency: 'USD' },
+      { size: 'Large', price_cents: null, currency: 'USD' },
+    ]);
+  });
+
+  it('drops a wholly empty row the admin added but never filled in', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.variants = [...baseline.variants, { size: '', price: '', currency: 'USD' }];
+
+    expect(editsFromDraft(draft, baseline)).toEqual({});
+  });
+
+  it('carries currency through so a non-USD row is not rewritten to USD', () => {
+    const mxn = {
+      ...item,
+      variants: [{ id: 'v1', size: null, price_cents: 1000, currency: 'MXN' }],
+    } as unknown as AdminItemRow;
+    const baseline = draftFromItem(mxn);
+    const draft = structuredClone(baseline);
+    draft.variants[0]!.price = '12.00';
+
+    expect(editsFromDraft(draft, baseline).variants).toEqual([
+      { size: null, price_cents: 1200, currency: 'MXN' },
+    ]);
+  });
+
+  it('clears a description to null rather than storing an empty string', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.description = '   ';
+
+    expect(editsFromDraft(draft, baseline).description).toBeNull();
   });
 
   it('clears a facet with an explicit empty array', () => {
@@ -121,7 +186,7 @@ describe('draftBlockers', () => {
     expect(draftBlockers(nameless)).toMatch(/name/i);
 
     const badPrice = draftFromItem(item);
-    badPrice.variants = [{ size: '', price: '8,95' }];
+    badPrice.variants = [{ size: '', price: '8,95', currency: 'USD' }];
     expect(draftBlockers(badPrice)).toMatch(/8\.95/);
 
     const badModifier = draftFromItem(item);
@@ -137,9 +202,7 @@ describe('draftBlockers', () => {
 describe('ItemDeepEditPanel', () => {
   const noop = () => undefined;
 
-  function renderPanel(
-    overrides: Partial<React.ComponentProps<typeof ItemDeepEditPanel>> = {},
-  ) {
+  function renderPanel(overrides: Partial<React.ComponentProps<typeof ItemDeepEditPanel>> = {}) {
     const props: React.ComponentProps<typeof ItemDeepEditPanel> = {
       itemId: 'i1',
       draft: draftFromItem(item),
@@ -167,9 +230,7 @@ describe('ItemDeepEditPanel', () => {
   it('removing a chip reports the shorter slug list', () => {
     const props = renderPanel();
     fireEvent.click(screen.getByTestId('remove-ingredients-i1-meat-beef'));
-    expect(props.onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ ingredientSlugs: [] }),
-    );
+    expect(props.onChange).toHaveBeenCalledWith(expect.objectContaining({ ingredientSlugs: [] }));
   });
 
   it('disables Save while a blocker stands', () => {
