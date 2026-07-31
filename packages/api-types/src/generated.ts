@@ -1221,6 +1221,551 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/restaurants/{restaurant_id}/menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        /** List a restaurant's menus with their sections */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description menus → sections tree */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            menus: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                description?: string | null;
+                                position?: number;
+                                sections?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    description?: string | null;
+                                    position?: number;
+                                    items_count?: number;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a menu */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string | null;
+                        position?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description the created menu */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            description?: string | null;
+                            position?: number;
+                            sections?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                description?: string | null;
+                                position?: number;
+                                items_count?: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/menus/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a menu (its sections go too; items are unsectioned, never deleted) */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Rename or reposition a menu */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string | null;
+                        position?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated menu */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            description?: string | null;
+                            position?: number;
+                            sections?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                description?: string | null;
+                                position?: number;
+                                items_count?: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/menus/{menu_id}/menu_sections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a section within a menu */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    menu_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string | null;
+                        position?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description the created section */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            menu_id: string;
+                            name: string;
+                            description?: string | null;
+                            position?: number;
+                            items_count?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/menu_sections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a section — its items survive, unsectioned */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description deleted, with the count of items left unsectioned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deleted: boolean;
+                            items_unsectioned: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/place": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Address + opening hours */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restaurant's place data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            address?: {
+                                /** Format: uuid */
+                                id?: string;
+                                street?: string | null;
+                                city?: string | null;
+                                region?: string | null;
+                                postal_code?: string | null;
+                                country?: string | null;
+                                latitude?: number | null;
+                                longitude?: number | null;
+                                map_provider_place_id?: string | null;
+                            } | null;
+                            hours: {
+                                /** Format: uuid */
+                                id?: string;
+                                day_of_week?: number;
+                                /** @description HH:MM; null = closed */
+                                opens_at?: string | null;
+                                closes_at?: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace the address */
+        put: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        street?: string;
+                        city?: string;
+                        region?: string;
+                        postal_code?: string;
+                        country?: string;
+                        latitude?: number;
+                        longitude?: number;
+                        map_provider_place_id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description place data after the write */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            address?: {
+                                /** Format: uuid */
+                                id?: string;
+                                street?: string | null;
+                                city?: string | null;
+                                region?: string | null;
+                                postal_code?: string | null;
+                                country?: string | null;
+                                latitude?: number | null;
+                                longitude?: number | null;
+                                map_provider_place_id?: string | null;
+                            } | null;
+                            hours: {
+                                /** Format: uuid */
+                                id?: string;
+                                day_of_week?: number;
+                                /** @description HH:MM; null = closed */
+                                opens_at?: string | null;
+                                closes_at?: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the whole week's hours
+         * @description Wholesale replacement — send every open day. Omitting opens_at/closes_at marks that day closed. A partial write would advertise the wrong hours, so there is no per-day endpoint.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        hours: {
+                            /** @description 0 (Sunday) – 6 */
+                            day_of_week: number;
+                            /** @description HH:MM */
+                            opens_at?: string | null;
+                            closes_at?: string | null;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description place data after the write */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            address?: {
+                                /** Format: uuid */
+                                id?: string;
+                                street?: string | null;
+                                city?: string | null;
+                                region?: string | null;
+                                postal_code?: string | null;
+                                country?: string | null;
+                                latitude?: number | null;
+                                longitude?: number | null;
+                                map_provider_place_id?: string | null;
+                            } | null;
+                            hours: {
+                                /** Format: uuid */
+                                id?: string;
+                                day_of_week?: number;
+                                /** @description HH:MM; null = closed */
+                                opens_at?: string | null;
+                                closes_at?: string | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description hours_must_be_an_array or invalid_day_of_week */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            values?: number[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/suggestions": {
         parameters: {
             query?: never;
