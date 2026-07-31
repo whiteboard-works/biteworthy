@@ -20,13 +20,13 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Auth: Devise + JWT + OAuth (Apple, Google) — Phase 1.1, 1.2.
 - Profile + history endpoints — Phase 1.3, 4.8.
 - Curated taxonomy: 1,096 ingredients + tag tree + 8 dietary presets — Phase 1.4, 3.1.
-- Avo `/admin` with HTTP-basic gate — Phase 1.5.
+- Web admin backoffice at bite-worthy.com `/admin` (is_admin-gated; replaced Avo, retired 2026-07-30).
 - OpenAPI codegen pipeline — Phase 1.6.
 - Restaurant + Item read endpoints with the full filter — Phase 1.7.
 - AnthropicClient + ExtractMenuJob + ResolveIngredients/Tags + IngestionRun state machine — Phase 2.1–2.4. Cassettes are mocked; live recording is the only outstanding Phase 2 work.
 - Admin verify UI + 80%-accepted publish — Phase 2.5.
 - Mobile camera ingest + URL/PDF web entrypoint — Phase 2.6, 2.8.
-- Cost + latency dashboard at `/admin/dashboard` — Phase 2.9.
+- Cost + latency dashboard on the web `/admin` (was the API's `/admin/dashboard` until 2026-07-30).
 - Reviews API + photos + moderation queue + reviews on item — Phase 4.3–4.6.
 - Public user profiles + history visits — Phase 4.7, 4.8.
 - Restaurant claim flow + suggestion queue — Phase 4.9, 4.10.
@@ -179,7 +179,7 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
   ```
   bin/rails biteworthy:seed:durango FILE=docs/seeds/durango.csv
   ```
-- Use the swipe-verify queue (mobile or `/admin`) to accept items per restaurant. The 80%-accepted threshold flips each run + restaurant to `:published`.
+- Use the swipe-verify queue (mobile or the web `/admin/runs`) to accept items per restaurant. The 80%-accepted threshold flips each run + restaurant to `:published`.
 
 ### 7. PostHog analytics (Phase 5.8-wiring)
 

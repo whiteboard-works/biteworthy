@@ -112,7 +112,6 @@ You only need a value to exercise the feature it gates:
 |---|---|
 | `ANTHROPIC_API_KEY` | the AI menu-ingestion pipeline (`docs/ingestion.md`) |
 | `GOOGLE_OAUTH_*`, `APPLE_OAUTH_*` | real social sign-in flows |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | the Avo admin at `/admin` (defaults `admin`/`admin`) |
 
 In the container, `DATABASE_HOST` is set to the `postgres` service name by
 `compose.yaml`, so you don't set it in `.env`.

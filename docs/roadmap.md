@@ -33,25 +33,15 @@ linear human path from "code complete" to launch.
 1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
 2. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
 
-**Admin backoffice workstream** (started 2026-07-30, session-driven —
-not the loop): move all admin capability into a first-class `/admin`
-section of `apps/web`, backed by a new `Api::V1::Admin` JSON namespace;
-Avo + the ERB `/admin/dashboard` are retired in the final PR. Sequence
-(A = API PR, W = web PR, interleaved so each capability is testable as
-it lands):
-
-- [x] A1 — admin auth foundation: `require_admin!` (404) base controller, `GET /api/v1/me`, `GET /api/v1/admin/dashboard`, `is_admin` in `UserPayload`, `admin:grant/revoke/sync` rake tasks
-- [x] W1 — web /admin shell: server layout guard via `/me`, nav, header link, robots/noindex (`adminProxy` moved to W2 with its first consumer)
-- [x] W2 — ops dashboard page (cost buckets, community spend vs ceiling, queue counts; `adminProxy` + `lib/admin/` data layer)
-- [x] A2 — admin ingestion moderation: cross-user runs index, re-extract (`Ingestion::ReExtractRun`, shared with Avo), confirm-community; rswag docs for the 4 existing verify endpoints
-- [x] W3 — ingestion moderation UI (runs queue, item review via shared verify row, re-extract + confirm-community levers)
-- [x] A3 — review + suggestion moderation endpoints (visibility queues, hide/unhide, cross-restaurant suggestions; `SuggestionPayload` concern)
-- [x] W4 — review + suggestions queue pages (visibility pills, reason picker, cross-restaurant accept/reject)
-- [x] A4 — taxonomy CRUD (slug/path/family immutable; referenced deletes 409 with per-source counts)
-- [x] W5 — taxonomy editor pages (inline row editing; 409 refs surfaced)
-- [x] A5 — restaurant/item/user management (status writes incl. `removed`, `is_admin` toggle w/ self-demotion guard)
-- [x] W6 — restaurants/items/users pages (workbench + users; Avo parity reached)
-- [ ] F1 — retire Avo (gem, resources, ERB dashboard, `basicAuth` scheme, `ADMIN_USERNAME`/`ADMIN_PASSWORD`)
+**Admin backoffice workstream — SHIPPED 2026-07-30** (#467–#481,
+session-driven): all admin capability lives in `apps/web` `/admin`
+(dashboard, ingestion moderation, reviews/suggestions, taxonomy,
+restaurants/items/users), backed by the `Api::V1::Admin` JSON
+namespace (`require_admin!` → 404; `users.is_admin` via
+`admin:grant/sync` rake tasks). Avo, the ERB `/admin/dashboard`, and
+the `ADMIN_USERNAME`/`ADMIN_PASSWORD` basic-auth gate are deleted.
+Deferred to v2: taxonomy merge + subtree rename, join-level
+ingredient/tag editing, debounced admin search.
 
 Other than that workstream, **no remaining loop-shippable work.** Every
 loop-shippable launch piece is on master; the remaining queue is

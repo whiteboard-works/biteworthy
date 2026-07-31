@@ -30,11 +30,6 @@ RSpec.configure do |config|
             scheme: :bearer,
             bearerFormat: "JWT",
             description: "Authorization: Bearer <jwt> — minted by signup/login/refresh."
-          },
-          basicAuth: {
-            type: :http,
-            scheme: :basic,
-            description: "HTTP Basic — only used for /admin (Avo)."
           }
         },
         schemas: {
