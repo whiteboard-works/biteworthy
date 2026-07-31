@@ -4,7 +4,7 @@
  * never sends them.
  */
 import type { paths } from '@biteworthy/api-types';
-import { getAdminJson, patchAdminJson } from './shared';
+import { AdminError, getAdminJson, patchAdminJson } from './shared';
 
 export type AdminRestaurantsResponse =
   paths['/api/v1/admin/restaurants']['get']['responses']['200']['content']['application/json'];
@@ -76,12 +76,48 @@ export function fetchAdminRestaurantItems(
   );
 }
 
+/**
+ * Deep-edit a live dish. Absent keys are left alone; an explicit empty
+ * array clears that facet. Joins are synced from slug lists and land
+ * confirmed/human server-side — `confidence` is deliberately not
+ * settable here (it moves only through promote / confirm-community).
+ */
+export interface AdminItemEdits {
+  name?: string;
+  description?: string;
+  status?: string;
+  menu_section_id?: string | null;
+  ingredient_slugs?: string[];
+  tag_slugs?: string[];
+  variants?: Array<{ size: string | null; price_cents: number }>;
+  modifiers?: Array<{ name: string; kind?: string; price_cents?: number | null }>;
+}
+
 export function updateAdminItem(
   id: string,
-  body: { name?: string; description?: string; status?: string },
+  body: AdminItemEdits,
   fetchImpl?: typeof fetch,
 ): Promise<AdminItemRow> {
   return patchAdminJson(`/api/admin/items/${encodeURIComponent(id)}`, body, fetchImpl);
+}
+
+/** Human copy for the deep-edit endpoint's structured refusals. */
+export function itemEditErrorCopy(err: unknown): string | null {
+  if (!(err instanceof AdminError)) return null;
+  const body = err.body as { error?: string; slugs?: string[] } | undefined;
+  switch (body?.error) {
+    case 'unknown_ingredient_slugs':
+    case 'unknown_tag_slugs':
+      return `Not in the taxonomy: ${(body.slugs ?? []).join(', ')}. Add it under Taxonomy first.`;
+    case 'foreign_menu_section':
+      return 'That section belongs to a different restaurant.';
+    case 'invalid_price_cents':
+      return 'Prices must be a plain amount like 8.95.';
+    case 'invalid_status':
+      return 'Unknown status.';
+    default:
+      return null;
+  }
 }
 
 export function fetchAdminUsers(
