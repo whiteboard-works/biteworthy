@@ -43,17 +43,20 @@ the `ADMIN_USERNAME`/`ADMIN_PASSWORD` basic-auth gate are deleted.
 Deferred to v2: taxonomy merge + subtree rename, join-level
 ingredient/tag editing, debounced admin search.
 
-**Upstream-editing workstream** (started 2026-07-31, session-driven):
-fix data as far upstream as possible — staged items fully editable
-before accept, and admins able to edit anything at a restaurant (the
-CRUD parity Avo used to provide). Sequence:
+**Upstream-editing workstream — SHIPPED 2026-07-31** (#483–#488):
+data is fixable as far upstream as possible. Staged items are fully
+editable before accept (name, description, ingredient/tag chips,
+prices), and admins can edit anything at a restaurant — item
+deep-edit, taxonomy chips, menus/sections, address and hours.
+Deferred to v2: addon editing in the verify flow, taxonomy merge +
+subtree rename, split-shift hours (one row per day today).
 
 - [x] E1 — API: permit `prices_payload` in staged-item edits; real payload row schemas
 - [x] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
 - [x] E3 — API: admin item deep-edit (variants, modifiers, ingredient/tag join sync, section move)
 - [x] E4 — web: admin item deep-edit panel
 - [x] E5 — API: admin menus, sections, addresses, hours
-- [ ] E6 — web: admin structure + place editors
+- [x] E6 — web: admin structure + place editors
 
 Invariants: join `confidence` never directly editable (admin chip edits
 write `confirmed`/`human`, removals row-by-row so the denormalized

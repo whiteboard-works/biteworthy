@@ -15,6 +15,9 @@ import { ConfirmButton } from '../../_ConfirmButton';
 import { Pagination } from '../../_Pagination';
 import { StatusBadge } from '../../_StatusBadge';
 import { AdminItemRowEditor } from './_AdminItemRowEditor';
+import { MenuManager } from './_MenuManager';
+import { PlaceEditor } from './_PlaceEditor';
+import type { AdminMenu } from '../../../../lib/admin/structure';
 
 /**
  * /admin/restaurants/[id] — the restaurant workbench: edit fields,
@@ -42,6 +45,21 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
   const [confirming, setConfirming] = useState(false);
   const [confirmResult, setConfirmResult] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', about: '', website: '', phone: '', status: 'draft' });
+  // Flattened menu → section list, so an item row can move a dish
+  // between sections without fetching the tree itself.
+  const [sections, setSections] = useState<Array<{ id: string; name: string; menuName: string }>>([]);
+
+  const onTreeChanged = useCallback((menus: AdminMenu[]) => {
+    setSections(
+      menus.flatMap((menu) =>
+        (menu.sections ?? []).flatMap((section) =>
+          section.id
+            ? [{ id: section.id, name: section.name ?? 'section', menuName: menu.name ?? 'menu' }]
+            : [],
+        ),
+      ),
+    );
+  }, []);
 
   const seedForm = (detail: AdminRestaurantDetail) => {
     setForm({
@@ -259,6 +277,9 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
         </section>
       )}
 
+      {restaurant && <MenuManager restaurantId={id} onTreeChanged={onTreeChanged} />}
+      {restaurant && <PlaceEditor restaurantId={id} />}
+
       {items && (
         <section aria-labelledby="items-heading" className="space-y-bw-2">
           <h2 id="items-heading" className="text-bw-sm font-semibold text-zinc-600">
@@ -269,6 +290,7 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
               <AdminItemRowEditor
                 key={item.id}
                 item={item}
+                sections={sections}
                 onUpdated={(updated) =>
                   setItems((prev) =>
                     prev
