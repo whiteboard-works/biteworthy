@@ -12,8 +12,10 @@ require "rails_helper"
 # widening an enum fails here until a migration widens the constraint
 # too.
 RSpec.describe "enum CHECK constraints", type: :model do
-  # column => the Ruby constant that must agree with the DB.
-  PAIRS = {
+  # column => the Ruby constant that must agree with the DB. A local,
+  # not a constant: assigning one inside this block would leak it to
+  # top level and collide with any other spec doing the same.
+  pairs = {
     ["items", "status"]                        => Item::STATUSES,
     ["items", "confidence"]                    => Item::CONFIDENCE,
     ["item_ingredients", "confidence"]         => ItemIngredient::CONFIDENCE,
@@ -49,7 +51,7 @@ RSpec.describe "enum CHECK constraints", type: :model do
     definition.scan(/'([^']*)'/).flatten.uniq
   end
 
-  PAIRS.each do |(table, column), allowed|
+  pairs.each do |(table, column), allowed|
     it "#{table}.#{column} accepts exactly #{allowed.inspect}" do
       expect(constraint_values(table, column)).to match_array(allowed)
     end
