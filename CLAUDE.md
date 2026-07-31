@@ -130,26 +130,20 @@ Postgres needs the `ltree`, `pg_trgm`, `pgcrypto`, and `citext` extensions — t
 
 ## Architecture: the filter is the product
 
-The schema is shaped around one query: "given a user's avoid lists, return the items at this restaurant they can eat." That query is
+The schema is shaped around one question: "given a user's avoid lists, which items at this restaurant can they eat — and *why not* for the rest?"
 
-```sql
-SELECT items.*
-FROM items
-WHERE items.restaurant_id = $1
-  AND items.status = 'published'
-  AND NOT (items.ingredient_ids && $avoid_ingredients_uuid_array)
-  AND NOT (items.tag_ids        && $avoid_tags_uuid_array)
-  AND ($strictness <> 'strict' OR items.confidence = 'confirmed')
-ORDER BY cardinality(items.tag_ids & $prefer_tags_uuid_array) DESC,
-         items.popularity DESC;
-```
+**The filter does not run in SQL, and it never removes rows.** `ItemsController#index` loads every published item at the restaurant in one query, then computes a per-item `reasons[]` in Ruby (array intersection against the avoid lists, plus the strict-mode confidence check). Items with a non-empty `reasons[]` come back as `status: "hidden"` with the reasons attached. That is the honest-disclosure contract: a hidden item must always be able to say why it's hidden, so it has to survive the query.
 
-Two consequences of this shape that affect almost every change in `app/models/item*.rb`:
+Ranking is separate. When the signed-in user has taste signals, `TasteScoring.scores_for` runs one SQL query per restaurant (liked/disliked overlap ± popularity ± average visible rating) and the response is re-sorted by `taste_score`. Otherwise the order is `popularity DESC, name ASC`. Nothing sorts by `user_profiles.prefer_tag_ids`.
 
-1. **Items carry denormalized `ingredient_ids uuid[]` and `tag_ids uuid[]`** with GIN indexes. The `ItemIngredient` and `ItemTag` join tables are the source of truth + audit log; `after_save`/`after_destroy` callbacks on the joins keep the arrays in sync. **Never write to the arrays directly** — write to the joins.
-2. **Every join row has `confidence` (`confirmed | suggested | inferred`) and `source` (`human | ai | owner`).** Strict-mode users (`user_profiles.strictness = 'strict'`) only see items where every association is `confirmed`. The "honest disclosure" UX (hidden items always show *why*) depends on these columns being accurate.
+The array-overlap SQL does exist, just not here — `Cities::RestaurantRanking` uses `NOT (items.ingredient_ids && ARRAY[…]::uuid[])` inside a `COUNT(…) FILTER` to rank a city's restaurants by how many dishes pass a preset, in one query instead of 30 calls to the items endpoint.
 
-The same filter lives in `packages/filter-engine/src/index.ts` for the client. **When the SQL changes, the TS implementation must change with it** — both have tests; both must stay green.
+Two consequences that affect almost every change in `app/models/item*.rb`:
+
+1. **Items carry denormalized `ingredient_ids uuid[]` and `tag_ids uuid[]`.** The Ruby filter, `TasteScoring`, and `Cities::RestaurantRanking` all read them, which is what keeps a restaurant page to a couple of queries instead of a join per item. The `ItemIngredient` and `ItemTag` join tables are the source of truth + audit log; `after_save`/`after_destroy` callbacks on the joins keep the arrays in sync. **Never write to the arrays directly** — write to the joins. **Reading them has a trap**: `item.ingredient_ids` resolves to the has_many-through reader, which shadows the identically-named column and costs a query per item — use `item.denormalized_ingredient_ids` / `denormalized_tag_ids` unless you actually need the join rows.
+2. **Every join row has `confidence` (`confirmed | suggested | inferred`) and `source` (`human | ai | owner`).** Strict-mode users (`user_profiles.strictness = 'strict'`) only see items where every association is `confirmed`. The honest-disclosure UX depends on these columns being accurate.
+
+The same computation lives in `packages/filter-engine/src/index.ts` (`applyProfile`) so a client can recompute visible/hidden without a roundtrip. **When the Ruby changes, the TS implementation must change with it** — both have tests; both must stay green. `TasteScoring` has its own TS mirror (`taste.ts`) sharing the `taste-parity.json` fixture.
 
 Taxonomy (`ingredients`, `tags`) is hierarchical via Postgres `ltree`. Adding/removing nodes is admin-gated. `aliases[]` is what lets "garbanzo" resolve to "chickpea".
 

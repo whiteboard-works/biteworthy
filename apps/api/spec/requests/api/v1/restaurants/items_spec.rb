@@ -376,4 +376,48 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(items["Cheese Quesadilla"]["photo_url"]).to be_nil
     end
   end
+
+  # The denormalized `items.ingredient_ids` / `items.tag_ids` columns
+  # exist so rendering a menu never reads the join tables. The trap:
+  # `item.ingredient_ids` resolves to the has_many-through reader,
+  # which SHADOWS the identically-named column and costs one query per
+  # item per association — invisible in a 3-item spec, 200 queries on a
+  # 100-dish menu. The controller goes through `denormalized_*` for
+  # exactly this reason; this spec fails if anyone switches it back.
+  describe "join-table access" do
+    def join_table_queries_during
+      seen = []
+      sub  = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        # Matched anywhere in the statement, not just after FROM: the
+        # through-association reader selects FROM "ingredients" and
+        # names the join table only in its INNER JOIN clause.
+        seen << sql if sql.match?(/"item_ingredients"|"item_tags"/)
+      end
+      yield
+      seen
+    ensure
+      ActiveSupport::Notifications.unsubscribe(sub)
+    end
+
+    it "renders the menu without touching item_ingredients or item_tags" do
+      queries = join_table_queries_during do
+        get "/api/v1/restaurants/#{restaurant.id}/items"
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(queries).to be_empty
+    end
+
+    it "reports the same ids the join tables hold" do
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      rendered = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(rendered["Cheese Quesadilla"]["ingredient_ids"]).to eq([cheese.id])
+      expect(rendered["Cheese Quesadilla"]["tag_ids"]).to eq([contains_dairy_tag.id])
+      # …and the columns agree with the joins they were synced from.
+      expect(cheese_quesadilla.reload.read_attribute(:ingredient_ids))
+        .to eq(cheese_quesadilla.item_ingredients.pluck(:ingredient_id))
+    end
+  end
 end
