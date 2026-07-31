@@ -4,10 +4,16 @@ require "rails_helper"
 # test env by default (so the rest of the request specs aren't throttled
 # from 127.0.0.1); this spec turns it on with a fresh in-memory counter.
 RSpec.describe "API rate limiting (legal E12)", type: :request do
+  include ActiveSupport::Testing::TimeHelpers
+
   around do |example|
     Rack::Attack.enabled = true
     Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
-    example.run
+    # rack-attack counts into FIXED wall-clock windows, so a burst that
+    # straddles a boundary splits across two counters and never trips the
+    # limit — an intermittent CI failure. Freezing time keeps all the
+    # requests in one window.
+    freeze_time { example.run }
   ensure
     Rack::Attack.enabled = false
     Rack::Attack.reset!

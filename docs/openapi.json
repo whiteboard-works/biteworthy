@@ -3822,7 +3822,7 @@
                 "required": [
                   "decision"
                 ],
-                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks.",
+                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks — fixing a bad extraction here beats correcting the live menu later. Every payload array replaces the stored one wholesale: send the complete array, omit the key to leave it alone, send [] to clear the staged row. Prices on a MATCHED card are the exception: an empty array clears the staged payload but leaves the live item's variants alone (an empty scan means 'no prices seen').",
                 "properties": {
                   "decision": {
                     "type": "string",
@@ -3843,21 +3843,80 @@
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "additionalProperties": true
+                      "required": [
+                        "slug"
+                      ],
+                      "properties": {
+                        "slug": {
+                          "type": "string",
+                          "description": "must match an Ingredient slug; unknown slugs are skipped at promote"
+                        },
+                        "confidence": {
+                          "type": "number"
+                        },
+                        "source": {
+                          "type": "string"
+                        }
+                      }
                     }
                   },
                   "tags_payload": {
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "additionalProperties": true
+                      "required": [
+                        "slug"
+                      ],
+                      "properties": {
+                        "slug": {
+                          "type": "string",
+                          "description": "must match a Tag slug; unknown slugs are skipped at promote"
+                        },
+                        "confidence": {
+                          "type": "number"
+                        },
+                        "source": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "prices_payload": {
+                    "type": "array",
+                    "description": "Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise).",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "size": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "price_cents": {
+                          "type": "integer",
+                          "nullable": true
+                        }
+                      }
                     }
                   },
                   "addons_payload": {
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "additionalProperties": true
+                      "required": [
+                        "name"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "price_cents": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "source": {
+                          "type": "string"
+                        }
+                      }
                     }
                   },
                   "unresolved_ingredients": {
@@ -4575,28 +4634,77 @@
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": true
+              "required": [
+                "slug"
+              ],
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "number"
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
             }
           },
           "tags_payload": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": true
+              "required": [
+                "slug"
+              ],
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "number"
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
             }
           },
           "prices_payload": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": true
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "price_cents": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              }
             }
           },
           "addons_payload": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": true
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "price_cents": {
+                  "type": "integer",
+                  "nullable": true
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
             }
           },
           "unresolved_ingredients": {

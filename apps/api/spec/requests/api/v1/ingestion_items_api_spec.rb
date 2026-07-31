@@ -138,6 +138,74 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
           .to eq([["small", 450], ["large", 750]])
       end
 
+      # Fixing a misread price at verify time is the whole point of
+      # editing upstream: the promoted Item must carry the corrected
+      # number, never the extractor's.
+      it "materializes EDITED prices, not the extracted ones" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 1_950 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: {
+                decision:       "accepted",
+                prices_payload: [
+                  { "size" => "half", "price_cents" => 895 },
+                  { "size" => "full", "price_cents" => 1_495 }
+                ]
+              }.to_json,
+              headers: auth_for(admin)
+
+        expect(response).to have_http_status(:ok)
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_variants.order(:position).pluck(:size, :price_cents))
+          .to eq([["half", 895], ["full", 1_495]])
+      end
+
+      it "an edited empty prices array clears the payload (no variants promoted)" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", prices_payload: [] }.to_json,
+              headers: auth_for(admin)
+
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_variants).to be_empty
+        expect(item.reload.prices_payload).to eq([])
+      end
+
+      it "leaves the stored prices alone when the key is omitted" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", name: "Renamed only" }.to_json,
+              headers: auth_for(admin)
+
+        promoted = Item.find(response.parsed_body["item_id"])
+        expect(promoted.item_variants.pluck(:price_cents)).to eq([450])
+      end
+
+      # Before edits were allowed, price_cents could only come from the
+      # extractor's schema-constrained output. A human editing straight
+      # into a published menu needs the same floor.
+      it "422s a negative or non-numeric price without touching the item" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", prices_payload: [{ "price_cents" => -500 }] }.to_json,
+              headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("invalid_price_cents")
+        expect(item.reload.decision).to eq("pending")
+        expect(item.prices_payload).to eq([{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", prices_payload: [{ "price_cents" => "free" }] }.to_json,
+              headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(item.reload.decision).to eq("pending")
+      end
+
       it "applies edit overrides BEFORE promoting (so the live Item has the human's tweaks)" do
         patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
               params: {
@@ -382,6 +450,50 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
       expect(existing_item.description).to eq(item.description)
       expect(existing_item.item_variants.pluck(:price_cents)).to eq([450])
       expect(existing_item.ingredients).to include(beef)
+    end
+
+    it "an edited price on a matched card replaces the live item's variants" do
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: {
+              decision:       "accepted",
+              prices_payload: [{ "size" => "regular", "price_cents" => 525 }]
+            }.to_json,
+            headers: auth_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(existing_item.reload.item_variants.pluck(:size, :price_cents))
+        .to eq([["regular", 525]])
+    end
+
+    # Matched-row edits shape what gets ADDED — the append-only contract
+    # is what makes undo a safe snapshot restore. Removing a bad chip
+    # from a live item is the admin item editor's job, not verify's.
+    it "dropping a chip from an edited matched card does NOT remove it from the live item" do
+      existing_item.item_ingredients.create!(
+        ingredient: beef, confidence: "confirmed", source: "human"
+      )
+
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: { decision: "accepted", ingredients_payload: [] }.to_json,
+            headers: auth_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(existing_item.reload.ingredients).to include(beef)
+    end
+
+    # An empty scanned price set means "this scan didn't see prices",
+    # never "this dish is free" — so it clears the staged row but leaves
+    # the live variants alone. Documented on the endpoint because a
+    # verifier who clears the rows sees no change to the live menu.
+    it "an emptied price list clears the staged payload but not the live item's variants" do
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: { decision: "accepted", prices_payload: [] }.to_json,
+            headers: auth_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.prices_payload).to eq([])
+      # Untouched: whatever the live dish already listed.
+      expect(existing_item.reload.item_variants.pluck(:price_cents)).to eq([400])
     end
 
     # The headline regression: before the apply path shipped, undoing an

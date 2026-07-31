@@ -2072,13 +2072,26 @@ export interface paths {
                         name?: string;
                         description?: string;
                         ingredients_payload?: {
-                            [key: string]: unknown;
+                            /** @description must match an Ingredient slug; unknown slugs are skipped at promote */
+                            slug: string;
+                            confidence?: number;
+                            source?: string;
                         }[];
                         tags_payload?: {
-                            [key: string]: unknown;
+                            /** @description must match a Tag slug; unknown slugs are skipped at promote */
+                            slug: string;
+                            confidence?: number;
+                            source?: string;
+                        }[];
+                        /** @description Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise). */
+                        prices_payload?: {
+                            size?: string | null;
+                            price_cents?: number | null;
                         }[];
                         addons_payload?: {
-                            [key: string]: unknown;
+                            name: string;
+                            price_cents?: number | null;
+                            source?: string;
                         }[];
                         unresolved_ingredients?: string[];
                         unresolved_tags?: string[];
@@ -2506,16 +2519,23 @@ export interface components {
             /** Format: date-time */
             decided_at?: string | null;
             ingredients_payload?: {
-                [key: string]: unknown;
+                slug: string;
+                confidence?: number;
+                source?: string;
             }[];
             tags_payload?: {
-                [key: string]: unknown;
+                slug: string;
+                confidence?: number;
+                source?: string;
             }[];
             prices_payload?: {
-                [key: string]: unknown;
+                size?: string | null;
+                price_cents?: number | null;
             }[];
             addons_payload?: {
-                [key: string]: unknown;
+                name: string;
+                price_cents?: number | null;
+                source?: string;
             }[];
             unresolved_ingredients?: string[];
             unresolved_tags?: string[];

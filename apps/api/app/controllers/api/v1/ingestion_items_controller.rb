@@ -37,6 +37,7 @@ module Api
         # materialized Item carries the human's tweaks rather than
         # the AI's original suggestions.
         if decision == "edited" || decision == "accepted"
+          return unless validate_prices!
           item.assign_attributes(edit_params) if edit_params.to_h.any?
         end
 
@@ -106,11 +107,46 @@ module Api
         render json: { error: "forbidden" }, status: :forbidden
       end
 
+      # Until this endpoint accepted prices, ItemVariant.price_cents could
+      # only come from the extractor, whose JSON schema pins it to a
+      # non-negative integer. Humans need the same floor — an accepted
+      # item writes straight to a published menu.
+      def validate_prices!
+        rows = params[:prices_payload]
+        return true unless rows.is_a?(Array)
+
+        bad = rows.filter_map do |row|
+          next unless row.respond_to?(:[])
+          value = row[:price_cents] || row["price_cents"]
+          next if value.nil? || value.to_s.strip.empty?
+          value unless value.to_s.match?(/\A\d+\z/)
+        end
+        return true if bad.empty?
+
+        render json: { error: "invalid_price_cents", values: bad.map(&:to_s) },
+               status: :unprocessable_entity
+        false
+      end
+
+      # Every payload array is replaced wholesale — a caller must send the
+      # complete array it wants stored (omitting a key leaves the column
+      # untouched; sending [] clears the STAGED row). `prices_payload` is
+      # editable so a verifier can fix a misread price BEFORE promote
+      # materializes it as ItemVariants — fixing it upstream beats
+      # correcting the live menu.
+      #
+      # One asymmetry to know about: on a matched (re-scan) card an empty
+      # prices array does NOT clear the live item's variants. An empty
+      # scanned price set means "this scan didn't see prices", never
+      # "this dish is free", so apply_variants! leaves the live rows
+      # alone (docs/ingestion.md §4b). Clearing a live dish's prices is
+      # the admin item editor's job.
       def edit_params
         params.permit(
           :name, :description,
           ingredients_payload:    [:slug, :confidence, :source],
           tags_payload:           [:slug, :confidence, :source],
+          prices_payload:         [:size, :price_cents],
           addons_payload:         [:name, :price_cents, :source],
           unresolved_ingredients: [],
           unresolved_tags:        []
