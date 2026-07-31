@@ -99,6 +99,17 @@ export function MenuManager({
     }
   };
 
+  /**
+   * A rename fires on blur, which in a browser lands BEFORE the click
+   * that caused it. Running immediately would flip `busy` and disable
+   * the delete button the admin was in the middle of pressing, so the
+   * click never dispatches and they have to press it twice. Yielding a
+   * task lets the click through first.
+   */
+  const runDeferred = (action: () => Promise<unknown>) => {
+    setTimeout(() => void run(action), 0);
+  };
+
   return (
     <section
       data-testid="menu-manager"
@@ -139,7 +150,7 @@ export function MenuManager({
                   defaultValue={menu.name}
                   onBlur={(e) => {
                     if (e.target.value.trim() && e.target.value !== menu.name) {
-                      void run(() => updateMenu(menu.id, { name: e.target.value.trim() }));
+                      runDeferred(() => updateMenu(menu.id, { name: e.target.value.trim() }));
                     }
                   }}
                   aria-label={`Menu name for ${menu.name}`}
@@ -172,7 +183,7 @@ export function MenuManager({
                         defaultValue={section.name}
                         onBlur={(e) => {
                           if (e.target.value.trim() && e.target.value !== section.name) {
-                            void run(() =>
+                            runDeferred(() =>
                               updateSection(section.id, { name: e.target.value.trim() }),
                             );
                           }
