@@ -40,6 +40,8 @@ export interface EditDraft {
   ingredients: PayloadRow[];
   tags: PayloadRow[];
   prices: Array<{ size: string; price: string }>;
+  /** `source` is carried, not edited — it records who first saw the add-on. */
+  addons: Array<{ name: string; price: string; source?: 'extract' | 'guard' }>;
 }
 
 /** Cents → the dollars string shown in the input ('' for a priceless row). */
@@ -57,6 +59,11 @@ export function draftFromItem(item: IngestionItemPayload): EditDraft {
       size: row.size ?? '',
       price: centsToInput(row.price_cents),
     })),
+    addons: (item.addons_payload ?? []).map((row) => ({
+      name: row.name ?? '',
+      price: centsToInput(row.price_cents),
+      source: row.source,
+    })),
   };
 }
 
@@ -69,10 +76,34 @@ export function priceRowErrors(draft: EditDraft): number[] {
   );
 }
 
-/** Blocks Save/Accept: a nameless dish 422s at promote, junk prices mislead. */
-export function draftBlockers(draft: EditDraft): string | null {
+export function addonRowErrors(draft: EditDraft): number[] {
+  return draft.addons.flatMap((row, index) =>
+    row.price.trim() !== '' && !PRICE_INPUT.test(row.price.trim()) ? [index] : [],
+  );
+}
+
+/** Rows that would lose their price at promote, for the name input's error state. */
+export function addonNameErrors(draft: EditDraft): number[] {
+  return draft.addons.flatMap((row, index) =>
+    row.name.trim() === '' && row.price.trim() !== '' ? [index] : [],
+  );
+}
+
+/**
+ * Blocks Save/Accept: a nameless dish 422s at promote, junk prices
+ * mislead. `matched` suppresses the add-on checks — a matched card
+ * can't edit add-ons at all (see the panel), so blocking on one the
+ * extractor produced would strand a card the verifier never touched.
+ */
+export function draftBlockers(draft: EditDraft, matched = false): string | null {
   if (draft.name.trim() === '') return 'Give the dish a name before saving.';
   if (priceRowErrors(draft).length > 0) return 'Prices must look like 8 or 8.95.';
+  if (matched) return null;
+
+  if (addonRowErrors(draft).length > 0) return 'Prices must look like 8 or 8.95.';
+  // Promote drops a nameless add-on, so saving one would quietly lose
+  // the price typed against it.
+  if (addonNameErrors(draft).length > 0) return 'Give every add-on a name.';
   return null;
 }
 
@@ -81,6 +112,23 @@ function pricesToPayload(draft: EditDraft) {
     const trimmed = row.price.trim();
     if (!PRICE_INPUT.test(trimmed)) return [];
     return [{ size: row.size.trim() || null, price_cents: Math.round(Number(trimmed) * 100) }];
+  });
+}
+
+function addonsToPayload(draft: EditDraft) {
+  return draft.addons.flatMap((row) => {
+    const name = row.name.trim();
+    const price = row.price.trim();
+    // Neither = a row added and never filled in. A named add-on with no
+    // price is real (plenty are free), and travels with a null price.
+    if (name === '' && price === '') return [];
+    return [
+      {
+        name,
+        price_cents: PRICE_INPUT.test(price) ? Math.round(Number(price) * 100) : null,
+        ...(row.source ? { source: row.source } : {}),
+      },
+    ];
   });
 }
 
@@ -107,6 +155,11 @@ export function editsFromDraft(draft: EditDraft, baseline: EditDraft): Ingestion
   const basePrices = pricesToPayload(baseline);
   if (JSON.stringify(prices) !== JSON.stringify(basePrices)) edits.prices_payload = prices;
 
+  const addons = addonsToPayload(draft);
+  if (JSON.stringify(addons) !== JSON.stringify(addonsToPayload(baseline))) {
+    edits.addons_payload = addons;
+  }
+
   return edits;
 }
 
@@ -129,6 +182,8 @@ export function ItemEditPanel({
 }) {
   const blocker = draftBlockers(draft);
   const badPrices = new Set(priceRowErrors(draft));
+  const badAddons = new Set(addonRowErrors(draft));
+  const missingAddonNames = new Set(addonNameErrors(draft));
 
   return (
     <div className="mt-3 space-y-3 border-t border-zinc-200 pt-3" data-testid="item-edit-panel">
@@ -159,7 +214,8 @@ export function ItemEditPanel({
           data-testid="edit-append-note"
         >
           This dish is already on the menu. Edits here shape what gets <strong>added</strong> —
-          removing a chip won&rsquo;t take it off the live dish (do that from the restaurant admin).
+          removing a chip won&rsquo;t take it off the live dish, and the name and add-ons
+          aren&rsquo;t applied at all. Change those from the restaurant admin.
         </p>
       )}
 
@@ -197,6 +253,18 @@ export function ItemEditPanel({
         invalid={badPrices}
         onChange={(prices) => onChange({ ...draft, prices })}
       />
+
+      {/* A matched card promotes through apply_update!, which leaves
+          modifiers alone by design — so an add-on editor here would
+          accept corrections and silently do nothing with them. */}
+      {!matched && (
+        <AddonEditor
+          addons={draft.addons}
+          invalid={badAddons}
+          namesMissing={missingAddonNames}
+          onChange={(addons) => onChange({ ...draft, addons })}
+        />
+      )}
 
       <div className="flex items-center justify-between">
         {blocker ? (
@@ -343,6 +411,82 @@ function ChipEditor({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * Add-ons become ItemModifiers at promote, all `kind: "addition"` —
+ * the staged payload has no kind, so a choice/side distinction is made
+ * afterwards in the restaurant admin. `source` rides along untouched so
+ * a row the extractor found stays attributable.
+ */
+function AddonEditor({
+  addons,
+  invalid,
+  namesMissing,
+  onChange,
+}: {
+  addons: EditDraft['addons'];
+  invalid: Set<number>;
+  /** Rows blocking the save because a price has no name to hang on. */
+  namesMissing: Set<number>;
+  onChange: (next: EditDraft['addons']) => void;
+}) {
+  return (
+    <div className="text-sm" data-testid="edit-addons">
+      <span className="text-zinc-600">Add-ons</span>
+      <ul className="mt-1 space-y-1">
+        {addons.map((row, index) => (
+          <li key={index} className="flex items-center gap-2">
+            <input
+              value={row.name}
+              onChange={(e) =>
+                onChange(addons.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)))
+              }
+              placeholder="add-on name"
+              aria-label={`Name for add-on ${index + 1}`}
+              aria-invalid={namesMissing.has(index)}
+              data-testid={`addon-name-${index}`}
+              className={`w-1/2 rounded border px-2 py-1 text-xs ${
+                namesMissing.has(index) ? 'border-red-400 bg-red-50' : 'border-zinc-300'
+              }`}
+            />
+            <span className="text-xs text-zinc-400">$</span>
+            <input
+              value={row.price}
+              onChange={(e) =>
+                onChange(addons.map((r, i) => (i === index ? { ...r, price: e.target.value } : r)))
+              }
+              inputMode="decimal"
+              placeholder="0.00"
+              aria-label={`Price for add-on ${index + 1}`}
+              aria-invalid={invalid.has(index)}
+              data-testid={`addon-price-${index}`}
+              className={`w-24 rounded border px-2 py-1 text-xs ${
+                invalid.has(index) ? 'border-red-400 bg-red-50' : 'border-zinc-300'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(addons.filter((_, i) => i !== index))}
+              aria-label={`Remove add-on ${index + 1}`}
+              data-testid={`remove-addon-${index}`}
+              className="text-xs font-bold text-zinc-400 hover:text-red-700"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={() => onChange([...addons, { name: '', price: '' }])}
+        data-testid="add-addon"
+        className="mt-1 text-xs font-semibold text-zinc-600 underline hover:text-zinc-900"
+      >
+        + Add an add-on
+      </button>
     </div>
   );
 }

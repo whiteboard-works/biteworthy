@@ -27,6 +27,7 @@ import {
   draftFromItem,
   editsFromDraft,
   priceRowErrors,
+  addonRowErrors,
 } from '../_ItemEditPanel';
 import type { IngestionItemPayload } from '../../../../../lib/ingestion';
 
@@ -43,6 +44,7 @@ const item: IngestionItemPayload = {
   ingredients_payload: [{ slug: 'nut-peanut', confidence: 0.97 }],
   tags_payload: [{ slug: 'cuisine-thai', confidence: 0.99 }],
   prices_payload: [{ size: null, price_cents: 1450 }],
+  addons_payload: [{ name: 'extra peanuts', price_cents: 200, source: 'extract' }],
   unresolved_ingredients: [],
   unresolved_tags: [],
 };
@@ -124,6 +126,139 @@ describe('editsFromDraft', () => {
   });
 });
 
+describe('add-on edits', () => {
+  /**
+   * Add-ons become ItemModifiers at promote, so a misread one is far
+   * cheaper to fix here than on the live menu — the whole point of
+   * editing upstream.
+   */
+  it('sends corrected add-ons as cents, keeping the extractor as the source', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.addons[0]!.price = '2.50';
+
+    expect(editsFromDraft(draft, baseline).addons_payload).toEqual([
+      { name: 'extra peanuts', price_cents: 250, source: 'extract' },
+    ]);
+  });
+
+  it('omits add-ons entirely when only the name changed elsewhere', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.name = 'Pad See Ew';
+
+    expect(editsFromDraft(draft, baseline)).not.toHaveProperty('addons_payload');
+  });
+
+  // A free add-on is ordinary; only a wholly blank row is noise.
+  it('keeps a named add-on with no price and drops an empty row', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.addons = [
+      { name: 'lime wedge', price: '' },
+      { name: '', price: '' },
+    ];
+
+    expect(editsFromDraft(draft, baseline).addons_payload).toEqual([
+      { name: 'lime wedge', price_cents: null },
+    ]);
+  });
+
+  it('clears every add-on with an explicit empty array', () => {
+    const baseline = draftFromItem(item);
+    const draft = structuredClone(baseline);
+    draft.addons = [];
+
+    expect(editsFromDraft(draft, baseline).addons_payload).toEqual([]);
+  });
+
+  // Promote skips a nameless add-on, so saving one loses the price.
+  it('blocks a priced add-on with no name rather than dropping it', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [{ name: '  ', price: '3.00' }];
+
+    expect(draftBlockers(draft)).toMatch(/name/i);
+  });
+
+  it('flags a junk add-on price by row', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [{ name: 'extra peanuts', price: '2,50' }];
+
+    expect(addonRowErrors(draft)).toEqual([0]);
+    expect(draftBlockers(draft)).toMatch(/8\.95/);
+  });
+
+  /**
+   * A matched card promotes through apply_update!, which leaves
+   * modifiers alone by design. Offering an add-on editor there would
+   * take a correction, report success, and change nothing on the live
+   * dish — worse than not offering it.
+   */
+  it('hides the add-on editor on a matched card, where edits cannot apply', () => {
+    render(
+      <ItemEditPanel
+        draft={draftFromItem(item)}
+        onChange={() => undefined}
+        onCancel={() => undefined}
+        matched
+      />,
+    );
+
+    expect(screen.queryByTestId('edit-addons')).toBeNull();
+    expect(screen.getByTestId('edit-append-note')).toHaveTextContent(/add-ons aren.t applied/i);
+  });
+
+  // The extractor can emit {name: "", price_cents: 300} from a menu line
+  // like "Add + $3". Blocking on that would strand a matched card the
+  // verifier never touched, on an editor they cannot even see.
+  it('does not block a matched card over an add-on it cannot edit', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [{ name: '', price: '3.00' }];
+
+    expect(draftBlockers(draft, true)).toBeNull();
+    expect(draftBlockers(draft, false)).toMatch(/name/i);
+  });
+
+  it('marks which add-on row is missing its name', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [
+      { name: 'extra peanuts', price: '2.00' },
+      { name: '', price: '3.00' },
+    ];
+    render(
+      <ItemEditPanel
+        draft={draft}
+        onChange={() => undefined}
+        onCancel={() => undefined}
+        matched={false}
+      />,
+    );
+
+    expect(screen.getByTestId('addon-name-0')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByTestId('addon-name-1')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('adds and removes add-on rows in the panel', () => {
+    const draft = draftFromItem(item);
+    const onChange = vi.fn();
+    render(
+      <ItemEditPanel
+        draft={draft}
+        onChange={onChange}
+        onCancel={() => undefined}
+        matched={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('add-addon'));
+    expect(onChange.mock.calls.at(-1)![0].addons).toHaveLength(2);
+
+    onChange.mockClear();
+    fireEvent.click(screen.getByTestId('remove-addon-0'));
+    expect(onChange.mock.calls.at(-1)![0].addons).toEqual([]);
+  });
+});
+
 describe('draft blockers', () => {
   it('blocks a nameless dish (it would 422 at promote)', () => {
     const draft = draftFromItem(item);
@@ -154,9 +289,7 @@ describe('ItemEditPanel', () => {
 
   it('removes a chip through the × affordance', () => {
     const onChange = vi.fn();
-    render(
-      <ItemEditPanel draft={draftFromItem(item)} onChange={onChange} onCancel={noop} />,
-    );
+    render(<ItemEditPanel draft={draftFromItem(item)} onChange={onChange} onCancel={noop} />);
 
     fireEvent.click(screen.getByTestId('remove-ingredients-nut-peanut'));
 
@@ -166,9 +299,7 @@ describe('ItemEditPanel', () => {
   it('searches the taxonomy and adds the pick as a human-sourced row', async () => {
     mockSearchIngredients.mockResolvedValue([{ id: 'x', slug: 'vegetable-tofu', name: 'Tofu' }]);
     const onChange = vi.fn();
-    render(
-      <ItemEditPanel draft={draftFromItem(item)} onChange={onChange} onCancel={noop} />,
-    );
+    render(<ItemEditPanel draft={draftFromItem(item)} onChange={onChange} onCancel={noop} />);
 
     fireEvent.change(screen.getByTestId('search-ingredients'), { target: { value: 'tof' } });
 

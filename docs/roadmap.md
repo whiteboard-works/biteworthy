@@ -46,10 +46,10 @@ ingredient/tag editing, debounced admin search.
 **Upstream-editing workstream — SHIPPED 2026-07-31** (#483–#489):
 data is fixable as far upstream as possible. Staged items are fully
 editable before accept (name, description, ingredient/tag chips,
-prices), and admins can edit anything at a restaurant — item
+prices, add-ons), and admins can edit anything at a restaurant — item
 deep-edit, taxonomy chips, menus/sections, address and hours.
-Split-shift hours followed in #490. Deferred to v2: addon editing in
-the verify flow, taxonomy merge + subtree rename, and an overlap guard
+Split-shift hours followed in #490, addon editing in #491. Deferred to
+v2: taxonomy merge + subtree rename, and an overlap guard
 on hour ranges (a day may now hold contradictory ranges — harmless
 while nothing but the admin editor reads `hours`, worth closing before
 a public hours display ships).

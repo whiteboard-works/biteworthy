@@ -174,7 +174,11 @@ export interface IngestionItemPayload {
    * accept. Optional: web and API deploy independently, so an older API may
    * not send the field — always fall back to [].
    */
-  addons_payload?: Array<{ name: string; price_cents: number | null; source: 'extract' | 'guard' }>;
+  addons_payload?: Array<{
+    name: string;
+    price_cents: number | null;
+    source?: 'extract' | 'guard';
+  }>;
   unresolved_ingredients: string[];
   unresolved_tags: string[];
   /**
@@ -237,6 +241,12 @@ export interface IngestionItemEdits {
   ingredients_payload?: Array<{ slug: string; confidence?: number; source?: string }>;
   tags_payload?: Array<{ slug: string; confidence?: number; source?: string }>;
   prices_payload?: Array<{ size: string | null; price_cents: number }>;
+  /** Materialized as ItemModifiers at promote, all kind: "addition". */
+  addons_payload?: Array<{
+    name: string;
+    price_cents: number | null;
+    source?: 'extract' | 'guard';
+  }>;
 }
 
 export async function decideRunItem(opts: {

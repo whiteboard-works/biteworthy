@@ -144,8 +144,10 @@ Contributor opens a swipe UI:
   new Item; each priced `prices_payload` row becomes an `ItemVariant`
   (size + price_cents, payload order) — rows without a price are
   skipped.
-- ✏️ Edit → tweak name / description / ingredients / tags / prices → `decision = 'edited'`, then
-  promote.
+- ✏️ Edit → tweak name / description / ingredients / tags / prices / add-ons →
+  `decision = 'edited'`, then promote. On a MATCHED (re-scan) row the add-on editor is
+  hidden: `apply_update!` leaves modifiers alone, so a correction there would silently
+  do nothing.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
 
 ### 4b. Update flow (re-scan)
