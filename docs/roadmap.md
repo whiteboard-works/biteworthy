@@ -52,7 +52,7 @@ CRUD parity Avo used to provide). Sequence:
 - [x] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
 - [x] E3 — API: admin item deep-edit (variants, modifiers, ingredient/tag join sync, section move)
 - [ ] E4 — web: admin item deep-edit panel
-- [ ] E5 — API: admin menus, sections, addresses, hours
+- [x] E5 — API: admin menus, sections, addresses, hours
 - [ ] E6 — web: admin structure + place editors
 
 Invariants: join `confidence` never directly editable (admin chip edits

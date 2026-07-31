@@ -2492,6 +2492,967 @@
         }
       }
     },
+    "/api/v1/admin/restaurants/{restaurant_id}/menus": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List a restaurant's menus with their sections",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "menus → sections tree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "menus"
+                  ],
+                  "properties": {
+                    "menus": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "position": {
+                            "type": "integer"
+                          },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "position": {
+                                  "type": "integer"
+                                },
+                                "items_count": {
+                                  "type": "integer"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a menu",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the created menu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "position": {
+                      "type": "integer"
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "position": {
+                            "type": "integer"
+                          },
+                          "items_count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "position": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/admin/menus/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Rename or reposition a menu",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated menu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "position": {
+                      "type": "integer"
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "position": {
+                            "type": "integer"
+                          },
+                          "items_count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "position": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "summary": "Delete a menu (its sections go too; items are unsectioned, never deleted)",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/menus/{menu_id}/menu_sections": {
+      "parameters": [
+        {
+          "name": "menu_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Create a section within a menu",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the created section",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "menu_id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "menu_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "position": {
+                      "type": "integer"
+                    },
+                    "items_count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "position": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/admin/menu_sections/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "Delete a section — its items survive, unsectioned",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted, with the count of items left unsectioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted",
+                    "items_unsectioned"
+                  ],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "items_unsectioned": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/place": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Address + opening hours",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the restaurant's place data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "hours"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "address": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "street": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "city": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "postal_code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "country": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "latitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "longitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "map_provider_place_id": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "hours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "day_of_week": {
+                            "type": "integer"
+                          },
+                          "opens_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "HH:MM; null = closed"
+                          },
+                          "closes_at": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/address": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Create or replace the address",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "place data after the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "hours"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "address": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "street": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "city": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "postal_code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "country": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "latitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "longitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "map_provider_place_id": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "hours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "day_of_week": {
+                            "type": "integer"
+                          },
+                          "opens_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "HH:MM; null = closed"
+                          },
+                          "closes_at": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "street": {
+                    "type": "string"
+                  },
+                  "city": {
+                    "type": "string"
+                  },
+                  "region": {
+                    "type": "string"
+                  },
+                  "postal_code": {
+                    "type": "string"
+                  },
+                  "country": {
+                    "type": "string"
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "map_provider_place_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/hours": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Replace the whole week's hours",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Wholesale replacement — send every open day. Omitting opens_at/closes_at marks that day closed. A partial write would advertise the wrong hours, so there is no per-day endpoint.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "place data after the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "hours"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "address": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "street": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "city": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "postal_code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "country": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "latitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "longitude": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "map_provider_place_id": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "hours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "day_of_week": {
+                            "type": "integer"
+                          },
+                          "opens_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "HH:MM; null = closed"
+                          },
+                          "closes_at": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or duplicate_day_of_week",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "hours"
+                ],
+                "properties": {
+                  "hours": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "day_of_week"
+                      ],
+                      "properties": {
+                        "day_of_week": {
+                          "type": "integer",
+                          "description": "0 (Sunday) – 6"
+                        },
+                        "opens_at": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "HH:MM"
+                        },
+                        "closes_at": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/admin/suggestions": {
       "get": {
         "summary": "Cross-restaurant suggestion queue",

@@ -128,8 +128,20 @@ Rails.application.routes.draw do
         resources :restaurants, only: [:index, :show, :update] do
           member { post :confirm_community }
           resources :items, only: [:index]
+          resources :menus, only: [:index, :create]
+          # Address + hours are edited as a whole, never row-by-row —
+          # a half-applied week would advertise the wrong open time.
+          member do
+            get :place,   to: "places#show"
+            put :address, to: "places#update_address"
+            put :hours,   to: "places#update_hours"
+          end
         end
         resources :items, only: [:update]
+        resources :menus, only: [:update, :destroy] do
+          resources :menu_sections, only: [:create]
+        end
+        resources :menu_sections, only: [:update, :destroy]
         resources :users, only: [:index, :update]
         resources :reviews, only: [:index] do
           member do
