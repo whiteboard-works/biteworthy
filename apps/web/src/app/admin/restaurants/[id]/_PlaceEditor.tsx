@@ -198,7 +198,11 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                   {day}
                 </th>
                 <td>
+                  {/* type=time emits exactly HH:MM, which is what the
+                      server's TIME_OF_DAY regex accepts — so a typo is
+                      impossible rather than a rejected round-trip. */}
                   <input
+                    type="time"
                     value={row.opens}
                     onChange={(e) =>
                       setHours(
@@ -206,14 +210,14 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                       )
                     }
                     disabled={row.closed}
-                    placeholder="11:00"
                     aria-label={`${day} opens at`}
                     data-testid={`hours-opens-${index}`}
-                    className="w-20 rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
+                    className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
                   />
                 </td>
                 <td>
                   <input
+                    type="time"
                     value={row.closes}
                     onChange={(e) =>
                       setHours(
@@ -221,10 +225,9 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                       )
                     }
                     disabled={row.closed}
-                    placeholder="21:00"
                     aria-label={`${day} closes at`}
                     data-testid={`hours-closes-${index}`}
-                    className="w-20 rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
+                    className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
                   />
                 </td>
                 <td>

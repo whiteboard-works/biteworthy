@@ -34,9 +34,7 @@ const tree = {
       name: 'Dinner',
       description: null,
       position: 0,
-      sections: [
-        { id: 's1', name: 'Tacos', description: null, position: 0, items_count: 3 },
-      ],
+      sections: [{ id: 's1', name: 'Tacos', description: null, position: 0, items_count: 3 }],
     },
   ],
 };
@@ -99,6 +97,24 @@ describe('MenuManager', () => {
 
     await screen.findByTestId('menu-m1');
     expect(onTreeChanged).toHaveBeenCalledWith(tree.menus);
+  });
+
+  /**
+   * Blur lands before the click that caused it. If the rename ran
+   * synchronously it would disable the delete button mid-gesture and
+   * swallow the click, so an admin who edits a name then reaches for
+   * Delete has to press it twice.
+   */
+  it('leaves Delete clickable in the same gesture as a rename', async () => {
+    render(<MenuManager restaurantId="r1" />);
+    const section = await screen.findByTestId('section-s1');
+
+    fireEvent.blur(within(section).getByTestId('section-name-s1'), {
+      target: { value: 'Street Tacos' },
+    });
+    expect(within(section).getByTestId('section-delete-s1')).not.toBeDisabled();
+
+    await vi.waitFor(() => expect(mockUpdateSection).toHaveBeenCalled());
   });
 
   it('renames a section on blur, and ignores an unchanged value', async () => {
