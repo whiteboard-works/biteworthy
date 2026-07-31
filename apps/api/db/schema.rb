@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -72,18 +72,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
   end
 
   create_table "dietary_profile_ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.uuid "dietary_profile_id", null: false
     t.uuid "ingredient_id", null: false
     t.string "rule", default: "avoid", null: false
+    t.datetime "updated_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.index ["dietary_profile_id", "ingredient_id"], name: "idx_dpi_unique", unique: true
     t.index ["dietary_profile_id"], name: "index_dietary_profile_ingredients_on_dietary_profile_id"
     t.index ["ingredient_id"], name: "index_dietary_profile_ingredients_on_ingredient_id"
   end
 
   create_table "dietary_profile_tags", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.uuid "dietary_profile_id", null: false
     t.string "rule", default: "avoid", null: false
     t.uuid "tag_id", null: false
+    t.datetime "updated_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.index ["dietary_profile_id", "tag_id"], name: "idx_dpt_unique", unique: true
     t.index ["dietary_profile_id"], name: "index_dietary_profile_tags_on_dietary_profile_id"
     t.index ["tag_id"], name: "index_dietary_profile_tags_on_tag_id"
@@ -112,6 +116,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["created_at"], name: "index_dmca_notices_on_created_at"
     t.index ["status"], name: "index_dmca_notices_on_status"
   end
+
+  add_check_constraint "dmca_notices", "status::text = ANY (ARRAY['received'::character varying, 'actioned'::character varying, 'rejected'::character varying]::text[])", name: "dmca_notices_status_valid", validate: false
 
   create_table "favorite_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -144,6 +150,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["restaurant_id"], name: "index_hours_on_restaurant_id"
   end
 
+  add_check_constraint "hours", "day_of_week >= 0 AND day_of_week <= 6", name: "hours_day_of_week_valid", validate: false
+
   create_table "ingestion_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "addons_payload", default: [], null: false
     t.jsonb "applied_changes"
@@ -171,6 +179,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["matched_item_id"], name: "index_ingestion_items_on_matched_item_id"
   end
 
+  add_check_constraint "ingestion_items", "decision::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'rejected'::character varying, 'edited'::character varying]::text[])", name: "ingestion_items_decision_valid", validate: false
+
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "api_cost_cents", default: 0, null: false
     t.integer "cached_input_tokens", default: 0, null: false
@@ -193,6 +203,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["restaurant_id"], name: "index_ingestion_runs_on_restaurant_id"
     t.index ["user_id"], name: "index_ingestion_runs_on_user_id"
   end
+
+  add_check_constraint "ingestion_runs", "enrichment_status::text = ANY (ARRAY['pending'::character varying, 'completed'::character varying, 'failed'::character varying]::text[])", name: "ingestion_runs_enrichment_status_valid", validate: false
+  add_check_constraint "ingestion_runs", "input_kind::text = ANY (ARRAY['photo'::character varying, 'url'::character varying, 'pdf'::character varying, 'text'::character varying]::text[])", name: "ingestion_runs_input_kind_valid", validate: false
+  add_check_constraint "ingestion_runs", "status::text = ANY (ARRAY['queued'::character varying, 'extracting'::character varying, 'resolving'::character varying, 'staged'::character varying, 'published'::character varying, 'failed'::character varying]::text[])", name: "ingestion_runs_status_valid", validate: false
 
   create_table "ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "aliases", default: [], null: false, array: true
@@ -220,6 +234,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["item_id"], name: "index_item_ingredients_on_item_id"
   end
 
+  add_check_constraint "item_ingredients", "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "item_ingredients_confidence_valid", validate: false
+  add_check_constraint "item_ingredients", "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying]::text[])", name: "item_ingredients_source_valid", validate: false
+
   create_table "item_modifiers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "ingredient_ids", default: [], null: false, array: true
@@ -234,6 +251,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["tag_ids"], name: "index_item_modifiers_on_tag_ids", using: :gin
   end
 
+  add_check_constraint "item_modifiers", "kind::text = ANY (ARRAY['choice'::character varying, 'addition'::character varying, 'side'::character varying]::text[])", name: "item_modifiers_kind_valid", validate: false
+
   create_table "item_tags", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "confidence", default: "suggested", null: false
     t.datetime "created_at", null: false
@@ -245,6 +264,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["item_id"], name: "index_item_tags_on_item_id"
     t.index ["tag_id"], name: "index_item_tags_on_tag_id"
   end
+
+  add_check_constraint "item_tags", "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "item_tags_confidence_valid", validate: false
+  add_check_constraint "item_tags", "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying]::text[])", name: "item_tags_source_valid", validate: false
 
   create_table "item_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -278,6 +300,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["restaurant_id"], name: "index_items_on_restaurant_id"
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
   end
+
+  add_check_constraint "items", "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "items_confidence_valid", validate: false
+  add_check_constraint "items", "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'removed'::character varying]::text[])", name: "items_status_valid", validate: false
 
   create_table "menu_sections", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -334,6 +359,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["slug"], name: "index_restaurants_on_slug", unique: true
   end
 
+  add_check_constraint "restaurants", "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'closed'::character varying]::text[])", name: "restaurants_status_valid", validate: false
+
   create_table "reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "body"
     t.datetime "created_at", null: false
@@ -351,6 +378,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["user_id"], name: "index_reviews_on_user_id"
     t.check_constraint "rating >= 1 AND rating <= 5", name: "reviews_rating_range"
   end
+
+  add_check_constraint "reviews", "hidden_reason IS NULL OR (hidden_reason::text = ANY (ARRAY['spam'::character varying, 'abuse'::character varying, 'duplicate'::character varying, 'off_topic'::character varying]::text[]))", name: "reviews_hidden_reason_valid", validate: false
 
   create_table "solid_cache_entries", force: :cascade do |t|
     t.integer "byte_size", null: false
@@ -501,6 +530,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["user_id"], name: "index_suggestions_on_user_id"
   end
 
+  add_check_constraint "suggestions", "status::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[])", name: "suggestions_status_valid", validate: false
+
   create_table "tags", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description"
@@ -514,6 +545,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["path"], name: "index_tags_on_path", using: :gist
     t.index ["slug"], name: "index_tags_on_slug", unique: true
   end
+
+  add_check_constraint "tags", "family::text = ANY (ARRAY['diet'::character varying, 'allergen'::character varying, 'cuisine'::character varying, 'prep'::character varying, 'flavor'::character varying]::text[])", name: "tags_family_valid", validate: false
 
   create_table "user_item_overrides", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -543,6 +576,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.index ["primary_dietary_profile_id"], name: "index_user_profiles_on_primary_dietary_profile_id"
     t.index ["user_id"], name: "index_user_profiles_on_user_id", unique: true
   end
+
+  add_check_constraint "user_profiles", "strictness::text = ANY (ARRAY['relaxed'::character varying, 'balanced'::character varying, 'strict'::character varying]::text[])", name: "user_profiles_strictness_valid", validate: false
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "age_confirmed_at"
@@ -577,6 +612,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_waitlist_signups_on_email", unique: true
   end
+
+  add_check_constraint "waitlist_signups", "source::text = ANY (ARRAY['landing'::character varying, 'press'::character varying, 'footer'::character varying, 'mobile_app'::character varying]::text[])", name: "waitlist_signups_source_valid", validate: false
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"

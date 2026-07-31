@@ -1,6 +1,11 @@
 class IngestionRun < ApplicationRecord
   INPUT_KINDS = %w[photo url pdf text].freeze
   STATUSES    = %w[queued extracting resolving staged published failed].freeze
+  # The gap-fill pass runs alongside the main state machine, so it
+  # carries its own status. Written by ResolveItemsJob and
+  # GapFillResolveJob; surfaced to clients so the verify flow can say
+  # whether enrichment is still in flight.
+  ENRICHMENT_STATUSES = %w[pending completed failed].freeze
 
   # The pipeline marches forward through these states. `failed` is
   # reachable from any state but isn't in this map. The two stage
@@ -33,8 +38,9 @@ class IngestionRun < ApplicationRecord
   # have a single attachment that the URL fetcher saved.
   has_many_attached :inputs
 
-  validates :input_kind, inclusion: { in: INPUT_KINDS }
-  validates :status,     inclusion: { in: STATUSES }
+  validates :input_kind,        inclusion: { in: INPUT_KINDS }
+  validates :status,            inclusion: { in: STATUSES }
+  validates :enrichment_status, inclusion: { in: ENRICHMENT_STATUSES }
 
   STATUSES.each do |s|
     define_method("#{s}?") { status == s }
