@@ -14,18 +14,27 @@ module Api
         def index
           restaurant = Restaurant.find(params[:restaurant_id])
           menus = restaurant.menus.order(:position, :name).includes(:menu_sections)
-          render json: { menus: menus.map { |m| serialize_menu(m) } }
+          # One grouped count for the page instead of a COUNT per section.
+          section_ids = menus.flat_map { |m| m.menu_sections.map(&:id) }
+          counts = Item.where(menu_section_id: section_ids).group(:menu_section_id).count
+          render json: { menus: menus.map { |m| serialize_menu(m, counts) } }
         end
 
         def create
           restaurant = Restaurant.find(params[:restaurant_id])
-          menu = restaurant.menus.create!(menu_params)
+          attrs = menu_params
+          return if performed?
+
+          menu = restaurant.menus.create!(attrs)
           render json: serialize_menu(menu), status: :created
         end
 
         def update
           menu = Menu.find(params[:id])
-          menu.update!(menu_params)
+          attrs = menu_params
+          return if performed?
+
+          menu.update!(attrs)
           render json: serialize_menu(menu)
         end
 
@@ -36,16 +45,14 @@ module Api
 
         private
 
+        # Validate before coercing: `"abc".to_i` is 0 and a non-String
+        # name would otherwise be dropped behind a 201, losing the
+        # caller's value silently.
         def menu_params
-          attrs = {}
-          attrs[:name]        = params[:name].to_s if params.key?(:name) && params[:name].is_a?(String)
-          attrs[:description] = params[:description] if params.key?(:description) &&
-                                                        (params[:description].nil? || params[:description].is_a?(String))
-          attrs[:position]    = params[:position].to_i if params.key?(:position)
-          attrs
+          StructureParams.parse(params, self)
         end
 
-        def serialize_menu(menu)
+        def serialize_menu(menu, counts = {})
           {
             id:          menu.id,
             name:        menu.name,
@@ -57,7 +64,7 @@ module Api
                 name:        section.name,
                 description: section.description,
                 position:    section.position,
-                items_count: section.items.size
+                items_count: counts[section.id] || 0
               }
             end
           }

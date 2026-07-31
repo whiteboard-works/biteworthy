@@ -1445,7 +1445,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        name?: string;
+                        name: string;
                         description?: string | null;
                         position?: number;
                     };
@@ -1745,7 +1745,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description hours_must_be_an_array or invalid_day_of_week */
+                /** @description hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or duplicate_day_of_week */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1753,7 +1753,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             error?: string;
-                            values?: number[];
+                            values?: string[];
                         };
                     };
                 };

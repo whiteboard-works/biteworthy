@@ -12,13 +12,19 @@ module Api
       class MenuSectionsController < BaseController
         def create
           menu = Menu.find(params[:menu_id])
-          section = menu.menu_sections.create!(section_params)
+          attrs = section_params
+          return if performed?
+
+          section = menu.menu_sections.create!(attrs)
           render json: serialize_section(section), status: :created
         end
 
         def update
           section = MenuSection.find(params[:id])
-          section.update!(section_params)
+          attrs = section_params
+          return if performed?
+
+          section.update!(attrs)
           render json: serialize_section(section)
         end
 
@@ -32,12 +38,7 @@ module Api
         private
 
         def section_params
-          attrs = {}
-          attrs[:name]        = params[:name].to_s if params.key?(:name) && params[:name].is_a?(String)
-          attrs[:description] = params[:description] if params.key?(:description) &&
-                                                        (params[:description].nil? || params[:description].is_a?(String))
-          attrs[:position]    = params[:position].to_i if params.key?(:position)
-          attrs
+          StructureParams.parse(params, self)
         end
 
         def serialize_section(section)

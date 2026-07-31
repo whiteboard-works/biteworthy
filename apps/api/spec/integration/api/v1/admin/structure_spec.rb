@@ -168,6 +168,7 @@ RSpec.describe "admin/structure", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
       parameter name: :body, in: :body, required: true, schema: {
         type: :object,
+        required: %w[name],
         properties: {
           name:        { type: :string },
           description: { type: :string, nullable: true },
@@ -307,11 +308,11 @@ RSpec.describe "admin/structure", type: :request do
         run_test!
       end
 
-      response(422, "hours_must_be_an_array or invalid_day_of_week") do
+      response(422, "hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or duplicate_day_of_week") do
         schema type: :object,
                properties: {
                  error:  { type: :string },
-                 values: { type: :array, items: { type: :integer } }
+                 values: { type: :array, items: { type: :string } }
                }
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id)   { create(:restaurant, :published).id }
