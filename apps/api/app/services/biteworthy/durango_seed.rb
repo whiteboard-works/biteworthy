@@ -13,7 +13,7 @@ require "csv"
 # Idempotent: a row whose Restaurant already has a non-failed
 # IngestionRun in `:staged` or `:published` is skipped (the runner
 # logs `[skip]`). To re-run a failed restaurant, mark its old runs
-# as `:failed` (Avo can do this) or delete them — the next seed
+# as `:failed` (web /admin or console) or delete them — the next seed
 # call will pick the row up.
 #
 # Doesn't auto-publish the run. The Phase 2.5 swipe-verify queue

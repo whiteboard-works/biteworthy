@@ -34,6 +34,24 @@ RSpec.describe "Api::V1::Admin gate", type: :request do
         "community_published_restaurants", "staged_runs"
       )
     end
+
+    # This exclusion previously lived in the deleted ERB dashboard spec;
+    # it's the number that tells an admin how much of today's spend is
+    # community scanning vs their own — counting admins would hide a
+    # runaway community day.
+    it "counts community runs separately from admin runs, but sums everyone's spend" do
+      admin   = create(:user, :admin)
+      scanner = create(:user)
+      create(:ingestion_run, user: scanner, api_cost_cents: 30)
+      create(:ingestion_run, user: admin, api_cost_cents: 50)
+
+      get "/api/v1/admin/dashboard", headers: auth_headers_for(admin)
+
+      body = response.parsed_body
+      expect(body["community"]).to include(
+        "runs_today" => 1, "spend_today_cents" => 80
+      )
+    end
   end
 
   describe "GET /api/v1/me" do

@@ -110,7 +110,6 @@ env:
     - DEVISE_JWT_SECRET_KEY
     # AI ingestion (Phase 2.1+)
     - ANTHROPIC_API_KEY
-    # Avo admin (Phase 1.5)
     # SMTP — Resend API key (username "resend" is non-secret, in env.clear)
     - SMTP_PASSWORD
     # ActiveStorage on Cloudflare R2 (Phase 5.3)
