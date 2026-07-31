@@ -183,6 +183,29 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
         expect(promoted.item_variants.pluck(:price_cents)).to eq([450])
       end
 
+      # Before edits were allowed, price_cents could only come from the
+      # extractor's schema-constrained output. A human editing straight
+      # into a published menu needs the same floor.
+      it "422s a negative or non-numeric price without touching the item" do
+        item.update!(prices_payload: [{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", prices_payload: [{ "price_cents" => -500 }] }.to_json,
+              headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("invalid_price_cents")
+        expect(item.reload.decision).to eq("pending")
+        expect(item.prices_payload).to eq([{ "size" => nil, "price_cents" => 450 }])
+
+        patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+              params: { decision: "accepted", prices_payload: [{ "price_cents" => "free" }] }.to_json,
+              headers: auth_for(admin)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(item.reload.decision).to eq("pending")
+      end
+
       it "applies edit overrides BEFORE promoting (so the live Item has the human's tweaks)" do
         patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
               params: {
@@ -456,6 +479,21 @@ RSpec.describe "Ingestion items API (PATCH/INDEX)", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(existing_item.reload.ingredients).to include(beef)
+    end
+
+    # An empty scanned price set means "this scan didn't see prices",
+    # never "this dish is free" — so it clears the staged row but leaves
+    # the live variants alone. Documented on the endpoint because a
+    # verifier who clears the rows sees no change to the live menu.
+    it "an emptied price list clears the staged payload but not the live item's variants" do
+      patch "/api/v1/ingestion_runs/#{run.id}/items/#{item.id}",
+            params: { decision: "accepted", prices_payload: [] }.to_json,
+            headers: auth_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.prices_payload).to eq([])
+      # Untouched: whatever the live dish already listed.
+      expect(existing_item.reload.item_variants.pluck(:price_cents)).to eq([400])
     end
 
     # The headline regression: before the apply path shipped, undoing an

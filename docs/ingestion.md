@@ -144,7 +144,7 @@ Contributor opens a swipe UI:
   new Item; each priced `prices_payload` row becomes an `ItemVariant`
   (size + price_cents, payload order) — rows without a price are
   skipped.
-- ✏️ Edit → tweak ingredients / tags → `decision = 'edited'`, then
+- ✏️ Edit → tweak name / description / ingredients / tags / prices → `decision = 'edited'`, then
   promote.
 - ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
 

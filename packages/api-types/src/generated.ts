@@ -2083,7 +2083,7 @@ export interface paths {
                             confidence?: number;
                             source?: string;
                         }[];
-                        /** @description Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped. */
+                        /** @description Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise). */
                         prices_payload?: {
                             size?: string | null;
                             price_cents?: number | null;
@@ -2535,8 +2535,7 @@ export interface components {
             addons_payload?: {
                 name: string;
                 price_cents?: number | null;
-                /** @enum {string} */
-                source?: "extract" | "guard";
+                source?: string;
             }[];
             unresolved_ingredients?: string[];
             unresolved_tags?: string[];

@@ -108,7 +108,10 @@ RSpec.configure do |config|
                   properties: {
                     name:        { type: :string },
                     price_cents: { type: :integer, nullable: true },
-                    source:      { type: :string, enum: %w[extract guard] }
+                    # "extract"/"guard" from the pipeline, but an edit can
+                    # store any source string — don't enum a read field
+                    # the write side leaves open.
+                    source:      { type: :string }
                   }
                 }
               },

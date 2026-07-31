@@ -3822,7 +3822,7 @@
                 "required": [
                   "decision"
                 ],
-                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks — fixing a bad extraction here beats correcting the live menu later. Every payload array replaces the stored one wholesale: send the complete array, omit the key to leave it alone, send [] to clear it.",
+                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks — fixing a bad extraction here beats correcting the live menu later. Every payload array replaces the stored one wholesale: send the complete array, omit the key to leave it alone, send [] to clear the staged row. Prices on a MATCHED card are the exception: an empty array clears the staged payload but leaves the live item's variants alone (an empty scan means 'no prices seen').",
                 "properties": {
                   "decision": {
                     "type": "string",
@@ -3883,7 +3883,7 @@
                   },
                   "prices_payload": {
                     "type": "array",
-                    "description": "Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped.",
+                    "description": "Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise).",
                     "items": {
                       "type": "object",
                       "properties": {
@@ -4702,11 +4702,7 @@
                   "nullable": true
                 },
                 "source": {
-                  "type": "string",
-                  "enum": [
-                    "extract",
-                    "guard"
-                  ]
+                  "type": "string"
                 }
               }
             }
