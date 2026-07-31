@@ -214,3 +214,60 @@ describe('VerifyItemRow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/budget/);
   });
 });
+
+describe('VerifyItemRow editing', () => {
+  it('Save edit sends decision: edited with the corrected payloads', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'edited' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.change(screen.getByTestId('edit-name'), { target: { value: 'Pad Thai (spicy)' } });
+    fireEvent.change(screen.getByTestId('price-amount-0'), { target: { value: '16.00' } });
+    fireEvent.click(screen.getByTestId('remove-ingredients-nut-peanut'));
+    fireEvent.click(screen.getByTestId('save-edit'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    expect(decideMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        runId: 'run-1',
+        itemId: 'item-1',
+        decision: 'edited',
+        edits: expect.objectContaining({
+          name: 'Pad Thai (spicy)',
+          ingredients_payload: [],
+          prices_payload: [{ size: null, price_cents: 1600 }],
+        }),
+      }),
+    );
+  });
+
+  it('Accept while editing carries the pending corrections', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'accepted' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('edit'));
+    fireEvent.change(screen.getByTestId('edit-name'), { target: { value: 'Corrected' } });
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    expect(decideMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        decision: 'accepted',
+        edits: expect.objectContaining({ name: 'Corrected' }),
+      }),
+    );
+  });
+
+  // An untouched row must not resend payloads: gap-fill keeps appending
+  // suggestions after :staged, and a stale resend would wipe them.
+  it('Accept without opening the editor sends no edits at all', async () => {
+    decideMock.mockResolvedValue({ ...item, decision: 'accepted' });
+    render(<VerifyItemRow runId="run-1" item={item} enriched onDecided={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    const call = decideMock.mock.calls.at(-1)![0];
+    expect(call).not.toHaveProperty('edits');
+  });
+});

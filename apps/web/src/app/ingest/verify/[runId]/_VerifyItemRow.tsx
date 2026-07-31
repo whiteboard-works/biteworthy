@@ -6,6 +6,7 @@ import {
   friendlyIngestionError,
   type IngestionItemPayload,
 } from '../../../../lib/ingestion';
+import { ItemEditPanel, draftFromItem, editsFromDraft, type EditDraft } from './_ItemEditPanel';
 
 /**
  * One item in the web verify list. Accept promotes (with the Phase 6.3 trust
@@ -13,6 +14,11 @@ import {
  * un-promotes a live Item). While the run is still enriching, the dish shows
  * immediately but its ingredient/tag chips read "matching…" until resolve
  * fills them (verify-flow redesign).
+ *
+ * Edit opens an inline panel over the same fields the extractor filled in.
+ * Save records the corrections without promoting; Accept while editing
+ * applies them first, so a fixed dish goes live correct the first time
+ * rather than needing a follow-up edit on the published menu.
  */
 export function VerifyItemRow({
   runId,
@@ -30,13 +36,26 @@ export function VerifyItemRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<EditDraft | null>(null);
 
-  const decide = async (decision: 'accepted' | 'rejected' | 'pending') => {
+  const decide = async (
+    decision: 'accepted' | 'edited' | 'rejected' | 'pending',
+    { withEdits = false }: { withEdits?: boolean } = {},
+  ) => {
     setError(null);
     try {
       setBusy(true);
-      const updated = await decideRunItem({ runId, itemId: item.id, decision });
+      const updated = await decideRunItem({
+        runId,
+        itemId: item.id,
+        decision,
+        // Only send edits when the panel is open — an untouched row must
+        // not resend (and so overwrite) payloads gap-fill may have
+        // appended since this row rendered.
+        ...(withEdits && draft ? { edits: editsFromDraft(draft) } : {}),
+      });
       onDecided(updated);
+      if (withEdits) setDraft(null);
     } catch (e) {
       setError(friendlyIngestionError(e));
     } finally {
@@ -182,11 +201,32 @@ export function VerifyItemRow({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void decide('accepted')}
+                onClick={() => void decide('accepted', { withEdits: draft !== null })}
                 className="rounded bg-green-600 px-3 py-1 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {diff ? 'Accept update' : 'Accept'}
               </button>
+              {draft ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void decide('edited', { withEdits: true })}
+                  data-testid="save-edit"
+                  className="rounded border border-zinc-300 px-3 py-1 text-sm font-semibold text-zinc-700 disabled:opacity-50"
+                >
+                  Save edit
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDraft(draftFromItem(item))}
+                  data-testid="edit"
+                  className="rounded border border-zinc-300 px-3 py-1 text-sm font-semibold text-zinc-700 disabled:opacity-50"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 type="button"
                 disabled={busy}
@@ -199,6 +239,9 @@ export function VerifyItemRow({
           )}
         </div>
       </div>
+      {draft && (
+        <ItemEditPanel draft={draft} onChange={setDraft} matched={Boolean(match)} />
+      )}
       {error && (
         <p className="mt-2 text-sm text-red-700" role="alert">
           {error}
