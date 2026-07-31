@@ -205,7 +205,7 @@ new feature.
 ### Phase 1 — web-only (ships now, effort S)
 
 Add QR generation (e.g. the `rqrcode` gem) that encodes
-`https://<host>/r/<slug>`, exposed as an admin/Avo action or a download endpoint.
+`https://<host>/r/<slug>`, exposed as a web-admin action or a download endpoint.
 That alone delivers "table-tent → scan → filtered web menu, no install."
 
 - **Depends on:** the restaurant being `status: "published"`
