@@ -75,6 +75,24 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Schema-review leftovers (2026-07-31)** — the review that produced
+  #493 and #496 left three items the loop can't finish alone. (Two
+  others — promoting the CHECK constraints to VALID, and the
+  case-sensitive `users.email` — were closed in #496 once a read-only
+  prod audit cleared them.)
+  1. **`items.popularity` is read but never written.** It orders the
+     menu and carries a 0.5 weight in `TasteScoring`, and nothing has
+     ever set it, so that whole term is structurally zero. Either wire
+     a writer (`restaurant_visits` + `favorite_items` are the obvious
+     signals) or drop the column and the weight. Product call.
+  2. **`restaurants.slug` is globally unique.** Two "Taco Bell"s in
+     different cities collide, and slug generation isn't city-scoped.
+     Inert while Durango is the only city; blocks city #2.
+  3. **`user_profiles.prefer_tag_ids` has no reader.** Onboarding and
+     the profile endpoints write it; nothing ranks by it (taste signals
+     replaced it). Either feed it into `TasteScoring` or drop it and
+     its writers.
+
 - **`/login?next=` is an open redirect** — `login/page.tsx` replaces to
   whatever `?next=` holds without validating it starts with `/`, so
   `/login?next=https://evil.com` bounces a successful login off-site.
@@ -107,6 +125,14 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   enabled on the first sha and squashed without the second diff. Either
   push everything in one go, or gate auto-merge on a manual "ready"
   label after final push.
+  - **Stacked-PR variant (#493/#494/#495, 2026-07-31)** — three PRs
+    based on each other were all marked ready at once. `auto-merge.yml`
+    fires on `ready_for_review` for every non-draft PR, so each merged
+    into *its own base* rather than upward: only the bottom one reached
+    master and the other two landed in branches that were already
+    orphaned. Nothing was lost (relanded by cherry-pick in #496), but
+    the rule is: in a stack, only the bottom PR leaves draft: promote
+    the next one after its base actually merges. Or don't stack.
 
 ## What we are explicitly NOT doing in v1
 
