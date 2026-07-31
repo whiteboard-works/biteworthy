@@ -75,6 +75,35 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Schema-review leftovers (2026-07-31)** — the review that produced
+  #493/#494/#495 left five items, none of which the loop can finish
+  alone:
+  1. **Promote the CHECK constraints to VALID.** #495 adds them `NOT
+     VALID`, so they enforce every new write but have never scanned the
+     existing tables. Once someone confirms prod holds no out-of-enum
+     rows, `VALIDATE CONSTRAINT` each one — it takes only a SHARE
+     UPDATE EXCLUSIVE lock, so it is safe any time.
+  2. **`users.email` is case-sensitive-unique.** The column is `string`
+     with a plain unique index while `waitlist_signups.email` is
+     `citext`. Devise's `case_insensitive_keys` covers the Devise
+     paths, but `User.from_omniauth`, admin creates, and seeds can
+     still land `Foo@x.com` beside `foo@x.com`. Fix is `citext` or a
+     `lower(email)` unique index — **both fail on migrate if a
+     case-duplicate pair already exists**, so audit first:
+     `SELECT lower(email), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;`
+  3. **`items.popularity` is read but never written.** It orders the
+     menu and carries a 0.5 weight in `TasteScoring`, and nothing has
+     ever set it, so that whole term is structurally zero. Either wire
+     a writer (`restaurant_visits` + `favorite_items` are the obvious
+     signals) or drop the column and the weight. Product call.
+  4. **`restaurants.slug` is globally unique.** Two "Taco Bell"s in
+     different cities collide, and slug generation isn't city-scoped.
+     Inert while Durango is the only city; blocks city #2.
+  5. **`user_profiles.prefer_tag_ids` has no reader.** Onboarding and
+     the profile endpoints write it; nothing ranks by it (taste signals
+     replaced it). Either feed it into `TasteScoring` or drop it and
+     its writers.
+
 - **`/login?next=` is an open redirect** — `login/page.tsx` replaces to
   whatever `?next=` holds without validating it starts with `/`, so
   `/login?next=https://evil.com` bounces a successful login off-site.

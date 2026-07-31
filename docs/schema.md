@@ -41,6 +41,19 @@ Each join row carries `confidence` (`confirmed | suggested | inferred`)
 and `source` (`human | ai | owner`). This powers strict-mode honest
 disclosure: *we know X, we suspect Y, we inferred Z*.
 
+## Enum columns
+
+Every enum-ish column is a plain `string` whose allowed values live in
+a model constant (`Item::STATUSES`, `ItemTag::SOURCES`, …) — there are
+no Postgres enum types. Since Rails validations don't survive
+`update_all` / `update_columns` / `upsert_all`, each one is also backed
+by a `CHECK` constraint named `<table>_<column>_valid`. They were added
+`NOT VALID`, so they enforce every new write but haven't scanned the
+pre-existing rows (see `docs/roadmap.md` for the follow-up that
+promotes them). `spec/models/enum_check_constraints_spec.rb` fails if a
+model constant and its constraint drift apart — **widen the constant
+and you must ship a migration widening the constraint in the same PR**.
+
 ## Reviews + community
 
 - `reviews` — per-item, 1–5 + body. Unique on `[user_id, item_id]`.
