@@ -106,11 +106,17 @@ module Api
         render json: { error: "forbidden" }, status: :forbidden
       end
 
+      # Every payload array is replaced wholesale — a caller must send the
+      # complete array it wants stored (omitting a key leaves the column
+      # untouched; sending [] clears it). `prices_payload` is editable so a
+      # verifier can fix a misread price BEFORE promote materializes it as
+      # ItemVariants — fixing it upstream beats correcting the live menu.
       def edit_params
         params.permit(
           :name, :description,
           ingredients_payload:    [:slug, :confidence, :source],
           tags_payload:           [:slug, :confidence, :source],
+          prices_payload:         [:size, :price_cents],
           addons_payload:         [:name, :price_cents, :source],
           unresolved_ingredients: [],
           unresolved_tags:        []

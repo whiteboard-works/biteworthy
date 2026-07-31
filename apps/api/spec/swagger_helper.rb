@@ -63,10 +63,55 @@ RSpec.configure do |config|
               section_name:     { type: :string, nullable: true },
               decision:         { type: :string, enum: %w[pending accepted rejected edited] },
               decided_at:       { type: :string, format: "date-time", nullable: true },
-              ingredients_payload:    { type: :array, items: { type: :object, additionalProperties: true } },
-              tags_payload:           { type: :array, items: { type: :object, additionalProperties: true } },
-              prices_payload:         { type: :array, items: { type: :object, additionalProperties: true } },
-              addons_payload:         { type: :array, items: { type: :object, additionalProperties: true } },
+              # Payload row shapes. Promote reads ingredients/tags by `slug`
+              # only (the extractor's per-row `confidence` float is advisory);
+              # prices need `price_cents` (a size with no price is dropped).
+              ingredients_payload: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[slug],
+                  properties: {
+                    slug:       { type: :string },
+                    confidence: { type: :number },
+                    source:     { type: :string }
+                  }
+                }
+              },
+              tags_payload: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[slug],
+                  properties: {
+                    slug:       { type: :string },
+                    confidence: { type: :number },
+                    source:     { type: :string }
+                  }
+                }
+              },
+              prices_payload: {
+                type: :array,
+                items: {
+                  type: :object,
+                  properties: {
+                    size:        { type: :string, nullable: true },
+                    price_cents: { type: :integer, nullable: true }
+                  }
+                }
+              },
+              addons_payload: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[name],
+                  properties: {
+                    name:        { type: :string },
+                    price_cents: { type: :integer, nullable: true },
+                    source:      { type: :string, enum: %w[extract guard] }
+                  }
+                }
+              },
               unresolved_ingredients: { type: :array, items: { type: :string } },
               unresolved_tags:        { type: :array, items: { type: :string } },
               # Re-scan dedup: present when this staged row matched an

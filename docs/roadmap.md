@@ -43,6 +43,22 @@ the `ADMIN_USERNAME`/`ADMIN_PASSWORD` basic-auth gate are deleted.
 Deferred to v2: taxonomy merge + subtree rename, join-level
 ingredient/tag editing, debounced admin search.
 
+**Upstream-editing workstream** (started 2026-07-31, session-driven):
+fix data as far upstream as possible — staged items fully editable
+before accept, and admins able to edit anything at a restaurant (the
+CRUD parity Avo used to provide). Sequence:
+
+- [x] E1 — API: permit `prices_payload` in staged-item edits; real payload row schemas
+- [ ] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
+- [ ] E3 — API: admin item deep-edit (variants, modifiers, ingredient/tag join sync, section move)
+- [ ] E4 — web: admin item deep-edit panel
+- [ ] E5 — API: admin menus, sections, addresses, hours
+- [ ] E6 — web: admin structure + place editors
+
+Invariants: join `confidence` never directly editable (admin chip edits
+write `confirmed`/`human`, removals row-by-row so the denormalized
+arrays stay honest); matched re-scan cards stay append-only.
+
 Other than that workstream, **no remaining loop-shippable work.** Every
 loop-shippable launch piece is on master; the remaining queue is
 entirely human-credential-gated.

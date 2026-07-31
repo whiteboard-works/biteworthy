@@ -67,14 +67,62 @@ RSpec.describe "ingestion_runs/items", type: :request do
         required: %w[decision],
         description: "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ " \
                      "suggested); pending undoes a prior decision. Edit fields apply " \
-                     "before an accept so the promoted Item carries the human's tweaks.",
+                     "before an accept so the promoted Item carries the human's tweaks — " \
+                     "fixing a bad extraction here beats correcting the live menu later. " \
+                     "Every payload array replaces the stored one wholesale: send the " \
+                     "complete array, omit the key to leave it alone, send [] to clear it.",
         properties: {
           decision:    { type: :string, enum: %w[accepted edited rejected pending] },
           name:        { type: :string },
           description: { type: :string },
-          ingredients_payload: { type: :array, items: { type: :object, additionalProperties: true } },
-          tags_payload:        { type: :array, items: { type: :object, additionalProperties: true } },
-          addons_payload:      { type: :array, items: { type: :object, additionalProperties: true } },
+          ingredients_payload: {
+            type: :array,
+            items: {
+              type: :object,
+              required: %w[slug],
+              properties: {
+                slug:       { type: :string, description: "must match an Ingredient slug; unknown slugs are skipped at promote" },
+                confidence: { type: :number },
+                source:     { type: :string }
+              }
+            }
+          },
+          tags_payload: {
+            type: :array,
+            items: {
+              type: :object,
+              required: %w[slug],
+              properties: {
+                slug:       { type: :string, description: "must match a Tag slug; unknown slugs are skipped at promote" },
+                confidence: { type: :number },
+                source:     { type: :string }
+              }
+            }
+          },
+          prices_payload: {
+            type: :array,
+            description: "Materialized as ItemVariants at promote, in array order. " \
+                         "Rows without price_cents are dropped.",
+            items: {
+              type: :object,
+              properties: {
+                size:        { type: :string, nullable: true },
+                price_cents: { type: :integer, nullable: true }
+              }
+            }
+          },
+          addons_payload: {
+            type: :array,
+            items: {
+              type: :object,
+              required: %w[name],
+              properties: {
+                name:        { type: :string },
+                price_cents: { type: :integer, nullable: true },
+                source:      { type: :string }
+              }
+            }
+          },
           unresolved_ingredients: { type: :array, items: { type: :string } },
           unresolved_tags:        { type: :array, items: { type: :string } }
         }
