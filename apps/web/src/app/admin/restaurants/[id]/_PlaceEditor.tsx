@@ -49,16 +49,30 @@ function draftFromPlace(place: AdminPlace | null): HourDraft[] {
   return DAY_NAMES.map((_, day) => {
     const ranges = byDay.get(day);
     // No timed row at all is closed, same as an explicit blank row.
-    return ranges?.length ? { closed: false, ranges } : { closed: true, ranges: [EMPTY_RANGE] };
+    // Each closed day gets its OWN blank range — sharing one object
+    // across all seven would let an in-place edit corrupt the rest.
+    return ranges?.length
+      ? { closed: false, ranges }
+      : { closed: true, ranges: [{ ...EMPTY_RANGE }] };
   });
 }
 
 function hoursPayload(draft: HourDraft[]): HourRow[] {
-  // Every day travels, including an open one left blank — dropping it
-  // would send the admin's un-ticked day back as Closed on reload.
+  // Every day travels, so an un-ticked day the admin left blank still
+  // arrives as an explicit "closed" rather than silently vanishing.
   return draft.flatMap((day, index) => {
-    if (day.closed) return [{ day_of_week: index, opens_at: null, closes_at: null }];
-    return day.ranges.map((range) => ({
+    const closed = [{ day_of_week: index, opens_at: null, closes_at: null }];
+    if (day.closed) return closed;
+
+    // A range added and never filled in is noise, not an instruction.
+    // Sending it beside a real range reads as "closed AND open", which
+    // the server refuses — failing the ENTIRE week over an empty box
+    // the admin only had to click "+ Split shift" to create. A half-
+    // filled range is real input and travels.
+    const filled = day.ranges.filter((range) => range.opens.trim() || range.closes.trim());
+    if (filled.length === 0) return closed;
+
+    return filled.map((range) => ({
       day_of_week: index,
       opens_at: range.opens.trim() || null,
       closes_at: range.closes.trim() || null,

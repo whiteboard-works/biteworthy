@@ -171,8 +171,10 @@ export function structureErrorCopy(err: unknown): string | null {
       return `Not a day of the week: ${(body.values ?? []).join(', ')}.`;
     case 'invalid_time_of_day':
       return `Times must look like 17:30 — got ${(body.values ?? []).join(', ')}.`;
-    case 'closed_day_has_hours':
-      return 'A day can be closed or have hours, not both — untick Closed or clear the times.';
+    case 'closed_day_has_hours': {
+      const days = (body.values ?? []).map((v) => DAY_NAMES[Number(v)] ?? v).join(', ');
+      return `${days || 'A day'} is set both closed and open — clear one or the other.`;
+    }
     case 'hour_rows_must_be_objects':
     case 'hours_must_be_an_array':
       return 'Those hours could not be read.';

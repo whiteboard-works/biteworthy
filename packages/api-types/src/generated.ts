@@ -1752,7 +1752,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or duplicate_day_of_week */
+                /** @description hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or closed_day_has_hours */
                 422: {
                     headers: {
                         [name: string]: unknown;

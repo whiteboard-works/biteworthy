@@ -49,7 +49,10 @@ editable before accept (name, description, ingredient/tag chips,
 prices), and admins can edit anything at a restaurant — item
 deep-edit, taxonomy chips, menus/sections, address and hours.
 Split-shift hours followed in #490. Deferred to v2: addon editing in
-the verify flow, taxonomy merge + subtree rename.
+the verify flow, taxonomy merge + subtree rename, and an overlap guard
+on hour ranges (a day may now hold contradictory ranges — harmless
+while nothing but the admin editor reads `hours`, worth closing before
+a public hours display ships).
 
 - [x] E1 — API: permit `prices_payload` in staged-item edits; real payload row schemas
 - [x] E2 — web: verify-flow edit panel (name, description, chips, prices); admin run review inherits
