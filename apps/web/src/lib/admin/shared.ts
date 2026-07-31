@@ -24,7 +24,7 @@ export class AdminError extends Error {
   }
 }
 
-async function toAdminError(res: Response): Promise<AdminError> {
+export async function toAdminError(res: Response): Promise<AdminError> {
   let code: string | undefined;
   let body: Record<string, unknown> | undefined;
   try {

@@ -11,9 +11,21 @@ import {
   updateMenu,
   updateSection,
   type AdminMenu,
+  type AdminMenuSection,
 } from '../../../../lib/admin/structure';
 import { friendlyAdminError } from '../../../../lib/admin/shared';
 import { ConfirmButton } from '../../_ConfirmButton';
+
+/**
+ * `id` is optional in the generated schema, and a section without one
+ * can't be addressed — PATCHing `/menu_sections/undefined` would 404.
+ * Narrowing here is what lets the handlers below drop their `!`.
+ */
+function sectionsOf(menu: AdminMenu): Array<AdminMenuSection & { id: string }> {
+  return (menu.sections ?? []).filter(
+    (section): section is AdminMenuSection & { id: string } => typeof section.id === 'string',
+  );
+}
 
 /**
  * Menus → sections for one restaurant. A scan usually lands every dish
@@ -66,6 +78,10 @@ export function MenuManager({
   }, [restaurantId]);
 
   const run = async (action: () => Promise<unknown>, message?: string) => {
+    // Rename-on-blur isn't behind a disabled button, so it can fire
+    // while a create or delete is still in flight. Two overlapping runs
+    // race on the tree and the first to finish re-enables everything.
+    if (busy) return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -74,6 +90,9 @@ export function MenuManager({
       await load();
       if (message) setNotice(message);
     } catch (e) {
+      // A refresh that fails after the write succeeded would otherwise
+      // leave a success notice sitting next to the error.
+      setNotice(null);
       setError(structureErrorCopy(e) ?? friendlyAdminError(e));
     } finally {
       setBusy(false);
@@ -110,7 +129,11 @@ export function MenuManager({
       {menus && (
         <ul className="mt-bw-3 space-y-bw-3">
           {menus.map((menu) => (
-            <li key={menu.id} data-testid={`menu-${menu.id}`} className="rounded-bw-md border border-zinc-100 p-bw-3">
+            <li
+              key={menu.id}
+              data-testid={`menu-${menu.id}`}
+              className="rounded-bw-md border border-zinc-100 p-bw-3"
+            >
               <div className="flex flex-wrap items-center justify-between gap-bw-2">
                 <input
                   defaultValue={menu.name}
@@ -128,14 +151,17 @@ export function MenuManager({
                   confirmLabel="Confirm — delete menu (dishes stay)"
                   busy={busy}
                   onConfirm={() =>
-                    void run(() => deleteMenu(menu.id), 'Menu deleted — its dishes are unsectioned.')
+                    void run(
+                      () => deleteMenu(menu.id),
+                      'Menu deleted — its dishes are unsectioned.',
+                    )
                   }
                   testId={`menu-delete-${menu.id}`}
                 />
               </div>
 
               <ul className="mt-bw-2 space-y-bw-1 pl-bw-3">
-                {(menu.sections ?? []).map((section) => (
+                {sectionsOf(menu).map((section) => (
                   <li
                     key={section.id}
                     data-testid={`section-${section.id}`}
@@ -146,7 +172,9 @@ export function MenuManager({
                         defaultValue={section.name}
                         onBlur={(e) => {
                           if (e.target.value.trim() && e.target.value !== section.name) {
-                            void run(() => updateSection(section.id!, { name: e.target.value.trim() }));
+                            void run(() =>
+                              updateSection(section.id, { name: e.target.value.trim() }),
+                            );
                           }
                         }}
                         aria-label={`Section name for ${section.name}`}
@@ -154,7 +182,8 @@ export function MenuManager({
                         className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs"
                       />
                       <span className="text-bw-xs text-zinc-500">
-                        {section.items_count ?? 0} dish{(section.items_count ?? 0) === 1 ? '' : 'es'}
+                        {section.items_count ?? 0} dish
+                        {(section.items_count ?? 0) === 1 ? '' : 'es'}
                       </span>
                     </span>
                     <ConfirmButton
@@ -163,7 +192,7 @@ export function MenuManager({
                       busy={busy}
                       onConfirm={() =>
                         void run(async () => {
-                          const unsectioned = await deleteSection(section.id!);
+                          const unsectioned = await deleteSection(section.id);
                           setNotice(
                             `Section deleted — ${unsectioned} dish${unsectioned === 1 ? '' : 'es'} kept, now unsectioned.`,
                           );
@@ -173,7 +202,7 @@ export function MenuManager({
                     />
                   </li>
                 ))}
-                {(menu.sections ?? []).length === 0 && (
+                {sectionsOf(menu).length === 0 && (
                   <li className="text-bw-xs italic text-zinc-400">no sections yet</li>
                 )}
               </ul>
@@ -181,7 +210,9 @@ export function MenuManager({
               <div className="mt-bw-2 flex items-center gap-bw-2 pl-bw-3">
                 <input
                   value={newSection[menu.id] ?? ''}
-                  onChange={(e) => setNewSection({ ...newSection, [menu.id]: e.target.value })}
+                  onChange={(e) =>
+                    setNewSection((prev) => ({ ...prev, [menu.id]: e.target.value }))
+                  }
                   placeholder="New section name"
                   aria-label={`New section for ${menu.name}`}
                   data-testid={`section-new-${menu.id}`}
@@ -193,7 +224,7 @@ export function MenuManager({
                   onClick={() =>
                     void run(async () => {
                       await createSection(menu.id, { name: (newSection[menu.id] ?? '').trim() });
-                      setNewSection({ ...newSection, [menu.id]: '' });
+                      setNewSection((prev) => ({ ...prev, [menu.id]: '' }));
                     })
                   }
                   data-testid={`section-add-${menu.id}`}

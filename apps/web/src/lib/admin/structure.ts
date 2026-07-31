@@ -7,7 +7,14 @@
  * times mean closed.
  */
 import type { paths } from '@biteworthy/api-types';
-import { AdminError, deleteAdmin, getAdminJson, patchAdminJson, postAdminJson } from './shared';
+import {
+  AdminError,
+  deleteAdmin,
+  getAdminJson,
+  patchAdminJson,
+  postAdminJson,
+  toAdminError,
+} from './shared';
 
 export type AdminMenusResponse =
   paths['/api/v1/admin/restaurants/{restaurant_id}/menus']['get']['responses']['200']['content']['application/json'];
@@ -37,7 +44,10 @@ export function fetchAdminMenus(
   restaurantId: string,
   fetchImpl?: typeof fetch,
 ): Promise<AdminMenusResponse> {
-  return getAdminJson(`/api/admin/restaurants/${encodeURIComponent(restaurantId)}/menus`, fetchImpl);
+  return getAdminJson(
+    `/api/admin/restaurants/${encodeURIComponent(restaurantId)}/menus`,
+    fetchImpl,
+  );
 }
 
 export function createMenu(
@@ -101,7 +111,7 @@ export async function deleteSection(
     method: 'DELETE',
     credentials: 'same-origin',
   });
-  if (!res.ok) throw await toStructureError(res);
+  if (!res.ok) throw await toAdminError(res);
   const body = (await res.json()) as { items_unsectioned?: number };
   return body.items_unsectioned ?? 0;
 }
@@ -110,7 +120,10 @@ export function fetchAdminPlace(
   restaurantId: string,
   fetchImpl?: typeof fetch,
 ): Promise<AdminPlace> {
-  return getAdminJson(`/api/admin/restaurants/${encodeURIComponent(restaurantId)}/place`, fetchImpl);
+  return getAdminJson(
+    `/api/admin/restaurants/${encodeURIComponent(restaurantId)}/place`,
+    fetchImpl,
+  );
 }
 
 export function saveAddress(
@@ -145,28 +158,14 @@ async function putAdminJson<T>(path: string, body: unknown, fetchImpl: typeof fe
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw await toStructureError(res);
+  if (!res.ok) throw await toAdminError(res);
   return (await res.json()) as T;
-}
-
-async function toStructureError(res: Response): Promise<AdminError> {
-  let parsed: Record<string, unknown> | undefined;
-  try {
-    parsed = (await res.json()) as Record<string, unknown>;
-  } catch {
-    // non-JSON body — status alone is enough
-  }
-  return new AdminError(
-    `Admin request failed (${res.status})`,
-    res.status,
-    typeof parsed?.error === 'string' ? parsed.error : undefined,
-    parsed,
-  );
 }
 
 /** Human copy for the structure endpoints' structured refusals. */
 export function structureErrorCopy(err: unknown): string | null {
-  const body = (err as { body?: { error?: string; values?: unknown[]; field?: string } })?.body;
+  if (!(err instanceof AdminError)) return null;
+  const body = err.body as { error?: string; values?: unknown[]; field?: string } | undefined;
   switch (body?.error) {
     case 'invalid_day_of_week':
       return `Not a day of the week: ${(body.values ?? []).join(', ')}.`;

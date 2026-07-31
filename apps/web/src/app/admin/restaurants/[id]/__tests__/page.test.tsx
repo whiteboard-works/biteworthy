@@ -27,6 +27,13 @@ vi.mock('../../../../../lib/admin/runs', async (importOriginal) => ({
   confirmCommunity: (id: string) => mockConfirmCommunity(id),
 }));
 
+const mockFetchMenus = vi.fn();
+vi.mock('../../../../../lib/admin/structure', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../../lib/admin/structure')>()),
+  fetchAdminMenus: () => mockFetchMenus(),
+  fetchAdminPlace: () => Promise.resolve({ restaurant_id: 'r1', address: null, hours: [] }),
+}));
+
 import AdminRestaurantPage from '../page';
 import { AdminError } from '../../../../../lib/admin/shared';
 
@@ -86,6 +93,16 @@ beforeEach(() => {
   mockUpdateRestaurant.mockReset();
   mockUpdateItem.mockReset();
   mockConfirmCommunity.mockReset();
+  mockFetchMenus.mockReset().mockResolvedValue({
+    menus: [
+      {
+        id: 'm1',
+        name: 'Dinner',
+        position: 0,
+        sections: [{ id: 's1', name: 'Tacos', position: 0, items_count: 1 }],
+      },
+    ],
+  });
 });
 
 describe('AdminRestaurantPage', () => {
@@ -122,7 +139,9 @@ describe('AdminRestaurantPage', () => {
 
     fireEvent.click(within(row).getByTestId('admin-item-remove-confirm-i1'));
 
-    await vi.waitFor(() => expect(mockUpdateItem).toHaveBeenCalledWith('i1', { status: 'removed' }));
+    await vi.waitFor(() =>
+      expect(mockUpdateItem).toHaveBeenCalledWith('i1', { status: 'removed' }),
+    );
     expect(row).toHaveTextContent('removed');
     // Confidence renders as a badge only — no way to edit it here.
     expect(row).toHaveTextContent('suggested');
@@ -208,5 +227,27 @@ describe('AdminRestaurantPage item deep-edit', () => {
     fireEvent.click(within(row).getByTestId('item-save-i1'));
 
     expect(await within(row).findByRole('alert')).toHaveTextContent(/ghost-spice/);
+  });
+
+  /**
+   * The menu tree and the item rows are separate components; this
+   * flatten is the only thing connecting them. Without it the section
+   * select renders empty and a dish can never be moved.
+   */
+  it('feeds the menu tree into the item row’s section select', async () => {
+    await renderPage();
+    const row = await screen.findByTestId('admin-item-i1');
+
+    fireEvent.click(within(row).getByTestId('admin-item-edit-i1'));
+
+    const select = await within(row).findByTestId('item-section-i1');
+    expect(within(select).getByRole('option', { name: 'Dinner › Tacos' })).toHaveValue('s1');
+
+    fireEvent.change(select, { target: { value: 's1' } });
+    fireEvent.click(within(row).getByTestId('item-save-i1'));
+
+    await vi.waitFor(() =>
+      expect(mockUpdateItem).toHaveBeenCalledWith('i1', { menu_section_id: 's1' }),
+    );
   });
 });

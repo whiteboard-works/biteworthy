@@ -43,17 +43,13 @@ function draftFromPlace(place: AdminPlace | null): HourDraft[] {
 }
 
 function hoursPayload(draft: HourDraft[]): HourRow[] {
-  return draft.flatMap((row, day) => {
-    if (row.closed) return [{ day_of_week: day, opens_at: null, closes_at: null }];
-    if (!row.opens.trim() && !row.closes.trim()) return [];
-    return [
-      {
-        day_of_week: day,
-        opens_at: row.opens.trim() || null,
-        closes_at: row.closes.trim() || null,
-      },
-    ];
-  });
+  // Every day travels, including an open one left blank — dropping it
+  // would send the admin's un-ticked day back as Closed on reload.
+  return draft.map((row, day) => ({
+    day_of_week: day,
+    opens_at: row.closed ? null : row.opens.trim() || null,
+    closes_at: row.closed ? null : row.closes.trim() || null,
+  }));
 }
 
 export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
@@ -173,7 +169,7 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
           <button
             type="button"
             onClick={() => void submitAddress()}
-            disabled={busy !== null}
+            disabled={busy !== null || !place}
             data-testid="address-save"
             className="rounded-bw-md bg-bite px-bw-3 py-bw-1 text-bw-sm font-semibold text-white disabled:opacity-50"
           >
@@ -205,7 +201,9 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                   <input
                     value={row.opens}
                     onChange={(e) =>
-                      setHours(hours.map((r, i) => (i === index ? { ...r, opens: e.target.value } : r)))
+                      setHours(
+                        hours.map((r, i) => (i === index ? { ...r, opens: e.target.value } : r)),
+                      )
                     }
                     disabled={row.closed}
                     placeholder="11:00"
@@ -218,7 +216,9 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                   <input
                     value={row.closes}
                     onChange={(e) =>
-                      setHours(hours.map((r, i) => (i === index ? { ...r, closes: e.target.value } : r)))
+                      setHours(
+                        hours.map((r, i) => (i === index ? { ...r, closes: e.target.value } : r)),
+                      )
                     }
                     disabled={row.closed}
                     placeholder="21:00"
@@ -232,7 +232,9 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
                     type="checkbox"
                     checked={row.closed}
                     onChange={(e) =>
-                      setHours(hours.map((r, i) => (i === index ? { ...r, closed: e.target.checked } : r)))
+                      setHours(
+                        hours.map((r, i) => (i === index ? { ...r, closed: e.target.checked } : r)),
+                      )
                     }
                     aria-label={`${day} closed`}
                     data-testid={`hours-closed-${index}`}
@@ -251,7 +253,7 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
         <button
           type="button"
           onClick={() => void submitHours()}
-          disabled={busy !== null}
+          disabled={busy !== null || !place}
           data-testid="hours-save"
           className="rounded-bw-md bg-bite px-bw-3 py-bw-1 text-bw-sm font-semibold text-white disabled:opacity-50"
         >
