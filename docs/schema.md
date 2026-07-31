@@ -70,11 +70,16 @@ restaurant.items.published
 …then, per item, in Ruby:
 
 ```ruby
-(item.ingredient_ids & filter.avoid_ingredient_ids)  # → avoid_ingredient reasons
-(item.tag_ids        & filter.avoid_tag_ids)         # → avoid_tag reasons
-filter.strictness == "strict" && item.confidence != "confirmed"
-                                                     # → unconfirmed_strict reason
+(item.denormalized_ingredient_ids & filter.avoid_ingredient_ids)  # → avoid_ingredient
+(item.denormalized_tag_ids        & filter.avoid_tag_ids)         # → avoid_tag
+filter.strictness == "strict" && item.confidence != "confirmed"   # → unconfirmed_strict
 ```
+
+`denormalized_*` and not `item.ingredient_ids`: the latter resolves to
+the has_many-through reader, which **shadows** the identically-named
+column and fires a query per item per association. A spec in
+`spec/requests/api/v1/restaurants/items_spec.rb` fails if a read path
+here starts touching `item_ingredients` / `item_tags` again.
 
 An item with a non-empty `reasons[]` serializes as `status: "hidden"`
 and carries the reasons. **That is deliberate**: honest disclosure means
@@ -99,6 +104,21 @@ It only runs for a signed-in user with taste signals; everyone else
 keeps the `popularity DESC, name ASC` order. Scores reorder and
 highlight — they never hide. Note that `user_profiles.prefer_tag_ids`
 is **not** an input to any of this.
+
+The array-overlap SQL the schema is shaped for does exist, one level
+up: `Cities::RestaurantRanking` ranks a city's restaurants by how many
+dishes survive a preset, using
+
+```sql
+COUNT(items.id) FILTER (
+  WHERE items.status = 'published'
+    AND NOT (items.ingredient_ids && ARRAY[…]::uuid[])
+    AND NOT (items.tag_ids        && ARRAY[…]::uuid[])
+)
+```
+
+`&&` is Postgres's array-overlap operator. That one query replaces 30
+calls to the items endpoint during SEO page SSR.
 
 The filter computation is mirrored client-side by `applyProfile` in
 `packages/filter-engine/src/index.ts`, and the scorer by `scoreItem` in

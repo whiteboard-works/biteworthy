@@ -25,4 +25,18 @@ class Item < ApplicationRecord
   validates :confidence, inclusion: { in: CONFIDENCE }
 
   scope :published, -> { where(status: "published") }
+
+  # `item.ingredient_ids` / `item.tag_ids` resolve to the has_many-through
+  # readers, which SHADOW the identically-named denormalized columns and
+  # cost a query per item unless the association is preloaded. These read
+  # the columns the join callbacks keep in sync — free, and the same
+  # arrays `Cities::RestaurantRanking` and `TasteScoring` hit in SQL.
+  # Read paths that don't already need the join rows should use these.
+  def denormalized_ingredient_ids
+    read_attribute(:ingredient_ids)
+  end
+
+  def denormalized_tag_ids
+    read_attribute(:tag_ids)
+  end
 end

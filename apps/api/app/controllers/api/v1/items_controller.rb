@@ -173,7 +173,7 @@ module Api
       def hide_reasons(item, filter, labels)
         reasons = []
 
-        (item.ingredient_ids & filter.avoid_ingredient_ids).each do |ing_id|
+        (item.denormalized_ingredient_ids & filter.avoid_ingredient_ids).each do |ing_id|
           ing = labels[:ingredients][ing_id]
           reasons << {
             kind:              "avoid_ingredient",
@@ -182,7 +182,7 @@ module Api
             ingredient_family: ing&.dig(:family)
           }
         end
-        (item.tag_ids & filter.avoid_tag_ids).each do |tag_id|
+        (item.denormalized_tag_ids & filter.avoid_tag_ids).each do |tag_id|
           tag = labels[:tags][tag_id]
           reasons << {
             kind:       "avoid_tag",
@@ -204,8 +204,8 @@ module Api
       # (e.g. `dairy.cheddar` -> `dairy`); for tags it's the model
       # column.
       def build_label_lookup(items, filter)
-        cited_ingredient_ids = items.flat_map(&:ingredient_ids).uniq & filter.avoid_ingredient_ids
-        cited_tag_ids        = items.flat_map(&:tag_ids).uniq        & filter.avoid_tag_ids
+        cited_ingredient_ids = items.flat_map(&:denormalized_ingredient_ids).uniq & filter.avoid_ingredient_ids
+        cited_tag_ids        = items.flat_map(&:denormalized_tag_ids).uniq        & filter.avoid_tag_ids
 
         ingredient_labels = Ingredient.where(id: cited_ingredient_ids)
                                       .pluck(:id, :name, :path)
@@ -232,8 +232,8 @@ module Api
           description:         item.description,
           confidence:          item.confidence,
           popularity:          item.popularity,
-          ingredient_ids:      item.ingredient_ids,
-          tag_ids:             item.tag_ids,
+          ingredient_ids:      item.denormalized_ingredient_ids,
+          tag_ids:             item.denormalized_tag_ids,
           menu_section_id:     section&.id,
           menu_section_name:   section&.name,
           status:              reasons.empty? ? "visible" : "hidden",
