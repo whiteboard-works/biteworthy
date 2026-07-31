@@ -5,13 +5,11 @@ class AddEnumCheckConstraints < ActiveRecord::Migration[8.1]
   # `Restaurant#confirm_community_associations!` writes `confidence`
   # through `update_all` today, so this is not hypothetical.
   #
-  # Added NOT VALID: Postgres enforces them on every INSERT and UPDATE
-  # from here on, but does not scan the existing table. That keeps the
-  # deploy instant and lock-free, and means a legacy row nobody has
-  # audited yet cannot abort the migration. Promoting them to VALID is
-  # a follow-up (see docs/roadmap.md) once prod data is confirmed
-  # clean — `VALIDATE CONSTRAINT` takes only a SHARE UPDATE EXCLUSIVE
-  # lock, so it can happen any time.
+  # Added VALIDATED, not NOT VALID. A pre-merge audit ran every one of
+  # these predicates against production and found zero violating rows,
+  # and the largest table here is ~1k rows, so the validating scan is
+  # instant. A NOT VALID constraint would have left the pre-existing
+  # rows unenforced forever unless someone remembered the follow-up.
   #
   # The literals are deliberately duplicated from the model constants
   # rather than interpolated: a migration must keep meaning even after
@@ -47,7 +45,7 @@ class AddEnumCheckConstraints < ActiveRecord::Migration[8.1]
       columns.each do |column, values|
         add_check_constraint table,
                              "#{column} IN (#{values.map { |v| "'#{v}'" }.join(', ')})",
-                             name: "#{table}_#{column}_valid", validate: false
+                             name: "#{table}_#{column}_valid"
       end
     end
 
@@ -55,12 +53,12 @@ class AddEnumCheckConstraints < ActiveRecord::Migration[8.1]
       columns.each do |column, values|
         add_check_constraint table,
                              "#{column} IS NULL OR #{column} IN (#{values.map { |v| "'#{v}'" }.join(', ')})",
-                             name: "#{table}_#{column}_valid", validate: false
+                             name: "#{table}_#{column}_valid"
       end
     end
 
     # Mirrors `validates :day_of_week, inclusion: { in: 0..6 }`.
     add_check_constraint :hours, "day_of_week BETWEEN 0 AND 6",
-                         name: "hours_day_of_week_valid", validate: false
+                         name: "hours_day_of_week_valid"
   end
 end

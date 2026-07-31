@@ -5,7 +5,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 ## Identity
 
 - `users` — Devise-backed (email + JWT), Apple/Google OAuth via `provider`
-  + `uid`. UUID PKs throughout.
+  + `uid`. UUID PKs throughout. `email` is `citext`, so uniqueness holds
+  across case even on the write paths Devise doesn't own
+  (`from_omniauth`, admin creates, seeds).
 - `user_profiles` — one per user. `avoid_ingredient_ids[]`,
   `avoid_tag_ids[]`, `prefer_tag_ids[]`, plus `strictness` enum.
 
@@ -47,10 +49,8 @@ Every enum-ish column is a plain `string` whose allowed values live in
 a model constant (`Item::STATUSES`, `ItemTag::SOURCES`, …) — there are
 no Postgres enum types. Since Rails validations don't survive
 `update_all` / `update_columns` / `upsert_all`, each one is also backed
-by a `CHECK` constraint named `<table>_<column>_valid`. They were added
-`NOT VALID`, so they enforce every new write but haven't scanned the
-pre-existing rows (see `docs/roadmap.md` for the follow-up that
-promotes them). `spec/models/enum_check_constraints_spec.rb` fails if a
+by a validated `CHECK` constraint named `<table>_<column>_valid`.
+`spec/models/enum_check_constraints_spec.rb` fails if a
 model constant and its constraint drift apart — **widen the constant
 and you must ship a migration widening the constraint in the same PR**.
 

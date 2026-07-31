@@ -22,10 +22,11 @@ class DropUnusedColumnsAndIndexes < ActiveRecord::Migration[8.1]
     # Never written by any code path, so always the {} default.
     remove_column :ingestion_runs, :raw_output, :jsonb, default: {}
 
-    # Nothing does distance search; restaurant coordinates live on
-    # addresses, which is where the map data is actually read from.
-    remove_column :cities, :latitude, :decimal, precision: 10, scale: 6
-    remove_column :cities, :longitude, :decimal, precision: 10, scale: 6
+    # cities.latitude / longitude are NOT dropped. No code reads them
+    # today, but a pre-merge audit found Durango's real coordinates
+    # sitting in them — someone seeded that on purpose, and a city
+    # centroid is what a future "near me" would key off. Unread is not
+    # the same as empty.
 
     # Devise :confirmable and :trackable are deliberately not enabled
     # (see the comment in app/models/user.rb) so these have never held
