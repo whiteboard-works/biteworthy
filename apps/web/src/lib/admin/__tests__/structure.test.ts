@@ -74,7 +74,7 @@ describe('structureErrorCopy', () => {
 
   it('covers every structured refusal the structure endpoints emit', () => {
     for (const error of [
-      'duplicate_day_of_week',
+      'closed_day_has_hours',
       'hour_rows_must_be_objects',
       'hours_must_be_an_array',
       'invalid_name',

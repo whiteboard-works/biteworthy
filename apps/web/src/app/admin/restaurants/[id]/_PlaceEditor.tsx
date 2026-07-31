@@ -18,38 +18,52 @@ import { friendlyAdminError } from '../../../../lib/admin/shared';
  * advertise the wrong opening time, so the grid always submits the
  * full week. A day with the Closed box ticked sends null times, which
  * is exactly how the schema encodes "closed".
+ *
+ * A day holds SEVERAL ranges, because a split shift (lunch 11–14,
+ * dinner 17–21) is an ordinary restaurant week. Folding it into one
+ * 11–21 row would tell a hungry user the kitchen is open through the
+ * afternoon lull when it isn't.
  */
 
-interface HourDraft {
-  closed: boolean;
+interface HourRange {
   opens: string;
   closes: string;
 }
 
+interface HourDraft {
+  closed: boolean;
+  ranges: HourRange[];
+}
+
+const EMPTY_RANGE: HourRange = { opens: '', closes: '' };
+
 function draftFromPlace(place: AdminPlace | null): HourDraft[] {
-  const byDay = new Map<number, { opens_at?: string | null; closes_at?: string | null }>();
+  const byDay = new Map<number, HourRange[]>();
   for (const row of place?.hours ?? []) {
-    if (row.day_of_week != null) byDay.set(row.day_of_week, row);
+    if (row.day_of_week == null) continue;
+    if (!row.opens_at && !row.closes_at) continue;
+    const ranges = byDay.get(row.day_of_week) ?? [];
+    ranges.push({ opens: row.opens_at ?? '', closes: row.closes_at ?? '' });
+    byDay.set(row.day_of_week, ranges);
   }
   return DAY_NAMES.map((_, day) => {
-    const row = byDay.get(day);
-    return {
-      // A day with no row at all is closed, same as one with no times.
-      closed: !row || (!row.opens_at && !row.closes_at),
-      opens: row?.opens_at ?? '',
-      closes: row?.closes_at ?? '',
-    };
+    const ranges = byDay.get(day);
+    // No timed row at all is closed, same as an explicit blank row.
+    return ranges?.length ? { closed: false, ranges } : { closed: true, ranges: [EMPTY_RANGE] };
   });
 }
 
 function hoursPayload(draft: HourDraft[]): HourRow[] {
   // Every day travels, including an open one left blank — dropping it
   // would send the admin's un-ticked day back as Closed on reload.
-  return draft.map((row, day) => ({
-    day_of_week: day,
-    opens_at: row.closed ? null : row.opens.trim() || null,
-    closes_at: row.closed ? null : row.closes.trim() || null,
-  }));
+  return draft.flatMap((day, index) => {
+    if (day.closed) return [{ day_of_week: index, opens_at: null, closes_at: null }];
+    return day.ranges.map((range) => ({
+      day_of_week: index,
+      opens_at: range.opens.trim() || null,
+      closes_at: range.closes.trim() || null,
+    }));
+  });
 }
 
 export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
@@ -184,61 +198,86 @@ export function PlaceEditor({ restaurantId }: { restaurantId: string }) {
             <th scope="col" className="py-bw-1">
               Day
             </th>
-            <th scope="col">Opens</th>
-            <th scope="col">Closes</th>
+            <th scope="col">Hours</th>
             <th scope="col">Closed</th>
           </tr>
         </thead>
         <tbody>
           {DAY_NAMES.map((day, index) => {
             const row = hours[index]!;
+            const editDay = (next: Partial<HourDraft>) =>
+              setHours(hours.map((r, i) => (i === index ? { ...r, ...next } : r)));
+            const editRange = (at: number, next: Partial<HourRange>) =>
+              editDay({ ranges: row.ranges.map((r, i) => (i === at ? { ...r, ...next } : r)) });
+
             return (
-              <tr key={day} data-testid={`hours-row-${index}`} className="border-t border-zinc-100">
-                <th scope="row" className="py-bw-1 text-left font-normal text-zinc-700">
+              <tr
+                key={day}
+                data-testid={`hours-row-${index}`}
+                className="border-t border-zinc-100 align-top"
+              >
+                <th scope="row" className="py-bw-2 text-left font-normal text-zinc-700">
                   {day}
                 </th>
-                <td>
-                  {/* type=time emits exactly HH:MM, which is what the
-                      server's TIME_OF_DAY regex accepts — so a typo is
-                      impossible rather than a rejected round-trip. */}
-                  <input
-                    type="time"
-                    value={row.opens}
-                    onChange={(e) =>
-                      setHours(
-                        hours.map((r, i) => (i === index ? { ...r, opens: e.target.value } : r)),
-                      )
-                    }
-                    disabled={row.closed}
-                    aria-label={`${day} opens at`}
-                    data-testid={`hours-opens-${index}`}
-                    className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
-                  />
+                <td className="py-bw-2">
+                  <div className="space-y-bw-1">
+                    {row.ranges.map((range, at) => (
+                      <div key={at} className="flex items-center gap-bw-2">
+                        {/* type=time emits exactly HH:MM, which is what
+                            the server's TIME_OF_DAY regex accepts — so a
+                            typo is impossible rather than a rejected
+                            round-trip. */}
+                        <input
+                          type="time"
+                          value={range.opens}
+                          onChange={(e) => editRange(at, { opens: e.target.value })}
+                          disabled={row.closed}
+                          aria-label={`${day} opens at${at > 0 ? ` (range ${at + 1})` : ''}`}
+                          data-testid={`hours-opens-${index}-${at}`}
+                          className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
+                        />
+                        <span className="text-bw-xs text-zinc-400">to</span>
+                        <input
+                          type="time"
+                          value={range.closes}
+                          onChange={(e) => editRange(at, { closes: e.target.value })}
+                          disabled={row.closed}
+                          aria-label={`${day} closes at${at > 0 ? ` (range ${at + 1})` : ''}`}
+                          data-testid={`hours-closes-${index}-${at}`}
+                          className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
+                        />
+                        {row.ranges.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              editDay({ ranges: row.ranges.filter((_, i) => i !== at) })
+                            }
+                            aria-label={`Remove ${day} range ${at + 1}`}
+                            data-testid={`hours-range-remove-${index}-${at}`}
+                            className="text-bw-xs font-bold text-zinc-400 hover:text-danger"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {!row.closed && (
+                      <button
+                        type="button"
+                        onClick={() => editDay({ ranges: [...row.ranges, { ...EMPTY_RANGE }] })}
+                        data-testid={`hours-range-add-${index}`}
+                        className="text-bw-xs font-semibold text-zinc-600 underline hover:text-zinc-900"
+                      >
+                        + Split shift
+                      </button>
+                    )}
+                  </div>
                 </td>
-                <td>
-                  <input
-                    type="time"
-                    value={row.closes}
-                    onChange={(e) =>
-                      setHours(
-                        hours.map((r, i) => (i === index ? { ...r, closes: e.target.value } : r)),
-                      )
-                    }
-                    disabled={row.closed}
-                    aria-label={`${day} closes at`}
-                    data-testid={`hours-closes-${index}`}
-                    className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 text-bw-xs disabled:bg-zinc-100"
-                  />
-                </td>
-                <td>
+                <td className="py-bw-2">
                   <input
                     type="checkbox"
                     checked={row.closed}
-                    onChange={(e) =>
-                      setHours(
-                        hours.map((r, i) => (i === index ? { ...r, closed: e.target.checked } : r)),
-                      )
-                    }
+                    onChange={(e) => editDay({ closed: e.target.checked })}
                     aria-label={`${day} closed`}
                     data-testid={`hours-closed-${index}`}
                   />

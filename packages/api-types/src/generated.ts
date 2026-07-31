@@ -1692,7 +1692,7 @@ export interface paths {
         get?: never;
         /**
          * Replace the whole week's hours
-         * @description Wholesale replacement — send every open day. Omitting opens_at/closes_at marks that day closed. A partial write would advertise the wrong hours, so there is no per-day endpoint.
+         * @description Wholesale replacement — send every open day. Omitting opens_at/closes_at marks that day closed. A day may repeat for a SPLIT SHIFT (lunch 11:00-14:00, dinner 17:00-21:00); what it may not do is mix a closed row with a timed one (422 closed_day_has_hours). A partial write would advertise the wrong hours, so there is no per-day endpoint.
          */
         put: {
             parameters: {
