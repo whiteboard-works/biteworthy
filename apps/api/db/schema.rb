@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -64,8 +64,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
   create_table "cities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "country", default: "US", null: false
     t.datetime "created_at", null: false
-    t.decimal "latitude", precision: 10, scale: 6
-    t.decimal "longitude", precision: 10, scale: 6
     t.string "name", null: false
     t.string "region"
     t.string "slug", null: false
@@ -176,7 +174,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "api_cost_cents", default: 0, null: false
     t.integer "cached_input_tokens", default: 0, null: false
-    t.integer "cost_cents", default: 0
     t.datetime "created_at", null: false
     t.string "enrichment_status", default: "pending", null: false
     t.text "failure_message"
@@ -184,7 +181,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
     t.string "input_kind", null: false
     t.integer "latency_ms"
     t.string "model"
-    t.jsonb "raw_output", default: {}
     t.uuid "restaurant_id"
     t.string "source_url"
     t.jsonb "staging", default: {}, null: false
@@ -334,6 +330,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
     t.index ["city_id"], name: "index_restaurants_on_city_id"
     t.index ["claimed_by_user_id"], name: "index_restaurants_on_claimed_by_user_id"
     t.index ["created_by_user_id"], name: "index_restaurants_on_created_by_user_id"
+    t.index ["name"], name: "index_restaurants_on_name", opclass: :gin_trgm_ops, using: :gin
     t.index ["slug"], name: "index_restaurants_on_slug", unique: true
   end
 
@@ -500,7 +497,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
     t.uuid "user_id"
     t.index ["resolved_by_user_id"], name: "index_suggestions_on_resolved_by_user_id"
     t.index ["status"], name: "index_suggestions_on_status"
-    t.index ["subject_type", "subject_id"], name: "index_suggestions_on_subject"
     t.index ["subject_type", "subject_id"], name: "index_suggestions_on_subject_type_and_subject_id"
     t.index ["user_id"], name: "index_suggestions_on_user_id"
   end
@@ -514,6 +510,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.index ["family"], name: "index_tags_on_family"
+    t.index ["name"], name: "index_tags_on_name", opclass: :gin_trgm_ops, using: :gin
     t.index ["path"], name: "index_tags_on_path", using: :gist
     t.index ["slug"], name: "index_tags_on_slug", unique: true
   end
@@ -543,38 +540,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130000) do
     t.string "strictness", default: "balanced", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index ["avoid_ingredient_ids"], name: "index_user_profiles_on_avoid_ingredient_ids", using: :gin
-    t.index ["avoid_tag_ids"], name: "index_user_profiles_on_avoid_tag_ids", using: :gin
-    t.index ["prefer_tag_ids"], name: "index_user_profiles_on_prefer_tag_ids", using: :gin
     t.index ["primary_dietary_profile_id"], name: "index_user_profiles_on_primary_dietary_profile_id"
     t.index ["user_id"], name: "index_user_profiles_on_user_id", unique: true
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "age_confirmed_at"
-    t.datetime "confirmation_sent_at"
-    t.string "confirmation_token"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
-    t.datetime "current_sign_in_at"
     t.string "display_name"
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
     t.string "handle", null: false
     t.boolean "is_admin", default: false, null: false
     t.string "jti", null: false
-    t.datetime "jti_expires_at"
-    t.datetime "last_sign_in_at"
     t.string "provider"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
-    t.integer "sign_in_count", default: 0, null: false
     t.datetime "terms_accepted_at"
     t.string "uid"
-    t.string "unconfirmed_email"
     t.datetime "updated_at", null: false
-    t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["handle"], name: "index_users_on_handle", unique: true
     t.index ["is_admin"], name: "index_users_on_is_admin", where: "(is_admin = true)"
