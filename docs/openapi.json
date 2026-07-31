@@ -1221,6 +1221,11 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "menu_section_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
                           "name": {
                             "type": "string"
                           },
@@ -1331,6 +1336,9 @@
                                 "price_cents": {
                                   "type": "integer",
                                   "nullable": true
+                                },
+                                "currency": {
+                                  "type": "string"
                                 }
                               }
                             }
@@ -1407,6 +1415,11 @@
                     "restaurant_id": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "menu_section_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
                     },
                     "name": {
                       "type": "string"
@@ -1518,6 +1531,9 @@
                           "price_cents": {
                             "type": "integer",
                             "nullable": true
+                          },
+                          "currency": {
+                            "type": "string"
                           }
                         }
                       }
@@ -1564,7 +1580,9 @@
                     "type": "string"
                   },
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "nullable": true,
+                    "description": "null clears it; '' would store an empty string"
                   },
                   "status": {
                     "type": "string",
@@ -1595,7 +1613,7 @@
                   },
                   "variants": {
                     "type": "array",
-                    "description": "Replaced wholesale; array order becomes position. Rows without price_cents are dropped.",
+                    "description": "Replaced wholesale; array order becomes position. A row may carry a size with no price (\"Large — market price\"); rows with neither are dropped.",
                     "items": {
                       "type": "object",
                       "properties": {
@@ -1604,7 +1622,8 @@
                           "nullable": true
                         },
                         "price_cents": {
-                          "type": "integer"
+                          "type": "integer",
+                          "nullable": true
                         },
                         "currency": {
                           "type": "string"

@@ -1,18 +1,37 @@
 'use client';
 
 import { useState } from 'react';
-import { updateAdminItem, type AdminItemRow } from '../../../../lib/admin/management';
+import {
+  itemEditErrorCopy,
+  updateAdminItem,
+  type AdminItemEdits,
+  type AdminItemRow,
+} from '../../../../lib/admin/management';
 import { friendlyAdminError } from '../../../../lib/admin/shared';
 import { StatusBadge, type BadgeTone } from '../../_StatusBadge';
+import {
+  ItemDeepEditPanel,
+  type ItemDraft,
+  draftFromItem,
+  editsFromDraft,
+} from './_ItemDeepEditPanel';
 
 /**
- * One item in the restaurant workbench. The status select is the
- * admin unpublish lever — but "removed" (hides the dish from every
- * public menu read) requires an explicit confirm; the other
- * transitions apply on change. Confidence renders as a badge and is
- * deliberately not editable — that stays on the promote/confirm rails.
+ * One item in the restaurant workbench. The status select is the admin
+ * unpublish lever — "removed" (hides the dish from every public menu
+ * read) requires an explicit confirm; other transitions apply on
+ * change. Edit opens the deep panel: name, description, prices,
+ * modifiers, and the ingredient/tag chips that drive the allergen
+ * filter.
+ *
+ * Confidence renders as a badge and is deliberately not editable — it
+ * moves only through promote / confirm-community. Admin chip edits
+ * land confirmed/human server-side, which is what makes them visible
+ * to strict-mode users.
  */
-const ITEM_STATUSES = ['draft', 'published', 'removed'] as const;
+/** Sourced from the generated contract so a server-side change breaks the build. */
+type ItemStatus = NonNullable<AdminItemEdits['status']>;
+const ITEM_STATUSES: readonly ItemStatus[] = ['draft', 'published', 'removed'];
 
 const STATUS_TONES: Record<string, BadgeTone> = {
   draft: 'muted',
@@ -28,30 +47,44 @@ const CONFIDENCE_TONES: Record<string, BadgeTone> = {
 
 export function AdminItemRowEditor({
   item,
+  sections,
   onUpdated,
 }: {
   item: AdminItemRow;
+  /** Sections of THIS restaurant, for the move-to-section select. */
+  sections?: Array<{ id: string; name: string; menuName: string }>;
   onUpdated: (updated: AdminItemRow) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ItemDraft | null>(null);
+  const [baseline, setBaseline] = useState<ItemDraft | null>(null);
 
-  const setStatus = async (status: string) => {
+  const save = async (edits: AdminItemEdits, thenClose = false) => {
     setBusy(true);
     setError(null);
-    setPendingRemoval(false);
     try {
-      onUpdated(await updateAdminItem(item.id, { status }));
+      onUpdated(await updateAdminItem(item.id, edits));
+      if (thenClose) {
+        setDraft(null);
+        setBaseline(null);
+      }
     } catch (e) {
-      setError(friendlyAdminError(e));
+      setError(itemEditErrorCopy(e) ?? friendlyAdminError(e));
     } finally {
       setBusy(false);
     }
   };
 
-  const onSelect = (status: string) => {
-    if (status === item.status) return;
+  const setStatus = async (status: ItemStatus) => {
+    setPendingRemoval(false);
+    await save({ status });
+  };
+
+  const onSelect = (raw: string) => {
+    const status = ITEM_STATUSES.find((s) => s === raw);
+    if (!status || status === item.status) return;
     // Removal disappears the dish from every public menu — a stray
     // select change must not do that silently.
     if (status === 'removed') {
@@ -59,6 +92,17 @@ export function AdminItemRowEditor({
       return;
     }
     void setStatus(status);
+  };
+
+  const openEditor = () => {
+    const seed = draftFromItem(item);
+    setBaseline(seed);
+    setDraft(structuredClone(seed));
+  };
+
+  const closeEditor = () => {
+    setDraft(null);
+    setBaseline(null);
   };
 
   const price = item.variants?.[0]?.price_cents;
@@ -73,13 +117,14 @@ export function AdminItemRowEditor({
           <p className="font-semibold text-zinc-900">
             {item.name}
             {price != null && (
-              <span className="ml-bw-2 font-normal text-zinc-500">
-                ${(price / 100).toFixed(2)}
-              </span>
+              <span className="ml-bw-2 font-normal text-zinc-500">${(price / 100).toFixed(2)}</span>
             )}
           </p>
           <p className="mt-bw-1 text-bw-xs text-zinc-500">
-            {item.ingredient_count ?? 0} ingredients · {item.tag_count ?? 0} tags
+            {(item.ingredients ?? []).map((i) => i.name).join(', ') || 'no ingredients'}
+            {(item.tags ?? []).length > 0 && (
+              <> · {(item.tags ?? []).map((t) => t.name).join(', ')}</>
+            )}
             {item.description && <> · {item.description}</>}
           </p>
         </div>
@@ -89,6 +134,15 @@ export function AdminItemRowEditor({
             tone={CONFIDENCE_TONES[item.confidence] ?? 'muted'}
           />
           <StatusBadge label={item.status} tone={STATUS_TONES[item.status] ?? 'muted'} />
+          <button
+            type="button"
+            onClick={() => (draft ? closeEditor() : openEditor())}
+            disabled={busy}
+            data-testid={`admin-item-edit-${item.id}`}
+            className="font-semibold text-zinc-600 hover:text-bite disabled:opacity-50"
+          >
+            {draft ? 'Close' : 'Edit'}
+          </button>
           <select
             value={pendingRemoval ? 'removed' : item.status}
             onChange={(e) => onSelect(e.target.value)}
@@ -104,6 +158,7 @@ export function AdminItemRowEditor({
           </select>
         </div>
       </div>
+
       {pendingRemoval && (
         <p className="mt-bw-2 flex items-center gap-bw-2 text-bw-sm text-zinc-700">
           Remove “{item.name}” from the public menu?
@@ -125,6 +180,19 @@ export function AdminItemRowEditor({
           </button>
         </p>
       )}
+
+      {draft && baseline && (
+        <ItemDeepEditPanel
+          itemId={item.id}
+          draft={draft}
+          sections={sections}
+          busy={busy}
+          onChange={setDraft}
+          onCancel={closeEditor}
+          onSave={() => void save(editsFromDraft(draft, baseline), true)}
+        />
+      )}
+
       {error && (
         <p role="alert" className="mt-bw-2 text-bw-sm text-red-700">
           {error}

@@ -1,6 +1,8 @@
 /**
- * `PATCH /api/admin/items/:id` — name/description/status only
- * (status: removed = unpublish).
+ * `PATCH /api/admin/items/:id` — the deep edit: name, description,
+ * status (removed = unpublish), section, ingredient/tag slugs, variants
+ * and modifiers. The body is forwarded as-is; the server decides what
+ * it permits.
  */
 import { type NextRequest } from 'next/server';
 import { adminProxy } from '../../../../../lib/api-proxy';
