@@ -590,6 +590,8 @@ export interface paths {
                                 id: string;
                                 /** Format: uuid */
                                 restaurant_id: string;
+                                /** Format: uuid */
+                                menu_section_id?: string | null;
                                 name: string;
                                 description?: string | null;
                                 /** @enum {string} */
@@ -713,6 +715,8 @@ export interface paths {
                             id: string;
                             /** Format: uuid */
                             restaurant_id: string;
+                            /** Format: uuid */
+                            menu_section_id?: string | null;
                             name: string;
                             description?: string | null;
                             /** @enum {string} */

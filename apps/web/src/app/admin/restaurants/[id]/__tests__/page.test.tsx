@@ -28,6 +28,7 @@ vi.mock('../../../../../lib/admin/runs', async (importOriginal) => ({
 }));
 
 import AdminRestaurantPage from '../page';
+import { AdminError } from '../../../../../lib/admin/shared';
 
 function detail(overrides: Record<string, unknown> = {}) {
   return {
@@ -156,5 +157,56 @@ describe('AdminRestaurantPage', () => {
       'Confirmed 2 item(s), 4 ingredient link(s), 1 tag link(s).',
     );
     expect(mockConfirmCommunity).toHaveBeenCalledWith('r1');
+  });
+});
+
+describe('AdminRestaurantPage item deep-edit', () => {
+  it('saves only the facets the admin changed', async () => {
+    mockFetchItems.mockResolvedValue({
+      items: [
+        item({
+          ingredients: [{ id: 'g1', slug: 'meat-beef', name: 'Beef' }],
+          tags: [],
+          modifiers: [],
+          variants: [{ id: 'v1', size: null, price_cents: 450, currency: 'USD' }],
+        }),
+      ],
+      pagination: { total: 1, limit: 50, offset: 0 },
+    });
+    mockUpdateItem.mockResolvedValue(item({ name: 'Carne Asada Taco' }));
+    await renderPage();
+    const row = await screen.findByTestId('admin-item-i1');
+
+    fireEvent.click(within(row).getByTestId('admin-item-edit-i1'));
+    fireEvent.change(within(row).getByTestId('item-name-i1'), {
+      target: { value: 'Carne Asada Taco' },
+    });
+    fireEvent.click(within(row).getByTestId('item-save-i1'));
+
+    await vi.waitFor(() => expect(mockUpdateItem).toHaveBeenCalled());
+    // Untouched facets must not ride along — slug lists and the
+    // variant/modifier arrays replace wholesale server-side.
+    expect(mockUpdateItem).toHaveBeenCalledWith('i1', { name: 'Carne Asada Taco' });
+  });
+
+  it('surfaces an unknown-slug refusal as instructions', async () => {
+    mockFetchItems.mockResolvedValue({
+      items: [item({ ingredients: [{ id: 'g1', slug: 'meat-beef', name: 'Beef' }] })],
+      pagination: { total: 1, limit: 50, offset: 0 },
+    });
+    mockUpdateItem.mockRejectedValue(
+      new AdminError('x', 422, 'unknown_ingredient_slugs', {
+        error: 'unknown_ingredient_slugs',
+        slugs: ['ghost-spice'],
+      }),
+    );
+    await renderPage();
+    const row = await screen.findByTestId('admin-item-i1');
+
+    fireEvent.click(within(row).getByTestId('admin-item-edit-i1'));
+    fireEvent.click(within(row).getByTestId('remove-ingredients-i1-meat-beef'));
+    fireEvent.click(within(row).getByTestId('item-save-i1'));
+
+    expect(await within(row).findByRole('alert')).toHaveTextContent(/ghost-spice/);
   });
 });

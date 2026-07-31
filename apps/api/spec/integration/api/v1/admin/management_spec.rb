@@ -34,6 +34,7 @@ def admin_item_row_schema
     properties: {
       id:               { type: :string, format: :uuid },
       restaurant_id:    { type: :string, format: :uuid },
+      menu_section_id:  { type: :string, format: :uuid, nullable: true },
       name:             { type: :string },
       description:      { type: :string, nullable: true },
       status:           { type: :string, enum: %w[draft published removed] },

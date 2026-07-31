@@ -1,3 +1,4 @@
+import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
@@ -136,8 +137,10 @@ describe('draftBlockers', () => {
 describe('ItemDeepEditPanel', () => {
   const noop = () => undefined;
 
-  function renderPanel(overrides: Record<string, unknown> = {}) {
-    const props = {
+  function renderPanel(
+    overrides: Partial<React.ComponentProps<typeof ItemDeepEditPanel>> = {},
+  ) {
+    const props: React.ComponentProps<typeof ItemDeepEditPanel> = {
       itemId: 'i1',
       draft: draftFromItem(item),
       sections,
@@ -147,7 +150,7 @@ describe('ItemDeepEditPanel', () => {
       onSave: vi.fn(),
       ...overrides,
     };
-    render(<ItemDeepEditPanel {...(props as never)} />);
+    render(<ItemDeepEditPanel {...props} />);
     return props;
   }
 

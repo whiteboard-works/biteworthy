@@ -1221,6 +1221,11 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "menu_section_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
                           "name": {
                             "type": "string"
                           },
@@ -1407,6 +1412,11 @@
                     "restaurant_id": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "menu_section_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
                     },
                     "name": {
                       "type": "string"
