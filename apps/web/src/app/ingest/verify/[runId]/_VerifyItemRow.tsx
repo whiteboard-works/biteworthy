@@ -6,7 +6,13 @@ import {
   friendlyIngestionError,
   type IngestionItemPayload,
 } from '../../../../lib/ingestion';
-import { ItemEditPanel, draftFromItem, editsFromDraft, type EditDraft } from './_ItemEditPanel';
+import {
+  ItemEditPanel,
+  draftBlockers,
+  draftFromItem,
+  editsFromDraft,
+  type EditDraft,
+} from './_ItemEditPanel';
 
 /**
  * One item in the web verify list. Accept promotes (with the Phase 6.3 trust
@@ -37,6 +43,21 @@ export function VerifyItemRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
+  // What the panel was seeded with — edits are diffed against this so
+  // untouched facets are never resent (gap-fill keeps appending chips
+  // while the panel is open, and payload arrays replace wholesale).
+  const [baseline, setBaseline] = useState<EditDraft | null>(null);
+
+  const openEditor = () => {
+    const seed = draftFromItem(item);
+    setBaseline(seed);
+    setDraft(structuredClone(seed));
+  };
+
+  const closeEditor = () => {
+    setDraft(null);
+    setBaseline(null);
+  };
 
   const decide = async (
     decision: 'accepted' | 'edited' | 'rejected' | 'pending',
@@ -49,13 +70,16 @@ export function VerifyItemRow({
         runId,
         itemId: item.id,
         decision,
-        // Only send edits when the panel is open — an untouched row must
-        // not resend (and so overwrite) payloads gap-fill may have
-        // appended since this row rendered.
-        ...(withEdits && draft ? { edits: editsFromDraft(draft) } : {}),
+        // Only CHANGED facets travel — an untouched array must not
+        // overwrite what gap-fill appended since the panel opened.
+        ...(withEdits && draft && baseline
+          ? { edits: editsFromDraft(draft, baseline) }
+          : {}),
       });
       onDecided(updated);
-      if (withEdits) setDraft(null);
+      // Any settled decision closes the editor — a panel left open over
+      // a rejected row can neither save nor be dismissed.
+      closeEditor();
     } catch (e) {
       setError(friendlyIngestionError(e));
     } finally {
@@ -64,6 +88,11 @@ export function VerifyItemRow({
   };
 
   const decided = item.decision === 'accepted' || item.decision === 'rejected';
+  // A saved edit is NOT a decision — the dish still has to be accepted
+  // to reach the menu, and the run's publish threshold still counts it
+  // as undecided. Say so instead of leaving the row looking untouched.
+  const editedPending = item.decision === 'edited';
+  const blocked = draft !== null && draftBlockers(draft) !== null;
   const price = item.prices_payload[0]?.price_cents;
   // Nullish fallback: web (Vercel) and API (Kamal) deploy independently, so a
   // fresh client may briefly see responses without the field.
@@ -175,6 +204,14 @@ export function VerifyItemRow({
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
+          {editedPending && (
+            <span
+              data-testid="edited-badge"
+              className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800"
+            >
+              edited — still needs accepting
+            </span>
+          )}
           {decided ? (
             <>
               <span
@@ -200,7 +237,7 @@ export function VerifyItemRow({
             <>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || blocked}
                 onClick={() => void decide('accepted', { withEdits: draft !== null })}
                 className="rounded bg-green-600 px-3 py-1 text-sm font-semibold text-white disabled:opacity-50"
               >
@@ -209,7 +246,7 @@ export function VerifyItemRow({
               {draft ? (
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || blocked}
                   onClick={() => void decide('edited', { withEdits: true })}
                   data-testid="save-edit"
                   className="rounded border border-zinc-300 px-3 py-1 text-sm font-semibold text-zinc-700 disabled:opacity-50"
@@ -220,7 +257,7 @@ export function VerifyItemRow({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => setDraft(draftFromItem(item))}
+                  onClick={openEditor}
                   data-testid="edit"
                   className="rounded border border-zinc-300 px-3 py-1 text-sm font-semibold text-zinc-700 disabled:opacity-50"
                 >
@@ -240,7 +277,12 @@ export function VerifyItemRow({
         </div>
       </div>
       {draft && (
-        <ItemEditPanel draft={draft} onChange={setDraft} matched={Boolean(match)} />
+        <ItemEditPanel
+          draft={draft}
+          onChange={setDraft}
+          matched={Boolean(match)}
+          onCancel={closeEditor}
+        />
       )}
       {error && (
         <p className="mt-2 text-sm text-red-700" role="alert">
