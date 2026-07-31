@@ -63,7 +63,6 @@ class Review < ApplicationRecord
   end
 
   # Whether the body looks like spam under the lightweight heuristic.
-  # Public so specs + the Avo "rerun heuristic" action can call it.
   def suspicious?
     text = body.to_s
     return false if text.strip.empty?

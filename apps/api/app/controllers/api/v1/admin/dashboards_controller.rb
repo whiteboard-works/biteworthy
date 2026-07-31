@@ -1,11 +1,9 @@
 module Api
   module V1
     module Admin
-      # GET /api/v1/admin/dashboard — JSON twin of the Phase 2.9 ERB
-      # dashboard (Ingestion::CostMetrics buckets + the community
-      # counters), plus queue counts the web admin renders as nav
-      # badges. The ERB version at /admin/dashboard is retired with
-      # Avo once the web admin has full parity.
+      # GET /api/v1/admin/dashboard — Ingestion::CostMetrics buckets +
+      # the community counters + queue counts for the web admin
+      # (successor to the Phase 2.9 ERB dashboard, retired with Avo).
       class DashboardsController < BaseController
         def show
           render json: {
