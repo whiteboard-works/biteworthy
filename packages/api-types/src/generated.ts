@@ -599,6 +599,27 @@ export interface paths {
                                 popularity?: number;
                                 ingredient_count?: number;
                                 tag_count?: number;
+                                ingredients?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    slug?: string;
+                                    name?: string;
+                                }[];
+                                tags?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    slug?: string;
+                                    name?: string;
+                                    family?: string;
+                                }[];
+                                modifiers?: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    /** @enum {string} */
+                                    kind?: "choice" | "addition" | "side";
+                                    price_cents?: number | null;
+                                }[];
                                 variants?: {
                                     size?: string | null;
                                     price_cents?: number | null;
@@ -656,6 +677,27 @@ export interface paths {
                         description?: string;
                         /** @enum {string} */
                         status?: "draft" | "published" | "removed";
+                        /**
+                         * Format: uuid
+                         * @description must belong to this item's restaurant (422 otherwise)
+                         */
+                        menu_section_id?: string | null;
+                        /** @description Complete list; unknown slugs 422 with the offenders. */
+                        ingredient_slugs?: string[];
+                        tag_slugs?: string[];
+                        /** @description Replaced wholesale; array order becomes position. Rows without price_cents are dropped. */
+                        variants?: {
+                            size?: string | null;
+                            price_cents?: number;
+                            currency?: string;
+                        }[];
+                        /** @description Replaced wholesale. kind defaults to addition. */
+                        modifiers?: {
+                            name: string;
+                            /** @enum {string} */
+                            kind?: "choice" | "addition" | "side";
+                            price_cents?: number | null;
+                        }[];
                     };
                 };
             };
@@ -680,12 +722,45 @@ export interface paths {
                             popularity?: number;
                             ingredient_count?: number;
                             tag_count?: number;
+                            ingredients?: {
+                                /** Format: uuid */
+                                id?: string;
+                                slug?: string;
+                                name?: string;
+                            }[];
+                            tags?: {
+                                /** Format: uuid */
+                                id?: string;
+                                slug?: string;
+                                name?: string;
+                                family?: string;
+                            }[];
+                            modifiers?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** @enum {string} */
+                                kind?: "choice" | "addition" | "side";
+                                price_cents?: number | null;
+                            }[];
                             variants?: {
                                 size?: string | null;
                                 price_cents?: number | null;
                             }[];
                             /** Format: date-time */
                             created_at?: string;
+                        };
+                    };
+                };
+                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            slugs?: string[];
                         };
                     };
                 };
