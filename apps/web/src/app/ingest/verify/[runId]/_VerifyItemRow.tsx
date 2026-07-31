@@ -92,7 +92,7 @@ export function VerifyItemRow({
   // to reach the menu, and the run's publish threshold still counts it
   // as undecided. Say so instead of leaving the row looking untouched.
   const editedPending = item.decision === 'edited';
-  const blocked = draft !== null && draftBlockers(draft) !== null;
+  const blocked = draft !== null && draftBlockers(draft, Boolean(item.match)) !== null;
   const price = item.prices_payload[0]?.price_cents;
   // Nullish fallback: web (Vercel) and API (Kamal) deploy independently, so a
   // fresh client may briefly see responses without the field.

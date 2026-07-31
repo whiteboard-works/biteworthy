@@ -100,7 +100,11 @@ export interface IngestionItemPayload {
    * accept. Optional: the app and API deploy independently, so an older API
    * may not send the field — always fall back to [].
    */
-  addons_payload?: Array<{ name: string; price_cents: number | null; source: 'extract' | 'guard' }>;
+  addons_payload?: Array<{
+    name: string;
+    price_cents: number | null;
+    source?: 'extract' | 'guard';
+  }>;
   unresolved_ingredients: string[];
   unresolved_tags: string[];
   /**
@@ -179,21 +183,16 @@ export interface DecideOptions extends FetchOptions {
  * Rails side (materializes a real Item). Edit overrides apply BEFORE
  * promotion, so the live Item carries the human's tweaks.
  */
-export async function decideIngestionItem(
-  opts: DecideOptions,
-): Promise<IngestionItemPayload> {
+export async function decideIngestionItem(opts: DecideOptions): Promise<IngestionItemPayload> {
   const { runId, itemId, decision, edits, jwt, fetchImpl = fetch } = opts;
-  const res = await fetchImpl(
-    `${API_BASE}/api/v1/ingestion_runs/${runId}/items/${itemId}`,
-    {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ decision, ...edits }),
+  const res = await fetchImpl(`${API_BASE}/api/v1/ingestion_runs/${runId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify({ decision, ...edits }),
+  });
   if (!res.ok) {
     let body: unknown = null;
     try {

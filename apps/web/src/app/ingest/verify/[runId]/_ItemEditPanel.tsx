@@ -82,17 +82,28 @@ export function addonRowErrors(draft: EditDraft): number[] {
   );
 }
 
-/** Blocks Save/Accept: a nameless dish 422s at promote, junk prices mislead. */
-export function draftBlockers(draft: EditDraft): string | null {
+/** Rows that would lose their price at promote, for the name input's error state. */
+export function addonNameErrors(draft: EditDraft): number[] {
+  return draft.addons.flatMap((row, index) =>
+    row.name.trim() === '' && row.price.trim() !== '' ? [index] : [],
+  );
+}
+
+/**
+ * Blocks Save/Accept: a nameless dish 422s at promote, junk prices
+ * mislead. `matched` suppresses the add-on checks — a matched card
+ * can't edit add-ons at all (see the panel), so blocking on one the
+ * extractor produced would strand a card the verifier never touched.
+ */
+export function draftBlockers(draft: EditDraft, matched = false): string | null {
   if (draft.name.trim() === '') return 'Give the dish a name before saving.';
-  if (priceRowErrors(draft).length > 0 || addonRowErrors(draft).length > 0) {
-    return 'Prices must look like 8 or 8.95.';
-  }
+  if (priceRowErrors(draft).length > 0) return 'Prices must look like 8 or 8.95.';
+  if (matched) return null;
+
+  if (addonRowErrors(draft).length > 0) return 'Prices must look like 8 or 8.95.';
   // Promote drops a nameless add-on, so saving one would quietly lose
-  // the price the user just typed against it.
-  if (draft.addons.some((row) => row.name.trim() === '' && row.price.trim() !== '')) {
-    return 'Give every add-on a name.';
-  }
+  // the price typed against it.
+  if (addonNameErrors(draft).length > 0) return 'Give every add-on a name.';
   return null;
 }
 
@@ -172,6 +183,7 @@ export function ItemEditPanel({
   const blocker = draftBlockers(draft);
   const badPrices = new Set(priceRowErrors(draft));
   const badAddons = new Set(addonRowErrors(draft));
+  const missingAddonNames = new Set(addonNameErrors(draft));
 
   return (
     <div className="mt-3 space-y-3 border-t border-zinc-200 pt-3" data-testid="item-edit-panel">
@@ -202,7 +214,8 @@ export function ItemEditPanel({
           data-testid="edit-append-note"
         >
           This dish is already on the menu. Edits here shape what gets <strong>added</strong> —
-          removing a chip won&rsquo;t take it off the live dish (do that from the restaurant admin).
+          removing a chip won&rsquo;t take it off the live dish, and the name and add-ons
+          aren&rsquo;t applied at all. Change those from the restaurant admin.
         </p>
       )}
 
@@ -241,11 +254,17 @@ export function ItemEditPanel({
         onChange={(prices) => onChange({ ...draft, prices })}
       />
 
-      <AddonEditor
-        addons={draft.addons}
-        invalid={badAddons}
-        onChange={(addons) => onChange({ ...draft, addons })}
-      />
+      {/* A matched card promotes through apply_update!, which leaves
+          modifiers alone by design — so an add-on editor here would
+          accept corrections and silently do nothing with them. */}
+      {!matched && (
+        <AddonEditor
+          addons={draft.addons}
+          invalid={badAddons}
+          namesMissing={missingAddonNames}
+          onChange={(addons) => onChange({ ...draft, addons })}
+        />
+      )}
 
       <div className="flex items-center justify-between">
         {blocker ? (
@@ -405,10 +424,13 @@ function ChipEditor({
 function AddonEditor({
   addons,
   invalid,
+  namesMissing,
   onChange,
 }: {
   addons: EditDraft['addons'];
   invalid: Set<number>;
+  /** Rows blocking the save because a price has no name to hang on. */
+  namesMissing: Set<number>;
   onChange: (next: EditDraft['addons']) => void;
 }) {
   return (
@@ -424,8 +446,11 @@ function AddonEditor({
               }
               placeholder="add-on name"
               aria-label={`Name for add-on ${index + 1}`}
+              aria-invalid={namesMissing.has(index)}
               data-testid={`addon-name-${index}`}
-              className="w-1/2 rounded border border-zinc-300 px-2 py-1 text-xs"
+              className={`w-1/2 rounded border px-2 py-1 text-xs ${
+                namesMissing.has(index) ? 'border-red-400 bg-red-50' : 'border-zinc-300'
+              }`}
             />
             <span className="text-xs text-zinc-400">$</span>
             <input

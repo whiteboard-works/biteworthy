@@ -188,6 +188,56 @@ describe('add-on edits', () => {
     expect(draftBlockers(draft)).toMatch(/8\.95/);
   });
 
+  /**
+   * A matched card promotes through apply_update!, which leaves
+   * modifiers alone by design. Offering an add-on editor there would
+   * take a correction, report success, and change nothing on the live
+   * dish — worse than not offering it.
+   */
+  it('hides the add-on editor on a matched card, where edits cannot apply', () => {
+    render(
+      <ItemEditPanel
+        draft={draftFromItem(item)}
+        onChange={() => undefined}
+        onCancel={() => undefined}
+        matched
+      />,
+    );
+
+    expect(screen.queryByTestId('edit-addons')).toBeNull();
+    expect(screen.getByTestId('edit-append-note')).toHaveTextContent(/add-ons aren.t applied/i);
+  });
+
+  // The extractor can emit {name: "", price_cents: 300} from a menu line
+  // like "Add + $3". Blocking on that would strand a matched card the
+  // verifier never touched, on an editor they cannot even see.
+  it('does not block a matched card over an add-on it cannot edit', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [{ name: '', price: '3.00' }];
+
+    expect(draftBlockers(draft, true)).toBeNull();
+    expect(draftBlockers(draft, false)).toMatch(/name/i);
+  });
+
+  it('marks which add-on row is missing its name', () => {
+    const draft = draftFromItem(item);
+    draft.addons = [
+      { name: 'extra peanuts', price: '2.00' },
+      { name: '', price: '3.00' },
+    ];
+    render(
+      <ItemEditPanel
+        draft={draft}
+        onChange={() => undefined}
+        onCancel={() => undefined}
+        matched={false}
+      />,
+    );
+
+    expect(screen.getByTestId('addon-name-0')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByTestId('addon-name-1')).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('adds and removes add-on rows in the panel', () => {
     const draft = draftFromItem(item);
     const onChange = vi.fn();

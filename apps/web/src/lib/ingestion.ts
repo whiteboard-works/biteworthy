@@ -174,7 +174,11 @@ export interface IngestionItemPayload {
    * accept. Optional: web and API deploy independently, so an older API may
    * not send the field — always fall back to [].
    */
-  addons_payload?: Array<{ name: string; price_cents: number | null; source: 'extract' | 'guard' }>;
+  addons_payload?: Array<{
+    name: string;
+    price_cents: number | null;
+    source?: 'extract' | 'guard';
+  }>;
   unresolved_ingredients: string[];
   unresolved_tags: string[];
   /**
