@@ -93,11 +93,29 @@ module Api
           elsif bad_times.any?
             render json: { error: "invalid_time_of_day", values: bad_times },
                    status: :unprocessable_entity
-          elsif parsed.map { |row| row[:day_of_week] }.uniq.length != parsed.length
-            render json: { error: "duplicate_day_of_week" }, status: :unprocessable_entity
+          elsif (mixed = contradictory_days(parsed)).any?
+            render json: { error: "closed_day_has_hours", values: mixed },
+                   status: :unprocessable_entity
           end
 
-          parsed
+          # Two identical rows for one day say nothing extra.
+          parsed.uniq
+        end
+
+        # A day may carry SEVERAL ranges — lunch 11–14, dinner 17–21 is
+        # an ordinary restaurant week, and collapsing it to 11–21 would
+        # advertise hours the kitchen isn't open. What it may not carry
+        # is a blank "closed" row alongside a real range: the two say
+        # opposite things and nothing downstream could pick a winner.
+        def contradictory_days(parsed)
+          parsed.group_by { |row| row[:day_of_week] }
+                .select { |_day, rows| rows.any? { |r| closed_row?(r) } && !rows.all? { |r| closed_row?(r) } }
+                .keys.map(&:to_s)
+        end
+
+        # Blank both ends = "closed that day".
+        def closed_row?(row)
+          row[:opens_at].nil? && row[:closes_at].nil?
         end
 
         # Blank = closed (what the nullable columns are for). Anything
@@ -153,7 +171,8 @@ module Api
               longitude:      address.longitude&.to_f,
               map_provider_place_id: address.map_provider_place_id
             },
-            hours: restaurant.hours.order(:day_of_week).map do |hour|
+            # Split shifts come back in the order they're worked.
+            hours: restaurant.hours.order(:day_of_week, :opens_at).map do |hour|
               {
                 id:          hour.id,
                 day_of_week: hour.day_of_week,

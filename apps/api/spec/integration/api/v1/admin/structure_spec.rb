@@ -275,8 +275,11 @@ RSpec.describe "admin/structure", type: :request do
     put("Replace the whole week's hours") do
       tags "Admin"
       description "Wholesale replacement — send every open day. Omitting opens_at/" \
-                  "closes_at marks that day closed. A partial write would advertise " \
-                  "the wrong hours, so there is no per-day endpoint."
+                  "closes_at marks that day closed. A day may repeat for a SPLIT " \
+                  "SHIFT (lunch 11:00-14:00, dinner 17:00-21:00); what it may not do " \
+                  "is mix a closed row with a timed one (422 closed_day_has_hours). " \
+                  "A partial write would advertise the wrong hours, so there is no " \
+                  "per-day endpoint."
       consumes "application/json"
       produces "application/json"
       security [bearerAuth: []]
@@ -308,7 +311,7 @@ RSpec.describe "admin/structure", type: :request do
         run_test!
       end
 
-      response(422, "hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or duplicate_day_of_week") do
+      response(422, "hours_must_be_an_array, hour_rows_must_be_objects, invalid_day_of_week, invalid_time_of_day, or closed_day_has_hours") do
         schema type: :object,
                properties: {
                  error:  { type: :string },

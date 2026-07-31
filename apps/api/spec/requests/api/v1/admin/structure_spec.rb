@@ -211,16 +211,46 @@ RSpec.describe "Admin restaurant structure", type: :request do
       expect(response.parsed_body["error"]).to eq("hour_rows_must_be_objects")
     end
 
-    it "422s duplicate days — a week has one row per day" do
+    # Lunch 11–14 then dinner 17–21 is an ordinary restaurant week.
+    # Collapsing it to a single 11–21 row would advertise the place as
+    # open through the afternoon lull, which is the kind of dishonest
+    # data this product exists to avoid.
+    it "keeps both halves of a split shift, in the order they're worked" do
       put "/api/v1/admin/restaurants/#{restaurant.id}/hours",
           params: { hours: [
-            { day_of_week: 1, opens_at: "09:00" },
-            { day_of_week: 1, opens_at: "17:00" }
+            { day_of_week: 1, opens_at: "17:00", closes_at: "21:00" },
+            { day_of_week: 1, opens_at: "11:00", closes_at: "14:00" }
+          ] }.to_json,
+          headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      monday = response.parsed_body["hours"].select { |h| h["day_of_week"] == 1 }
+      expect(monday.map { |h| [h["opens_at"], h["closes_at"]] })
+        .to eq([["11:00", "14:00"], ["17:00", "21:00"]])
+    end
+
+    it "422s a day that is both closed and open, since neither can win" do
+      restaurant.hours.create!(day_of_week: 3, opens_at: "09:00")
+
+      put "/api/v1/admin/restaurants/#{restaurant.id}/hours",
+          params: { hours: [
+            { day_of_week: 1, opens_at: "11:00", closes_at: "14:00" },
+            { day_of_week: 1 }
           ] }.to_json,
           headers: json_headers
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body["error"]).to eq("duplicate_day_of_week")
+      expect(response.parsed_body).to eq("error" => "closed_day_has_hours", "values" => ["1"])
+      expect(restaurant.reload.hours.pluck(:day_of_week)).to eq([3])
+    end
+
+    it "collapses a day repeated as closed rather than complaining" do
+      put "/api/v1/admin/restaurants/#{restaurant.id}/hours",
+          params: { hours: [{ day_of_week: 1 }, { day_of_week: 1 }] }.to_json,
+          headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(restaurant.reload.hours.count).to eq(1)
     end
 
     it "422s a non-array payload" do

@@ -46,10 +46,10 @@ describe('PlaceEditor', () => {
 
     expect(await screen.findByTestId('address-street')).toHaveValue('1 Elm');
     // Monday has hours; Sunday has no row at all.
-    expect(screen.getByTestId('hours-opens-1')).toHaveValue('11:00');
+    expect(screen.getByTestId('hours-opens-1-0')).toHaveValue('11:00');
     expect(screen.getByTestId('hours-closed-1')).not.toBeChecked();
     expect(screen.getByTestId('hours-closed-0')).toBeChecked();
-    expect(screen.getByTestId('hours-opens-0')).toBeDisabled();
+    expect(screen.getByTestId('hours-opens-0-0')).toBeDisabled();
   });
 
   it('submits the whole week, sending nulls for closed days', async () => {
@@ -57,8 +57,8 @@ describe('PlaceEditor', () => {
     await screen.findByTestId('hours-grid');
 
     fireEvent.click(screen.getByTestId('hours-closed-2'));
-    fireEvent.change(screen.getByTestId('hours-opens-2'), { target: { value: '09:00' } });
-    fireEvent.change(screen.getByTestId('hours-closes-2'), { target: { value: '15:00' } });
+    fireEvent.change(screen.getByTestId('hours-opens-2-0'), { target: { value: '09:00' } });
+    fireEvent.change(screen.getByTestId('hours-closes-2-0'), { target: { value: '15:00' } });
     fireEvent.click(screen.getByTestId('hours-save'));
 
     await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
@@ -145,6 +145,144 @@ describe('PlaceEditor', () => {
       opens_at: null,
       closes_at: null,
     });
+  });
+
+  /**
+   * Lunch then dinner is an ordinary restaurant week. Folding it into
+   * one 11–21 row would tell a hungry user the kitchen is open through
+   * the afternoon lull when it isn't.
+   */
+  it('sends both halves of a split shift as separate rows for the same day', async () => {
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    // Monday starts as a single 11:00–21:00 row; split it into lunch
+    // and dinner.
+    fireEvent.change(screen.getByTestId('hours-closes-1-0'), { target: { value: '14:00' } });
+    fireEvent.click(screen.getByTestId('hours-range-add-1'));
+    fireEvent.change(screen.getByTestId('hours-opens-1-1'), { target: { value: '17:00' } });
+    fireEvent.change(screen.getByTestId('hours-closes-1-1'), { target: { value: '21:00' } });
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toEqual([
+      { day_of_week: 1, opens_at: '11:00', closes_at: '14:00' },
+      { day_of_week: 1, opens_at: '17:00', closes_at: '21:00' },
+    ]);
+  });
+
+  it('reads a stored split shift back as two ranges', async () => {
+    mockFetchPlace.mockResolvedValue({
+      ...place,
+      hours: [
+        { id: 'h1', day_of_week: 1, opens_at: '11:00', closes_at: '14:00' },
+        { id: 'h2', day_of_week: 1, opens_at: '17:00', closes_at: '21:00' },
+      ],
+    });
+    render(<PlaceEditor restaurantId="r1" />);
+
+    expect(await screen.findByTestId('hours-opens-1-0')).toHaveValue('11:00');
+    expect(screen.getByTestId('hours-closes-1-1')).toHaveValue('21:00');
+    expect(screen.getByTestId('hours-closed-1')).not.toBeChecked();
+  });
+
+  /**
+   * Removes the MIDDLE of three ranges: with only two, "remove the one
+   * I clicked" and "remove the last one" are indistinguishable, so the
+   * assertion couldn't catch an off-by-one that deletes the wrong shift.
+   */
+  it('drops the range the admin clicked, not merely the last one', async () => {
+    mockFetchPlace.mockResolvedValue({
+      ...place,
+      hours: [
+        { id: 'h1', day_of_week: 1, opens_at: '08:00', closes_at: '10:00' },
+        { id: 'h2', day_of_week: 1, opens_at: '11:00', closes_at: '14:00' },
+        { id: 'h3', day_of_week: 1, opens_at: '17:00', closes_at: '21:00' },
+      ],
+    });
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    fireEvent.click(screen.getByTestId('hours-range-remove-1-1'));
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toEqual([
+      { day_of_week: 1, opens_at: '08:00', closes_at: '10:00' },
+      { day_of_week: 1, opens_at: '17:00', closes_at: '21:00' },
+    ]);
+  });
+
+  /**
+   * "+ Split shift" creates an empty range. Sending it beside the real
+   * one reads as "closed AND open", which the server refuses — failing
+   * the ENTIRE week over an empty box that took one click to make.
+   */
+  it('does not send an empty range the admin added but never filled in', async () => {
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    fireEvent.click(screen.getByTestId('hours-range-add-1'));
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toEqual([
+      { day_of_week: 1, opens_at: '11:00', closes_at: '21:00' },
+    ]);
+  });
+
+  // Half a range is real input — only a wholly empty one is noise.
+  it('sends a range with only an opening time', async () => {
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    fireEvent.click(screen.getByTestId('hours-range-add-1'));
+    fireEvent.change(screen.getByTestId('hours-opens-1-1'), { target: { value: '17:00' } });
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toContainEqual({
+      day_of_week: 1,
+      opens_at: '17:00',
+      closes_at: null,
+    });
+  });
+
+  // An un-ticked day whose ranges are all blank is just closed.
+  it('sends a single closed row for an open day left entirely blank', async () => {
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    fireEvent.change(screen.getByTestId('hours-opens-1-0'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('hours-closes-1-0'), { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toEqual([
+      { day_of_week: 1, opens_at: null, closes_at: null },
+    ]);
+  });
+
+  // Ticking Closed must not smuggle the day's ranges along behind it.
+  it('sends one null row for a closed day even if it had split ranges', async () => {
+    render(<PlaceEditor restaurantId="r1" />);
+    await screen.findByTestId('hours-grid');
+
+    fireEvent.click(screen.getByTestId('hours-range-add-1'));
+    fireEvent.change(screen.getByTestId('hours-opens-1-1'), { target: { value: '17:00' } });
+    fireEvent.click(screen.getByTestId('hours-closed-1'));
+    fireEvent.click(screen.getByTestId('hours-save'));
+
+    await vi.waitFor(() => expect(mockSaveHours).toHaveBeenCalled());
+    const rows = mockSaveHours.mock.calls.at(-1)![1] as Array<Record<string, unknown>>;
+    expect(rows.filter((r) => r.day_of_week === 1)).toEqual([
+      { day_of_week: 1, opens_at: null, closes_at: null },
+    ]);
   });
 
   it('turns a server refusal into instructions', async () => {
