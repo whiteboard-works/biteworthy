@@ -18,7 +18,7 @@
     "@biteworthy/ui-tokens": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
     "next": "^16.2.12",
-    "posthog-js": "^1.407.3",
+    "posthog-js": "^1.409.5",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "zustand": "^5.0.14"
