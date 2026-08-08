@@ -34,7 +34,7 @@ module Api
         approved = confirm_answer
         return render_error("Send confirm: true or false.") if approved.nil?
 
-        stream_turn { |agent| agent.run(confirm: approved) }
+        stream_turn { |agent| agent.run(confirm: approved, fingerprint: params[:fingerprint].presence) }
       end
 
       private

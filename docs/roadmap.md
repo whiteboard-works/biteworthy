@@ -63,7 +63,7 @@ invariants, idempotent repair.
 Read its Decisions and Safety-properties tables before picking up a phase.
 
 - [x] C1 — one tool boundary: argument validation + contained tool bugs in `Tools::Base`, both doors
-- [ ] C2 — confirmation bound to the exact call; avoid-list removals gated by code, not prose
+- [x] C2 — confirmation bound to the exact call; avoid-list removals gated by code, not prose
 - [ ] C3 — run lifecycle: Postgres lock/lease, abort flag, pending queue, per-round token metrics
 - [ ] C4 — turns run in a job; SSE becomes a replayable relay; stop button
 - [ ] C5 — prompts as ordered snapshot-tested sections + a volatile trailing block

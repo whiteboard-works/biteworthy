@@ -202,10 +202,17 @@ function ConfirmPrompt({
       data-testid="confirm-prompt"
       className="rounded-bw-md border border-warn bg-warn/10 px-bw-4 py-bw-3"
     >
+      {/* The tool's own sentence when it declared one. A generic
+          "allow this?" over a JSON dump asks people to approve something
+          they would have to parse to understand. */}
       <p className="text-bw-base font-medium text-zinc-900">
-        Allow this? <span className="font-bold">{humanize(tool.name)}</span>
+        {tool.prompt ?? (
+          <>
+            Allow this? <span className="font-bold">{humanize(tool.name)}</span>
+          </>
+        )}
       </p>
-      {Object.keys(tool.input ?? {}).length > 0 ? (
+      {tool.prompt === null && Object.keys(tool.input ?? {}).length > 0 ? (
         <pre className="mt-bw-2 overflow-x-auto text-bw-xs text-zinc-600">
           {JSON.stringify(tool.input, null, 2)}
         </pre>

@@ -24,6 +24,13 @@ export interface ChatMessage {
 export interface PendingTool {
   name: string;
   input: Record<string, unknown>;
+  /** The sentence the tool itself declared. Null when it declared none,
+   *  in which case the client falls back to a generic prompt — what a
+   *  person approves is never phrased by the model asking for it. */
+  prompt: string | null;
+  /** Binds an answer to this exact call. Echoed back on confirm so a tab
+   *  left open on an earlier prompt cannot approve whatever is parked now. */
+  fingerprint: string | null;
 }
 
 export interface ConversationSummary {
@@ -130,10 +137,16 @@ export function streamTurn(
 export function streamConfirm(
   id: string,
   confirm: boolean,
+  fingerprint: string | null,
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  return stream(`/api/chat/conversations/${encodeURIComponent(id)}/confirm`, { confirm }, onEvent, signal);
+  return stream(
+    `/api/chat/conversations/${encodeURIComponent(id)}/confirm`,
+    { confirm, fingerprint },
+    onEvent,
+    signal,
+  );
 }
 
 async function stream(

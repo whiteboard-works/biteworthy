@@ -43,10 +43,19 @@ module Chat
       def pending(conversation)
         return nil unless conversation.awaiting_confirmation?
 
-        call = Array(conversation.pending_tool_call&.dig("queue")).first
+        parked = conversation.pending_tool_call || {}
+        held   = parked["pending"] || {}
+        call   = Array(parked["queue"]).first
         return nil if call.nil?
 
-        { name: call["name"], input: call["input"] }
+        {
+          name:  call["name"],
+          input: call["input"],
+          # The sentence the tool declared, and the token the answer has to
+          # carry back so it can only settle the call it was drawn for.
+          prompt:      held["prompt"],
+          fingerprint: held["fingerprint"]
+        }
       end
 
       def blocks(message)

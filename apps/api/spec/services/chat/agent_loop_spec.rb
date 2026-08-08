@@ -91,6 +91,12 @@ RSpec.describe Chat::AgentLoop do
       call_tool("delete_review", { "review_id" => review.id })
     end
 
+    # What a real client does: read the token off the parked call it just
+    # drew a prompt for, and hand it back with the answer.
+    def parked_fingerprint
+      conversation.reload.pending_tool_call.dig("pending", "fingerprint")
+    end
+
     # Nothing that deletes, publishes, or changes what a person is shown
     # runs because a model decided to.
     it "stops before a destructive tool and changes nothing" do
@@ -105,7 +111,7 @@ RSpec.describe Chat::AgentLoop do
     it "runs it once the user says yes" do
       loop_with(delete_call).run(text: "delete my review")
 
-      result = loop_with(say("Deleted.")).run(confirm: true)
+      result = loop_with(say("Deleted.")).run(confirm: true, fingerprint: parked_fingerprint)
 
       expect(Review.exists?(review.id)).to be(false)
       expect(result.text).to eq("Deleted.")
@@ -115,7 +121,7 @@ RSpec.describe Chat::AgentLoop do
     it "tells the model it was declined, and the review survives" do
       loop_with(delete_call).run(text: "delete my review")
 
-      loop_with(say("Understood, leaving it.")).run(confirm: false)
+      loop_with(say("Understood, leaving it.")).run(confirm: false, fingerprint: parked_fingerprint)
 
       expect(Review.exists?(review.id)).to be(true)
       declined = conversation.messages.reload.select(&:tool_result?).last
@@ -141,7 +147,7 @@ RSpec.describe Chat::AgentLoop do
       }
 
       loop_with(two_calls).run(text: "delete both")
-      second = loop_with(say("done")).run(confirm: true)
+      second = loop_with(say("done")).run(confirm: true, fingerprint: parked_fingerprint)
 
       expect(second).to be_awaiting_confirmation
       expect(Review.exists?(review.id)).to be(false)
@@ -160,7 +166,7 @@ RSpec.describe Chat::AgentLoop do
       }
 
       loop_with(mixed).run(text: "look then delete")
-      loop_with(say("done")).run(confirm: true)
+      loop_with(say("done")).run(confirm: true, fingerprint: parked_fingerprint)
 
       answered = conversation.messages.reload.select(&:tool_result?)
                              .flat_map { |m| m.content.map { |b| b["tool_use_id"] } }

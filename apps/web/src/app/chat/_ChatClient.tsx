@@ -162,10 +162,11 @@ export function ChatClient(): ReactElement {
   };
 
   const answer = async (approved: boolean) => {
-    if (!active) return;
+    if (!active || !pending) return;
     const id = active.id;
+    const { fingerprint } = pending;
     setPending(null);
-    await run(id, (onEvent) => streamConfirm(id, approved, onEvent));
+    await run(id, (onEvent) => streamConfirm(id, approved, fingerprint, onEvent));
   };
 
   return (
