@@ -1,4 +1,10 @@
 Rails.application.routes.draw do
+  # OAuth 2.1 (M8). Only the endpoints a public MCP client needs:
+  # authorize (browser), token, and revoke. Application management is
+  # deliberately absent — clients are registered out of band.
+  use_doorkeeper do
+    skip_controllers :applications, :authorized_applications
+  end
   # Health check for uptime monitors and load balancers.
   get "up" => "rails/health#show", as: :rails_health_check
 
@@ -135,6 +141,10 @@ Rails.application.routes.draw do
       # Least-privilege credentials for MCP clients, so connecting Claude
       # Code does not require a shell on the box.
       resources :mcp_tokens, only: [:index, :create, :destroy]
+      # The API half of the OAuth consent screen — the screen renders in
+      # apps/web, which is the only origin where a browser is signed in.
+      get  "/oauth/consent", to: "oauth_consents#show"
+      post "/oauth/consent", to: "oauth_consents#create"
       # The caller's own identity incl. `is_admin` — the web /admin
       # guard's probe. Read-only on purpose: auth/refresh also returns
       # the user payload but rotates the jti, killing other sessions.
@@ -183,6 +193,20 @@ Rails.application.routes.draw do
   # answers itself (405 in our stateless mode). Auth is the same Devise
   # JWT the REST API issues — see McpController.
   match "/mcp", to: "mcp#handle", via: [:post, :get, :delete]
+
+  # OAuth discovery. A client reads these *before* it has a credential,
+  # which is why they sit outside /api/v1 and outside authentication.
+  # The `/mcp`-suffixed form is what RFC 9728 prescribes for a resource
+  # served at a path; the bare form is what clients that ignore the path
+  # ask for. Both describe the same resource.
+  get "/.well-known/oauth-protected-resource",      to: "oauth_metadata#protected_resource"
+  get "/.well-known/oauth-protected-resource/mcp",  to: "oauth_metadata#protected_resource"
+  get "/.well-known/oauth-authorization-server",    to: "oauth_metadata#authorization_server"
+  get "/.well-known/oauth-authorization-server/mcp", to: "oauth_metadata#authorization_server"
+
+  # RFC 7591. A connector-directory client has no one to email for a
+  # client id, so it registers itself. Rate limited in rack_attack.rb.
+  post "/oauth/register", to: "oauth_registrations#create"
 
   # OpenAPI spec served via rswag (wired up in Phase 1.6).
   mount Rswag::Ui::Engine => "/api-docs"

@@ -81,19 +81,41 @@ class McpController < ApplicationController
       public_host: public_host,
       request_id:  request.request_id,
       # Empty for a plain JWT, which carries every power the account has.
-      # A scoped token narrows that, and the tool layer enforces it.
-      scopes:      mcp_token&.scopes || []
+      # A scoped credential narrows that, and the tool layer enforces it —
+      # in the JSON-RPC result, not as an HTTP 403, because the *request*
+      # authenticated fine and only one tool call was out of bounds.
+      scopes:      granted_scopes
     }
   end
 
-  # Two credentials reach this door. A `bw_mcp_` token is the least-
-  # privilege one — issued for a specific client, scoped, revocable on its
-  # own. Anything else is the Devise JWT the REST API already issues,
-  # which carries the whole account.
+  # Three credentials reach this door, in order of how they were obtained.
+  # An OAuth access token is what a client gets on its own, with no person
+  # in a terminal; a `bw_mcp_` token is the same least-privilege shape but
+  # issued by hand; the Devise JWT is the whole account and is what the
+  # first-party clients already hold.
   def caller_user
     return @caller_user if defined?(@caller_user)
 
-    @caller_user = mcp_token&.user || current_user
+    @caller_user = oauth_user || mcp_token&.user || current_user
+  end
+
+  # Doorkeeper stores `resource_owner_id` rather than an association —
+  # the polymorphic owner is an opt-in we do not need, since every grant
+  # here belongs to a User.
+  def oauth_user
+    return nil if oauth_token.nil?
+
+    @oauth_user ||= User.find_by(id: oauth_token.resource_owner_id)
+  end
+
+  # Doorkeeper stores tokens hashed (see the initializer), so the lookup
+  # goes through `by_token` rather than a where on the column.
+  def oauth_token
+    return @oauth_token if defined?(@oauth_token)
+
+    @oauth_token = bearer_secret.present? ? Doorkeeper::AccessToken.by_token(bearer_secret) : nil
+    @oauth_token = nil unless @oauth_token&.accessible?
+    @oauth_token
   end
 
   def mcp_token
@@ -116,8 +138,20 @@ class McpController < ApplicationController
     request.authorization.present? && caller_user.nil?
   end
 
+  def granted_scopes
+    oauth_token&.scopes&.to_a || mcp_token&.scopes || []
+  end
+
+  # `resource_metadata` is the RFC 9728 pointer that turns a 401 into a
+  # client that can authorize itself: it reads the document, learns which
+  # authorization server guards this resource, and runs the code flow —
+  # no one pastes a token anywhere.
   def unauthorized
-    response.set_header("WWW-Authenticate", %(Bearer realm="#{SERVER_NAME}", error="invalid_token"))
+    response.set_header(
+      "WWW-Authenticate",
+      %(Bearer realm="#{SERVER_NAME}", error="invalid_token", ) +
+      %(resource_metadata="#{public_host}/.well-known/oauth-protected-resource/mcp")
+    )
     render json: {
       jsonrpc: "2.0",
       error: { code: -32_001, message: "Invalid or expired access token." },

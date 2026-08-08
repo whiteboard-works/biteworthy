@@ -27,6 +27,26 @@ RSpec.describe Tools::Scopes do
     expect(described_class.for_tool(Class.new(Tools::Base))).to be_nil
   end
 
+  # An OAuth consent screen shows these sentences. A scope with no
+  # description would render as "profile:write", which is not something a
+  # person can agree to or refuse on the merits.
+  describe ".describe" do
+    it "has a sentence for every scope it can grant" do
+      expect(described_class.available.map { |s| described_class.describe(s) }).to all(match(/\A[A-Z]/))
+    end
+
+    it "says plainly which grants can change things" do
+      expect(described_class.describe("profile:read")).to start_with("Read ")
+      expect(described_class.describe("profile:write")).to start_with("Read and change ")
+    end
+
+    # A domain added without a description must not 500 someone
+    # mid-authorization; the spec above is what catches the omission.
+    it "falls back to the raw scope rather than raising" do
+      expect(described_class.describe("nonsense:read")).to eq("nonsense:read")
+    end
+  end
+
   describe ".satisfied?" do
     # Every credential issued before scopes existed carries none. Treating
     # that as "denied" would lock out every working integration; treating

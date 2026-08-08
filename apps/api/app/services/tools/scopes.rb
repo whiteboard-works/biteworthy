@@ -23,6 +23,28 @@ module Tools
     # did, and a scope check on them is a no-op rather than a lockout.
     ALL = "*"
 
+    # What each domain is, in words someone deciding whether to grant it
+    # can act on. "taxonomy:write" tells a person nothing; "Change the
+    # shared ingredient and tag catalogue" tells them enough to refuse.
+    # A spec asserts every registered domain appears here — an OAuth
+    # consent screen that shrugs at a scope is not consent.
+    SUBJECTS = {
+      meta:        "what this server can do",
+      discovery:   "restaurants, menus, and why a dish is or is not safe for you",
+      profile:     "your avoid lists, strictness, and saved places",
+      ingestion:   "menu photos you scan and the items they produce",
+      reviews:     "your reviews",
+      suggestions: "corrections you suggest to menu data",
+      claims:      "restaurant ownership claims",
+      history:     "your visit and save history",
+      restaurants: "restaurant records",
+      structure:   "menu structure — sections, places, and ordering",
+      items:       "individual dishes",
+      taxonomy:    "the shared ingredient and tag catalogue",
+      moderation:  "the moderation queue",
+      users:       "user accounts and their roles"
+    }.freeze
+
     class << self
       # Every scope a caller could be granted, as strings.
       def available
@@ -60,6 +82,19 @@ module Tools
 
       def valid?(scope)
         scope == ALL || available.include?(scope)
+      end
+
+      # A sentence for a consent screen. Falls back to the raw scope
+      # rather than raising — a person mid-authorization should not hit a
+      # 500 because a domain was added without a description.
+      def describe(scope)
+        return "Everything this account can do" if scope == ALL
+
+        domain, action = scope.to_s.split(":")
+        subject = SUBJECTS[domain&.to_sym]
+        return scope.to_s if subject.blank?
+
+        action == "read" ? "Read #{subject}" : "Read and change #{subject}"
       end
     end
   end

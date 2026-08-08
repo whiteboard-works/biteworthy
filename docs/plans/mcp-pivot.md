@@ -47,7 +47,8 @@ silently reversed.
 | D2 | Refactor controllers **opportunistically**, not all 44 | Rewriting every controller churns `docs/openapi.json` + `packages/api-types` for no product gain. Migrate when there's a reason to touch one. |
 | D3 | Tools live at `app/services/tools/`, not `app/tools/` | Zeitwerk makes every direct subdirectory of `app/` an autoload root, so `app/tools/base.rb` would have to define top-level `Base`. Matches the `app/services/ingestion/` precedent; zero config. |
 | D4 | Transport runs `stateless: true` | Stateful mode keeps sessions in process memory — breaks on a second Puma worker or Kamal container. Stateless responses are plain JSON, never SSE. |
-| D5 | Bearer-JWT now, OAuth 2.1 last | Works in Claude Code and Desktop today. OAuth is only needed for claude.ai connector distribution, and nothing else depends on it. |
+| D5 | Bearer-JWT now, OAuth 2.1 last | Works in Claude Code and Desktop today. OAuth is only needed for claude.ai connector distribution, and nothing else depends on it. **Shipped in M8.** |
+| D14 | OAuth consent renders in apps/web, not Rails | The API is `api_only` and has no signed-in browser — the JWT is in a cookie owned by the web origin. Rendering consent here would mean a second login surface, and a second place to get rate limiting and lockout right. Approval crosses back as a token bound to a digest of the exact authorize parameters, so it cannot be replayed against a different grant. |
 | D6 | A bad token is a **401**, not a silent downgrade to anonymous | A stale client must learn to refresh rather than quietly showing the user an empty profile as if it were theirs. |
 | D7 | Chat loop extends `AnthropicClient`; no `anthropic` gem | Need SSE streaming and a confirmation gate; the existing client already carries retries, `last_usage` cost accounting into `IngestionRun#record_api_usage!`, and the VCR cassettes. |
 | D8 | Chat runs `claude-opus-5`; extraction stays `claude-sonnet-4-6` | Extraction is calibrated against a cassette and a $0.25/menu target — out of scope. Chat is new work and gets the flagship (user confirmed). |
@@ -305,17 +306,32 @@ Next.js. Where that page lives — Rails-rendered, or a Next route posting
 back — is a product decision with security implications, not something to
 settle mid-implementation.
 
-### M8 — Public MCP (OAuth 2.1)
+### M8 — Public MCP (OAuth 2.1) — SHIPPED
 
-Self-contained; nothing above depends on it.
-- Resource server: `/.well-known/oauth-protected-resource` (RFC 9728,
-  **MUST**), `WWW-Authenticate: Bearer resource_metadata="…"` on 401,
-  `insufficient_scope` on 403, RFC 8707 audience validation per token
-- Authorization server: `doorkeeper` + PKCE + RFC 8414 metadata. Client ID
-  Metadata Documents preferred; DCR (RFC 7591) is deprecated in the current
-  spec and only for backwards compatibility
-- Scopes map to tool domains (`menu:read`, `menu:write`, `profile:write`,
-  `admin`)
+Doorkeeper 5.9 as the authorization server, PKCE-only, public clients only,
+with consent rendered in apps/web. Full write-up in `docs/mcp.md`
+§"Public distribution". What shipped:
+
+- Resource server: RFC 9728 metadata at
+  `/.well-known/oauth-protected-resource[/mcp]`, and a 401 from `/mcp` that
+  carries `resource_metadata="…"` so a cold client can find its way in.
+- Authorization server: RFC 8414 metadata, `force_pkce` with `S256` only,
+  authorization-code + refresh only, tokens hashed at rest, 2h expiry.
+- RFC 7591 dynamic client registration, rate limited, no secret ever issued.
+- Scopes are `Tools::Scopes` — the same vocabulary `McpToken` uses — so the
+  enforcement in `Tools::Base` covers both credentials with no second model.
+
+**The consent decision (option B).** Consent renders in Next, and approval
+crosses back as a token bound to a digest of the exact authorize parameters
+(`Oauth::Handoff`). The alternative was a Rails-rendered login + approval
+page, which would have meant a second password surface in an app that
+deliberately has one.
+
+Two departures from the spec text, both deliberate and documented in
+`docs/mcp.md`: DCR ships instead of Client ID Metadata Documents (that is
+what today's clients use), and `insufficient_scope` stays in the JSON-RPC
+result rather than becoming an HTTP 403 (the request authenticated; one
+call was out of bounds).
 
 ---
 

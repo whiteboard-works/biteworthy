@@ -27,6 +27,10 @@ gem "devise-jwt", "~> 0.12"
 gem "omniauth", "~> 2.1"
 gem "omniauth-rails_csrf_protection"
 gem "omniauth-google-oauth2"
+
+# OAuth 2.1 authorization server for public MCP distribution (M8).
+# Consent renders in apps/web; see docs/plans/mcp-pivot.md.
+gem "doorkeeper", "~> 5.9"
 gem "omniauth-apple"
 
 # --- Storage / files ---------------------------------------------------------

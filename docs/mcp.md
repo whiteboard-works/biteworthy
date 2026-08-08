@@ -398,22 +398,83 @@ curl -s -X POST https://<api-host>/api/v1/auth/login \
   -d '{"user":{"email":"you@example.com","password":"…"}}' -i | grep -i '^authorization:'
 ```
 
-### What public distribution still needs (Phase 6)
+### Public distribution — OAuth 2.1 (M8) — SHIPPED
 
-Listing in the claude.ai connector directory means becoming an OAuth 2.1
-resource server. Per the MCP authorization spec, the server **MUST**:
+A client in a connector directory has nobody to email for a credential, so
+the whole flow has to work with no person at a terminal. It does:
 
-- serve `/.well-known/oauth-protected-resource` (RFC 9728) and point at an
-  authorization server;
-- answer 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, and 403
-  with `error="insufficient_scope"` plus the scopes needed;
-- validate that each access token was issued **for this resource**
-  (RFC 8707 audience binding).
+| Endpoint | What it is |
+|---|---|
+| `POST /oauth/register` | RFC 7591 dynamic client registration. Unauthenticated by design; rate limited to 5/hour/IP. Public clients only — no secret is ever issued. |
+| `GET /oauth/authorize` | Doorkeeper. Redirects to the consent screen in apps/web, then issues a code. PKCE `S256` required; `plain` refused. |
+| `POST /oauth/token` | Code + `code_verifier` → access token (2h) + refresh token. Tokens stored as digests. |
+| `GET /.well-known/oauth-protected-resource[/mcp]` | RFC 9728. Names the authorization server guarding `/mcp`. |
+| `GET /.well-known/oauth-authorization-server[/mcp]` | RFC 8414. Endpoints, grant types, `S256`, and every grantable scope. |
 
-The authorization server itself needs OAuth 2.1 with PKCE and either RFC
-8414 metadata or OIDC Discovery. Client registration should support Client
-ID Metadata Documents; Dynamic Client Registration (RFC 7591) is deprecated
-in the current spec and only needed for backwards compatibility.
+A 401 from `/mcp` carries
+`WWW-Authenticate: Bearer …, resource_metadata="…/.well-known/oauth-protected-resource/mcp"`,
+which is the thread a cold client pulls to authorize itself.
+
+**Scopes are the same vocabulary as `McpToken`** — derived from
+`Registry::DOMAINS`, enforced in `Tools::Base`. An OAuth grant and a
+personal token mean exactly the same thing to a tool, so there is no second
+authorization model. `Tools::Scopes.describe` turns each into a sentence,
+because `profile:write` is not something a person can agree to on the merits.
+
+#### Consent lives in apps/web, not in Rails
+
+This app is `api_only` and has no signed-in browser: the session cookie
+only carries OmniAuth's `state`, and the JWT lives in an HttpOnly cookie
+owned by the web origin that a browser never sends here. Rendering consent
+in Rails would mean a second login surface — a second place to get rate
+limiting, lockout, and password reset right.
+
+So the flow hands off, and what carries approval across the origin boundary
+is a **handoff token bound to a digest of the exact authorize parameters**
+(`Oauth::Handoff`, 5-minute TTL). Same principle as the chat's confirmation
+fingerprint: an approval is only valid for the request it was given for.
+Change the scope, the client, or the redirect URI on the way back and the
+digest stops matching, so the browser lands on consent again instead of
+getting a grant.
+
+```
+client → GET /oauth/authorize
+       → 302 apps/web /oauth/consent?return_to=…
+       → person approves (web knows who is signed in)
+       → POST /api/v1/oauth/consent  → handoff token
+       → GET /oauth/authorize?…&handoff=…  → code
+       → POST /oauth/token (+ code_verifier) → access token
+```
+
+The consent screen shows the client name, **the registered redirect URI**,
+and a sentence per scope. The redirect URI is checked against what the
+client registered (`URIChecker.valid_for_authorization?`) before it renders
+— otherwise the screen would display one destination while doorkeeper
+honoured another, and the "cancel" path would be an open redirect.
+
+#### Two deliberate departures from the spec text
+
+- **DCR rather than Client ID Metadata Documents.** CIMD is preferred in the
+  current spec and DCR is marked legacy, but the clients that exist today
+  register dynamically. DCR ships; CIMD can be added beside it without
+  changing anything else.
+- **`insufficient_scope` stays in the JSON-RPC result, not an HTTP 403.** A
+  scope failure means one tool call was out of bounds; the *request*
+  authenticated fine, and a JSON-RPC batch has no single HTTP status that
+  could describe it. `Tools::Base` returns `isError` with the reason, which
+  is what an MCP client can actually act on.
+
+**RFC 8707 audience** is validated at consent (`resource` must name this
+server's `/mcp`), not stored per token. The handoff digest covers every
+authorize parameter, so a `resource` that passed cannot be swapped
+afterwards. Storing it per token would need `custom_access_token_attributes`
+and a column; worth doing if we ever guard a second resource.
+
+**Anonymous discovery still works.** `/mcp` with no credential returns the
+public discovery tools rather than a 401, which is a product feature — you
+can browse menus without an account. The consequence is that a client which
+never probes the well-known documents never learns OAuth exists. Clients
+following the current MCP spec do probe; that is the bet.
 
 ## Transport notes
 

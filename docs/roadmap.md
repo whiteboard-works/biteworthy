@@ -42,7 +42,7 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M5 — chat UI in `apps/web`; web scan entry points restored (mobile still has none)
 - [x] M6 — deferred tool loading (`defer_loading` + tool search) — **shipped as C7**
 - [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
-- [ ] M8 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
+- [x] M8 — public MCP: OAuth 2.1 (doorkeeper, PKCE-only), RFC 9728 + RFC 8414 metadata, RFC 7591 registration, RFC 8707 audience validation, consent in apps/web
 
 **Web scanning is back as of M5** — `/chat`, reached from the hero CTA, the
 site header, and the restaurants empty state. **Mobile still has no scan
