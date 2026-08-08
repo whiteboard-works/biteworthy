@@ -14,9 +14,10 @@ class AnthropicClient
   #   * **Thinking signatures are copied, never rebuilt.** A thinking
   #     block replayed without its exact signature is rejected on the
   #     next request, which would wedge the conversation.
-  #   * **`tool_use` input arrives as partial JSON fragments** that are
-  #     only valid once concatenated — parsing before `content_block_stop`
-  #     fails on every block but the last.
+  #   * **Tool input arrives as partial JSON fragments** that are only
+  #     valid once concatenated — parsing before `content_block_stop`
+  #     fails on every block but the last. This applies to server-side
+  #     tools (tool search) exactly as it does to the model's own calls.
   class Stream
     # A stream that ends without `message_stop` — a dropped connection or
     # a truncated proxy response. The turn is unusable either way.
@@ -117,8 +118,14 @@ class AnthropicClient
       @usage.merge!(payload["usage"] || {})
     end
 
+    # Keyed on the accumulator, not on a list of block types — the list
+    # grows. `tool_use` was the only one until tool search shipped, and a
+    # `server_tool_use` left unfinalized carries an empty `input` plus the
+    # leftover scratch field, which the API rejects the moment the
+    # transcript replays. Anything that streams its input as JSON
+    # fragments gets the same treatment from here on.
     def finalize(block)
-      return block unless block["type"] == "tool_use"
+      return block unless block.key?("partial_json")
 
       partial = block.delete("partial_json")
       block.merge("input" => partial.present? ? JSON.parse(partial) : (block["input"] || {}))

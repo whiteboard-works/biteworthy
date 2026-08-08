@@ -149,4 +149,42 @@ RSpec.describe AnthropicClient::Stream do
     expect(stream).not_to be_complete
     expect { stream.message }.to raise_error(described_class::IncompleteError)
   end
+
+  # Server-side tools stream their input exactly like a client tool does,
+  # and until tool search shipped nothing here produced one. An
+  # unfinalized server_tool_use carries an empty `input` plus the leftover
+  # scratch field, and the API rejects the whole conversation the moment
+  # that block replays — so the turn AFTER it dies, not the turn itself.
+  # Non-streaming was unaffected, which is exactly why the suite missed it.
+  it "finalizes a server tool's streamed input, not just a client tool's" do
+    stream = described_class.new
+    stream << event("message_start", { message: { id: "msg_1", role: "assistant", content: [], usage: {} } })
+    stream << event("content_block_start",
+                    { index: 0,
+                      content_block: { type: "server_tool_use", id: "srvtoolu_1",
+                                       name: "tool_search_tool_regex", input: {} } })
+    stream << event("content_block_delta",
+                    { index: 0, delta: { type: "input_json_delta", partial_json: '{"pattern":' } })
+    stream << event("content_block_delta",
+                    { index: 0, delta: { type: "input_json_delta", partial_json: '"list_saved"}' } })
+    stream << event("content_block_stop", { index: 0 })
+    stream << stop(stop_reason: "tool_use")
+
+    block = stream.message["content"].first
+    expect(block["input"]).to eq({ "pattern" => "list_saved" })
+    expect(block).not_to have_key("partial_json")
+  end
+
+  # The finalizer keys on the accumulator, so it must not invent one for a
+  # block that never streamed input.
+  it "leaves a block that streamed no input untouched" do
+    stream = described_class.new
+    stream << event("message_start", { message: { id: "msg_1", role: "assistant", content: [], usage: {} } })
+    stream << event("content_block_start", { index: 0, content_block: { type: "text", text: "" } })
+    stream << event("content_block_delta", { index: 0, delta: { type: "text_delta", text: "hi" } })
+    stream << stop(stop_reason: "end_turn")
+
+    expect(stream.message["content"].first).to eq({ "type" => "text", "text" => "hi" })
+  end
 end
+
