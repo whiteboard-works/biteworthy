@@ -99,8 +99,13 @@ module Chat
       # open on an earlier prompt could approve whatever happens to be
       # parked now — the user would be agreeing to a sentence they never
       # read.
+      #
+      # Fails CLOSED: a missing stored fingerprint is a mismatch, not a
+      # pass. `park` always writes one, so the only rows without it predate
+      # this gate, and "absent means allowed" is how a check like this
+      # quietly stops checking.
       expected = parked.dig("pending", "fingerprint")
-      if expected.present? && fingerprint != expected
+      if expected.blank? || fingerprint != expected
         return Result.new(state: :error, error: "That confirmation is out of date. Reload and read the request again.")
       end
 

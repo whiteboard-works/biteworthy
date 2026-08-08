@@ -114,6 +114,8 @@ eating something that hurts them.
   `/confirm` must echo it back. Deliberately not recomputed from the parked
   row — jsonb does not preserve key order, so a hash derived from the
   round trip would not reliably match one derived from the live call.
+  **Fails closed**: a missing stored fingerprint is a mismatch, not a pass.
+  "Absent means allowed" is how a check like this quietly stops checking.
 - Both declarations walk the superclass chain, for the same reason
   `audience` does: Ruby does not inherit class-level ivars, and the last
   time that was missed a domain base's declaration silently did nothing.

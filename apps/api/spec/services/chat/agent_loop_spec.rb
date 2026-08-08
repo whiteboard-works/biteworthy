@@ -339,4 +339,32 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.state).to eq("active")
     end
   end
+
+  # The gate is only as good as what it is bound to.
+  describe "the confirmation binding" do
+    let!(:item)   { create(:item, :published, restaurant: restaurant) }
+    let!(:review) { create(:review, user: user, item: item, body: "fine") }
+
+    before do
+      loop_with(call_tool("delete_review", { "review_id" => review.id })).run(text: "delete my review")
+    end
+
+    it "refuses an answer carrying a fingerprint for some other call" do
+      result = loop_with(say("done")).run(confirm: true, fingerprint: "not-the-parked-one")
+
+      expect(result.ok?).to be(false)
+      expect(Review.exists?(review.id)).to be(true)
+      expect(conversation.reload.state).to eq("awaiting_confirmation")
+    end
+
+    # Absent must not read as allowed — that is how a check like this
+    # quietly stops checking.
+    it "refuses an answer carrying no fingerprint at all" do
+      result = loop_with(say("done")).run(confirm: true)
+
+      expect(result.ok?).to be(false)
+      expect(Review.exists?(review.id)).to be(true)
+    end
+  end
 end
+
