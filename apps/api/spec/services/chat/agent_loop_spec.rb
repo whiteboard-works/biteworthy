@@ -485,5 +485,63 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.messages.reload.none? { |m| m.content == [] }).to be(true)
     end
   end
+
+  # The product's safety claim is that we can always say WHY a dish is
+  # hidden. A summary that quietly drops one reads like a good answer, so
+  # something other than the author has to look before the user orders.
+  describe "the grounding review" do
+    let!(:item) { create(:item, :published, restaurant: restaurant, name: "Queso fundido") }
+
+    def reviewing(verdict)
+      allow(Chat::GroundingReview).to receive(:new).and_return(
+        instance_double(Chat::GroundingReview, call: verdict)
+      )
+    end
+
+    def flagged(problem) = Chat::GroundingReview::Result.new(grounded: false, problem: problem, checked: true)
+    def clean           = Chat::GroundingReview::Result.new(grounded: true, checked: true)
+
+    it "appends a disclaimer to an answer the reviewer flagged" do
+      reviewing(flagged("dropped the queso"))
+
+      result = loop_with(call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!"))
+               .run(text: "what can I eat")
+
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+      expect(conversation.messages.reload.last.text).to include("hidden for you")
+    end
+
+    it "leaves a grounded answer exactly as written" do
+      reviewing(clean)
+
+      result = loop_with(call_tool("get_menu", { "restaurant" => "ninis" }), say("The queso is out — dairy."))
+               .run(text: "what can I eat")
+
+      expect(result.text).to eq("The queso is out — dairy.")
+      expect(result.text).not_to include(Chat::GroundingReview::DISCLAIMER)
+    end
+
+    # Only the tools that make a safety claim are worth a second model
+    # call — everything else the assistant says is navigation or opinion.
+    it "does not review a turn that never touched the filter" do
+      expect(Chat::GroundingReview).not_to receive(:new)
+
+      loop_with(call_tool("get_restaurant", { "restaurant" => "ninis" }), say("It is on Main Ave."))
+        .run(text: "where is ninis")
+    end
+
+    # A flag is a signal worth keeping, not just a disclaimer worth
+    # showing.
+    it "records the flag on the run" do
+      reviewing(flagged("dropped the queso"))
+      run = ConversationRun.acquire(conversation)
+
+      described_class.new(conversation, client: ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!")
+      ), run: run).run(text: "what can I eat")
+
+      expect(run.reload.outcome).to eq("grounding_flagged")
+    end
+  end
 end
 
