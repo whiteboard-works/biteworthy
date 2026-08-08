@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# What the chat's system prompt actually costs, section by section.
+#
+# The cached prefix is paid for once and read back cheaply on every later
+# turn; the volatile block is paid for in full every single turn. Those are
+# very different budgets, and without a number here a section can double in
+# size and nobody notices until the bill does.
+#
+#   bin/prompt-tokens              # anonymous caller
+#   bin/prompt-tokens --admin      # admin sees more tools, so a bigger prefix
+
+require_relative "../config/environment"
+
+admin = ARGV.include?("--admin")
+
+# Tools::Context resolves the caller from the database, so an unsaved
+# User reads as signed-out and would quietly report the anonymous prefix.
+user = admin ? User.find_by(is_admin: true) : nil
+if admin && user.nil?
+  abort("--admin needs a real admin in this database (bin/rails admin:grant EMAIL=...)")
+end
+
+context = Tools::Context.new(user ? { user_id: user.id } : {})
+prompt  = Chat::SystemPrompt.new(context: context)
+tools   = Chat::ToolCatalog.definitions(context)
+
+# ~3.6 chars/token is close enough to spot a regression; the live number
+# comes off `cache_read_input_tokens` on a real turn.
+def approx(text) = (text.to_s.length / 3.6).round
+
+sections = {
+  "tools (#{tools.length})" => JSON.generate(tools),
+  "instructions"            => Tools::Instructions.text,
+  "topology"                => Tools::Topology.markdown(context)
+}
+
+puts "caller: #{admin ? 'admin' : 'anonymous'}"
+puts
+
+cached = 0
+sections.each do |name, text|
+  n = approx(text)
+  cached += n
+  puts format("  %-22s %7d tokens   (cached)", name, n)
+end
+
+volatile = approx(prompt.volatile)
+puts
+puts format("  %-22s %7d tokens   (paid once, read back cheap)", "cached prefix", cached)
+puts format("  %-22s %7d tokens   (paid every turn)", "volatile block", volatile)

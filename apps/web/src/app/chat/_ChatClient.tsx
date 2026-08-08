@@ -17,6 +17,7 @@ import {
   type ChatMessage,
   type Conversation,
   type ConversationSummary,
+  type PageContext,
   type PendingTool,
 } from '../../lib/chat';
 import { Composer } from './_Composer';
@@ -173,7 +174,7 @@ export function ChatClient(): ReactElement {
 
     const id = conversation.id;
     setMessages((current) => [...current, optimistic(composed, current.length)]);
-    await run(id, () => sendMessage(id, composed));
+    await run(id, () => sendMessage(id, composed, pageContext()));
   };
 
   const answer = async (approved: boolean) => {
@@ -323,6 +324,16 @@ function compose(text: string, attachments: Attachment[]): string {
     .map((file) => `[Attached ${file.filename} — attachment_id: ${file.id}]`)
     .join('\n');
   return [text, manifest].filter(Boolean).join('\n\n');
+}
+
+/** The chat lives at /chat, so the useful signal is where the user came
+ *  from — a restaurant page is the case that matters. */
+function pageContext(): PageContext | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const from = new URL(document.referrer || document.location.href, document.location.href);
+  if (from.origin !== document.location.origin) return undefined;
+  const restaurant = /^\/restaurants\/([^/]+)/.exec(from.pathname)?.[1];
+  return restaurant ? { path: from.pathname, restaurant } : undefined;
 }
 
 function optimistic(text: string, index: number): ChatMessage {

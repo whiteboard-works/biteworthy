@@ -132,13 +132,24 @@ export interface Queued {
   after: number;
 }
 
+/** Where the user is standing. Rides with the turn so "what can I eat
+ *  here" is answerable without a search first. */
+export interface PageContext {
+  path?: string;
+  restaurant?: string;
+}
+
 /** Asks for a turn. Returns as soon as the request is recorded — the turn
  *  itself runs in a job, so this no longer waits out a model. */
-export function sendMessage(id: string, message: string): Promise<Queued> {
+export function sendMessage(
+  id: string,
+  message: string,
+  context?: PageContext,
+): Promise<Queued> {
   return json(`/api/chat/conversations/${encodeURIComponent(id)}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, context }),
   });
 }
 

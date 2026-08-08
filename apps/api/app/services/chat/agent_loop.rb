@@ -53,12 +53,13 @@ module Chat
     # needs the run before the turn starts — the event writer stamps every
     # row with it. A direct caller passing nothing gets the lock acquired
     # and released here instead.
-    def initialize(conversation, client: nil, public_host: nil, on_event: nil, run: nil)
+    def initialize(conversation, client: nil, public_host: nil, on_event: nil, run: nil, page: nil)
       @conversation = conversation
       @client       = client || AnthropicClient.new(model: MODEL)
       @public_host  = public_host
       @on_event     = on_event
       @injected_run = run
+      @page         = page
     end
 
     # `text` starts a new turn. `confirm` answers a parked tool call:
@@ -341,14 +342,8 @@ module Chat
       end
     end
 
-    # One cache breakpoint, on the last system block, so the cached
-    # prefix is [tools][instructions][topology]. All three are stable
-    # for a given caller, which is what makes the second turn cheap.
     def system_prompt
-      @client.system_blocks(
-        { text: Tools::Instructions.text },
-        { text: Tools::Topology.markdown(context), cache: true }
-      )
+      SystemPrompt.new(context: context, page: @page).blocks(@client)
     end
 
     def context

@@ -194,17 +194,32 @@ Trade-off taken deliberately: text arrives in ~150ms chunks instead of per
 token. In exchange a turn survives a proxy timeout, a deploy, and a closed
 laptop, and Puma threads stop being held for a minute at a time.
 
-### C5 — Prompts as code, plus the volatile block
+### C5 — Prompts as code, plus the volatile block — SHIPPED
 
-`Chat::SystemPrompt` with ordered, individually snapshot-tested sections:
-instructions → topology → **cache breakpoint** → a trailing volatile block
-carrying the caller's profile snapshot, the time, and the page context the
-client sent. A spec asserts nothing per-request sits above the breakpoint —
-the property the live run proved by accident.
+`Chat::SystemPrompt` renders ordered sections: instructions → topology →
+**cache breakpoint** → a trailing volatile block carrying the caller's
+profile snapshot, the time, and the page context the client sent.
 
-Payoffs: most turns stop spending a `get_profile` round-trip, and "what can
-I eat here" from a restaurant page becomes one tool call instead of three.
-`bin/prompt-tokens` prints the section sizes so one cannot silently double.
+- **The invariant is not where the breakpoint sits, it is that nothing
+  per-request sits above it.** The spec that pins it compares the whole
+  cached prefix across two turns rather than asserting a position — a
+  measured 21,650-token prefix is thrown away by one volatile byte in the
+  wrong block, and a position assertion would not catch that.
+- The profile snapshot is the payoff: most turns stop spending a
+  `get_profile` round trip before they can answer anything. It says
+  plainly that the tools outrank it, because a snapshot goes stale the
+  moment the model edits the profile, and a model trusting it would report
+  a change it just made as not having happened.
+- Page context turns "what can I eat here" into one tool call instead of
+  three. It is client-supplied, so it is labelled as context rather than
+  instruction, and length-capped.
+- Revoked access reads as a plain fact about the caller ("not signed in"),
+  not as an exception.
+- `bin/prompt-tokens` prints the split; two specs hold each side to a
+  budget so a section cannot quietly double. The script aborts rather than
+  reporting the anonymous prefix when `--admin` finds no admin —
+  `Tools::Context` resolves the caller from the database, so an unsaved
+  `User` reads as signed-out.
 
 ### C6 — Grounding review on dietary answers
 

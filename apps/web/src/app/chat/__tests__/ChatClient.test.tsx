@@ -30,7 +30,7 @@ vi.mock('../../../lib/chat', async () => {
     createConversation: () => createConversation(),
     getConversation: (id: string) => getConversation(id),
     deleteConversation: (id: string) => deleteConversation(id),
-    sendMessage: (id: string, text: string) => sendMessage(id, text),
+    sendMessage: (id: string, text: string, context?: unknown) => sendMessage(id, text, context),
     answerConfirmation: (id: string, ok: boolean, fingerprint: string | null) =>
       answerConfirmation(id, ok, fingerprint),
     watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
@@ -254,6 +254,7 @@ describe('ChatClient', () => {
       expect(sendMessage).toHaveBeenCalledWith(
         'c-1',
         expect.stringContaining('attachment_id: signed-abc'),
+        undefined,
       ),
     );
   });
