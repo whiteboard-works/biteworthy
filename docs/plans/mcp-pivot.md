@@ -140,16 +140,25 @@ stack — see the stacked-PR postmortem in `docs/roadmap.md`.
 Extracted `Restaurants::Create` out of `RestaurantsController` — the third
 time a domain's real policy turned out to live in a controller.
 
-#### M3b — admin domains
+#### M3b — admin domains — SHIPPED (43 tools)
 
 | Domain | Tools | Audience |
 |---|---|---|
-| Restaurants | `edit_restaurant` | admin |
+| Restaurants | `edit_restaurant`, `confirm_restaurant_data` | admin |
 | Structure | `get_menu_structure`, `edit_menu_structure` (Menu + MenuSection + ordering), `edit_place` (Address + Hours) | admin |
 | Items | `edit_item` (Item + ItemVariant + ItemModifier + joins + section move) | admin |
 | Taxonomy | `create_taxonomy_node`, `edit_taxonomy_node`, `delete_taxonomy_node` | admin |
-| Moderation | `moderate_review`, `list_moderation_queue` | admin |
+| Moderation | `list_moderation_queue`, `moderate_review` | admin |
 | Users | `list_users`, `set_user_role` | admin |
+
+All descend from `Tools::AdminBase`, the one place `audience :admin` is
+declared. Extracted `Places::Writer` out of `Admin::PlacesController` —
+fourth controller in this pivot holding real policy.
+
+Taxonomy is one tool per verb with a `kind` discriminator rather than
+six tools: a model choosing between `create_ingredient` and `create_tag`
+alongside four near-twins misroutes, and the two trees differ only in
+metadata.
 
 #### M3c — topology
 

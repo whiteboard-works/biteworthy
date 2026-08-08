@@ -7,51 +7,24 @@ module Api
       #   PUT  /api/v1/admin/restaurants/:id/address
       #   PUT  /api/v1/admin/restaurants/:id/hours
       #
-      # Both writes are wholesale replacements rather than CRUD: a
-      # restaurant has one address in practice (the schema allows many
-      # for future multi-location), and hours are only ever edited as a
-      # full week — a per-row API would let a save land half-applied
-      # and show the wrong open time.
-      #
-      # Every field is validated BEFORE it is coerced. Rails' casts are
-      # lossy in exactly the directions that hurt here: "monday".to_i is
-      # 0 (Sunday), an unparseable time becomes nil (which this API
-      # encodes as "closed"), and a non-numeric latitude becomes 0.0
-      # (Null Island, which the public restaurant payload then serves).
-      # Each of those would be a silent 200 corrupting live data.
+      # Validation and the wholesale-replace semantics live in
+      # ::Places::Writer (root-scoped — a bare `Places::` here would
+      # resolve under Api::V1::Admin), shared with the MCP `edit_place`
+      # tool. This controller is the HTTP adapter: it turns the writer's
+      # InvalidInput into the 422 shape the admin UI already handles.
       class PlacesController < BaseController
-        DAYS      = (0..6).to_a.freeze
-        TIME_OF_DAY = /\A([01]\d|2[0-3]):[0-5]\d\z/
-
         def show
-          render json: serialize_place(restaurant)
+          render json: ::Places::Writer.serialize(restaurant)
         end
 
         def update_address
-          attrs = address_attrs
-          return if performed?
-
-          address = restaurant.addresses.order(:created_at).first || restaurant.addresses.new
-          address.update!(attrs)
-          render json: serialize_place(restaurant.reload)
+          updated = ::Places::Writer.replace_address!(restaurant, address_params)
+          render json: ::Places::Writer.serialize(updated)
         end
 
         def update_hours
-          rows = params[:hours]
-          unless rows.is_a?(Array)
-            render json: { error: "hours_must_be_an_array" }, status: :unprocessable_entity
-            return
-          end
-
-          parsed = parse_hours(rows)
-          return if performed?
-
-          restaurant.transaction do
-            restaurant.hours.destroy_all
-            parsed.each { |row| restaurant.hours.create!(row) }
-          end
-
-          render json: serialize_place(restaurant.reload)
+          updated = ::Places::Writer.replace_hours!(restaurant, hour_rows)
+          render json: ::Places::Writer.serialize(updated)
         end
 
         private
@@ -60,127 +33,26 @@ module Api
           @restaurant ||= Restaurant.find(params[:id])
         end
 
-        # Returns the parsed rows, or renders a 422 and returns nil.
-        def parse_hours(rows)
-          bad_rows  = []
-          bad_days  = []
-          bad_times = []
-
-          parsed = rows.filter_map do |row|
-            unless row.is_a?(Hash) || row.is_a?(ActionController::Parameters)
-              bad_rows << row.to_s
-              next
-            end
-
-            day = Integer(row[:day_of_week] || row["day_of_week"], exception: false)
-            if day.nil? || DAYS.exclude?(day)
-              bad_days << (row[:day_of_week] || row["day_of_week"]).to_s
-              next
-            end
-
-            opens  = parse_time_of_day(row[:opens_at]  || row["opens_at"],  bad_times)
-            closes = parse_time_of_day(row[:closes_at] || row["closes_at"], bad_times)
-
-            { day_of_week: day, opens_at: opens, closes_at: closes }
-          end
-
-          if bad_rows.any?
-            render json: { error: "hour_rows_must_be_objects", values: bad_rows },
-                   status: :unprocessable_entity
-          elsif bad_days.any?
-            render json: { error: "invalid_day_of_week", values: bad_days },
-                   status: :unprocessable_entity
-          elsif bad_times.any?
-            render json: { error: "invalid_time_of_day", values: bad_times },
-                   status: :unprocessable_entity
-          elsif (mixed = contradictory_days(parsed)).any?
-            render json: { error: "closed_day_has_hours", values: mixed },
-                   status: :unprocessable_entity
-          end
-
-          # Two identical rows for one day say nothing extra.
-          parsed.uniq
+        def address_params
+          params.permit(:street, :city, :region, :postal_code, :country,
+                        :map_provider_place_id, :latitude, :longitude)
+                .to_h.symbolize_keys
         end
 
-        # A day may carry SEVERAL ranges — lunch 11–14, dinner 17–21 is
-        # an ordinary restaurant week, and collapsing it to 11–21 would
-        # advertise hours the kitchen isn't open. What it may not carry
-        # is a blank "closed" row alongside a real range: the two say
-        # opposite things and nothing downstream could pick a winner.
-        def contradictory_days(parsed)
-          parsed.group_by { |row| row[:day_of_week] }
-                .select { |_day, rows| rows.any? { |r| closed_row?(r) } && !rows.all? { |r| closed_row?(r) } }
-                .keys.map(&:to_s)
+        # `permit!`-free: the rows are read field by field by the writer,
+        # which validates each before coercing it.
+        def hour_rows
+          rows = params[:hours]
+          return rows unless rows.is_a?(Array)
+
+          rows.map { |row| row.is_a?(ActionController::Parameters) ? row.to_unsafe_h : row }
         end
 
-        # Blank both ends = "closed that day".
-        def closed_row?(row)
-          row[:opens_at].nil? && row[:closes_at].nil?
-        end
-
-        # Blank = closed (what the nullable columns are for). Anything
-        # else must look like HH:MM — a typo'd "25:99" silently casting
-        # to nil would publish the restaurant as closed that day.
-        def parse_time_of_day(value, errors)
-          return nil if value.nil? || value.to_s.strip.empty?
-
-          text = value.to_s.strip
-          unless text.match?(TIME_OF_DAY)
-            errors << text
-            return nil
-          end
-          text
-        end
-
-        def address_attrs
-          permitted = params.permit(:street, :city, :region, :postal_code, :country,
-                                    :map_provider_place_id)
-                            .to_h.symbolize_keys
-
-          %i[latitude longitude].each do |field|
-            next unless params.key?(field)
-            raw = params[field]
-            if raw.nil? || raw.to_s.strip.empty?
-              permitted[field] = nil
-              next
-            end
-
-            value = Float(raw, exception: false)
-            if value.nil?
-              render json: { error: "invalid_coordinate", field: field }, status: :unprocessable_entity
-              return {}
-            end
-            permitted[field] = value
-          end
-
-          permitted
-        end
-
-        def serialize_place(restaurant)
-          address = restaurant.addresses.order(:created_at).first
-          {
-            restaurant_id: restaurant.id,
-            address: address && {
-              id:             address.id,
-              street:         address.street,
-              city:           address.city,
-              region:         address.region,
-              postal_code:    address.postal_code,
-              country:        address.country,
-              latitude:       address.latitude&.to_f,
-              longitude:      address.longitude&.to_f,
-              map_provider_place_id: address.map_provider_place_id
-            },
-            # Split shifts come back in the order they're worked.
-            hours: restaurant.hours.order(:day_of_week, :opens_at).map do |hour|
-              {
-                id:          hour.id,
-                day_of_week: hour.day_of_week,
-                opens_at:    hour.opens_at&.strftime("%H:%M"),
-                closes_at:   hour.closes_at&.strftime("%H:%M")
-              }
-            end
-          }
+        rescue_from ::Places::Writer::InvalidInput do |error|
+          payload = { error: error.error }
+          payload[:values] = error.values if error.values.any?
+          payload[:field]  = error.values.first if error.error == "invalid_coordinate"
+          render json: payload, status: :unprocessable_entity
         end
       end
     end

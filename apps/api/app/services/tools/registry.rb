@@ -54,7 +54,30 @@ module Tools
         "History::ListSaved"
       ],
       restaurants: [
-        "Restaurants::CreateRestaurant"
+        "Restaurants::CreateRestaurant",
+        "Restaurants::EditRestaurant",
+        "Restaurants::ConfirmRestaurantData"
+      ],
+      structure: [
+        "Structure::GetMenuStructure",
+        "Structure::EditMenuStructure",
+        "Structure::EditPlace"
+      ],
+      items: [
+        "Items::EditItem"
+      ],
+      taxonomy: [
+        "Taxonomy::CreateTaxonomyNode",
+        "Taxonomy::EditTaxonomyNode",
+        "Taxonomy::DeleteTaxonomyNode"
+      ],
+      moderation: [
+        "Moderation::ListModerationQueue",
+        "Moderation::ModerateReview"
+      ],
+      users: [
+        "Users::ListUsers",
+        "Users::SetUserRole"
       ]
     }.freeze
 
