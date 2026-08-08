@@ -8,6 +8,11 @@
  * block shapes the events used.
  */
 
+import type {
+  ChatUsage as ApiChatUsage,
+  PendingTool as ApiPendingTool,
+} from '@biteworthy/api-types';
+
 export type ChatBlock =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }
@@ -21,17 +26,18 @@ export interface ChatMessage {
   blocks: ChatBlock[];
 }
 
-export interface PendingTool {
-  name: string;
-  input: Record<string, unknown>;
-  /** The sentence the tool itself declared. Null when it declared none,
-   *  in which case the client falls back to a generic prompt — what a
-   *  person approves is never phrased by the model asking for it. */
-  prompt: string | null;
-  /** Binds an answer to this exact call. Echoed back on confirm so a tab
-   *  left open on an earlier prompt cannot approve whatever is parked now. */
-  fingerprint: string | null;
-}
+/**
+ * The call the confirmation gate parked.
+ *
+ * `prompt` is the sentence the tool itself declared — what a person
+ * approves is never phrased by the model asking for it. `fingerprint`
+ * binds an answer to this exact call, so a tab left open on an earlier
+ * prompt cannot approve whatever is parked now.
+ *
+ * Imported from the generated types rather than restated: `codegen:check`
+ * fails if this stops matching the rswag spec it came from.
+ */
+export type PendingTool = ApiPendingTool;
 
 export interface ConversationSummary {
   id: string;
@@ -43,19 +49,10 @@ export interface ConversationSummary {
 }
 
 /** Spend and cache accounting. Present only for admins — the server
- *  decides, so a non-admin never receives it to begin with. */
-export interface ChatUsage {
-  cost_cents: number;
-  last_run: {
-    outcome: string | null;
-    state: string;
-    rounds: number;
-    input_tokens: number;
-    output_tokens: number;
-    cache_read_tokens: number;
-    duration_ms: number | null;
-  } | null;
-}
+ *  decides, so a non-admin never receives it to begin with.
+ *
+ *  Generated from the rswag spec, not restated here. */
+export type ChatUsage = ApiChatUsage;
 
 export interface Conversation extends ConversationSummary {
   messages: ChatMessage[];

@@ -2603,17 +2603,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items": {
+    "/api/v1/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's conversations, newest first */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the caller's conversations */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            conversations: components["schemas"]["Conversation"][];
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Open an empty conversation */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the new conversation */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Conversation"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 /** Format: uuid */
-                ingestion_run_id: string;
+                id: string;
             };
             cookie?: never;
         };
-        /** List a run's staged items (owner or admin) */
+        /**
+         * Replay a conversation
+         * @description The reconnect path: a dropped stream loses nothing, because every turn is persisted as it runs. `usage` is present only for admins.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2622,62 +2694,34 @@ export interface paths {
                 };
                 path: {
                     /** Format: uuid */
-                    ingestion_run_id: string;
+                    id: string;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description items in position order */
+                /** @description the conversation and its transcript */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            items: components["schemas"]["IngestionItemPayload"][];
-                        };
+                        "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description not the run's creator and not an admin */
-                403: {
+                /** @description another account's conversation */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
+                    content?: never;
                 };
             };
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** Format: uuid */
-                ingestion_run_id: string;
-                /** Format: uuid */
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Decide a staged item: accept / edit / reject / undo */
-        patch: {
+        /** Delete a conversation and its transcript */
+        delete: {
             parameters: {
                 query?: never;
                 header: {
@@ -2685,85 +2729,42 @@ export interface paths {
                 };
                 path: {
                     /** Format: uuid */
-                    ingestion_run_id: string;
-                    /** Format: uuid */
                     id: string;
                 };
                 cookie?: never;
             };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        decision: "accepted" | "edited" | "rejected" | "pending";
-                        name?: string;
-                        description?: string;
-                        ingredients_payload?: {
-                            /** @description must match an Ingredient slug; unknown slugs are skipped at promote */
-                            slug: string;
-                            confidence?: number;
-                            source?: string;
-                        }[];
-                        tags_payload?: {
-                            /** @description must match a Tag slug; unknown slugs are skipped at promote */
-                            slug: string;
-                            confidence?: number;
-                            source?: string;
-                        }[];
-                        /** @description Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise). */
-                        prices_payload?: {
-                            size?: string | null;
-                            price_cents?: number | null;
-                        }[];
-                        addons_payload?: {
-                            name: string;
-                            price_cents?: number | null;
-                            source?: string;
-                        }[];
-                        unresolved_ingredients?: string[];
-                        unresolved_tags?: string[];
-                    };
-                };
-            };
+            requestBody?: never;
             responses: {
-                /** @description the updated item */
-                200: {
+                /** @description deleted */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["IngestionItemPayload"];
-                    };
-                };
-                /** @description unknown decision value */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error?: string;
-                            allowed?: string[];
-                        };
-                    };
+                    content?: never;
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items/accept_all": {
+    "/api/v1/conversations/{id}/messages": {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 /** Format: uuid */
-                ingestion_run_id: string;
+                id: string;
             };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Bulk-accept every still-pending item */
+        /**
+         * Ask for a turn
+         * @description Records the request and hands off to a background job — no model call happens in this request. Watch the narration with /stream or /events.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2772,21 +2773,48 @@ export interface paths {
                 };
                 path: {
                     /** Format: uuid */
-                    ingestion_run_id: string;
+                    id: string;
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        message: string;
+                        /** @description Where the user is standing, so "what can I eat here" is answerable. */
+                        context?: {
+                            path?: string;
+                            restaurant?: string;
+                        };
+                    };
+                };
+            };
             responses: {
-                /** @description all items after the bulk accept */
-                200: {
+                /** @description queued */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            items: components["schemas"]["IngestionItemPayload"][];
-                        };
+                        "application/json": components["schemas"]["TurnQueued"];
+                    };
+                };
+                /** @description a confirmation is still parked */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description empty or over-long message */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
             };
@@ -2797,7 +2825,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ingestion_runs/{id}": {
+    "/api/v1/conversations/{id}/confirm": {
         parameters: {
             query?: never;
             header?: never;
@@ -2807,12 +2835,74 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read a run's status + counters (owner or admin) */
-        get: {
+        get?: never;
+        put?: never;
+        /**
+         * Answer a parked destructive call
+         * @description `fingerprint` binds the answer to the call that was drawn, so a stale client cannot approve whatever happens to be parked now.
+         */
+        post: {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Bearer <jwt> — the run's creator or an admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        confirm: boolean;
+                        fingerprint?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description nothing is waiting */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/events": {
+        parameters: {
+            query?: {
+                /** @description Narration cursor. Same one /stream uses. */
+                after?: number;
+            };
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a turn's narration as JSON
+         * @description For clients that cannot hold a stream open — React Native's fetch exposes no readable body. Poll while `running` is true.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Narration cursor. Same one /stream uses. */
+                    after?: number;
+                };
+                header: {
                     Authorization: string;
                 };
                 path: {
@@ -2823,22 +2913,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description the run */
+                /** @description narration after the cursor */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["IngestionRunPayload"];
-                    };
-                };
-                /** @description someone else's run (deliberately not 403), or unknown id */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": components["schemas"]["ChatEventsPage"];
                     };
                 };
             };
@@ -2846,6 +2927,190 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop the running turn
+         * @description Raises a flag the turn reads at its next checkpoint. Necessarily a separate request from the one that started it.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description nothing is running */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp_tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's active MCP tokens
+         * @description Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description active tokens and the grantable scopes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            tokens: components["schemas"]["McpToken"][];
+                            scopes: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Issue a scoped MCP token
+         * @description The only response that ever carries the secret. Omit `scopes` for a credential with the same access as the account.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** @description e.g. discovery:read */
+                        scopes?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description the token, with its one-time secret */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["McpToken"];
+                    };
+                };
+                /** @description unknown scope, missing name, or too many active tokens */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp_tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one token, without ending other sessions */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description revoked */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description another account's token */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3222,6 +3487,105 @@ export interface components {
             is_admin: boolean;
             /** @enum {string|null} */
             provider?: "google_oauth2" | "apple" | null;
+        };
+        /** @description One Anthropic content block, as a client renders it. Thinking signatures are dropped — they are meaningless to a client and the bulkiest thing in the record. */
+        ChatBlock: {
+            /** @enum {string} */
+            type: "text" | "thinking" | "tool_use" | "tool_result";
+            text?: string | null;
+            id?: string | null;
+            name?: string | null;
+            input?: Record<string, never> | null;
+            tool_use_id?: string | null;
+            ok?: boolean | null;
+        };
+        ChatMessage: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            role: "user" | "assistant";
+            position: number;
+            blocks: components["schemas"]["ChatBlock"][];
+        };
+        /** @description The call the confirmation gate parked. `prompt` is the sentence the tool itself declared; `fingerprint` must be echoed on /confirm so an answer can only settle the call it was drawn for. */
+        PendingTool: {
+            name: string;
+            input: Record<string, never>;
+            prompt: string | null;
+            fingerprint: string | null;
+        };
+        Conversation: {
+            /** Format: uuid */
+            id: string;
+            title?: string | null;
+            /** @enum {string} */
+            state: "active" | "awaiting_confirmation" | "failed";
+            pending?: components["schemas"]["PendingTool"] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            messages?: components["schemas"]["ChatMessage"][];
+            usage?: components["schemas"]["ChatUsage"];
+        };
+        /** @description Spend and cache accounting. Present only for admins — the server decides, so a non-admin never receives it. */
+        ChatUsage: {
+            cost_cents: number;
+            last_run?: {
+                outcome?: string | null;
+                state: string;
+                rounds: number;
+                input_tokens: number;
+                output_tokens: number;
+                cache_read_tokens: number;
+                duration_ms?: number | null;
+            } | null;
+        };
+        /** @description One line of a turn's narration, carrying the cursor to resume from. */
+        ChatEvent: {
+            type: string;
+            position: number;
+            text?: string | null;
+            name?: string | null;
+            ok?: boolean | null;
+            /** @description The tool's own progress sentence. */
+            doing?: string | null;
+            message?: string | null;
+            tool?: components["schemas"]["PendingTool"] | null;
+        };
+        ChatEventsPage: {
+            events: components["schemas"]["ChatEvent"][];
+            /** @description False means stop polling. */
+            running: boolean;
+        };
+        TurnQueued: {
+            queued: boolean;
+            /** @description Narration position to watch from. */
+            after: number;
+        };
+        Attachment: {
+            /** @description Signed blob id. Bytes never enter the agent's context. */
+            id: string;
+            filename: string;
+            content_type: string;
+            byte_size: number;
+        };
+        /** @description A least-privilege credential for an MCP client. The secret is returned only by create — nothing stored can reproduce it. */
+        McpToken: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Empty means unrestricted. */
+            scopes: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** @description Only ever present on create. */
+            secret?: string | null;
+        };
+        ErrorResponse: {
+            error: string;
         };
         AuthResponse: {
             user: components["schemas"]["UserPayload"];

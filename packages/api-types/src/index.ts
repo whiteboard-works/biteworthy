@@ -26,6 +26,19 @@ export type UserPayload    = components['schemas']['UserPayload'];
 export type AuthResponse   = components['schemas']['AuthResponse'];
 export type ProfilePayload = components['schemas']['ProfilePayload'];
 export type IngredientRef  = components['schemas']['IngredientRef'];
+
+// Chat + MCP. Anchored here so the web and mobile clients import the
+// generated shape rather than hand-writing one that can drift from the
+// API — `codegen:check` in ci-js.yml fails if these stop matching the
+// rswag specs they came from.
+export type Conversation   = components['schemas']['Conversation'];
+export type ChatMessage    = components['schemas']['ChatMessage'];
+export type ChatBlock      = components['schemas']['ChatBlock'];
+export type PendingTool    = components['schemas']['PendingTool'];
+export type ChatUsage      = components['schemas']['ChatUsage'];
+export type ChatEventsPage = components['schemas']['ChatEventsPage'];
+export type Attachment     = components['schemas']['Attachment'];
+export type McpToken       = components['schemas']['McpToken'];
 export type TagRef         = components['schemas']['TagRef'];
 
 /**
