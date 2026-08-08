@@ -14,6 +14,19 @@
  *
  * Naming uses snake_case to match the wire format. Conversion to
  * camelCase happens at UI boundaries if needed.
+ *
+ * **The avoid lists handed to `applyProfile` must already be resolved.**
+ * The taxonomy is hierarchical — `dairy` has ninety descendants, with
+ * `dairy.cheddar` among them — and this function compares ids, not paths.
+ * Expanding a node to its subtree needs the taxonomy, which a client does
+ * not have, so the server does it: `Menus::Subtree` runs inside
+ * `Menus::Filter.build`, and any payload a client filters against carries
+ * the resolved set. That split is deliberate — resolution is the caller's
+ * job on both sides, which is what keeps this file and `Menus::Filter`
+ * comparable line for line.
+ *
+ * Passing a raw stored profile here would under-filter: a person avoiding
+ * `dairy` would be shown a dish tagged `dairy-cheddar` as safe.
  */
 
 import type { Strictness, Confidence } from '@biteworthy/api-types';
