@@ -236,6 +236,47 @@ describe('ChatClient', () => {
     inFlight.release();
   });
 
+  // Spend accounting is admin-only, and the server decides — the client
+  // renders what it was sent and nothing more, so there is no visibility
+  // check here to get wrong.
+  describe('usage pills', () => {
+    it('shows the last turn\'s cost when the server sent it', async () => {
+      getConversation.mockResolvedValue({
+        ...answered('ok'),
+        usage: {
+          cost_cents: 34,
+          last_run: {
+            outcome: 'done',
+            state: 'done',
+            rounds: 3,
+            input_tokens: 1200,
+            output_tokens: 400,
+            cache_read_tokens: 7550,
+            duration_ms: 8200,
+          },
+        },
+      });
+
+      render(<ChatClient />);
+      await type('hi');
+
+      const pills = await screen.findByTestId('usage-pills');
+      expect(pills).toHaveTextContent('34¢ total');
+      expect(pills).toHaveTextContent('7,550 cached');
+      expect(pills).toHaveTextContent('8.2s');
+    });
+
+    it('renders nothing when the server withheld it', async () => {
+      getConversation.mockResolvedValue(answered('ok'));
+
+      render(<ChatClient />);
+      await type('hi');
+
+      await screen.findByText('ok');
+      expect(screen.queryByTestId('usage-pills')).not.toBeInTheDocument();
+    });
+  });
+
   it('shows an error event without losing the conversation', async () => {
     watchTurn.mockImplementation(async (_id, _after, onEvent) => {
       onEvent({ type: 'error', message: 'This conversation has reached its spend limit.' });

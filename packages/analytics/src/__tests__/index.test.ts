@@ -22,6 +22,9 @@ describe('EVENTS taxonomy', () => {
         'auth_started',
         'auth_completed',
         'auth_failed',
+        'chat_started',
+        'chat_turn_completed',
+        'chat_confirmed',
       ].sort(),
     );
   });

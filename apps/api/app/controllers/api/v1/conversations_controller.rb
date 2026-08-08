@@ -24,7 +24,11 @@ module Api
       # The reconnect path: a dropped stream loses nothing, because every
       # turn was persisted as it happened.
       def show
-        render json: Chat::Serializer.conversation(conversation, messages: true)
+        # Usage detail is for whoever operates the tools, not for a diner —
+        # it is spend and cache accounting, and it is the only part of this
+        # payload that is not about the conversation itself.
+        render json: Chat::Serializer.conversation(conversation, messages: true,
+                                                                 usage: current_user.is_admin?)
       end
 
       def destroy

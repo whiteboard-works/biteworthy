@@ -286,13 +286,21 @@ working, and a model narrating its own calls would describe what it intends
 rather than what is happening. Clients fall back to the humanized name when
 a tool declares nothing.
 
-**Deliberately not shipped here**, because each is a self-contained piece of
-UI work with no dependency on the engine:
-- Resource chips in the transcript (tool results already carry the ids).
-- Admin debug pills (per-round tokens and run id are on `conversation_runs`
-  as of C3 — the data exists, the surface does not).
-- Chat events in `packages/analytics`. Add-only when it happens: renaming
-  an existing event breaks the launch funnels.
+**Admin debug pills and chat analytics followed** in a separate PR: the
+conversation payload carries a `usage` object for admins only (the server
+decides, so the client has no visibility check to get wrong), and three
+add-only events — `chat_started`, `chat_turn_completed`, `chat_confirmed`
+— joined the taxonomy. Those events carry **no message text and no tool
+names**: a tool name like `update_avoid_lists` on an identified event says
+this account edited a dietary profile, which is the same health-adjacency
+the taxonomy already strips from `profile_set`.
+
+**Resource chips remain unbuilt**, and deliberately. Tool results carry
+their payload as a JSON text blob, so chips would mean the client guessing
+at each tool's response shape — brittle, and wrong the first time a tool
+changes its output. The honest version is a per-tool declaration alongside
+`running_description`, which is worth doing when someone wants the chips,
+not before.
 
 ---
 

@@ -150,5 +150,42 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  # Spend and cache accounting is for whoever operates the tools. It is
+  # the one part of this payload that is not about the conversation, and
+  # a diner has no use for it.
+  describe "usage detail" do
+    let(:conversation) { create(:conversation, user: user, api_cost_cents: 12) }
+
+    it "is withheld from an ordinary caller" do
+      get "/api/v1/conversations/#{conversation.id}", headers: headers
+
+      expect(response.parsed_body).not_to have_key("usage")
+    end
+
+    it "reports the last run's token split to an admin" do
+      admin = create(:user, is_admin: true)
+      convo = create(:conversation, user: admin, api_cost_cents: 34)
+      run   = ConversationRun.acquire(convo)
+      run.record_round!("input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 7_550)
+      run.release!(outcome: "done")
+
+      get "/api/v1/conversations/#{convo.id}", headers: auth_headers_for(admin)
+
+      usage = response.parsed_body["usage"]
+      expect(usage["cost_cents"]).to eq(34)
+      expect(usage.dig("last_run", "cache_read_tokens")).to eq(7_550)
+      expect(usage.dig("last_run", "outcome")).to eq("done")
+    end
+
+    it "reads as empty rather than broken before any turn has run" do
+      admin = create(:user, is_admin: true)
+      convo = create(:conversation, user: admin)
+
+      get "/api/v1/conversations/#{convo.id}", headers: auth_headers_for(admin)
+
+      expect(response.parsed_body["usage"]["last_run"]).to be_nil
+    end
+  end
 end
 
