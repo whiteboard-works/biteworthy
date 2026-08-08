@@ -320,7 +320,10 @@ Self-contained; nothing above depends on it.
   The UI prevents it by disabling the composer while streaming; the server
   does not. A `running` state plus a check-and-set would fix it and costs a
   migration — worth it once more than one client drives a conversation.
-- **Uploaded blobs are never swept.** An attachment that is uploaded and
-  never scanned stays in storage forever. Bounded today by the per-user
-  scan quota and rack-attack, but a periodic purge of unattached blobs
-  older than a day is the real answer.
+- ~~**Uploaded blobs are never swept.**~~ **Done.**
+  `PurgeUnscannedAttachmentsJob` runs daily and purges unattached blobs
+  past a 24h grace window. `unattached` is a safe signal because
+  `AttachmentsController` is the only place in the app that creates a
+  detached blob, and a scanned upload becomes attached to its
+  `IngestionRun` — so an old unattached blob can only be an abandoned
+  chat upload.

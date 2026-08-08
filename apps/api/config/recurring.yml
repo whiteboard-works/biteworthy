@@ -10,6 +10,13 @@ production:
     class: PurgeOrphanedRestaurantVisitsJob
     queue: default
     schedule: "every day at 4am"
+  # Uploads that were never scanned. Nothing else deletes them, because
+  # nothing else knows they exist — see the job for why `unattached` is a
+  # safe signal rather than a guess.
+  purge_unscanned_attachments:
+    class: PurgeUnscannedAttachmentsJob
+    queue: default
+    schedule: "every day at 4:20am"
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
