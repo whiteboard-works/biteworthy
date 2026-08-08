@@ -94,6 +94,39 @@ RSpec.describe UrlFetcher do
           .to raise_error(UrlFetcher::FetchError, /blocked_address/)
       end
 
+      # An IPv4-mapped IPv6 address is an IPv4 address wearing a hat, and
+      # Ruby reports it as `ipv4? == false` — so every one of these was
+      # checked against the IPv6 list, which has no mapped range, and
+      # reached its target through all of the guards above. This is the
+      # bypass, written out one target at a time.
+      it "rejects IPv4-mapped IPv6 addresses" do
+        {
+          "cloud metadata" => "[::ffff:169.254.169.254]",
+          "loopback"       => "[::ffff:127.0.0.1]",
+          "RFC1918"        => "[::ffff:10.0.0.1]",
+          "expanded form"  => "[0:0:0:0:0:ffff:7f00:1]"
+        }.each do |label, host|
+          expect { described_class.fetch("http://#{host}/menu") }
+            .to raise_error(UrlFetcher::FetchError, /blocked_address/), "#{label} (#{host}) got through"
+        end
+      end
+
+      it "rejects the IPv6 unspecified address and the NAT64 prefix" do
+        expect { described_class.fetch("http://[::]/menu") }
+          .to raise_error(UrlFetcher::FetchError, /blocked_address/)
+        expect { described_class.fetch("http://[64:ff9b::7f00:1]/menu") }
+          .to raise_error(UrlFetcher::FetchError, /blocked_address/)
+      end
+
+      # A public IPv6 host must still work — the normalization must not
+      # turn the allowlist into a blocklist of everything.
+      it "still allows an ordinary IPv6 host" do
+        stub_request(:get, "http://[2606:4700:4700::1111]/menu")
+          .to_return(status: 200, body: "<html></html>", headers: { "Content-Type" => "text/html" })
+
+        expect { described_class.fetch("http://[2606:4700:4700::1111]/menu") }.not_to raise_error
+      end
+
       it "rejects IPv6 loopback" do
         expect { described_class.fetch("http://[::1]/menu") }
           .to raise_error(UrlFetcher::FetchError, /blocked_address/)
