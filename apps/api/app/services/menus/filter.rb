@@ -32,15 +32,30 @@ module Menus
       def build(user: nil, profile_token: nil, preset_slug: nil, strictness: nil)
         override = normalize_strictness(strictness)
 
-        if profile_token.present?
-          from_token(profile_token, strictness: override)
-        elsif preset_slug.present?
-          from_preset(preset_slug, strictness: override)
-        elsif user&.profile
-          from_user_profile(user.profile, strictness: override)
-        else
-          none(strictness: override)
-        end
+        filter =
+          if profile_token.present?
+            from_token(profile_token, strictness: override)
+          elsif preset_slug.present?
+            from_preset(preset_slug, strictness: override)
+          elsif user&.profile
+            from_user_profile(user.profile, strictness: override)
+          else
+            none(strictness: override)
+          end
+
+        resolve_subtrees(filter)
+      end
+
+      # Avoiding a node means avoiding everything under it — "I avoid
+      # dairy" has to hide the dish tagged `dairy-cheddar`. Applied once
+      # here rather than in each `from_*` so no source can be added that
+      # quietly skips it, and outside `Filter` itself so the comparison
+      # against `packages/filter-engine` stays like for like: that mirror
+      # takes an already-resolved avoid set.
+      def resolve_subtrees(filter)
+        filter.avoid_ingredient_ids = Subtree.ingredient_ids(filter.avoid_ingredient_ids)
+        filter.avoid_tag_ids        = Subtree.tag_ids(filter.avoid_tag_ids)
+        filter
       end
 
       def from_token(token, strictness: nil)

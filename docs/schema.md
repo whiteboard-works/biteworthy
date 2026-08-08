@@ -13,6 +13,11 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 
 ## Taxonomy (the unique-value engine)
 
+- **Avoid lists store what the person chose, not its subtree.** `Menus::Subtree`
+  expands a node to its ltree descendants when the filter is built, so avoiding
+  `dairy` hides a dish tagged `dairy-cheddar`. Resolution happens outside the
+  filter so `packages/filter-engine` stays comparable line for line — that
+  mirror takes an already-resolved avoid set.
 - `ingredients` — hierarchical via `path ltree`. Closed catalog: only
   admins/AI-pending-review can add nodes. `aliases[]` lets "garbanzo"
   resolve to "chickpea". `allergen` flag drives the strict-mode UI.
