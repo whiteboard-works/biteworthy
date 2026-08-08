@@ -242,11 +242,13 @@ tool-call cards and collapsed thinking, attachment upload, confirmation
 prompts. Entry points restored: hero CTA (`Scan a menu → /chat`), site
 header, restaurants empty state.
 
-**Mobile chat is in progress.** The API half is done: `lib/api/chat.ts`
-mirrors the web client, and `GET /conversations/:id/events` serves the
-narration as JSON because React Native's fetch exposes no readable body
-and cannot consume SSE. The screen itself is still to build — until then
-the Expo app has no scan path and MCP covers scanning.
+**Mobile chat is back.** `app/chat.tsx` — transcript, composer, camera and
+library capture, the confirmation gate, and a stop button — reachable from
+the home screen and from the "no restaurants yet" empty state, which is
+where someone actually needs it. Mobile **polls** where web streams:
+React Native's fetch exposes no readable body, so `GET
+/conversations/:id/events` serves the same rows as JSON and `running` says
+when to stop asking. The scan path the app lost in M2 is restored.
 
 Two decisions worth keeping:
 - **After every turn the client refetches the conversation** rather than

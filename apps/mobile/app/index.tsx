@@ -95,15 +95,23 @@ export default function Home() {
             </Pressable>
           )}
           ListEmptyComponent={
-            query ? (
-              <Text style={styles.empty}>No matches for “{query}”.</Text>
-            ) : (
-              <Text style={styles.empty}>No restaurants yet.</Text>
-            )
+            <View>
+              <Text style={styles.empty}>
+                {query ? `No matches for “${query}”.` : 'No restaurants yet.'}
+              </Text>
+              {/* The scan path, where someone actually needs it: they
+                  looked for a place and it is not here yet. */}
+              <Pressable accessibilityLabel="scan-a-menu" onPress={() => router.push('/chat')}>
+                <Text style={styles.profileLink}>Scan a menu →</Text>
+              </Pressable>
+            </View>
           }
         />
       )}
 
+      <Pressable accessibilityLabel="chat-link" onPress={() => router.push('/chat')}>
+        <Text style={styles.profileLink}>Ask about a menu, or add one</Text>
+      </Pressable>
       <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>
