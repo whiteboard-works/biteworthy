@@ -13,6 +13,10 @@ module Api
     #   no params + signed-in user → use current_user.profile
     #   no params + anonymous → no filtering (everything visible)
     #
+    # The filtering and serialization live in Menus::Filter /
+    # Menus::Query so the `get_menu` MCP tool answers identically —
+    # this controller is the HTTP adapter, nothing more.
+    #
     # The endpoint is intentionally unauthenticated — Phase 3 mobile
     # users browse menus before they create an account.
     class ItemsController < BaseController
@@ -24,240 +28,43 @@ module Api
 
       def index
         restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
-        items      = restaurant.items.published
-                               .includes(menu_section: :menu, photo_attachment: :blob)
-                               .order(popularity: :desc, name: :asc)
-                               .to_a
-
-        filter        = build_filter
-        labels        = build_label_lookup(items, filter)
-        override_ids  = current_user_override_item_ids(items)
-        review_counts = review_counts_for(items)
-
-        # Phase 8.2 — taste ranks, safety filters. Scores only exist
-        # when the signed-in user's profile carries taste signals;
-        # everyone else gets the legacy payload + sort untouched.
-        taste        = build_taste_signals(filter)
-        scores       = taste&.any? ? TasteScoring.scores_for(restaurant_id: restaurant.id, signals: taste) : nil
-        taste_labels = build_taste_label_lookup(scores)
-
-        rendered = items.map do |item|
-          serialize_item(item, filter, labels, override_ids, review_counts, scores, taste_labels)
-        end
-        if scores
-          rendered.sort_by! { |i| [-(i[:taste_score] || 0.0), -i[:popularity], i[:name]] }
-        end
+        payload    = query_for(restaurant).call
 
         # Phase 4.8 — record an authenticated user's visit to this
         # restaurant for the History tab. Best-effort, async, never
         # blocks the response.
-        record_visit_for_history(restaurant, rendered) if current_user
+        record_visit_for_history(restaurant, payload[:items]) if current_user
 
-        render json: {
-          restaurant_id: restaurant.id,
-          filter: filter_summary(filter),
-          items:  rendered
-        }
+        render json: payload
       end
 
       def show
-        item = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
-                          .items.published.includes(photo_attachment: :blob).find(params[:id])
-        filter = build_filter
-        payload = serialize_item(item, filter, build_label_lookup([item], filter), current_user_override_item_ids([item]), review_counts_for([item]))
+        restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
+        item       = restaurant.items.published.includes(photo_attachment: :blob).find(params[:id])
+        payload    = query_for(restaurant).serialize_one(item)
+
         # `favorited` seeds the detail page's save button. Anonymous → false.
         render json: payload.merge(favorited: current_user_favorited_item?(item))
       end
 
       private
 
-      Filter = Struct.new(:avoid_ingredient_ids, :avoid_tag_ids, :strictness, :source, :preset_slug, keyword_init: true)
-
-      def build_filter
-        if params[:profile_token].present?
-          decoded = ProfileToken.decode(params[:profile_token])
-          # ?strictness=... overrides what the token encoded so a
-          # strict-mode toggle still works on a shared link.
-          Filter.new(
-            avoid_ingredient_ids: decoded.avoid_ingredient_ids,
-            avoid_tag_ids:        decoded.avoid_tag_ids,
-            strictness:           strictness_param || decoded.strictness,
-            source:               "profile_token",
-            preset_slug:          nil
-          )
-        elsif params[:profile].present?
-          preset = DietaryProfile.includes(:dietary_profile_ingredients, :dietary_profile_tags)
-                                 .find_by!(slug: params[:profile])
-          Filter.new(
-            avoid_ingredient_ids: preset.avoid_ingredient_ids,
-            avoid_tag_ids:        preset.avoid_tag_ids,
-            strictness:           strictness_param || "balanced",
-            source:               "preset",
-            preset_slug:          preset.slug
-          )
-        elsif current_user&.profile
-          p = current_user.profile
-          Filter.new(
-            avoid_ingredient_ids: p.avoid_ingredient_ids,
-            avoid_tag_ids:        p.avoid_tag_ids,
-            strictness:           strictness_param || p.strictness,
-            source:               "user_profile",
-            preset_slug:          nil
-          )
-        else
-          Filter.new(
-            avoid_ingredient_ids: [],
-            avoid_tag_ids:        [],
-            strictness:           strictness_param || "balanced",
-            source:               "none",
-            preset_slug:          nil
-          )
-        end
-      end
-
-      def strictness_param
-        return nil if params[:strictness].blank?
-        UserProfile::STRICTNESS.include?(params[:strictness]) ? params[:strictness] : nil
-      end
-
-      # Phase 8.2 — taste signals come ONLY from the signed-in user's
-      # saved profile (presets and share tokens carry no taste). Ids
-      # that also sit in an avoid list are subtracted here — filter
-      # wins; an avoided id never scores (Phase 8.1 contract).
-      def build_taste_signals(filter)
-        return nil unless filter.source == "user_profile"
-
-        p = current_user.profile
-        TasteScoring::Signals.new(
-          liked_ingredient_ids:    p.liked_ingredient_ids    - filter.avoid_ingredient_ids,
-          liked_tag_ids:           p.liked_tag_ids           - filter.avoid_tag_ids,
-          disliked_ingredient_ids: p.disliked_ingredient_ids - filter.avoid_ingredient_ids,
-          disliked_tag_ids:        p.disliked_tag_ids        - filter.avoid_tag_ids
+      def query_for(restaurant)
+        Menus::Query.new(
+          restaurant:  restaurant,
+          filter:      build_filter,
+          user:        current_user,
+          public_host: public_host
         )
       end
 
-      # Names for the matched liked ids so taste_reasons renders the
-      # "because you like…" line without a second roundtrip. Same
-      # shape as build_label_lookup, scoped to taste matches.
-      def build_taste_label_lookup(scores)
-        return { ingredients: {}, tags: {} } if scores.nil?
-
-        tag_ids = scores.values.flat_map { |s| s[:matched_liked_tag_ids] }.uniq
-        ing_ids = scores.values.flat_map { |s| s[:matched_liked_ingredient_ids] }.uniq
-
-        {
-          ingredients: Ingredient.where(id: ing_ids).pluck(:id, :name).to_h,
-          tags:        Tag.where(id: tag_ids).pluck(:id, :name).to_h
-        }
-      end
-
-      # Tags first, then ingredients, both in the SQL's sorted-uuid
-      # order — the TS mirror emits the same order so parity holds.
-      def taste_reasons_for(score_row, taste_labels)
-        return [] if score_row.nil?
-
-        score_row[:matched_liked_tag_ids].map do |tag_id|
-          { kind: "liked_tag", tag_id: tag_id, tag_name: taste_labels[:tags][tag_id] }
-        end +
-          score_row[:matched_liked_ingredient_ids].map do |ing_id|
-            { kind: "liked_ingredient", ingredient_id: ing_id,
-              ingredient_name: taste_labels[:ingredients][ing_id] }
-          end
-      end
-
-      # Compute reasons WHY an item would be hidden under this filter.
-      # An empty reasons array means the item passes the filter. Each
-      # reason is enriched with display strings (`*_name`, `*_family`)
-      # so the mobile/web HiddenReasonChip is a pure render — no
-      # second roundtrip to look up names.
-      def hide_reasons(item, filter, labels)
-        reasons = []
-
-        (item.denormalized_ingredient_ids & filter.avoid_ingredient_ids).each do |ing_id|
-          ing = labels[:ingredients][ing_id]
-          reasons << {
-            kind:              "avoid_ingredient",
-            ingredient_id:     ing_id,
-            ingredient_name:   ing&.dig(:name),
-            ingredient_family: ing&.dig(:family)
-          }
-        end
-        (item.denormalized_tag_ids & filter.avoid_tag_ids).each do |tag_id|
-          tag = labels[:tags][tag_id]
-          reasons << {
-            kind:       "avoid_tag",
-            tag_id:     tag_id,
-            tag_name:   tag&.dig(:name),
-            tag_family: tag&.dig(:family)
-          }
-        end
-        if filter.strictness == "strict" && item.confidence != "confirmed"
-          reasons << { kind: "unconfirmed_strict", confidence: item.confidence }
-        end
-
-        reasons
-      end
-
-      # Bulk-load names + family strings for every ingredient/tag id
-      # the filter could possibly cite. Keyed by id so `hide_reasons`
-      # is a hash lookup. Family for ingredients = first ltree segment
-      # (e.g. `dairy.cheddar` -> `dairy`); for tags it's the model
-      # column.
-      def build_label_lookup(items, filter)
-        cited_ingredient_ids = items.flat_map(&:denormalized_ingredient_ids).uniq & filter.avoid_ingredient_ids
-        cited_tag_ids        = items.flat_map(&:denormalized_tag_ids).uniq        & filter.avoid_tag_ids
-
-        ingredient_labels = Ingredient.where(id: cited_ingredient_ids)
-                                      .pluck(:id, :name, :path)
-                                      .to_h { |id, name, path| [id, { name: name, family: path.to_s.split(".").first }] }
-
-        tag_labels = Tag.where(id: cited_tag_ids)
-                        .pluck(:id, :name, :family)
-                        .to_h { |id, name, family| [id, { name: name, family: family }] }
-
-        { ingredients: ingredient_labels, tags: tag_labels }
-      end
-
-      # Try to keep this stable — mobile + web bind to these keys via
-      # generated TS types; Phase 1.6's openapi.json should match.
-      def serialize_item(item, filter, labels, override_ids = Set.new, review_counts = {},
-                         scores = nil, taste_labels = nil)
-        reasons   = hide_reasons(item, filter, labels)
-        section   = item.menu_section
-        score_row = scores&.fetch(item.id, nil)
-        {
-          id:                  item.id,
-          restaurant_id:       item.restaurant_id,
-          name:                item.name,
-          description:         item.description,
-          confidence:          item.confidence,
-          popularity:          item.popularity,
-          ingredient_ids:      item.denormalized_ingredient_ids,
-          tag_ids:             item.denormalized_tag_ids,
-          menu_section_id:     section&.id,
-          menu_section_name:   section&.name,
-          status:              reasons.empty? ? "visible" : "hidden",
-          reasons:             reasons,
-          overridden_by_user:  override_ids.include?(item.id),
-          reviews_count:       review_counts.fetch(item.id, 0),
-          photo_url:           photo_url_for(item),
-          # Phase 8.2 — null/[] whenever the caller has no taste
-          # signals. Score never hides; the client only reorders and
-          # highlights with it.
-          taste_score:         score_row&.fetch(:score),
-          taste_reasons:       taste_reasons_for(score_row, taste_labels)
-        }
-      end
-
-      # Phase 4.4 — bulk-load review counts for the items in the
-      # response. One grouped query, joined client-side so the
-      # restaurant page can render an "X reviews" badge per item
-      # without N+1. Phase 4.6: counts only `.visible` reviews so
-      # hidden ones don't inflate the public number.
-      def review_counts_for(items)
-        ids = items.map(&:id)
-        return {} if ids.empty?
-        Review.visible.where(item_id: ids).group(:item_id).count
+      def build_filter
+        Menus::Filter.build(
+          user:          current_user,
+          profile_token: params[:profile_token],
+          preset_slug:   params[:profile],
+          strictness:    params[:strictness]
+        )
       end
 
       # Phase 4.8 — fire-and-forget enqueue. Never raises into the
@@ -276,33 +83,10 @@ module Api
         Rails.logger.warn("RecordRestaurantVisitJob enqueue failed: #{e.class} #{e.message}")
       end
 
-      # Phase 4.2 — bulk-load the authenticated user's "never hide"
-      # overrides for the items in this response. Returns an empty
-      # Set when anonymous so the boolean stays accurate (anonymous
-      # callers always see `overridden_by_user: false`).
-      def current_user_override_item_ids(items)
-        return Set.new unless current_user
-        ids = items.map(&:id)
-        return Set.new if ids.empty?
-        Set.new(
-          UserItemOverride.where(user_id: current_user.id, item_id: ids, never_hide: true).pluck(:item_id)
-        )
-      end
-
       # Whether the signed-in caller has saved this dish (false anonymously).
       def current_user_favorited_item?(item)
         return false unless current_user
         FavoriteItem.exists?(user_id: current_user.id, item_id: item.id)
-      end
-
-      def filter_summary(filter)
-        {
-          source:               filter.source,
-          preset_slug:          filter.preset_slug,
-          strictness:           filter.strictness,
-          avoid_ingredient_ids: filter.avoid_ingredient_ids,
-          avoid_tag_ids:        filter.avoid_tag_ids
-        }
       end
     end
   end

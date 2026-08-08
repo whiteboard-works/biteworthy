@@ -18,6 +18,28 @@ the per-task acceptance criteria are in `docs/plans/archive/`.
 Everything remaining is human-credential-gated launch work — see
 **Next up** and `docs/launch-readiness.md`.
 
+## MCP pivot (active, 2026-08-07)
+
+Ingestion is being rebuilt around a conversation instead of a swipe-verify
+UI, and the tool layer becomes the primary design surface for the whole
+product: one command layer with two adapters over it — MCP tool classes for
+Claude clients and the first-party chat, thin REST controllers for the light
+UI. The extraction engine (prompt, schema, deterministic resolver, staging
+tables) is kept and wrapped as tools; the swipe UI and the Solid Queue stage
+machine are what get replaced. See `docs/mcp.md`.
+
+- [x] M1 — tool registry + `POST /mcp` (discovery + profile tools, Devise-JWT auth)
+- [ ] M2 — ingestion tools over the existing engine; retire `ExtractMenuJob` / `ResolveItemsJob` auto-dispatch
+- [ ] M3 — first-party chat: `Chat::AgentLoop`, conversations, SSE streaming, confirmation gate
+- [ ] M4 — chat UI in `apps/web`; delete the web + mobile ingest flows and their API routes
+- [ ] M5 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
+- [ ] M6 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
+
+M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
+`Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint
+share one implementation — that logic is the product's safety story and must
+not exist twice.
+
 ## Next up
 
 The loop takes these in order, top-down. `[BLOCKED]` prefix means

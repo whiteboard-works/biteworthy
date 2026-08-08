@@ -156,6 +156,12 @@ Rails.application.routes.draw do
     end
   end
 
+  # MCP (Streamable HTTP). One endpoint handles the whole protocol:
+  # POST carries JSON-RPC, GET/DELETE are session verbs the transport
+  # answers itself (405 in our stateless mode). Auth is the same Devise
+  # JWT the REST API issues — see McpController.
+  match "/mcp", to: "mcp#handle", via: [:post, :get, :delete]
+
   # OpenAPI spec served via rswag (wired up in Phase 1.6).
   mount Rswag::Ui::Engine => "/api-docs"
   mount Rswag::Api::Engine => "/api-docs"
