@@ -18,7 +18,8 @@ class Conversation < ApplicationRecord
   # to replay exactly — a thinking block's signature is rejected if it
   # was rebuilt rather than echoed.
   def transcript
-    messages.reload.map { |m| { role: m.role, content: m.content } }
+    stored = messages.reload.to_a
+    stored.map { |m| { role: m.role, content: m.content } } + repair_for(stored.last)
   end
 
   # Locked for the whole insert, not just the position read: two turns
@@ -35,6 +36,26 @@ class Conversation < ApplicationRecord
   end
 
   private
+
+  # If a turn died between storing the assistant's tool calls and storing
+  # their results — a crashed worker, a killed container — the stored
+  # transcript ends on an unanswered `tool_use`, and the Messages API
+  # rejects that outright. Without this the conversation would be
+  # permanently unusable. Answering the orphans in memory (never written
+  # back) both makes the request legal and tells the model what happened,
+  # so it re-plans rather than assuming the tools ran.
+  def repair_for(last)
+    return [] unless last&.role == "assistant"
+
+    orphans = last.tool_uses
+    return [] if orphans.empty?
+
+    [{ role: "user",
+       content: orphans.map do |call|
+         { type: "tool_result", tool_use_id: call["id"], is_error: true,
+           content: [{ type: "text", text: "Interrupted before this ran. Nothing happened; try again." }] }
+       end }]
+  end
 
   # Deliberately not `messages.maximum` — on a loaded association that
   # computes from the in-memory cache, which the loop has already made

@@ -45,16 +45,29 @@ module Chat
 
     class BudgetExceeded < StandardError; end
 
-    def initialize(conversation, client: nil, public_host: nil)
+    # `on_event` turns the loop into a narrator: it fires as the model
+    # writes and as each tool runs, so a caller can stream progress
+    # instead of showing a spinner for the length of a whole turn. When
+    # it is nil the loop makes the same calls non-streaming.
+    def initialize(conversation, client: nil, public_host: nil, on_event: nil)
       @conversation = conversation
       @client       = client || AnthropicClient.new(model: MODEL)
       @public_host  = public_host
+      @on_event     = on_event
     end
 
     # `text` starts a new turn. `confirm` answers a parked tool call:
     # true runs it, false tells the model the user said no. Passing both
     # is a caller bug — the parked call has to be settled first.
     def run(text: nil, confirm: nil)
+      result = perform(text: text, confirm: confirm)
+      emit_terminal(result)
+      result
+    end
+
+    private
+
+    def perform(text:, confirm:)
       if @conversation.awaiting_confirmation?
         raise ArgumentError, "answer the pending confirmation before sending a message" if text
         return resume(confirm)
@@ -66,9 +79,12 @@ module Chat
       drive
     rescue BudgetExceeded => e
       Result.new(state: :error, error: e.message)
+    rescue AnthropicClient::ApiError, AnthropicClient::Stream::IncompleteError => e
+      # Upstream trouble, not a bug in us — say so plainly and leave the
+      # conversation usable so the user can just try again.
+      Rails.logger.error("[chat] conversation #{@conversation.id} upstream failure: #{e.class}: #{e.message}")
+      Result.new(state: :error, error: "The assistant is unavailable right now. Try again in a moment.")
     end
-
-    private
 
     def resume(confirm)
       raise ArgumentError, "confirm must be true or false" unless [true, false].include?(confirm)
@@ -79,7 +95,10 @@ module Chat
       call    = queue.first
       return Result.new(state: :error, error: "Nothing is waiting on you.") if call.nil?
 
-      results << (confirm ? execute(call) : declined(call))
+      emit(type: "tool_use", name: call["name"], input: call["input"]) if confirm
+      settled = confirm ? execute(call) : declined(call)
+      emit(type: "tool_result", name: call["name"], ok: !settled[:is_error]) if confirm
+      results << settled
       @conversation.update!(state: "active", pending_tool_call: nil)
 
       # The rest of the queue still runs through the gate — confirming
@@ -118,7 +137,10 @@ module Chat
           )
         end
 
-        results << execute(call)
+        emit(type: "tool_use", name: call["name"], input: call["input"])
+        result = execute(call)
+        emit(type: "tool_result", name: call["name"], ok: !result[:is_error])
+        results << result
       end
 
       @conversation.append!(role: "user", content: results) if results.any?
@@ -185,16 +207,39 @@ module Chat
     def call_model
       enforce_budget!
 
-      response = @client.messages_create(
+      response =
+        if @on_event
+          @client.messages_stream(**model_args) { |kind, text| emit(type: "#{kind}_delta", text: text) }
+        else
+          @client.messages_create(**model_args)
+        end
+      @conversation.record_usage!(@client.last_usage, model: MODEL)
+      response
+    end
+
+    def model_args
+      {
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
         messages:   @conversation.transcript,
         tools:      ToolCatalog.definitions(context),
         thinking:   { type: "adaptive" }
-      )
-      @conversation.record_usage!(@client.last_usage, model: MODEL)
-      response
+      }
+    end
+
+    def emit(payload)
+      @on_event&.call(payload)
+    end
+
+    # The one place a turn's outcome becomes an event, so a streaming
+    # caller can close on it without inspecting the Result itself.
+    def emit_terminal(result)
+      case result.state
+      when :done                  then emit(type: "done", text: result.text)
+      when :awaiting_confirmation then emit(type: "awaiting_confirmation", tool: result.pending)
+      when :error                 then emit(type: "error", message: result.error)
+      end
     end
 
     # One cache breakpoint, on the last system block, so the cached

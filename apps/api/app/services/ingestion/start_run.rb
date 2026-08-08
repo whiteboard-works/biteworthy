@@ -93,7 +93,7 @@ module Ingestion
 
       return failure(:too_many_files, limit: max_input_files) if @files.size > max_input_files
 
-      if @files.any? { |f| f.size.to_i > max_input_file_bytes }
+      if @files.any? { |f| byte_size_of(f) > max_input_file_bytes }
         return failure(:file_too_large, limit_bytes: max_input_file_bytes)
       end
 
@@ -102,6 +102,14 @@ module Ingestion
       end
 
       nil
+    end
+
+    # Two shapes arrive here: an uploaded file (`size`) from a multipart
+    # request, and an ActiveStorage::Blob (`byte_size`) when the caller
+    # uploaded first and referred to it by id, which is how the chat and
+    # every MCP client do it.
+    def byte_size_of(file)
+      (file.respond_to?(:byte_size) ? file.byte_size : file.size).to_i
     end
 
     def validate_source_text

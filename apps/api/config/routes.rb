@@ -108,6 +108,19 @@ Rails.application.routes.draw do
       # underscores + digits + ASCII letters (matches User#handle
       # validation).
       get "/users/:handle", to: "users#show", as: :user, constraints: { handle: /[A-Za-z0-9_]{3,30}/ }
+      # M4b — the first-party chat. Reads and lifecycle are plain JSON;
+      # a turn streams, so it lands on its own controller (including
+      # ActionController::Live changes the response for every action in
+      # a controller).
+      resources :conversations, only: [:index, :create, :show, :destroy] do
+        member do
+          post :messages, to: "conversation_turns#create"
+          post :confirm,  to: "conversation_turns#confirm"
+        end
+      end
+      # Menu photos/PDFs the chat refers to by id, so bytes never enter
+      # the agent's context.
+      resources :attachments, only: [:create]
       # The caller's own identity incl. `is_admin` — the web /admin
       # guard's probe. Read-only on purpose: auth/refresh also returns
       # the user payload but rotates the jti, killing other sessions.

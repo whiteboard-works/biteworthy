@@ -241,6 +241,46 @@ Messages store the Anthropic content-block array verbatim, including
 `thinking` blocks — a thinking block's signature is rejected if it is
 reconstructed rather than replayed.
 
+### The HTTP surface
+
+| Route | What |
+|---|---|
+| `GET /api/v1/conversations` | The caller's own, newest first |
+| `POST /api/v1/conversations` | Opens an empty one |
+| `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
+| `DELETE /api/v1/conversations/:id` | Removes it and its messages |
+| `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE |
+| `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
+| `POST /api/v1/attachments` | Multipart upload; returns a signed blob id for `start_menu_scan` |
+
+A turn streams these events, each as one `data:` line of JSON:
+
+`open` · `thinking_delta` · `text_delta` · `tool_use` · `tool_result` ·
+then exactly one of `done`, `awaiting_confirmation`, or `error`.
+
+Two properties follow from this being a chat and not an RPC:
+
+- **The stream is a view, not the record.** Every turn is persisted as it
+  runs, writes to a vanished client are swallowed, and the loop finishes
+  server-side regardless. A dropped connection costs nothing — reopen the
+  conversation and `show` replays it in the same block shapes. That is
+  also what lets a 60-second turn survive a proxy timeout.
+- **Validation happens before the stream opens.** Once headers are out
+  there is no status code left to send, which is why the streaming turns
+  live in their own controller: `ActionController::Live` rewrites the
+  response object for *every* action in the controller it's included in.
+
+Uploads exist so bytes never enter the agent's context — the chat handles
+an id, and the vision call happens inside `start_menu_scan`, where text
+injected into a photo has no tools to reach. The id is a **signed** id and
+the blob records its uploader: blob primary keys are sequential integers,
+so a raw id would let any account scan any other account's upload by
+counting.
+
+**Known gap:** two turns fired concurrently on one conversation would
+interleave. The UI disables the composer while streaming; the server does
+not enforce it.
+
 ## Auth
 
 Today `/mcp` accepts the same Devise JWT the REST API issues:

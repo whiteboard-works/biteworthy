@@ -38,7 +38,7 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M3b — admin domains: restaurant/menu structure, item deep-edit, taxonomy, moderation, users (43 tools)
 - [x] M3c — topology (`biteworthy://topology` resource + `describe_capabilities`); 44 tools
 - [x] M4a — chat loop: `Chat::AgentLoop`, conversations/messages, confirmation gate, spend ceiling
-- [ ] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
+- [x] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
 - [ ] M5 — chat UI in `apps/web`; restore the scan entry points pointing at it
 - [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema
 - [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
