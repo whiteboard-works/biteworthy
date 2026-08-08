@@ -187,5 +187,61 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response.parsed_body["usage"]["last_run"]).to be_nil
     end
   end
+
+  # React Native's fetch is XHR-backed and exposes no readable body, so the
+  # mobile app cannot consume the SSE stream. The events are rows either
+  # way — the relay is just a long-lived reader over this same table.
+  describe "GET /api/v1/conversations/:id/events" do
+    let(:conversation) { create(:conversation, user: user) }
+
+    def append(payload)
+      run = ConversationRun.running.find_by(conversation_id: conversation.id) ||
+            ConversationRun.acquire(conversation)
+      ConversationEvent.append!(run, payload)
+    end
+
+    it "returns the narration with the cursor a client resumes from" do
+      append({ "type" => "text_delta", "text" => "Reading" })
+      append({ "type" => "done", "text" => "Reading the menu." })
+
+      get "/api/v1/conversations/#{conversation.id}/events", headers: headers
+
+      events = response.parsed_body["events"]
+      expect(events.map { |e| e["type"] }).to eq(%w[text_delta done])
+      expect(events.last["position"]).to eq(2)
+    end
+
+    # The same cursor the stream uses, so a client can move between the
+    # two without losing its place.
+    it "returns only what comes after the cursor" do
+      append({ "type" => "text_delta", "text" => "one" })
+      append({ "type" => "text_delta", "text" => "two" })
+
+      get "/api/v1/conversations/#{conversation.id}/events?after=1", headers: headers
+
+      expect(response.parsed_body["events"].map { |e| e["text"] }).to eq(["two"])
+    end
+
+    # Saves a client polling a finished conversation forever.
+    it "says whether it is worth asking again" do
+      ConversationRun.acquire(conversation)
+
+      get "/api/v1/conversations/#{conversation.id}/events", headers: headers
+      expect(response.parsed_body["running"]).to be(true)
+
+      ConversationRun.running.find_by(conversation_id: conversation.id).release!(outcome: "done")
+
+      get "/api/v1/conversations/#{conversation.id}/events", headers: headers
+      expect(response.parsed_body["running"]).to be(false)
+    end
+
+    it "404s another account's conversation" do
+      other = create(:conversation, user: create(:user))
+
+      get "/api/v1/conversations/#{other.id}/events", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end
 

@@ -279,6 +279,14 @@ reconstructed rather than replayed.
 
 ### The HTTP surface
 
+**Two transports over the same rows.** `GET /conversations/:id/stream` is
+SSE for clients that can hold a connection open; `GET
+/conversations/:id/events?after=N` returns the same narration as JSON for
+clients that cannot. React Native's fetch is XHR-backed and exposes no
+readable body, so the mobile app polls. Both read `conversation_events`
+and share one cursor, so a client can switch between them without losing
+its place.
+
 **A turn runs in a job, not in the request.** `POST /messages` and
 `/confirm` record the ask into `conversations.pending_turns` and enqueue
 `Chat::CompletionJob`, answering `202` with the narration position to watch
