@@ -221,15 +221,32 @@ profile snapshot, the time, and the page context the client sent.
   `Tools::Context` resolves the caller from the database, so an unsaved
   `User` reads as signed-out.
 
-### C6 — Grounding review on dietary answers
+### C6 — Grounding review on dietary answers — SHIPPED
 
-Safety Property 1 made enforceable instead of instructed. After a turn whose
-tools included `get_menu` or `explain_item`, a tool-less `claude-haiku-4-5`
-call gets the filter's own output and the assistant's text and answers:
-did it omit a hidden dish, contradict a `reasons[]`, or assert that a dish
-is safe? Fails open on infrastructure errors; anything other than a literal
-`true` counts as flagged (truthiness is the footgun). On flag, append a
-disclaimer rather than retry.
+Safety Property 1 — *hidden dishes are returned with their reasons, never
+dropped* — turned from an instruction into something enforced. Until now
+it lived in `Tools::Instructions`, which is the model marking its own
+homework: a summary that quietly omits the one dish someone is allergic to
+reads exactly like a good answer.
+
+After a turn whose tools included `get_menu` or `explain_item`, a tool-less
+`claude-haiku-4-5` call gets the filter's own output and the assistant's
+text and answers whether the answer omitted a hidden dish, contradicted a
+`reasons[]`, or claimed a dish is safe. On a flag it appends a disclaimer
+and marks the run `grounding_flagged`.
+
+- **Fails open on infrastructure errors**, but never silently — a reviewer
+  that is down must not take the chat with it.
+- **Anything other than a literal `true` is a flag.** `"false"`, `"no"`,
+  `nil`, `0` are each pinned by a spec, because every one of them is truthy
+  if you ask the wrong way and each would wave through exactly the answer
+  this exists to catch.
+- **Appends rather than retries.** A turn is already a minute; a second
+  full turn to repair a partly-right answer costs more than saying plainly
+  that it may be incomplete.
+- The flag is recorded as the run's `outcome` rather than written directly
+  — `release!` owns that column and would otherwise overwrite it with
+  `"done"`. (Found by the spec, not by reading.)
 
 ### C7 — Routing, progress, and the metrics surface
 

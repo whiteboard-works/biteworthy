@@ -124,6 +124,7 @@ module Chat
 
     def outcome_of(result)
       return "crashed" if result.nil?
+      return "grounding_flagged" if @grounding_flagged
 
       result.state.to_s
     end
@@ -262,6 +263,7 @@ module Chat
       # apart on what a broken tool looks like.
       response = tool.call(server_context: server_context, **arguments_for(call))
       payload  = response.to_h
+      remember_facts(call, payload)
       tool_result(call, payload[:structuredContent] || payload[:content], error: payload[:isError] == true)
     end
 
@@ -290,8 +292,41 @@ module Chat
     end
 
     def finish(blocks)
-      text = blocks.filter_map { |b| b["text"] if b["type"] == "text" }.join("\n")
-      Result.new(state: :done, text: text.presence)
+      text = blocks.filter_map { |b| b["text"] if b["type"] == "text" }.join("\n").presence
+      Result.new(state: :done, text: ground(text))
+    end
+
+    # The filter's own output for this turn, kept so a second model can
+    # check the answer against it. Only the tools that make a safety claim
+    # count — everything else the model says is navigation or opinion.
+    def remember_facts(call, payload)
+      return unless GroundingReview::GROUNDED_TOOLS.include?(call["name"])
+      return if payload[:isError] == true
+
+      (@facts ||= []) << payload[:structuredContent]
+    end
+
+    # Safety Property 1, enforced rather than instructed: a summary that
+    # quietly drops the one dish someone is allergic to reads exactly like
+    # a good answer, so something other than the author has to look.
+    def ground(text)
+      # Nothing to check against means nothing to check. Most turns are
+      # navigation or opinion, and a review of those is a model call spent
+      # on nothing.
+      return text if @facts.blank? || text.blank?
+
+      verdict = GroundingReview.new.call(answer: text, facts: @facts)
+      return text unless verdict.flagged?
+
+      Rails.logger.warn("[chat] grounding flagged conversation #{@conversation.id}: #{verdict.problem}")
+      # Recorded as the run's outcome rather than written here, because
+      # `release!` in the ensure block owns that column and would overwrite
+      # a direct write with "done".
+      @grounding_flagged = true
+      @conversation.append!(role: "assistant",
+                            content: [{ type: "text", text: GroundingReview::DISCLAIMER }])
+      emit(type: "text_delta", text: "\n\n#{GroundingReview::DISCLAIMER}")
+      [text, GroundingReview::DISCLAIMER].compact.join("\n\n")
     end
 
     def call_model
