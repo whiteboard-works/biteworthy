@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -73,6 +73,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["slug"], name: "index_cities_on_slug", unique: true
   end
 
+  create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "api_cost_cents", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.jsonb "pending_tool_call"
+    t.string "state", default: "active", null: false
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["created_at"], name: "index_conversations_on_created_at"
+    t.index ["user_id", "updated_at"], name: "index_conversations_on_user_id_and_updated_at"
+    t.index ["user_id"], name: "index_conversations_on_user_id"
+    t.check_constraint "state::text = ANY (ARRAY['active'::character varying, 'awaiting_confirmation'::character varying, 'failed'::character varying]::text[])", name: "conversations_state_valid"
+  end
+
   create_table "dietary_profile_ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.uuid "dietary_profile_id", null: false
@@ -117,7 +131,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.text "work_description", null: false
     t.index ["created_at"], name: "index_dmca_notices_on_created_at"
     t.index ["status"], name: "index_dmca_notices_on_status"
-    t.check_constraint "status::text = ANY (ARRAY['received'::character varying, 'actioned'::character varying, 'rejected'::character varying]::text[])", name: "dmca_notices_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['received'::character varying::text, 'actioned'::character varying::text, 'rejected'::character varying::text])", name: "dmca_notices_status_valid"
   end
 
   create_table "favorite_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -177,7 +191,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["ingestion_run_id"], name: "index_ingestion_items_on_ingestion_run_id"
     t.index ["item_id"], name: "index_ingestion_items_on_item_id"
     t.index ["matched_item_id"], name: "index_ingestion_items_on_matched_item_id"
-    t.check_constraint "decision::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'rejected'::character varying, 'edited'::character varying]::text[])", name: "ingestion_items_decision_valid"
+    t.check_constraint "decision::text = ANY (ARRAY['pending'::character varying::text, 'accepted'::character varying::text, 'rejected'::character varying::text, 'edited'::character varying::text])", name: "ingestion_items_decision_valid"
   end
 
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -201,9 +215,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.uuid "user_id"
     t.index ["restaurant_id"], name: "index_ingestion_runs_on_restaurant_id"
     t.index ["user_id"], name: "index_ingestion_runs_on_user_id"
-    t.check_constraint "enrichment_status::text = ANY (ARRAY['pending'::character varying, 'completed'::character varying, 'failed'::character varying]::text[])", name: "ingestion_runs_enrichment_status_valid"
-    t.check_constraint "input_kind::text = ANY (ARRAY['photo'::character varying, 'url'::character varying, 'pdf'::character varying, 'text'::character varying]::text[])", name: "ingestion_runs_input_kind_valid"
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'extracting'::character varying, 'resolving'::character varying, 'staged'::character varying, 'published'::character varying, 'failed'::character varying]::text[])", name: "ingestion_runs_status_valid"
+    t.check_constraint "enrichment_status::text = ANY (ARRAY['pending'::character varying::text, 'completed'::character varying::text, 'failed'::character varying::text])", name: "ingestion_runs_enrichment_status_valid"
+    t.check_constraint "input_kind::text = ANY (ARRAY['photo'::character varying::text, 'url'::character varying::text, 'pdf'::character varying::text, 'text'::character varying::text])", name: "ingestion_runs_input_kind_valid"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'extracting'::character varying::text, 'resolving'::character varying::text, 'staged'::character varying::text, 'published'::character varying::text, 'failed'::character varying::text])", name: "ingestion_runs_status_valid"
   end
 
   create_table "ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -230,8 +244,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["ingredient_id"], name: "index_item_ingredients_on_ingredient_id"
     t.index ["item_id", "ingredient_id"], name: "index_item_ingredients_on_item_id_and_ingredient_id", unique: true
     t.index ["item_id"], name: "index_item_ingredients_on_item_id"
-    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "item_ingredients_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying]::text[])", name: "item_ingredients_source_valid"
+    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_ingredients_confidence_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text])", name: "item_ingredients_source_valid"
   end
 
   create_table "item_modifiers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -246,7 +260,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["ingredient_ids"], name: "index_item_modifiers_on_ingredient_ids", using: :gin
     t.index ["item_id"], name: "index_item_modifiers_on_item_id"
     t.index ["tag_ids"], name: "index_item_modifiers_on_tag_ids", using: :gin
-    t.check_constraint "kind::text = ANY (ARRAY['choice'::character varying, 'addition'::character varying, 'side'::character varying]::text[])", name: "item_modifiers_kind_valid"
+    t.check_constraint "kind::text = ANY (ARRAY['choice'::character varying::text, 'addition'::character varying::text, 'side'::character varying::text])", name: "item_modifiers_kind_valid"
   end
 
   create_table "item_tags", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -259,8 +273,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["item_id", "tag_id"], name: "index_item_tags_on_item_id_and_tag_id", unique: true
     t.index ["item_id"], name: "index_item_tags_on_item_id"
     t.index ["tag_id"], name: "index_item_tags_on_tag_id"
-    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "item_tags_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying]::text[])", name: "item_tags_source_valid"
+    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_tags_confidence_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text])", name: "item_tags_source_valid"
   end
 
   create_table "item_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -294,8 +308,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["restaurant_id", "status"], name: "index_items_on_restaurant_id_and_status"
     t.index ["restaurant_id"], name: "index_items_on_restaurant_id"
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
-    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying, 'suggested'::character varying, 'inferred'::character varying]::text[])", name: "items_confidence_valid"
-    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'removed'::character varying]::text[])", name: "items_status_valid"
+    t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "items_confidence_valid"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'removed'::character varying::text])", name: "items_status_valid"
   end
 
   create_table "menu_sections", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -316,6 +330,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.uuid "restaurant_id", null: false
     t.datetime "updated_at", null: false
     t.index ["restaurant_id"], name: "index_menus_on_restaurant_id"
+  end
+
+  create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "content", default: [], null: false
+    t.uuid "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "position", null: false
+    t.string "role", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id", "position"], name: "index_messages_on_conversation_id_and_position", unique: true
+    t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'assistant'::character varying]::text[])", name: "messages_role_valid"
   end
 
   create_table "restaurant_visits", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -351,7 +376,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["created_by_user_id"], name: "index_restaurants_on_created_by_user_id"
     t.index ["name"], name: "index_restaurants_on_name", opclass: :gin_trgm_ops, using: :gin
     t.index ["slug"], name: "index_restaurants_on_slug", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'closed'::character varying]::text[])", name: "restaurants_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'closed'::character varying::text])", name: "restaurants_status_valid"
   end
 
   create_table "reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -369,7 +394,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["item_id"], name: "index_reviews_on_item_id"
     t.index ["user_id", "item_id"], name: "index_reviews_on_user_id_and_item_id", unique: true
     t.index ["user_id"], name: "index_reviews_on_user_id"
-    t.check_constraint "hidden_reason IS NULL OR (hidden_reason::text = ANY (ARRAY['spam'::character varying, 'abuse'::character varying, 'duplicate'::character varying, 'off_topic'::character varying]::text[]))", name: "reviews_hidden_reason_valid"
+    t.check_constraint "hidden_reason IS NULL OR (hidden_reason::text = ANY (ARRAY['spam'::character varying::text, 'abuse'::character varying::text, 'duplicate'::character varying::text, 'off_topic'::character varying::text]))", name: "reviews_hidden_reason_valid"
     t.check_constraint "rating >= 1 AND rating <= 5", name: "reviews_rating_range"
   end
 
@@ -520,7 +545,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["status"], name: "index_suggestions_on_status"
     t.index ["subject_type", "subject_id"], name: "index_suggestions_on_subject_type_and_subject_id"
     t.index ["user_id"], name: "index_suggestions_on_user_id"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[])", name: "suggestions_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'accepted'::character varying::text, 'rejected'::character varying::text])", name: "suggestions_status_valid"
   end
 
   create_table "tags", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -535,7 +560,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.index ["name"], name: "index_tags_on_name", opclass: :gin_trgm_ops, using: :gin
     t.index ["path"], name: "index_tags_on_path", using: :gist
     t.index ["slug"], name: "index_tags_on_slug", unique: true
-    t.check_constraint "family::text = ANY (ARRAY['diet'::character varying, 'allergen'::character varying, 'cuisine'::character varying, 'prep'::character varying, 'flavor'::character varying]::text[])", name: "tags_family_valid"
+    t.check_constraint "family::text = ANY (ARRAY['diet'::character varying::text, 'allergen'::character varying::text, 'cuisine'::character varying::text, 'prep'::character varying::text, 'flavor'::character varying::text])", name: "tags_family_valid"
   end
 
   create_table "user_item_overrides", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -565,7 +590,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.uuid "user_id", null: false
     t.index ["primary_dietary_profile_id"], name: "index_user_profiles_on_primary_dietary_profile_id"
     t.index ["user_id"], name: "index_user_profiles_on_user_id", unique: true
-    t.check_constraint "strictness::text = ANY (ARRAY['relaxed'::character varying, 'balanced'::character varying, 'strict'::character varying]::text[])", name: "user_profiles_strictness_valid"
+    t.check_constraint "strictness::text = ANY (ARRAY['relaxed'::character varying::text, 'balanced'::character varying::text, 'strict'::character varying::text])", name: "user_profiles_strictness_valid"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -600,12 +625,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
     t.string "source", default: "landing", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_waitlist_signups_on_email", unique: true
-    t.check_constraint "source::text = ANY (ARRAY['landing'::character varying, 'press'::character varying, 'footer'::character varying, 'mobile_app'::character varying]::text[])", name: "waitlist_signups_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['landing'::character varying::text, 'press'::character varying::text, 'footer'::character varying::text, 'mobile_app'::character varying::text])", name: "waitlist_signups_source_valid"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "addresses", "restaurants"
+  add_foreign_key "conversations", "users"
   add_foreign_key "dietary_profile_ingredients", "dietary_profiles"
   add_foreign_key "dietary_profile_ingredients", "ingredients"
   add_foreign_key "dietary_profile_tags", "dietary_profiles"
@@ -631,6 +657,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_180000) do
   add_foreign_key "items", "users", column: "created_by_user_id"
   add_foreign_key "menu_sections", "menus"
   add_foreign_key "menus", "restaurants"
+  add_foreign_key "messages", "conversations"
   add_foreign_key "restaurant_visits", "restaurants"
   add_foreign_key "restaurant_visits", "users"
   add_foreign_key "restaurants", "cities"

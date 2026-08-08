@@ -187,6 +187,11 @@ Acceptance:
 
 ### M4 — First-party chat (server)
 
+Split: **M4a** ships the loop and its models; **M4b** ships the HTTP
+surface (SSE endpoint, attachment upload, conversation list/replay).
+
+#### M4a — the loop — SHIPPED
+
 - `Chat::AgentLoop` on `AnthropicClient`, `claude-opus-5`,
   `thinking: { type: "adaptive" }`, tool definitions from `Registry`
 - Prompt caching: tools render before system, so the `cache_control`
@@ -200,11 +205,20 @@ Acceptance:
 - SSE via `ActionController::Live`; confirmation gate pauses before any tool
   flagged `confirm: true`
 
+#### M4b — the HTTP surface
+
+`POST /api/v1/conversations`, `POST /api/v1/conversations/:id/messages`
+(SSE via `ActionController::Live`), `POST /api/v1/conversations/:id/confirm`,
+plus `POST /api/v1/attachments` so the agent receives blob ids, never bytes.
+
 Acceptance:
-- [ ] A conversation survives a reconnect (history replay, no duplicate turns)
-- [ ] `cache_read_input_tokens > 0` on the second turn — if it's zero, a silent invalidator is in the prefix
-- [ ] Cost per turn recorded; a spend ceiling mirrors the ingestion one
-- [ ] Injection probe: a dish description instructing `accept_staged_items` does not cause a call
+- [x] Confirmation gate: a destructive tool parks; each parked call needs its own answer
+- [x] Every `tool_use` is answered, including on failure and on decline
+- [x] Cost per turn recorded; a spend ceiling mirrors the ingestion one
+- [x] Thinking blocks replay verbatim (signatures are rejected if rebuilt)
+- [ ] A conversation survives a reconnect (history replay, no duplicate turns) — M4b
+- [ ] `cache_read_input_tokens > 0` on the second turn — needs a live call; **unverified**
+- [ ] Injection probe: a dish description instructing `accept_staged_items` does not cause a call — needs a live call; **unverified**
 
 ### M5 — Chat UI
 
