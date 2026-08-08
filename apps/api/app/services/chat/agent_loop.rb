@@ -164,15 +164,14 @@ module Chat
         return tool_result(call, { error: "unknown_tool", message: "No tool named #{call['name']}." }, error: true)
       end
 
+      # No rescue here on purpose. `Tools::Base.call` is the boundary: it
+      # validates the model's arguments, authorizes, and converts every
+      # failure — domain error or tool bug — into an `isError` response.
+      # A second rescue at this call site is how the two front doors drift
+      # apart on what a broken tool looks like.
       response = tool.call(server_context: server_context, **arguments_for(call))
       payload  = response.to_h
       tool_result(call, payload[:structuredContent] || payload[:content], error: payload[:isError] == true)
-    rescue StandardError => e
-      # A bug in a tool must not kill the conversation, but it must not
-      # look like a recoverable domain error either — the model is told
-      # plainly that this one is broken so it stops retrying it.
-      Rails.logger.error("[chat] tool #{call['name']} raised: #{e.class}: #{e.message}")
-      tool_result(call, { error: "tool_failed", message: "#{call['name']} failed and cannot be retried." }, error: true)
     end
 
     def declined(call)

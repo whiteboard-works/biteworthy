@@ -102,12 +102,18 @@ RSpec.describe Tools::Base do
       expect(payload(response)[:message]).to be_present
     end
 
-    # A bug in a tool must not be dressed up as a recoverable domain error,
-    # or the model will cheerfully retry it forever.
-    it "lets unexpected exceptions escape" do
+    # A tool bug must not kill the conversation or 500 an MCP client — but it
+    # must not be dressed up as a recoverable domain error either, or the
+    # model rewrites its arguments and calls the broken tool again forever.
+    # `tool_failed` is the code that says "stop trying".
+    it "contains a tool bug as tool_failed rather than raising" do
       failing = tool(:public) { |_ctx, _args| raise TypeError, "genuine bug" }
 
-      expect { failing.call(server_context: {}) }.to raise_error(TypeError)
+      response = failing.call(server_context: {})
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(payload(response)[:error]).to eq("tool_failed")
+      expect(payload(response)[:message]).to include("cannot be retried")
     end
   end
 

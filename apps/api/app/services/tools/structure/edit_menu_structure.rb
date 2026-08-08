@@ -42,7 +42,8 @@ module Tools
           description: { type: "string", description: "Optional description." },
           position:    { type: "integer", description: "Sort order within the parent, lowest first." }
         },
-        required: ["action"]
+        required: ["action"],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
