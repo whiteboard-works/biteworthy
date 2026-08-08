@@ -119,4 +119,36 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(Message.where(conversation_id: conversation.id)).to be_empty
     end
   end
+
+  # The stop button. It has to be a separate request from the turn it
+  # stops, because the streaming one is busy for the length of the turn —
+  # which is exactly the window the user wants to interrupt.
+  describe "DELETE /api/v1/conversations/:id/run" do
+    let(:conversation) { create(:conversation, user: user) }
+
+    it "raises the flag the running turn reads at its next checkpoint" do
+      run = ConversationRun.acquire(conversation)
+
+      delete "/api/v1/conversations/#{conversation.id}/run", headers: headers
+
+      expect(response).to have_http_status(:accepted)
+      expect(run.reload.abort_requested_at).to be_present
+    end
+
+    it "409s when nothing is running" do
+      delete "/api/v1/conversations/#{conversation.id}/run", headers: headers
+
+      expect(response).to have_http_status(:conflict)
+    end
+
+    it "404s another account's conversation" do
+      other = create(:conversation, user: create(:user))
+      ConversationRun.acquire(other)
+
+      delete "/api/v1/conversations/#{other.id}/run", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end
+

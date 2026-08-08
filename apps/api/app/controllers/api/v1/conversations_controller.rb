@@ -32,6 +32,20 @@ module Api
         head :no_content
       end
 
+      # The stop button. Raises a flag the running turn reads at its next
+      # lifecycle checkpoint; it does not kill anything itself.
+      #
+      # It has to be a different request from the turn it stops — the
+      # streaming one is busy for the length of the turn, which is exactly
+      # the window the user wants to interrupt.
+      def stop
+        run = ConversationRun.running.find_by(conversation_id: conversation.id)
+        return render json: { error: "Nothing is running." }, status: :conflict if run.nil?
+
+        run.update!(abort_requested_at: Time.current)
+        head :accepted
+      end
+
       private
 
       def conversation

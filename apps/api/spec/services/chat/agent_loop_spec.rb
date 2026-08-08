@@ -366,5 +366,95 @@ RSpec.describe Chat::AgentLoop do
       expect(Review.exists?(review.id)).to be(true)
     end
   end
+
+  # The turn now runs under a lock, and every lifecycle event is a
+  # checkpoint. These are the failure modes that had no owner before C3.
+  describe "the run lifecycle" do
+    # Raises the real Aborted from the real tick, after N checkpoints have
+    # passed — so "stop pressed mid-turn" is exercised where it actually
+    # lands rather than only before the turn starts.
+    def abort_on_tick(after:)
+      seen = 0
+      allow_any_instance_of(ConversationRun).to receive(:tick!) do
+        seen += 1
+        raise ConversationRun::Aborted, "stopped" if seen > after
+
+        true
+      end
+    end
+
+    it "refuses a second turn while one is already answering" do
+      ConversationRun.acquire(conversation)
+
+      result = loop_with(say("hi")).run(text: "hello")
+
+      expect(result.ok?).to be(false)
+      expect(result.error).to include("already answering")
+      expect(conversation.messages.reload).to be_empty
+    end
+
+    it "releases the lock when the turn finishes, so the next one can run" do
+      loop_with(say("done")).run(text: "hello")
+
+      expect(ConversationRun.running.where(conversation_id: conversation.id)).to be_empty
+      expect(loop_with(say("again")).run(text: "and again").ok?).to be(true)
+    end
+
+    it "records the token split and the outcome on the run" do
+      loop_with(say("done")).run(text: "hello")
+
+      run = ConversationRun.where(conversation_id: conversation.id).last
+      expect(run.state).to eq("done")
+      expect(run.rounds).to be >= 1
+      expect(run.duration_ms).to be >= 0
+    end
+
+    it "stops the turn when the flag is already up" do
+      abort_on_tick(after: 0)
+
+      result = loop_with(say("unused")).run(text: "keep going")
+
+      expect(result.ok?).to be(false)
+      expect(result.error).to include("Stopped")
+      expect(ConversationRun.where(conversation_id: conversation.id).last.state).to eq("aborted")
+    end
+
+    # The dangerous moment: the model has already asked for a tool, so the
+    # stored transcript ends on an unanswered `tool_use`. That is not a
+    # lost answer — the Messages API refuses the whole conversation from
+    # then on, so the stop has to answer the orphan on its way out.
+    it "answers the tool call it abandoned, so the transcript still replays" do
+      abort_on_tick(after: 1)
+
+      result = loop_with(call_tool("get_menu", { "restaurant" => "ninis" })).run(text: "what can I eat")
+
+      expect(result.ok?).to be(false)
+      answered = conversation.messages.reload.select(&:tool_result?)
+                             .flat_map { |m| m.content.map { |b| b["tool_use_id"] } }
+      expect(answered).to include("toolu_1")
+      expect(conversation.reload.state).to eq("active")
+    end
+
+    # And the user has to see it after a reload, not only in the stream
+    # they were watching when they pressed the button.
+    it "leaves the stop in the record, not just on the wire" do
+      abort_on_tick(after: 0)
+
+      loop_with(say("unused")).run(text: "keep going")
+
+      expect(conversation.messages.reload.last.text).to include("Stopped")
+    end
+
+    # An assistant turn with no content blocks replays as a 400, so one
+    # crashed completion would wedge the conversation rather than costing
+    # it a single answer.
+    it "prunes an empty assistant message left by a dead turn" do
+      conversation.append!(role: "assistant", content: [])
+
+      loop_with(say("fine")).run(text: "hello")
+
+      expect(conversation.messages.reload.none? { |m| m.content == [] }).to be(true)
+    end
+  end
 end
 

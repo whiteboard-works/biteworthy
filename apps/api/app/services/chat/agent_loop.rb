@@ -59,13 +59,68 @@ module Chat
     # `text` starts a new turn. `confirm` answers a parked tool call:
     # true runs it, false tells the model the user said no. Passing both
     # is a caller bug — the parked call has to be settled first.
+    #
+    # Everything inside runs under a lock held for the whole turn. Two
+    # turns racing on one conversation would interleave their messages
+    # into a single ordered list, and the resulting transcript is not
+    # merely confusing — it is rejected by the Messages API, which makes
+    # the conversation permanently unusable rather than one turn poorer.
     def run(text: nil, confirm: nil, fingerprint: nil)
+      @run = ConversationRun.acquire(@conversation)
+      if @run.nil?
+        result = Result.new(state: :error, error: "This conversation is already answering. Wait for it to finish.")
+        emit_terminal(result)
+        return result
+      end
+
+      # A turn that died between storing an assistant's tool calls and
+      # storing their results leaves the transcript ending on an
+      # unanswered `tool_use`, and an assistant message with no content at
+      # all replays as a 400. Both are repaired before we add to the pile.
+      @conversation.heal!
+
       result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
+      emit_terminal(result)
+      result
+    rescue ConversationRun::Aborted
+      stopped("Stopped. Nothing further ran.", state: "aborted")
+    rescue ConversationRun::LostLease
+      # Someone else owns this conversation now. Say nothing to the user
+      # about it — the run that took over is the one talking to them.
+      Rails.logger.warn("[chat] run #{@run&.id} lost its lease on conversation #{@conversation.id}")
+      Result.new(state: :error, error: "That turn was interrupted. Try again.")
+    ensure
+      finish_run(result) if @run
+    end
+
+    private
+
+    # An abort is a first-class outcome, not an error: the transcript has
+    # to stay replayable, and the user has to see what happened after a
+    # reload — not just in the stream they were watching when they hit
+    # stop.
+    def stopped(message, state:)
+      @conversation.answer_orphans!("Stopped before this ran. Nothing happened.")
+      @conversation.append!(role: "assistant", content: [{ type: "text", text: message }])
+      @conversation.update!(state: "active", pending_tool_call: nil)
+      @aborted_state = state
+      result = Result.new(state: :error, error: message)
       emit_terminal(result)
       result
     end
 
-    private
+    def finish_run(result)
+      @run.release!(
+        outcome: @aborted_state ? @aborted_state : outcome_of(result),
+        state:   @aborted_state || (result&.ok? ? "done" : "failed")
+      )
+    end
+
+    def outcome_of(result)
+      return "crashed" if result.nil?
+
+      result.state.to_s
+    end
 
     def perform(text:, confirm:, fingerprint: nil)
       if @conversation.awaiting_confirmation?
@@ -188,6 +243,7 @@ module Chat
     end
 
     def execute(call)
+      tick!
       tool = Tools::Registry.find(call["name"])
       if tool.nil?
         return tool_result(call, { error: "unknown_tool", message: "No tool named #{call['name']}." }, error: true)
@@ -233,6 +289,7 @@ module Chat
     end
 
     def call_model
+      tick!
       enforce_budget!
 
       response =
@@ -242,6 +299,7 @@ module Chat
           @client.messages_create(**model_args)
         end
       @conversation.record_usage!(@client.last_usage, model: MODEL)
+      @run&.record_round!(@client.last_usage || {})
       response
     end
 
@@ -258,6 +316,14 @@ module Chat
 
     def emit(payload)
       @on_event&.call(payload)
+    end
+
+    # Refreshes the lease and reads the stop flag in one statement. Called
+    # at every lifecycle event rather than once per turn: a turn is a
+    # minute of model calls and tool runs, and a stop button that is only
+    # honoured at the end is not a stop button.
+    def tick!
+      @run&.tick!
     end
 
     # The one place a turn's outcome becomes an event, so a streaming

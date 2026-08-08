@@ -116,6 +116,10 @@ Rails.application.routes.draw do
         member do
           post :messages, to: "conversation_turns#create"
           post :confirm,  to: "conversation_turns#confirm"
+          # Stop. Plain JSON, so it stays off the Live controller — and
+          # it has to be a separate request from the one it stops, which
+          # is the whole point.
+          delete :run, to: "conversations#stop"
         end
       end
       # Menu photos/PDFs the chat refers to by id, so bytes never enter

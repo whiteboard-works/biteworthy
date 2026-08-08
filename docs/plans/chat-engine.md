@@ -122,28 +122,47 @@ eating something that hurts them.
 - The server instructions now say the gate exists rather than asking the
   model to police itself, so it announces the removal and expects a pause.
 
-### C3 — Run lifecycle: lock, lease, abort, metrics
+### C3 — Run lifecycle: lock, lease, abort, metrics — SHIPPED
 
-New `conversation_runs` table — `run_token`, `state`, `lease_expires_at`,
-`abort_requested_at`, per-round token counts, outcome, duration. Partial
-unique index on `conversation_id WHERE state = 'running'` is the mutex.
+`conversation_runs` — `run_token`, `state`, `lease_expires_at`,
+`abort_requested_at`, per-round token counts, outcome, duration. Three
+Postgres primitives standing in for what Redis would have done:
 
-- Acquire by insert; steal an expired lease by conditional update.
-- `tick` at every lifecycle event refreshes the lease and reads the abort
-  flag in one statement: no rows → `LostLease`, flag set → `Aborted`. Never
-  clears a flag belonging to a newer run.
-- `conversations.pending_turn` holds a message that arrived mid-run; the
-  `ensure` block consumes it and re-enqueues. Retry the acquire once after
-  writing pending, to close the release race.
-- Failure paths become records: placeholder results for orphaned
-  `tool_use`s, a persisted apology, `conversations.state` actually set to
-  `failed` (it is in `STATES` and has never been written).
-- Prune empty assistant messages on run start — `content: []` replays as a
-  400.
+- **The lock** is a partial unique index on `conversation_id WHERE state =
+  'running'`. A second `INSERT` loses instead of interleaving two
+  transcripts into one ordered message list — which is not merely
+  confusing, it is rejected by the Messages API, so the conversation
+  becomes permanently unusable rather than one turn poorer.
+- **The lease** is `lease_expires_at`, refreshed at every lifecycle event.
+  A worker killed mid-turn stops refreshing and the next turn steals the
+  lock once it lapses. Without it one dead container wedges a conversation
+  forever. The steal is a conditional `UPDATE`, not delete-then-insert, so
+  two workers racing on the same lapsed lease produce one winner.
+- **Ownership** is `run_token`, and every write is conditional on it. A run
+  whose lease was stolen writes nothing when it comes back — it finds out
+  it was replaced rather than clobbering its replacement.
 
-The token columns are what tell us how 8.5¢/turn splits between cached
-prefix, fresh input, and output — and therefore whether C7's routing or
-shorter answers is the real cost lever.
+`tick!` refreshes the lease and reads the stop flag in one statement, at
+every checkpoint: before each model call and around each tool. A turn is a
+minute of work, and a stop button honoured only at the end is not a stop
+button. The flag is compared against `started_at`, so an abort raised for
+an earlier run can never kill a newer one, and a steal clears it.
+
+Failure paths became records rather than events: an abort answers the tool
+call it abandoned (an unanswered `tool_use` refuses the whole conversation
+from then on), persists the apology so a reload still shows it, and leaves
+the conversation `active`. `heal!` prunes empty assistant messages at run
+start — `content: []` replays as a 400.
+
+`DELETE /conversations/:id/run` raises the flag. It lives on
+`ConversationsController`, not the streaming one: `ActionController::Live`
+rewrites the response object for every action in its controller, and the
+stop has to be a separate request from the turn it stops anyway.
+
+**Deferred to C4: the pending queue.** `pending_turn` only pays for itself
+once a job can consume it and re-enqueue; with the turn still inline there
+is nothing to hand the queued message to, so a second turn is refused
+outright rather than queued.
 
 ### C4 — Turns run in a job; SSE becomes a relay
 
