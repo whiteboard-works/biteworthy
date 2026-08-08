@@ -230,7 +230,6 @@ export default function RestaurantScreen() {
         }}
       />
       <ShareLinkButton slug={restaurant.slug} filter={filter} />
-      <RescanButton restaurantId={restaurant.id} restaurantName={restaurant.name} />
 
       <AllergenNotice />
 
@@ -351,31 +350,6 @@ function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary
       style={styles.shareButton}
     >
       <Text style={styles.shareText}>🔗 Share filter</Text>
-    </Pressable>
-  );
-}
-
-// Phase 7.3 — re-scan entry: starts a new ingestion run against THIS
-// restaurant (the ingest screen skips its picker when both params are
-// present). Phase 6.2's ownership rules still apply server-side.
-function RescanButton({
-  restaurantId,
-  restaurantName,
-}: {
-  restaurantId: string;
-  restaurantName: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel="rescan-menu"
-      onPress={() =>
-        router.push(
-          `/ingest?restaurantId=${restaurantId}&restaurantName=${encodeURIComponent(restaurantName)}`,
-        )
-      }
-      style={styles.shareButton}
-    >
-      <Text style={styles.shareText}>📷 Menu changed? Re-scan</Text>
     </Pressable>
   );
 }

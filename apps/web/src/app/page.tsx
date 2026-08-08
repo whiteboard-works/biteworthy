@@ -73,10 +73,7 @@ async function BrowseRestaurants(): Promise<ReactElement> {
 
       {restaurants.length === 0 ? (
         <div className="mt-bw-4 rounded-bw-lg border border-zinc-200 bg-zinc-50 p-bw-6 text-bw-base text-zinc-600">
-          We&rsquo;re adding Durango menus now. Know a spot that isn&rsquo;t here?{' '}
-          <a href="/ingest" className="font-bold text-bite hover:text-bite-dark">
-            Scan its menu →
-          </a>
+          We&rsquo;re adding Durango menus now.
         </div>
       ) : (
         <div className="mt-bw-6">

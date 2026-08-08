@@ -96,31 +96,14 @@ export default function Home() {
           )}
           ListEmptyComponent={
             query ? (
-              // Phase 7.3 — the search-miss is the front door of the
-              // scan loop: carry the typed name into the
-              // new-restaurant form so the user doesn't retype it.
-              <Pressable
-                accessibilityLabel="scan-miss-cta"
-                onPress={() => router.push(`/ingest?name=${encodeURIComponent(query.trim())}`)}
-                style={styles.missCta}
-              >
-                <Text style={styles.empty}>No matches for “{query}”.</Text>
-                <Text style={styles.missCtaText}>Can’t find it? Scan its menu to add it →</Text>
-              </Pressable>
+              <Text style={styles.empty}>No matches for “{query}”.</Text>
             ) : (
-              <Text style={styles.empty}>No restaurants yet — be the first to scan a menu.</Text>
+              <Text style={styles.empty}>No restaurants yet.</Text>
             )
           }
         />
       )}
 
-      <Pressable
-        accessibilityLabel="scan-cta"
-        onPress={() => router.push('/ingest')}
-        style={styles.primaryButton}
-      >
-        <Text style={styles.primaryButtonText}>📷 Scan a menu</Text>
-      </Pressable>
       <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>

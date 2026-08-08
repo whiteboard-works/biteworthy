@@ -143,14 +143,12 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     mockParams = { id: 'rest-1' };
   });
 
-  it('"Menu changed? Re-scan" routes to /ingest preselecting this restaurant', async () => {
+  // Re-scanning moved to the tool layer; the button's destination is gone.
+  it('no longer offers a re-scan button', async () => {
     render(<RestaurantScreen />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
 
-    fireEvent.press(screen.getByLabelText('rescan-menu'));
-    expect(mockPush).toHaveBeenCalledWith(
-      '/ingest?restaurantId=rest-1&restaurantName=Ninis%20Taqueria',
-    );
+    expect(screen.queryByLabelText('rescan-menu')).toBeNull();
   });
 
   it('fires restaurant_tap with the from param carried by the navigation link', async () => {

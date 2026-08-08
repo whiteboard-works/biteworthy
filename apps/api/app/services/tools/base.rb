@@ -24,9 +24,16 @@ module Tools
       #   :public — anyone, signed in or not
       #   :user   — any signed-in user
       #   :admin  — users.is_admin only
+      #
+      # Walks the superclass chain deliberately: Ruby does not inherit
+      # class-level instance variables, so a domain base class that declares
+      # `audience :user` would otherwise leave every subclass at the
+      # :public default — listing write tools to anonymous callers.
       def audience(value = nil)
         @audience = value if value
-        @audience || :public
+        return @audience if @audience
+
+        superclass.respond_to?(:audience) ? superclass.audience : :public
       end
 
       def call(server_context: nil, **args)

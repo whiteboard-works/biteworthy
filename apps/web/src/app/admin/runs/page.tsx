@@ -9,10 +9,15 @@ import { StatusBadge, type BadgeTone } from '../_StatusBadge';
 import { Pagination } from '../_Pagination';
 
 /**
- * /admin/runs — the cross-user moderation inbox. Filter state lives in
+ * /admin/runs — the cross-user monitoring inbox. Filter state lives in
  * the URL (moderators share deep links); the community filter defaults
- * ON because admin-scanned runs rarely need review. Rows link into the
- * per-run review page.
+ * ON because admin-scanned runs rarely need review.
+ *
+ * Read-only. The per-run verify deck this used to link into is gone —
+ * reviewing a scan is now a conversation, driven by the ingestion tools
+ * in `app/services/tools/ingestion/` (see docs/mcp.md). This page still
+ * earns its place as the place to spot failed or stalled runs and to
+ * watch spend.
  */
 
 const STATUSES = ['queued', 'extracting', 'resolving', 'staged', 'published', 'failed'] as const;
@@ -172,10 +177,7 @@ function RunRow({ run }: { run: AdminRunRow }) {
 
   return (
     <li data-testid={`run-row-${run.id}`}>
-      <Link
-        href={`/admin/runs/${run.id}`}
-        className="block rounded-bw-lg border border-zinc-200 bg-white p-bw-3 hover:border-bite"
-      >
+      <div className="block rounded-bw-lg border border-zinc-200 bg-white p-bw-3">
         <div className="flex flex-wrap items-center justify-between gap-bw-2">
           <span className="font-semibold text-zinc-900">
             {run.restaurant?.name ?? 'Unknown restaurant'}
@@ -201,7 +203,7 @@ function RunRow({ run }: { run: AdminRunRow }) {
         {run.failure_message && (
           <p className="mt-bw-1 truncate text-bw-xs text-danger">{run.failure_message}</p>
         )}
-      </Link>
+      </div>
     </li>
   );
 }

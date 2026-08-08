@@ -7,21 +7,41 @@ module Tools
   # tools exist.
   module Registry
     class << self
-      # Ordered roughly by how a conversation uses them: find a place,
-      # read its menu, then act.
+      # Grouped by domain. The order within each is roughly the order a
+      # conversation uses them, which is also the order they read best in a
+      # `tools/list` dump.
+      DOMAINS = {
+        discovery: [
+          "Discovery::SearchRestaurants",
+          "Discovery::GetRestaurant",
+          "Discovery::GetMenu",
+          "Discovery::ExplainItem",
+          "Discovery::SearchTaxonomy"
+        ],
+        profile: [
+          "Profile::GetProfile",
+          "Profile::UpdateAvoidLists",
+          "Profile::SetStrictness",
+          "Profile::SaveRestaurant",
+          "Profile::SaveItem"
+        ],
+        ingestion: [
+          "Ingestion::StartMenuScan",
+          "Ingestion::GetScanStatus",
+          "Ingestion::ListStagedItems",
+          "Ingestion::EditStagedItem",
+          "Ingestion::AcceptStagedItems",
+          "Ingestion::RejectStagedItems",
+          "Ingestion::UndoStagedItem"
+        ]
+      }.freeze
+
       def all
-        @all ||= [
-          Discovery::SearchRestaurants,
-          Discovery::GetRestaurant,
-          Discovery::GetMenu,
-          Discovery::ExplainItem,
-          Discovery::SearchTaxonomy,
-          Profile::GetProfile,
-          Profile::UpdateAvoidLists,
-          Profile::SetStrictness,
-          Profile::SaveRestaurant,
-          Profile::SaveItem
-        ].freeze
+        @all ||= DOMAINS.values.flatten.map { |name| Tools.const_get(name) }.freeze
+      end
+
+      def domain_of(tool)
+        DOMAINS.find { |_name, tools| tools.include?(tool.name.delete_prefix("Tools::")) }&.first
       end
 
       def for(context)

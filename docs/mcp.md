@@ -35,6 +35,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/instructions.rb` | Server instructions — also the chat's system prompt |
 | `app/services/tools/discovery/` | Public read tools |
 | `app/services/tools/profile/` | Signed-in write tools |
+| `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in |
 | `app/controllers/mcp_controller.rb` | Transport adapter. No domain logic |
 
 Tools live under `app/services/` rather than `app/tools/` because Zeitwerk
@@ -84,6 +85,35 @@ Notes that bite:
   descriptions came from strangers' photos and scraped pages.
 - **Take slugs, not UUIDs**, on write tools. Models handle slugs reliably
   and `search_taxonomy` resolves them.
+- **`audience` is inherited through the superclass chain.** A domain base
+  class can declare it once (`Tools::Ingestion::Base` is `:user`). This is
+  deliberate plumbing — Ruby does not inherit class-level ivars, and the
+  naive version left every subclass at the `:public` default.
+- **Don't block a tool call on a slow LLM call.** Extraction runs in a job
+  and `start_menu_scan` returns a scan id for the caller to poll. A tool
+  that blocks for a minute times out real clients.
+
+## The ingestion flow
+
+Verification is a conversation. The path is:
+
+```
+start_menu_scan   →  get_scan_status (poll until ready)
+                  →  list_staged_items  [needs_attention: true]
+                  →  edit_staged_item   (fix what didn't resolve)
+                  →  accept_staged_items  ← the only step that publishes
+                  →  undo_staged_item   (if that was wrong)
+```
+
+Two properties the tools enforce rather than trust the model with:
+
+- **Run scoping.** Every ingestion tool resolves the run and checks the
+  caller owns it, or is an admin. Someone else's scan is `not_found`, not
+  `forbidden` — "you may not touch scan X" confirms scan X exists.
+- **Nothing publishes except accept.** Scanning, listing, and editing all
+  stay in staging. `accept_staged_items` carries
+  `destructive_hint: true` so a client that surfaces annotations prompts
+  before calling it.
 
 ## Auth
 

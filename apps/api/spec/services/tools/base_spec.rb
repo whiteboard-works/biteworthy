@@ -18,6 +18,39 @@ RSpec.describe Tools::Base do
 
   def payload(response) = response.to_h[:structuredContent]
 
+  describe "audience inheritance" do
+    # Ruby does not inherit class-level ivars. A domain base class that
+    # declares `audience :user` must still gate its subclasses, or the
+    # registry lists write tools to anonymous callers — which is the
+    # primary control, not the backstop.
+    it "inherits a domain base class's audience" do
+      domain_base = Class.new(described_class) { audience :user }
+      leaf        = Class.new(domain_base) { tool_name "spec_leaf"; description "spec" }
+
+      expect(leaf.audience).to eq(:user)
+    end
+
+    it "lets a subclass tighten the inherited audience" do
+      domain_base = Class.new(described_class) { audience :user }
+      leaf        = Class.new(domain_base) { audience :admin }
+
+      expect(leaf.audience).to eq(:admin)
+    end
+
+    it "defaults to :public with nothing declared anywhere" do
+      expect(Class.new(described_class).audience).to eq(:public)
+    end
+
+    # The real thing, not a stand-in: every registered ingestion tool must
+    # be gated, since they all write to someone's scan or a live menu.
+    it "gates every registered ingestion tool behind sign-in" do
+      ingestion_tools = Tools::Registry.all.select { |t| Tools::Registry.domain_of(t) == :ingestion }
+
+      expect(ingestion_tools).not_to be_empty
+      expect(ingestion_tools.map(&:audience).uniq).to eq([:user])
+    end
+  end
+
   describe "audience enforcement" do
     it "lets anyone call a public tool" do
       response = tool(:public) { |_ctx, _args| Tools::Base.send(:ok, ok: true) }.call(server_context: {})

@@ -8,23 +8,19 @@ class IngestionRun < ApplicationRecord
   ENRICHMENT_STATUSES = %w[pending completed failed].freeze
 
   # The pipeline marches forward through these states. `failed` is
-  # reachable from any state but isn't in this map. The two stage
-  # entries that have a job_for value get a Solid Queue job kicked off
-  # automatically when transition_to! lands the run there.
+  # reachable from any state but isn't in this map.
   #
-  # Job class names use safe_constantize so this model doesn't depend
-  # on the job classes existing yet — Phase 2.3 / 2.4 add them and
-  # the dispatch starts firing without further changes here.
+  # Transitions no longer dispatch the next job. Enqueueing used to happen
+  # in an after-transition hook here, which made the pipeline's control
+  # flow invisible at every call site — you could not tell from reading
+  # `transition_to!(:extracting)` that it fired an Anthropic call. Dispatch
+  # is now explicit in Ingestion::StartRun, Ingestion::ExtractRun, and
+  # Ingestion::ReExtractRun.
   NEXT_STATE = {
     "queued"     => "extracting",
     "extracting" => "resolving",
     "resolving"  => "staged",
     "staged"     => "published"
-  }.freeze
-
-  JOB_FOR = {
-    "extracting" => "ExtractMenuJob",
-    "resolving"  => "ResolveItemsJob"
   }.freeze
 
   class InvalidTransition < StandardError; end
@@ -68,7 +64,6 @@ class IngestionRun < ApplicationRecord
     transaction do
       record_state_entry!(new_status)
       update!(status: new_status)
-      enqueue_next_job!(new_status)
     end
     self
   end
@@ -135,11 +130,5 @@ class IngestionRun < ApplicationRecord
 
     history = state_history.merge(new_status => Time.current.utc.iso8601)
     self.state_history = history
-  end
-
-  def enqueue_next_job!(new_status)
-    job_name  = JOB_FOR[new_status]
-    job_class = job_name&.safe_constantize
-    job_class&.perform_later(id)
   end
 end

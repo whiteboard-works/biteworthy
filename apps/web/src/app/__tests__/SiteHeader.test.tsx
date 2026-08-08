@@ -76,12 +76,12 @@ describe('SiteHeader', () => {
     expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();
   });
 
-  it('shows Scan + Account + Log out when signed in, and logging out returns home', async () => {
+  it('shows Account + Log out when signed in, and logging out returns home', async () => {
     stubAuth({ signedIn: true });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
-    // Signed-in users always get a path to the scanner (regardless of onboarding).
-    expect(screen.getByTestId('nav-scan')).toHaveAttribute('href', '/ingest');
+    // The scan link is gone with /ingest — it comes back pointing at the chat.
+    expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-signin')).not.toBeInTheDocument();
 
     await act(async () => {

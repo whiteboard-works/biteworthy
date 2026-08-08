@@ -197,16 +197,9 @@ export function SiteHeader() {
           </Link>
           {signedIn === true && (
             <>
-              {/* Scanning is the core action and needs a home — a signed-in
-                  user otherwise has no way to reach /ingest, and onboarding
-                  (which scanning doesn't require) becomes a dead end. */}
-              <Link
-                href="/ingest"
-                data-testid="nav-scan"
-                className="font-semibold text-bite hover:text-bite-dark"
-              >
-                Scan a menu
-              </Link>
+              {/* The "Scan a menu" link pointed at /ingest. Scanning moved to
+                  the tool layer and comes back here as a chat entry point
+                  when that UI ships; an empty slot beats a dead link. */}
               {needsProfile && (
                 <Link
                   href="/onboarding"
