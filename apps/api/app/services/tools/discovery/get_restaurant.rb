@@ -28,6 +28,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { |args| "Looking up #{args[:restaurant]}" }
+
       def self.perform(context:, restaurant:)
         record = Restaurant.published.includes(:city, :addresses).find_by_id_or_slug!(restaurant)
         address = record.addresses.first

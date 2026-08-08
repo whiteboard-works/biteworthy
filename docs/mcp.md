@@ -119,6 +119,14 @@ Notes that bite:
   class can declare it once (`Tools::Ingestion::Base` is `:user`). This is
   deliberate plumbing — Ruby does not inherit class-level ivars, and the
   naive version left every subclass at the `:public` default.
+- **Declare `running_description`** on anything a person watches. It is the
+  only text a user reads while a turn works, and it is the tool's to write —
+  never the model's.
+- **New tools are deferred by default in the chat.** Only the core domains
+  (discovery, profile, meta) stay resident; everything else loads on demand
+  via tool search, which is what keeps a cold turn from carrying 13k tokens
+  of schema. Add a domain to `Chat::ToolCatalog::CORE_DOMAINS` only if it
+  genuinely opens conversations.
 - **Don't block a tool call on a slow LLM call.** Extraction runs in a job
   and `start_menu_scan` returns a scan id for the caller to poll. A tool
   that blocks for a minute times out real clients.

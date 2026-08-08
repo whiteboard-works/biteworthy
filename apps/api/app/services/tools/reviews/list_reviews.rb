@@ -34,6 +34,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Reading what people said" }
+
       DEFAULT_LIMIT = 20
       MAX_LIMIT     = 100
 

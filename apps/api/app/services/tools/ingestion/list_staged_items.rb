@@ -52,6 +52,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Gathering the dishes it found" }
+
       DEFAULT_LIMIT = 50
       MAX_LIMIT     = 100
 

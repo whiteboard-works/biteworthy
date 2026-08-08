@@ -54,6 +54,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { |args| "Reading the menu at #{args[:restaurant]}" }
+
       def self.perform(context:, restaurant:, diet: nil, strictness: nil)
         record = Restaurant.published.find_by_id_or_slug!(restaurant)
         filter = build_filter(context, diet, strictness)

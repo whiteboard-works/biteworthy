@@ -38,6 +38,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Checking what is in that dish" }
+
       def self.perform(context:, item_id:)
         item = Item.published
                    .joins(:restaurant).merge(Restaurant.published)

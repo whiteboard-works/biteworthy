@@ -50,6 +50,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { |args| args[:query].present? ? "Searching for #{args[:query]}" : "Looking for places to eat" }
+
       MAX_LIMIT     = 25
       DEFAULT_LIMIT = 10
 

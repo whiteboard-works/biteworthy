@@ -35,6 +35,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { "Posting your review" }
+
       def self.perform(context:, item_id:, rating:, body: nil)
         user = context.user!
         item = Item.published.joins(:restaurant).merge(Restaurant.published).find(item_id)

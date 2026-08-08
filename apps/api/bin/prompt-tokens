@@ -30,10 +30,13 @@ tools   = Chat::ToolCatalog.definitions(context)
 # comes off `cache_read_input_tokens` on a real turn.
 def approx(text) = (text.to_s.length / 3.6).round
 
+resident = tools.reject { |t| t[:defer_loading] }
+deferred = tools.select { |t| t[:defer_loading] }
+
 sections = {
-  "tools (#{tools.length})" => JSON.generate(tools),
-  "instructions"            => Tools::Instructions.text,
-  "topology"                => Tools::Topology.markdown(context)
+  "tools resident (#{resident.length})" => JSON.generate(resident),
+  "instructions"                        => Tools::Instructions.text,
+  "topology"                            => Tools::Topology.markdown(context)
 }
 
 puts "caller: #{admin ? 'admin' : 'anonymous'}"
@@ -43,10 +46,12 @@ cached = 0
 sections.each do |name, text|
   n = approx(text)
   cached += n
-  puts format("  %-22s %7d tokens   (cached)", name, n)
+  puts format("  %-26s %7d tokens   (cached)", name, n)
 end
 
 volatile = approx(prompt.volatile)
+saved    = approx(JSON.generate(deferred))
 puts
-puts format("  %-22s %7d tokens   (paid once, read back cheap)", "cached prefix", cached)
-puts format("  %-22s %7d tokens   (paid every turn)", "volatile block", volatile)
+puts format("  %-26s %7d tokens   (paid once, read back cheap)", "cached prefix", cached)
+puts format("  %-26s %7d tokens   (paid every turn)", "volatile block", volatile)
+puts format("  %-26s %7d tokens   (deferred — loaded on demand)", "tools deferred (#{deferred.length})", saved)

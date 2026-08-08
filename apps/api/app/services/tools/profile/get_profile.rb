@@ -22,6 +22,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Checking what you avoid" }
+
       def self.perform(context:)
         ok(Serializer.call(context.user!.profile))
       end

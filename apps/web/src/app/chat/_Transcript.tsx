@@ -7,7 +7,7 @@ import type { ChatBlock, ChatMessage, PendingTool } from '../../lib/chat';
 export interface LiveTurn {
   thinking: string;
   text: string;
-  tools: { name: string; ok?: boolean }[];
+  tools: { name: string; ok?: boolean; doing?: string | null }[];
 }
 
 interface TranscriptProps {
@@ -132,11 +132,16 @@ function ToolCard({
   input,
   ok,
   running,
+  doing,
 }: {
   name: string;
   input?: Record<string, unknown>;
   ok?: boolean;
   running?: boolean;
+  /** The tool's own sentence, when it declared one. Never model-supplied —
+   *  this is the only thing a person can read while a turn is working, so
+   *  it says what is happening rather than what the model intends. */
+  doing?: string | null;
 }): ReactElement {
   const tone = running
     ? 'border-zinc-200 text-zinc-500'
@@ -150,7 +155,19 @@ function ToolCard({
       className={`rounded-bw-md border px-bw-3 py-bw-2 text-bw-sm ${tone}`}
     >
       <span className="font-medium">
-        {running ? 'Running' : ok === false ? "Couldn't" : 'Did'} {humanize(name)}
+        {doing ? (
+          running ? (
+            <>{doing}…</>
+          ) : ok === false ? (
+            <>Could not: {doing.toLowerCase()}</>
+          ) : (
+            doing
+          )
+        ) : (
+          <>
+            {running ? 'Running' : ok === false ? "Couldn't" : 'Did'} {humanize(name)}
+          </>
+        )}
       </span>
       {input && Object.keys(input).length > 0 ? (
         <details className="mt-bw-1">
@@ -169,7 +186,13 @@ function LiveRow({ turn }: { turn: LiveTurn }): ReactElement {
     <div className="flex flex-col gap-bw-2" data-testid="live-turn">
       {turn.thinking ? <Thinking text={turn.thinking} /> : null}
       {turn.tools.map((tool, index) => (
-        <ToolCard key={index} name={tool.name} ok={tool.ok} running={tool.ok === undefined} />
+        <ToolCard
+          key={index}
+          name={tool.name}
+          ok={tool.ok}
+          doing={tool.doing}
+          running={tool.ok === undefined}
+        />
       ))}
       {turn.text ? (
         <p className="whitespace-pre-wrap text-bw-base leading-relaxed text-zinc-800">

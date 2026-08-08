@@ -49,6 +49,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Updating what you avoid" }
+
       # Adding an avoid hides dishes and is safe; removing one un-hides
       # dishes for someone who told us not to show them. That asymmetry is
       # why the gate reads the arguments instead of the tool.

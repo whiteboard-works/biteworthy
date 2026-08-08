@@ -171,7 +171,7 @@ module Chat
         return Result.new(state: :error, error: "That confirmation is out of date. Reload and read the request again.")
       end
 
-      emit(type: "tool_use", name: call["name"], input: call["input"]) if confirm
+      emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call)) if confirm
       settled = confirm ? execute(call) : declined(call)
       emit(type: "tool_result", name: call["name"], ok: !settled[:is_error]) if confirm
       results << settled
@@ -209,7 +209,7 @@ module Chat
           return Result.new(state: :awaiting_confirmation, pending: park(results, queue.drop(index)))
         end
 
-        emit(type: "tool_use", name: call["name"], input: call["input"])
+        emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
         result = execute(call)
         emit(type: "tool_result", name: call["name"], ok: !result[:is_error])
         results << result
@@ -243,6 +243,11 @@ module Chat
         pending_tool_call: { "results" => results, "queue" => queue, "pending" => pending }
       )
       pending
+    end
+
+    # The sentence a person reads while the call runs.
+    def doing(call)
+      Tools::Registry.find(call["name"])&.running_description_for(arguments_for(call))
     end
 
     def confirm_required?(call)

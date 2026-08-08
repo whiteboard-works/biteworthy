@@ -248,13 +248,51 @@ and marks the run `grounding_flagged`.
   — `release!` owns that column and would otherwise overwrite it with
   `"done"`. (Found by the spec, not by reading.)
 
-### C7 — Routing, progress, and the metrics surface
+### C7 — Deferred tool loading and progress text — SHIPPED
 
-M6's `defer_loading` + tool search, now measurable against C3's token
-columns. `running_description` per tool so the transcript reads "Reading the
-menu at Nini's" rather than `get_menu`. Resource chips from the ids tool
-results already carry. Debug pills for admins. Chat events into
-`packages/analytics` (add-only — renaming one breaks the launch funnels).
+**Deferred loading.** Most tools are now declared but not loaded. The core
+domains — discovery, profile, meta — stay resident because they open nearly
+every conversation and meta is the map to everything else; the rest carry
+`defer_loading: true` and arrive via the server-side tool-search tool
+(`tool_search_tool_regex_20251119`).
+
+Measured on the real registry:
+
+| Caller | Tools | Cold-turn schemas before | After | Saved |
+|---|---|---|---|---|
+| signed-in | 32 | ~8,556 tok | ~2,794 tok | **67%** |
+| admin | 45 | ~13,232 tok | ~2,794 tok | **79%** |
+
+Two ways to get this wrong both cost a 400 on *every* turn rather than a
+worse answer, so both are asserted rather than trusted: the search tool
+must never itself be deferred, and at least one tool must stay resident.
+A spec stubs `CORE_DOMAINS` empty to prove the guard fires.
+
+Regex search over BM25 because the names here are deliberate and
+domain-prefixed (`edit_menu_structure`, `list_moderation_queue`) — a
+pattern match is predictable in a way relevance scoring is not.
+
+**Why deferral rather than a router we control.** Tool search *appends* the
+schemas it finds instead of swapping the tool array. Tools render ahead of
+system in the cached prefix, so a per-turn bundle of our own choosing would
+throw away the whole 21,650-token cache every time the bundle changed.
+Deferral keeps the prefix intact. This is the answer to the open question
+C3's token columns were added to settle.
+
+**Progress text.** `running_description` on a tool renders "Reading the
+menu at Nini's" instead of `get_menu`. Declared by the tool and never
+model-supplied: it is the only thing a person can read while a turn is
+working, and a model narrating its own calls would describe what it intends
+rather than what is happening. Clients fall back to the humanized name when
+a tool declares nothing.
+
+**Deliberately not shipped here**, because each is a self-contained piece of
+UI work with no dependency on the engine:
+- Resource chips in the transcript (tool results already carry the ids).
+- Admin debug pills (per-round tokens and run id are on `conversation_runs`
+  as of C3 — the data exists, the surface does not).
+- Chat events in `packages/analytics`. Add-only when it happens: renaming
+  an existing event breaks the launch funnels.
 
 ---
 
