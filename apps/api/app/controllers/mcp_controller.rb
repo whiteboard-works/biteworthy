@@ -53,6 +53,10 @@ class McpController < ApplicationController
         # The tool map, so a client that reads resources can learn how the
         # tools compose without spending a turn on describe_capabilities.
         resources:      [Tools::TopologyResource],
+        # The same workflows as things a person can pick before typing —
+        # "Scan a menu into the database" beats a blank box and 44 tools.
+        # Generated from the topology, so they cannot drift from it.
+        prompts:        Tools::WorkflowPrompts.for(context),
         server_context: server_context
       ),
       stateless: true,
