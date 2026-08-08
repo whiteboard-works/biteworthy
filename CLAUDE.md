@@ -172,6 +172,7 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 - `docs/plans/` — per-task acceptance criteria for live work; completed phase subplans are archived under `docs/plans/archive/` (read-only).
 - `docs/status.md` — running log, newest first; what the previous tick left mid-flight.
 - `docs/schema.md` — the data model in 60 seconds.
+- `docs/mcp.md` — the tool layer (`app/services/tools/`) and the `/mcp` endpoint. Read this before adding a capability: new domain operations go in as tools, and REST controllers adapt to them.
 - `docs/ingestion.md` — how Claude vision + prompt-cached taxonomy turns a menu photo into staged `IngestionItem`s.
 - `docs/analytics.md` — the funnel-event contract behind `packages/analytics`.
 - `docs/launch-readiness.md` — the human-action launch checklist (provisioning, store accounts, deploy).

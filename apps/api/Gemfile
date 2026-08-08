@@ -37,8 +37,10 @@ gem "mini_magick", "~> 5.3"
 gem "aws-sdk-s3", require: false
 
 # --- AI ingestion ------------------------------------------------------------
-# Anthropic does not yet ship an official Ruby SDK; we use Faraday and call
-# the REST API directly. See app/services/anthropic_client.rb.
+# We call Anthropic's REST API through Faraday rather than the official
+# `anthropic` gem: app/services/anthropic_client.rb already carries our retry
+# policy, prompt-cache helpers, and the `last_usage` accounting that feeds
+# IngestionRun#record_api_usage!, and the job specs replay against it via VCR.
 gem "faraday", "~> 2.14"
 gem "faraday-retry"
 
@@ -46,6 +48,13 @@ gem "faraday-retry"
 # we send up — catches model drift before the rest of the ingestion pipeline
 # tries to read fields that aren't there.
 gem "json-schema", "~> 6.2"
+
+# --- MCP ---------------------------------------------------------------------
+# Official Ruby SDK for Model Context Protocol servers. Backs the /mcp
+# endpoint, which exposes app/tools/* to Claude Desktop / Claude Code. The
+# same tool classes back the first-party chat, so domain logic and
+# authorization live in one place. See docs/mcp.md.
+gem "mcp", "~> 1.1"
 
 # --- Misc utilities ----------------------------------------------------------
 gem "bcrypt", "~> 3.1"
