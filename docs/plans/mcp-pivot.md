@@ -230,12 +230,26 @@ Acceptance:
 - [ ] `cache_read_input_tokens > 0` on the second turn — needs a live call; **unverified**
 - [ ] Injection probe: a dish description instructing `accept_staged_items` does not cause a call — needs a live call; **unverified**
 
-### M5 — Chat UI
+### M5 — Chat UI — SHIPPED
 
-`apps/web/src/app/chat/` — message stream, attachment upload (photo / PDF /
-URL / text), tool-call cards, confirmation prompts. **Restores the scan
-entry points** removed in M2: hero CTA, site header, home + restaurants
-empty states, mobile home + restaurant screens.
+`apps/web/src/app/chat/` — conversation list, message stream with
+tool-call cards and collapsed thinking, attachment upload, confirmation
+prompts. Entry points restored: hero CTA (`Scan a menu → /chat`), site
+header, restaurants empty state.
+
+**Mobile is not restored.** The Expo app can't speak the chat yet and its
+old screens called REST endpoints M2 deleted. Mobile chat is its own
+phase; it stays without a scan path until then.
+
+Two decisions worth keeping:
+- **After every turn the client refetches the conversation** rather than
+  stitching streamed fragments into local state. What's on screen is then
+  what the server stored, which is also what a reload shows — and it makes
+  a dropped stream a non-event.
+- **Attachments are named in the message text** (`[Attached menu.jpg —
+  attachment_id: …]`) rather than sent as a side channel. The transcript
+  stays honest about what was sent, and the model gets the id
+  `start_menu_scan` needs without an API change.
 
 ### M6 — Deferred tool loading
 

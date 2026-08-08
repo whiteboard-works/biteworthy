@@ -6,3 +6,10 @@
  * ecosystem. Runs once per worker, before any test file.
  */
 import '@testing-library/jest-dom/vitest';
+
+// jsdom implements no layout, so it ships no scrollIntoView. Components
+// that keep a scrolled list pinned to the bottom would otherwise throw
+// on mount inside a test and nowhere else.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

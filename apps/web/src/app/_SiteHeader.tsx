@@ -197,9 +197,15 @@ export function SiteHeader() {
           </Link>
           {signedIn === true && (
             <>
-              {/* The "Scan a menu" link pointed at /ingest. Scanning moved to
-                  the tool layer and comes back here as a chat entry point
-                  when that UI ships; an empty slot beats a dead link. */}
+              {/* Scanning a menu is a conversation now — this is where
+                  the old "Scan a menu" link pointed before the pivot. */}
+              <Link
+                href="/chat"
+                data-testid="nav-chat"
+                className="font-semibold text-zinc-700 hover:text-bite-dark"
+              >
+                Chat
+              </Link>
               {needsProfile && (
                 <Link
                   href="/onboarding"

@@ -33,13 +33,12 @@ export function HeroCta() {
     };
   }, []);
 
-  // The scan CTA pointed at /ingest, which is gone — scanning a menu is a
-  // conversation now, and the chat UI lands with it. Signed-in users get the
-  // browse CTA until then rather than a link to a 404.
+  // Scanning a menu is a conversation now, so the core action for a
+  // signed-in user is the chat rather than an upload form.
   if (signedIn) {
     return (
-      <Link href="/restaurants" data-testid="cta-browse" className={CTA_CLASS}>
-        Browse menus →
+      <Link href="/chat" data-testid="cta-scan" className={CTA_CLASS}>
+        Scan a menu →
       </Link>
     );
   }
