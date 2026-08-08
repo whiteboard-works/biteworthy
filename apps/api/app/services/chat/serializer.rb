@@ -15,7 +15,7 @@ module Chat
     RENDERED_BLOCKS = %w[text thinking tool_use tool_result].freeze
 
     class << self
-      def conversation(conversation, messages: false)
+      def conversation(conversation, messages: false, usage: false)
         payload = {
           id:         conversation.id,
           title:      conversation.title,
@@ -24,6 +24,7 @@ module Chat
           created_at: conversation.created_at.iso8601,
           updated_at: conversation.updated_at.iso8601
         }
+        payload = payload.merge(usage: usage_for(conversation)) if usage
         messages ? payload.merge(messages: conversation.messages.map { |m| message(m) }) : payload
       end
 
@@ -37,6 +38,29 @@ module Chat
       end
 
       private
+
+      # What a turn actually cost, for the person operating the tools.
+      #
+      # Admin-only, and deliberately so: this is the spend and cache
+      # detail that decides whether the chat is affordable, not something
+      # a diner has any use for. `api_cost_cents` answers "are we over
+      # budget"; the per-round token split answers "where is the money
+      # going", which is the question C3 added those columns for.
+      def usage_for(conversation)
+        run = ConversationRun.where(conversation_id: conversation.id).order(:created_at).last
+        {
+          cost_cents: conversation.api_cost_cents,
+          last_run: run && {
+            outcome:           run.outcome,
+            state:             run.state,
+            rounds:            run.rounds,
+            input_tokens:      run.input_tokens,
+            output_tokens:     run.output_tokens,
+            cache_read_tokens: run.cache_read_tokens,
+            duration_ms:       run.duration_ms
+          }
+        }
+      end
 
       # The tool call the loop parked on, so a reloaded page can redraw
       # the confirmation prompt instead of stranding the conversation.

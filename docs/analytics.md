@@ -148,3 +148,18 @@ Fired on any failure — both client-side gates and API errors — so drop-off i
 - Server-side `RecordRestaurantVisitJob` enrichment to also fire `restaurant_tap` to PostHog's server endpoint (so the funnel survives ad-blockers)
 
 The split keeps each PR small + reviewable. The abstraction shipping first means subsequent wiring PRs are call-site-only — no risk of taxonomy drift.
+
+### Chat events (added with the chat-engine arc)
+
+| Event | Props | Notes |
+|---|---|---|
+| `chat_started` | `surface` | Fires once per conversation created. |
+| `chat_turn_completed` | `outcome`, `tool_count`, `duration_ms` | One completed turn. |
+| `chat_confirmed` | `approved` | A person answered the confirmation gate. |
+
+**These deliberately carry no message text and no tool names.** The same
+reasoning that stripped the dietary profile off `profile_set` applies, and
+is easier to miss here: a tool name like `update_avoid_lists` on an
+identified event says this account edited a dietary profile, which is
+health-adjacent even without the contents. Counts and outcome give the
+funnel what it needs — did the turn work, how long, how much did it do.

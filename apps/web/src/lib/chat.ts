@@ -42,8 +42,24 @@ export interface ConversationSummary {
   updated_at: string;
 }
 
+/** Spend and cache accounting. Present only for admins — the server
+ *  decides, so a non-admin never receives it to begin with. */
+export interface ChatUsage {
+  cost_cents: number;
+  last_run: {
+    outcome: string | null;
+    state: string;
+    rounds: number;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    duration_ms: number | null;
+  } | null;
+}
+
 export interface Conversation extends ConversationSummary {
   messages: ChatMessage[];
+  usage?: ChatUsage;
 }
 
 export interface Attachment {

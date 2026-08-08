@@ -58,6 +58,11 @@ export const EVENTS = {
   auth_started:         'auth_started',
   auth_completed:       'auth_completed',
   auth_failed:          'auth_failed',
+  // Chat — the product's primary surface since the MCP pivot. These are
+  // add-only: renaming any event above breaks the launch dashboards.
+  chat_started:         'chat_started',
+  chat_turn_completed:  'chat_turn_completed',
+  chat_confirmed:       'chat_confirmed',
 } as const;
 
 export type EventName = keyof typeof EVENTS;
@@ -104,6 +109,31 @@ export interface EventPropsMap {
     restaurant_slug: string;
     /** Where the tap came from: home, search, durango_diet, history. */
     from: string;
+  };
+  chat_started: {
+    surface: 'web' | 'ios' | 'android';
+  };
+  /**
+   * One completed turn.
+   *
+   * **Deliberately carries no message text and no tool names.** The same
+   * reasoning that stripped the dietary profile off `profile_set` applies
+   * here and is easier to miss: a tool name like `update_avoid_lists` on
+   * an identified event says this account edited a dietary profile, which
+   * is health-adjacent even without the contents. Counts and outcome give
+   * the funnel what it needs — did the turn work, how long, how much did
+   * it do — without any of that.
+   */
+  chat_turn_completed: {
+    /** done | awaiting_confirmation | error */
+    outcome: string;
+    /** How many tools ran. Not which ones. */
+    tool_count: number;
+    duration_ms: number;
+  };
+  /** Whether a person approved a call the gate parked. Never which call. */
+  chat_confirmed: {
+    approved: boolean;
   };
   filter_changed: {
     /** What changed: strictness | preset | manual_avoid | manual_unavoid. */

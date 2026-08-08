@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTracker } from '../_PostHogProvider';
 import {
   NotSignedInError,
   createConversation,
@@ -14,6 +15,7 @@ import {
   watchTurn,
   type Attachment,
   type ChatEvent,
+  type ChatUsage,
   type ChatMessage,
   type Conversation,
   type ConversationSummary,
@@ -27,6 +29,7 @@ const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [] };
 
 export function ChatClient(): ReactElement {
   const router = useRouter();
+  const tracker = useTracker();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [active, setActive] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -136,12 +139,29 @@ export function ChatClient(): ReactElement {
     setBusy(true);
     setError(null);
     setLive(EMPTY_TURN);
+    const startedAt = Date.now();
+    let tools = 0;
+    let outcome = 'error';
     try {
       const { after } = await ask();
-      await watchTurn(id, after, consume);
+      await watchTurn(id, after, (event) => {
+        if (event.type === 'tool_use') tools += 1;
+        if (event.type === 'done') outcome = 'done';
+        if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+        consume(event);
+      });
     } catch (e) {
       onFailure(e);
     } finally {
+      // Counts and outcome only — never the message, never which tools.
+      // A tool name on an identified event would say this account edited
+      // a dietary profile, which is the health-adjacency the taxonomy
+      // already strips from profile_set.
+      tracker.track('chat_turn_completed', {
+        outcome,
+        tool_count: tools,
+        duration_ms: Date.now() - startedAt,
+      });
       setLive(null);
       setBusy(false);
       // The turn was persisted as it ran, so this reconciles whether it
@@ -166,6 +186,7 @@ export function ChatClient(): ReactElement {
       if (!conversation) {
         conversation = await createConversation();
         adopt(conversation);
+        tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
       onFailure(e);
@@ -182,6 +203,7 @@ export function ChatClient(): ReactElement {
     const id = active.id;
     const { fingerprint } = pending;
     setPending(null);
+    tracker.track('chat_confirmed', { approved });
     await run(id, () => answerConfirmation(id, approved, fingerprint));
   };
 
@@ -219,6 +241,7 @@ export function ChatClient(): ReactElement {
             busy={busy}
             onAnswer={(approved) => void answer(approved)}
           />
+          {active?.usage ? <UsagePills usage={active.usage} /> : null}
           {error ? (
             <p role="alert" data-testid="chat-error" className="mt-bw-4 text-bw-sm text-danger">
               {error}
@@ -240,6 +263,36 @@ export function ChatClient(): ReactElement {
         ) : null}
         <Composer disabled={busy || pending !== null} onSend={(t, a) => void send(t, a)} />
       </main>
+    </div>
+  );
+}
+
+/**
+ * What the last turn cost. Rendered only when the server sent it, which
+ * it does only for admins — the visibility decision lives server-side, so
+ * there is nothing here to get wrong.
+ */
+function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
+  const run = usage.last_run;
+  const pills = [
+    `${usage.cost_cents}¢ total`,
+    run ? `${run.rounds} rounds` : null,
+    run ? `${run.cache_read_tokens.toLocaleString()} cached` : null,
+    run ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out` : null,
+    run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
+    run?.outcome && run.outcome !== 'done' ? run.outcome : null,
+  ].filter((p): p is string => p !== null);
+
+  return (
+    <div data-testid="usage-pills" className="mt-bw-4 flex flex-wrap gap-bw-1">
+      {pills.map((pill) => (
+        <span
+          key={pill}
+          className="rounded-bw-md bg-zinc-100 px-bw-2 py-bw-1 text-bw-xs text-zinc-500"
+        >
+          {pill}
+        </span>
+      ))}
     </div>
   );
 }
