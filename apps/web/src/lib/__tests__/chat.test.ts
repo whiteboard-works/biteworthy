@@ -151,4 +151,26 @@ describe('chat client', () => {
     // Setting Content-Type by hand would drop the multipart boundary.
     expect(init.headers).toBeUndefined();
   });
+
+  // The reconnect event is transport bookkeeping — the transcript should
+  // never see it, and the caller learns about it as a return value.
+  it('swallows the reconnect event and returns the cursor', async () => {
+    vi.stubGlobal(
+      'fetch',
+      sseFetch([frame({ type: 'text_delta', text: 'hi' }), frame({ type: 'reconnect', after: 12 })]),
+    );
+
+    const seen: ChatEvent[] = [];
+    const resume = await watchTurn('c-1', 0, (e) => seen.push(e));
+
+    expect(resume).toBe(12);
+    expect(seen.map((e) => e.type)).toEqual(['text_delta']);
+  });
+
+  it('returns null when the turn genuinely ended', async () => {
+    vi.stubGlobal('fetch', sseFetch([frame({ type: 'done', text: 'ok' })]));
+
+    expect(await watchTurn('c-1', 0, () => {})).toBeNull();
+  });
 });
+

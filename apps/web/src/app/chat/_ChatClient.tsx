@@ -27,6 +27,9 @@ import { Transcript, type LiveTurn } from './_Transcript';
 
 const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [] };
 
+/** Enough hops for a very long scan; a bound, not an expectation. */
+const MAX_RECONNECTS = 20;
+
 export function ChatClient(): ReactElement {
   const router = useRouter();
   const tracker = useTracker();
@@ -144,12 +147,22 @@ export function ChatClient(): ReactElement {
     let outcome = 'error';
     try {
       const { after } = await ask();
-      await watchTurn(id, after, (event) => {
-        if (event.type === 'tool_use') tools += 1;
-        if (event.type === 'done') outcome = 'done';
-        if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
-        consume(event);
-      });
+      // A turn can outlive one connection — a menu scan legitimately runs
+      // past the server's window. Each hop resumes from the position the
+      // server handed back, so the narration is continuous on screen and
+      // the reconnect is invisible. Capped so a server stuck asking for
+      // reconnects cannot spin the client forever.
+      let cursor = after;
+      for (let hop = 0; hop < MAX_RECONNECTS; hop += 1) {
+        const resume = await watchTurn(id, cursor, (event) => {
+          if (event.type === 'tool_use') tools += 1;
+          if (event.type === 'done') outcome = 'done';
+          if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          consume(event);
+        });
+        if (resume === null) break;
+        cursor = resume;
+      }
     } catch (e) {
       onFailure(e);
     } finally {

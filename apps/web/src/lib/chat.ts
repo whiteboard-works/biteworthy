@@ -79,6 +79,7 @@ export type ChatEvent =
   | { type: 'done'; text: string | null }
   | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
+  | { type: 'reconnect'; after: number }
   | { type: 'error'; message: string };
 
 /** Thrown when the session cookie is missing or stale, so callers can
@@ -196,18 +197,32 @@ export async function stopTurn(id: string): Promise<void> {
  *
  *  Because the events are stored rather than only sent, calling this again
  *  with the last position seen resumes where the previous reader stopped —
- *  a dropped connection costs nothing but the reconnect. */
-export function watchTurn(
+ *  a dropped connection costs nothing but the reconnect.
+ *
+ *  Resolves with a position when the server closed the connection while
+ *  the turn was still running (a menu scan can outlive one connection),
+ *  and with `null` when the turn is genuinely over. The `reconnect` event
+ *  is swallowed here rather than passed on: it is transport bookkeeping,
+ *  and nothing rendering the transcript should have to know about it. */
+export async function watchTurn(
   id: string,
   after: number,
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
-): Promise<void> {
-  return stream(
+): Promise<number | null> {
+  let resume: number | null = null;
+  await stream(
     `/api/chat/conversations/${encodeURIComponent(id)}/stream?after=${after}`,
-    onEvent,
+    (event) => {
+      if (event.type === 'reconnect') {
+        resume = event.after;
+        return;
+      }
+      onEvent(event);
+    },
     signal,
   );
+  return resume;
 }
 
 async function stream(
