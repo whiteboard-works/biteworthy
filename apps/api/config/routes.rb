@@ -132,6 +132,9 @@ Rails.application.routes.draw do
       # Menu photos/PDFs the chat refers to by id, so bytes never enter
       # the agent's context.
       resources :attachments, only: [:create]
+      # Least-privilege credentials for MCP clients, so connecting Claude
+      # Code does not require a shell on the box.
+      resources :mcp_tokens, only: [:index, :create, :destroy]
       # The caller's own identity incl. `is_admin` — the web /admin
       # guard's probe. Read-only on purpose: auth/refresh also returns
       # the user payload but rotates the jti, killing other sessions.

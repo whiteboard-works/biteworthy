@@ -356,6 +356,8 @@ authority to hand something whose job is usually "read menus for me".
 `McpToken` is the alternative: a credential that names what it may touch,
 lists, and revokes on its own without ending other sessions.
 
+Manage them at **/profile/settings → Connected apps**, or from a shell:
+
 ```bash
 bin/rails "mcp:issue[you@example.com,Claude Code,discovery:read profile:read]"
 bin/rails "mcp:list[you@example.com]"
