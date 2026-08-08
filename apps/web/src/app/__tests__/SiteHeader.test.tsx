@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe('SiteHeader', () => {
-  it('shows Sign in + Sign up when signed out and never the account/scan controls', async () => {
+  it('shows Sign in + Sign up when signed out and never the account/chat controls', async () => {
     stubAuth({ signedIn: false });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
@@ -73,15 +73,15 @@ describe('SiteHeader', () => {
     expect(screen.getByTestId('nav-restaurants')).toHaveAttribute('href', '/restaurants');
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-chat')).not.toBeInTheDocument();
   });
 
   it('shows Account + Log out when signed in, and logging out returns home', async () => {
     stubAuth({ signedIn: true });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-account')).toBeInTheDocument();
-    // The scan link is gone with /ingest — it comes back pointing at the chat.
-    expect(screen.queryByTestId('nav-scan')).not.toBeInTheDocument();
+    // Scanning a menu is a conversation now; the old scan link points here.
+    expect(screen.getByTestId('nav-chat')).toHaveAttribute('href', '/chat');
     expect(screen.queryByTestId('nav-signin')).not.toBeInTheDocument();
 
     await act(async () => {

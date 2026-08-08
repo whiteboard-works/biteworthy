@@ -1,0 +1,190 @@
+/**
+ * Client for the first-party chat.
+ *
+ * Turns stream Server-Sent Events, so `streamTurn` reads the response
+ * body rather than awaiting a JSON payload. The stream is a view, not the
+ * record: every turn is persisted server-side as it runs, so losing the
+ * connection costs nothing — `getConversation` replays it in the same
+ * block shapes the events used.
+ */
+
+export type ChatBlock =
+  | { type: 'text'; text: string }
+  | { type: 'thinking'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool_use_id: string; ok: boolean; text: string | null };
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  position: number;
+  blocks: ChatBlock[];
+}
+
+export interface PendingTool {
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  state: 'active' | 'awaiting_confirmation' | 'failed';
+  pending: PendingTool | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Conversation extends ConversationSummary {
+  messages: ChatMessage[];
+}
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+}
+
+/** One `data:` payload from a streaming turn. */
+export type ChatEvent =
+  | { type: 'open'; conversation_id: string }
+  | { type: 'text_delta'; text: string }
+  | { type: 'thinking_delta'; text: string }
+  | { type: 'tool_use'; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; name: string; ok: boolean }
+  | { type: 'done'; text: string | null }
+  | { type: 'awaiting_confirmation'; tool: PendingTool }
+  | { type: 'error'; message: string };
+
+/** Thrown when the session cookie is missing or stale, so callers can
+ *  send the user to sign in rather than showing an empty chat. */
+export class NotSignedInError extends Error {
+  constructor() {
+    super('Not signed in');
+    this.name = 'NotSignedInError';
+  }
+}
+
+async function json<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, { credentials: 'same-origin', ...init });
+  if (res.status === 401) throw new NotSignedInError();
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return (await res.json()) as T;
+}
+
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body.error) return body.error;
+  } catch {
+    // Non-JSON error bodies fall through to the status line.
+  }
+  return `Request failed (${res.status})`;
+}
+
+export function listConversations(): Promise<{ conversations: ConversationSummary[] }> {
+  return json('/api/chat/conversations', { cache: 'no-store' });
+}
+
+export function createConversation(): Promise<Conversation> {
+  return json('/api/chat/conversations', { method: 'POST' });
+}
+
+export function getConversation(id: string): Promise<Conversation> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}`, { cache: 'no-store' });
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await fetch(`/api/chat/conversations/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  if (!res.ok) throw new Error(await errorMessage(res));
+}
+
+export async function uploadAttachment(file: File): Promise<Attachment> {
+  const form = new FormData();
+  form.append('file', file);
+  // No Content-Type — fetch sets the multipart boundary.
+  const res = await fetch('/api/chat/attachments', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return (await res.json()) as Attachment;
+}
+
+export function streamTurn(
+  id: string,
+  message: string,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return stream(`/api/chat/conversations/${encodeURIComponent(id)}/messages`, { message }, onEvent, signal);
+}
+
+export function streamConfirm(
+  id: string,
+  confirm: boolean,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return stream(`/api/chat/conversations/${encodeURIComponent(id)}/confirm`, { confirm }, onEvent, signal);
+}
+
+async function stream(
+  path: string,
+  body: unknown,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'same-origin',
+    ...(signal ? { signal } : {}),
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  // Everything the server refuses is refused before the stream opens, so
+  // a non-OK status here always carries a readable JSON error.
+  if (!res.ok) throw new Error(await errorMessage(res));
+  if (!res.body) throw new Error('The connection closed before the reply started.');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // Events are separated by a blank line and can be split across any
+    // number of chunks, so only whole ones are consumed.
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const event = parseEvent(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      if (event) onEvent(event);
+      boundary = buffer.indexOf('\n\n');
+    }
+  }
+}
+
+function parseEvent(raw: string): ChatEvent | null {
+  const data = raw
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim())
+    .join('');
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as ChatEvent;
+  } catch {
+    return null;
+  }
+}

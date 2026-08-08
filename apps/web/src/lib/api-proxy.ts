@@ -62,6 +62,42 @@ export async function proxyAuthed(apiPath: string, init: ProxyInit = {}): Promis
 }
 
 /**
+ * Forward a POST and relay the upstream body **without buffering it**, so
+ * a chat turn's events reach the browser as they happen rather than all
+ * at once when the turn ends.
+ *
+ * `relayUpstream` can't be used here: it awaits `.text()`, which waits for
+ * the whole minute-long turn. A refusal still arrives complete and JSON
+ * (the API validates before opening its stream), so those relay normally.
+ */
+export async function proxyStream(apiPath: string, body: string): Promise<Response> {
+  const jwt = await getServerJwt();
+  if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+
+  const upstream = await fetch(`${API_BASE}${apiPath}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body,
+  });
+  if (!upstream.ok || !upstream.body) return relayUpstream(upstream);
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-store',
+      // Proxies buffer by default, which would hold every event until the
+      // turn ended and defeat the point of streaming.
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
+
+/**
  * `proxyAuthed` + `Cache-Control: no-store` on the relayed response.
  * Admin JSON must never be browser/CDN-cacheable; `relayUpstream`
  * only mirrors Content-Type, so every `/api/admin/*` handler goes
