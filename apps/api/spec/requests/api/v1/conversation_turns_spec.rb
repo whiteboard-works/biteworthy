@@ -275,4 +275,42 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
+
+  # A menu scan legitimately outlives one connection. Without a cursor the
+  # client cannot tell "the turn ended" from "your connection did", and it
+  # would redraw a half-finished turn as final.
+  describe "a turn that outlives one connection" do
+    before do
+      script(say("Hello there."))
+      send_message("hi")
+      work
+    end
+
+    it "hands back a resume cursor instead of just closing" do
+      stub_const("Api::V1::ConversationTurnsController::STREAM_SECONDS", 0)
+      # Still queued, so the relay knows the turn is not over.
+      conversation.enqueue_turn!("kind" => "message", "text" => "and another")
+
+      get "/api/v1/conversations/#{conversation.id}/stream",
+          headers: headers.merge("Last-Event-ID" => "0")
+
+      last = response.body.split("\n\n").filter_map do |chunk|
+        data = chunk.lines.filter_map { |l| l.delete_prefix("data:").strip if l.start_with?("data:") }.join
+        JSON.parse(data) if data.present?
+      end.last
+
+      expect(last["type"]).to eq("reconnect")
+      expect(last["after"]).to be_present
+    end
+
+    # A finished conversation must close cleanly — a spurious reconnect
+    # would have the client reopen a stream forever.
+    it "does not ask for a reconnect once the turn is done" do
+      get "/api/v1/conversations/#{conversation.id}/stream",
+          headers: headers.merge("Last-Event-ID" => "0")
+
+      expect(response.body).not_to include('"type":"reconnect"')
+    end
+  end
 end
+

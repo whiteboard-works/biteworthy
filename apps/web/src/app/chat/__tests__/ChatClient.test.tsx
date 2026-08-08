@@ -71,7 +71,7 @@ beforeEach(() => {
   // separately, so tests drive the two halves independently.
   sendMessage.mockResolvedValue({ queued: true, after: 0 });
   answerConfirmation.mockResolvedValue({ queued: true, after: 0 });
-  watchTurn.mockResolvedValue(undefined);
+  watchTurn.mockResolvedValue(null);
   stopTurn.mockResolvedValue(undefined);
 });
 
@@ -275,6 +275,29 @@ describe('ChatClient', () => {
       await screen.findByText('ok');
       expect(screen.queryByTestId('usage-pills')).not.toBeInTheDocument();
     });
+  });
+
+  // A menu scan legitimately outlives one connection. The reconnect has to
+  // be invisible: the narration continues on screen and the turn is not
+  // treated as finished.
+  it('resumes from the cursor when a turn outlives one connection', async () => {
+    watchTurn
+      .mockImplementationOnce(async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+        onEvent({ type: 'text_delta', text: 'Reading ' });
+        return 7; // server closed mid-turn, resume from position 7
+      })
+      .mockImplementationOnce(async (_id: string, after: number, onEvent: (e: ChatEvent) => void) => {
+        expect(after).toBe(7);
+        onEvent({ type: 'done', text: 'Reading the menu.' });
+        return null;
+      });
+    getConversation.mockResolvedValue(answered('Reading the menu.'));
+
+    render(<ChatClient />);
+    await type('scan this');
+
+    await waitFor(() => expect(watchTurn).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Reading the menu.')).toBeInTheDocument();
   });
 
   it('shows an error event without losing the conversation', async () => {

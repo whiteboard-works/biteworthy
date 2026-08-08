@@ -18,9 +18,11 @@ module Api
       include ActionController::Live
 
       MAX_MESSAGE_CHARS = 20_000
-      # How long a reader waits on a quiet conversation before we close and
-      # let it reconnect. Long enough not to churn, short enough that a
-      # half-dead connection is noticed.
+      # How long one connection lasts before we close it and hand the
+      # client a cursor to resume from. A thread is held for the length of
+      # a turn, not the length of a session — the client opens a stream
+      # only while a turn is in flight — so this bounds how long a single
+      # thread can be held by one reader, not how long a turn may run.
       STREAM_SECONDS    = 300
       POLL_SECONDS      = 0.2
       # A silent minute reads as a hang to every proxy in the path.
@@ -91,7 +93,7 @@ module Api
           # A terminal event ends the turn. Stay open only if something is
           # still queued behind it, so a finished conversation does not
           # hold a connection for five minutes.
-          break if events.any? { |e| terminal?(e) } && !more_coming?
+          return if events.any? { |e| terminal?(e) } && !more_coming?
 
           if events.empty?
             if Time.current - last_beat >= KEEPALIVE_SECONDS
@@ -103,6 +105,13 @@ module Api
             last_beat = Time.current
           end
         end
+
+        # Fell out on the deadline with the turn still going. A menu scan
+        # legitimately outlives one connection, and without this the client
+        # cannot tell "the turn ended" from "your connection did" — it
+        # would stop watching and redraw a half-finished turn as final.
+        # Handing back the cursor makes the next connection a resume.
+        write_event({ type: "reconnect", after: position }) if !@disconnected && more_coming?
       end
 
       def terminal?(event)
