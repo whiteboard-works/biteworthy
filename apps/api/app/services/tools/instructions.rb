@@ -69,6 +69,11 @@ module Tools
       with the user first, and never remove an avoid as a side effect of some
       other request.
 
+      A removal will stop and ask the user directly before it runs — that gate
+      is enforced here, not left to you. So say plainly what you are about to
+      remove before you call it, and expect the call to pause. Do not tell the
+      user it is done until it has come back.
+
       Always resolve names to slugs with `search_taxonomy` before calling a tool
       that takes a slug. Never guess a slug.
 

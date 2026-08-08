@@ -12,11 +12,15 @@ module Chat
         Tools::Registry.for(context).map { |tool| definition(tool) }
       end
 
-      # A tool a client must confirm before it runs. `destructive_hint`
-      # is the tool's own declaration, so the gate follows the tool
-      # rather than a list here that would drift out of date.
-      def confirm_required?(tool)
-        tool&.annotations_value&.destructive_hint == true
+      # A tool a client must confirm before it runs. The tool decides —
+      # from `destructive_hint`, or from `confirm_when` against the actual
+      # arguments — so the gate follows the tool rather than a list here
+      # that would drift out of date.
+      #
+      # Arguments matter because some calls are dangerous only in one
+      # direction: adding an avoid is safe, removing one is not.
+      def confirm_required?(tool, args = {})
+        tool&.requires_confirmation?(args) == true
       end
 
       private

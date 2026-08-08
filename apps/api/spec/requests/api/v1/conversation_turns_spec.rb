@@ -133,9 +133,16 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
            headers: headers.merge("Content-Type" => "application/json")
     end
 
+    # A client draws the prompt from this event, so it also has to carry
+    # the token that binds an answer back to this exact call.
+    def parked_fingerprint
+      conversation.reload.pending_tool_call.dig("pending", "fingerprint")
+    end
+
     it "parks the destructive call and says so on the stream" do
       expect(events.last["type"]).to eq("awaiting_confirmation")
       expect(events.last["tool"]["name"]).to eq("delete_review")
+      expect(events.last["tool"]["fingerprint"]).to be_present
       expect(Review.exists?(review.id)).to be(true)
     end
 
@@ -143,7 +150,7 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       script(say("Deleted."))
 
       post "/api/v1/conversations/#{conversation.id}/confirm",
-           params: { confirm: true }.to_json,
+           params: { confirm: true, fingerprint: parked_fingerprint }.to_json,
            headers: headers.merge("Content-Type" => "application/json")
 
       expect(events.last).to eq("type" => "done", "text" => "Deleted.")
@@ -155,7 +162,7 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       script(say("Okay, left it alone."))
 
       post "/api/v1/conversations/#{conversation.id}/confirm",
-           params: { confirm: false }.to_json,
+           params: { confirm: false, fingerprint: parked_fingerprint }.to_json,
            headers: headers.merge("Content-Type" => "application/json")
 
       expect(Review.exists?(review.id)).to be(true)
@@ -170,6 +177,20 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
            headers: headers.merge("Content-Type" => "application/json")
 
       expect(response).to have_http_status(:conflict)
+    end
+
+    # The gate is only as good as what it is bound to: a tab left open on
+    # an earlier prompt must not be able to approve whatever is parked now.
+    it "refuses an answer that does not match the parked call" do
+      script(say("Deleted."))
+
+      post "/api/v1/conversations/#{conversation.id}/confirm",
+           params: { confirm: true, fingerprint: "stale-token" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(Review.exists?(review.id)).to be(true)
+      expect(conversation.reload.state).to eq("awaiting_confirmation")
+      expect(events.last["type"]).to eq("error")
     end
 
     it "422s an answer that is neither yes nor no" do

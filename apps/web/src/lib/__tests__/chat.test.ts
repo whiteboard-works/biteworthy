@@ -97,15 +97,17 @@ describe('chat client', () => {
       ]);
     });
 
-    it('sends the confirmation answer as a boolean', async () => {
+    // The fingerprint rides with the answer so the server can tell it apart
+    // from an approval of some other call that happens to be parked now.
+    it('sends the confirmation answer as a boolean, bound to the parked call', async () => {
       const fetchMock = sseFetch([frame({ type: 'done', text: 'Deleted.' })]);
       vi.stubGlobal('fetch', fetchMock);
 
-      await streamConfirm('c-1', false, () => {});
+      await streamConfirm('c-1', false, 'fp-abc', () => {});
 
       const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
       expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/confirm');
-      expect(JSON.parse(init.body as string)).toEqual({ confirm: false });
+      expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
     });
   });
 

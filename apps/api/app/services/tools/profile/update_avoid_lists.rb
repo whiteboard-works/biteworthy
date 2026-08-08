@@ -49,6 +49,25 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      # Adding an avoid hides dishes and is safe; removing one un-hides
+      # dishes for someone who told us not to show them. That asymmetry is
+      # why the gate reads the arguments instead of the tool.
+      #
+      # Until this existed the rule lived only as prose in
+      # `Tools::Instructions` — which is to say the model was the thing
+      # enforcing it, on the one operation whose failure mode is someone
+      # eating something that hurts them.
+      confirm_when { |args| removals(args).any? }
+
+      confirmation_prompt do |args|
+        "Stop avoiding #{removals(args).to_sentence}? Dishes containing " \
+        "#{removals(args).size == 1 ? 'it' : 'them'} will start showing as safe for you."
+      end
+
+      def self.removals(args)
+        (Array(args[:remove_ingredients]) + Array(args[:remove_tags])).map(&:to_s).reject(&:blank?).uniq
+      end
+
       def self.perform(context:, add_ingredients: nil, remove_ingredients: nil,
                        add_tags: nil, remove_tags: nil, apply_preset: nil)
         profile = context.user!.profile

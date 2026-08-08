@@ -38,6 +38,56 @@ module Tools
         superclass.respond_to?(:audience) ? superclass.audience : :public
       end
 
+      # A call a human has to approve before it runs.
+      #
+      # `destructive_hint` covers a tool that is always dangerous. This
+      # covers one that is dangerous only for certain arguments, which is
+      # the case that forced it: adding an avoid must stay frictionless,
+      # and removing one un-hides dishes for someone who told us not to
+      # show them.
+      #
+      # Walks the superclass chain for the same reason `audience` does —
+      # Ruby does not inherit class-level ivars, and the last time that was
+      # missed a domain base's declaration silently did nothing.
+      def confirm_when(&block)
+        if block
+          @confirm_when = block
+          return block
+        end
+        return @confirm_when if defined?(@confirm_when) && @confirm_when
+
+        superclass.respond_to?(:confirm_when) ? superclass.confirm_when : nil
+      end
+
+      # The sentence the user actually approves. Declared here rather than
+      # composed by the model: what someone is agreeing to must not be
+      # phrased by the thing asking for the agreement.
+      def confirmation_prompt(&block)
+        if block
+          @confirmation_prompt = block
+          return block
+        end
+        return @confirmation_prompt if defined?(@confirmation_prompt) && @confirmation_prompt
+
+        superclass.respond_to?(:confirmation_prompt) ? superclass.confirmation_prompt : nil
+      end
+
+      def requires_confirmation?(args = {})
+        return true if annotations_value&.destructive_hint == true
+
+        gate = confirm_when
+        gate ? !!gate.call(args) : false
+      end
+
+      # nil when the tool declares nothing — the client falls back to its
+      # generic "allow this?" rather than us inventing a sentence here.
+      def confirmation_prompt_for(args = {})
+        confirmation_prompt&.call(args)
+      rescue StandardError => e
+        Rails.logger.error("[tools] #{name_value} confirmation_prompt raised: #{e.class}: #{e.message}")
+        nil
+      end
+
       # The one place a tool call is authorized, validated, dispatched, and
       # rescued — for both front doors. Anything that only guards one of them
       # is a divergence waiting to happen, which is the failure this layer

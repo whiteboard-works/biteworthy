@@ -76,17 +76,26 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response.body).not_to include("secret")
     end
 
+    # A reload has to be able to redraw the same sentence and answer it —
+    # which means the prompt and the binding token replay too, not just the
+    # tool name.
     it "redraws a parked confirmation so a reload is not a dead end" do
       conversation.update!(
         state: "awaiting_confirmation",
-        pending_tool_call: { "results" => [],
-                             "queue" => [{ "name" => "delete_review", "input" => { "review_id" => "abc" } }] }
+        pending_tool_call: {
+          "results" => [],
+          "queue"   => [{ "name" => "delete_review", "input" => { "review_id" => "abc" } }],
+          "pending" => { "name" => "delete_review", "input" => { "review_id" => "abc" },
+                         "prompt" => "Delete this review?", "fingerprint" => "abc123" }
+        }
       )
 
       get "/api/v1/conversations/#{conversation.id}", headers: headers
 
-      expect(response.parsed_body["pending"]).to eq("name" => "delete_review",
-                                                    "input" => { "review_id" => "abc" })
+      expect(response.parsed_body["pending"]).to eq(
+        "name" => "delete_review", "input" => { "review_id" => "abc" },
+        "prompt" => "Delete this review?", "fingerprint" => "abc123"
+      )
     end
 
     it "404s another account's conversation" do

@@ -96,20 +96,31 @@ Acceptance:
 - [x] A tool that raises returns `tool_failed`, not a 500 and not `invalid`
 - [x] An invented argument name is echoed back with the accepted list
 
-### C2 — Confirmation bound to the call
+### C2 — Confirmation bound to the call — SHIPPED
 
-`update_avoid_lists` carries `destructive_hint: false`, so **removing an
-allergen is gated only by prose in `Tools::Instructions`** — a
+`update_avoid_lists` carried `destructive_hint: false`, so **removing an
+allergen was gated only by prose in `Tools::Instructions`** — a
 model-enforced boundary on the one operation whose failure mode is someone
 eating something that hurts them.
 
 - `confirm_when { |args| … }` on `Tools::Base`, evaluated alongside
-  `destructive_hint`. Removals park; adds and presets stay frictionless.
-- `confirmation_prompt` — the sentence a user approves is a declared string,
-  interpolated with resolved slugs, not model prose.
-- `park` stores a fingerprint of `{name, input}`; `/confirm` requires it and
-  409s on a mismatch.
-- Web renders the declared prompt and the resolved diff instead of raw JSON.
+  `destructive_hint`, so a call can be dangerous in one direction only.
+  Removals park; adds and presets stay frictionless, because friction on
+  the safe direction is how people stop declaring allergens at all.
+- `confirmation_prompt { |args| … }` — the sentence a person approves is
+  declared by the tool, not phrased by the model asking for the approval.
+  The client falls back to its generic prompt when a tool declares none.
+- `park` computes a fingerprint of `{name, input}` **once** and stores it;
+  `/confirm` must echo it back. Deliberately not recomputed from the parked
+  row — jsonb does not preserve key order, so a hash derived from the
+  round trip would not reliably match one derived from the live call.
+  **Fails closed**: a missing stored fingerprint is a mismatch, not a pass.
+  "Absent means allowed" is how a check like this quietly stops checking.
+- Both declarations walk the superclass chain, for the same reason
+  `audience` does: Ruby does not inherit class-level ivars, and the last
+  time that was missed a domain base's declaration silently did nothing.
+- The server instructions now say the gate exists rather than asking the
+  model to police itself, so it announces the removal and expects a pause.
 
 ### C3 — Run lifecycle: lock, lease, abort, metrics
 

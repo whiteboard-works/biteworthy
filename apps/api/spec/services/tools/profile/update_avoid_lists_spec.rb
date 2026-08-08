@@ -125,4 +125,37 @@ RSpec.describe Tools::Profile::UpdateAvoidLists do
     expect(response.to_h[:isError]).to be(true)
     expect(payload(response)[:error]).to eq("unauthorized")
   end
+
+  # Until C2 this rule lived only as prose in `Tools::Instructions`, which
+  # made the model the thing enforcing it — on the one operation whose
+  # failure mode is someone eating something that hurts them.
+  describe "the confirmation gate" do
+    it "requires a human answer before an avoid is removed" do
+      expect(described_class.requires_confirmation?(remove_ingredients: ["nut-peanut"])).to be(true)
+      expect(described_class.requires_confirmation?(remove_tags: ["contains-shellfish"])).to be(true)
+    end
+
+    # Adding an allergen is the safe direction and has to stay frictionless,
+    # or people stop doing it.
+    it "does not gate adding, or applying a preset" do
+      expect(described_class.requires_confirmation?(add_ingredients: ["nut-peanut"])).to be(false)
+      expect(described_class.requires_confirmation?(apply_preset: "vegan")).to be(false)
+      expect(described_class.requires_confirmation?({})).to be(false)
+    end
+
+    it "ignores an empty removal list rather than parking on nothing" do
+      expect(described_class.requires_confirmation?(remove_ingredients: [])).to be(false)
+      expect(described_class.requires_confirmation?(remove_ingredients: [""])).to be(false)
+    end
+
+    # The sentence a person approves is declared here, not phrased by the
+    # model that is asking for the approval.
+    it "names what is about to stop being hidden" do
+      prompt = described_class.confirmation_prompt_for(remove_ingredients: ["nut-peanut"])
+
+      expect(prompt).to include("nut-peanut")
+      expect(prompt).to include("start showing as safe")
+    end
+  end
 end
+

@@ -30,8 +30,12 @@ vi.mock('../../../lib/chat', async () => {
     deleteConversation: (id: string) => deleteConversation(id),
     streamTurn: (id: string, text: string, onEvent: (e: ChatEvent) => void) =>
       streamTurn(id, text, onEvent),
-    streamConfirm: (id: string, ok: boolean, onEvent: (e: ChatEvent) => void) =>
-      streamConfirm(id, ok, onEvent),
+    streamConfirm: (
+      id: string,
+      ok: boolean,
+      fingerprint: string | null,
+      onEvent: (e: ChatEvent) => void,
+    ) => streamConfirm(id, ok, fingerprint, onEvent),
     uploadAttachment: (file: File) => uploadAttachment(file),
   };
 });
@@ -130,12 +134,15 @@ describe('ChatClient', () => {
   describe('when a destructive call is parked', () => {
     beforeEach(() => {
       streamTurn.mockImplementation(async (_id, _text, onEvent) => {
-        onEvent({ type: 'awaiting_confirmation', tool: { name: 'delete_review', input: { id: 'r-1' } } });
+        onEvent({
+          type: 'awaiting_confirmation',
+          tool: { name: 'delete_review', input: { id: 'r-1' }, prompt: null, fingerprint: 'fp-1' },
+        });
       });
       getConversation.mockResolvedValue({
         ...blank,
         state: 'awaiting_confirmation',
-        pending: { name: 'delete_review', input: { id: 'r-1' } },
+        pending: { name: 'delete_review', input: { id: 'r-1' }, prompt: null, fingerprint: 'fp-1' },
       });
     });
 
@@ -148,14 +155,39 @@ describe('ChatClient', () => {
       expect(screen.getByLabelText('Message')).toBeDisabled();
     });
 
-    it('sends the answer the person gave', async () => {
+    // The fingerprint has to travel with the answer, or the server cannot
+    // tell this approval apart from one meant for a different call.
+    it('sends the answer the person gave, bound to the parked call', async () => {
       streamConfirm.mockResolvedValue(undefined);
       render(<ChatClient />);
       await type('delete my review');
 
       fireEvent.click(await screen.findByText('No'));
 
-      await waitFor(() => expect(streamConfirm).toHaveBeenCalledWith('c-1', false, expect.anything()));
+      await waitFor(() =>
+        expect(streamConfirm).toHaveBeenCalledWith('c-1', false, 'fp-1', expect.anything()),
+      );
+    });
+
+    // A declared sentence replaces the generic prompt and the JSON dump:
+    // people should not have to read arguments to know what they are
+    // agreeing to.
+    it('renders the sentence the tool declared when there is one', async () => {
+      const prompt = 'Stop avoiding nut-peanut? Dishes containing it will start showing as safe for you.';
+      getConversation.mockResolvedValue({
+        ...blank,
+        state: 'awaiting_confirmation',
+        pending: {
+          name: 'update_avoid_lists',
+          input: { remove_ingredients: ['nut-peanut'] },
+          prompt,
+          fingerprint: 'fp-2',
+        },
+      });
+      render(<ChatClient />);
+      await type('stop avoiding peanuts');
+
+      expect(await screen.findByTestId('confirm-prompt')).toHaveTextContent(prompt);
     });
   });
 

@@ -59,18 +59,18 @@ module Chat
     # `text` starts a new turn. `confirm` answers a parked tool call:
     # true runs it, false tells the model the user said no. Passing both
     # is a caller bug — the parked call has to be settled first.
-    def run(text: nil, confirm: nil)
-      result = perform(text: text, confirm: confirm)
+    def run(text: nil, confirm: nil, fingerprint: nil)
+      result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
       emit_terminal(result)
       result
     end
 
     private
 
-    def perform(text:, confirm:)
+    def perform(text:, confirm:, fingerprint: nil)
       if @conversation.awaiting_confirmation?
         raise ArgumentError, "answer the pending confirmation before sending a message" if text
-        return resume(confirm)
+        return resume(confirm, fingerprint)
       end
 
       raise ArgumentError, "text is required to start a turn" if text.blank?
@@ -86,7 +86,7 @@ module Chat
       Result.new(state: :error, error: "The assistant is unavailable right now. Try again in a moment.")
     end
 
-    def resume(confirm)
+    def resume(confirm, fingerprint = nil)
       raise ArgumentError, "confirm must be true or false" unless [true, false].include?(confirm)
 
       parked  = @conversation.pending_tool_call || {}
@@ -94,6 +94,20 @@ module Chat
       queue   = Array(parked["queue"])
       call    = queue.first
       return Result.new(state: :error, error: "Nothing is waiting on you.") if call.nil?
+
+      # The answer has to be to THIS call. Without the binding, a tab left
+      # open on an earlier prompt could approve whatever happens to be
+      # parked now — the user would be agreeing to a sentence they never
+      # read.
+      #
+      # Fails CLOSED: a missing stored fingerprint is a mismatch, not a
+      # pass. `park` always writes one, so the only rows without it predate
+      # this gate, and "absent means allowed" is how a check like this
+      # quietly stops checking.
+      expected = parked.dig("pending", "fingerprint")
+      if expected.blank? || fingerprint != expected
+        return Result.new(state: :error, error: "That confirmation is out of date. Reload and read the request again.")
+      end
 
       emit(type: "tool_use", name: call["name"], input: call["input"]) if confirm
       settled = confirm ? execute(call) : declined(call)
@@ -130,11 +144,7 @@ module Chat
     def continue_queue(queue, results)
       queue.each_with_index do |call, index|
         if confirm_required?(call)
-          park(results, queue.drop(index))
-          return Result.new(
-            state: :awaiting_confirmation,
-            pending: { "name" => call["name"], "input" => call["input"] }
-          )
+          return Result.new(state: :awaiting_confirmation, pending: park(results, queue.drop(index)))
         end
 
         emit(type: "tool_use", name: call["name"], input: call["input"])
@@ -147,15 +157,34 @@ module Chat
       Result.new(state: :continue)
     end
 
+    # Parks the head of the queue and returns what a client needs to draw
+    # the prompt: the declared sentence, and a fingerprint the answer must
+    # carry back.
+    #
+    # The fingerprint is computed **once, here** and stored — never
+    # recomputed from the parked row. jsonb does not preserve key order, so
+    # a hash derived from the round-tripped input would not reliably match
+    # one derived from the live call.
     def park(results, queue)
+      call        = queue.first
+      tool        = Tools::Registry.find(call["name"])
+      fingerprint = Digest::SHA256.hexdigest(JSON.generate([call["name"], call["input"]]))
+      pending     = {
+        "name"        => call["name"],
+        "input"       => call["input"],
+        "prompt"      => tool&.confirmation_prompt_for(arguments_for(call)),
+        "fingerprint" => fingerprint
+      }
+
       @conversation.update!(
         state: "awaiting_confirmation",
-        pending_tool_call: { "results" => results, "queue" => queue }
+        pending_tool_call: { "results" => results, "queue" => queue, "pending" => pending }
       )
+      pending
     end
 
     def confirm_required?(call)
-      ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]))
+      ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
     end
 
     def execute(call)
