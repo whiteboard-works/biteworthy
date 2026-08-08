@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   NotSignedInError,
   listConversations,
-  streamConfirm,
-  streamTurn,
+  answerConfirmation,
+  sendMessage,
+  watchTurn,
   uploadAttachment,
   type ChatEvent,
 } from '../chat';
@@ -56,9 +57,32 @@ describe('chat client', () => {
   it('surfaces the server error message', async () => {
     vi.stubGlobal('fetch', jsonFetch(422, { error: 'That message is too long.' }));
 
-    await expect(
-      streamTurn('c-1', 'x'.repeat(10), () => {}),
-    ).rejects.toThrow('That message is too long.');
+    await expect(sendMessage('c-1', 'x'.repeat(10))).rejects.toThrow('That message is too long.');
+  });
+
+  // The turn runs in a job, so asking for one returns as soon as it is
+  // recorded rather than waiting out a model.
+  it('asks for a turn and gets back the position to watch from', async () => {
+    const fetchMock = jsonFetch(202, { queued: true, after: 7 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const queued = await sendMessage('c-1', 'hi');
+
+    expect(queued.after).toBe(7);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/messages');
+  });
+
+  // The fingerprint rides with the answer so the server can tell it apart
+  // from an approval of some other call that happens to be parked now.
+  it('sends the confirmation answer as a boolean, bound to the parked call', async () => {
+    const fetchMock = jsonFetch(202, { queued: true, after: 3 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await answerConfirmation('c-1', false, 'fp-abc');
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/confirm');
+    expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
   });
 
   describe('streaming a turn', () => {
@@ -74,7 +98,7 @@ describe('chat client', () => {
       );
 
       const seen: ChatEvent[] = [];
-      await streamTurn('c-1', 'hi', (e) => seen.push(e));
+      await watchTurn('c-1', 0, (e) => seen.push(e));
 
       expect(seen.map((e) => e.type)).toEqual(['open', 'text_delta', 'text_delta', 'done']);
       expect(seen.filter((e) => e.type === 'text_delta').map((e) => e.text).join('')).toBe(
@@ -89,7 +113,7 @@ describe('chat client', () => {
       vi.stubGlobal('fetch', sseFetch([whole.slice(0, 12), whole.slice(12, 30), whole.slice(30)]));
 
       const seen: ChatEvent[] = [];
-      await streamTurn('c-1', 'hi', (e) => seen.push(e));
+      await watchTurn('c-1', 0, (e) => seen.push(e));
 
       expect(seen).toEqual([
         { type: 'text_delta', text: 'split' },
@@ -97,18 +121,17 @@ describe('chat client', () => {
       ]);
     });
 
-    // The fingerprint rides with the answer so the server can tell it apart
-    // from an approval of some other call that happens to be parked now.
-    it('sends the confirmation answer as a boolean, bound to the parked call', async () => {
-      const fetchMock = sseFetch([frame({ type: 'done', text: 'Deleted.' })]);
-      vi.stubGlobal('fetch', fetchMock);
+  });
 
-      await streamConfirm('c-1', false, 'fp-abc', () => {});
+  // Events are stored, not just sent, so a reconnect asks for everything
+  // after the last position it saw rather than starting the turn over.
+  it('resumes the narration from the position it was given', async () => {
+    const fetchMock = sseFetch([frame({ type: 'done', text: 'done' })]);
+    vi.stubGlobal('fetch', fetchMock);
 
-      const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/confirm');
-      expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
-    });
+    await watchTurn('c-1', 12, () => {});
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/stream?after=12');
   });
 
   it('uploads an attachment as multipart and returns its id', async () => {

@@ -62,6 +62,30 @@ export async function proxyAuthed(apiPath: string, init: ProxyInit = {}): Promis
 }
 
 /**
+ * Relay a streaming GET. Same no-buffering rules as `proxyStream`, but for
+ * reading a turn's narration back rather than starting one — the turn now
+ * runs in a job, so watching it is a separate request from asking for it.
+ */
+export async function proxyStreamGet(apiPath: string): Promise<Response> {
+  const jwt = await getServerJwt();
+  if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+
+  const upstream = await fetch(`${API_BASE}${apiPath}`, {
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'text/event-stream' },
+  });
+  if (!upstream.ok || !upstream.body) return relayUpstream(upstream);
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-store',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
+
+/**
  * Forward a POST and relay the upstream body **without buffering it**, so
  * a chat turn's events reach the browser as they happen rather than all
  * at once when the turn ends.

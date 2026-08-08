@@ -49,11 +49,16 @@ module Chat
     # writes and as each tool runs, so a caller can stream progress
     # instead of showing a spinner for the length of a whole turn. When
     # it is nil the loop makes the same calls non-streaming.
-    def initialize(conversation, client: nil, public_host: nil, on_event: nil)
+    # `run:` lets the caller own the lock. CompletionJob does, because it
+    # needs the run before the turn starts — the event writer stamps every
+    # row with it. A direct caller passing nothing gets the lock acquired
+    # and released here instead.
+    def initialize(conversation, client: nil, public_host: nil, on_event: nil, run: nil)
       @conversation = conversation
       @client       = client || AnthropicClient.new(model: MODEL)
       @public_host  = public_host
       @on_event     = on_event
+      @injected_run = run
     end
 
     # `text` starts a new turn. `confirm` answers a parked tool call:
@@ -66,7 +71,7 @@ module Chat
     # merely confusing — it is rejected by the Messages API, which makes
     # the conversation permanently unusable rather than one turn poorer.
     def run(text: nil, confirm: nil, fingerprint: nil)
-      @run = ConversationRun.acquire(@conversation)
+      @run = @injected_run || ConversationRun.acquire(@conversation)
       if @run.nil?
         result = Result.new(state: :error, error: "This conversation is already answering. Wait for it to finish.")
         emit_terminal(result)

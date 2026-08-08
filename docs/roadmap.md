@@ -65,7 +65,7 @@ Read its Decisions and Safety-properties tables before picking up a phase.
 - [x] C1 — one tool boundary: argument validation + contained tool bugs in `Tools::Base`, both doors
 - [x] C2 — confirmation bound to the exact call; avoid-list removals gated by code, not prose
 - [x] C3 — run lifecycle: Postgres lock/lease, abort flag, stop endpoint, per-round token metrics
-- [ ] C4 — turns run in a job; SSE becomes a replayable relay; pending-turn queue; stop button in the UI
+- [x] C4 — turns run in a job; SSE becomes a replayable relay; pending-turn queue; stop button
 - [ ] C5 — prompts as ordered snapshot-tested sections + a volatile trailing block
 - [ ] C6 — grounding review on dietary answers (Safety Property 1, enforced not instructed)
 - [ ] C7 — deferred tool loading (M6), per-tool progress text, resource chips, admin debug pills

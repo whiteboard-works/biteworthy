@@ -255,6 +255,15 @@ reconstructed rather than replayed.
 
 ### The HTTP surface
 
+**A turn runs in a job, not in the request.** `POST /messages` and
+`/confirm` record the ask into `conversations.pending_turns` and enqueue
+`Chat::CompletionJob`, answering `202` with the narration position to watch
+from. `GET /conversations/:id/stream` tails `conversation_events` and
+honours `Last-Event-ID`, so a reconnect resumes the narration instead of
+waiting blind. `DELETE /conversations/:id/run` is the stop button — it
+raises a flag the running turn reads at its next checkpoint, and it has to
+be a separate request because the one that started the turn is busy.
+
 | Route | What |
 |---|---|
 | `GET /api/v1/conversations` | The caller's own, newest first |

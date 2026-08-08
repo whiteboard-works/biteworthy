@@ -1,31 +1,45 @@
 module Api
   module V1
-    # Runs one chat turn and narrates it over Server-Sent Events.
+    # The thin entry point, and the relay that narrates what the job is
+    # doing.
     #
-    # A turn can take a minute — several model calls plus the tools in
-    # between — so the alternative to streaming is a spinner with nothing
-    # behind it. Events arrive as they happen: text and thinking as the
-    # model writes, one pair per tool call, then a terminal event.
+    # Turns used to run here, inside the request. That held a Puma thread
+    # for the length of a model conversation, and — worse — the turn died
+    # with the request: a proxy timeout, a deploy, or a closed laptop
+    # killed the work itself, not just the view of it. Now `create` and
+    # `confirm` write down what was asked and hand off to
+    # `Chat::CompletionJob`; `stream` reads the narration back out.
     #
-    # **The stream is a view, not the record.** Every turn is persisted as
-    # it runs, so a dropped connection costs nothing: the loop finishes
-    # server-side and `GET /conversations/:id` replays it. That is what
-    # makes a 60-second turn survive a proxy timeout or a closed laptop.
+    # **The stream is a view, not the record** — and now that is true of
+    # the narration too. Events are rows, so a client that reconnects sends
+    # the last position it saw and resumes from there, instead of waiting
+    # blind for the turn to finish and refetching.
     class ConversationTurnsController < BaseController
       include ActionController::Live
 
       MAX_MESSAGE_CHARS = 20_000
+      # How long a reader waits on a quiet conversation before we close and
+      # let it reconnect. Long enough not to churn, short enough that a
+      # half-dead connection is noticed.
+      STREAM_SECONDS    = 300
+      POLL_SECONDS      = 0.2
+      # A silent minute reads as a hang to every proxy in the path.
+      KEEPALIVE_SECONDS = 15
+      # One turn's narration is tens of rows, not thousands.
+      BATCH             = 200
 
       def create
         text = params[:message].to_s.strip
         return render_error("Type something first.") if text.blank?
         return render_error("That message is too long.") if text.length > MAX_MESSAGE_CHARS
+        # Queuing a message behind a parked call would leave the tool_use
+        # dangling while the model answered something else.
         if conversation.awaiting_confirmation?
           return render_error("Answer the pending confirmation first.", :conflict)
         end
 
         title_from(text)
-        stream_turn { |agent| agent.run(text: text) }
+        enqueue("kind" => "message", "text" => text)
       end
 
       def confirm
@@ -34,10 +48,84 @@ module Api
         approved = confirm_answer
         return render_error("Send confirm: true or false.") if approved.nil?
 
-        stream_turn { |agent| agent.run(confirm: approved, fingerprint: params[:fingerprint].presence) }
+        enqueue("kind" => "confirm", "confirm" => approved, "fingerprint" => params[:fingerprint].presence)
+      end
+
+      # `Last-Event-ID` is the standard reconnect header and EventSource
+      # sends it on its own; `?after=` is here for clients that roll their
+      # own reader, which ours does because it needs POST semantics.
+      def stream
+        open_stream
+        relay
+      rescue StandardError => e
+        Rails.logger.error("[chat] stream on #{conversation.id} failed: #{e.class}: #{e.message}")
+        write_event({ type: "error", message: "Lost the connection to that turn. Reload to catch up." })
+      ensure
+        response.stream.close
       end
 
       private
+
+      # The request's whole job: record what was asked, then tell a worker.
+      # Recording first matters — a job that starts against an empty queue
+      # has nothing to run.
+      def enqueue(payload)
+        cursor = last_position
+        conversation.enqueue_turn!(payload)
+        Chat::CompletionJob.perform_later(conversation.id)
+        render json: { queued: true, after: cursor }, status: :accepted
+      end
+
+      def relay
+        position  = resume_from
+        deadline  = Time.current + STREAM_SECONDS
+        last_beat = Time.current
+
+        while Time.current < deadline && !@disconnected
+          events = conversation.events.after(position).in_order.limit(BATCH).to_a
+          events.each do |event|
+            write_event(event.payload, id: event.position)
+            position = event.position
+          end
+
+          # A terminal event ends the turn. Stay open only if something is
+          # still queued behind it, so a finished conversation does not
+          # hold a connection for five minutes.
+          break if events.any? { |e| terminal?(e) } && !more_coming?
+
+          if events.empty?
+            if Time.current - last_beat >= KEEPALIVE_SECONDS
+              write_comment("keepalive")
+              last_beat = Time.current
+            end
+            sleep POLL_SECONDS
+          else
+            last_beat = Time.current
+          end
+        end
+      end
+
+      def terminal?(event)
+        %w[done error awaiting_confirmation].include?(event.payload["type"])
+      end
+
+      def more_coming?
+        conversation.reload.pending_turns? ||
+          ConversationRun.running.exists?(conversation_id: conversation.id)
+      end
+
+      def resume_from
+        cursor = request.headers["Last-Event-ID"].presence || params[:after].presence
+        return cursor.to_i if cursor
+
+        # No cursor means "from here on" — replaying the whole history
+        # would redraw turns the client already has on screen.
+        last_position
+      end
+
+      def last_position
+        conversation.events.maximum(:position).to_i
+      end
 
       # Deliberately not a loose boolean cast: those read anything that
       # isn't literally false as `true`, which would turn a malformed
@@ -57,38 +145,33 @@ module Api
         render json: { error: message }, status: status
       end
 
-      def stream_turn
-        open_stream
-        yield Chat::AgentLoop.new(conversation, public_host: public_host, on_event: method(:write_event))
-      rescue StandardError => e
-        # The loop already converts upstream and tool failures into error
-        # events; reaching here means a bug. The user gets one honest
-        # sentence rather than a hung stream.
-        Rails.logger.error("[chat] turn on #{conversation.id} failed: #{e.class}: #{e.message}")
-        Rails.logger.error(e.backtrace&.first(10)&.join("\n"))
-        write_event(type: "error", message: "Something went wrong on our end. Your conversation is saved.")
-      ensure
-        response.stream.close
-      end
-
       def open_stream
-        response.headers["Content-Type"]     = "text/event-stream"
-        response.headers["Cache-Control"]    = "no-cache, no-store"
+        response.headers["Content-Type"]      = "text/event-stream"
+        response.headers["Cache-Control"]     = "no-cache, no-store"
         # Nginx and friends buffer proxied responses by default, which
         # would hold every event until the turn ended.
         response.headers["X-Accel-Buffering"] = "no"
         # Rack::ETag buffers the whole body to digest it unless the
         # response already carries a validator.
-        response.headers["Last-Modified"]    = Time.current.httpdate
-        write_event(type: "open", conversation_id: conversation.id)
+        response.headers["Last-Modified"]     = Time.current.httpdate
       end
 
-      # Writes never raise past here: when the client is gone the turn
-      # still has to finish, because finishing is what persists it.
-      def write_event(payload)
+      # Writes never raise past here. A reader going away is normal now —
+      # the turn is running in a job that does not care whether anyone is
+      # watching.
+      def write_event(payload, id: nil)
         return if @disconnected
 
+        response.stream.write("id: #{id}\n") if id
         response.stream.write("data: #{payload.to_json}\n\n")
+      rescue IOError, ActionController::Live::ClientDisconnected
+        @disconnected = true
+      end
+
+      def write_comment(text)
+        return if @disconnected
+
+        response.stream.write(": #{text}\n\n")
       rescue IOError, ActionController::Live::ClientDisconnected
         @disconnected = true
       end
