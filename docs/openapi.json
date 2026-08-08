@@ -4871,22 +4871,11 @@
         }
       }
     },
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items": {
-      "parameters": [
-        {
-          "name": "ingestion_run_id",
-          "in": "path",
-          "format": "uuid",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+    "/api/v1/conversations": {
       "get": {
-        "summary": "List a run's staged items (owner or admin)",
+        "summary": "List the caller's conversations, newest first",
         "tags": [
-          "Ingestion"
+          "Chat"
         ],
         "security": [
           {
@@ -4905,19 +4894,19 @@
         ],
         "responses": {
           "200": {
-            "description": "items in position order",
+            "description": "the caller's conversations",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "items"
+                    "conversations"
                   ],
                   "properties": {
-                    "items": {
+                    "conversations": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/IngestionItemPayload"
+                        "$ref": "#/components/schemas/Conversation"
                       }
                     }
                   }
@@ -4925,12 +4914,38 @@
               }
             }
           },
-          "403": {
-            "description": "not the run's creator and not an admin",
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Open an empty conversation",
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the new conversation",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/Conversation"
                 }
               }
             }
@@ -4938,17 +4953,8 @@
         }
       }
     },
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items/{id}": {
+    "/api/v1/conversations/{id}": {
       "parameters": [
-        {
-          "name": "ingestion_run_id",
-          "in": "path",
-          "format": "uuid",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
         {
           "name": "id",
           "in": "path",
@@ -4959,11 +4965,12 @@
           }
         }
       ],
-      "patch": {
-        "summary": "Decide a staged item: accept / edit / reject / undo",
+      "get": {
+        "summary": "Replay a conversation",
         "tags": [
-          "Ingestion"
+          "Chat"
         ],
+        "description": "The reconnect path: a dropped stream loses nothing, because every turn is persisted as it runs. `usage` is present only for admins.",
         "security": [
           {
             "bearerAuth": []
@@ -4981,32 +4988,107 @@
         ],
         "responses": {
           "200": {
-            "description": "the updated item",
+            "description": "the conversation and its transcript",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IngestionItemPayload"
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "another account's conversation"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a conversation and its transcript",
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}/messages": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Ask for a turn",
+        "tags": [
+          "Chat"
+        ],
+        "description": "Records the request and hands off to a background job — no model call happens in this request. Watch the narration with /stream or /events.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnQueued"
                 }
               }
             }
           },
           "422": {
-            "description": "unknown decision value",
+            "description": "empty or over-long message",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "allowed": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "a confirmation is still parked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5018,172 +5100,22 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "decision"
+                  "message"
                 ],
-                "description": "decision: accepted promotes (admin ⇒ confirmed joins, community ⇒ suggested); pending undoes a prior decision. Edit fields apply before an accept so the promoted Item carries the human's tweaks — fixing a bad extraction here beats correcting the live menu later. Every payload array replaces the stored one wholesale: send the complete array, omit the key to leave it alone, send [] to clear the staged row. Prices on a MATCHED card are the exception: an empty array clears the staged payload but leaves the live item's variants alone (an empty scan means 'no prices seen').",
                 "properties": {
-                  "decision": {
+                  "message": {
                     "type": "string",
-                    "enum": [
-                      "accepted",
-                      "edited",
-                      "rejected",
-                      "pending"
-                    ]
+                    "maxLength": 20000
                   },
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "ingredients_payload": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "slug"
-                      ],
-                      "properties": {
-                        "slug": {
-                          "type": "string",
-                          "description": "must match an Ingredient slug; unknown slugs are skipped at promote"
-                        },
-                        "confidence": {
-                          "type": "number"
-                        },
-                        "source": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "tags_payload": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "slug"
-                      ],
-                      "properties": {
-                        "slug": {
-                          "type": "string",
-                          "description": "must match a Tag slug; unknown slugs are skipped at promote"
-                        },
-                        "confidence": {
-                          "type": "number"
-                        },
-                        "source": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "prices_payload": {
-                    "type": "array",
-                    "description": "Materialized as ItemVariants at promote, in array order. Rows without price_cents are dropped; price_cents must be a non-negative integer (422 otherwise).",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "size": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "price_cents": {
-                          "type": "integer",
-                          "nullable": true
-                        }
-                      }
-                    }
-                  },
-                  "addons_payload": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "name"
-                      ],
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "price_cents": {
-                          "type": "integer",
-                          "nullable": true
-                        },
-                        "source": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "unresolved_ingredients": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "unresolved_tags": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        }
-      }
-    },
-    "/api/v1/ingestion_runs/{ingestion_run_id}/items/accept_all": {
-      "parameters": [
-        {
-          "name": "ingestion_run_id",
-          "in": "path",
-          "format": "uuid",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "summary": "Bulk-accept every still-pending item",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "all items after the bulk accept",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "items"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/IngestionItemPayload"
+                  "context": {
+                    "type": "object",
+                    "description": "Where the user is standing, so \"what can I eat here\" is answerable.",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "restaurant": {
+                        "type": "string"
                       }
                     }
                   }
@@ -5194,7 +5126,7 @@
         }
       }
     },
-    "/api/v1/ingestion_runs/{id}": {
+    "/api/v1/conversations/{id}/confirm": {
       "parameters": [
         {
           "name": "id",
@@ -5206,10 +5138,304 @@
           }
         }
       ],
-      "get": {
-        "summary": "Read a run's status + counters (owner or admin)",
+      "post": {
+        "summary": "Answer a parked destructive call",
         "tags": [
-          "Ingestion"
+          "Chat"
+        ],
+        "description": "`fingerprint` binds the answer to the call that was drawn, so a stale client cannot approve whatever happens to be parked now.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "409": {
+            "description": "nothing is waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm"
+                ],
+                "properties": {
+                  "confirm": {
+                    "type": "boolean"
+                  },
+                  "fingerprint": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}/events": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "required": false,
+          "description": "Narration cursor. Same one /stream uses.",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read a turn's narration as JSON",
+        "tags": [
+          "Chat"
+        ],
+        "description": "For clients that cannot hold a stream open — React Native's fetch exposes no readable body. Poll while `running` is true.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "narration after the cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatEventsPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}/run": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "Stop the running turn",
+        "tags": [
+          "Chat"
+        ],
+        "description": "Raises a flag the turn reads at its next checkpoint. Necessarily a separate request from the one that started it.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "409": {
+            "description": "nothing is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp_tokens": {
+      "get": {
+        "summary": "List the caller's active MCP tokens",
+        "tags": [
+          "MCP"
+        ],
+        "description": "Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "active tokens and the grantable scopes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tokens",
+                    "scopes"
+                  ],
+                  "properties": {
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/McpToken"
+                      }
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Issue a scoped MCP token",
+        "tags": [
+          "MCP"
+        ],
+        "description": "The only response that ever carries the secret. Omit `scopes` for a credential with the same access as the account.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the token, with its one-time secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpToken"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "unknown scope, missing name, or too many active tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "e.g. discovery:read"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp_tokens/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "Revoke one token, without ending other sessions",
+        "tags": [
+          "MCP"
         ],
         "security": [
           {
@@ -5221,29 +5447,21 @@
             "name": "Authorization",
             "in": "header",
             "required": true,
-            "description": "Bearer <jwt> — the run's creator or an admin",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "the run",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IngestionRunPayload"
-                }
-              }
-            }
+          "204": {
+            "description": "revoked"
           },
           "404": {
-            "description": "someone else's run (deliberately not 403), or unknown id",
+            "description": "another account's token",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -6084,6 +6302,360 @@
               "google_oauth2",
               "apple"
             ]
+          }
+        }
+      },
+      "ChatBlock": {
+        "type": "object",
+        "description": "One Anthropic content block, as a client renders it. Thinking signatures are dropped — they are meaningless to a client and the bulkiest thing in the record.",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "thinking",
+              "tool_use",
+              "tool_result"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "input": {
+            "type": "object",
+            "nullable": true
+          },
+          "tool_use_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "ok": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "position",
+          "blocks"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatBlock"
+            }
+          }
+        }
+      },
+      "PendingTool": {
+        "type": "object",
+        "description": "The call the confirmation gate parked. `prompt` is the sentence the tool itself declared; `fingerprint` must be echoed on /confirm so an answer can only settle the call it was drawn for.",
+        "required": [
+          "name",
+          "input",
+          "prompt",
+          "fingerprint"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "fingerprint": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "awaiting_confirmation",
+              "failed"
+            ]
+          },
+          "pending": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PendingTool"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ChatUsage"
+          }
+        }
+      },
+      "ChatUsage": {
+        "type": "object",
+        "description": "Spend and cache accounting. Present only for admins — the server decides, so a non-admin never receives it.",
+        "required": [
+          "cost_cents"
+        ],
+        "properties": {
+          "cost_cents": {
+            "type": "integer"
+          },
+          "last_run": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "state",
+              "rounds",
+              "input_tokens",
+              "output_tokens",
+              "cache_read_tokens"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "nullable": true
+              },
+              "state": {
+                "type": "string"
+              },
+              "rounds": {
+                "type": "integer"
+              },
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "cache_read_tokens": {
+                "type": "integer"
+              },
+              "duration_ms": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "ChatEvent": {
+        "type": "object",
+        "description": "One line of a turn's narration, carrying the cursor to resume from.",
+        "required": [
+          "type",
+          "position"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "ok": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "doing": {
+            "type": "string",
+            "nullable": true,
+            "description": "The tool's own progress sentence."
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "tool": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PendingTool"
+              }
+            ]
+          }
+        }
+      },
+      "ChatEventsPage": {
+        "type": "object",
+        "required": [
+          "events",
+          "running"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatEvent"
+            }
+          },
+          "running": {
+            "type": "boolean",
+            "description": "False means stop polling."
+          }
+        }
+      },
+      "TurnQueued": {
+        "type": "object",
+        "required": [
+          "queued",
+          "after"
+        ],
+        "properties": {
+          "queued": {
+            "type": "boolean"
+          },
+          "after": {
+            "type": "integer",
+            "description": "Narration position to watch from."
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "byte_size"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Signed blob id. Bytes never enter the agent's context."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "byte_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "McpToken": {
+        "type": "object",
+        "description": "A least-privilege credential for an MCP client. The secret is returned only by create — nothing stored can reproduce it.",
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Empty means unrestricted."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "secret": {
+            "type": "string",
+            "nullable": true,
+            "description": "Only ever present on create."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
           }
         }
       },

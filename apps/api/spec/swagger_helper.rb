@@ -180,6 +180,143 @@ RSpec.configure do |config|
                               enum: %w[google_oauth2 apple] }
             }
           },
+          # ── Chat ────────────────────────────────────────────────
+          ChatBlock: {
+            type: :object,
+            description: "One Anthropic content block, as a client renders it. " \
+                         "Thinking signatures are dropped — they are meaningless to a client " \
+                         "and the bulkiest thing in the record.",
+            required: %w[type],
+            properties: {
+              type:        { type: :string, enum: %w[text thinking tool_use tool_result] },
+              text:        { type: :string, nullable: true },
+              id:          { type: :string, nullable: true },
+              name:        { type: :string, nullable: true },
+              input:       { type: :object, nullable: true },
+              tool_use_id: { type: :string, nullable: true },
+              ok:          { type: :boolean, nullable: true }
+            }
+          },
+          ChatMessage: {
+            type: :object,
+            required: %w[id role position blocks],
+            properties: {
+              id:       { type: :string, format: :uuid },
+              role:     { type: :string, enum: %w[user assistant] },
+              position: { type: :integer },
+              blocks:   { type: :array, items: { "$ref" => "#/components/schemas/ChatBlock" } }
+            }
+          },
+          PendingTool: {
+            type: :object,
+            description: "The call the confirmation gate parked. `prompt` is the sentence the " \
+                         "tool itself declared; `fingerprint` must be echoed on /confirm so an " \
+                         "answer can only settle the call it was drawn for.",
+            required: %w[name input prompt fingerprint],
+            properties: {
+              name:        { type: :string },
+              input:       { type: :object },
+              prompt:      { type: :string, nullable: true },
+              fingerprint: { type: :string, nullable: true }
+            }
+          },
+          Conversation: {
+            type: :object,
+            required: %w[id state created_at updated_at],
+            properties: {
+              id:         { type: :string, format: :uuid },
+              title:      { type: :string, nullable: true },
+              state:      { type: :string, enum: %w[active awaiting_confirmation failed] },
+              pending:    { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] },
+              created_at: { type: :string, format: :"date-time" },
+              updated_at: { type: :string, format: :"date-time" },
+              messages:   { type: :array, items: { "$ref" => "#/components/schemas/ChatMessage" } },
+              usage:      { "$ref" => "#/components/schemas/ChatUsage" }
+            }
+          },
+          ChatUsage: {
+            type: :object,
+            description: "Spend and cache accounting. Present only for admins — the server " \
+                         "decides, so a non-admin never receives it.",
+            required: %w[cost_cents],
+            properties: {
+              cost_cents: { type: :integer },
+              last_run: {
+                type: :object, nullable: true,
+                required: %w[state rounds input_tokens output_tokens cache_read_tokens],
+                properties: {
+                  outcome:           { type: :string, nullable: true },
+                  state:             { type: :string },
+                  rounds:            { type: :integer },
+                  input_tokens:      { type: :integer },
+                  output_tokens:     { type: :integer },
+                  cache_read_tokens: { type: :integer },
+                  duration_ms:       { type: :integer, nullable: true }
+                }
+              }
+            }
+          },
+          ChatEvent: {
+            type: :object,
+            description: "One line of a turn's narration, carrying the cursor to resume from.",
+            required: %w[type position],
+            properties: {
+              type:     { type: :string },
+              position: { type: :integer },
+              text:     { type: :string, nullable: true },
+              name:     { type: :string, nullable: true },
+              ok:       { type: :boolean, nullable: true },
+              doing:    { type: :string, nullable: true, description: "The tool's own progress sentence." },
+              message:  { type: :string, nullable: true },
+              tool:     { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] }
+            }
+          },
+          ChatEventsPage: {
+            type: :object,
+            required: %w[events running],
+            properties: {
+              events:  { type: :array, items: { "$ref" => "#/components/schemas/ChatEvent" } },
+              running: { type: :boolean, description: "False means stop polling." }
+            }
+          },
+          TurnQueued: {
+            type: :object,
+            required: %w[queued after],
+            properties: {
+              queued: { type: :boolean },
+              after:  { type: :integer, description: "Narration position to watch from." }
+            }
+          },
+          Attachment: {
+            type: :object,
+            required: %w[id filename content_type byte_size],
+            properties: {
+              id:           { type: :string, description: "Signed blob id. Bytes never enter the agent's context." },
+              filename:     { type: :string },
+              content_type: { type: :string },
+              byte_size:    { type: :integer }
+            }
+          },
+          McpToken: {
+            type: :object,
+            description: "A least-privilege credential for an MCP client. The secret is " \
+                         "returned only by create — nothing stored can reproduce it.",
+            required: %w[id name scopes created_at],
+            properties: {
+              id:           { type: :string, format: :uuid },
+              name:         { type: :string },
+              scopes:       { type: :array, items: { type: :string },
+                              description: "Empty means unrestricted." },
+              created_at:   { type: :string, format: :"date-time" },
+              last_used_at: { type: :string, format: :"date-time", nullable: true },
+              secret:       { type: :string, nullable: true, description: "Only ever present on create." }
+            }
+          },
+          ErrorResponse: {
+            type: :object,
+            required: %w[error],
+            properties: { error: { type: :string } }
+          },
           AuthResponse: {
             type: :object,
             required: %w[user],
