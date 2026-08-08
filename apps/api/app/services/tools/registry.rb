@@ -6,36 +6,59 @@ module Tools
   # tool that would just 401, and a non-admin never learns that the admin
   # tools exist.
   module Registry
-    class << self
-      # Grouped by domain. The order within each is roughly the order a
-      # conversation uses them, which is also the order they read best in a
-      # `tools/list` dump.
-      DOMAINS = {
-        discovery: [
-          "Discovery::SearchRestaurants",
-          "Discovery::GetRestaurant",
-          "Discovery::GetMenu",
-          "Discovery::ExplainItem",
-          "Discovery::SearchTaxonomy"
-        ],
-        profile: [
-          "Profile::GetProfile",
-          "Profile::UpdateAvoidLists",
-          "Profile::SetStrictness",
-          "Profile::SaveRestaurant",
-          "Profile::SaveItem"
-        ],
-        ingestion: [
-          "Ingestion::StartMenuScan",
-          "Ingestion::GetScanStatus",
-          "Ingestion::ListStagedItems",
-          "Ingestion::EditStagedItem",
-          "Ingestion::AcceptStagedItems",
-          "Ingestion::RejectStagedItems",
-          "Ingestion::UndoStagedItem"
-        ]
-      }.freeze
+    # Grouped by domain. The order within each is roughly the order a
+    # conversation uses them, which is also the order they read best in a
+    # `tools/list` dump.
+    DOMAINS = {
+      discovery: [
+        "Discovery::SearchRestaurants",
+        "Discovery::GetRestaurant",
+        "Discovery::GetMenu",
+        "Discovery::ExplainItem",
+        "Discovery::SearchTaxonomy"
+      ],
+      profile: [
+        "Profile::GetProfile",
+        "Profile::UpdateAvoidLists",
+        "Profile::SetStrictness",
+        "Profile::SaveRestaurant",
+        "Profile::SaveItem"
+      ],
+      ingestion: [
+        "Ingestion::StartMenuScan",
+        "Ingestion::GetScanStatus",
+        "Ingestion::ListStagedItems",
+        "Ingestion::EditStagedItem",
+        "Ingestion::AcceptStagedItems",
+        "Ingestion::RejectStagedItems",
+        "Ingestion::UndoStagedItem"
+      ],
+      reviews: [
+        "Reviews::ListReviews",
+        "Reviews::WriteReview",
+        "Reviews::EditReview",
+        "Reviews::DeleteReview",
+        "Reviews::ReportReview"
+      ],
+      suggestions: [
+        "Suggestions::SuggestCorrection",
+        "Suggestions::ListSuggestions",
+        "Suggestions::ResolveSuggestion"
+      ],
+      claims: [
+        "Claims::ClaimRestaurant",
+        "Claims::VerifyClaim"
+      ],
+      history: [
+        "History::ListVisits",
+        "History::ListSaved"
+      ],
+      restaurants: [
+        "Restaurants::CreateRestaurant"
+      ]
+    }.freeze
 
+    class << self
       def all
         @all ||= DOMAINS.values.flatten.map { |name| Tools.const_get(name) }.freeze
       end
