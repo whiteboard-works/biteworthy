@@ -29,8 +29,9 @@ class McpController < ApplicationController
   SERVER_VERSION = "1.0.0"
 
   def handle
-    context = Tools::Context.new(server_context)
     return unauthorized if authorization_failed?
+
+    context = Tools::Context.new(server_context)
 
     status, headers, body = transport_for(context).handle_request(request)
 
@@ -76,17 +77,43 @@ class McpController < ApplicationController
   # tools can read it with `[]` / `dig`.
   def server_context
     @server_context ||= {
-      user_id:     current_user&.id,
+      user_id:     caller_user&.id,
       public_host: public_host,
-      request_id:  request.request_id
+      request_id:  request.request_id,
+      # Empty for a plain JWT, which carries every power the account has.
+      # A scoped token narrows that, and the tool layer enforces it.
+      scopes:      mcp_token&.scopes || []
     }
+  end
+
+  # Two credentials reach this door. A `bw_mcp_` token is the least-
+  # privilege one — issued for a specific client, scoped, revocable on its
+  # own. Anything else is the Devise JWT the REST API already issues,
+  # which carries the whole account.
+  def caller_user
+    return @caller_user if defined?(@caller_user)
+
+    @caller_user = mcp_token&.user || current_user
+  end
+
+  def mcp_token
+    return @mcp_token if defined?(@mcp_token)
+
+    @mcp_token = McpToken.authenticate(bearer_secret)
+    @mcp_token&.note_use!
+    @mcp_token
+  end
+
+  def bearer_secret
+    request.authorization.to_s[/\ABearer (.+)\z/i, 1]
   end
 
   # Devise's `current_user` returns nil rather than raising when the token
   # is missing or bad, so "was a token offered?" and "did it work?" have to
-  # be asked separately.
+  # be asked separately. A `bw_mcp_` secret that resolves is also a pass —
+  # it is a different credential, not a malformed JWT.
   def authorization_failed?
-    request.authorization.present? && current_user.nil?
+    request.authorization.present? && caller_user.nil?
   end
 
   def unauthorized

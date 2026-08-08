@@ -127,6 +127,7 @@ module Tools
       def call(server_context: nil, **args)
         context = Context.new(server_context)
         enforce_audience!(context)
+        enforce_scope!(context)
         validate_arguments!(args)
         perform(context: context, **args)
       rescue Errors::Error => e
@@ -207,6 +208,18 @@ module Tools
         return :any if params.any? { |kind, _| kind == :keyrest }
 
         params.filter_map { |kind, key| key if [:key, :keyreq].include?(kind) } - [:context]
+      end
+
+      # Audience asks "may this person do it"; scope asks "may this
+      # credential". They are different questions and both have to pass —
+      # an admin using a read-only MCP token is still an admin, and the
+      # token still may not write.
+      def enforce_scope!(context)
+        required = Scopes.for_tool(self)
+        return if Scopes.satisfied?(context.scopes, required)
+
+        raise Errors::Forbidden,
+              "This credential is not allowed to do that. It would need the #{required} scope."
       end
 
       def enforce_audience!(context)

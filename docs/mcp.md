@@ -347,6 +347,40 @@ tools. A header that fails to authenticate is a **401**, not a silent
 downgrade to anonymous — a client with a stale token needs to know to
 refresh rather than quietly lose access to its own profile.
 
+### Scoped tokens (least privilege)
+
+A Devise JWT carries everything the account can do — for an admin, the
+taxonomy, the moderation queue, and every user's role. That is a lot of
+authority to hand something whose job is usually "read menus for me".
+
+`McpToken` is the alternative: a credential that names what it may touch,
+lists, and revokes on its own without ending other sessions.
+
+```bash
+bin/rails "mcp:issue[you@example.com,Claude Code,discovery:read profile:read]"
+bin/rails "mcp:list[you@example.com]"
+bin/rails "mcp:revoke[<token id>]"
+bin/rails mcp:scopes          # every grantable scope
+```
+
+The secret prints once; only its SHA-256 is stored, so a leaked database
+is not a leaked set of working credentials.
+
+Scopes are `<domain>:<read|write>`, **derived from `Registry::DOMAINS`**
+rather than listed — a new domain cannot ship without a scope for it. The
+read/write split follows each tool's own `read_only_hint`, so it cannot
+drift from what the tool does. A write grant implies the read on the same
+domain; the reverse never holds.
+
+Enforcement lives in `Tools::Base` alongside the audience check, because
+they are different questions and both must pass: audience asks *may this
+person*, scope asks *may this credential*. An admin using a read-only
+token is still an admin, and the token still may not write.
+
+**An unscoped credential is unrestricted.** Every JWT issued before this
+existed carries no scopes, and treating that as "denied" would lock out
+every working integration.
+
 ### Connecting Claude Code
 
 ```bash

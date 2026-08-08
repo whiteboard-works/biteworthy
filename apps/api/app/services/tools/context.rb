@@ -6,13 +6,17 @@ module Tools
   # `public_host` rides along so tools can build signed ActiveStorage URLs
   # the same way Api::V1::BaseController does.
   class Context
-    attr_reader :public_host, :request_id
+    attr_reader :public_host, :request_id, :scopes
 
     def initialize(server_context = nil)
       raw          = server_context || {}
       @user_id     = raw[:user_id]
       @public_host = raw[:public_host]
       @request_id  = raw[:request_id]
+      # What this caller's credential is allowed to touch. Empty means
+      # unrestricted, which is what a session or a plain JWT is — the
+      # scope check only narrows, it never grants.
+      @scopes      = Array(raw[:scopes])
     end
 
     def user

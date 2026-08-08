@@ -291,6 +291,20 @@ restated, audience-filtered like tools and the map. Closes the last
 capability gap in the MCP surface short of OAuth: the server now serves
 tools, resources, and prompts.
 
+### M8a — scoped tokens — SHIPPED
+
+`McpToken` gives an MCP client a least-privilege credential today, without
+waiting on OAuth: domain-scoped, revocable on its own, secret stored only
+as a digest. The scope vocabulary is derived from `Registry::DOMAINS` and
+is the same one M8's authorization server will issue against, so that work
+inherits the enforcement rather than adding it.
+
+**Why not the full OAuth flow yet:** consent needs a browser-rendered
+login and approval page, and this app is `api_only` with its login UI in
+Next.js. Where that page lives — Rails-rendered, or a Next route posting
+back — is a product decision with security implications, not something to
+settle mid-implementation.
+
 ### M8 — Public MCP (OAuth 2.1)
 
 Self-contained; nothing above depends on it.

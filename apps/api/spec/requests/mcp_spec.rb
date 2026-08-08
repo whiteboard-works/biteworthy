@@ -155,5 +155,68 @@ RSpec.describe "POST /mcp", type: :request do
       expect(names).to eq(["find_something_this_person_can_eat"])
     end
   end
+
+  # Connecting Claude Code today means handing it a JWT carrying every
+  # power the account has. A scoped token carries less, and the tool layer
+  # is where that is enforced.
+  describe "scoped MCP tokens" do
+    def rpc(secret, name, arguments = {})
+      post "/mcp",
+           params: { jsonrpc: "2.0", id: 1, method: "tools/call",
+                     params: { name: name, arguments: arguments } }.to_json,
+           headers: { "Authorization" => "Bearer #{secret}", "Content-Type" => "application/json" }
+      JSON.parse(response.body, symbolize_names: true)
+    end
+
+    let!(:city)       { create(:city, slug: "durango") }
+    let!(:restaurant) { create(:restaurant, :published, city: city, slug: "ninis") }
+
+    it "authenticates as its owner" do
+      user = create(:user)
+      _, secret = McpToken.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"])
+
+      body = rpc(secret, "get_restaurant", { restaurant: "ninis" })
+
+      expect(body[:error]).to be_nil
+      expect(body.dig(:result, :isError)).to be_falsey
+    end
+
+    # The whole point: an admin's read-only token is still an admin's
+    # token, and still may not write.
+    it "refuses a write the token was not granted, even for an admin" do
+      admin = create(:user, is_admin: true)
+      _, secret = McpToken.issue!(user: admin, name: "read only", scopes: ["discovery:read"])
+
+      body = rpc(secret, "set_user_role", { user_id: admin.id, is_admin: false })
+
+      expect(body.dig(:result, :isError)).to be(true)
+      expect(body.dig(:result, :content, 0, :text)).to include("scope")
+      expect(admin.reload.is_admin).to be(true)
+    end
+
+    it "allows the write once the scope is granted" do
+      admin = create(:user, is_admin: true)
+      other = create(:user)
+      _, secret = McpToken.issue!(user: admin, name: "ops", scopes: ["users:write"])
+
+      rpc(secret, "set_user_role", { user_id: other.id, is_admin: true })
+
+      expect(other.reload.is_admin).to be(true)
+    end
+
+    # A revoked credential must stop working without ending every other
+    # session the person has.
+    it "rejects a revoked token as unauthorized" do
+      user = create(:user)
+      token, secret = McpToken.issue!(user: user, name: "old laptop")
+      token.revoke!
+
+      post "/mcp",
+           params: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }.to_json,
+           headers: { "Authorization" => "Bearer #{secret}", "Content-Type" => "application/json" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end
 
