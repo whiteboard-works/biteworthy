@@ -50,6 +50,9 @@ class McpController < ApplicationController
         version:        SERVER_VERSION,
         instructions:   Tools::Instructions.text,
         tools:          Tools::Registry.for(context),
+        # The tool map, so a client that reads resources can learn how the
+        # tools compose without spending a turn on describe_capabilities.
+        resources:      [Tools::TopologyResource],
         server_context: server_context
       ),
       stateless: true,

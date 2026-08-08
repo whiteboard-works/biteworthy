@@ -10,6 +10,9 @@ module Tools
     # conversation uses them, which is also the order they read best in a
     # `tools/list` dump.
     DOMAINS = {
+      meta: [
+        "Meta::DescribeCapabilities"
+      ],
       discovery: [
         "Discovery::SearchRestaurants",
         "Discovery::GetRestaurant",

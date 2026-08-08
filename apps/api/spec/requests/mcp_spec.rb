@@ -101,4 +101,28 @@ RSpec.describe "POST /mcp", type: :request do
       expect(body.dig("result", "content", 0, "text")).to match(/restaurant/i)
     end
   end
+
+  # The tool map is served as a resource so a client that reads resources
+  # learns how the tools compose without spending a turn on a tool call.
+  describe "resources" do
+    it "advertises the topology" do
+      body = rpc("resources/list")
+
+      expect(body.dig("result", "resources").map { |r| r["uri"] }).to include("biteworthy://topology")
+    end
+
+    it "reads it as markdown, scoped to the caller" do
+      body = rpc("resources/read", { uri: "biteworthy://topology" })
+
+      text = body.dig("result", "contents", 0, "text")
+      expect(text).to include("## Workflows")
+      expect(text).not_to include("moderate_review")
+    end
+
+    it "includes the admin workflows for an admin" do
+      body = rpc("resources/read", { uri: "biteworthy://topology" }, headers: auth_headers_for(admin))
+
+      expect(body.dig("result", "contents", 0, "text")).to include("moderate_review")
+    end
+  end
 end
