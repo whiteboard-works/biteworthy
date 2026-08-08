@@ -6,6 +6,8 @@ class Conversation < ApplicationRecord
 
   belongs_to :user
   has_many :messages, -> { order(:position) }, dependent: :destroy, inverse_of: :conversation
+  has_many :runs, class_name: "ConversationRun", dependent: :destroy, inverse_of: :conversation
+  has_many :events, class_name: "ConversationEvent", dependent: :destroy, inverse_of: :conversation
 
   validates :state, inclusion: { in: STATES }
 
@@ -34,6 +36,34 @@ class Conversation < ApplicationRecord
   def record_usage!(usage, model:)
     increment!(:api_cost_cents, ::Ingestion::UsageCost.cents(usage, model: model))
   end
+
+  # The queue a turn waits in when one is already running.
+  #
+  # Deliberately NOT "append the user's message now, run it later": a
+  # message inserted into a transcript mid-turn lands in the middle of the
+  # running turn's message list, and the running turn would then answer it.
+  # The request waits here as data, and the job appends it as a message
+  # only once it holds the lock — one serialization point, no race between
+  # checking whether a run is active and writing.
+  def enqueue_turn!(payload)
+    with_lock do
+      update!(pending_turns: Array(pending_turns) + [payload.stringify_keys.merge("at" => Time.current.iso8601)])
+    end
+  end
+
+  # Pops the oldest queued turn, or nil. Locked because the job draining
+  # and a controller enqueuing race on the same array.
+  def next_pending_turn!
+    with_lock do
+      queue = Array(pending_turns)
+      return nil if queue.empty?
+
+      update!(pending_turns: queue.drop(1))
+      queue.first
+    end
+  end
+
+  def pending_turns? = Array(pending_turns).any?
 
   # Run at the start of every turn, because the damage a dead turn leaves
   # behind is only visible on the next one.

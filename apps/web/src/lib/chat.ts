@@ -61,6 +61,7 @@ export type ChatEvent =
   | { type: 'tool_use'; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; name: string; ok: boolean }
   | { type: 'done'; text: string | null }
+  | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
   | { type: 'error'; message: string };
 
@@ -125,25 +126,58 @@ export async function uploadAttachment(file: File): Promise<Attachment> {
   return (await res.json()) as Attachment;
 }
 
-export function streamTurn(
-  id: string,
-  message: string,
-  onEvent: (event: ChatEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  return stream(`/api/chat/conversations/${encodeURIComponent(id)}/messages`, { message }, onEvent, signal);
+/** What the server accepted, and the narration position to watch from. */
+export interface Queued {
+  queued: boolean;
+  after: number;
 }
 
-export function streamConfirm(
+/** Asks for a turn. Returns as soon as the request is recorded — the turn
+ *  itself runs in a job, so this no longer waits out a model. */
+export function sendMessage(id: string, message: string): Promise<Queued> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+}
+
+export function answerConfirmation(
   id: string,
   confirm: boolean,
   fingerprint: string | null,
+): Promise<Queued> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm, fingerprint }),
+  });
+}
+
+/** Stop. Raises a flag the running turn reads at its next checkpoint. */
+export async function stopTurn(id: string): Promise<void> {
+  const res = await fetch(`/api/chat/conversations/${encodeURIComponent(id)}/run`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  // 409 just means it already finished — not worth surfacing.
+  if (!res.ok && res.status !== 409) throw new Error(await errorMessage(res));
+}
+
+/** Watches a turn's narration from `after` onward.
+ *
+ *  Because the events are stored rather than only sent, calling this again
+ *  with the last position seen resumes where the previous reader stopped —
+ *  a dropped connection costs nothing but the reconnect. */
+export function watchTurn(
+  id: string,
+  after: number,
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   return stream(
-    `/api/chat/conversations/${encodeURIComponent(id)}/confirm`,
-    { confirm, fingerprint },
+    `/api/chat/conversations/${encodeURIComponent(id)}/stream?after=${after}`,
     onEvent,
     signal,
   );
@@ -151,14 +185,10 @@ export function streamConfirm(
 
 async function stream(
   path: string,
-  body: unknown,
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
     credentials: 'same-origin',
     ...(signal ? { signal } : {}),
   });

@@ -8,8 +8,10 @@ import {
   deleteConversation,
   getConversation,
   listConversations,
-  streamConfirm,
-  streamTurn,
+  answerConfirmation,
+  sendMessage,
+  stopTurn,
+  watchTurn,
   type Attachment,
   type ChatEvent,
   type ChatMessage,
@@ -126,12 +128,16 @@ export function ChatClient(): ReactElement {
     }
   };
 
-  const run = async (id: string, start: (onEvent: (e: ChatEvent) => void) => Promise<void>) => {
+  // Ask, then watch. The turn runs in a job, so the request that starts it
+  // returns immediately and the narration is read back separately — which
+  // is also why a dropped connection costs nothing but a reconnect.
+  const run = async (id: string, ask: () => Promise<{ after: number }>) => {
     setBusy(true);
     setError(null);
     setLive(EMPTY_TURN);
     try {
-      await start(consume);
+      const { after } = await ask();
+      await watchTurn(id, after, consume);
     } catch (e) {
       onFailure(e);
     } finally {
@@ -140,6 +146,15 @@ export function ChatClient(): ReactElement {
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
       await refresh(id);
+    }
+  };
+
+  const stop = async () => {
+    if (!active) return;
+    try {
+      await stopTurn(active.id);
+    } catch (e) {
+      onFailure(e);
     }
   };
 
@@ -158,7 +173,7 @@ export function ChatClient(): ReactElement {
 
     const id = conversation.id;
     setMessages((current) => [...current, optimistic(composed, current.length)]);
-    await run(id, (onEvent) => streamTurn(id, composed, onEvent));
+    await run(id, () => sendMessage(id, composed));
   };
 
   const answer = async (approved: boolean) => {
@@ -166,7 +181,7 @@ export function ChatClient(): ReactElement {
     const id = active.id;
     const { fingerprint } = pending;
     setPending(null);
-    await run(id, (onEvent) => streamConfirm(id, approved, fingerprint, onEvent));
+    await run(id, () => answerConfirmation(id, approved, fingerprint));
   };
 
   return (
@@ -211,6 +226,17 @@ export function ChatClient(): ReactElement {
           <div ref={bottom} />
         </div>
 
+        {busy ? (
+          <div className="px-bw-4 pb-bw-2">
+            <button
+              type="button"
+              onClick={() => void stop()}
+              className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              Stop
+            </button>
+          </div>
+        ) : null}
         <Composer disabled={busy || pending !== null} onSend={(t, a) => void send(t, a)} />
       </main>
     </div>

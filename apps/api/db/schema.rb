@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -73,6 +73,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_170000) do
     t.index ["slug"], name: "index_cities_on_slug", unique: true
   end
 
+  create_table "conversation_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "conversation_id", null: false
+    t.uuid "conversation_run_id", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "payload", null: false
+    t.integer "position", null: false
+    t.index ["conversation_id", "position"], name: "index_conversation_events_on_conversation_id_and_position", unique: true
+  end
+
   create_table "conversation_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "abort_requested_at"
     t.integer "cache_read_tokens", default: 0, null: false
@@ -100,6 +109,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_170000) do
     t.integer "api_cost_cents", default: 0, null: false
     t.datetime "created_at", null: false
     t.jsonb "pending_tool_call"
+    t.jsonb "pending_turns", default: [], null: false
     t.string "state", default: "active", null: false
     t.string "title"
     t.datetime "updated_at", null: false
@@ -654,6 +664,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_170000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "addresses", "restaurants"
+  add_foreign_key "conversation_events", "conversation_runs"
+  add_foreign_key "conversation_events", "conversations"
   add_foreign_key "conversation_runs", "conversations"
   add_foreign_key "conversations", "users"
   add_foreign_key "dietary_profile_ingredients", "dietary_profiles"

@@ -16,8 +16,10 @@ const listConversations = vi.fn();
 const createConversation = vi.fn();
 const getConversation = vi.fn();
 const deleteConversation = vi.fn();
-const streamTurn = vi.fn();
-const streamConfirm = vi.fn();
+const sendMessage = vi.fn();
+const answerConfirmation = vi.fn();
+const watchTurn = vi.fn();
+const stopTurn = vi.fn();
 const uploadAttachment = vi.fn();
 
 vi.mock('../../../lib/chat', async () => {
@@ -28,14 +30,12 @@ vi.mock('../../../lib/chat', async () => {
     createConversation: () => createConversation(),
     getConversation: (id: string) => getConversation(id),
     deleteConversation: (id: string) => deleteConversation(id),
-    streamTurn: (id: string, text: string, onEvent: (e: ChatEvent) => void) =>
-      streamTurn(id, text, onEvent),
-    streamConfirm: (
-      id: string,
-      ok: boolean,
-      fingerprint: string | null,
-      onEvent: (e: ChatEvent) => void,
-    ) => streamConfirm(id, ok, fingerprint, onEvent),
+    sendMessage: (id: string, text: string) => sendMessage(id, text),
+    answerConfirmation: (id: string, ok: boolean, fingerprint: string | null) =>
+      answerConfirmation(id, ok, fingerprint),
+    watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
+      watchTurn(id, after, onEvent),
+    stopTurn: (id: string) => stopTurn(id),
     uploadAttachment: (file: File) => uploadAttachment(file),
   };
 });
@@ -67,6 +67,12 @@ beforeEach(() => {
   listConversations.mockResolvedValue({ conversations: [] });
   createConversation.mockResolvedValue(blank);
   getConversation.mockResolvedValue(blank);
+  // Asking for a turn now returns immediately; the narration is watched
+  // separately, so tests drive the two halves independently.
+  sendMessage.mockResolvedValue({ queued: true, after: 0 });
+  answerConfirmation.mockResolvedValue({ queued: true, after: 0 });
+  watchTurn.mockResolvedValue(undefined);
+  stopTurn.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -86,7 +92,7 @@ describe('ChatClient', () => {
   });
 
   it('creates a conversation on the first message and streams the reply', async () => {
-    streamTurn.mockImplementation(async (_id, _text, onEvent) => {
+    watchTurn.mockImplementation(async (_id, _after, onEvent) => {
       onEvent({ type: 'text_delta', text: 'Ninis has 12 dishes you can eat.' });
       onEvent({ type: 'done', text: 'Ninis has 12 dishes you can eat.' });
     });
@@ -100,7 +106,7 @@ describe('ChatClient', () => {
   });
 
   it('shows each tool the assistant runs', async () => {
-    streamTurn.mockImplementation(async (_id, _text, onEvent) => {
+    watchTurn.mockImplementation(async (_id, _after, onEvent) => {
       onEvent({ type: 'tool_use', name: 'get_menu', input: {} });
       onEvent({ type: 'tool_result', name: 'get_menu', ok: true });
       onEvent({ type: 'done', text: 'Here you go.' });
@@ -133,7 +139,7 @@ describe('ChatClient', () => {
   // model decided to.
   describe('when a destructive call is parked', () => {
     beforeEach(() => {
-      streamTurn.mockImplementation(async (_id, _text, onEvent) => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
         onEvent({
           type: 'awaiting_confirmation',
           tool: { name: 'delete_review', input: { id: 'r-1' }, prompt: null, fingerprint: 'fp-1' },
@@ -151,22 +157,19 @@ describe('ChatClient', () => {
       await type('delete my review');
 
       expect(await screen.findByTestId('confirm-prompt')).toHaveTextContent('delete review');
-      expect(streamConfirm).not.toHaveBeenCalled();
+      expect(answerConfirmation).not.toHaveBeenCalled();
       expect(screen.getByLabelText('Message')).toBeDisabled();
     });
 
     // The fingerprint has to travel with the answer, or the server cannot
     // tell this approval apart from one meant for a different call.
     it('sends the answer the person gave, bound to the parked call', async () => {
-      streamConfirm.mockResolvedValue(undefined);
       render(<ChatClient />);
       await type('delete my review');
 
       fireEvent.click(await screen.findByText('No'));
 
-      await waitFor(() =>
-        expect(streamConfirm).toHaveBeenCalledWith('c-1', false, 'fp-1', expect.anything()),
-      );
+      await waitFor(() => expect(answerConfirmation).toHaveBeenCalledWith('c-1', false, 'fp-1'));
     });
 
     // A declared sentence replaces the generic prompt and the JSON dump:
@@ -191,8 +194,26 @@ describe('ChatClient', () => {
     });
   });
 
+  // The turn runs in a job, so stopping it is a separate request — the one
+  // that started it is long gone.
+  it('offers a stop while a turn is in flight, and raises the flag', async () => {
+    // Held open so the turn is still "in flight" when Stop is clicked.
+    const inFlight: { release: () => void } = { release: () => {} };
+    watchTurn.mockImplementation(
+      () => new Promise<void>((resolve) => (inFlight.release = resolve)),
+    );
+
+    render(<ChatClient />);
+    await type('what can I eat');
+
+    fireEvent.click(await screen.findByText('Stop'));
+
+    await waitFor(() => expect(stopTurn).toHaveBeenCalledWith('c-1'));
+    inFlight.release();
+  });
+
   it('shows an error event without losing the conversation', async () => {
-    streamTurn.mockImplementation(async (_id, _text, onEvent) => {
+    watchTurn.mockImplementation(async (_id, _after, onEvent) => {
       onEvent({ type: 'error', message: 'This conversation has reached its spend limit.' });
     });
 
@@ -220,8 +241,6 @@ describe('ChatClient', () => {
       content_type: 'image/jpeg',
       byte_size: 10,
     });
-    streamTurn.mockResolvedValue(undefined);
-
     render(<ChatClient />);
     const input = await screen.findByLabelText('Attach a menu photo or PDF');
     fireEvent.change(input, {
@@ -232,10 +251,9 @@ describe('ChatClient', () => {
     await type('read this');
 
     await waitFor(() =>
-      expect(streamTurn).toHaveBeenCalledWith(
+      expect(sendMessage).toHaveBeenCalledWith(
         'c-1',
         expect.stringContaining('attachment_id: signed-abc'),
-        expect.anything(),
       ),
     );
   });

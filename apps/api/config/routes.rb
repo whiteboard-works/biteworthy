@@ -116,6 +116,10 @@ Rails.application.routes.draw do
         member do
           post :messages, to: "conversation_turns#create"
           post :confirm,  to: "conversation_turns#confirm"
+          # The narration. Separate from the request that starts a turn,
+          # because the turn now runs in a job and outlives any one
+          # connection.
+          get  :stream,   to: "conversation_turns#stream"
           # Stop. Plain JSON, so it stays off the Live controller — and
           # it has to be a separate request from the one it stops, which
           # is the whole point.

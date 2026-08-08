@@ -164,22 +164,35 @@ once a job can consume it and re-enqueue; with the turn still inline there
 is nothing to hand the queued message to, so a second turn is refused
 outright rather than queued.
 
-### C4 — Turns run in a job; SSE becomes a relay
+### C4 — Turns run in a job; SSE becomes a relay — SHIPPED
 
-- The controller persists the message and enqueues `Chat::CompletionJob`.
-  No LLM work in the request cycle.
-- `conversation_events` table; the job appends the event shapes
-  `AgentLoop#emit` already produces, with text deltas coalesced so the table
-  does not take a row per token.
-- `GET /conversations/:id/stream` tails it and honours `Last-Event-ID`, so a
-  reconnect mid-turn **resumes the narration** rather than waiting blind.
-- `DELETE /conversations/:id/run` sets the abort flag; a stop button in the
-  UI.
+- `POST /messages` and `/confirm` record the request and enqueue
+  `Chat::CompletionJob`, then return `202` with the narration position to
+  watch from. No LLM work in the request cycle.
+- **The queue holds requests, not messages.** A user message appended to
+  the transcript at request time would land in the middle of a running
+  turn's message list — and that turn would then answer it. `pending_turns`
+  holds the ask as data; the job appends it as a message only once it holds
+  the lock. One serialization point, and no race between checking whether a
+  run is active and writing.
+- `conversation_events` is the narration as rows. `GET /stream` tails it
+  and honours `Last-Event-ID` (or `?after=`), so a reconnect **resumes**
+  rather than waiting blind for the turn to end and refetching.
+- `EventWriter` coalesces text deltas — 80 chars or 150ms, whichever comes
+  first. A row per token would be tens of thousands of inserts per answer.
+- The job drains the whole queue before releasing, so rapid-fire messages
+  serialize instead of racing and none are dropped. The release happens
+  before the final queue check, which is what closes the race where a
+  message enqueued mid-turn would otherwise be stranded.
+- `AgentLoop` takes an injected `run:` so the job can own the lock — it
+  needs the run before the turn starts, because every event row is stamped
+  with it. A direct caller passing nothing still acquires and releases
+  inside the loop.
+- Web: ask, then watch. Stop button wired to `DELETE /run`.
 
-Trade-off: text streaming coarsens to ~150ms chunks. In exchange a turn
-survives a proxy timeout, a deploy, and a closed laptop, and Puma threads
-stop being held for a minute at a time. The inline `ActionController::Live`
-turn is replaced outright rather than kept alongside.
+Trade-off taken deliberately: text arrives in ~150ms chunks instead of per
+token. In exchange a turn survives a proxy timeout, a deploy, and a closed
+laptop, and Puma threads stop being held for a minute at a time.
 
 ### C5 — Prompts as code, plus the volatile block
 
