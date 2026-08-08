@@ -7,6 +7,8 @@ module Api
     # action in a controller, which would break these plain JSON reads.
     class ConversationsController < BaseController
       MAX_LIMIT = 50
+      # One turn's narration is tens of rows, not thousands.
+      BATCH     = 200
 
       def index
         conversations = current_user.conversations
@@ -36,6 +38,28 @@ module Api
         head :no_content
       end
 
+      # The narration as plain JSON, for clients that cannot hold an SSE
+      # stream open.
+      #
+      # React Native's fetch is XHR-backed and does not expose a readable
+      # response body, so the mobile app cannot consume `/stream` without
+      # pulling in an EventSource polyfill. The events are rows either way
+      # — the SSE relay is just a long-lived reader over this same table —
+      # so handing them back as JSON costs nothing and makes the narration
+      # consumable by any client at all.
+      #
+      # `after` is the same cursor the stream uses, so a client can switch
+      # between the two without losing its place.
+      def events
+        rows = conversation.events.after(params[:after]).in_order.limit(BATCH)
+        render json: {
+          events: rows.map { |e| e.payload.merge("position" => e.position) },
+          # Whether it is worth asking again. Saves a client polling a
+          # finished conversation forever.
+          running: running?
+        }
+      end
+
       # The stop button. Raises a flag the running turn reads at its next
       # lifecycle checkpoint; it does not kill anything itself.
       #
@@ -51,6 +75,11 @@ module Api
       end
 
       private
+
+      def running?
+        conversation.pending_turns? ||
+          ConversationRun.running.exists?(conversation_id: conversation.id)
+      end
 
       def conversation
         @conversation ||= current_user.conversations.find(params[:id])

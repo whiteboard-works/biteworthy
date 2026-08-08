@@ -124,6 +124,9 @@ Rails.application.routes.draw do
           # it has to be a separate request from the one it stops, which
           # is the whole point.
           delete :run, to: "conversations#stop"
+          # The narration as JSON, for clients that cannot hold a stream
+          # open (React Native's fetch has no readable body).
+          get    :events, to: "conversations#events"
         end
       end
       # Menu photos/PDFs the chat refers to by id, so bytes never enter
