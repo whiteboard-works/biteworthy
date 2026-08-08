@@ -49,6 +49,8 @@ module Tools
       # this hint should be asking the user first.
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Publishing the dishes to the menu" }
+
       def self.perform(context:, scan_id:, item_ids: nil, all: false)
         user = context.user!
         run  = find_run!(context, scan_id)

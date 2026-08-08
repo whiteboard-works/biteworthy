@@ -31,6 +31,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Checking on the scan" }
+
       def self.perform(context:, scan_id:)
         run = find_run!(context, scan_id)
 

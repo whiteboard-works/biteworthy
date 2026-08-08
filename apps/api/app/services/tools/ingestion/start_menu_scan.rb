@@ -51,6 +51,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { "Reading the menu you sent" }
+
       # Wording matters here: the model relays these to a user who needs to
       # know whether to wait, fix something, or give up.
       ERROR_MESSAGES = {

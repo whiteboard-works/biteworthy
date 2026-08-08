@@ -105,7 +105,31 @@ describe('ChatClient', () => {
     expect(await screen.findByText('Ninis has 12 dishes you can eat.')).toBeInTheDocument();
   });
 
-  it('shows each tool the assistant runs', async () => {
+  // The tool's own sentence, not its function name — it is the only thing
+  // a person can read while a turn is working, so the assertion has to
+  // happen while the turn is still in flight.
+  it('narrates a running tool with the sentence the tool declared', async () => {
+    const inFlight: { release: () => void } = { release: () => {} };
+    watchTurn.mockImplementation(
+      (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+        onEvent({
+          type: 'tool_use',
+          name: 'get_menu',
+          input: {},
+          doing: "Reading the menu at Nini's",
+        });
+        return new Promise<void>((resolve) => (inFlight.release = resolve));
+      },
+    );
+
+    render(<ChatClient />);
+    await type('what can I eat');
+
+    expect(await screen.findByTestId('tool-card')).toHaveTextContent("Reading the menu at Nini's");
+    inFlight.release();
+  });
+
+  it('falls back to the humanized name when a tool declares nothing', async () => {
     watchTurn.mockImplementation(async (_id, _after, onEvent) => {
       onEvent({ type: 'tool_use', name: 'get_menu', input: {} });
       onEvent({ type: 'tool_result', name: 'get_menu', ok: true });

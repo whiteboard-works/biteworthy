@@ -58,7 +58,7 @@ export type ChatEvent =
   | { type: 'open'; conversation_id: string }
   | { type: 'text_delta'; text: string }
   | { type: 'thinking_delta'; text: string }
-  | { type: 'tool_use'; name: string; input: Record<string, unknown> }
+  | { type: 'tool_use'; name: string; input: Record<string, unknown>; doing?: string | null }
   | { type: 'tool_result'; name: string; ok: boolean }
   | { type: 'done'; text: string | null }
   | { type: 'stopped'; message: string }

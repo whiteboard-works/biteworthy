@@ -40,7 +40,7 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M4a — chat loop: `Chat::AgentLoop`, conversations/messages, confirmation gate, spend ceiling
 - [x] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
 - [x] M5 — chat UI in `apps/web`; web scan entry points restored (mobile still has none)
-- [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema — **folded into C7**
+- [x] M6 — deferred tool loading (`defer_loading` + tool search) — **shipped as C7**
 - [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
 - [ ] M8 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
 
@@ -68,7 +68,7 @@ Read its Decisions and Safety-properties tables before picking up a phase.
 - [x] C4 — turns run in a job; SSE becomes a replayable relay; pending-turn queue; stop button
 - [x] C5 — prompts as ordered sections + a volatile trailing block (profile snapshot, page context)
 - [x] C6 — grounding review on dietary answers (Safety Property 1, enforced not instructed)
-- [ ] C7 — deferred tool loading (M6), per-tool progress text, resource chips, admin debug pills
+- [x] C7 — deferred tool loading (M6): 67–79% off a cold turn; per-tool progress text
 
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint

@@ -115,13 +115,13 @@ export function ChatClient(): ReactElement {
     } else if (event.type === 'tool_use') {
       setLive((t) => ({
         ...(t ?? EMPTY_TURN),
-        tools: [...(t?.tools ?? []), { name: event.name }],
+        tools: [...(t?.tools ?? []), { name: event.name, doing: event.doing ?? null }],
       }));
     } else if (event.type === 'tool_result') {
       setLive((t) => {
         const tools = [...(t?.tools ?? [])];
         const last = tools.map((x) => x.name).lastIndexOf(event.name);
-        if (last >= 0) tools[last] = { name: event.name, ok: event.ok };
+        if (last >= 0) tools[last] = { ...tools[last], name: event.name, ok: event.ok };
         return { ...(t ?? EMPTY_TURN), tools };
       });
     } else if (event.type === 'error') {

@@ -48,6 +48,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { |args| "Looking up #{args[:query]}" }
+
       MAX_LIMIT     = 50
       DEFAULT_LIMIT = 15
 

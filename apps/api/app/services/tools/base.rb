@@ -38,6 +38,33 @@ module Tools
         superclass.respond_to?(:audience) ? superclass.audience : :public
       end
 
+      # What to show a person while this runs — "Reading the menu at
+      # Nini's", not `get_menu`.
+      #
+      # Declared by the tool and never model-supplied: the progress line is
+      # the one piece of UI a user reads while they cannot see anything
+      # else, and a model narrating its own tool calls would be describing
+      # what it intends rather than what is happening.
+      #
+      # Returns nil when a tool declares nothing, and the client falls back
+      # to the humanized name.
+      def running_description(&block)
+        if block
+          @running_description = block
+          return block
+        end
+        return @running_description if defined?(@running_description) && @running_description
+
+        superclass.respond_to?(:running_description) ? superclass.running_description : nil
+      end
+
+      def running_description_for(args = {})
+        running_description&.call(args)
+      rescue StandardError => e
+        Rails.logger.error("[tools] #{name_value} running_description raised: #{e.class}: #{e.message}")
+        nil
+      end
+
       # A call a human has to approve before it runs.
       #
       # `destructive_hint` covers a tool that is always dangerous. This
