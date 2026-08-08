@@ -98,3 +98,16 @@ describe('Home (Phase 7.2)', () => {
     );
   });
 });
+
+// The scan path the app lost in M2. An entry point nobody can reach is
+// not a restored feature.
+it('offers the chat from the home screen', async () => {
+  mockSearch.mockResolvedValue({ restaurants: [ninis], total: 1 });
+
+  render(<Home />);
+
+  fireEvent.press(await screen.findByLabelText('chat-link'));
+
+  expect(mockPush).toHaveBeenCalledWith('/chat');
+});
+
