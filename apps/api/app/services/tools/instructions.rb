@@ -19,6 +19,13 @@ module Tools
       eat, which dishes at a restaurant can they actually order — and why not
       for the rest.
 
+      There are more tools here than fit in one head. The `biteworthy://topology`
+      resource — or `describe_capabilities` if you cannot read resources — maps
+      them to the workflows they compose into. Read it when a request is
+      open-ended and the route is not obvious. It only lists what you can
+      actually run, so a missing workflow means this caller is not signed in or
+      is not an admin, not that the capability is broken.
+
       ## Reporting filtered menus
 
       `get_menu` returns every published dish, including the ones that fail the

@@ -160,10 +160,10 @@ six tools: a model choosing between `create_ingredient` and `create_tag`
 alongside four near-twins misroutes, and the two trees differ only in
 metadata.
 
-#### M3c — topology
+#### M3c — topology — SHIPPED (44 tools)
 
 The model needs to know which tools compose into a workflow, not just what
-each does. Ship both:
+each does. Ships both:
 - `Tools::Topology` — domain map + the canonical workflows (scan a menu, fix
   bad data, onboard a user, moderate). Folded into `Tools::Instructions` and
   exposed as an MCP **resource** (`biteworthy://topology`) so a client can
@@ -171,12 +171,18 @@ each does. Ship both:
 - `describe_capabilities(domain?)` tool — the same map on demand, for clients
   that don't read resources.
 
+Both filter by audience: a workflow is offered only to a caller who can run
+**every** step, so the model never plans a route that dead-ends in
+`forbidden`. Each workflow declares its own audience and a spec asserts the
+declaration covers every step — the thing that stops this becoming
+documentation that lies.
+
 Acceptance:
-- [ ] Every model with a real operation is reachable; no near-duplicate tools
+- [x] Every model with a real operation is reachable; no near-duplicate tools
 - [x] `Registry::DOMAINS` covers every tool; `domain_of` returns non-nil for all
 - [x] Admin tools absent from a non-admin `tools/list` (spec over the real registry, per-domain)
 - [x] Destructive tools carry `destructive_hint: true` and a confirmation instruction
-- [ ] Topology names each workflow's tool sequence
+- [x] Topology names each workflow's tool sequence
 - [x] `docs/mcp.md` tool table regenerated
 
 ### M4 — First-party chat (server)

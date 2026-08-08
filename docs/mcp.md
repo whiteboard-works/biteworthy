@@ -33,6 +33,9 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/errors.rb` | Domain errors that become `isError` results rather than protocol errors |
 | `app/services/tools/registry.rb` | The catalog; `Registry.for(context)` filters by audience |
 | `app/services/tools/instructions.rb` | Server instructions — also the chat's system prompt |
+| `app/services/tools/topology.rb` | Which tools compose into which workflow |
+| `app/services/tools/topology_resource.rb` | The same map as `biteworthy://topology` |
+| `app/services/tools/meta/` | `describe_capabilities`, for clients that don't read resources |
 | `app/services/tools/discovery/` | Public read tools |
 | `app/services/tools/profile/` | The caller's own avoid lists, strictness, saves |
 | `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in |
@@ -107,6 +110,29 @@ Notes that bite:
 - **Don't block a tool call on a slow LLM call.** Extraction runs in a job
   and `start_menu_scan` returns a scan id for the caller to poll. A tool
   that blocks for a minute times out real clients.
+
+## The topology
+
+Forty-four tool descriptions say what each call means in isolation. They do
+not say that fixing a wrong ingredient is `explain_item` → `search_taxonomy`
+→ `suggest_correction` → somebody else resolving it, or that
+`accept_staged_items` is the only step in the whole scan flow that publishes
+anything. `Tools::Topology` holds that composition and ships on two surfaces:
+
+- **`biteworthy://topology`** — an MCP resource, `text/markdown`, so a client
+  that reads resources gets the map without spending a turn on a tool call.
+- **`describe_capabilities`** — the same content as a tool, for a bare
+  Messages-API loop that has no resource support.
+
+Both filter by audience the way `Registry.for` does: a workflow is offered
+only to a caller who can run **every** step. Otherwise the map advertises a
+route that dead-ends in `forbidden` halfway through.
+
+Each workflow declares its own audience, and `topology_spec.rb` asserts that
+declaration really does cover every step — so adding an admin tool to a
+`:user` workflow fails the suite rather than shipping a plan that breaks on
+step three. It also asserts every named tool exists, which is what keeps this
+from becoming documentation that lies.
 
 ## The ingestion flow
 
