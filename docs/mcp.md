@@ -40,7 +40,13 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/suggestions/` | The correction queue; owner- or admin-gated to resolve |
 | `app/services/tools/claims/` | Restaurant ownership, by emailed token |
 | `app/services/tools/history/` | The caller's own visits and saves |
-| `app/services/tools/restaurants/` | Adding a restaurant we don't have yet |
+| `app/services/tools/restaurants/` | Adding, editing, and verifying a restaurant |
+| `app/services/tools/admin_base.rb` | `Tools::AdminBase` — the one place `audience :admin` is declared |
+| `app/services/tools/structure/` | Menus, sections, address, hours (admin) |
+| `app/services/tools/items/` | Deep-editing a live dish (admin) |
+| `app/services/tools/taxonomy/` | The ingredient and tag trees (admin) |
+| `app/services/tools/moderation/` | The review queue (admin) |
+| `app/services/tools/users/` | The roster and the admin bit (admin) |
 | `app/controllers/mcp_controller.rb` | Transport adapter. No domain logic |
 
 `Registry::DOMAINS` is the catalog. A tool that isn't in it doesn't exist —
@@ -139,9 +145,39 @@ The gate is `claimed_by_user_id` on the restaurant, set by
 `claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
 
 Accepting `remove_ingredient` deletes a join row, which un-hides that dish
-for everyone avoiding the ingredient — the single most dangerous write in
-the tool layer, which is why it carries `destructive_hint: true` and the
+for everyone avoiding the ingredient — the most dangerous write available
+to a non-admin, which is why it carries `destructive_hint: true` and the
 server instructions tell the model to say what accepting would change.
+
+## The admin surface
+
+Everything under `audience :admin` descends from `Tools::AdminBase`, which
+is the only place that audience is declared. `Registry.for(context)` drops
+them wholesale for non-admins, so a normal caller's `tools/list` never
+mentions them.
+
+Three rails carry over from the admin REST endpoints, and they are the
+reason these tools are narrower than the models allow:
+
+- **`items.confidence` is not settable.** It moves only through
+  `promote!` and `confirm_restaurant_data`, because strict-mode
+  visibility rides on it. `edit_item` writes joins, never the item's own
+  confidence.
+- **Taxonomy `slug`, `path`, and a tag's `family` are immutable.**
+  Ingestion resolves by slug at promote time, so a rename silently drops
+  joins; an ltree path move orphans every descendant. Neither cascades.
+- **A taxonomy node in use cannot be deleted.** `delete_taxonomy_node`
+  counts descendants, item joins, dietary presets, add-ons, and user
+  profiles first. A node sitting in somebody's avoid list would vanish
+  from their filter silently — profiles tolerate ids that no longer
+  resolve.
+
+`edit_place` and `edit_item` share their validation with the REST
+controllers rather than reimplementing it: `Places::Writer` and
+`Admin::ItemEditor` respectively. That is deliberate — both validate
+before coercing, because Rails' casts are lossy in exactly the directions
+that corrupt live data (`"monday".to_i` is `0`, `"25:99"` becomes "closed",
+a non-numeric latitude becomes Null Island).
 
 ## Auth
 

@@ -35,7 +35,11 @@ RSpec.describe Tools::Registry do
       suggestions: :user,
       claims:      :user,
       history:     :user,
-      restaurants: :user
+      structure:   :admin,
+      items:       :admin,
+      taxonomy:    :admin,
+      moderation:  :admin,
+      users:       :admin
     }.each do |domain, expected|
       it "keeps every #{domain} tool at :#{expected}" do
         tools = described_class::DOMAINS.fetch(domain).map { |name| Tools.const_get(name) }
@@ -51,6 +55,28 @@ RSpec.describe Tools::Registry do
                                                .select { |tool| tool.audience == :public }
 
       expect(public_reviews.map(&:name_value)).to eq(["list_reviews"])
+    end
+
+    # Restaurants is mixed too: anyone signed in can add a missing place,
+    # only an admin can edit one that exists.
+    it "keeps only create_restaurant at :user in the restaurants domain" do
+      by_audience = described_class::DOMAINS.fetch(:restaurants)
+                                            .map { |name| Tools.const_get(name) }
+                                            .group_by(&:audience)
+
+      expect(by_audience[:user].map(&:name_value)).to eq(["create_restaurant"])
+      expect(by_audience[:admin].map(&:name_value)).to contain_exactly(
+        "edit_restaurant", "confirm_restaurant_data"
+      )
+    end
+
+    # Every admin tool must descend from AdminBase — that is the single
+    # place :admin is declared, and the registry filter reads it.
+    it "routes every admin tool through AdminBase" do
+      admin_tools = described_class.all.select { |tool| tool.audience == :admin }
+
+      expect(admin_tools).to all(be < Tools::AdminBase)
+      expect(admin_tools.size).to be >= 12
     end
   end
 
