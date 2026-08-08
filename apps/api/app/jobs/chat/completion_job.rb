@@ -50,7 +50,8 @@ module Chat
         conversation,
         public_host: ENV["PUBLIC_HOST"].presence,
         on_event:    writer,
-        run:         run
+        run:         run,
+        page:        turn["page"]
       ).run(**arguments_for(turn))
     ensure
       # The terminal event is the client's cue to stop reading, so it has

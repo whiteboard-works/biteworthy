@@ -175,6 +175,12 @@ RSpec.describe Chat::AgentLoop do
   end
 
   describe "the request it builds" do
+    # Everything up to and including the block carrying the breakpoint.
+    def cached_prefix(client)
+      system = client.requests.first[:system]
+      system[..system.index { |b| b[:cache_control] }].map { |b| b[:text] }.join
+    end
+
     it "offers the caller's tools, not everyone's" do
       client = ScriptedClient.new(say("hi"))
       described_class.new(conversation, client: client).run(text: "hello")
@@ -187,13 +193,36 @@ RSpec.describe Chat::AgentLoop do
     # Tools render into the cached prefix before system, so the single
     # breakpoint belongs on the LAST system block — that caches the tool
     # catalog and the instructions together.
-    it "puts the one cache breakpoint on the last system block" do
+    it "sets exactly one cache breakpoint" do
+      client = ScriptedClient.new(say("hi"))
+      described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(client.requests.first[:system].count { |b| b[:cache_control] }).to eq(1)
+    end
+
+    # The property that matters is not where the breakpoint sits, it is
+    # that NOTHING per-request sits above it. A measured 21,650-token
+    # cached prefix is thrown away by a single volatile byte in the wrong
+    # block, so this compares the prefix across two turns instead of
+    # asserting a position.
+    it "keeps every byte above the breakpoint identical between turns" do
+      first  = ScriptedClient.new(say("one"))
+      described_class.new(conversation, client: first).run(text: "hello")
+      second = ScriptedClient.new(say("two"))
+      described_class.new(conversation, client: second).run(text: "again")
+
+      expect(cached_prefix(second)).to eq(cached_prefix(first))
+    end
+
+    # And the volatile block genuinely is volatile — otherwise the split
+    # is decoration.
+    it "puts the per-turn content below the breakpoint" do
       client = ScriptedClient.new(say("hi"))
       described_class.new(conversation, client: client).run(text: "hello")
 
       system = client.requests.first[:system]
-      expect(system.count { |b| b[:cache_control] }).to eq(1)
-      expect(system.last[:cache_control]).to eq({ type: "ephemeral" })
+      breakpoint = system.index { |b| b[:cache_control] }
+      expect(system[(breakpoint + 1)..].map { |b| b[:text] }.join).to include("Current time:")
     end
 
     it "asks for adaptive thinking on the flagship model" do

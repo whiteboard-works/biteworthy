@@ -39,7 +39,7 @@ module Api
         end
 
         title_from(text)
-        enqueue("kind" => "message", "text" => text)
+        enqueue("kind" => "message", "text" => text, "page" => page_context)
       end
 
       def confirm
@@ -130,6 +130,17 @@ module Api
       # Deliberately not a loose boolean cast: those read anything that
       # isn't literally false as `true`, which would turn a malformed
       # request into approval for a destructive call.
+      # Where the user was standing when they asked. Rides with the turn
+      # rather than being read at run time, because by then they may have
+      # navigated away.
+      def page_context
+        raw = params[:context]
+        return nil if raw.blank?
+
+        { "path" => raw[:path].to_s.first(200).presence,
+          "restaurant" => raw[:restaurant].to_s.first(100).presence }.compact.presence
+      end
+
       def confirm_answer
         case params[:confirm]
         when true, "true"   then true
