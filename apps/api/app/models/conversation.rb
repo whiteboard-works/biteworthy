@@ -35,6 +35,42 @@ class Conversation < ApplicationRecord
     increment!(:api_cost_cents, ::Ingestion::UsageCost.cents(usage, model: model))
   end
 
+  # Run at the start of every turn, because the damage a dead turn leaves
+  # behind is only visible on the next one.
+  #
+  # An assistant message with no content blocks replays as a 400 — the
+  # Messages API rejects an empty turn outright — so one crashed
+  # completion would otherwise wedge the conversation permanently rather
+  # than costing it a single answer.
+  def heal!
+    Message.where(conversation_id: id, role: "assistant")
+           .where("content = '[]'::jsonb")
+           .delete_all
+  end
+
+  # Writes real `tool_result` messages for calls that never got one.
+  #
+  # `transcript` already repairs orphans in memory on read, and that stays
+  # — it covers the crash we never saw coming. This is for the ones we
+  # do: on a known abort, persisting the answer means the record and the
+  # replay agree, instead of the transcript looking broken until something
+  # reads it through the repair path.
+  def answer_orphans!(message)
+    last = messages.reload.last
+    return if last.nil? || last.role != "assistant"
+
+    orphans = last.tool_uses
+    return if orphans.empty?
+
+    append!(
+      role: "user",
+      content: orphans.map do |call|
+        { type: "tool_result", tool_use_id: call["id"], is_error: true,
+          content: [{ type: "text", text: message }] }
+      end
+    )
+  end
+
   private
 
   # If a turn died between storing the assistant's tool calls and storing

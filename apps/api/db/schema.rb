@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -73,6 +73,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
     t.index ["slug"], name: "index_cities_on_slug", unique: true
   end
 
+  create_table "conversation_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "abort_requested_at"
+    t.integer "cache_read_tokens", default: 0, null: false
+    t.integer "cache_write_tokens", default: 0, null: false
+    t.uuid "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.datetime "finished_at"
+    t.integer "input_tokens", default: 0, null: false
+    t.datetime "lease_expires_at", null: false
+    t.string "outcome"
+    t.integer "output_tokens", default: 0, null: false
+    t.integer "rounds", default: 0, null: false
+    t.uuid "run_token", null: false
+    t.datetime "started_at", null: false
+    t.string "state", default: "running", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id", "created_at"], name: "index_conversation_runs_on_conversation_id_and_created_at"
+    t.index ["conversation_id"], name: "index_conversation_runs_running_unique", unique: true, where: "((state)::text = 'running'::text)"
+    t.index ["run_token"], name: "index_conversation_runs_on_run_token", unique: true
+    t.check_constraint "state::text = ANY (ARRAY['running'::character varying, 'done'::character varying, 'failed'::character varying, 'aborted'::character varying, 'lost_lease'::character varying]::text[])", name: "conversation_runs_state_valid"
+  end
+
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "api_cost_cents", default: 0, null: false
     t.datetime "created_at", null: false
@@ -84,7 +107,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
     t.index ["created_at"], name: "index_conversations_on_created_at"
     t.index ["user_id", "updated_at"], name: "index_conversations_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_conversations_on_user_id"
-    t.check_constraint "state::text = ANY (ARRAY['active'::character varying, 'awaiting_confirmation'::character varying, 'failed'::character varying]::text[])", name: "conversations_state_valid"
+    t.check_constraint "state::text = ANY (ARRAY['active'::character varying::text, 'awaiting_confirmation'::character varying::text, 'failed'::character varying::text])", name: "conversations_state_valid"
   end
 
   create_table "dietary_profile_ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -340,7 +363,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
     t.string "role", null: false
     t.datetime "updated_at", null: false
     t.index ["conversation_id", "position"], name: "index_messages_on_conversation_id_and_position", unique: true
-    t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'assistant'::character varying]::text[])", name: "messages_role_valid"
+    t.check_constraint "role::text = ANY (ARRAY['user'::character varying::text, 'assistant'::character varying::text])", name: "messages_role_valid"
   end
 
   create_table "restaurant_visits", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -631,6 +654,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_150614) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "addresses", "restaurants"
+  add_foreign_key "conversation_runs", "conversations"
   add_foreign_key "conversations", "users"
   add_foreign_key "dietary_profile_ingredients", "dietary_profiles"
   add_foreign_key "dietary_profile_ingredients", "ingredients"
