@@ -108,11 +108,6 @@ Rails.application.routes.draw do
       # underscores + digits + ASCII letters (matches User#handle
       # validation).
       get "/users/:handle", to: "users#show", as: :user, constraints: { handle: /[A-Za-z0-9_]{3,30}/ }
-      resources :ingestion_runs, only: [:create, :show] do
-        resources :items, only: [:index, :update], controller: "ingestion_items" do
-          collection { post :accept_all }
-        end
-      end
       # The caller's own identity incl. `is_admin` — the web /admin
       # guard's probe. Read-only on purpose: auth/refresh also returns
       # the user payload but rotates the jti, killing other sessions.

@@ -1,14 +1,10 @@
 /**
- * Phase 6.6 — createRestaurant (mobile) + friendlyScanError mapping.
+ * Phase 6.6 — createRestaurant (mobile).
  */
 import {
   createRestaurant,
   RestaurantCreateError,
 } from '../../lib/api/restaurants';
-import {
-  friendlyScanError,
-  IngestionUploadError,
-} from '../../lib/api/ingestion-runs';
 
 function fakeFetch(status: number, body: unknown) {
   return jest.fn(async () =>
@@ -75,26 +71,5 @@ describe('createRestaurant', () => {
     await expect(
       createRestaurant({ name: 'X', citySlug: 'atlantis', jwt: 'jwt-1', fetchImpl }),
     ).rejects.toBeInstanceOf(RestaurantCreateError);
-  });
-});
-
-describe('friendlyScanError', () => {
-  it('maps 429 with the limit from the body', () => {
-    const err = new IngestionUploadError(429, { error: 'quota_exceeded', limit: 5 });
-    expect(friendlyScanError(err)).toBe('Daily scan limit reached (5/day) — try again tomorrow.');
-  });
-
-  it('maps 503 budget exhaustion', () => {
-    const err = new IngestionUploadError(503, { error: 'cost_ceiling_reached' });
-    expect(friendlyScanError(err)).toMatch(/budget is used up/);
-  });
-
-  it('maps 403 foreign-draft', () => {
-    const err = new RestaurantCreateError(403, { error: 'forbidden_restaurant' });
-    expect(friendlyScanError(err)).toMatch(/someone else's draft/);
-  });
-
-  it('falls back to the raw message', () => {
-    expect(friendlyScanError(new Error('boom'))).toBe('boom');
   });
 });

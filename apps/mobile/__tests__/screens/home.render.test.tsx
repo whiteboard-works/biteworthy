@@ -49,7 +49,7 @@ describe('Home (Phase 7.2)', () => {
     expect(screen.getByText('119 W College Dr · Durango, CO')).toBeTruthy();
   });
 
-  it('typing re-searches (debounced) and a miss offers a scan CTA carrying the name', async () => {
+  it('typing re-searches (debounced) and reports a miss', async () => {
     mockSearch.mockResolvedValueOnce([ninis]).mockResolvedValueOnce([]);
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
@@ -57,11 +57,7 @@ describe('Home (Phase 7.2)', () => {
     fireEvent.changeText(screen.getByLabelText('restaurant-search'), 'zanzibar');
 
     await waitFor(() => expect(mockSearch).toHaveBeenLastCalledWith('zanzibar'));
-    await waitFor(() => expect(screen.getByLabelText('scan-miss-cta')).toBeTruthy());
-
-    // Phase 7.3 — the miss CTA prefills the new-restaurant form.
-    fireEvent.press(screen.getByLabelText('scan-miss-cta'));
-    expect(mockPush).toHaveBeenCalledWith('/ingest?name=zanzibar');
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy());
   });
 
   it('tapping a row opens that restaurant menu with from=search', async () => {
@@ -73,16 +69,24 @@ describe('Home (Phase 7.2)', () => {
     expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1?from=search');
   });
 
-  it('scan CTA and profile link route to /ingest and /onboarding', async () => {
+  it('profile link routes to onboarding', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
-    await waitFor(() => expect(screen.getByLabelText('scan-cta')).toBeTruthy());
-
-    fireEvent.press(screen.getByLabelText('scan-cta'));
-    expect(mockPush).toHaveBeenCalledWith('/ingest');
+    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
 
     fireEvent.press(screen.getByLabelText('profile-link'));
     expect(mockPush).toHaveBeenCalledWith('/onboarding');
+  });
+
+  // Scanning moved to the tool layer; the screen must not advertise a
+  // destination that no longer exists.
+  it('no longer offers a scan entry point', async () => {
+    mockSearch.mockResolvedValue([]);
+    render(<Home />);
+    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
+
+    expect(screen.queryByLabelText('scan-cta')).toBeNull();
+    expect(screen.queryByLabelText('scan-miss-cta')).toBeNull();
   });
 
   it('shows a friendly error when the API is unreachable', async () => {

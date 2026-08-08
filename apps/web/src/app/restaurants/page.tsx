@@ -35,11 +35,7 @@ export default async function RestaurantsPage(): Promise<ReactElement> {
           className="mt-bw-8 rounded-bw-lg border border-zinc-200 bg-zinc-50 p-bw-6 text-bw-base text-zinc-600"
           data-testid="restaurants-empty"
         >
-          No published menus yet.{' '}
-          <Link href="/ingest" className="font-bold text-bite hover:text-bite-dark">
-            Scan a menu →
-          </Link>{' '}
-          to add the first one.
+          No published menus yet.
         </div>
       ) : (
         <div className="mt-bw-8" data-testid="restaurants-list">

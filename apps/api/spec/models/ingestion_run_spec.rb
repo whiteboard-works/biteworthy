@@ -46,22 +46,14 @@ RSpec.describe IngestionRun, type: :model do
       expect { run.transition_to!(:nonsense) }.to raise_error(ArgumentError)
     end
 
-    it "fires Solid Queue jobs registered in JOB_FOR (when their classes exist)" do
-      stub_const("ExtractMenuJob", Class.new do
-        def self.perform_later(*); end
-      end)
-
+    # Dispatch used to be hidden in an after-transition hook here, which
+    # made `transition_to!(:extracting)` silently fire an Anthropic call.
+    # It now lives at the call sites (Ingestion::StartRun / ExtractRun /
+    # ReExtractRun) so the pipeline's control flow is readable.
+    it "does not enqueue any job — dispatch is the caller's job" do
       run = create(:ingestion_run)
-      expect(ExtractMenuJob).to receive(:perform_later).with(run.id)
 
-      run.transition_to!(:extracting)
-    end
-
-    it "is a no-op on the job dispatch when the class doesn't exist" do
-      # Sanity: NEXT_STATE for :staged → :published has no JOB_FOR
-      # entry, so reaching :published shouldn't try to dispatch.
-      run = create(:ingestion_run, :staged)
-      expect { run.transition_to!(:published) }.not_to raise_error
+      expect { run.transition_to!(:extracting) }.not_to have_enqueued_job
     end
   end
 
@@ -85,12 +77,7 @@ RSpec.describe IngestionRun, type: :model do
     end
 
     it "doesn't enqueue any next-stage job" do
-      stub_const("ExtractMenuJob", Class.new do
-        def self.perform_later(*); end
-      end)
-      expect(ExtractMenuJob).not_to receive(:perform_later)
-
-      create(:ingestion_run).fail!("anything")
+      expect { create(:ingestion_run).fail!("anything") }.not_to have_enqueued_job
     end
   end
 

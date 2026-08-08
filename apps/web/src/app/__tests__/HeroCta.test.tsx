@@ -14,13 +14,16 @@ afterEach(() => {
 });
 
 describe('HeroCta', () => {
-  it('shows "Scan a menu" → /ingest when signed in', async () => {
+  // Scanning moved to the tool layer and returns as a chat entry point;
+  // until then a signed-in user is sent to browse, never to a dead /ingest.
+  it('shows "Browse menus" → /restaurants when signed in', async () => {
     stubSession(true);
     render(<HeroCta />);
 
-    const cta = await screen.findByTestId('cta-scan');
-    expect(cta).toHaveAttribute('href', '/ingest');
+    const cta = await screen.findByTestId('cta-browse');
+    expect(cta).toHaveAttribute('href', '/restaurants');
     expect(screen.queryByTestId('cta-web')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cta-scan')).not.toBeInTheDocument();
   });
 
   it('shows "Try the web app" → /onboarding when signed out', async () => {
@@ -28,6 +31,6 @@ describe('HeroCta', () => {
     render(<HeroCta />);
 
     expect(screen.getByTestId('cta-web')).toHaveAttribute('href', '/onboarding');
-    await waitFor(() => expect(screen.queryByTestId('cta-scan')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId('cta-browse')).not.toBeInTheDocument());
   });
 });

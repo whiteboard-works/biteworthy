@@ -1,13 +1,17 @@
 # AI ingestion pipeline
 
-The cold-start unlock. A contributor opens the app, points the camera at
-a menu, and within a minute the items are staged in our database with
-ingredient and tag suggestions. Five minutes of swipe-verify and the
-restaurant is live.
+The cold-start unlock. A contributor hands us a menu — a photo, a URL, or
+pasted text — and within a minute the dishes are staged with ingredient and
+tag suggestions. A short review and the restaurant is live.
 
 The 2020 product needed a small army of Durango volunteers hand-typing
-menus. v2 reduces that to "tap accept." The AI does the typing; humans
+menus. v2 reduces that to a conversation. The AI does the typing; humans
 do the verifying.
+
+**Verification is a conversation, not a swipe deck.** The pipeline below is
+driven by the ingestion tools in `app/services/tools/ingestion/` — over MCP,
+or from the first-party chat. There is no `/ingest` UI and no REST ingestion
+endpoint; both were removed when the tool layer landed. See `docs/mcp.md`.
 
 ## Inputs
 
@@ -21,9 +25,21 @@ All three end up as ActiveStorage blobs attached to an `IngestionRun`.
 
 ## Stages
 
-Each stage is a Solid Queue job; each is idempotent and resumable.
-States: `queued → extracting → resolving → staged → published` (or
-`failed` at any point).
+States: `queued → extracting → resolving → staged → published` (or `failed`
+at any point). Each stage is idempotent and resumable.
+
+The logic lives in services — `Ingestion::StartRun`, `ExtractRun`,
+`ResolveRun` — with `ExtractMenuJob` / `ResolveItemsJob` / `GapFillResolveJob`
+as thin Solid Queue wrappers around them.
+
+**Dispatch is explicit at the call site.** `transition_to!` used to enqueue
+the next job from an after-transition hook, which meant
+`transition_to!(:extracting)` silently fired an Anthropic call and no call
+site read as though it did. Each service now enqueues the next one itself.
+
+Extraction runs in a job rather than inline because the vision call takes
+tens of seconds — far too long to block a tool call or a chat turn.
+`start_menu_scan` returns immediately and the caller polls `get_scan_status`.
 
 ### 1. Extract
 
@@ -131,24 +147,28 @@ tags_payload: [
 (`source: "derived"` marks a tag derived from a deterministic
 ingredient's ancestry.) Matched items serialize a `match` block
 (existing item + a serialize-time diff: description, prices, added
-ingredients/tags) for the verify UI; accepting one applies the diff to
-the existing Item — see "Update flow (re-scan)" below.
+ingredients/tags); accepting one applies the diff to the existing Item —
+see "Update flow (re-scan)" below.
 
 ### 4. Verify
 
-Contributor opens a swipe UI:
+A conversation, driven by these tools:
 
-- ✅ Accept → `IngestionItem.decision = 'accepted'`, promote to a real
-  `Item` with `confidence = 'confirmed'`. Each `addons_payload` row
-  becomes an `ItemModifier` (`kind: "addition"`, name + price) on the
-  new Item; each priced `prices_payload` row becomes an `ItemVariant`
-  (size + price_cents, payload order) — rows without a price are
-  skipped.
-- ✏️ Edit → tweak name / description / ingredients / tags / prices / add-ons →
-  `decision = 'edited'`, then promote. On a MATCHED (re-scan) row the add-on editor is
-  hidden: `apply_update!` leaves modifiers alone, so a correction there would silently
-  do nothing.
-- ❌ Reject → `decision = 'rejected'`, stays in the run for audit.
+| Tool | Does |
+|---|---|
+| `list_staged_items` | The staged dishes, with resolved ingredients/tags, `confidence`/`source` on each, plus `unresolved` text and any `updates_existing_item` match. `needs_attention: true` narrows to the dishes whose filter data is wrong or empty. |
+| `edit_staged_item` | Fix name / description / ingredients / tags / prices / add-ons. Lists replace wholesale; slugs must resolve. Sets `decision = 'edited'`; does not promote. |
+| `accept_staged_items` | `decision = 'accepted'` and promote to a real `Item`. Each `addons_payload` row becomes an `ItemModifier` (`kind: "addition"`); each priced `prices_payload` row becomes an `ItemVariant` (size + price_cents, payload order) — rows without a price are skipped. |
+| `reject_staged_items` | `decision = 'rejected'`; stays in the run for audit. Refuses a dish already promoted. |
+| `undo_staged_item` | Back to pending, reversing what an accept did to the live menu. |
+
+Confidence on promotion follows who accepted: admin → `confirmed`,
+community contributor on their own run → `suggested`. See "Honest
+disclosure" below.
+
+On a MATCHED (re-scan) dish, `edit_staged_item` can still change add-ons but
+`apply_update!` leaves modifiers alone, so the change won't reach the live
+item — a v1 non-goal, listed below.
 
 ### 4b. Update flow (re-scan)
 

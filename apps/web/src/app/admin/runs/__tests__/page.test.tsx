@@ -58,7 +58,8 @@ describe('AdminRunsPage', () => {
     expect(row).toHaveTextContent('Nini’s Tacos');
     expect(row).toHaveTextContent('by scanner_1 (scan@example.com)');
     expect(row).toHaveTextContent('3 pending · 2 accepted · 1 rejected');
-    expect(row.querySelector('a')).toHaveAttribute('href', '/admin/runs/run-1');
+    // Read-only now: the per-run verify deck is gone, so rows link nowhere.
+    expect(row.querySelector('a')).toBeNull();
 
     expect(mockFetchAdminRuns).toHaveBeenCalledWith(
       expect.objectContaining({ community: true, offset: 0 }),

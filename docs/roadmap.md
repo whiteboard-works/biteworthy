@@ -26,14 +26,26 @@ product: one command layer with two adapters over it — MCP tool classes for
 Claude clients and the first-party chat, thin REST controllers for the light
 UI. The extraction engine (prompt, schema, deterministic resolver, staging
 tables) is kept and wrapped as tools; the swipe UI and the Solid Queue stage
-machine are what get replaced. See `docs/mcp.md`.
+machine are what get replaced.
+
+**Plan + decisions: [`docs/plans/mcp-pivot.md`](plans/mcp-pivot.md).**
+Mechanics: [`docs/mcp.md`](mcp.md). Read the plan's Decisions and Traps
+tables before picking up a phase — several are non-obvious from the code.
 
 - [x] M1 — tool registry + `POST /mcp` (discovery + profile tools, Devise-JWT auth)
-- [ ] M2 — ingestion tools over the existing engine; retire `ExtractMenuJob` / `ResolveItemsJob` auto-dispatch
-- [ ] M3 — first-party chat: `Chat::AgentLoop`, conversations, SSE streaming, confirmation gate
-- [ ] M4 — chat UI in `apps/web`; delete the web + mobile ingest flows and their API routes
-- [ ] M5 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
-- [ ] M6 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
+- [x] M2 — ingestion tools over the existing engine; explicit job dispatch; old ingest surfaces removed
+- [ ] M3 — full domain tool coverage (reviews, suggestions, claims, admin) + topology; ~40 tools
+- [ ] M4 — first-party chat: `Chat::AgentLoop`, conversations, SSE streaming, confirmation gate
+- [ ] M5 — chat UI in `apps/web`; restore the scan entry points pointing at it
+- [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema
+- [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
+- [ ] M8 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
+
+**No web or mobile scan path exists between M2 and M5.** Scanning works today
+through MCP (Claude Code / Claude Desktop) and comes back to the apps with the
+chat UI. This was a deliberate call — the old UI called REST endpoints that
+M2 deleted, so keeping it working would have meant maintaining adapters for a
+flow being replaced.
 
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint

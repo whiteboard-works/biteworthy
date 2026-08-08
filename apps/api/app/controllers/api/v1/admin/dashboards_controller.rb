@@ -31,7 +31,7 @@ module Api
             spend_today_cents: IngestionRun.where(created_at: today_utc).sum(:api_cost_cents),
             ceiling_cents: Integer(ENV.fetch(
               "INGESTION_DAILY_COST_CEILING_CENTS",
-              Api::V1::IngestionRunsController::DAILY_COST_CEILING_CENTS_DEFAULT
+              ::Ingestion::StartRun::DAILY_COST_CEILING_CENTS_DEFAULT
             ))
           }
         end
