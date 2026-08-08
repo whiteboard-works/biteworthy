@@ -26,7 +26,11 @@ product: one command layer with two adapters over it — MCP tool classes for
 Claude clients and the first-party chat, thin REST controllers for the light
 UI. The extraction engine (prompt, schema, deterministic resolver, staging
 tables) is kept and wrapped as tools; the swipe UI and the Solid Queue stage
-machine are what get replaced. See `docs/mcp.md`.
+machine are what get replaced.
+
+**Plan + decisions: [`docs/plans/mcp-pivot.md`](plans/mcp-pivot.md).**
+Mechanics: [`docs/mcp.md`](mcp.md). Read the plan's Decisions and Traps
+tables before picking up a phase — several are non-obvious from the code.
 
 - [x] M1 — tool registry + `POST /mcp` (discovery + profile tools, Devise-JWT auth)
 - [x] M2 — ingestion tools over the existing engine; explicit job dispatch; old ingest surfaces removed

@@ -1,0 +1,241 @@
+# MCP pivot — the tool layer becomes the product surface
+
+Living plan. Started 2026-08-07. Mechanics live in
+[`docs/mcp.md`](../mcp.md); this file is the arc, the decisions, and what's
+left. Phase checkboxes mirror `docs/roadmap.md`.
+
+## Why
+
+Ingestion was a rigid state machine (`IngestionRun` marching
+`queued → extracting → resolving → staged → published` via Solid Queue)
+fronted by a swipe-verify deck. The interaction model was wrong: a
+contributor could accept, reject, or open an edit panel — but could not say
+"that taco is $4.50, and the carnitas has cilantro."
+
+The fix generalizes past ingestion. Domain operations move into a **tool
+layer** that serves two front doors: MCP for Claude clients, and the
+first-party chat's agent loop. Authorization, validation, and result shaping
+live in the tool, so the two cannot diverge.
+
+**MCP does not replace REST.** `apps/web` and `apps/mobile` can't speak it.
+The end state is one command layer with two adapters over it — MCP tool
+classes and thin REST controllers.
+
+```
+        apps/web (light UI + chat)          Claude Desktop / Claude Code
+                    │                                    │
+          REST  ────┤                                    │  MCP
+                    ▼                                    ▼
+      app/controllers/api/v1/*            app/controllers/mcp_controller.rb
+                    │                                    │
+                    └──────────────┬─────────────────────┘
+                                   ▼
+                        app/services/tools/
+                                   │
+                                   ▼
+              models · app/services/menus/* · app/services/ingestion/*
+```
+
+## Decisions
+
+Load-bearing calls, with the reasoning, so they don't get relitigated or
+silently reversed.
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | Tool layer is primary; REST controllers adapt to it | One place for authz and validation. Two front doors that each own their rules will drift, and the thing that drifts is the dietary filter. |
+| D2 | Refactor controllers **opportunistically**, not all 44 | Rewriting every controller churns `docs/openapi.json` + `packages/api-types` for no product gain. Migrate when there's a reason to touch one. |
+| D3 | Tools live at `app/services/tools/`, not `app/tools/` | Zeitwerk makes every direct subdirectory of `app/` an autoload root, so `app/tools/base.rb` would have to define top-level `Base`. Matches the `app/services/ingestion/` precedent; zero config. |
+| D4 | Transport runs `stateless: true` | Stateful mode keeps sessions in process memory — breaks on a second Puma worker or Kamal container. Stateless responses are plain JSON, never SSE. |
+| D5 | Bearer-JWT now, OAuth 2.1 last | Works in Claude Code and Desktop today. OAuth is only needed for claude.ai connector distribution, and nothing else depends on it. |
+| D6 | A bad token is a **401**, not a silent downgrade to anonymous | A stale client must learn to refresh rather than quietly showing the user an empty profile as if it were theirs. |
+| D7 | Chat loop extends `AnthropicClient`; no `anthropic` gem | Need SSE streaming and a confirmation gate; the existing client already carries retries, `last_usage` cost accounting into `IngestionRun#record_api_usage!`, and the VCR cassettes. |
+| D8 | Chat runs `claude-opus-5`; extraction stays `claude-sonnet-4-6` | Extraction is calibrated against a cassette and a $0.25/menu target — out of scope. Chat is new work and gets the flagship (user confirmed). |
+| D9 | Extraction is async; the tool polls | The vision call runs tens of seconds (client read timeout is 240s). A tool call that blocks that long times out real clients. `start_menu_scan` → `get_scan_status`. |
+| D10 | Job dispatch is explicit at the call site | `transition_to!` used to enqueue from an after-transition hook, so `transition_to!(:extracting)` silently fired an Anthropic call. `NEXT_STATE` still validates and records history; `JOB_FOR` is gone. |
+| D11 | Tools are **intention-shaped**, ~40 total — not per-model CRUD | ~30 models × CRUD ≈ 120 tools. Models misroute among near-duplicates (`update_menu` vs `update_menu_section` vs `update_item_variant`), and it's a context disaster. One `edit_menu_structure` covers Menu + MenuSection + reordering. |
+| D12 | Full write coverage, admin-gated where `/admin` already gates | Mirrors the existing backoffice, so authorization is a straight port rather than a new policy to get wrong. |
+| D13 | No web/mobile scan path between M2 and M5 | The old UI called the REST endpoints M2 deleted. Keeping it working meant maintaining adapters for a flow being replaced. Prod is 2 users, pre-launch; scanning works through MCP meanwhile. |
+
+## Safety properties
+
+These are invariants, not features. A change that breaks one is a bug even
+if every test passes.
+
+1. **Hidden dishes are returned with reasons, never dropped.** The product's
+   entire safety claim is that we can always say *why*. `Menus::Query` +
+   `get_menu` enforce it; the server instructions tell the model to report
+   them.
+2. **`confidence` / `source` ride on every association.** They are what a
+   verifier needs to decide whether to trust a row. Never summarized away to
+   save tokens.
+3. **Nothing reaches a live menu except `accept_staged_items`.** Scanning,
+   listing, and editing all stay in staging.
+4. **Avoid-list edits are an explicit diff, never a replacement.** A model
+   rebuilding the array from conversation would eventually drop an allergen
+   nobody mentioned that turn.
+5. **Untrusted text is fenced.** Dish names and descriptions came from
+   strangers' photos and scraped pages; they're wrapped in
+   `<untrusted-content>` and the instructions bind a data-not-instruction
+   rule to them.
+6. **`audience` gates visibility, not just access.** `Registry.for(context)`
+   drops tools the caller may not use so `tools/list` never mentions them;
+   `Tools::Base` re-checks at call time for stale lists.
+
+## Traps already hit
+
+Recorded because each cost real time and none is obvious from the code.
+
+- **`audience` did not inherit.** Ruby does not inherit class-level ivars, so
+  a domain base class declaring `audience :user` left every subclass at the
+  `:public` default — ingestion tools were listed to anonymous callers. The
+  call-time check still failed them closed, so defence in depth held while
+  the primary control did nothing. Fixed by walking the superclass chain;
+  pinned by a spec over the real registry.
+- **The transport 403s any Host not in its allow list** (loopback only by
+  default). Rails' own host authorization has already vetted `Host` by the
+  time a request reaches the controller, so we pass the vetted host through
+  and keep the guard's `Origin` check.
+- **The menu filter lived entirely inside `ItemsController`** — 300 lines of
+  private methods computing *why* a dish is hidden. Extracted to
+  `Menus::Filter` / `Menus::Labels` / `Menus::Query` before writing
+  `get_menu`, because two copies of that logic is the failure mode the whole
+  pivot is trying to prevent.
+- **The run-creation policy hid in the controller being deleted** — quota,
+  spend ceiling, `pg_advisory_xact_lock` serialization, ownership, input
+  caps. Now `Ingestion::StartRun`.
+
+---
+
+## Phases
+
+### M1 — Tool registry + `/mcp` — SHIPPED (#508)
+
+`mcp` gem, `POST /mcp` (stateless, Bearer-JWT), `Tools::Base` / `Context` /
+`Errors` / `Registry` / `Instructions`, five discovery + five profile tools.
+Extracted `Menus::Filter` / `Labels` / `Query`.
+
+### M2 — Ingestion tools — SHIPPED (#509)
+
+`Ingestion::StartRun` / `ExtractRun` / `ResolveRun`; seven ingestion tools;
+jobs reduced to thin wrappers; `JOB_FOR` retired. Removed the REST ingestion
+controllers, the web `/ingest` + verify UI, the mobile ingest screens, and
+the admin per-run verify deck.
+
+### M3 — Full domain coverage + topology
+
+Target ~40 tools total. Existing 17 plus:
+
+| Domain | Tools | Audience |
+|---|---|---|
+| Reviews | `write_review`, `edit_review`, `delete_review`, `list_reviews`, `report_review` | user |
+| Suggestions | `suggest_correction`, `list_suggestions`, `resolve_suggestion` | user / owner |
+| Claims | `claim_restaurant`, `verify_claim` | user |
+| History | `list_visits`, `list_saved` | user |
+| Restaurants | `create_restaurant`, `edit_restaurant` | user (dedup-guarded) / admin |
+| Structure | `edit_menu_structure` (Menu + MenuSection + ordering), `edit_place` (Address + Hours) | admin |
+| Items | `edit_item` (Item + ItemVariant + ItemModifier + joins + section move) | admin |
+| Taxonomy | `create_taxonomy_node`, `edit_taxonomy_node`, `delete_taxonomy_node` | admin |
+| Moderation | `moderate_review`, `list_moderation_queue` | admin |
+| Users | `list_users`, `set_user_role` | admin |
+
+**Topology.** The model needs to know which tools compose into a workflow,
+not just what each does. Ship both:
+- `Tools::Topology` — domain map + the canonical workflows (scan a menu, fix
+  bad data, onboard a user, moderate). Folded into `Tools::Instructions` and
+  exposed as an MCP **resource** (`biteworthy://topology`) so a client can
+  read it without spending a tool call.
+- `describe_capabilities(domain?)` tool — the same map on demand, for clients
+  that don't read resources.
+
+Acceptance:
+- [ ] Every model with a real operation is reachable; no near-duplicate tools
+- [ ] `Registry::DOMAINS` covers every tool; `domain_of` returns non-nil for all
+- [ ] Admin tools absent from a non-admin `tools/list` (spec over the real registry, per-domain)
+- [ ] Destructive tools carry `destructive_hint: true` and a confirmation instruction
+- [ ] Topology names each workflow's tool sequence
+- [ ] `docs/mcp.md` tool table regenerated
+
+### M4 — First-party chat (server)
+
+- `Chat::AgentLoop` on `AnthropicClient`, `claude-opus-5`,
+  `thinking: { type: "adaptive" }`, tool definitions from `Registry`
+- Prompt caching: tools render before system, so the `cache_control`
+  breakpoint goes on the **last system block** — that caches the tool list +
+  system prompt together. 512-token minimum on Opus 5. Nothing per-request
+  above the breakpoint.
+- `max_tokens` must leave room for thinking **and** text — Opus 5 counts
+  them against the same cap
+- `Conversation` / `Message` models; attachments upload to ActiveStorage and
+  the agent receives ids, never bytes
+- SSE via `ActionController::Live`; confirmation gate pauses before any tool
+  flagged `confirm: true`
+
+Acceptance:
+- [ ] A conversation survives a reconnect (history replay, no duplicate turns)
+- [ ] `cache_read_input_tokens > 0` on the second turn — if it's zero, a silent invalidator is in the prefix
+- [ ] Cost per turn recorded; a spend ceiling mirrors the ingestion one
+- [ ] Injection probe: a dish description instructing `accept_staged_items` does not cause a call
+
+### M5 — Chat UI
+
+`apps/web/src/app/chat/` — message stream, attachment upload (photo / PDF /
+URL / text), tool-call cards, confirmation prompts. **Restores the scan
+entry points** removed in M2: hero CTA, site header, home + restaurants
+empty states, mobile home + restaurant screens.
+
+### M6 — Deferred tool loading
+
+At ~40 tools the full schema set is real context. Mark non-core tools
+`defer_loading: true` in the chat's request and add the tool-search server
+tool (`tool_search_tool_regex_20251119` or the BM25 variant) so only relevant
+schemas load. Keep discovery + profile always loaded — they open most
+conversations.
+
+Note: **the search tool itself must not be deferred**, and at least one tool
+must stay non-deferred, or the API 400s. MCP clients (Claude Code) already do
+their own deferral; this is for the first-party loop.
+
+Acceptance:
+- [ ] Cold-turn token cost measured before/after with `count_tokens`
+- [ ] A task needing a deferred tool still completes
+- [ ] Prompt cache still hits — tool search appends schemas rather than swapping them, which is why it preserves the prefix
+
+### M7 — REST adapters over tools
+
+Refactor the discovery + profile controllers into thin adapters over the same
+tool classes. Re-run `bin/openapi-export` and the api-types codegen **in the
+same PR** — `ci-js.yml` fails on drift.
+
+### M8 — Public MCP (OAuth 2.1)
+
+Self-contained; nothing above depends on it.
+- Resource server: `/.well-known/oauth-protected-resource` (RFC 9728,
+  **MUST**), `WWW-Authenticate: Bearer resource_metadata="…"` on 401,
+  `insufficient_scope` on 403, RFC 8707 audience validation per token
+- Authorization server: `doorkeeper` + PKCE + RFC 8414 metadata. Client ID
+  Metadata Documents preferred; DCR (RFC 7591) is deprecated in the current
+  spec and only for backwards compatibility
+- Scopes map to tool domains (`menu:read`, `menu:write`, `profile:write`,
+  `admin`)
+
+---
+
+## Non-goals
+
+- Rewriting the extraction engine. The prompt, schema, and deterministic
+  resolver (~1,340 lines, parity-tested, cassette-backed) are the crown
+  jewels — the orchestration was wrong, not the engine.
+- Dropping the staging tables. `IngestionRun` / `IngestionItem` are what make
+  "nothing goes live unverified" true rather than aspirational.
+- A tool per Rails model. See D11.
+- Mobile chat. Web first; mobile follows once the loop is proven.
+
+## Open questions
+
+- **Chat cost per conversation** on `claude-opus-5` is unmeasured. `effort`
+  is the dial; measure in M4 before the UI makes it easy to spend.
+- **Attachment upload endpoint** — M4 needs `POST /api/v1/attachments`
+  returning ids for `start_menu_scan`. Not yet designed.
+- **`Ingestion::UrlFetcher` needs an SSRF review** (private-IP and redirect
+  handling) now that an agent can steer which URL gets fetched.
