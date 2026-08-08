@@ -34,9 +34,18 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/registry.rb` | The catalog; `Registry.for(context)` filters by audience |
 | `app/services/tools/instructions.rb` | Server instructions — also the chat's system prompt |
 | `app/services/tools/discovery/` | Public read tools |
-| `app/services/tools/profile/` | Signed-in write tools |
+| `app/services/tools/profile/` | The caller's own avoid lists, strictness, saves |
 | `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in |
+| `app/services/tools/reviews/` | Per-dish reviews. Reading is public, writing is not |
+| `app/services/tools/suggestions/` | The correction queue; owner- or admin-gated to resolve |
+| `app/services/tools/claims/` | Restaurant ownership, by emailed token |
+| `app/services/tools/history/` | The caller's own visits and saves |
+| `app/services/tools/restaurants/` | Adding a restaurant we don't have yet |
 | `app/controllers/mcp_controller.rb` | Transport adapter. No domain logic |
+
+`Registry::DOMAINS` is the catalog. A tool that isn't in it doesn't exist —
+`Registry.all` is built from it, and `registry_spec.rb` fails if any tool
+lands outside a domain.
 
 Tools live under `app/services/` rather than `app/tools/` because Zeitwerk
 makes every direct subdirectory of `app/` an autoload root — `app/tools/base.rb`
@@ -114,6 +123,25 @@ Two properties the tools enforce rather than trust the model with:
   stay in staging. `accept_staged_items` carries
   `destructive_hint: true` so a client that surfaces annotations prompts
   before calling it.
+
+## The correction flow
+
+The other way live menu data changes. Same shape — propose, then a
+privileged party applies:
+
+```
+suggest_correction   (anyone signed in; queues, changes nothing)
+                  →  list_suggestions   (owner or admin only)
+                  →  resolve_suggestion (accept APPLIES it to the live dish)
+```
+
+The gate is `claimed_by_user_id` on the restaurant, set by
+`claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
+
+Accepting `remove_ingredient` deletes a join row, which un-hides that dish
+for everyone avoiding the ingredient — the single most dangerous write in
+the tool layer, which is why it carries `destructive_hint: true` and the
+server instructions tell the model to say what accepting would change.
 
 ## Auth
 

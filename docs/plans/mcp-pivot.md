@@ -124,23 +124,37 @@ the admin per-run verify deck.
 
 ### M3 — Full domain coverage + topology
 
-Target ~40 tools total. Existing 17 plus:
+Target ~40 tools total. Split into three PRs off master rather than one
+stack — see the stacked-PR postmortem in `docs/roadmap.md`.
+
+#### M3a — community domains — SHIPPED (30 tools)
 
 | Domain | Tools | Audience |
 |---|---|---|
-| Reviews | `write_review`, `edit_review`, `delete_review`, `list_reviews`, `report_review` | user |
+| Reviews | `list_reviews` (public), `write_review`, `edit_review`, `delete_review`, `report_review` | mixed |
 | Suggestions | `suggest_correction`, `list_suggestions`, `resolve_suggestion` | user / owner |
 | Claims | `claim_restaurant`, `verify_claim` | user |
 | History | `list_visits`, `list_saved` | user |
-| Restaurants | `create_restaurant`, `edit_restaurant` | user (dedup-guarded) / admin |
-| Structure | `edit_menu_structure` (Menu + MenuSection + ordering), `edit_place` (Address + Hours) | admin |
+| Restaurants | `create_restaurant` | user (dedup-guarded) |
+
+Extracted `Restaurants::Create` out of `RestaurantsController` — the third
+time a domain's real policy turned out to live in a controller.
+
+#### M3b — admin domains
+
+| Domain | Tools | Audience |
+|---|---|---|
+| Restaurants | `edit_restaurant` | admin |
+| Structure | `get_menu_structure`, `edit_menu_structure` (Menu + MenuSection + ordering), `edit_place` (Address + Hours) | admin |
 | Items | `edit_item` (Item + ItemVariant + ItemModifier + joins + section move) | admin |
 | Taxonomy | `create_taxonomy_node`, `edit_taxonomy_node`, `delete_taxonomy_node` | admin |
 | Moderation | `moderate_review`, `list_moderation_queue` | admin |
 | Users | `list_users`, `set_user_role` | admin |
 
-**Topology.** The model needs to know which tools compose into a workflow,
-not just what each does. Ship both:
+#### M3c — topology
+
+The model needs to know which tools compose into a workflow, not just what
+each does. Ship both:
 - `Tools::Topology` — domain map + the canonical workflows (scan a menu, fix
   bad data, onboard a user, moderate). Folded into `Tools::Instructions` and
   exposed as an MCP **resource** (`biteworthy://topology`) so a client can
@@ -150,11 +164,11 @@ not just what each does. Ship both:
 
 Acceptance:
 - [ ] Every model with a real operation is reachable; no near-duplicate tools
-- [ ] `Registry::DOMAINS` covers every tool; `domain_of` returns non-nil for all
-- [ ] Admin tools absent from a non-admin `tools/list` (spec over the real registry, per-domain)
-- [ ] Destructive tools carry `destructive_hint: true` and a confirmation instruction
+- [x] `Registry::DOMAINS` covers every tool; `domain_of` returns non-nil for all
+- [x] Admin tools absent from a non-admin `tools/list` (spec over the real registry, per-domain)
+- [x] Destructive tools carry `destructive_hint: true` and a confirmation instruction
 - [ ] Topology names each workflow's tool sequence
-- [ ] `docs/mcp.md` tool table regenerated
+- [x] `docs/mcp.md` tool table regenerated
 
 ### M4 — First-party chat (server)
 

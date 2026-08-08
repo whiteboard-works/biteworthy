@@ -15,6 +15,8 @@
 # model can recover from, and JSON-encodes the payload.
 module Tools
   class Base < MCP::Tool
+    MAX_OFFSET = 10_000
+
     class << self
       # Which callers may see this tool at all. Registry filters on this, so
       # a non-admin's `tools/list` never *mentions* admin tools — rejecting
@@ -79,6 +81,27 @@ module Tools
           error: true,
           structured_content: payload
         )
+      end
+
+      # List tools cap their own page size. A model that asks for 5,000
+      # rows is not malicious, it just has no idea what the table looks
+      # like — and the resulting wall of JSON is context it cannot afford.
+      def clamp_limit(value, default:, max:)
+        return default if value.nil?
+
+        limit = Integer(value, exception: false)
+        raise Errors::InvalidArgument, "limit must be a number." if limit.nil?
+
+        limit.clamp(1, max)
+      end
+
+      def clamp_offset(value)
+        return 0 if value.nil?
+
+        offset = Integer(value, exception: false)
+        raise Errors::InvalidArgument, "offset must be a number." if offset.nil?
+
+        offset.clamp(0, MAX_OFFSET)
       end
 
       # Menu names and descriptions are attacker-controlled: they arrive

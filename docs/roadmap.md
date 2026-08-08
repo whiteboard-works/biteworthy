@@ -34,7 +34,9 @@ tables before picking up a phase — several are non-obvious from the code.
 
 - [x] M1 — tool registry + `POST /mcp` (discovery + profile tools, Devise-JWT auth)
 - [x] M2 — ingestion tools over the existing engine; explicit job dispatch; old ingest surfaces removed
-- [ ] M3 — full domain tool coverage (reviews, suggestions, claims, admin) + topology; ~40 tools
+- [x] M3a — community domains: reviews, suggestions, claims, history, `create_restaurant` (30 tools)
+- [ ] M3b — admin domains: restaurant/menu structure, item deep-edit, taxonomy, moderation, users
+- [ ] M3c — topology (`biteworthy://topology` resource + `describe_capabilities`)
 - [ ] M4 — first-party chat: `Chat::AgentLoop`, conversations, SSE streaming, confirmation gate
 - [ ] M5 — chat UI in `apps/web`; restore the scan entry points pointing at it
 - [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema
