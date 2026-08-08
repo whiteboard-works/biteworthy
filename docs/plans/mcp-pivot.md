@@ -279,6 +279,14 @@ Refactor the discovery + profile controllers into thin adapters over the same
 tool classes. Re-run `bin/openapi-export` and the api-types codegen **in the
 same PR** — `ci-js.yml` fails on drift.
 
+### M-prompts — workflow prompts — SHIPPED
+
+`prompts/list` and `prompts/get` over the same ten workflows the topology
+already declares, generated from `Topology::WORKFLOWS` rather than
+restated, audience-filtered like tools and the map. Closes the last
+capability gap in the MCP surface short of OAuth: the server now serves
+tools, resources, and prompts.
+
 ### M8 — Public MCP (OAuth 2.1)
 
 Self-contained; nothing above depends on it.

@@ -131,6 +131,22 @@ Notes that bite:
   and `start_menu_scan` returns a scan id for the caller to poll. A tool
   that blocks for a minute times out real clients.
 
+## Workflow prompts
+
+The same workflows are offered over MCP as **prompts** — things a person
+picks in Claude Desktop before typing anything. "Scan a menu into the
+database" is a better starting point than a blank box and forty-four
+tools.
+
+`Tools::WorkflowPrompts` **generates** them from `Topology::WORKFLOWS`;
+nothing is restated. A prompt that drifted from the topology would be
+documentation lying to a model at runtime, which is the failure the
+topology spec exists to prevent. Adding a workflow gets a prompt for free.
+
+Audience-filtered like everything else: a workflow is offered only to a
+caller who can run every step, so `prompts/list` never suggests a route
+that dead-ends in `forbidden`.
+
 ## The topology
 
 Forty-four tool descriptions say what each call means in isolation. They do

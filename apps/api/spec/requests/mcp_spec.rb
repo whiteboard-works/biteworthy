@@ -125,4 +125,35 @@ RSpec.describe "POST /mcp", type: :request do
       expect(body.dig("result", "contents", 0, "text")).to include("moderate_review")
     end
   end
+
+  # A client sees prompts as things a person can pick before typing —
+  # "Scan a menu into the database" beats a blank box and forty-four tools.
+  describe "prompts/list" do
+    def prompts_for(headers)
+      post "/mcp",
+           params: { jsonrpc: "2.0", id: 1, method: "prompts/list", params: {} }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      JSON.parse(response.body, symbolize_names: true).dig(:result, :prompts) || []
+    end
+
+    it "offers the signed-in workflows to a signed-in caller" do
+      names = prompts_for(auth_headers_for(create(:user))).map { |p| p[:name] }
+
+      expect(names).to include("scan_a_menu_into_the_database")
+    end
+
+    # Same rule as tools/list: never mention what the caller cannot run.
+    it "never mentions an admin workflow to a non-admin" do
+      names = prompts_for(auth_headers_for(create(:user))).map { |p| p[:name] }
+
+      expect(names).not_to include("moderate")
+    end
+
+    it "offers an anonymous caller only what is public" do
+      names = prompts_for({}).map { |p| p[:name] }
+
+      expect(names).to eq(["find_something_this_person_can_eat"])
+    end
+  end
 end
+
