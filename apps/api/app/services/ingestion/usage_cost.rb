@@ -29,6 +29,16 @@ module Ingestion
         output:      500,
         cache_read:  10,
         cache_write: 125
+      },
+      # claude-opus-5: $5/MTok input, $25/MTok output. The chat loop's
+      # model — its rates MUST be here rather than falling through to the
+      # default, because the fallback understates Opus by ~1.7x and a
+      # spend ceiling that undercounts is worse than no ceiling.
+      "claude-opus-5" => {
+        input:       500,
+        output:      2_500,
+        cache_read:  50,
+        cache_write: 625
       }
     }.freeze
 

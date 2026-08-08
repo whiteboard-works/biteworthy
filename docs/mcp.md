@@ -205,6 +205,42 @@ before coercing, because Rails' casts are lossy in exactly the directions
 that corrupt live data (`"monday".to_i` is `0`, `"25:99"` becomes "closed",
 a non-numeric latitude becomes Null Island).
 
+## The first-party chat
+
+`Chat::AgentLoop` is the second front door: the same registry, the same
+audience filter, the same server instructions, driven against
+`claude-opus-5` with adaptive thinking. `Chat::ToolCatalog` renders the
+MCP tool classes as Messages API tool definitions — one registry, two
+wire formats, never two implementations.
+
+Three things it enforces that a bare tool loop would not:
+
+- **Confirmation before a destructive call.** The loop stops at the first
+  tool whose `destructive_hint` is true and parks it in
+  `conversations.pending_tool_call`. Nothing that publishes, deletes, or
+  changes what a person is shown runs because a model decided to. Each
+  such call needs its own answer, so a queue of them parks one at a time —
+  confirming one does not pre-authorize the next.
+- **Every `tool_use` gets a `tool_result`.** The Messages API rejects a
+  transcript with an unanswered call, so a parked turn stores the results
+  already computed next to the calls still queued, and resuming replays
+  them in order. A tool that raises still produces an error result rather
+  than leaving the call dangling.
+- **A spend ceiling per conversation and per day**, mirroring the
+  ingestion one, off `conversations.api_cost_cents`. `Ingestion::UsageCost`
+  carries explicit `claude-opus-5` rates for this — the fallback
+  understates Opus by ~1.7x, and a ceiling that undercounts is worse than
+  no ceiling.
+
+Prompt caching: tools render into the cached prefix **before** system, so
+the single `cache_control` breakpoint goes on the last system block. That
+caches the whole tool catalog plus the instructions plus the topology
+together. Nothing per-request may sit above it.
+
+Messages store the Anthropic content-block array verbatim, including
+`thinking` blocks — a thinking block's signature is rejected if it is
+reconstructed rather than replayed.
+
 ## Auth
 
 Today `/mcp` accepts the same Devise JWT the REST API issues:
