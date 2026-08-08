@@ -26,6 +26,21 @@ RSpec.describe ConversationRun do
       expect(described_class.acquire(conversation)).to be_nil
     end
 
+    # Postgres aborts the whole transaction on a constraint violation, so
+    # a losing acquire inside an enclosing transaction would leave that
+    # transaction dead and every later statement in it failing. The
+    # savepoint keeps the rollback local to the insert.
+    it "loses cleanly inside a caller's transaction, leaving it usable" do
+      described_class.acquire(conversation)
+
+      ApplicationRecord.transaction do
+        expect(described_class.acquire(conversation)).to be_nil
+        expect { conversation.update!(title: "still writable") }.not_to raise_error
+      end
+
+      expect(conversation.reload.title).to eq("still writable")
+    end
+
     it "lets a different conversation run at the same time" do
       described_class.acquire(conversation)
 

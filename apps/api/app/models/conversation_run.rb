@@ -53,14 +53,21 @@ class ConversationRun < ApplicationRecord
 
     private
 
+    # `requires_new` is load-bearing, not ceremony. Postgres aborts the
+    # whole transaction on a constraint violation, so catching one raised
+    # inside an enclosing transaction would leave that transaction dead
+    # and every later statement in it failing. The savepoint scopes the
+    # rollback to this insert.
     def insert_new(conversation)
-      create!(
-        conversation:     conversation,
-        run_token:        SecureRandom.uuid,
-        state:            "running",
-        started_at:       Time.current,
-        lease_expires_at: LEASE_SECONDS.seconds.from_now
-      )
+      transaction(requires_new: true) do
+        create!(
+          conversation:     conversation,
+          run_token:        SecureRandom.uuid,
+          state:            "running",
+          started_at:       Time.current,
+          lease_expires_at: LEASE_SECONDS.seconds.from_now
+        )
+      end
     rescue ActiveRecord::RecordNotUnique
       # The partial unique index did its job: someone else is running.
       nil
