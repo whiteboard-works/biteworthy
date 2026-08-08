@@ -17,6 +17,13 @@ import {
   type FavoriteDish,
 } from '../../../lib/profile';
 import {
+  createToken,
+  listTokens,
+  revokeToken,
+  type McpTokenSummary,
+  type McpTokenWithSecret,
+} from '../../../lib/mcp-tokens';
+import {
   fetchDietaryProfiles,
   searchIngredients,
   type IngredientSearchResult,
@@ -41,6 +48,7 @@ export default function ProfileSettingsPage() {
       <PreferencesSection />
       <FavoritesSection />
       <MyReviewsSection />
+      <McpTokensSection />
       <AnalyticsSection />
     </main>
   );
@@ -751,6 +759,165 @@ function MyReviewRow({ review }: { review: MyReview }) {
  * regardless (see packages/analytics — profile_set carries no health
  * fields).
  */
+/**
+ * Least-privilege credentials for MCP clients (Claude Code, Claude
+ * Desktop).
+ *
+ * Without one, connecting a client means handing it the same session this
+ * browser holds — everything the account can do. A token here names what
+ * it may touch and can be revoked on its own.
+ *
+ * The secret is shown **once**, right after creation, because only its
+ * digest is stored and nothing can reproduce it. The UI says so rather
+ * than letting someone assume they can come back for it.
+ */
+function McpTokensSection() {
+  const [tokens, setTokens] = useState<McpTokenSummary[]>([]);
+  const [available, setAvailable] = useState<string[]>([]);
+  const [name, setName] = useState('');
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [fresh, setFresh] = useState<McpTokenWithSecret | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const list = await listTokens();
+      setTokens(list.tokens);
+      setAvailable(list.scopes);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const create = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setFresh(await createToken(name.trim(), chosen));
+      setName('');
+      setChosen([]);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (id: string) => {
+    try {
+      await revokeToken(id);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const toggle = (scope: string) =>
+    setChosen((current) =>
+      current.includes(scope) ? current.filter((s) => s !== scope) : [...current, scope],
+    );
+
+  return (
+    <section className="mt-bw-10" data-testid="mcp-tokens">
+      <h2 className="text-bw-lg font-bold text-zinc-900">Connected apps</h2>
+      <p className="mt-bw-1 text-bw-sm text-zinc-600">
+        Tokens for Claude Code and Claude Desktop. Pick only what the app needs — leave
+        everything unticked and it gets the same access you have.
+      </p>
+
+      {fresh ? (
+        <div
+          className="mt-bw-4 rounded-bw-md border border-warn bg-warn/10 p-bw-3"
+          data-testid="fresh-token"
+        >
+          <p className="text-bw-sm font-medium text-zinc-900">
+            Copy this now — it is not stored and cannot be shown again.
+          </p>
+          <code className="mt-bw-2 block overflow-x-auto text-bw-xs text-zinc-800">
+            {fresh.secret}
+          </code>
+        </div>
+      ) : null}
+
+      <ul className="mt-bw-4 flex flex-col gap-bw-2">
+        {tokens.map((token) => (
+          <li
+            key={token.id}
+            className="flex items-center justify-between rounded-bw-md border border-zinc-200 px-bw-3 py-bw-2"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-bw-sm font-medium text-zinc-900">
+                {token.name}
+              </span>
+              <span className="block truncate text-bw-xs text-zinc-500">
+                {token.scopes.length ? token.scopes.join(', ') : 'full access'}
+                {token.last_used_at ? ' · used' : ' · never used'}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => void revoke(token.id)}
+              className="text-bw-sm text-danger"
+            >
+              Revoke
+            </button>
+          </li>
+        ))}
+        {tokens.length === 0 ? (
+          <li className="text-bw-sm text-zinc-500">No connected apps yet.</li>
+        ) : null}
+      </ul>
+
+      <div className="mt-bw-4 flex flex-col gap-bw-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="What is it for? e.g. Claude Code"
+          aria-label="Token name"
+          className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-sm"
+        />
+        <div className="flex flex-wrap gap-bw-1">
+          {available.map((scope) => (
+            <button
+              key={scope}
+              type="button"
+              onClick={() => toggle(scope)}
+              aria-pressed={chosen.includes(scope)}
+              className={`rounded-bw-md border px-bw-2 py-bw-1 text-bw-xs ${
+                chosen.includes(scope)
+                  ? 'border-bite bg-bite/10 text-bite-dark'
+                  : 'border-zinc-300 text-zinc-600'
+              }`}
+            >
+              {scope}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={busy || name.trim() === ''}
+          className="self-start rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
+        >
+          Create token
+        </button>
+      </div>
+
+      {error ? (
+        <p role="alert" className="mt-bw-2 text-bw-sm text-danger" data-testid="mcp-tokens-error">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function AnalyticsSection() {
   // null until we've read localStorage (avoids an SSR/client mismatch).
   const [optedOut, setOptedOut] = useState<boolean | null>(null);
