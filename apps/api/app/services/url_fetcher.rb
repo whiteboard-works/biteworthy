@@ -13,8 +13,10 @@ require "uri"
 # document, and Phase 2 isn't trying to do JS-rendered scraping.
 #
 # Hard limits:
-#   * 10 MB max — protects the API server from accidentally fetching
-#     a multi-hundred-meg PDF.
+#   * 10 MB max. Enforced on Content-Length before the request when the
+#     server declares one, and on the body afterwards when it does not —
+#     an undeclared response is still fully buffered before it can be
+#     rejected, so this bounds what we *use*, not always what we download.
 #   * Follows up to 3 redirects, re-validating each hop against the
 #     SSRF blocklist (cloud metadata + RFC1918 + loopback + …).
 #   * 15-second timeout.
@@ -44,7 +46,10 @@ class UrlFetcher
   ].freeze
 
   BLOCKED_IPV6 = [
+    IPAddr.new("::/128"),           # unspecified — routes to localhost
     IPAddr.new("::1/128"),
+    IPAddr.new("64:ff9b::/96"),     # NAT64 well-known prefix: embeds an
+                                    # IPv4 address this check cannot see
     IPAddr.new("fc00::/7"),         # unique-local
     IPAddr.new("fe80::/10"),        # link-local
     IPAddr.new("ff00::/8"),         # multicast
@@ -90,6 +95,9 @@ class UrlFetcher
         raise FetchError.new("non_2xx", status: response.status)
       end
 
+      declared = response.headers["content-length"].to_s
+      raise FetchError.new("response_too_large") if declared.present? && declared.to_i > MAX_BYTES
+
       body = response.body.to_s
       raise FetchError.new("response_too_large") if body.bytesize > MAX_BYTES
 
@@ -112,12 +120,24 @@ class UrlFetcher
     raise FetchError.new("dns_failed") if addresses.empty?
 
     addresses.each do |addr|
-      ip      = IPAddr.new(addr)
+      ip      = normalize(IPAddr.new(addr))
       blocked = ip.ipv4? ? BLOCKED_IPV4 : BLOCKED_IPV6
       raise FetchError.new("blocked_address") if blocked.any? { |range| range.include?(ip) }
     end
   rescue URI::InvalidURIError, IPAddr::InvalidAddressError
     raise FetchError.new("invalid_url")
+  end
+
+  # An IPv4-mapped IPv6 address is an IPv4 address wearing a hat:
+  # `::ffff:169.254.169.254` reaches cloud metadata, `::ffff:127.0.0.1`
+  # reaches loopback, `::ffff:10.0.0.1` reaches the internal network. Ruby
+  # reports all three as `ipv4? == false`, so without this they were
+  # checked against the IPv6 list — which has no mapped range — and sailed
+  # straight through every guard below.
+  def normalize(ip)
+    ip.ipv4_mapped? ? ip.native : ip
+  rescue StandardError
+    ip
   end
 
   def resolve_addresses(host)

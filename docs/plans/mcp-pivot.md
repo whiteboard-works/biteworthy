@@ -307,8 +307,15 @@ Self-contained; nothing above depends on it.
 
 - **Chat cost per conversation** on `claude-opus-5` is unmeasured. `effort`
   is the dial; measure before the UI makes it easy to spend.
-- **`Ingestion::UrlFetcher` needs an SSRF review** (private-IP and redirect
-  handling) now that an agent can steer which URL gets fetched.
+- ~~**`UrlFetcher` needs an SSRF review** now that an agent can steer which
+  URL gets fetched.~~ **Done.** The redirect handling was already sound —
+  every hop re-validates, and there is no follow-redirects middleware. The
+  blocklist had a hole: an IPv4-mapped IPv6 address (`::ffff:169.254.169.254`)
+  reports `ipv4? == false` in Ruby, so it was checked against the IPv6 list,
+  which had no mapped range, and reached cloud metadata through every guard.
+  Mapped addresses are normalized to IPv4 before the check now, and `::` and
+  the NAT64 prefix are blocked. DNS rebinding between check and connect
+  remains possible and remains documented as such.
 - **Two turns fired concurrently on one conversation would interleave.**
   The UI prevents it by disabling the composer while streaming; the server
   does not. A `running` state plus a check-and-set would fix it and costs a
