@@ -127,6 +127,40 @@ class AnthropicClient
     ResponseParser.parse_and_validate(text, response_schema)
   end
 
+  # Streaming twin of `messages_create`. Returns the same assembled Hash,
+  # and yields `(:text | :thinking, fragment)` as the model writes so a
+  # caller can put words on screen instead of a spinner.
+  #
+  # **Not retried.** The retry middleware replays the whole request, and
+  # by the time a mid-stream failure happens the caller has already shown
+  # the user half an answer — a silent second attempt would duplicate it.
+  # A failure here surfaces to the caller, which for the chat means one
+  # honest error rather than two conflicting replies.
+  def messages_stream(system:, messages:, max_tokens: DEFAULT_MAX_TOKENS, model: nil, **extra, &on_delta)
+    stream = Stream.new(&on_delta)
+    body   = { model: model || @model, max_tokens: max_tokens, system: system, messages: messages, stream: true }
+             .merge(extra)
+    failure = +""
+
+    response = stream_connection.post(MESSAGES_PATH) do |req|
+      req.body = body.to_json
+      # on_data fires for error responses too, and those bodies are plain
+      # JSON rather than SSE — buffer them so the raise below can report
+      # what upstream actually said.
+      req.options.on_data = proc do |chunk, _overall, env|
+        (200..299).cover?(env&.status.to_i) ? stream << chunk : failure << chunk
+      end
+    end
+
+    unless (200..299).cover?(response.status)
+      raise ApiError.new(status: response.status, body: failure.presence || response.body,
+                         response_headers: response.headers)
+    end
+
+    @last_usage = stream.usage
+    stream.message
+  end
+
   # Build a `system` array of content blocks. Each input is a Hash like
   # `{text: "...", cache: true}`; cache: true means add the
   # `cache_control: {type: "ephemeral"}` block-level attribute.
@@ -205,6 +239,20 @@ class AnthropicClient
       f.headers["x-api-key"]         = @api_key
       f.headers["anthropic-version"] = ANTHROPIC_VERSION
       f.headers["content-type"]      = "application/json"
+      f.adapter Faraday.default_adapter
+    end
+  end
+
+  # No retry middleware (see messages_stream) and no JSON response
+  # middleware — the body is an SSE stream that `Stream` parses itself.
+  def stream_connection
+    @stream_connection ||= @conn || Faraday.new(url: @base_url) do |f|
+      f.options.open_timeout = Integer(ENV.fetch("ANTHROPIC_OPEN_TIMEOUT", 10))
+      f.options.timeout      = Integer(ENV.fetch("ANTHROPIC_READ_TIMEOUT", 240))
+      f.headers["x-api-key"]         = @api_key
+      f.headers["anthropic-version"] = ANTHROPIC_VERSION
+      f.headers["content-type"]      = "application/json"
+      f.headers["accept"]            = "text/event-stream"
       f.adapter Faraday.default_adapter
     end
   end

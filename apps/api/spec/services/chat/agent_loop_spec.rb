@@ -1,30 +1,7 @@
 require "rails_helper"
 
-# A scripted client: each call pops the next canned response, so a
-# spec reads as "the model said X, then Y".
-class ScriptedClient
-  attr_reader :requests, :last_usage
-
-  def initialize(*responses)
-    @responses = responses
-    @requests  = []
-    @last_usage = { "input_tokens" => 100, "output_tokens" => 50 }
-  end
-
-  def messages_create(**args)
-    @requests << args
-    @responses.shift || raise("ScriptedClient ran out of responses after #{@requests.size} calls")
-  end
-
-  def system_blocks(*blocks)
-    blocks.flatten.map do |b|
-      block = { type: "text", text: b.fetch(:text) }
-      block[:cache_control] = { type: "ephemeral" } if b[:cache]
-      block
-    end
-  end
-end
-
+# ScriptedClient / StreamingScriptedClient live in spec/support — the SSE
+# request specs drive the same loop through the controller.
 
 # The chat is the second front door onto the tool layer. These pin the
 # properties that make it safe to point a model at real write tools: a
@@ -283,6 +260,77 @@ RSpec.describe Chat::AgentLoop do
 
       expect(result).not_to be_ok
       expect(result.error).to include("Gave up")
+    end
+  end
+
+  # A turn runs for tens of seconds. Without these events the client can
+  # only show a spinner, and the user cannot tell a working scan from a
+  # hung one.
+  describe "narrating a turn" do
+    def events_for(*responses, &run)
+      seen = []
+      agent = described_class.new(conversation,
+                                  client: StreamingScriptedClient.new(*responses),
+                                  on_event: ->(payload) { seen << payload })
+      (run || ->(a) { a.run(text: "hello") }).call(agent)
+      seen
+    end
+
+    it "streams the model's words as it writes them" do
+      seen = events_for(say("Hello there."))
+
+      expect(seen.select { |e| e[:type] == "text_delta" }.map { |e| e[:text] }).to eq(["Hello ", "there."])
+      expect(seen.last).to eq(type: "done", text: "Hello there.")
+    end
+
+    it "announces each tool before it runs and reports how it went" do
+      seen = events_for(call_tool("get_restaurant", { "restaurant" => "ninis" }), say("On Main Ave."))
+
+      tool_events = seen.select { |e| [:tool_use, :tool_result].include?(e[:type].to_s.to_sym) }
+      expect(tool_events.map { |e| [e[:type], e[:name]] })
+        .to eq([["tool_use", "get_restaurant"], ["tool_result", "get_restaurant"]])
+      expect(tool_events.last[:ok]).to be(true)
+    end
+
+    it "reports a failed tool as not ok" do
+      seen = events_for(call_tool("get_restaurant", { "restaurant" => "nope" }), say("Couldn't find it."))
+
+      expect(seen.find { |e| e[:type] == "tool_result" }[:ok]).to be(false)
+    end
+
+    context "when a destructive tool needs a human" do
+      let!(:item)   { create(:item, :published, restaurant: restaurant) }
+      let!(:review) { create(:review, user: user, item: item, body: "fine") }
+
+      it "ends the stream on the confirmation rather than on an answer" do
+        seen = events_for(call_tool("delete_review", { "review_id" => review.id }))
+
+        expect(seen.last[:type]).to eq("awaiting_confirmation")
+        expect(seen.last[:tool]["name"]).to eq("delete_review")
+        expect(seen.none? { |e| e[:type] == "tool_use" }).to be(true)
+      end
+    end
+
+    it "ends on an error event when the budget is gone" do
+      conversation.update!(api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT)
+
+      seen = events_for(say("hi"))
+
+      expect(seen.last[:type]).to eq("error")
+      expect(seen.last[:message]).to include("spend limit")
+    end
+
+    # A dropped upstream connection is an outage, not a bug; the user
+    # should be told to retry and the conversation must stay usable.
+    it "turns an upstream failure into one honest error" do
+      client = StreamingScriptedClient.new(AnthropicClient::ApiError.new(status: 529, body: "overloaded"))
+      seen   = []
+      result = described_class.new(conversation, client: client, on_event: ->(p) { seen << p })
+                              .run(text: "hello")
+
+      expect(result).not_to be_ok
+      expect(seen.last).to eq(type: "error", message: "The assistant is unavailable right now. Try again in a moment.")
+      expect(conversation.reload.state).to eq("active")
     end
   end
 end

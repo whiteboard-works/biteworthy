@@ -205,18 +205,28 @@ surface (SSE endpoint, attachment upload, conversation list/replay).
 - SSE via `ActionController::Live`; confirmation gate pauses before any tool
   flagged `confirm: true`
 
-#### M4b — the HTTP surface
+#### M4b — the HTTP surface — SHIPPED
 
-`POST /api/v1/conversations`, `POST /api/v1/conversations/:id/messages`
-(SSE via `ActionController::Live`), `POST /api/v1/conversations/:id/confirm`,
-plus `POST /api/v1/attachments` so the agent receives blob ids, never bytes.
+`POST /api/v1/conversations` (+ index / show / destroy),
+`POST /api/v1/conversations/:id/messages` and `/confirm` streaming SSE via
+`ActionController::Live`, and `POST /api/v1/attachments` so the agent
+receives blob ids, never bytes.
+
+`AnthropicClient#messages_stream` + `AnthropicClient::Stream` reassemble
+the event sequence into the same Hash a non-streaming call returns, so the
+loop is identical either way — `on_event: nil` keeps the old path.
+
+**The stream is a view, not the record.** A dropped connection costs
+nothing: writes to a vanished client are swallowed, the turn still runs to
+completion server-side, and `GET /conversations/:id` replays it in the
+block shapes the live events used.
 
 Acceptance:
 - [x] Confirmation gate: a destructive tool parks; each parked call needs its own answer
 - [x] Every `tool_use` is answered, including on failure and on decline
 - [x] Cost per turn recorded; a spend ceiling mirrors the ingestion one
 - [x] Thinking blocks replay verbatim (signatures are rejected if rebuilt)
-- [ ] A conversation survives a reconnect (history replay, no duplicate turns) — M4b
+- [x] A conversation survives a reconnect (history replay, no duplicate turns)
 - [ ] `cache_read_input_tokens > 0` on the second turn — needs a live call; **unverified**
 - [ ] Injection probe: a dish description instructing `accept_staged_items` does not cause a call — needs a live call; **unverified**
 
@@ -277,8 +287,14 @@ Self-contained; nothing above depends on it.
 ## Open questions
 
 - **Chat cost per conversation** on `claude-opus-5` is unmeasured. `effort`
-  is the dial; measure in M4 before the UI makes it easy to spend.
-- **Attachment upload endpoint** — M4 needs `POST /api/v1/attachments`
-  returning ids for `start_menu_scan`. Not yet designed.
+  is the dial; measure before the UI makes it easy to spend.
 - **`Ingestion::UrlFetcher` needs an SSRF review** (private-IP and redirect
   handling) now that an agent can steer which URL gets fetched.
+- **Two turns fired concurrently on one conversation would interleave.**
+  The UI prevents it by disabling the composer while streaming; the server
+  does not. A `running` state plus a check-and-set would fix it and costs a
+  migration — worth it once more than one client drives a conversation.
+- **Uploaded blobs are never swept.** An attachment that is uploaded and
+  never scanned stays in storage forever. Bounded today by the per-user
+  scan quota and rack-attack, but a periodic purge of unattached blobs
+  older than a day is the real answer.

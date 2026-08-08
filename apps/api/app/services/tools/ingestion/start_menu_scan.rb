@@ -42,7 +42,8 @@ module Tools
           attachment_ids: {
             type: "array",
             items: { type: "string" },
-            description: "Ids of photos or PDFs the user already uploaded through the app."
+            description: "Ids returned when the user uploaded photos or PDFs through the app. " \
+                         "You cannot invent these — if the user has not uploaded anything, ask them to."
           }
         },
         required: ["restaurant"]
@@ -71,7 +72,7 @@ module Tools
         result = ::Ingestion::StartRun.call(
           user:        user,
           restaurant:  record,
-          files:       resolve_attachments(attachment_ids),
+          files:       resolve_attachments(attachment_ids, user),
           source_url:  source_url,
           source_text: source_text
         )
@@ -95,14 +96,20 @@ module Tools
       end
       private_class_method :failure
 
-      # Blobs the user uploaded through the app. Unknown ids are dropped
-      # rather than raising — StartRun's no_inputs guard then gives the model
-      # a clearer message than "blob not found" would.
-      def self.resolve_attachments(ids)
-        list = Array(ids).map(&:to_s).reject(&:blank?)
-        return [] if list.empty?
-
-        ActiveStorage::Blob.where(id: list).to_a
+      # Blobs the user uploaded through the app. Ids that don't resolve, or
+      # that belong to someone else, are dropped rather than raising —
+      # StartRun's no_inputs guard then gives the model a clearer message
+      # than "blob not found" would.
+      #
+      # Blob primary keys are sequential integers, so accepting a raw id
+      # would let any account scan any other account's upload by counting.
+      # The signature makes the id unguessable; the recorded uploader is
+      # what actually enforces ownership.
+      def self.resolve_attachments(ids, user)
+        Array(ids).map(&:to_s).reject(&:blank?).filter_map do |id|
+          blob = ActiveStorage::Blob.find_signed(id)
+          blob if blob && blob.metadata["uploaded_by_user_id"].to_s == user.id.to_s
+        end
       end
       private_class_method :resolve_attachments
     end

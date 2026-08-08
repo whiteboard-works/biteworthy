@@ -22,6 +22,9 @@ class User < ApplicationRecord
   has_many :favorited_restaurants, through: :favorite_restaurants, source: :restaurant
   has_many :favorite_items, dependent: :destroy
   has_many :favorited_items, through: :favorite_items, source: :item
+  # A chat transcript is personal — it goes with the account, unlike the
+  # menu data a conversation may have contributed.
+  has_many :conversations, dependent: :destroy
 
   # Legal remediation E2 — back-references with no ON DELETE rule at the
   # DB level. Account deletion would hit a foreign-key violation unless
