@@ -37,6 +37,13 @@ class Rack::Attack
     req.ip if req.post? && req.path.start_with?("/api/v1/auth/")
   end
 
+  # Dynamic client registration (RFC 7591) is unauthenticated by design,
+  # which makes it the one endpoint where an anonymous caller can create
+  # rows. A real client registers once, so a handful per hour is generous.
+  throttle("oauth_register/ip", limit: 5, period: 1.hour) do |req|
+    req.ip if req.post? && req.path == "/oauth/register"
+  end
+
   # JSON 429 with a Retry-After so clients can back off politely.
   self.throttled_responder = lambda do |request|
     match_data = request.env["rack.attack.match_data"] || {}
