@@ -39,16 +39,16 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M3c — topology (`biteworthy://topology` resource + `describe_capabilities`); 44 tools
 - [x] M4a — chat loop: `Chat::AgentLoop`, conversations/messages, confirmation gate, spend ceiling
 - [x] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
-- [ ] M5 — chat UI in `apps/web`; restore the scan entry points pointing at it
+- [x] M5 — chat UI in `apps/web`; web scan entry points restored (mobile still has none)
 - [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema
 - [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
 - [ ] M8 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
 
-**No web or mobile scan path exists between M2 and M5.** Scanning works today
-through MCP (Claude Code / Claude Desktop) and comes back to the apps with the
-chat UI. This was a deliberate call — the old UI called REST endpoints that
-M2 deleted, so keeping it working would have meant maintaining adapters for a
-flow being replaced.
+**Web scanning is back as of M5** — `/chat`, reached from the hero CTA, the
+site header, and the restaurants empty state. **Mobile still has no scan
+path**: the Expo app can't speak the chat yet, and restoring its old screens
+would mean rebuilding against REST endpoints M2 deleted. Mobile chat is its
+own phase; MCP (Claude Code / Claude Desktop) covers scanning meanwhile.
 
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint
