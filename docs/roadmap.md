@@ -40,7 +40,7 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M4a — chat loop: `Chat::AgentLoop`, conversations/messages, confirmation gate, spend ceiling
 - [x] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
 - [x] M5 — chat UI in `apps/web`; web scan entry points restored (mobile still has none)
-- [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema
+- [ ] M6 — deferred tool loading (`defer_loading` + tool search) so a cold turn doesn't carry every schema — **folded into C7**
 - [ ] M7 — REST adapters over tools for the discovery + profile controllers; re-run openapi + api-types codegen
 - [ ] M8 — public MCP: OAuth 2.1 resource server, RFC 9728 metadata, RFC 8707 audience validation
 
@@ -49,6 +49,26 @@ site header, and the restaurants empty state. **Mobile still has no scan
 path**: the Expo app can't speak the chat yet, and restoring its old screens
 would mean rebuilding against REST endpoints M2 deleted. Mobile chat is its
 own phase; MCP (Claude Code / Claude Desktop) covers scanning meanwhile.
+
+## Chat engine (active, 2026-08-08)
+
+M1–M5 shipped a chat that works. What it lacks is the layer around the
+loop: a turn runs inline in `ActionController::Live` and dies with the
+request, two tabs interleave, there is no abort, no per-round metrics, and
+a failure the user saw vanishes on their next reload. This arc treats the
+agentic loop as a distributed-systems problem — locks, leases, replay
+invariants, idempotent repair.
+
+**Plan + decisions: [`docs/plans/chat-engine.md`](plans/chat-engine.md).**
+Read its Decisions and Safety-properties tables before picking up a phase.
+
+- [x] C1 — one tool boundary: argument validation + contained tool bugs in `Tools::Base`, both doors
+- [ ] C2 — confirmation bound to the exact call; avoid-list removals gated by code, not prose
+- [ ] C3 — run lifecycle: Postgres lock/lease, abort flag, pending queue, per-round token metrics
+- [ ] C4 — turns run in a job; SSE becomes a replayable relay; stop button
+- [ ] C5 — prompts as ordered snapshot-tested sections + a volatile trailing block
+- [ ] C6 — grounding review on dietary answers (Safety Property 1, enforced not instructed)
+- [ ] C7 — deferred tool loading (M6), per-tool progress text, resource chips, admin debug pills
 
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint

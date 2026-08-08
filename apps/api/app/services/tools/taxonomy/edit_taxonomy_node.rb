@@ -34,7 +34,8 @@ module Tools
           allergen:    { type: "boolean", description: "Ingredients only." },
           description: { type: "string", description: "Tags only." }
         },
-        required: %w[kind slug]
+        required: %w[kind slug],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)

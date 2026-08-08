@@ -49,7 +49,8 @@ module Tools
             items: HOUR_ROW
           }
         },
-        required: ["restaurant"]
+        required: ["restaurant"],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)

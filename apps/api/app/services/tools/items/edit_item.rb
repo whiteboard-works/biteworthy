@@ -72,7 +72,8 @@ module Tools
             }
           }
         },
-        required: ["item_id"]
+        required: ["item_id"],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)

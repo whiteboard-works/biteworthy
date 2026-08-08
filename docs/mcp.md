@@ -97,8 +97,20 @@ Notes that bite:
   mentions them. `Tools::Base` re-checks at call time as defence in depth.
 - **Raise `Errors::NotFound` / `Errors::InvalidArgument`**, don't return
   error hashes. `Base.call` turns them into `isError` results the model can
-  recover from. Unexpected exceptions deliberately escape — a bug must not
-  look like a recoverable domain error, or the model retries it forever.
+  recover from. An unexpected exception is contained too, but as
+  `tool_failed` — a bug must not look like a recoverable domain error, or
+  the model rewrites its arguments and calls the broken tool forever.
+  **Nothing escapes `Base.call`**, through either front door; that is what
+  let the chat loop drop its own rescue.
+- **Arguments are validated before `perform` runs**, against both the
+  declared `input_schema` and the real Ruby signature — the schema knows
+  types and required-ness, only the signature knows which keywords
+  `perform` will accept. All problems are reported in one message so a
+  model with two mistakes fixes both in one round.
+- **If `perform` takes `**args`, declare `additionalProperties: false`.**
+  An open signature cannot tell a real keyword from an invented one, so the
+  schema has to. The six admin multiplexers (`edit_item`,
+  `edit_menu_structure`, …) all do.
 - **Fence extracted text with `untrusted(...)`.** Dish names and
   descriptions came from strangers' photos and scraped pages.
 - **Take slugs, not UUIDs**, on write tools. Models handle slugs reliably

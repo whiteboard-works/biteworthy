@@ -38,9 +38,19 @@ module Tools
         superclass.respond_to?(:audience) ? superclass.audience : :public
       end
 
+      # The one place a tool call is authorized, validated, dispatched, and
+      # rescued — for both front doors. Anything that only guards one of them
+      # is a divergence waiting to happen, which is the failure this layer
+      # exists to prevent.
+      #
+      # Nothing here raises. A malformed call the model can fix comes back as
+      # a recoverable `isError` response naming what was wrong; a bug in a
+      # tool comes back as `tool_failed`, which tells the model to stop
+      # retrying rather than to correct its arguments.
       def call(server_context: nil, **args)
         context = Context.new(server_context)
         enforce_audience!(context)
+        validate_arguments!(args)
         perform(context: context, **args)
       rescue Errors::Error => e
         error(e.message, code: e.code)
@@ -48,6 +58,13 @@ module Tools
         error(e.message, code: "not_found")
       rescue ActiveRecord::RecordInvalid => e
         error(e.record.errors.full_messages.to_sentence, code: "invalid")
+      rescue StandardError => e
+        # A tool bug must not kill a conversation or 500 an MCP client, but it
+        # must not read as a recoverable domain error either — otherwise the
+        # model rewrites its arguments and calls the broken tool again.
+        Rails.logger.error("[tools] #{name_value} raised: #{e.class}: #{e.message}")
+        Rails.error.report(e, handled: true, context: { tool: name_value })
+        error("#{name_value} failed and cannot be retried.", code: "tool_failed")
       end
 
       def perform(context:, **args)
@@ -55,6 +72,65 @@ module Tools
       end
 
       private
+
+      # The LLM is an untrusted caller. It invents argument names, passes a
+      # string where a number belongs, and drops required fields — none of
+      # which is malice, all of which used to surface as `ArgumentError:
+      # unknown keyword`. Through the chat that became "cannot be retried",
+      # which is a lie: the model could have fixed it in one round.
+      #
+      # Two sources, because neither subsumes the other: the JSON Schema
+      # knows types and required-ness, and only the Ruby signature knows
+      # which keywords `perform` will actually accept. (A tool whose
+      # `perform` takes `**args` has no signature to check, which is why
+      # those declare `additionalProperties: false` and let the schema do
+      # it — see `accepted_keywords`.)
+      #
+      # Every problem at once, not the first one: a model that invented an
+      # argument name AND omitted a required one should fix both on the next
+      # round rather than spending a tool call per mistake.
+      def validate_arguments!(args)
+        problems = unknown_keyword_problems(args) + schema_problems(args)
+        return if problems.empty?
+
+        raise Errors::InvalidArgument, problems.join(" ")
+      end
+
+      def unknown_keyword_problems(args)
+        return [] if accepted_keywords == :any
+
+        unknown = args.keys.map(&:to_sym) - accepted_keywords
+        return [] if unknown.empty?
+
+        ["Unknown argument(s): #{unknown.join(', ')}. #{name_value} accepts: " \
+         "#{accepted_keywords.join(', ').presence || 'no arguments'}."]
+      end
+
+      # Required-ness and types both come from the schema, deliberately —
+      # a second missing-arguments check here just says the same thing in
+      # different words, and two sayings of one problem is context the
+      # model has to spend tokens reconciling.
+      def schema_problems(args)
+        input_schema_value.validate_arguments(args)
+        []
+      rescue MCP::Tool::InputSchema::ValidationError => e
+        [e.message]
+      end
+
+      # `:any` for a tool whose `perform` takes `**args` — its signature
+      # cannot be wrong about a keyword, so only the schema has an opinion.
+      # Those tools declare `additionalProperties: false` instead.
+      #
+      # Deliberately not memoized: this reads back whatever `perform` is
+      # right now, and caching it means anything that redefines the method
+      # leaves a stale answer behind for the life of the process. It is a
+      # method lookup against an LLM round trip.
+      def accepted_keywords
+        params = method(:perform).parameters
+        return :any if params.any? { |kind, _| kind == :keyrest }
+
+        params.filter_map { |kind, key| key if [:key, :keyreq].include?(kind) } - [:context]
+      end
 
       def enforce_audience!(context)
         case audience

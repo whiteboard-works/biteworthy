@@ -43,10 +43,14 @@ RSpec.describe "review tools" do
       expect(payload(response)[:error]).to eq("unauthorized")
     end
 
+    # Caught by the declared input schema before the tool body runs, so the
+    # model gets told which argument was wrong rather than which model
+    # validation failed.
     it "rejects a rating the model made up out of range" do
       response = call(described_class, author, item_id: item.id, rating: 9)
 
-      expect(payload(response)[:error]).to eq("invalid")
+      expect(payload(response)[:error]).to eq("invalid_argument")
+      expect(payload(response)[:message]).to be_present
     end
 
     # The DB has a unique index here. Without this branch a repeated turn
