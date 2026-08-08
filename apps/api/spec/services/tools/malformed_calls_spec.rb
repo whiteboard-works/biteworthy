@@ -78,6 +78,17 @@ RSpec.describe "malformed tool calls" do
     end
   end
 
+  # Ordering inside `Base.call` is a disclosure boundary, not a style choice:
+  # validation messages name the tool's arguments, so validating before
+  # authorizing would describe an admin tool's shape to a caller who is not
+  # allowed to know it exists.
+  it "answers a caller who may not use the tool without describing its arguments" do
+    response = Tools::Taxonomy::CreateTaxonomyNode.call(server_context: {}, invented_argument: "x")
+
+    expect(payload(response)[:error]).to eq("unauthorized")
+    expect(payload(response)[:message]).not_to include("invented_argument")
+  end
+
   # Before C1 this raised out of `Tools::Base.call`, and only the chat loop's
   # own rescue stopped it killing a turn. The boundary is the tool now, so
   # the loop was able to drop that rescue — this is what holds it up.
