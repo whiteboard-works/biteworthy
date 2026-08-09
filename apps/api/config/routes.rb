@@ -145,6 +145,11 @@ Rails.application.routes.draw do
       # apps/web, which is the only origin where a browser is signed in.
       get  "/oauth/consent", to: "oauth_consents#show"
       post "/oauth/consent", to: "oauth_consents#create"
+      # The other end of that screen: what a person has approved, and the
+      # only supported way to take it back. `use_doorkeeper` skips the
+      # gem's own :authorized_applications UI, which assumes a browser
+      # session this API does not have.
+      resources :connected_apps, only: [:index, :destroy]
       # The caller's own identity incl. `is_admin` — the web /admin
       # guard's probe. Read-only on purpose: auth/refresh also returns
       # the user payload but rotates the jti, killing other sessions.

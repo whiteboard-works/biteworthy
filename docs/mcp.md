@@ -484,6 +484,26 @@ client registered (`URIChecker.valid_for_authorization?`) before it renders
 — otherwise the screen would display one destination while doorkeeper
 honoured another, and the "cancel" path would be an open redirect.
 
+#### Disconnecting an app
+
+`use_doorkeeper` skips `:authorized_applications` — the gem's own
+management UI assumes a browser session this API does not have — so
+`GET`/`DELETE /api/v1/connected_apps` is the replacement, surfaced at
+`/profile/settings`. Revoking covers **tokens and grants** for that
+application and that person: a client sitting on an unexchanged
+authorization code must not be able to walk straight back in.
+
+The list selects on `revoked_at IS NULL` and deliberately **not** on
+expiry (`Doorkeeper::Application.authorized_for`). An access token lives
+two hours; the grant behind it lives until revoked, because the client
+refreshes. Filtering on "unexpired" would empty the list two hours after
+every connection and tell people they had disconnected an app that was
+still reading their profile.
+
+The refresh chain itself still has no absolute lifetime — a grant lasts
+until someone ends it. That is now a decision rather than an oversight,
+because there is a way to end it.
+
 #### Two deliberate departures from the spec text
 
 - **DCR rather than Client ID Metadata Documents.** CIMD is preferred in the
