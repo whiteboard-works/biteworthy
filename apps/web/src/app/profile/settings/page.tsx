@@ -167,22 +167,25 @@ function PreferencesSection() {
         onPick={(strictness) => save({ strictness })}
       />
 
+      {/* Sends the one change, not a rebuilt array. This page holds a
+          profile loaded at mount, and the chat or a connected app can add
+          an allergen in the meantime — a wholesale write would silently
+          revert it, which is the one bug on this screen that could put
+          someone in front of a dish that hurts them. */}
       <AvoidIngredientsSubsection
         items={profile.avoid_ingredients}
         disabled={saving}
-        onRemove={(id) =>
-          save({ avoid_ingredient_ids: profile.avoid_ingredient_ids.filter((x) => x !== id) })
-        }
+        onRemove={(id) => save({ remove_avoid_ingredient_ids: [id] })}
         onAdd={(id) => {
           if (profile.avoid_ingredient_ids.includes(id)) return;
-          save({ avoid_ingredient_ids: [...profile.avoid_ingredient_ids, id] });
+          save({ add_avoid_ingredient_ids: [id] });
         }}
       />
 
       <AvoidTagsSubsection
         items={profile.avoid_tags}
         disabled={saving}
-        onRemove={(id) => save({ avoid_tag_ids: profile.avoid_tag_ids.filter((x) => x !== id) })}
+        onRemove={(id) => save({ remove_avoid_tag_ids: [id] })}
       />
 
       <TasteSubsection

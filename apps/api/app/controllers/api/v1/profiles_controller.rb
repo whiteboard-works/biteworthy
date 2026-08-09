@@ -26,10 +26,17 @@ module Api
         profile = current_user.profile
         attrs   = profile_params
 
+        conflict = conflicting_avoid_lists
+        if conflict.any?
+          return render json: { error: "Send either #{conflict.join(' or ')} or its add_/remove_ form, not both." },
+                        status: :unprocessable_entity
+        end
+
         # Wholesale replacement happens first; the preset (if any)
         # then unions on top so the user's POSTed list is never a
         # subset of what gets saved.
         profile.assign_attributes(attrs.except(:dietary_profile_slug))
+        apply_avoid_diffs!(profile)
 
         if (slug = attrs[:dietary_profile_slug]).present?
           preset = DietaryProfile.includes(:dietary_profile_ingredients,
@@ -57,6 +64,39 @@ module Api
       end
 
       private
+
+      # The avoid lists, and the two ways a client can mean to change them.
+      AVOID_LISTS = %i[avoid_ingredient_ids avoid_tag_ids].freeze
+
+      # Wholesale replacement is right for a wizard: onboarding just built
+      # the list in front of the person, so what it sends *is* the answer.
+      # It is wrong for a settings page, which sends an array rebuilt from
+      # whatever it loaded at mount — and between that load and the click,
+      # the chat or an MCP client may have added an allergen. Replacement
+      # then silently removes it, which is the exact failure
+      # `update_avoid_lists` refuses wholesale replacement to prevent, on
+      # the door that did not refuse it.
+      #
+      # So both are supported and named, and sending both forms for one
+      # list is a 422 rather than a guess about which was meant.
+      def apply_avoid_diffs!(profile)
+        AVOID_LISTS.each do |list|
+          adds    = id_list(params[:"add_#{list}"])
+          removes = id_list(params[:"remove_#{list}"])
+          next if adds.empty? && removes.empty?
+
+          profile.public_send(:"#{list}=", ((profile.public_send(list) + adds).uniq - removes))
+        end
+      end
+
+      # A list sent both ways is a client that does not know what it means.
+      def conflicting_avoid_lists
+        AVOID_LISTS.select do |list|
+          params.key?(list) && (params.key?(:"add_#{list}") || params.key?(:"remove_#{list}"))
+        end
+      end
+
+      def id_list(value) = Array(value).map(&:to_s).compact_blank.uniq
 
       def profile_params
         params.permit(

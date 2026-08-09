@@ -3221,6 +3221,10 @@ export interface paths {
                     "application/json": {
                         avoid_ingredient_ids?: string[];
                         avoid_tag_ids?: string[];
+                        add_avoid_ingredient_ids?: string[];
+                        remove_avoid_ingredient_ids?: string[];
+                        add_avoid_tag_ids?: string[];
+                        remove_avoid_tag_ids?: string[];
                         prefer_tag_ids?: string[];
                         liked_ingredient_ids?: string[];
                         liked_tag_ids?: string[];

@@ -110,20 +110,37 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     );
   });
 
-  it('removing an avoid ingredient sends the REMAINING ids (never wipes the list)', async () => {
+  // Sends the one change, never a rebuilt array. This page holds a profile
+  // loaded at mount, and the chat or a connected app can add an allergen in
+  // the meantime — a wholesale write would silently revert it, which is the
+  // one bug on this screen that can put someone in front of a dish that
+  // hurts them.
+  it('removing an avoid ingredient sends only that removal', async () => {
     render(<ProfileSettingsPage />);
     fireEvent.click(await screen.findByTestId('remove-avoid-ingredient-dairy-cheese'));
 
     await waitFor(() =>
-      expect(mockUpdateProfile).toHaveBeenCalledWith({ avoid_ingredient_ids: ['ing-wheat'] }),
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        remove_avoid_ingredient_ids: ['ing-cheese'],
+      }),
     );
   });
 
-  it('removing an avoid tag sends the remaining tag ids', async () => {
+  it('never sends a rebuilt avoid array, which would revert a concurrent add', async () => {
+    render(<ProfileSettingsPage />);
+    fireEvent.click(await screen.findByTestId('remove-avoid-ingredient-dairy-cheese'));
+
+    await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalled());
+    expect(mockUpdateProfile.mock.calls[0]?.[0]).not.toHaveProperty('avoid_ingredient_ids');
+  });
+
+  it('removing an avoid tag sends only that removal', async () => {
     render(<ProfileSettingsPage />);
     fireEvent.click(await screen.findByTestId('remove-avoid-tag-prep-fried'));
 
-    await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledWith({ avoid_tag_ids: [] }));
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ remove_avoid_tag_ids: ['tag-fried'] }),
+    );
   });
 
   it('applies a dietary preset additively by slug', async () => {
@@ -136,7 +153,7 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     );
   });
 
-  it('adds a searched ingredient onto the existing avoid list', async () => {
+  it('adds a searched ingredient as an addition, not a replacement', async () => {
     mockSearchIngredients.mockResolvedValue([
       { id: 'ing-peanut', slug: 'peanut', name: 'Peanut', path: 'peanut', aliases: [], allergen: true },
     ]);
@@ -148,7 +165,7 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     fireEvent.click(await screen.findByTestId('add-avoid-ingredient-peanut'));
     await waitFor(() =>
       expect(mockUpdateProfile).toHaveBeenCalledWith({
-        avoid_ingredient_ids: ['ing-cheese', 'ing-wheat', 'ing-peanut'],
+        add_avoid_ingredient_ids: ['ing-peanut'],
       }),
     );
   });
