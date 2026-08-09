@@ -23,6 +23,7 @@ describe('connected apps', () => {
           {
             id: 'a-1',
             name: 'Claude Desktop',
+            redirect_host: 'claude.ai',
             scopes: ['profile:read'],
             scope_details: [{ scope: 'profile:read', description: 'See what you avoid' }],
             connected_at: '2026-08-09T00:00:00Z',

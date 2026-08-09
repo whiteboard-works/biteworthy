@@ -500,6 +500,22 @@ refreshes. Filtering on "unexpired" would empty the list two hours after
 every connection and tell people they had disconnected an app that was
 still reading their profile.
 
+**`connected_at` comes from the newest `AccessGrant`, not from the oldest
+live token.** `previous_refresh_token` exists on the tokens table, so
+`refresh_token_revoked_on_use?` is true and doorkeeper revokes the prior
+row the first time a refreshed token is used — after a week of two-hourly
+refreshes only the newest row is unrevoked, and the oldest-live-token
+reading would render a week-old grant as "Connected today". A grant row is
+written only by `/oauth/authorize` and never by a refresh, which makes it
+the record of an actual approval. Newest rather than oldest because
+disconnecting and reconnecting is a new connection.
+
+**The row shows the registered redirect host, not only the name.**
+Registration is unauthenticated, so a name is a claim: two clients can both
+call themselves "Claude Desktop" and one of them can be hostile. Consent
+answers that by showing the destination alongside the name, and a list you
+revoke from has to be at least as decidable as the screen you approved on.
+
 The refresh chain itself still has no absolute lifetime — a grant lasts
 until someone ends it. That is now a decision rather than an oversight,
 because there is a way to end it.

@@ -43,18 +43,59 @@ module Api
 
       def serialize(app)
         tokens = live_tokens[app.id] || []
+        # What the app can do *now*, which is what someone is deciding
+        # about — not the union of everything ever approved. Re-approving
+        # with narrower scope should show the narrower answer.
         scopes = tokens.flat_map { |token| token.scopes.to_a }.uniq.sort
 
         {
           id:              app.id,
           name:            app.name,
+          # Registration is unauthenticated (RFC 7591), so a name is a
+          # claim, not an identity: two registrations can both call
+          # themselves "Claude Desktop" and one of them can be hostile.
+          # The consent screen answers this by showing the destination
+          # alongside the name, and a list you revoke from has to be at
+          # least as decidable as the screen you approved on.
+          redirect_host:   redirect_host_for(app),
           scopes:          scopes,
           # The sentences the consent screen showed, so the list reads the
           # same way the approval did rather than as opaque slugs.
           scope_details:   scopes.map { |scope| { scope: scope, description: Tools::Scopes.describe(scope) } },
-          connected_at:    tokens.map(&:created_at).min&.iso8601,
+          connected_at:    approved_at[app.id]&.iso8601 || tokens.map(&:created_at).min&.iso8601,
           last_renewed_at: tokens.map(&:created_at).max&.iso8601
         }
+      end
+
+      # A client may register several redirect URIs; the host is what
+      # distinguishes one registration from another, and repeating all of
+      # them would bury it.
+      def redirect_host_for(app)
+        hosts = app.redirect_uri.to_s.split.filter_map do |uri|
+          URI.parse(uri).host
+        rescue URI::InvalidURIError
+          nil
+        end
+
+        hosts.uniq.join(", ").presence
+      end
+
+      # **Not** the oldest live token. `previous_refresh_token` exists on
+      # the tokens table, so `refresh_token_revoked_on_use?` is true and
+      # doorkeeper revokes the prior row the first time a refreshed token
+      # is used — after a week of two-hourly refreshes only the newest row
+      # survives, and "oldest live token" would render a week-old grant as
+      # "Connected today".
+      #
+      # A grant row is written only by `/oauth/authorize`, never by a
+      # refresh, so the newest one is the last time a person actually
+      # approved this app. Newest rather than oldest because disconnecting
+      # and reconnecting is a new connection, not a continuation.
+      def approved_at
+        @approved_at ||= Doorkeeper::AccessGrant
+                         .where(resource_owner_id: current_user.id)
+                         .group(:application_id)
+                         .maximum(:created_at)
       end
 
       # One query for every application rather than one per row.
