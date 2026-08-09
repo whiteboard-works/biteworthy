@@ -94,13 +94,15 @@ export function RestaurantClient({
     if (isInitialRender) return;
     let cancelled = false;
     startTransition(() => {
-      // Through the proxy, not straight to Rails: a cross-origin fetch
-      // carries no `bw_session`, so a direct call would answer a
-      // signed-in reader with the anonymous menu.
+      // `signedIn` picks the route: a cross-origin fetch carries no
+      // `bw_session`, so a signed-in reader has to go through the proxy
+      // or get the anonymous menu back. Anonymous readers go direct —
+      // see fetchRestaurantItemsClient for why that matters.
       //
       // Keep the share-link token in play across refetches so the
       // strictness override doesn't silently drop the encoded profile.
       fetchRestaurantItemsClient(slug, {
+        signedIn,
         strictness: strictnessOverride ?? undefined,
         profileToken: profileToken ?? undefined,
       })

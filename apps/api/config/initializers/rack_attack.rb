@@ -11,14 +11,28 @@
 #
 # OPERATIONAL CAVEAT (per-IP attribution): throttling keys on `req.ip`,
 # which is the real client only for traffic that reaches Rails directly
-# (mobile) or through a proxy that sets `X-Forwarded-For` and that Rails
-# trusts. The web app proxies some calls server-side (auth, profile,
-# dmca, review mutations), so those arrive from the Next server's IP —
-# meaning web users would share one bucket and could trip the tight auth
-# throttle together. Before relying on per-client auth throttling in
-# production, forward the client IP from the Next proxy (X-Forwarded-For)
-# and trust it in Rails; otherwise treat the auth limit as a per-edge
-# guard, not per-user.
+# (mobile, and the browser's own calls) or through a proxy that sets
+# `X-Forwarded-For` and that Rails trusts. The web app proxies some calls
+# server-side (auth, profile, dmca, review mutations, and a signed-in
+# reader's menu refetch), so those arrive from the Next server's IP —
+# meaning web users share one bucket and could trip a throttle together.
+# Before relying on per-client throttling in production, forward the
+# client IP from the Next proxy (X-Forwarded-For) and trust it in Rails;
+# otherwise treat these limits as a per-edge guard, not per-user.
+#
+# What keeps that bucket survivable today is that the proxy is used only
+# where a credential has to travel. Menu reads are the highest-volume
+# path in the product, and an anonymous one goes browser-to-Rails
+# directly and lands in its own bucket
+# (`fetchRestaurantItemsClient` in apps/web). If that ever changes —
+# if the web app starts proxying reads it does not need a cookie for —
+# this ceiling becomes a shared budget for the entire web tier and the
+# X-Forwarded-For work above stops being optional.
+#
+# Note that trusting X-Forwarded-For is not free: Rails is publicly
+# reachable, so the header has to be accepted only from the known edge
+# (config.action_dispatch.trusted_proxies), or anyone can forge it and
+# opt out of every throttle here.
 class Rack::Attack
   # In-memory counter store. Single-process is fine for the launch
   # footprint; swap to a shared store (Solid Cache / Redis) when the API
