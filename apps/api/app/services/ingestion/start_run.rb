@@ -22,15 +22,60 @@ module Ingestion
     MAX_INPUT_FILE_BYTES_DEFAULT     = 10 * 1024 * 1024 # match UrlFetcher's 10 MB cap
     MAX_SOURCE_TEXT_CHARS_DEFAULT    = 50_000           # a very long menu is well under this
     # Headroom for the super tier — see `validate_files` for why these are
-    # multiplied rather than dropped. 5× is well past any real menu and
-    # still short of the request size that breaks the extraction call.
+    # multiplied rather than dropped. 5× is well past any real menu.
+    #
+    # Note the per-file 5× is clamped by the aggregate ceiling below: a
+    # single file cannot exceed the whole batch's allowance, so the
+    # nominal 50 MB is really 20 MB. It still buys the 10 → 20 MB of
+    # per-file headroom that a high-resolution multi-page PDF needs; it
+    # just does not buy 50.
     SUPER_ADMIN_INPUT_MULTIPLIER     = 5
+
+    # The cap that actually bounds the extraction request, and the only
+    # one that is **not multiplied per-user**. (It is still operator-
+    # tunable through `INGESTION_MAX_TOTAL_INPUT_BYTES`, like every other
+    # limit here — what it does not do is scale with who is asking.)
+    #
+    # Multiplying the file count and the per-file size independently
+    # multiplies their product: 5× × 5× is 25× in aggregate, which turned
+    # a 100 MB ceiling into 2.5 GB. `ExtractMenuPrompt.user_messages`
+    # base64-encodes every blob into one in-memory request, so that is
+    # gigabytes of string built in the worker before Anthropic rejects it
+    # for being over the 32 MB request limit — the "fails after it has
+    # been paid for" shape the content-type check exists to avoid.
+    #
+    # The ceiling here is not about who is paying, it is about what the
+    # API will accept: base64 inflates by ~4/3, so 20 MB of input is
+    # ~27 MB on the wire before the prompt. It applies to everyone for
+    # the same reason the content-type check does. Chunking (which would
+    # let this rise, because the aggregate would no longer be one
+    # request) is a separate change.
+    MAX_TOTAL_INPUT_BYTES_DEFAULT    = 20 * 1024 * 1024
 
     ALLOWED_INPUT_CONTENT_TYPES = %w[
       image/jpeg image/png image/heic image/heif image/webp application/pdf
     ].freeze
 
     def self.call(...) = new(...).call
+
+    # The per-file ceiling for a given caller, shared with
+    # `AttachmentsController` so the upload door and the scan door cannot
+    # disagree. They did: the controller read the raw env value and knew
+    # nothing about the super tier, so the 5× per-file headroom was
+    # unreachable through the only door the chat actually uses.
+    #
+    # Clamped by the aggregate ceiling, because a single file cannot be
+    # larger than the whole batch is allowed to be — without the clamp
+    # the upload door would accept a 50 MB file that the scan door then
+    # refuses, which is the discovered-after-the-upload failure this
+    # whole area exists to avoid.
+    def self.per_file_byte_limit(user)
+      base  = Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", MAX_INPUT_FILE_BYTES_DEFAULT))
+      total = Integer(ENV.fetch("INGESTION_MAX_TOTAL_INPUT_BYTES", MAX_TOTAL_INPUT_BYTES_DEFAULT))
+      mult  = user&.is_super_admin? ? SUPER_ADMIN_INPUT_MULTIPLIER : 1
+
+      [ base * mult, total ].min
+    end
 
     # Exactly one input source is used, in this precedence: files, then
     # source_url, then source_text.
@@ -116,6 +161,13 @@ module Ingestion
         return failure(:file_too_large, limit_bytes: file_bytes_limit)
       end
 
+      # Checked after the per-file limits so the message names the
+      # specific problem where there is one, and last among the size
+      # checks because it is the one that binds for everybody.
+      if @files.sum { |f| byte_size_of(f) } > max_total_input_bytes
+        return failure(:payload_too_large, limit_bytes: max_total_input_bytes)
+      end
+
       if @files.any? { |f| ALLOWED_INPUT_CONTENT_TYPES.exclude?(f.content_type.to_s) }
         return failure(:unsupported_file_type, allowed: ALLOWED_INPUT_CONTENT_TYPES)
       end
@@ -124,7 +176,7 @@ module Ingestion
     end
 
     def file_count_limit = max_input_files * input_multiplier
-    def file_bytes_limit = max_input_file_bytes * input_multiplier
+    def file_bytes_limit = self.class.per_file_byte_limit(@user)
     def text_chars_limit = max_source_text_chars * input_multiplier
 
     def input_multiplier = super_admin? ? SUPER_ADMIN_INPUT_MULTIPLIER : 1
@@ -254,6 +306,10 @@ module Ingestion
 
     def max_source_text_chars
       Integer(ENV.fetch("INGESTION_MAX_SOURCE_TEXT_CHARS", MAX_SOURCE_TEXT_CHARS_DEFAULT))
+    end
+
+    def max_total_input_bytes
+      Integer(ENV.fetch("INGESTION_MAX_TOTAL_INPUT_BYTES", MAX_TOTAL_INPUT_BYTES_DEFAULT))
     end
   end
 end

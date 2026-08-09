@@ -143,6 +143,51 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
 
+    # A safelist runs ahead of every throttle, so without a bound it is
+    # an amplifier: a unique bearer per request misses the cache by
+    # construction and forces a fresh credential lookup that nothing is
+    # rate limiting. These two pin that resolution itself is bounded, and
+    # that the bound does not fall on the person it exists to exempt.
+    def spray_garbage(count)
+      count.times do |i|
+        get "/api/v1/me", headers: { "Authorization" => "Bearer garbage-#{i}-#{SecureRandom.hex(8)}" }
+      end
+    end
+
+    it "stops taking attacker-supplied strings to the database after a small budget" do
+      allow(Doorkeeper::AccessToken).to receive(:by_token).and_call_original
+
+      spray_garbage(40)
+
+      expect(Doorkeeper::AccessToken)
+        .to have_received(:by_token)
+        .at_most(Biteworthy::SuperAdminCredential::RESOLUTIONS_PER_IP).times
+    end
+
+    # A verified signature is not something a stranger can supply, so the
+    # query behind it is not spammable and must not be charged. This is
+    # the credential nearly every real request carries — and, because the
+    # web app proxies authenticated calls from one Next-server IP,
+    # charging it would have let ordinary signed-in traffic drain the
+    # bucket and lock the tier out at its busiest.
+    it "never sends a verified JWT to the opaque-token lookups" do
+      token, = Warden::JWTAuth::UserEncoder.new.call(create(:user, :super_admin), :user, nil)
+      allow(Doorkeeper::AccessToken).to receive(:by_token).and_call_original
+
+      get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" }
+
+      expect(Doorkeeper::AccessToken).not_to have_received(:by_token)
+    end
+
+    it "keeps exempting a super admin after garbage has drained the budget" do
+      token, = Warden::JWTAuth::UserEncoder.new.call(create(:user, :super_admin), :user, nil)
+
+      spray_garbage(40)
+      400.times { get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" } }
+
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
     # A properly-signed token stays signature-valid after sign-out —
     # `JTIMatcher` revokes by rotating `users.jti`, not by invalidating
     # the signature. A safelist that checked only the signature would

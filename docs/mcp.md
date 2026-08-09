@@ -345,13 +345,21 @@ Two properties are the whole design, and both are asserted by specs:
   set of people who can spend without a ceiling equal to the set of
   people with server access.
 - **The throttle exemption verifies the credential, never reads it.**
-  `Biteworthy::SuperAdminCredential` signature-checks a Devise JWT,
-  digest-looks-up an `bw_mcp_` token, or resolves a Doorkeeper access
-  token, caching the decision for 60s against a hash of the secret. The
-  tempting version — base64-decode the JWT and trust `sub`, which is what
-  the web app's `getServerUserId` does for UI purposes — would let anyone
-  opt out of every rate limit by claiming an id. Every error path returns
-  false.
+  `Biteworthy::SuperAdminCredential` signature-checks a Devise JWT (and
+  compares `jti`, because `JTIMatcher` revokes by rotating it), digest-
+  looks-up an `bw_mcp_` token, or resolves a Doorkeeper access token,
+  caching the decision for 60s against a hash of the secret. The tempting
+  version — base64-decode the JWT and trust `sub`, which is what the web
+  app's `getServerUserId` does for UI purposes — would let anyone opt out
+  of every rate limit by claiming an id. Every error path returns false.
+- **Resolution is itself rate limited, per IP, on cache misses only.** A
+  safelist runs ahead of every throttle, so without a bound it is an
+  amplifier: a unique garbage bearer per request misses the cache by
+  construction and forces a credential lookup nothing is limiting. Ten
+  resolutions per IP per minute is far more than a real caller needs
+  (they resolve once a minute and the cache answers the rest) and turns a
+  spray of forged bearers into a few lookups followed by the ordinary
+  throttles they were trying to skip.
 
 `skip_confirmations` is a separate column, defaulting on for the tier but
 independently settable. It turns off the destructive-tool confirmation
@@ -370,11 +378,32 @@ technicality. The deadline: a wedged turn keeps `tick!` renewing its 120s
 lease, so it reads healthy to every watchdog for as long as the deadline
 allows; 30 minutes is acceptable only because the lock is **per
 conversation** and the operator holding it has `DELETE
-/conversations/:id/run`. The input caps: they bound what
-`ExtractMenuJob` base64-encodes into one request, so removing them would
-mean a multi-hundred-MB payload accepted at the door and dying on an
-Anthropic request-size 400 *after* the upload — the same
-discovered-too-late failure that keeps the content-type check unskippable.
+/conversations/:id/run`.
+
+**Not multiplied per-user: `MAX_TOTAL_INPUT_BYTES` (20 MB).** Multiplying
+the file count and the per-file size independently multiplies their
+product — 5× × 5× is 25× in aggregate, which turned a 100 MB ceiling into
+2.5 GB. `ExtractMenuPrompt.user_messages` base64-encodes every blob into
+one in-memory request, so that is gigabytes built in the worker before
+Anthropic rejects it for exceeding the 32 MB request limit: the same
+discovered-too-late failure that keeps the content-type check
+unskippable. This ceiling is about what the API accepts, not about who is
+paying, so it binds a super admin exactly as hard (it is still
+operator-tunable through `INGESTION_MAX_TOTAL_INPUT_BYTES` — what it does
+not do is scale with the caller). Chunking is what would let it rise,
+because the aggregate would no longer be one request.
+
+Two consequences worth stating rather than discovering. It **clamps the
+per-file ceiling**, so the tier's nominal 50 MB single file is really
+20 MB — real headroom over the ordinary 10 MB, just not five times it.
+And it is **a tightening for ordinary callers too**: ten files at 10 MB
+used to be a nominal 100 MB batch. Nothing could ever have extracted
+that, so the change is the door refusing what the extractor was going to
+reject anyway — but it is a behaviour change for everyone, not only the
+new tier. `StartRun.per_file_byte_limit` is the one owner of that
+arithmetic, shared with `AttachmentsController` so the upload door and
+the scan door cannot answer differently; they already had, and the tier's
+per-file headroom was unreachable through the door the chat uses.
 
 Three rails carry over from the admin REST endpoints, and they are the
 reason these tools are narrower than the models allow:
