@@ -53,8 +53,19 @@ module Api
 
       # Same ceiling the scan itself enforces — rejecting at upload gives
       # the user the error immediately instead of after they hit send.
+      # Asked of `StartRun` rather than recomputed here, because the two
+      # had already drifted: this door read the raw env value and knew
+      # nothing about the super tier, so that tier's per-file headroom was
+      # unreachable through the only door the chat uses.
+      #
+      # Known gap, deliberately not closed here: uploads arrive one POST
+      # at a time with no batch identity, so this door cannot enforce the
+      # *aggregate* ceiling — three individually-legal 8 MB photos are
+      # stored and only refused at scan time. Inventing a batch id to fix
+      # that costs more than it saves while `PurgeUnscannedAttachmentsJob`
+      # already reclaims blobs nobody scanned.
       def max_bytes
-        Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", ::Ingestion::StartRun::MAX_INPUT_FILE_BYTES_DEFAULT))
+        ::Ingestion::StartRun.per_file_byte_limit(current_user)
       end
 
       def render_error(message)

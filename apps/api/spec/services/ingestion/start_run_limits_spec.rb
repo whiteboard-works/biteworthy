@@ -77,10 +77,24 @@ RSpec.describe Ingestion::StartRun do
       expect(start(user, files: [ big ]).error).not_to eq(:file_too_large)
     end
 
-    it "still refuses beyond the raised byte ceiling" do
-      huge = upload(bytes: (described_class::MAX_INPUT_FILE_BYTES_DEFAULT * mult) + 1)
+    # The per-file 5× is clamped by the aggregate ceiling — a single file
+    # cannot be bigger than the whole batch is allowed to be, so the
+    # nominal 50 MB is really 20 MB. Pinned both ways so nobody reads the
+    # multiplier as 50 MB of real headroom, and so the refusal reports the
+    # limit that actually applied rather than the nominal one.
+    it "clamps the per-file ceiling to the aggregate one" do
+      over = upload(bytes: described_class::MAX_TOTAL_INPUT_BYTES_DEFAULT + 1)
 
-      expect(start(user, files: [ huge ]).error).to eq(:file_too_large)
+      result = start(user, files: [ over ])
+
+      expect(result.error).to eq(:file_too_large)
+      expect(result.detail[:limit_bytes]).to eq(described_class::MAX_TOTAL_INPUT_BYTES_DEFAULT)
+    end
+
+    it "still allows a file well over the ordinary per-file cap" do
+      big = upload(bytes: described_class::MAX_INPUT_FILE_BYTES_DEFAULT * 2)
+
+      expect(start(user, files: [ big ]).error).to be_nil
     end
 
     it "allows pasted text over the ordinary character limit" do

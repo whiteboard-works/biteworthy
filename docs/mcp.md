@@ -380,7 +380,7 @@ allows; 30 minutes is acceptable only because the lock is **per
 conversation** and the operator holding it has `DELETE
 /conversations/:id/run`.
 
-**Never raised for anybody: `MAX_TOTAL_INPUT_BYTES` (20 MB).** Multiplying
+**Not multiplied per-user: `MAX_TOTAL_INPUT_BYTES` (20 MB).** Multiplying
 the file count and the per-file size independently multiplies their
 product — 5× × 5× is 25× in aggregate, which turned a 100 MB ceiling into
 2.5 GB. `ExtractMenuPrompt.user_messages` base64-encodes every blob into
@@ -388,8 +388,22 @@ one in-memory request, so that is gigabytes built in the worker before
 Anthropic rejects it for exceeding the 32 MB request limit: the same
 discovered-too-late failure that keeps the content-type check
 unskippable. This ceiling is about what the API accepts, not about who is
-paying, so it binds a super admin exactly as hard. Chunking is what would
-let it rise, because the aggregate would no longer be one request.
+paying, so it binds a super admin exactly as hard (it is still
+operator-tunable through `INGESTION_MAX_TOTAL_INPUT_BYTES` — what it does
+not do is scale with the caller). Chunking is what would let it rise,
+because the aggregate would no longer be one request.
+
+Two consequences worth stating rather than discovering. It **clamps the
+per-file ceiling**, so the tier's nominal 50 MB single file is really
+20 MB — real headroom over the ordinary 10 MB, just not five times it.
+And it is **a tightening for ordinary callers too**: ten files at 10 MB
+used to be a nominal 100 MB batch. Nothing could ever have extracted
+that, so the change is the door refusing what the extractor was going to
+reject anyway — but it is a behaviour change for everyone, not only the
+new tier. `StartRun.per_file_byte_limit` is the one owner of that
+arithmetic, shared with `AttachmentsController` so the upload door and
+the scan door cannot answer differently; they already had, and the tier's
+per-file headroom was unreachable through the door the chat uses.
 
 Three rails carry over from the admin REST endpoints, and they are the
 reason these tools are narrower than the models allow:

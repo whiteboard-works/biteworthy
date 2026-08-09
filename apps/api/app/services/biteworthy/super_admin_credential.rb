@@ -47,21 +47,45 @@ module Biteworthy
     # unthrottled by definition. The rate limiter would become the
     # amplifier.
     #
-    # So resolution itself is rate limited, per IP, on cache misses only.
-    # A real super admin misses once a minute and is never near the
-    # budget; a spray of unique bearers burns it in a few requests and
-    # then stops costing anything, and those requests fall through to the
-    # ordinary throttles they were trying to skip.
-    RESOLUTIONS_PER_IP     = 10
-    RESOLUTION_WINDOW      = 1.minute
+    # So resolution is rate limited per IP — but **only the part of it
+    # that a stranger can make us do.**
+    #
+    # The split matters. Verifying a Devise JWT is pure CPU: a signature
+    # an attacker cannot forge gates the single `User.find_by` behind it,
+    # so that path is not spammable and is never charged. What *is*
+    # spammable is a lookup keyed on an attacker-supplied opaque string —
+    # the `bw_mcp_` digest query and Doorkeeper's `by_token` — because any
+    # random text reaches them. Only those are budgeted.
+    #
+    # Charging every cache miss instead would put the cost on the wrong
+    # people: `rack_attack.rb`'s operational caveat notes the web app
+    # proxies authenticated calls, so every signed-in user arrives from
+    # one Next-server IP. Past ten distinct users a minute the bucket for
+    # that IP would be empty, and the next super admin whose 60s cache
+    # entry lapsed would be refused a refresh and lose the exemption — at
+    # exactly the busy moment the tier exists for.
+    RESOLUTIONS_PER_IP = 10
+    RESOLUTION_WINDOW  = 1.minute
 
     class << self
       def store
         @store ||= ActiveSupport::Cache::MemoryStore.new(size: 2.megabytes)
       end
 
+      # Its own store, not the verdict cache's. `MemoryStore` prunes by
+      # insertion order once it passes its size, and it does not know a
+      # counter from a verdict — sharing one would let a spray of verdicts
+      # evict counters mid-window (resetting an attacker's budget) and let
+      # counters evict a super admin's `true` (forcing a re-resolution).
+      def budget_store
+        @budget_store ||= ActiveSupport::Cache::MemoryStore.new(size: 512.kilobytes)
+      end
+
       # Tests that flip a user's tier mid-example need the memo gone.
-      def reset! = store.clear
+      def reset!
+        store.clear
+        budget_store.clear
+      end
 
       def exempt?(request)
         secret = bearer(request)
@@ -69,9 +93,16 @@ module Biteworthy
 
         cached = store.read(cache_key(secret))
         return cached unless cached.nil?
-        return false unless resolution_budget?(request.ip)
 
-        store.fetch(cache_key(secret), expires_in: CACHE_TTL) { resolve(secret) }
+        resolved = user_for(secret, ip: request.ip)
+        # "We declined to look" is not "not a super admin", so it is not
+        # cached — caching it would lock a legitimate caller out for the
+        # rest of the TTL over one unlucky moment.
+        return false if resolved == :over_budget
+
+        verdict = !!resolved&.is_super_admin?
+        store.write(cache_key(secret), verdict, expires_in: CACHE_TTL)
+        verdict
       rescue StandardError => e
         # Never let a broken lookup decide the request. Reported rather
         # than swallowed: a safelist that silently stopped working would
@@ -93,19 +124,18 @@ module Biteworthy
         "super_admin_credential:#{Digest::SHA256.hexdigest(secret)}"
       end
 
-      # Counts only the lookups that would actually touch the database —
-      # a cache hit is free and never charged, so a signed-in super admin
-      # spends one resolution a minute no matter how much traffic they
-      # send. Bucketed by wall-clock window rather than a sliding count,
-      # which is the same shape `Rack::Attack` itself uses and needs no
-      # eviction pass.
+      # Counts only the lookups a stranger can force: cache hits are free,
+      # and so is the JWT path, whose query sits behind a signature.
+      # Bucketed by wall-clock window rather than a sliding count — the
+      # same shape `Rack::Attack` itself uses, and it needs no eviction
+      # pass.
       def resolution_budget?(ip)
         return true if ip.blank?
 
-        key   = "super_admin_resolutions:#{ip}:#{(Time.current.to_i / RESOLUTION_WINDOW).to_i}"
+        key   = "resolutions:#{ip}:#{(Time.current.to_i / RESOLUTION_WINDOW).to_i}"
         # MemoryStore#increment initialises a missing key to the amount,
         # so the first call in a window returns 1 — no seeding needed.
-        spent = store.increment(key, 1, expires_in: RESOLUTION_WINDOW * 2)
+        spent = budget_store.increment(key, 1, expires_in: RESOLUTION_WINDOW * 2)
         # nil means the store could not count (not the case for
         # MemoryStore, but a swap to a shared store should not silently
         # start refusing every super admin). The cache-hit path above
@@ -113,21 +143,24 @@ module Biteworthy
         spent.nil? || spent <= RESOLUTIONS_PER_IP
       end
 
-      def resolve(secret)
-        user = user_for(secret)
-        !!user&.is_super_admin?
-      end
+      # Returns a `User`, `nil`, or `:over_budget`.
+      #
+      # Ordered by who can make us do the work, not just by cost. The JWT
+      # path runs first and unbudgeted because its DB query sits behind a
+      # signature check no stranger can pass — and because it is the
+      # credential nearly every real request carries, so budgeting it
+      # would starve exactly the callers the tier is for. Everything below
+      # it takes an opaque attacker-suppliable string straight to a query,
+      # so it is charged.
+      def user_for(secret, ip:)
+        user = jwt_user(secret)
+        return user if user
 
-      # Ordered cheapest-first. A Devise JWT is the overwhelmingly common
-      # credential and decoding one is pure CPU, so it goes ahead of the
-      # Doorkeeper lookup — otherwise every web and mobile request would
-      # spend a guaranteed-miss query on `oauth_access_tokens` before
-      # reaching the path that answers. A Doorkeeper token is opaque and
-      # raises out of the decoder, so it still falls through correctly.
-      def user_for(secret)
+        return :over_budget unless resolution_budget?(ip)
+
         return mcp_token_user(secret) if secret.start_with?(McpToken::PREFIX)
 
-        jwt_user(secret) || oauth_user(secret)
+        oauth_user(secret)
       end
 
       def mcp_token_user(secret) = McpToken.authenticate(secret)&.user

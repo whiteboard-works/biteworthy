@@ -148,28 +148,43 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     # construction and forces a fresh credential lookup that nothing is
     # rate limiting. These two pin that resolution itself is bounded, and
     # that the bound does not fall on the person it exists to exempt.
-    it "stops resolving unique garbage bearers after a small budget" do
-      allow(Biteworthy::SuperAdminCredential).to receive(:resolve).and_call_original
-
-      40.times do |i|
+    def spray_garbage(count)
+      count.times do |i|
         get "/api/v1/me", headers: { "Authorization" => "Bearer garbage-#{i}-#{SecureRandom.hex(8)}" }
       end
+    end
 
-      expect(Biteworthy::SuperAdminCredential)
-        .to have_received(:resolve)
+    it "stops taking attacker-supplied strings to the database after a small budget" do
+      allow(Doorkeeper::AccessToken).to receive(:by_token).and_call_original
+
+      spray_garbage(40)
+
+      expect(Doorkeeper::AccessToken)
+        .to have_received(:by_token)
         .at_most(Biteworthy::SuperAdminCredential::RESOLUTIONS_PER_IP).times
     end
 
-    it "does not charge the budget for a repeated credential" do
-      user = create(:user, :super_admin)
-      token, = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
-      allow(Biteworthy::SuperAdminCredential).to receive(:resolve).and_call_original
+    # A verified signature is not something a stranger can supply, so the
+    # query behind it is not spammable and must not be charged. This is
+    # the credential nearly every real request carries — and, because the
+    # web app proxies authenticated calls from one Next-server IP,
+    # charging it would have let ordinary signed-in traffic drain the
+    # bucket and lock the tier out at its busiest.
+    it "never sends a verified JWT to the opaque-token lookups" do
+      token, = Warden::JWTAuth::UserEncoder.new.call(create(:user, :super_admin), :user, nil)
+      allow(Doorkeeper::AccessToken).to receive(:by_token).and_call_original
 
+      get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" }
+
+      expect(Doorkeeper::AccessToken).not_to have_received(:by_token)
+    end
+
+    it "keeps exempting a super admin after garbage has drained the budget" do
+      token, = Warden::JWTAuth::UserEncoder.new.call(create(:user, :super_admin), :user, nil)
+
+      spray_garbage(40)
       400.times { get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" } }
 
-      # One resolution for 400 requests — the cache answers the rest, so
-      # a real super admin never approaches the per-IP budget.
-      expect(Biteworthy::SuperAdminCredential).to have_received(:resolve).once
       expect(response).not_to have_http_status(:too_many_requests)
     end
 

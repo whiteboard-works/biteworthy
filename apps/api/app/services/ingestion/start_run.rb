@@ -23,10 +23,18 @@ module Ingestion
     MAX_SOURCE_TEXT_CHARS_DEFAULT    = 50_000           # a very long menu is well under this
     # Headroom for the super tier — see `validate_files` for why these are
     # multiplied rather than dropped. 5× is well past any real menu.
+    #
+    # Note the per-file 5× is clamped by the aggregate ceiling below: a
+    # single file cannot exceed the whole batch's allowance, so the
+    # nominal 50 MB is really 20 MB. It still buys the 10 → 20 MB of
+    # per-file headroom that a high-resolution multi-page PDF needs; it
+    # just does not buy 50.
     SUPER_ADMIN_INPUT_MULTIPLIER     = 5
 
     # The cap that actually bounds the extraction request, and the only
-    # one that is **not** multiplied for anybody.
+    # one that is **not multiplied per-user**. (It is still operator-
+    # tunable through `INGESTION_MAX_TOTAL_INPUT_BYTES`, like every other
+    # limit here — what it does not do is scale with who is asking.)
     #
     # Multiplying the file count and the per-file size independently
     # multiplies their product: 5× × 5× is 25× in aggregate, which turned
@@ -49,6 +57,25 @@ module Ingestion
     ].freeze
 
     def self.call(...) = new(...).call
+
+    # The per-file ceiling for a given caller, shared with
+    # `AttachmentsController` so the upload door and the scan door cannot
+    # disagree. They did: the controller read the raw env value and knew
+    # nothing about the super tier, so the 5× per-file headroom was
+    # unreachable through the only door the chat actually uses.
+    #
+    # Clamped by the aggregate ceiling, because a single file cannot be
+    # larger than the whole batch is allowed to be — without the clamp
+    # the upload door would accept a 50 MB file that the scan door then
+    # refuses, which is the discovered-after-the-upload failure this
+    # whole area exists to avoid.
+    def self.per_file_byte_limit(user)
+      base  = Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", MAX_INPUT_FILE_BYTES_DEFAULT))
+      total = Integer(ENV.fetch("INGESTION_MAX_TOTAL_INPUT_BYTES", MAX_TOTAL_INPUT_BYTES_DEFAULT))
+      mult  = user&.is_super_admin? ? SUPER_ADMIN_INPUT_MULTIPLIER : 1
+
+      [ base * mult, total ].min
+    end
 
     # Exactly one input source is used, in this precedence: files, then
     # source_url, then source_text.
@@ -149,7 +176,7 @@ module Ingestion
     end
 
     def file_count_limit = max_input_files * input_multiplier
-    def file_bytes_limit = max_input_file_bytes * input_multiplier
+    def file_bytes_limit = self.class.per_file_byte_limit(@user)
     def text_chars_limit = max_source_text_chars * input_multiplier
 
     def input_multiplier = super_admin? ? SUPER_ADMIN_INPUT_MULTIPLIER : 1
