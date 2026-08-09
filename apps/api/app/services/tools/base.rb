@@ -102,6 +102,24 @@ module Tools
       def requires_confirmation?(args = {})
         return true if annotations_value&.destructive_hint == true
 
+        gated_by_arguments?(args)
+      end
+
+      # The narrower half, and the only half `Tools::Base` enforces
+      # itself.
+      #
+      # `destructive_hint` is a static annotation, which means an MCP
+      # client can already read it and put a human in front of the call —
+      # Claude Desktop and Claude Code both do. Re-asking on the server
+      # would buy a second round-trip and no extra safety.
+      #
+      # An argument-dependent gate is the case no annotation can express,
+      # and `update_avoid_lists` is exactly it: the tool declares
+      # `destructive_hint: false` so that *adding* an avoid stays
+      # frictionless, which tells every client the call is safe. It is,
+      # until the arguments say `remove_ingredients`. Only the server
+      # knows that, so only the server can ask.
+      def gated_by_arguments?(args = {})
         gate = confirm_when
         gate ? !!gate.call(args) : false
       end
@@ -124,11 +142,14 @@ module Tools
       # a recoverable `isError` response naming what was wrong; a bug in a
       # tool comes back as `tool_failed`, which tells the model to stop
       # retrying rather than to correct its arguments.
-      def call(server_context: nil, **args)
+      def call(server_context: nil, confirmation: nil, **args)
         context = Context.new(server_context)
         enforce_audience!(context)
         enforce_scope!(context)
         validate_arguments!(args)
+        gate = confirmation_gate(context, args, confirmation)
+        return gate if gate
+
         perform(context: context, **args)
       rescue Errors::Error => e
         error(e.message, code: e.code)
@@ -150,6 +171,38 @@ module Tools
       end
 
       private
+
+      # Returns a response when the call needs a human and does not yet
+      # have one, nil when it may proceed.
+      #
+      # Ordered after validation on purpose: asking someone to approve a
+      # call that would fail on its arguments anyway spends their
+      # attention on nothing, and attention is the whole resource a
+      # confirmation gate is spending.
+      #
+      # The chat parks *before* it gets here and mints a grant once the
+      # person approves, so this is the same check on both doors rather
+      # than a second one. Over MCP there is nowhere to park — a stateless
+      # transport cannot ask the client a question mid-call — so the
+      # refusal carries the sentence and a token, and the model has to
+      # come back with an answer to it.
+      def confirmation_gate(context, args, confirmation)
+        return nil unless gated_by_arguments?(args)
+        return nil if Confirmation.satisfied?(confirmation, tool: name_value, args: args,
+                                                            user_id: context.user_id)
+
+        prompt = confirmation_prompt_for(args) ||
+                 "Confirm this #{name_value.humanize.downcase} before it runs."
+
+        error(
+          "#{prompt} This has not been confirmed yet. Ask the user in these words, and if they " \
+          "agree, call #{name_value} again with the same arguments plus " \
+          "confirmation: \"<the token below>\". Do not call it again if they decline.",
+          code: "confirmation_required",
+          confirmation_token: Confirmation.mint(tool: name_value, args: args, user_id: context.user_id),
+          prompt: prompt
+        )
+      end
 
       # The LLM is an untrusted caller. It invents argument names, passes a
       # string where a number belongs, and drops required fields — none of
@@ -240,8 +293,13 @@ module Tools
         )
       end
 
-      def error(message, code: "error")
-        payload = { error: code, message: message }
+      # `extra` carries structured detail a model needs to act on rather
+      # than parse out of prose — today the confirmation token and the
+      # sentence to read aloud. It lands in `structuredContent`, so a
+      # client can render the question itself instead of trusting the
+      # model to quote it.
+      def error(message, code: "error", **extra)
+        payload = { error: code, message: message }.merge(extra.compact)
         MCP::Tool::Response.new(
           [{ type: "text", text: JSON.pretty_generate(payload) }],
           error: true,

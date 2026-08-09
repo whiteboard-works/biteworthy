@@ -6,7 +6,10 @@ module Tools
   # `public_host` rides along so tools can build signed ActiveStorage URLs
   # the same way Api::V1::BaseController does.
   class Context
-    attr_reader :public_host, :request_id, :scopes
+    # `user_id` is readable without touching the database: a confirmation
+    # grant binds to whoever the credential names, and it must not cost a
+    # user lookup to decide whether a call needs one.
+    attr_reader :user_id, :public_host, :request_id, :scopes
 
     def initialize(server_context = nil)
       raw          = server_context || {}

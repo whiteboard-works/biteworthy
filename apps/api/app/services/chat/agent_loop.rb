@@ -172,7 +172,12 @@ module Chat
       end
 
       emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call)) if confirm
-      settled = confirm ? execute(call) : declined(call)
+      # `Tools::Base` re-checks the gate, so the approval has to travel
+      # with the call rather than being implied by the fact that we got
+      # here. One check on both doors beats a pre-check here and a
+      # different one over MCP — which is how the gate came to guard only
+      # this door in the first place.
+      settled = confirm ? execute(call, confirmation: grant_for(call)) : declined(call)
       emit(type: "tool_result", name: call["name"], ok: !settled[:is_error]) if confirm
       results << settled
       @conversation.update!(state: "active", pending_tool_call: nil)
@@ -254,7 +259,16 @@ module Chat
       ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
     end
 
-    def execute(call)
+    # The person answered the question `park` wrote and the fingerprint
+    # proved it was this call. Minting is that answer in a form
+    # `Tools::Base` can verify; a model never mints one.
+    def grant_for(call)
+      Tools::Confirmation.mint(
+        tool: call["name"], args: arguments_for(call), user_id: @conversation.user_id
+      )
+    end
+
+    def execute(call, confirmation: nil)
       tick!
       tool = Tools::Registry.find(call["name"])
       if tool.nil?
@@ -266,7 +280,7 @@ module Chat
       # failure — domain error or tool bug — into an `isError` response.
       # A second rescue at this call site is how the two front doors drift
       # apart on what a broken tool looks like.
-      response = tool.call(server_context: server_context, **arguments_for(call))
+      response = tool.call(server_context: server_context, confirmation: confirmation, **arguments_for(call))
       payload  = response.to_h
       remember_facts(call, payload)
       tool_result(call, payload[:structuredContent] || payload[:content], error: payload[:isError] == true)

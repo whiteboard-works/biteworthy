@@ -18,6 +18,15 @@ RSpec.describe Tools::Profile::UpdateAvoidLists do
     described_class.call(server_context: { user_id: user.id }, **args)
   end
 
+  # A removal is gated: the first call answers with a sentence and a
+  # token, and only the second one actually writes. Tests that care about
+  # the *effect* of a removal go through this; the gate itself is asserted
+  # on its own below.
+  def call_confirmed(**args)
+    token = payload(call(**args))[:confirmation_token]
+    described_class.call(server_context: { user_id: user.id }, confirmation: token, **args)
+  end
+
   def payload(response) = response.to_h[:structuredContent]
 
   describe "adding" do
@@ -51,7 +60,7 @@ RSpec.describe Tools::Profile::UpdateAvoidLists do
     it "removes only the named slug" do
       user.profile.update!(avoid_ingredient_ids: [peanut.id, dairy.id])
 
-      call(remove_ingredients: ["dairy-cheddar"])
+      call_confirmed(remove_ingredients: ["dairy-cheddar"])
 
       expect(user.profile.reload.avoid_ingredient_ids).to eq([peanut.id])
     end
@@ -60,7 +69,7 @@ RSpec.describe Tools::Profile::UpdateAvoidLists do
     # order. Removal wins so the outcome is always the safer read of the
     # request... except it isn't safer, so it must at least be predictable.
     it "resolves a slug passed as both add and remove deterministically (removal wins)" do
-      call(add_ingredients: ["nut-peanut"], remove_ingredients: ["nut-peanut"])
+      call_confirmed(add_ingredients: ["nut-peanut"], remove_ingredients: ["nut-peanut"])
 
       expect(user.profile.reload.avoid_ingredient_ids).to be_empty
     end
