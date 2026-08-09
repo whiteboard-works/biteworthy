@@ -182,6 +182,43 @@ Audience-filtered like everything else: a workflow is offered only to a
 caller who can run every step, so `prompts/list` never suggests a route
 that dead-ends in `forbidden`.
 
+### Argument completion
+
+A workflow declares `arguments:` (`restaurant`, `city`, `avoid`) on the
+same constant, and `Tools::Completions` answers `completion/complete` for
+them — so the box a client draws and the thing that can fill it come from
+one place. All arguments are optional: a workflow has to stay pickable by
+someone who does not yet know which restaurant they mean.
+
+This is worth more here than it looks. Every write path takes a **slug**,
+and slugs are the one thing nobody can guess — `search_taxonomy` exists
+because a model cannot turn "garbanzo" into `chickpea`. A person filling in
+a prompt argument had the same problem and a blank box; the gem's default
+handler answers every completion with an empty list.
+
+Three properties, each pinned:
+
+- **Every source is public data.** Completions run before any tool call and
+  carry no scope of their own, so a suggestion list is a read even when it
+  looks like a hint. Restaurants are filtered to `published` — an
+  unpublished one appearing here would announce a draft to anyone who typed
+  two letters.
+- **Prefix, not substring.** A slug is a name someone is part-way through
+  typing; matching the middle turns "cafe" into every restaurant containing
+  the word. `%` and `_` are sanitized — they are characters someone typed,
+  not a pattern they meant.
+- **The prompt in `ref` resolves against this caller's own filtered list**,
+  so a workflow they cannot run cannot be completed against either. That
+  falls out of `WorkflowPrompts.for` rather than being a second rule here.
+
+**`listChanged` is deliberately not advertised.** It promises a
+`notifications/*/list_changed` when the catalogue changes, and a stateless
+transport has no channel to send one on. The gem defaults it to true, so
+until the capabilities were declared explicitly every client was told to
+expect a message that could never arrive — and these lists genuinely do
+change per caller, which is what made the claim worth removing rather than
+ignoring.
+
 ## The topology
 
 Forty-four tool descriptions say what each call means in isolation. They do

@@ -38,6 +38,18 @@ module Tools
 
       private
 
+      # What the person filled in, if anything — named rather than
+      # interpolated into an instruction. The value is theirs and the
+      # workflow's shape is ours; a slug dropped into the wrong sentence
+      # is how a prompt starts asserting things nobody said.
+      def given_line(flow, args)
+        given = Array(flow[:arguments]).filter_map do |name|
+          value = (args || {}).with_indifferent_access[name]
+          "#{name}: #{value}" if value.present?
+        end
+        given.any? ? "What I gave you — #{given.join(', ')}." : ""
+      end
+
       # Slugged from the name so the wire identifier is stable and readable
       # — `scan_a_menu_into_the_database`, not an index.
       def slug_for(name)
@@ -51,11 +63,22 @@ module Tools
           title flow[:name]
           description "#{flow[:note]} Tools, in order: #{flow[:steps].join(' → ')}."
 
+          # Declared on the workflow, described by `Completions`, so the
+          # argument a client draws a box for is the same one
+          # `completion/complete` knows how to fill. All optional: a
+          # workflow has to stay pickable by someone who does not yet know
+          # which restaurant they mean.
+          arguments Array(flow[:arguments]).map { |name|
+            MCP::Prompt::Argument.new(
+              name: name.to_s, description: Tools::Completions.describe(name), required: false
+            )
+          }
+
           define_singleton_method(:workflow_audience) { flow[:audience] }
           define_singleton_method(:workflow_steps)    { flow[:steps] }
           define_singleton_method(:slug)              { slug_for_name }
 
-          define_singleton_method(:template) do |_args, server_context: nil|
+          define_singleton_method(:template) do |args, server_context: nil|
             MCP::Prompt::Result.new(
               description: flow[:name],
               messages: [
@@ -68,6 +91,8 @@ module Tools
                       The tools for this, in the order they usually go: #{flow[:steps].join(' → ')}.
 
                       #{flow[:note]}
+
+                      #{Tools::WorkflowPrompts.send(:given_line, flow, args)}
 
                       Ask me for anything you need before starting.
                     TEXT

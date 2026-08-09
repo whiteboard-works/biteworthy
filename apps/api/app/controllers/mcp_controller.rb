@@ -28,6 +28,28 @@ class McpController < ApplicationController
   SERVER_NAME    = "biteworthy"
   SERVER_VERSION = "1.0.0"
 
+  # Declared rather than defaulted, because passing `capabilities:`
+  # replaces the gem's defaults wholesale — and because two of those
+  # defaults are wrong for this server.
+  #
+  # `listChanged` is deliberately absent: it promises a
+  # `notifications/*/list_changed` when the catalogue changes, and a
+  # stateless transport has no channel to send one on. The gem defaults it
+  # to true, so until now every client was told to expect a message that
+  # could never arrive. The lists *do* change per caller — scope and
+  # audience filter them — which is exactly why claiming to announce it
+  # matters.
+  #
+  # `completions` is the new one: a client only offers argument
+  # autocompletion if the server says it can answer.
+  CAPABILITIES = {
+    tools:       {},
+    prompts:     {},
+    resources:   {},
+    completions: {},
+    logging:     {}
+  }.freeze
+
   def handle
     return unauthorized if authorization_failed?
 
@@ -44,22 +66,42 @@ class McpController < ApplicationController
   private
 
   def transport_for(context)
+    server = MCP::Server.new(
+      name:           SERVER_NAME,
+      title:          "Biteworthy",
+      version:        SERVER_VERSION,
+      instructions:   Tools::Instructions.text,
+      tools:          Tools::Registry.for(context),
+      # The tool map, so a client that reads resources can learn how the
+      # tools compose without spending a turn on describe_capabilities.
+      resources:      [Tools::TopologyResource],
+      # The same workflows as things a person can pick before typing —
+      # "Scan a menu into the database" beats a blank box and 44 tools.
+      # Generated from the topology, so they cannot drift from it.
+      prompts:        Tools::WorkflowPrompts.for(context),
+      capabilities:   CAPABILITIES,
+      server_context: server_context
+    )
+
+    # Slugs are the one thing nobody can guess — `search_taxonomy` exists
+    # because a model cannot turn "garbanzo" into `chickpea`, and a person
+    # filling in a prompt argument is in the same position with a blank
+    # box. The gem's default handler answers every completion with an
+    # empty list.
+    #
+    # The prompt in `ref` is looked up in this server's own prompt list,
+    # which `WorkflowPrompts.for` already filtered to this caller — so a
+    # workflow someone cannot run cannot be completed against either,
+    # without a second rule here that would drift from the first.
+    server.completion_handler do |params|
+      Tools::Completions.call(
+        argument_name: params.dig(:argument, :name),
+        value:         params.dig(:argument, :value)
+      )
+    end
+
     MCP::Server::Transports::StreamableHTTPTransport.new(
-      MCP::Server.new(
-        name:           SERVER_NAME,
-        title:          "Biteworthy",
-        version:        SERVER_VERSION,
-        instructions:   Tools::Instructions.text,
-        tools:          Tools::Registry.for(context),
-        # The tool map, so a client that reads resources can learn how the
-        # tools compose without spending a turn on describe_capabilities.
-        resources:      [Tools::TopologyResource],
-        # The same workflows as things a person can pick before typing —
-        # "Scan a menu into the database" beats a blank box and 44 tools.
-        # Generated from the topology, so they cannot drift from it.
-        prompts:        Tools::WorkflowPrompts.for(context),
-        server_context: server_context
-      ),
+      server,
       stateless: true,
       # The transport's DNS-rebinding guard allow-lists loopback and 403s
       # every other Host, which would reject every production request.
