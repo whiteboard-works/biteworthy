@@ -21,6 +21,10 @@ module Ingestion
     MAX_INPUT_FILES_DEFAULT          = 10
     MAX_INPUT_FILE_BYTES_DEFAULT     = 10 * 1024 * 1024 # match UrlFetcher's 10 MB cap
     MAX_SOURCE_TEXT_CHARS_DEFAULT    = 50_000           # a very long menu is well under this
+    # Headroom for the super tier — see `validate_files` for why these are
+    # multiplied rather than dropped. 5× is well past any real menu and
+    # still short of the request size that breaks the extraction call.
+    SUPER_ADMIN_INPUT_MULTIPLIER     = 5
 
     ALLOWED_INPUT_CONTENT_TYPES = %w[
       image/jpeg image/png image/heic image/heif image/webp application/pdf
@@ -89,8 +93,16 @@ module Ingestion
     # Applies to admins too — extraction base64-encodes every byte into the
     # prompt, so oversized inputs cost real money regardless of who sent them.
     # A super admin is the person whose money that is, so the tier above
-    # admin clears the *size* limits; nobody else can grant it (see
-    # AdminRoster).
+    # admin gets `SUPER_ADMIN_INPUT_MULTIPLIER`× the headroom.
+    #
+    # **Raised, not removed**, and the reason is the same one the
+    # content-type check gives below: these caps bound what
+    # `ExtractMenuJob` base64-encodes into a single request, not just what
+    # it costs. Dropping them entirely would let 40 × 30 MB of photos be
+    # accepted, uploaded, and then die on an Anthropic request-size 400
+    # (or take the box's memory with it) — a failure discovered after the
+    # upload rather than at the door, which is exactly what the caps
+    # exist to prevent.
     #
     # The content-type check is not a limit and is never skipped: a file
     # the extractor cannot read fails inside the vision call, after it has
@@ -98,12 +110,10 @@ module Ingestion
     def validate_files
       return nil if @files.empty?
 
-      unless super_admin?
-        return failure(:too_many_files, limit: max_input_files) if @files.size > max_input_files
+      return failure(:too_many_files, limit: file_count_limit) if @files.size > file_count_limit
 
-        if @files.any? { |f| byte_size_of(f) > max_input_file_bytes }
-          return failure(:file_too_large, limit_bytes: max_input_file_bytes)
-        end
+      if @files.any? { |f| byte_size_of(f) > file_bytes_limit }
+        return failure(:file_too_large, limit_bytes: file_bytes_limit)
       end
 
       if @files.any? { |f| ALLOWED_INPUT_CONTENT_TYPES.exclude?(f.content_type.to_s) }
@@ -112,6 +122,12 @@ module Ingestion
 
       nil
     end
+
+    def file_count_limit = max_input_files * input_multiplier
+    def file_bytes_limit = max_input_file_bytes * input_multiplier
+    def text_chars_limit = max_source_text_chars * input_multiplier
+
+    def input_multiplier = super_admin? ? SUPER_ADMIN_INPUT_MULTIPLIER : 1
 
     # Two shapes arrive here: an uploaded file (`size`) from a multipart
     # request, and an ActiveStorage::Blob (`byte_size`) when the caller
@@ -123,10 +139,9 @@ module Ingestion
 
     def validate_source_text
       return nil if @source_text.nil?
-      return nil if super_admin?
-      return nil if @source_text.length <= max_source_text_chars
+      return nil if @source_text.length <= text_chars_limit
 
-      failure(:text_too_large, limit_chars: max_source_text_chars)
+      failure(:text_too_large, limit_chars: text_chars_limit)
     end
 
     def super_admin? = !!@user&.is_super_admin?

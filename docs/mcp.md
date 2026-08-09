@@ -327,7 +327,7 @@ mentions them.
 
 `users.is_super_admin` sits above `is_admin` and lifts the limits, not the
 permissions: the per-conversation and daily chat spend ceilings, the
-tool-round cap (12 → 60), the ingestion input-size caps, and every
+tool-round cap (12 → 60), the ingestion input-size caps (5×), and every
 `Rack::Attack` throttle. It grants **no additional tools** — the audience
 filter is unchanged, because `super_admin_implies_admin` (a CHECK
 constraint) guarantees a super admin is already an admin, so every
@@ -362,10 +362,19 @@ parks before the tool boundary is reached, so `AgentLoop#confirm_required?`
 and `Tools::Base#confirmation_gate` each check it, and missing either one
 strands the turn waiting for an answer the other would have waved through.
 
-**Not lifted: the wall-clock turn deadline** (300s → 1,800s for the tier,
-not removed). That one is not a permission — without it a wedged turn
-holds a `ConversationRun` lease for the better part of an hour while
-`tick!` keeps renewing it and every watchdog reads healthy.
+**Raised rather than lifted: the wall-clock turn deadline** (300s →
+1,800s) **and the ingestion input caps** (5×). Both are bounds on damage
+rather than permissions, and both re-admit a smaller version of the
+problem they guard when raised — which is the honest reading, not a
+technicality. The deadline: a wedged turn keeps `tick!` renewing its 120s
+lease, so it reads healthy to every watchdog for as long as the deadline
+allows; 30 minutes is acceptable only because the lock is **per
+conversation** and the operator holding it has `DELETE
+/conversations/:id/run`. The input caps: they bound what
+`ExtractMenuJob` base64-encodes into one request, so removing them would
+mean a multi-hundred-MB payload accepted at the door and dying on an
+Anthropic request-size 400 *after* the upload — the same
+discovered-too-late failure that keeps the content-type check unskippable.
 
 Three rails carry over from the admin REST endpoints, and they are the
 reason these tools are narrower than the models allow:

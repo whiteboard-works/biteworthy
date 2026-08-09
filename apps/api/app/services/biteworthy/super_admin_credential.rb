@@ -79,10 +79,16 @@ module Biteworthy
         !!user&.is_super_admin?
       end
 
+      # Ordered cheapest-first. A Devise JWT is the overwhelmingly common
+      # credential and decoding one is pure CPU, so it goes ahead of the
+      # Doorkeeper lookup — otherwise every web and mobile request would
+      # spend a guaranteed-miss query on `oauth_access_tokens` before
+      # reaching the path that answers. A Doorkeeper token is opaque and
+      # raises out of the decoder, so it still falls through correctly.
       def user_for(secret)
         return mcp_token_user(secret) if secret.start_with?(McpToken::PREFIX)
 
-        oauth_user(secret) || jwt_user(secret)
+        jwt_user(secret) || oauth_user(secret)
       end
 
       def mcp_token_user(secret) = McpToken.authenticate(secret)&.user
@@ -97,9 +103,21 @@ module Biteworthy
       # devise-jwt's own decoder — verifies the signature and the expiry
       # against `Warden::JWT::Config`, and raises on anything it does not
       # like, which the caller turns into `false`.
+      #
+      # The `jti` comparison is the revocation half, and it is not
+      # optional: `User` includes `JTIMatcher`, so signing out rotates
+      # `users.jti` and leaves the old token signature-valid but dead for
+      # authentication. Checking only the signature would let a captured
+      # or post-logout token keep a total throttle exemption — including
+      # from `auth/ip`, the credential-stuffing guard — for the rest of
+      # its lifetime. The other two credential shapes check liveness
+      # (`McpToken.active`, `accessible?`); this one has to as well.
       def jwt_user(secret)
         payload = Warden::JWTAuth::TokenDecoder.new.call(secret)
-        User.find_by(id: payload["sub"])
+        user    = User.find_by(id: payload["sub"])
+        return nil unless user && payload["jti"].present? && user.jti == payload["jti"]
+
+        user
       rescue JWT::DecodeError
         nil
       end

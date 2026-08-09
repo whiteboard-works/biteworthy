@@ -142,5 +142,21 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
 
       expect(response).to have_http_status(:too_many_requests)
     end
+
+    # A properly-signed token stays signature-valid after sign-out —
+    # `JTIMatcher` revokes by rotating `users.jti`, not by invalidating
+    # the signature. A safelist that checked only the signature would
+    # hand a captured or post-logout token a bypass of every throttle,
+    # `auth/ip` included, until it expired.
+    it "ignores a signed token whose jti has been rotated by sign-out" do
+      user = create(:user, :super_admin)
+      token, = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
+      user.update!(jti: SecureRandom.uuid)
+      Biteworthy::SuperAdminCredential.reset!
+
+      400.times { get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" } }
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
   end
 end

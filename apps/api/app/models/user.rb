@@ -96,19 +96,18 @@ class User < ApplicationRecord
     super
   end
 
-  # The tier above `is_admin`: no spend ceilings, no round cap, no
-  # request throttle. Granted only by Biteworthy::AdminRoster (rake /
-  # console), never by `set_user_role` or PATCH /admin/users/:id — see
-  # the migration for why that boundary is the whole point.
-  def super_admin? = is_super_admin?
-
-  # Whether the destructive-tool confirmation gate is skipped for this
-  # caller. Its own column rather than an alias for `super_admin?` so it
-  # can be turned back on for one account without a deploy.
-  def skip_confirmations? = skip_confirmations
-
   private
 
+  # `is_super_admin` is the tier above `is_admin`: no spend ceilings, no
+  # tool-round cap, no request throttle — and no extra tools, because the
+  # constraint below means a super admin is already an admin. It is
+  # granted only by Biteworthy::AdminRoster (rake / console), never by
+  # `set_user_role` or PATCH /admin/users/:id; see the migration for why
+  # that boundary is the whole point of having a second bit.
+  #
+  # No `super_admin?` / `skip_confirmations?` wrappers here on purpose:
+  # ActiveRecord already generates both, and the codebase reads the
+  # columns directly (`is_admin?`) rather than through aliases.
   def super_admin_must_be_admin
     return unless is_super_admin && !is_admin
 
