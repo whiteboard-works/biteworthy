@@ -23,6 +23,7 @@ import {
   type McpTokenSummary,
   type McpTokenWithSecret,
 } from '../../../lib/mcp-tokens';
+import { listConnectedApps, disconnectApp, type ConnectedApp } from '../../../lib/connected-apps';
 import {
   fetchDietaryProfiles,
   searchIngredients,
@@ -48,6 +49,7 @@ export default function ProfileSettingsPage() {
       <PreferencesSection />
       <FavoritesSection />
       <MyReviewsSection />
+      <ConnectedAppsSection />
       <McpTokensSection />
       <AnalyticsSection />
     </main>
@@ -299,7 +301,10 @@ function StrictnessSubsection({
 }) {
   return (
     <div className="mt-bw-6" data-testid="pref-strictness">
-      <SubsectionHeader title="Strictness" hint="How aggressively we hide items we're unsure about." />
+      <SubsectionHeader
+        title="Strictness"
+        hint="How aggressively we hide items we're unsure about."
+      />
       <div className="mt-bw-3 flex flex-col gap-bw-2">
         {STRICTNESSES.map((s) => {
           const selected = active === s;
@@ -313,13 +318,19 @@ function StrictnessSubsection({
               onClick={() => onPick(s)}
               className={[
                 'rounded-bw-md border p-bw-3 text-left transition disabled:opacity-50',
-                selected ? 'border-bite bg-bite-light' : 'border-zinc-200 bg-white hover:border-zinc-300',
+                selected
+                  ? 'border-bite bg-bite-light'
+                  : 'border-zinc-200 bg-white hover:border-zinc-300',
               ].join(' ')}
             >
               <p className={['font-bold', selected ? 'text-bite-dark' : 'text-zinc-900'].join(' ')}>
                 {s.charAt(0).toUpperCase() + s.slice(1)}
               </p>
-              <p className={['mt-1 text-bw-sm', selected ? 'text-bite-dark' : 'text-zinc-500'].join(' ')}>
+              <p
+                className={['mt-1 text-bw-sm', selected ? 'text-bite-dark' : 'text-zinc-500'].join(
+                  ' ',
+                )}
+              >
                 {STRICTNESS_BLURB[s]}
               </p>
             </button>
@@ -760,6 +771,108 @@ function MyReviewRow({ review }: { review: MyReview }) {
  * fields).
  */
 /**
+ * The OAuth grants this person approved, and the only supported way to
+ * take one back.
+ *
+ * Approving used to be a one-way door: the API skips doorkeeper's own
+ * management UI (it assumes a browser session this API does not have),
+ * and while an access token expires in two hours the refresh chain behind
+ * it never does. So "wait it out" was never a way to disconnect anything.
+ *
+ * Each row reads back the same sentences the consent screen showed, so
+ * the decision to disconnect is made against the same words as the
+ * decision to connect — not a list of scope slugs.
+ */
+function ConnectedAppsSection() {
+  const [apps, setApps] = useState<ConnectedApp[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      setApps(await listConnectedApps());
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const disconnect = async (app: ConnectedApp) => {
+    setBusy(app.id);
+    setError(null);
+    try {
+      await disconnectApp(app.id);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="mt-bw-10" data-testid="connected-apps">
+      <h2 className="text-bw-lg font-bold text-zinc-900">Connected apps</h2>
+      <p className="mt-bw-1 text-bw-sm text-zinc-600">
+        Apps you signed in to with your BiteWorthy account. Disconnecting one takes effect
+        immediately — it stops working until you approve it again.
+      </p>
+
+      <ul className="mt-bw-4 flex flex-col gap-bw-2">
+        {apps.map((app) => (
+          <li
+            key={app.id}
+            className="flex items-start justify-between gap-bw-3 rounded-bw-md border border-zinc-200 px-bw-3 py-bw-2"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-bw-sm font-medium text-zinc-900">
+                {app.name}
+              </span>
+              <ul className="mt-bw-1 flex flex-col gap-bw-1">
+                {app.scope_details.map((detail) => (
+                  <li key={detail.scope} className="text-bw-xs text-zinc-500">
+                    {detail.description}
+                  </li>
+                ))}
+              </ul>
+              {app.connected_at ? (
+                <span className="mt-bw-1 block text-bw-xs text-zinc-400">
+                  Connected {new Date(app.connected_at).toLocaleDateString()}
+                </span>
+              ) : null}
+            </span>
+            <button
+              type="button"
+              onClick={() => void disconnect(app)}
+              disabled={busy === app.id}
+              className="shrink-0 text-bw-sm text-danger disabled:opacity-50"
+            >
+              Disconnect
+            </button>
+          </li>
+        ))}
+        {apps.length === 0 ? (
+          <li className="text-bw-sm text-zinc-500">No apps connected yet.</li>
+        ) : null}
+      </ul>
+
+      {error ? (
+        <p
+          role="alert"
+          className="mt-bw-2 text-bw-sm text-danger"
+          data-testid="connected-apps-error"
+        >
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * Least-privilege credentials for MCP clients (Claude Code, Claude
  * Desktop).
  *
@@ -825,10 +938,10 @@ function McpTokensSection() {
 
   return (
     <section className="mt-bw-10" data-testid="mcp-tokens">
-      <h2 className="text-bw-lg font-bold text-zinc-900">Connected apps</h2>
+      <h2 className="text-bw-lg font-bold text-zinc-900">Access tokens</h2>
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
-        Tokens for Claude Code and Claude Desktop. Pick only what the app needs — leave
-        everything unticked and it gets the same access you have.
+        Tokens you paste into Claude Code or Claude Desktop yourself. Pick only what the app needs —
+        leave everything unticked and it gets the same access you have.
       </p>
 
       {fresh ? (

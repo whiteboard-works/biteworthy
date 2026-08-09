@@ -333,6 +333,13 @@ what today's clients use), and `insufficient_scope` stays in the JSON-RPC
 result rather than becoming an HTTP 403 (the request authenticated; one
 call was out of bounds).
 
+**Revocation followed** (`GET`/`DELETE /api/v1/connected_apps`, surfaced at
+`/profile/settings`). Skipping `:authorized_applications` left approval a
+one-way door — an access token expires in two hours but the refresh chain
+behind it never does — which the M8 review caught and this closes. See
+`docs/mcp.md` §"Disconnecting an app" for why the list selects on
+`revoked_at IS NULL` rather than on expiry.
+
 ---
 
 ## Non-goals
