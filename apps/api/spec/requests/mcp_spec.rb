@@ -102,6 +102,67 @@ RSpec.describe "POST /mcp", type: :request do
     end
   end
 
+  # A prompt argument is a blank box until the server can fill it, and
+  # every write path here takes a slug nobody can guess.
+  describe "completion/complete" do
+    let!(:city) { create(:city, slug: "durango") }
+    let!(:ninis) { create(:restaurant, :published, city: city, slug: "ninis-taqueria") }
+
+    def complete(prompt, name, value, headers: {})
+      rpc("completion/complete", {
+        ref:      { type: "ref/prompt", name: prompt },
+        argument: { name: name, value: value }
+      }, headers: headers)
+    end
+
+    it "advertises that it can answer them" do
+      body = rpc("initialize", {
+        protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "rspec", version: "1.0" }
+      })
+
+      expect(body.dig("result", "capabilities")).to have_key("completions")
+    end
+
+    # `listChanged` promises a notification when the catalogue changes,
+    # and a stateless transport has no channel to send one on. The lists
+    # really do change per caller, which is what makes claiming to
+    # announce it worse than saying nothing.
+    it "does not promise list-changed notifications it cannot send" do
+      body = rpc("initialize", {
+        protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "rspec", version: "1.0" }
+      })
+
+      expect(body.dig("result", "capabilities", "tools")).not_to include("listChanged")
+      expect(body.dig("result", "capabilities", "prompts")).not_to include("listChanged")
+    end
+
+    it "completes a restaurant slug for a workflow that takes one" do
+      body = complete("scan_a_menu_into_the_database", "restaurant", "nin",
+                      headers: auth_headers_for(user))
+
+      expect(body.dig("result", "completion", "values")).to eq(["ninis-taqueria"])
+    end
+
+    it "declares the argument on the prompt so a client knows to ask" do
+      prompts = rpc("prompts/list", {}, headers: auth_headers_for(user)).dig("result", "prompts")
+      scan    = prompts.find { |p| p["name"] == "scan_a_menu_into_the_database" }
+
+      expect(scan["arguments"].map { |a| a["name"] }).to eq(["restaurant"])
+      expect(scan["arguments"].first["required"]).to be_falsey
+    end
+
+    # The prompt in `ref` is resolved against this caller's own filtered
+    # prompt list, so a workflow they cannot run cannot be completed
+    # against either — without a second rule here that would drift from
+    # the one `WorkflowPrompts.for` already applies.
+    it "refuses to complete against a workflow the caller was never offered" do
+      body = complete("moderate", "restaurant", "nin")
+
+      expect(body.dig("result", "completion", "values")).to be_nil
+      expect(body["error"]).to be_present
+    end
+  end
+
   # The tool map is served as a resource so a client that reads resources
   # learns how the tools compose without spending a turn on a tool call.
   describe "resources" do

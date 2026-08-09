@@ -42,6 +42,7 @@ module Tools
       {
         name: "Find something this person can eat",
         audience: :public,
+        arguments: %i[city],
         steps: %w[search_restaurants get_menu explain_item],
         note: "get_menu returns hidden dishes WITH their reasons. Report them — a shorter " \
               "list with no explanation is not the answer. explain_item is for \"why not?\"."
@@ -49,6 +50,7 @@ module Tools
       {
         name: "Set up or adjust what gets hidden",
         audience: :user,
+        arguments: %i[avoid],
         steps: %w[get_profile search_taxonomy update_avoid_lists set_strictness],
         note: "Always resolve a name to a slug first. Adding an avoid is safe; removing one " \
               "un-hides dishes and needs the user to confirm that specific item."
@@ -56,6 +58,7 @@ module Tools
       {
         name: "Scan a menu into the database",
         audience: :user,
+        arguments: %i[restaurant],
         steps: %w[
           create_restaurant start_menu_scan get_scan_status list_staged_items
           edit_staged_item accept_staged_items undo_staged_item
@@ -67,6 +70,7 @@ module Tools
       {
         name: "Report data that is wrong",
         audience: :user,
+        arguments: %i[restaurant],
         steps: %w[explain_item search_taxonomy suggest_correction],
         note: "Queues a change; it does not edit the live menu. Check explain_item first — " \
               "the data is often right and the confidence is what surprised the user."
@@ -74,6 +78,7 @@ module Tools
       {
         name: "Run a restaurant you own",
         audience: :user,
+        arguments: %i[restaurant],
         steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion],
         note: "Ownership arrives by emailed token. Accepting a suggestion applies it to the " \
               "live dish immediately — say what it would change first."
@@ -81,6 +86,7 @@ module Tools
       {
         name: "Fix a live dish",
         audience: :admin,
+        arguments: %i[restaurant],
         steps: %w[get_menu_structure search_taxonomy edit_item],
         note: "get_menu_structure, not get_menu — an unpublished dish only has an id there. " \
               "Slug lists REPLACE, so send the full set."
@@ -88,6 +94,7 @@ module Tools
       {
         name: "Reorganize a restaurant",
         audience: :admin,
+        arguments: %i[restaurant],
         steps: %w[get_menu_structure edit_menu_structure edit_place edit_restaurant],
         note: "Deleting a section never deletes dishes, it unsections them. edit_place " \
               "replaces the whole week of hours, so send every day."
@@ -95,6 +102,7 @@ module Tools
       {
         name: "Publish a restaurant to strict-mode users",
         audience: :admin,
+        arguments: %i[restaurant],
         steps: %w[get_menu_structure confirm_restaurant_data edit_restaurant],
         note: "confirm_restaurant_data is what makes dishes visible to people filtering for a " \
               "real allergy. Only after a human has checked the data."
@@ -102,6 +110,7 @@ module Tools
       {
         name: "Extend the taxonomy",
         audience: :admin,
+        arguments: %i[avoid],
         steps: %w[search_taxonomy create_taxonomy_node edit_taxonomy_node delete_taxonomy_node],
         note: "Search first — a duplicate splits every dish that references it, and aliases " \
               "exist so a new word can point at an existing node. slug and path are permanent."
