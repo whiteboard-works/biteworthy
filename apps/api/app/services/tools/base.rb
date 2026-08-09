@@ -229,6 +229,7 @@ module Tools
       # come back with an answer to it.
       def confirmation_gate(context, args, confirmation)
         return nil unless gated_by_arguments?(args)
+        return nil if context.skip_confirmations?
         return nil if Confirmation.satisfied?(confirmation, tool: name_value, args: args,
                                                             user_id: context.user_id)
 

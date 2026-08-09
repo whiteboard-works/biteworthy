@@ -88,13 +88,22 @@ module Ingestion
 
     # Applies to admins too — extraction base64-encodes every byte into the
     # prompt, so oversized inputs cost real money regardless of who sent them.
+    # A super admin is the person whose money that is, so the tier above
+    # admin clears the *size* limits; nobody else can grant it (see
+    # AdminRoster).
+    #
+    # The content-type check is not a limit and is never skipped: a file
+    # the extractor cannot read fails inside the vision call, after it has
+    # been paid for, with an error about the model rather than the file.
     def validate_files
       return nil if @files.empty?
 
-      return failure(:too_many_files, limit: max_input_files) if @files.size > max_input_files
+      unless super_admin?
+        return failure(:too_many_files, limit: max_input_files) if @files.size > max_input_files
 
-      if @files.any? { |f| byte_size_of(f) > max_input_file_bytes }
-        return failure(:file_too_large, limit_bytes: max_input_file_bytes)
+        if @files.any? { |f| byte_size_of(f) > max_input_file_bytes }
+          return failure(:file_too_large, limit_bytes: max_input_file_bytes)
+        end
       end
 
       if @files.any? { |f| ALLOWED_INPUT_CONTENT_TYPES.exclude?(f.content_type.to_s) }
@@ -114,10 +123,13 @@ module Ingestion
 
     def validate_source_text
       return nil if @source_text.nil?
+      return nil if super_admin?
       return nil if @source_text.length <= max_source_text_chars
 
       failure(:text_too_large, limit_chars: max_source_text_chars)
     end
+
+    def super_admin? = !!@user&.is_super_admin?
 
     def enforce_limits
       return nil if @user&.is_admin?

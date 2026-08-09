@@ -138,6 +138,41 @@ RSpec.describe Chat::AgentLoop do
       expect(user.profile.reload.avoid_ingredient_ids).to be_empty
     end
 
+    # `skip_confirmations` has to be honoured in two places, because the
+    # chat parks *before* the tool boundary is reached. Missing either one
+    # leaves the turn stopped, waiting for an answer the other half would
+    # have waved through — so both halves are asserted through a
+    # destructive call and an argument-gated one.
+    context "when the caller has skip_confirmations set" do
+      let(:user) { create(:user, :super_admin) }
+
+      it "runs a destructive tool without parking" do
+        result = loop_with(delete_call, say("Deleted.")).run(text: "delete my review")
+
+        expect(result).not_to be_awaiting_confirmation
+        expect(result.text).to eq("Deleted.")
+        expect(Review.exists?(review.id)).to be(false)
+      end
+
+      it "runs an argument-gated avoid-list removal without parking" do
+        peanut = create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut")
+        user.profile.update!(avoid_ingredient_ids: [peanut.id])
+        remove = call_tool("update_avoid_lists", { "remove_ingredients" => ["nut-peanut"] })
+
+        result = loop_with(remove, say("Done.")).run(text: "stop avoiding peanut")
+
+        expect(result).not_to be_awaiting_confirmation
+        expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+      end
+
+      it "still parks for a super admin who kept the gate on" do
+        user.update!(skip_confirmations: false)
+
+        expect(loop_with(delete_call).run(text: "delete my review")).to be_awaiting_confirmation
+        expect(Review.exists?(review.id)).to be(true)
+      end
+    end
+
     it "tells the model it was declined, and the review survives" do
       loop_with(delete_call).run(text: "delete my review")
 
@@ -283,7 +318,7 @@ RSpec.describe Chat::AgentLoop do
       result = loop_with(say("hi")).run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("spend limit")
+      expect(result.error).to include("of its 200¢ limit")
     end
 
     it "stops everyone when the day's budget is gone" do
@@ -304,6 +339,60 @@ RSpec.describe Chat::AgentLoop do
       result = described_class.new(admin_conversation, client: ScriptedClient.new(say("hi"))).run(text: "hello")
 
       expect(result.text).to eq("hi")
+    end
+
+    # The per-conversation ceiling is checked *above* the admin return, so
+    # an admin has always hit it. That is the gap the super tier closes —
+    # and the reason it is a separate bit: any admin can promote another
+    # admin over HTTP, so if plain admin cleared the ceilings, one
+    # promotion would hand out an uncapped bill.
+    it "still stops an admin at the per-conversation ceiling" do
+      admin_conversation = Conversation.create!(
+        user: create(:user, :admin),
+        api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT
+      )
+
+      result = described_class.new(admin_conversation, client: ScriptedClient.new(say("hi")))
+                              .run(text: "hello")
+
+      expect(result).not_to be_ok
+      expect(result.error).to include("of its 200¢ limit")
+    end
+
+    it "lets a super admin through the per-conversation ceiling" do
+      super_conversation = Conversation.create!(
+        user: create(:user, :super_admin),
+        api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT * 10
+      )
+
+      result = described_class.new(super_conversation, client: ScriptedClient.new(say("hi")))
+                              .run(text: "hello")
+
+      expect(result.text).to eq("hi")
+    end
+
+    it "lets a super admin through the daily ceiling" do
+      Conversation.create!(user: create(:user),
+                           api_cost_cents: described_class::DAILY_CEILING_CENTS_DEFAULT)
+      super_conversation = Conversation.create!(user: create(:user, :super_admin))
+
+      result = described_class.new(super_conversation, client: ScriptedClient.new(say("hi")))
+                              .run(text: "hello")
+
+      expect(result.text).to eq("hi")
+    end
+
+    # The refusal is what someone reads when the chat stops working, so
+    # it says which ceiling and how far past it — "start a new one" alone
+    # does not tell you whether to wait, raise the cap, or look for a
+    # runaway.
+    it "names the ceiling and the spend in the refusal" do
+      conversation.update!(api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT + 3)
+
+      result = loop_with(say("hi")).run(text: "hello")
+
+      expect(result.error).to include((described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT + 3).to_s)
+      expect(result.error).to include(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT.to_s)
     end
   end
 
@@ -498,7 +587,7 @@ RSpec.describe Chat::AgentLoop do
       seen = events_for(say("hi"))
 
       expect(seen.last[:type]).to eq("error")
-      expect(seen.last[:message]).to include("spend limit")
+      expect(seen.last[:message]).to include("of its 200¢ limit")
     end
 
     # A dropped upstream connection is an outage, not a bug; the user

@@ -47,6 +47,11 @@ class User < ApplicationRecord
   validates :handle, presence: true, uniqueness: true,
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
 
+  # Mirrors the `super_admin_implies_admin` CHECK constraint so the
+  # invariant surfaces as a 422 rather than a PG::CheckViolation 500.
+  # The database is still the enforcement; this is the error message.
+  validate :super_admin_must_be_admin
+
   before_validation :ensure_jti, on: :create
   before_validation :assign_default_handle, on: :create
   after_create_commit :ensure_profile
@@ -91,7 +96,24 @@ class User < ApplicationRecord
     super
   end
 
+  # The tier above `is_admin`: no spend ceilings, no round cap, no
+  # request throttle. Granted only by Biteworthy::AdminRoster (rake /
+  # console), never by `set_user_role` or PATCH /admin/users/:id — see
+  # the migration for why that boundary is the whole point.
+  def super_admin? = is_super_admin?
+
+  # Whether the destructive-tool confirmation gate is skipped for this
+  # caller. Its own column rather than an alias for `super_admin?` so it
+  # can be turned back on for one account without a deploy.
+  def skip_confirmations? = skip_confirmations
+
   private
+
+  def super_admin_must_be_admin
+    return unless is_super_admin && !is_admin
+
+    errors.add(:is_super_admin, "requires is_admin")
+  end
 
   def ensure_jti
     self.jti ||= SecureRandom.uuid

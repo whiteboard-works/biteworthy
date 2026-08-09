@@ -69,4 +69,29 @@ RSpec.describe User do
       }.to raise_error(ActiveRecord::RecordInvalid)
     end
   end
+
+  # A super admin who is not an admin would pass every `is_super_admin?`
+  # check while failing every `is_admin?` one — and, worse, would be
+  # counted as community traffic by the dashboard's
+  # `.where(users: { is_admin: false })`. The constraint is what lets the
+  # rest of the codebase keep reading one column.
+  describe "the super_admin_implies_admin invariant" do
+    it "rejects the halfway state with a message, not a 500" do
+      user = build(:user, is_admin: false, is_super_admin: true)
+
+      expect(user).not_to be_valid
+      expect(user.errors[:is_super_admin]).to include("requires is_admin")
+    end
+
+    it "refuses to strip is_admin from a super admin at the database level" do
+      user = create(:user, :super_admin)
+
+      expect { user.update_column(:is_admin, false) }
+        .to raise_error(ActiveRecord::StatementInvalid, /super_admin_implies_admin/)
+    end
+
+    it "accepts a super admin who is also an admin" do
+      expect(build(:user, :super_admin)).to be_valid
+    end
+  end
 end

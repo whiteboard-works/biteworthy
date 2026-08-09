@@ -815,6 +815,7 @@ export interface paths {
                                 display_name?: string | null;
                                 provider?: string | null;
                                 is_admin: boolean;
+                                is_super_admin: boolean;
                                 /** Format: date-time */
                                 created_at?: string;
                                 reviews_count?: number;
@@ -885,6 +886,7 @@ export interface paths {
                             display_name?: string | null;
                             provider?: string | null;
                             is_admin: boolean;
+                            is_super_admin: boolean;
                             /** Format: date-time */
                             created_at?: string;
                             reviews_count?: number;
@@ -3489,6 +3491,8 @@ export interface components {
             handle: string;
             display_name?: string | null;
             is_admin: boolean;
+            /** @description UI gating only. The tier above admin: no spend ceilings, no tool-round cap, no request throttle. Granted from the server (admin:grant_super), never over HTTP, so no endpoint can set it. Rails re-checks the column on every request that acts on it. */
+            is_super_admin: boolean;
             /** @enum {string|null} */
             provider?: "google_oauth2" | "apple" | null;
         };

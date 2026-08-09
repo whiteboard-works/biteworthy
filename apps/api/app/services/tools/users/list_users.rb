@@ -58,14 +58,17 @@ module Tools
 
         page.map do |user|
           {
-            id:            user.id,
-            email:         user.email,
-            handle:        user.handle,
-            display_name:  user.display_name,
-            is_admin:      user.is_admin,
-            reviews_count: reviews[user.id] || 0,
-            scans_count:   scans[user.id] || 0,
-            created_at:    user.created_at
+            id:             user.id,
+            email:          user.email,
+            handle:         user.handle,
+            display_name:   user.display_name,
+            is_admin:       user.is_admin,
+            # So `set_user_role` is told, before it tries, which accounts
+            # it cannot demote.
+            is_super_admin: user.is_super_admin,
+            reviews_count:  reviews[user.id] || 0,
+            scans_count:    scans[user.id] || 0,
+            created_at:     user.created_at
           }
         end
       end

@@ -31,8 +31,14 @@ module Tools
       @user = @user_id ? User.find_by(id: @user_id) : nil
     end
 
-    def signed_in? = !user.nil?
-    def admin?     = !!user&.is_admin
+    def signed_in?   = !user.nil?
+    def admin?       = !!user&.is_admin
+    def super_admin? = !!user&.is_super_admin
+
+    # Whether this caller's destructive tool calls run without parking for
+    # a human answer. Read here rather than in `Tools::Base` so both front
+    # doors resolve it from the same place the audience check does.
+    def skip_confirmations? = !!user&.skip_confirmations
 
     def user!
       user || raise(Errors::Unauthorized)
