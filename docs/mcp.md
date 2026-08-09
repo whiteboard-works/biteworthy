@@ -639,6 +639,20 @@ following the current MCP spec do probe; that is the bet.
 
 ## Transport notes
 
+- **`/mcp` is rate limited per credential, not per IP.** The general
+  rack-attack rule keys on `/api/`, and this door does not live there — so
+  until 2026-08-09 it had no ceiling at all, with `get_menu` (every item at
+  a restaurant, filtered in Ruby) reachable anonymously and unbounded.
+  Credentialed callers get 120/minute keyed on a SHA-256 of the bearer, so
+  every client behind one company's NAT does not share a bucket and
+  throttle each other; anonymous callers get 30/minute keyed on IP, which
+  is plenty for browsing and less headroom than something accountable
+  gets. `/oauth/authorize` and `/oauth/token` are covered too — not as a
+  brute-force guard (PKCE and hashed secrets handle that) but because each
+  hit runs a lookup and `/oauth/token` writes a row.
+- **A throttled MCP request is an HTTP 429, not a JSON-RPC error.** The
+  rejection happens in middleware, before anything JSON-RPC exists to
+  answer into. `Retry-After` is the part a client can act on.
 - **Stateless mode is mandatory.** `StreamableHTTPTransport`'s stateful mode
   keeps sessions in process memory, which breaks the moment Puma runs a
   second worker or Kamal rolls a second container. Stateless makes every

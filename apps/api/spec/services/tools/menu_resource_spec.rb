@@ -79,13 +79,20 @@ RSpec.describe Tools::MenuResource do
 
   # A resource read carries no scope of its own and happens before any
   # tool call, so it has to be at least as careful as the discovery tools.
+  #
+  # Raised as the gem's not-found rather than `RecordNotFound`: an
+  # unrescued StandardError becomes -32603 "Internal error", so a typo'd
+  # slug — or a restaurant unpublished since somebody bookmarked it —
+  # would read to a person as "the server is broken" rather than "no such
+  # menu".
   it "refuses an unpublished restaurant" do
     create(:restaurant, city: city, slug: "secret-supper")
 
-    expect { read(slug: "secret-supper") }.to raise_error(ActiveRecord::RecordNotFound)
+    expect { read(slug: "secret-supper") }.to raise_error(MCP::Server::ResourceNotFoundError)
   end
 
-  it "refuses a restaurant that does not exist" do
-    expect { read(slug: "no-such-place") }.to raise_error(ActiveRecord::RecordNotFound)
+  it "refuses a restaurant that does not exist, as a not-found rather than an internal error" do
+    expect { read(slug: "no-such-place") }
+      .to raise_error(MCP::Server::ResourceNotFoundError, /no-such-place/)
   end
 end

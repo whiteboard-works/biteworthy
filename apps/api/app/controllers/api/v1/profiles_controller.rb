@@ -32,30 +32,43 @@ module Api
                         status: :unprocessable_entity
         end
 
-        # Wholesale replacement happens first; the preset (if any)
-        # then unions on top so the user's POSTed list is never a
-        # subset of what gets saved.
-        profile.assign_attributes(attrs.except(:dietary_profile_slug))
-        apply_avoid_diffs!(profile)
+        # A diff is a read-modify-write, so it needs the row held for the
+        # length of it. Without the lock the window only shrank — from
+        # "page mount to click" down to "load to save" — and the failure
+        # this endpoint exists to prevent still reproduces: the chat's
+        # `update_avoid_lists` commits in between, and its allergen is
+        # overwritten by an array read a moment before it landed. A
+        # smaller window for an allergen going missing silently is not the
+        # same as closing it.
+        saved = false
+        profile.with_lock do
+          # Wholesale replacement happens first; the preset (if any)
+          # then unions on top so the user's POSTed list is never a
+          # subset of what gets saved.
+          profile.assign_attributes(attrs.except(:dietary_profile_slug))
+          apply_avoid_diffs!(profile)
 
-        if (slug = attrs[:dietary_profile_slug]).present?
-          preset = DietaryProfile.includes(:dietary_profile_ingredients,
-                                           :dietary_profile_tags)
-                                 .find_by!(slug: slug)
-          apply_preset!(profile, preset)
+          if (slug = attrs[:dietary_profile_slug]).present?
+            preset = DietaryProfile.includes(:dietary_profile_ingredients,
+                                             :dietary_profile_tags)
+                                   .find_by!(slug: slug)
+            apply_preset!(profile, preset)
+          end
+
+          # Legal remediation E1 — `acknowledge_disclaimer: true` records
+          # that the user saw and accepted the in-app allergen disclaimer
+          # (onboarding sends it on the final save). The time is stamped
+          # server-side, not taken from the client, and only the first
+          # acknowledgment is kept.
+          if ActiveModel::Type::Boolean.new.cast(params[:acknowledge_disclaimer]) &&
+             profile.disclaimer_acknowledged_at.nil?
+            profile.disclaimer_acknowledged_at = Time.current
+          end
+
+          saved = profile.save
         end
 
-        # Legal remediation E1 — `acknowledge_disclaimer: true` records
-        # that the user saw and accepted the in-app allergen disclaimer
-        # (onboarding sends it on the final save). The time is stamped
-        # server-side, not taken from the client, and only the first
-        # acknowledgment is kept.
-        if ActiveModel::Type::Boolean.new.cast(params[:acknowledge_disclaimer]) &&
-           profile.disclaimer_acknowledged_at.nil?
-          profile.disclaimer_acknowledged_at = Time.current
-        end
-
-        if profile.save
+        if saved
           render json: profile_payload(profile)
         else
           render json: { errors: profile.errors.as_json },
@@ -80,9 +93,10 @@ module Api
       # So both are supported and named, and sending both forms for one
       # list is a 422 rather than a guess about which was meant.
       def apply_avoid_diffs!(profile)
+        diffs = diff_params
         AVOID_LISTS.each do |list|
-          adds    = id_list(params[:"add_#{list}"])
-          removes = id_list(params[:"remove_#{list}"])
+          adds    = id_list(diffs[:"add_#{list}"])
+          removes = id_list(diffs[:"remove_#{list}"])
           next if adds.empty? && removes.empty?
 
           profile.public_send(:"#{list}=", ((profile.public_send(list) + adds).uniq - removes))
@@ -94,6 +108,15 @@ module Api
         AVOID_LISTS.select do |list|
           params.key?(list) && (params.key?(:"add_#{list}") || params.key?(:"remove_#{list}"))
         end
+      end
+
+      # Through `permit` like everything else. Read raw, a body such as
+      # `{"add_avoid_ingredient_ids": {"0": "<uuid>"}}` survives `Array()`
+      # as an ActionController::Parameters, gets stringified into a
+      # `uuid[]` column, and 500s at save instead of being ignored.
+      def diff_params
+        keys = AVOID_LISTS.flat_map { |list| [{ :"add_#{list}" => [] }, { :"remove_#{list}" => [] }] }
+        params.permit(*keys)
       end
 
       def id_list(value) = Array(value).map(&:to_s).compact_blank.uniq

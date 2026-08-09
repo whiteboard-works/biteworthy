@@ -44,6 +44,50 @@ class Rack::Attack
     req.ip if req.post? && req.path == "/oauth/register"
   end
 
+  # `/mcp` had no ceiling at all: the general rule above matches on
+  # `/api/`, and the MCP door does not live there. That left the most
+  # expensive read path in the product — `get_menu` loads every item at a
+  # restaurant and filters in Ruby — reachable anonymously and unbounded,
+  # which is a cheap way to spend the box's CPU from a laptop.
+  #
+  # Keyed on the credential rather than the IP wherever there is one.
+  # Every MCP client behind one company's NAT would otherwise share a
+  # bucket and throttle each other, which is the failure the operational
+  # caveat above already describes for the auth endpoints. The bearer is
+  # hashed because a throttle key is not a place to keep a secret.
+  #
+  # Two ceilings, because the two callers are not equally accountable: a
+  # credential belongs to somebody who can be asked to stop, and a
+  # credentialed session is also the one that legitimately runs six tool
+  # calls in a turn. Anonymous browsing is real (public discovery works
+  # without an account, deliberately) but does not need that headroom.
+  throttle("mcp/credential", limit: 120, period: 1.minute) do |req|
+    mcp_bearer_key(req)
+  end
+
+  throttle("mcp/anonymous_ip", limit: 30, period: 1.minute) do |req|
+    req.ip if req.path == "/mcp" && mcp_bearer_key(req).nil?
+  end
+
+  # The browser half of OAuth. Not a brute-force surface — PKCE and
+  # hashed secrets handle that — but every hit runs a doorkeeper lookup
+  # and `/oauth/token` writes a row, so an unbounded loop here is the
+  # same CPU-and-rows problem registration is already guarded against.
+  throttle("oauth_flow/ip", limit: 30, period: 1.minute) do |req|
+    req.ip if %w[/oauth/authorize /oauth/token].include?(req.path)
+  end
+
+  # Nil for an anonymous caller, so the two MCP throttles above partition
+  # the traffic instead of double-counting it.
+  def self.mcp_bearer_key(req)
+    return nil unless req.path == "/mcp"
+
+    bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
+    return nil if bearer.blank?
+
+    "mcp:#{Digest::SHA256.hexdigest(bearer)}"
+  end
+
   # JSON 429 with a Retry-After so clients can back off politely.
   self.throttled_responder = lambda do |request|
     match_data = request.env["rack.attack.match_data"] || {}
