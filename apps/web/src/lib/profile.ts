@@ -6,10 +6,15 @@
  * and never reaches JS — same path as `saveProfile` in `./onboarding`.
  *
  * `updateProfile` sends a PARTIAL patch: the Rails endpoint only
- * replaces the arrays present in the body, so changing strictness or
- * one avoid list never touches the others. Each array it DOES send is
- * replaced wholesale, so callers pass the full canonical array (built
- * from the current profile loaded via `fetchProfile`).
+ * touches the fields present in the body, so changing strictness or one
+ * avoid list never disturbs the others.
+ *
+ * For the avoid lists, prefer the `add_`/`remove_` pair over the plain
+ * arrays. The plain arrays replace wholesale, which is right only when
+ * the caller just built the list in front of the person (the onboarding
+ * wizard). Anywhere that edits one entry at a time, a rebuilt array
+ * silently reverts whatever the chat or a connected app added since the
+ * page loaded — see `ProfilePatch` below.
  */
 import type { ProfilePayload } from '@biteworthy/api-types';
 import type { Strictness } from '@biteworthy/filter-engine';

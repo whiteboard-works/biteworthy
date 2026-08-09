@@ -60,6 +60,24 @@ RSpec.describe Tools::Completions do
       expect(values(:avoid, "dairy")).to contain_exactly("dairy-cheddar", "dairy-free")
     end
 
+    # Concatenate-then-sort lets one taxonomy bury the other: each
+    # sub-query is capped on its own, so enough alphabetically-earlier
+    # ingredients push every matching tag out of the window no matter how
+    # much of it somebody types.
+    it "does not let one taxonomy crowd the other out of the window" do
+      (described_class::LIMIT + 1).times { |i| create(:ingredient, slug: "dairy-a#{i}", path: "dairy.a#{i}") }
+
+      expect(values(:avoid, "dairy")).to include("dairy-free")
+    end
+
+    # An ingredient and a tag may share a slug, and the same word twice in
+    # a dropdown reads as two different things.
+    it "lists a slug once even when both taxonomies have it" do
+      create(:tag, slug: "chickpea", family: "diet")
+
+      expect(values(:avoid, "chickpea").count("chickpea")).to eq(1)
+    end
+
     it "completes a city" do
       expect(values(:city, "dur")).to eq(["durango"])
     end

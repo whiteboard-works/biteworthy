@@ -37,6 +37,14 @@ module Tools
           mime_type: "text/markdown",
           text:      markdown(record, context)
         )
+      rescue ActiveRecord::RecordNotFound
+        # Without this the gem wraps the raise as -32603 "Internal error",
+        # so a typo'd slug — or a restaurant unpublished since someone
+        # bookmarked it — reads to a person as "the server is broken"
+        # rather than "no such menu". `Tools::Base` already maps this to a
+        # recoverable `not_found`; the resource path was the one surface
+        # that did not.
+        raise MCP::Server::ResourceNotFoundError, TEMPLATE.sub("{restaurant}", restaurant.to_s)
       end
 
       private

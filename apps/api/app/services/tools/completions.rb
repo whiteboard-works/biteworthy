@@ -39,9 +39,18 @@ module Tools
       },
       avoid: {
         description: "Ingredient or tag slug — what to avoid, or what to look up.",
+        # Interleaved, not concatenated-then-sorted. Each sub-query is
+        # capped independently, so a straight alphabetical merge lets one
+        # taxonomy crowd the other out entirely: 26 ingredients matching
+        # `dairy-a…`–`dairy-m…` would bury the tag `dairy-free` no matter
+        # how much of it somebody typed. Deduped because an ingredient and
+        # a tag may share a slug, and a dropdown listing it twice looks
+        # like two different things.
         resolve: lambda { |prefix|
-          (Completions.by_prefix(Ingredient.all, prefix) + Completions.by_prefix(Tag.all, prefix))
-            .sort.first(LIMIT + 1)
+          Completions.interleave(
+            Completions.by_prefix(Ingredient.all, prefix),
+            Completions.by_prefix(Tag.all, prefix)
+          )
         }
       }
     }.freeze
@@ -56,6 +65,12 @@ module Tools
 
         values = spec[:resolve].call(value.to_s)
         { completion: { values: values.first(LIMIT), hasMore: values.size > LIMIT } }
+      end
+
+      # Alternates between the two lists so each keeps its share of the
+      # window, then trims to LIMIT + 1 so `call` can still see overflow.
+      def interleave(first, second)
+        first.zip(second).flatten.compact.uniq.first(LIMIT + 1)
       end
 
       def describe(argument_name) = ARGUMENTS.dig(argument_name.to_s.to_sym, :description)
