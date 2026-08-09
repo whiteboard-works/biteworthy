@@ -160,7 +160,8 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 - **Code style is enforced by `.prettierrc` at the repo root**: semicolons ON, single quotes, trailing commas, 100-col, 2-space. This **overrides** any conflicting global preference (e.g. `~/CLAUDE.md` says no semis / double quotes — that does not apply here; this repo uses semis + single quotes).
 - TypeScript everywhere uses `tsconfig.base.json` (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `moduleResolution: bundler`).
 - Conventional commits are required by `pr-title.yml` workflow: `feat(api): …`, `fix(web): …`, `docs: …`, `chore(ci): …`.
-- Branch naming for delivery-loop work: `claude/<phase-slug>` (e.g. `claude/phase-1.2-omniauth`). The `claude-cd` label + the `auto-merge-ok` label together opt a PR into `.github/workflows/auto-merge.yml`.
+- Branch naming for delivery-loop work: `claude/<phase-slug>` (e.g. `claude/phase-1.2-omniauth`).
+- **`.github/workflows/auto-merge.yml` enables squash auto-merge on every non-draft PR**, so a PR merges itself the moment required checks go green. The `claude-cd` / `auto-merge-ok` label gate was dropped 2026-04-29 and the labels are now tagging only — withholding them does **not** hold a PR back. Two consequences worth internalizing: review a change *before* opening the PR, because afterwards there may be no window; and open a draft if you need one to stay put. `docs/delivery-playbook.md` §"Auto-merge policy" is the authority (its earlier sections still describe the pre-2026-04-29 gate).
 - `master` is the default branch (not `main`).
 - **Never edit a previously-shipped migration.** Add a new one. The auto-merge policy in `docs/delivery-playbook.md` blocks destructive edits under `apps/api/db/migrate/`.
 - **Never modify anything under `_legacy/`.** It's frozen reference material.
