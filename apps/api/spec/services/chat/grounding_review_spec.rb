@@ -14,11 +14,15 @@ RSpec.describe Chat::GroundingReview do
     ] }]
   end
 
-  # Answers a fixed verdict, and records what it was asked.
-  def reviewer(verdict)
+  # Answers a fixed verdict, and records what it was asked. `last_usage`
+  # is part of the contract now: the reviewer's own spend rides back on
+  # the Result so the caller can bill it (it never was before, so every
+  # grounded turn under-reported by one haiku call).
+  def reviewer(verdict, usage: { "input_tokens" => 900, "output_tokens" => 40 })
     client = instance_double(AnthropicClient)
     allow(client).to receive(:system_blocks) { |*b| b.flatten.map { |x| { type: "text", text: x[:text] } } }
     allow(client).to receive(:messages_create).and_return(verdict)
+    allow(client).to receive(:last_usage).and_return(usage)
     [described_class.new(client: client), client]
   end
 
@@ -55,11 +59,38 @@ RSpec.describe Chat::GroundingReview do
     client = instance_double(AnthropicClient)
     allow(client).to receive(:system_blocks).and_return([])
     allow(client).to receive(:messages_create).and_raise(AnthropicClient::ApiError.new(status: 503, body: "down"))
+    allow(client).to receive(:last_usage).and_return(nil)
 
     result = described_class.new(client: client).call(answer: "anything", facts: facts)
 
     expect(result.flagged?).to be(false)
     expect(result.checked).to be(false)
+  end
+
+  # A call that raised part-way through may still have been billed, so
+  # the usage has to survive the rescue. Dropping it here would put the
+  # under-reporting back on exactly the turns that already went wrong.
+  it "carries the usage back even when the call failed" do
+    client = instance_double(AnthropicClient)
+    allow(client).to receive(:system_blocks).and_return([])
+    allow(client).to receive(:messages_create).and_raise(AnthropicClient::ApiError.new(status: 503, body: "down"))
+    allow(client).to receive(:last_usage).and_return({ "input_tokens" => 800 })
+
+    result = described_class.new(client: client).call(answer: "anything", facts: facts)
+
+    expect(result.usage).to eq({ "input_tokens" => 800 })
+    expect(result.model).to eq(described_class::MODEL)
+  end
+
+  it "reports its own spend so the caller can bill it" do
+    review, = reviewer({ "grounded" => true }, usage: { "input_tokens" => 1_200, "output_tokens" => 30 })
+
+    result = review.call(answer: "The queso is out — it has dairy.", facts: facts)
+
+    expect(result.usage).to eq({ "input_tokens" => 1_200, "output_tokens" => 30 })
+    # Priced at haiku rates, not the loop's model — billing this at Opus
+    # would overstate a cheap call by 5×.
+    expect(result.model).to eq(described_class::MODEL)
   end
 
   # Not every turn is a safety claim, and a review of nothing costs a

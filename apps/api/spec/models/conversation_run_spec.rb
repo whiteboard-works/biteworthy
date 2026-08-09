@@ -137,17 +137,75 @@ RSpec.describe ConversationRun do
     # api_cost_cents answers "are we over budget". This answers "what is
     # the money going to", which is what decides whether tool routing or
     # shorter answers is the lever worth pulling.
+    #
+    # The hashes are braced deliberately: `record_round!` takes a `model:`
+    # keyword now, so a braceless `"input_tokens" => 10` at the call site
+    # is parsed as keywords rather than as the positional usage hash.
     it "accumulates the token split across rounds" do
       run = described_class.acquire(conversation)
 
-      run.record_round!("input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 21_650)
-      run.record_round!("input_tokens" => 3,  "output_tokens" => 7, "cache_read_input_tokens" => 21_650)
+      run.record_round!({ "input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 21_650 },
+                        model: Chat::AgentLoop::MODEL)
+      run.record_round!({ "input_tokens" => 3, "output_tokens" => 7, "cache_read_input_tokens" => 21_650 },
+                        model: Chat::AgentLoop::MODEL)
 
       run.reload
       expect(run.rounds).to eq(2)
       expect(run.input_tokens).to eq(13)
       expect(run.output_tokens).to eq(12)
       expect(run.cache_read_tokens).to eq(43_300)
+    end
+
+    # Exact micro-cents, not per-call rounded cents. 21,650 cache-read
+    # tokens on Opus 5 (50¢/MTok) is 1,082,500 micro-cents — just over a
+    # cent. Twelve rounds of that is ~13¢ exactly; twelve `.cents` calls
+    # would have said 24¢, which is where the inflated total came from.
+    it "accrues cost exactly rather than rounding up each round" do
+      run = described_class.acquire(conversation)
+
+      12.times { run.record_round!({ "cache_read_input_tokens" => 21_650 }, model: Chat::AgentLoop::MODEL) }
+
+      run.reload
+      expect(run.cost_micro_cents).to eq(12 * 21_650 * 50)
+      # The rounded-per-call figure a naive accumulator would have shown.
+      expect((run.cost_micro_cents / 1_000_000.0).ceil).to be < 12 * 2
+    end
+
+    # `tick!` and `release!` are conditional on the token; this was the
+    # one accrual that was not, so a run whose lease had been stolen kept
+    # writing tokens onto the row that replaced it.
+    # Raises rather than returning false, the same way `tick!` does on the
+    # same condition — a boolean the caller ignores is not "finding out",
+    # and the loop would go on paying for model calls on a conversation it
+    # no longer owns.
+    it "raises LostLease and writes nothing once the lease has been stolen" do
+      run = described_class.acquire(conversation)
+      # `update_column` would also refresh the in-memory attribute, so the
+      # object would go on matching itself. A real steal is another worker
+      # writing the row while this object holds the old token.
+      described_class.where(id: run.id).update_all(run_token: SecureRandom.uuid)
+
+      expect { run.record_round!({ "input_tokens" => 10 }, model: Chat::AgentLoop::MODEL) }
+        .to raise_error(described_class::LostLease)
+      expect(described_class.find(run.id).input_tokens).to eq(0)
+    end
+  end
+
+  describe "#record_side_call!" do
+    # The grounding reviewer is a real model call on every grounded turn,
+    # and its spend used to reach nobody — it builds its own client, so
+    # its usage never got to `record_usage!`.
+    it "bills a side call without inflating the round count" do
+      run = described_class.acquire(conversation)
+      run.record_round!({ "input_tokens" => 10 }, model: Chat::AgentLoop::MODEL)
+
+      run.record_side_call!({ "input_tokens" => 1_000 }, model: Chat::GroundingReview::MODEL)
+
+      run.reload
+      expect(run.rounds).to eq(1)
+      expect(run.input_tokens).to eq(1_010)
+      # Priced at haiku's 100¢/MTok, not Opus's 500¢/MTok.
+      expect(run.cost_micro_cents).to eq((10 * 500) + (1_000 * 100))
     end
   end
 end

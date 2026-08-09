@@ -248,18 +248,36 @@ RSpec.configure do |config|
                          "decides, so a non-admin never receives it.",
             required: %w[cost_cents],
             properties: {
-              cost_cents: { type: :integer },
+              cost_cents: {
+                type: :integer,
+                description: "The conversation's lifetime spend, rounded from an exact " \
+                             "micro-cent total. Not the cost of the last turn — that is " \
+                             "`last_run.cost_cents`."
+              },
               last_run: {
                 type: :object, nullable: true,
-                required: %w[state rounds input_tokens output_tokens cache_read_tokens],
+                required: %w[state rounds input_tokens output_tokens cache_read_tokens
+                             cache_write_tokens cost_cents],
                 properties: {
-                  outcome:           { type: :string, nullable: true },
-                  state:             { type: :string },
-                  rounds:            { type: :integer },
-                  input_tokens:      { type: :integer },
-                  output_tokens:     { type: :integer },
-                  cache_read_tokens: { type: :integer },
-                  duration_ms:       { type: :integer, nullable: true }
+                  outcome:            { type: :string, nullable: true },
+                  state:              { type: :string },
+                  rounds:             { type: :integer },
+                  input_tokens:       { type: :integer },
+                  output_tokens:      { type: :integer },
+                  cache_read_tokens:  { type: :integer },
+                  cache_write_tokens: {
+                    type: :integer,
+                    description: "Prompt-cache writes, billed at 1.25× input — the most " \
+                                 "expensive token class, and the one that was recorded " \
+                                 "but never reported."
+                  },
+                  cost_cents: {
+                    type: :integer,
+                    description: "What this run cost, rounded from exact micro-cents. " \
+                                 "Includes side calls such as the grounding reviewer, " \
+                                 "which are billed but do not count as rounds."
+                  },
+                  duration_ms:        { type: :integer, nullable: true }
                 }
               }
             }

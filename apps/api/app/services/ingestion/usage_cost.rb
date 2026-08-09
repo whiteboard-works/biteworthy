@@ -13,6 +13,10 @@
 # Per-call costs round UP to the next cent. Sub-cent resolve calls
 # would otherwise round to zero and the ceiling would leak; for a
 # guardrail, overstating by <1 cent per call is the safe direction.
+#
+# That reasoning holds for a one-or-two-call ingestion run and breaks
+# down for a twelve-round chat turn, so `.micro_cents` exists alongside
+# for callers that accumulate. See its comment.
 module Ingestion
   class UsageCost
     CENTS_PER_MTOK = {
@@ -43,14 +47,32 @@ module Ingestion
     }.freeze
 
     def self.cents(usage, model: AnthropicClient::DEFAULT_MODEL)
+      (micro_cents(usage, model: model) / 1_000_000.0).ceil
+    end
+
+    # The same arithmetic without the rounding, for callers that
+    # accumulate across many calls.
+    #
+    # `tokens × cents-per-MTok` is already scaled by a million — that is
+    # what `.cents` divides out — so the pre-division integer *is* the
+    # micro-cent count. Nothing is approximated here; exactness is simply
+    # what you get by not rounding yet.
+    #
+    # Chat needs this and ingestion does not. A turn makes up to twelve
+    # model calls and `.cents` rounds each one up independently, so a
+    # single turn can accrue 12¢ of pure rounding against a 200¢ ceiling.
+    # An ingestion run makes one or two calls, where rounding up per call
+    # costs under a cent and buys a guardrail that never understates —
+    # which is why `.cents` keeps that behaviour rather than being
+    # "fixed" to match.
+    def self.micro_cents(usage, model: AnthropicClient::DEFAULT_MODEL)
       return 0 if usage.blank?
 
       rates = CENTS_PER_MTOK.fetch(model, CENTS_PER_MTOK.fetch(AnthropicClient::DEFAULT_MODEL))
-      raw = (usage["input_tokens"].to_i          * rates[:input]) +
-            (usage["output_tokens"].to_i         * rates[:output]) +
-            (usage["cache_read_input_tokens"].to_i     * rates[:cache_read]) +
-            (usage["cache_creation_input_tokens"].to_i * rates[:cache_write])
-      (raw / 1_000_000.0).ceil
+      (usage["input_tokens"].to_i                * rates[:input]) +
+        (usage["output_tokens"].to_i             * rates[:output]) +
+        (usage["cache_read_input_tokens"].to_i     * rates[:cache_read]) +
+        (usage["cache_creation_input_tokens"].to_i * rates[:cache_write])
     end
   end
 end

@@ -51,13 +51,26 @@ module Chat
         {
           cost_cents: conversation.api_cost_cents,
           last_run: run && {
-            outcome:           run.outcome,
-            state:             run.state,
-            rounds:            run.rounds,
-            input_tokens:      run.input_tokens,
-            output_tokens:     run.output_tokens,
-            cache_read_tokens: run.cache_read_tokens,
-            duration_ms:       run.duration_ms
+            outcome:            run.outcome,
+            state:              run.state,
+            rounds:             run.rounds,
+            input_tokens:       run.input_tokens,
+            output_tokens:      run.output_tokens,
+            cache_read_tokens:  run.cache_read_tokens,
+            # Stored since C3 and never surfaced, which left the most
+            # expensive token class (1.25× input) invisible in the UI.
+            cache_write_tokens: run.cache_write_tokens,
+            # What *this turn* cost, next to the conversation's lifetime
+            # `cost_cents`. Without it the footer put a lifetime total
+            # beside per-run token counts and read as a contradiction —
+            # "203¢" next to "1,200 in" invites the arithmetic that says
+            # 1,200 tokens cost two dollars.
+            # Rounded, not ceiled, and matching the `api_cost_cents`
+            # generated column's rule — so the per-turn figures roughly
+            # sum to the lifetime one instead of over-counting a little
+            # on every row.
+            cost_cents:         (run.cost_micro_cents / 1_000_000.0).round,
+            duration_ms:        run.duration_ms
           }
         }
       end

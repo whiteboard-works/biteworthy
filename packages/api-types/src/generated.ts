@@ -3538,6 +3538,7 @@ export interface components {
         };
         /** @description Spend and cache accounting. Present only for admins — the server decides, so a non-admin never receives it. */
         ChatUsage: {
+            /** @description The conversation's lifetime spend, rounded from an exact micro-cent total. Not the cost of the last turn — that is `last_run.cost_cents`. */
             cost_cents: number;
             last_run?: {
                 outcome?: string | null;
@@ -3546,6 +3547,10 @@ export interface components {
                 input_tokens: number;
                 output_tokens: number;
                 cache_read_tokens: number;
+                /** @description Prompt-cache writes, billed at 1.25× input — the most expensive token class, and the one that was recorded but never reported. */
+                cache_write_tokens: number;
+                /** @description What this run cost, rounded from exact micro-cents. Includes side calls such as the grounding reviewer, which are billed but do not count as rounds. */
+                cost_cents: number;
                 duration_ms?: number | null;
             } | null;
         };

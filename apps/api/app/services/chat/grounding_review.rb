@@ -71,7 +71,12 @@ module Chat
       answer being wrong or quietly incomplete is not.
     TEXT
 
-    Result = Struct.new(:grounded, :problem, :checked, keyword_init: true) do
+    # `usage` and `model` ride along so the caller can bill the review.
+    # It is a real model call on every grounded turn and it was costing
+    # money nobody was counting: the reviewer builds its own client, so
+    # its `last_usage` never reached `record_usage!` and every grounded
+    # turn under-reported by one haiku call.
+    Result = Struct.new(:grounded, :problem, :checked, :usage, :model, keyword_init: true) do
       def flagged? = checked && grounded != true
     end
 
@@ -84,12 +89,17 @@ module Chat
       return Result.new(grounded: true, checked: false) if answer.blank? || facts.blank?
 
       verdict = ask(answer, facts)
-      Result.new(grounded: verdict["grounded"], problem: verdict["problem"], checked: true)
+      Result.new(grounded: verdict["grounded"], problem: verdict["problem"], checked: true,
+                 usage: client.last_usage, model: MODEL)
     rescue StandardError => e
       # Fail open — but never silently. A reviewer that is down must not
       # take the chat with it.
       Rails.logger.error("[chat] grounding review unavailable: #{e.class}: #{e.message}")
-      Result.new(grounded: true, checked: false)
+      # A call that raised part-way may still have been billed, so the
+      # usage travels on the failure path too. `@client` is whatever the
+      # memoized `client` built (or the injected one), and is nil only if
+      # the raise beat the first call.
+      Result.new(grounded: true, checked: false, usage: @client&.last_usage, model: MODEL)
     end
 
     private

@@ -119,14 +119,62 @@ class ConversationRun < ApplicationRecord
     requested.present? && requested >= started_at
   end
 
-  def record_round!(usage)
-    increment!(:rounds)
-    self.class.where(id: id).update_all([
-      "input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, " \
-      "cache_read_tokens = cache_read_tokens + ?, cache_write_tokens = cache_write_tokens + ?, updated_at = ?",
-      usage["input_tokens"].to_i, usage["output_tokens"].to_i,
-      usage["cache_read_input_tokens"].to_i, usage["cache_creation_input_tokens"].to_i, Time.current
-    ])
+  # A model call that is part of the turn but not a round of the agent
+  # loop — today that is the grounding reviewer. Its tokens and cost are
+  # real and belong on the run; its round count is not, because `rounds`
+  # answers "how many times did the loop go around", and folding a side
+  # call into it would quietly change what the metric means.
+  #
+  # Unlike `record_round!` this does **not** raise on a lost lease. It
+  # runs after the answer already exists, so turning a finished turn into
+  # an error to report a billing write is the wrong trade — the round
+  # accrual is on the critical path and this is not.
+  def record_side_call!(usage, model:)
+    self.class
+        .where(id: id, run_token: run_token)
+        .update_all([
+          "input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, " \
+          "cache_read_tokens = cache_read_tokens + ?, cache_write_tokens = cache_write_tokens + ?, " \
+          "cost_micro_cents = cost_micro_cents + ?, updated_at = ?",
+          usage["input_tokens"].to_i, usage["output_tokens"].to_i,
+          usage["cache_read_input_tokens"].to_i, usage["cache_creation_input_tokens"].to_i,
+          ::Ingestion::UsageCost.micro_cents(usage, model: model), Time.current
+        ])
+  end
+
+  # Conditional on `run_token`, like `tick!` and `release!` — a run whose
+  # lease was stolen must find out it was replaced rather than keep
+  # writing tokens and cost onto the row that replaced it. This was the
+  # one accrual that wrote unconditionally.
+  #
+  # **Raises `LostLease` rather than returning false**, the same way
+  # `tick!` does on the same condition. A boolean the caller ignores is
+  # not "finding out": the loop would drop the round silently and keep
+  # calling the model — spending real money on a conversation it no
+  # longer owns — until the next `tick!` raised anyway. Raising here ends
+  # it a full model call earlier.
+  #
+  # `rounds` moves in the same statement rather than through
+  # `increment!`, so a lost lease cannot leave a run whose round count
+  # advanced but whose tokens did not.
+  def record_round!(usage, model:)
+    updated = self.class
+                  .where(id: id, run_token: run_token)
+                  .update_all([
+                    "rounds = rounds + 1, input_tokens = input_tokens + ?, " \
+                    "output_tokens = output_tokens + ?, cache_read_tokens = cache_read_tokens + ?, " \
+                    "cache_write_tokens = cache_write_tokens + ?, " \
+                    "cost_micro_cents = cost_micro_cents + ?, updated_at = ?",
+                    usage["input_tokens"].to_i, usage["output_tokens"].to_i,
+                    usage["cache_read_input_tokens"].to_i,
+                    usage["cache_creation_input_tokens"].to_i,
+                    ::Ingestion::UsageCost.micro_cents(usage, model: model),
+                    Time.current
+                  ])
+    raise LostLease, "run #{id} no longer holds the lock" if updated.zero?
+
+    reload
+    true
   end
 
   # Releases the lock. Conditional on the token so a run that already lost

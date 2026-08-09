@@ -155,7 +155,7 @@ RSpec.describe "Api::V1::Conversations", type: :request do
   # the one part of this payload that is not about the conversation, and
   # a diner has no use for it.
   describe "usage detail" do
-    let(:conversation) { create(:conversation, user: user, api_cost_cents: 12) }
+    let(:conversation) { create(:conversation, user: user, spent_cents: 12) }
 
     it "is withheld from an ordinary caller" do
       get "/api/v1/conversations/#{conversation.id}", headers: headers
@@ -165,16 +165,25 @@ RSpec.describe "Api::V1::Conversations", type: :request do
 
     it "reports the last run's token split to an admin" do
       admin = create(:user, is_admin: true)
-      convo = create(:conversation, user: admin, api_cost_cents: 34)
+      convo = create(:conversation, user: admin, spent_cents: 34)
       run   = ConversationRun.acquire(convo)
-      run.record_round!("input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 7_550)
+      run.record_round!({ "input_tokens" => 10, "output_tokens" => 5,
+                          "cache_read_input_tokens" => 7_550,
+                          "cache_creation_input_tokens" => 1_200 },
+                        model: Chat::AgentLoop::MODEL)
       run.release!(outcome: "done")
 
       get "/api/v1/conversations/#{convo.id}", headers: auth_headers_for(admin)
 
       usage = response.parsed_body["usage"]
+      # Lifetime, and per-turn beside it — the footer used to show only
+      # the first and label it next to per-run token counts.
       expect(usage["cost_cents"]).to eq(34)
+      expect(usage.dig("last_run", "cost_cents")).to eq(1)
       expect(usage.dig("last_run", "cache_read_tokens")).to eq(7_550)
+      # Stored since C3 and never surfaced until now, which hid the most
+      # expensive token class (1.25× input).
+      expect(usage.dig("last_run", "cache_write_tokens")).to eq(1_200)
       expect(usage.dig("last_run", "outcome")).to eq("done")
     end
 
