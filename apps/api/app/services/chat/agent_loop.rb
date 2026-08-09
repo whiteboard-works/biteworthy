@@ -397,6 +397,9 @@ module Chat
       return text if @facts.blank? || text.blank?
 
       verdict = GroundingReview.new.call(answer: text, facts: @facts)
+      # Billed whether or not it flagged anything: the call happened. It
+      # is a haiku call priced at haiku rates, not the loop's model.
+      record_review_usage(verdict)
       return text unless verdict.flagged?
 
       Rails.logger.warn("[chat] grounding flagged conversation #{@conversation.id}: #{verdict.problem}")
@@ -410,6 +413,17 @@ module Chat
       [text, GroundingReview::DISCLAIMER].compact.join("\n\n")
     end
 
+    # The reviewer's spend lands on the conversation but deliberately not
+    # on `rounds`: a round is a turn of the agent loop, and inflating that
+    # count would make "6 rounds" stop meaning what the metric was added
+    # to mean. The tokens and the cost still accrue to the run.
+    def record_review_usage(verdict)
+      return if verdict.usage.blank?
+
+      @conversation.record_usage!(verdict.usage, model: verdict.model)
+      @run&.record_side_call!(verdict.usage, model: verdict.model)
+    end
+
     def call_model
       tick!
       enforce_budget!
@@ -421,7 +435,7 @@ module Chat
           @client.messages_create(**model_args)
         end
       @conversation.record_usage!(@client.last_usage, model: MODEL)
-      @run&.record_round!(@client.last_usage || {})
+      @run&.record_round!(@client.last_usage || {}, model: MODEL)
       response
     end
 
@@ -491,18 +505,20 @@ module Chat
     def enforce_budget!
       return if caller_is_super_admin?
 
-      if @conversation.api_cost_cents >= per_conversation_ceiling
+      if @conversation.api_cost_micro_cents >= micro(per_conversation_ceiling)
         raise BudgetExceeded,
               "This conversation has spent #{@conversation.api_cost_cents}¢ of its " \
               "#{per_conversation_ceiling}¢ limit. Start a new one."
       end
       return if caller_is_admin?
-      return if daily_spend < daily_ceiling
+      return if daily_spend_micro < micro(daily_ceiling)
 
       raise BudgetExceeded,
-            "Chat has spent #{daily_spend}¢ of its #{daily_ceiling}¢ daily budget. " \
-            "Try again tomorrow."
+            "Chat has spent #{(daily_spend_micro / 1_000_000.0).ceil}¢ of its " \
+            "#{daily_ceiling}¢ daily budget. Try again tomorrow."
     end
+
+    def micro(cents) = cents * 1_000_000
 
     # `with_lock` on the conversation clears its association cache, so
     # every append made the next round re-load the same user row.
@@ -542,14 +558,14 @@ module Chat
     # since then is added back, so the round that crosses the ceiling
     # still trips it — a runaway loop is the case the ceiling exists for,
     # and it is the only spender a memoized baseline could miss by much.
-    def daily_spend
+    def daily_spend_micro
       unless defined?(@daily_spend_baseline)
         @daily_spend_baseline = Conversation.where(created_at: Time.current.utc.beginning_of_day..)
-                                            .sum(:api_cost_cents)
-        @own_spend_baseline   = @conversation.api_cost_cents
+                                            .sum(:api_cost_micro_cents)
+        @own_spend_baseline   = @conversation.api_cost_micro_cents
       end
 
-      @daily_spend_baseline + (@conversation.api_cost_cents - @own_spend_baseline)
+      @daily_spend_baseline + (@conversation.api_cost_micro_cents - @own_spend_baseline)
     end
 
     def per_conversation_ceiling

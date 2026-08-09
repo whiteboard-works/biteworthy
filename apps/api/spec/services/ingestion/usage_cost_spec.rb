@@ -43,4 +43,35 @@ RSpec.describe Ingestion::UsageCost do
       expect(described_class.cents(usage, model: "some-future-model")).to eq(300)
     end
   end
+
+  # Chat accumulates across up to twelve calls a turn, so it needs the
+  # figure before the round-up. Ingestion keeps `.cents` — one or two
+  # calls, where rounding up is a guardrail rather than a distortion.
+  describe ".micro_cents" do
+    it "is the same arithmetic without the rounding" do
+      usage = { "input_tokens" => 100, "output_tokens" => 100 }
+
+      # 100 × 300 + 100 × 1500 = 180,000 micro-cents = 0.18¢
+      expect(described_class.micro_cents(usage, model: "claude-sonnet-4-6")).to eq(180_000)
+      expect(described_class.cents(usage, model: "claude-sonnet-4-6")).to eq(1)
+    end
+
+    # The bug this exists for, stated as arithmetic: twelve sub-cent calls
+    # billed 12¢ against a 200¢ ceiling for about two cents of tokens.
+    it "does not inflate when the same call is accumulated many times" do
+      usage = { "cache_read_input_tokens" => 21_650 }
+      model = "claude-opus-5"
+
+      exact   = 12 * described_class.micro_cents(usage, model: model)
+      rounded = 12 * described_class.cents(usage, model: model)
+
+      expect((exact / 1_000_000.0).ceil).to eq(13)
+      expect(rounded).to eq(24)
+    end
+
+    it "returns 0 for nil/blank usage" do
+      expect(described_class.micro_cents(nil)).to eq(0)
+      expect(described_class.micro_cents({})).to eq(0)
+    end
+  end
 end

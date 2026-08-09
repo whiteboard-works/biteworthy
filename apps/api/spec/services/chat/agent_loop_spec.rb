@@ -28,6 +28,12 @@ RSpec.describe Chat::AgentLoop do
     described_class.new(conversation, client: ScriptedClient.new(*responses))
   end
 
+  # Spend is stored in micro-cents so a twelve-round turn does not accrue
+  # twelve separate round-ups; `api_cost_cents` is a generated column and
+  # cannot be written. The ceilings are still declared in cents, so the
+  # specs say what they mean and convert at the edge.
+  def micro(cents) = cents * 1_000_000
+
   describe "a plain turn" do
     it "returns the model's text and stores both sides" do
       result = loop_with(say("Hi there.")).run(text: "hello")
@@ -306,14 +312,37 @@ RSpec.describe Chat::AgentLoop do
   end
 
   describe "spend limits" do
+    # Asserted in micro-cents, which is where the money now lives.
+    # `api_cost_cents` legitimately reads 0 for a turn this small — it is
+    # a rounded view, and a sub-half-cent turn really did cost about
+    # nothing. That it *used* to read 1¢ per call is the bug, not the
+    # baseline.
     it "accrues cost onto the conversation" do
       loop_with(say("hi")).run(text: "hello")
 
-      expect(conversation.reload.api_cost_cents).to be > 0
+      expect(conversation.reload.api_cost_micro_cents).to be > 0
+    end
+
+    # The whole reason for the micro-cent column. `.cents` rounds up per
+    # call, so twelve rounds of a sub-cent call used to bill 12¢ against
+    # a 200¢ ceiling for tokens worth a fraction of that.
+    it "does not round up once per round" do
+      tiny = { "input_tokens" => 10, "output_tokens" => 2 }
+      client = ScriptedClient.new(
+        *Array.new(3) { call_tool("get_restaurant", { "restaurant" => "ninis" }) }, say("done")
+      )
+      allow(client).to receive(:last_usage).and_return(tiny)
+
+      described_class.new(conversation, client: client).run(text: "hello")
+
+      # Four calls at 10×500 + 2×2500 = 10,000 micro-cents each.
+      expect(conversation.reload.api_cost_micro_cents).to eq(4 * 10_000)
+      # Under a cent in total, where per-call rounding would have said 4¢.
+      expect(conversation.api_cost_cents).to eq(0)
     end
 
     it "stops a conversation that has burned its budget" do
-      conversation.update!(api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT)
+      conversation.update!(api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT))
 
       result = loop_with(say("hi")).run(text: "hello")
 
@@ -323,7 +352,7 @@ RSpec.describe Chat::AgentLoop do
 
     it "stops everyone when the day's budget is gone" do
       Conversation.create!(user: create(:user),
-                           api_cost_cents: described_class::DAILY_CEILING_CENTS_DEFAULT)
+                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
 
       result = loop_with(say("hi")).run(text: "hello")
 
@@ -333,7 +362,7 @@ RSpec.describe Chat::AgentLoop do
     # An admin driving the tools must not be locked out by community spend.
     it "lets an admin through the daily ceiling" do
       Conversation.create!(user: create(:user),
-                           api_cost_cents: described_class::DAILY_CEILING_CENTS_DEFAULT)
+                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
       admin_conversation = Conversation.create!(user: create(:user, is_admin: true))
 
       result = described_class.new(admin_conversation, client: ScriptedClient.new(say("hi"))).run(text: "hello")
@@ -349,7 +378,7 @@ RSpec.describe Chat::AgentLoop do
     it "still stops an admin at the per-conversation ceiling" do
       admin_conversation = Conversation.create!(
         user: create(:user, :admin),
-        api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT
+        api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT)
       )
 
       result = described_class.new(admin_conversation, client: ScriptedClient.new(say("hi")))
@@ -362,7 +391,7 @@ RSpec.describe Chat::AgentLoop do
     it "lets a super admin through the per-conversation ceiling" do
       super_conversation = Conversation.create!(
         user: create(:user, :super_admin),
-        api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT * 10
+        api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT * 10)
       )
 
       result = described_class.new(super_conversation, client: ScriptedClient.new(say("hi")))
@@ -373,7 +402,7 @@ RSpec.describe Chat::AgentLoop do
 
     it "lets a super admin through the daily ceiling" do
       Conversation.create!(user: create(:user),
-                           api_cost_cents: described_class::DAILY_CEILING_CENTS_DEFAULT)
+                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
       super_conversation = Conversation.create!(user: create(:user, :super_admin))
 
       result = described_class.new(super_conversation, client: ScriptedClient.new(say("hi")))
@@ -387,7 +416,7 @@ RSpec.describe Chat::AgentLoop do
     # does not tell you whether to wait, raise the cap, or look for a
     # runaway.
     it "names the ceiling and the spend in the refusal" do
-      conversation.update!(api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT + 3)
+      conversation.update!(api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT + 3))
 
       result = loop_with(say("hi")).run(text: "hello")
 
@@ -509,7 +538,7 @@ RSpec.describe Chat::AgentLoop do
     it "reads the day's spend once, not once per round" do
       queries = capture_sql { three_round_turn }
 
-      expect(queries.grep(/SUM\("conversations"\."api_cost_cents"\)/).size).to eq(1)
+      expect(queries.grep(/SUM\("conversations"\.\"api_cost_micro_cents\"\)/).size).to eq(1)
     end
 
     # The transcript only grows by messages this loop wrote itself, so
@@ -582,7 +611,7 @@ RSpec.describe Chat::AgentLoop do
     end
 
     it "ends on an error event when the budget is gone" do
-      conversation.update!(api_cost_cents: described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT)
+      conversation.update!(api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT))
 
       seen = events_for(say("hi"))
 

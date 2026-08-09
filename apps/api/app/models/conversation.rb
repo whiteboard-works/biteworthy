@@ -42,8 +42,10 @@ class Conversation < ApplicationRecord
     end
   end
 
+  # Accrued in micro-cents, exactly. `api_cost_cents` is a generated
+  # column derived from this one, so there is nothing to keep in step.
   def record_usage!(usage, model:)
-    increment!(:api_cost_cents, ::Ingestion::UsageCost.cents(usage, model: model))
+    increment!(:api_cost_micro_cents, ::Ingestion::UsageCost.micro_cents(usage, model: model))
   end
 
   # The queue a turn waits in when one is already running.

@@ -240,7 +240,11 @@ describe('ChatClient', () => {
   // renders what it was sent and nothing more, so there is no visibility
   // check here to get wrong.
   describe('usage pills', () => {
-    it('shows the last turn\'s cost when the server sent it', async () => {
+    // Two scopes, and they must not read as one number. The old footer
+    // showed only the conversation lifetime, labelled "total", next to
+    // per-run token counts — so "203¢ total · 1,200 in" invited the
+    // arithmetic that says 1,200 tokens cost two dollars.
+    it("shows the turn's cost and the conversation's separately", async () => {
       getConversation.mockResolvedValue({
         ...answered('ok'),
         usage: {
@@ -252,6 +256,8 @@ describe('ChatClient', () => {
             input_tokens: 1200,
             output_tokens: 400,
             cache_read_tokens: 7550,
+            cache_write_tokens: 2100,
+            cost_cents: 9,
             duration_ms: 8200,
           },
         },
@@ -261,8 +267,10 @@ describe('ChatClient', () => {
       await type('hi');
 
       const pills = await screen.findByTestId('usage-pills');
-      expect(pills).toHaveTextContent('34¢ total');
-      expect(pills).toHaveTextContent('7,550 cached');
+      expect(pills).toHaveTextContent('9¢ turn');
+      expect(pills).toHaveTextContent('34¢ conversation');
+      // Cache writes bill at 1.25× input and were recorded but never shown.
+      expect(pills).toHaveTextContent('7,550 cache r / 2,100 w');
       expect(pills).toHaveTextContent('8.2s');
     });
 

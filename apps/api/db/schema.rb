@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -87,6 +87,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_200000) do
     t.integer "cache_read_tokens", default: 0, null: false
     t.integer "cache_write_tokens", default: 0, null: false
     t.uuid "conversation_id", null: false
+    t.bigint "cost_micro_cents", default: 0, null: false
     t.datetime "created_at", null: false
     t.integer "duration_ms"
     t.datetime "finished_at"
@@ -106,7 +107,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_200000) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.integer "api_cost_cents", default: 0, null: false
+    t.virtual "api_cost_cents", type: :integer, as: "round(((api_cost_micro_cents)::numeric / 1000000.0))", stored: true
+    t.bigint "api_cost_micro_cents", default: 0, null: false
     t.datetime "created_at", null: false
     t.jsonb "pending_tool_call"
     t.jsonb "pending_turns", default: [], null: false

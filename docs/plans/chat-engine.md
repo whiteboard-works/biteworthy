@@ -304,6 +304,38 @@ not before.
 
 ---
 
+### C8 — Cost accounting that is not mostly rounding — SHIPPED
+
+C3 added per-round token columns to answer "where is the money going".
+They were right; the money figure beside them was not.
+
+`Ingestion::UsageCost.cents` rounds **up per model call**. That is the
+right call for an ingestion run (one or two calls, and a guardrail should
+overstate — its comment says so) and wrong for a turn that makes up to
+twelve. Measured on the real shape — twelve rounds re-reading the
+21,650-token cached prefix on Opus 5 — the turn cost **13¢ and reported
+24¢**. The ceiling therefore also fired early, which is why "the chat
+limit is too small" and "24¢ for one question" were one bug.
+
+- **Micro-cents are the stored truth**, via `UsageCost.micro_cents`. It is
+  the same arithmetic without the final division, so nothing is
+  estimated. `.cents` keeps its ceil for ingestion.
+- **`conversations.api_cost_cents` is a GENERATED STORED column** derived
+  from it. Two columns holding one fact is how they drift, and this fact
+  gates spending. Enforcement compares micro to `ceiling × 1e6`, so there
+  is no rounding left in the path that refuses a turn.
+- **The grounding reviewer is billed.** It builds its own client, so its
+  usage never reached the conversation — every grounded turn
+  under-reported one haiku call. It accrues through `record_side_call!`,
+  not `record_round!`, because `rounds` means loop iterations and a side
+  call is not one.
+- **`record_round!` is guarded by `run_token`**, like `tick!` and
+  `release!` always were. It was the one accrual that could write onto a
+  run that had already replaced it.
+- The footer separates the two scopes it had been conflating:
+  `9¢ turn · 34¢ conversation`, plus the `cache_write_tokens` C3 recorded
+  and nothing displayed.
+
 ## Open questions
 
 - **Whether the Postgres event relay is quiet enough at one poll per 200ms
