@@ -28,6 +28,15 @@ module Ingestion
         strategy.call(ctx)
       rescue StandardError => e
         Rails.logger.error("TagDeriver: #{family} strategy failed: #{e.class} #{e.message}")
+        Rails.error.report(e, handled: true, context: { family: family })
+        # Every other family degrades honestly: a missing cuisine or prep tag
+        # makes a dish less findable. Allergens are the one family where an
+        # empty result is not "we learned nothing" but "nothing here is an
+        # allergen" — this is the only code path that emits them, so
+        # swallowing puts a dish on a live menu carrying no allergen tags at
+        # all, and the filter has nothing to hide it by.
+        raise if family.to_s == "allergen"
+
         []
       end
     end

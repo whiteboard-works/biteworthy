@@ -91,6 +91,12 @@ jobs:
       - name: Brakeman
         run: bundle exec brakeman --no-pager --quiet --format plain
 
+      # Blocking now that apps/api/.rubocop.yml exists. It inherits Rails'
+      # omakase style (which the Gemfile has carried since the start and
+      # nothing ever pointed at) plus a generated .rubocop_todo.yml that
+      # freezes the 1,848 pre-existing offences. New code is linted; the
+      # backlog is grandfathered rather than reformatted in a 446-file sweep
+      # that would conflict with every open branch. Shrink the todo when the
+      # queue is quiet.
       - name: Rubocop
         run: bundle exec rubocop --parallel
-        continue-on-error: true

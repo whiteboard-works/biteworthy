@@ -245,8 +245,14 @@ class AnthropicClient
 
   # No retry middleware (see messages_stream) and no JSON response
   # middleware — the body is an SSE stream that `Stream` parses itself.
+  # Deliberately NOT `@conn ||` — that would hand a stream the retrying,
+  # JSON-parsing connection built for `messages_create`, which is the exact
+  # opposite of what `messages_stream` documents ("Not retried") and would
+  # also point the JSON middleware at an SSE body. Latent while no instance
+  # calls both, which is precisely how it would have survived to the first
+  # one that did.
   def stream_connection
-    @stream_connection ||= @conn || Faraday.new(url: @base_url) do |f|
+    @stream_connection ||= Faraday.new(url: @base_url) do |f|
       f.options.open_timeout = Integer(ENV.fetch("ANTHROPIC_OPEN_TIMEOUT", 10))
       f.options.timeout      = Integer(ENV.fetch("ANTHROPIC_READ_TIMEOUT", 240))
       f.headers["x-api-key"]         = @api_key

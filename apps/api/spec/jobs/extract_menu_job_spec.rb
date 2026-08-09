@@ -70,6 +70,30 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.status).to eq("staged")
     end
 
+    # The vision call is the most expensive thing the product does, and
+    # ApplicationJob retries every StandardError three times. Anything that
+    # raises after the call — a materialize failure, a dropped connection
+    # mid-transition — leaves the run in :extracting, so the retry lands
+    # right back on this stage. Re-running it would bill the same menu twice
+    # more; the answer already bought is in `staging`.
+    it "reuses a previous attempt's extraction rather than re-billing the call" do
+      described_class.perform_now(run.id)
+      staged = run.reload.staging
+      expect(staged).to be_present
+
+      # Put the run back where a mid-flight failure would have left it.
+      run.update!(status: "extracting")
+      run.ingestion_items.destroy_all
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+      expect(run.staging).to eq(staged)
+      expect(run.ingestion_items.count).to be_positive
+    end
+
     it "accrues real cost + tokens from the call's usage (Phase 6.1.1)" do
       usage = { "input_tokens" => 100_000, "output_tokens" => 2_000,
                 "cache_read_input_tokens" => 0, "cache_creation_input_tokens" => 0 }
