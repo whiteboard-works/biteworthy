@@ -72,6 +72,90 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
     let(:vegan_tag) { create(:tag, slug: "diet-vegan") }
     let(:fried_tag) { create(:tag, slug: "prep-fried") }
 
+    # Wholesale replacement is right for a wizard and wrong for a settings
+    # page. The wizard just built the list in front of the person, so what
+    # it sends is the answer. A settings page sends an array rebuilt from
+    # whatever it loaded at mount — and between that load and the click,
+    # the chat or an MCP client may have added an allergen.
+    describe "incremental edits" do
+      it "adds without disturbing what is already there" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id])
+
+        patch "/api/v1/profile",
+              params: { add_avoid_ingredient_ids: [wheat.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_ingredient_ids).to contain_exactly(cheese.id, wheat.id)
+      end
+
+      it "removes only what it names" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id, wheat.id])
+
+        patch "/api/v1/profile",
+              params: { remove_avoid_ingredient_ids: [cheese.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([wheat.id])
+      end
+
+      it "works the same way for tags" do
+        user.profile.update!(avoid_tag_ids: [vegan_tag.id])
+
+        patch "/api/v1/profile",
+              params: { add_avoid_tag_ids: [fried_tag.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_tag_ids).to contain_exactly(vegan_tag.id, fried_tag.id)
+      end
+
+      # The bug this exists to close, written as the story that produces
+      # it: a settings page open since before the chat added an allergen.
+      # Under replacement the stale array silently drops it, and somebody
+      # is shown a dish that can hurt them.
+      it "does not revert an avoid added by another client since the page loaded" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id])
+        stale_snapshot = [cheese.id]
+
+        # Meanwhile, in the chat.
+        user.profile.update!(avoid_ingredient_ids: stale_snapshot + [wheat.id])
+
+        # The settings page removes cheese, knowing only what it loaded.
+        patch "/api/v1/profile",
+              params: { remove_avoid_ingredient_ids: [cheese.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([wheat.id])
+      end
+
+      it "is idempotent — re-adding does not duplicate" do
+        patch "/api/v1/profile",
+              params: { add_avoid_ingredient_ids: [cheese.id] }.to_json, headers: headers
+        patch "/api/v1/profile",
+              params: { add_avoid_ingredient_ids: [cheese.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([cheese.id])
+      end
+
+      # A client sending both forms does not know what it means, and
+      # guessing which one wins is how an allergen goes missing quietly.
+      it "refuses a list sent both wholesale and as a diff" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id])
+
+        patch "/api/v1/profile",
+              params: { avoid_ingredient_ids: [wheat.id], remove_avoid_ingredient_ids: [cheese.id] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([cheese.id])
+      end
+
+      # Onboarding still means what it says.
+      it "leaves wholesale replacement alone when no diff is sent" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id])
+
+        patch "/api/v1/profile",
+              params: { avoid_ingredient_ids: [wheat.id] }.to_json, headers: headers
+
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([wheat.id])
+      end
+    end
+
     it "round-trips avoid_ingredient_ids" do
       patch "/api/v1/profile",
             params: { avoid_ingredient_ids: [cheese.id, wheat.id] }.to_json,

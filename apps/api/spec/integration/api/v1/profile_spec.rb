@@ -36,10 +36,19 @@ RSpec.describe "profile", type: :request do
         type: :object,
         description: "All fields are optional. Arrays replace wholesale; " \
                      "dietary_profile_slug is additive (unions the preset's " \
-                     "avoid lists onto whatever else you sent).",
+                     "avoid lists onto whatever else you sent). The avoid " \
+                     "lists also accept add_/remove_ forms for incremental " \
+                     "edits — use those from any screen that changes one " \
+                     "entry at a time, because a rebuilt array silently " \
+                     "reverts anything another client added since it " \
+                     "loaded. Sending both forms for one list is a 422.",
         properties: {
           avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
           avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
+          add_avoid_ingredient_ids:    { type: :array, items: { type: :string, format: :uuid } },
+          remove_avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
+          add_avoid_tag_ids:           { type: :array, items: { type: :string, format: :uuid } },
+          remove_avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
           prefer_tag_ids:       { type: :array, items: { type: :string, format: :uuid } },
           liked_ingredient_ids:    { type: :array, items: { type: :string, format: :uuid } },
           liked_tag_ids:           { type: :array, items: { type: :string, format: :uuid } },

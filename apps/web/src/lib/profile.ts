@@ -20,8 +20,22 @@ export type { ProfilePayload };
 /** The fields the account page can patch. All optional; omit to leave untouched. */
 export interface ProfilePatch {
   strictness?: Strictness;
+  /**
+   * Wholesale replacement. Right for the onboarding wizard, which just
+   * built the list in front of the person — what it sends *is* the answer.
+   *
+   * Wrong for a page that edits one chip at a time: the array is rebuilt
+   * from whatever loaded at mount, and between that load and the click the
+   * chat or an MCP client may have added an allergen, which replacement
+   * then silently removes. Use the add_/remove_ pair for incremental
+   * edits. Sending both forms for one list is a 422.
+   */
   avoid_ingredient_ids?: string[];
   avoid_tag_ids?: string[];
+  add_avoid_ingredient_ids?: string[];
+  remove_avoid_ingredient_ids?: string[];
+  add_avoid_tag_ids?: string[];
+  remove_avoid_tag_ids?: string[];
   prefer_tag_ids?: string[];
   liked_ingredient_ids?: string[];
   liked_tag_ids?: string[];
