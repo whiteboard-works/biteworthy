@@ -39,6 +39,21 @@ class Rack::Attack
   # runs multiple processes and per-process buckets stop being accurate.
   Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
 
+  # The super-admin tier is exempt from every throttle below. The check
+  # verifies the credential's signature (or looks up its digest) rather
+  # than reading an unverified `sub` — see Biteworthy::SuperAdminCredential
+  # for why that distinction is the whole safety of this block, and why it
+  # returns false on every error.
+  #
+  # Worth knowing: this also lifts the shared `api/ip` bucket for whatever
+  # IP the operator's requests arrive from, which for web traffic is the
+  # Next server (see the operational caveat above). That is acceptable
+  # while the roster is a couple of shell-granted accounts, and stops
+  # being acceptable the moment the tier is handed to anyone else.
+  safelist("super_admin") do |req|
+    Biteworthy::SuperAdminCredential.exempt?(req)
+  end
+
   # General per-IP ceiling across the whole API surface. Generous enough
   # that a normal session never notices; low enough that a scraper does.
   throttle("api/ip", limit: 300, period: 5.minutes) do |req|

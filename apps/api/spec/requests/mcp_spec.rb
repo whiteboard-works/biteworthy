@@ -390,6 +390,22 @@ RSpec.describe "POST /mcp", type: :request do
       expect(other.reload.is_admin).to be(true)
     end
 
+    # The tool half of the same boundary the REST endpoint holds: the
+    # super tier is shell-managed, so a fully-scoped admin token still
+    # cannot take it away. The refusal names the rake task rather than
+    # just saying no, because the model will otherwise retry.
+    it "refuses to demote a super admin even with users:write" do
+      admin  = create(:user, is_admin: true)
+      target = create(:user, :super_admin)
+      _, secret = McpToken.issue!(user: admin, name: "ops", scopes: ["users:write"])
+
+      body = rpc(secret, "set_user_role", { user_id: target.id, is_admin: false })
+      text = body.dig(:result, :content, 0, :text).to_s
+
+      expect(text).to include("admin:revoke_super")
+      expect(target.reload).to have_attributes(is_admin: true, is_super_admin: true)
+    end
+
     # A revoked credential must stop working without ending every other
     # session the person has.
     it "rejects a revoked token as unauthorized" do

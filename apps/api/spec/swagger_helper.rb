@@ -169,13 +169,21 @@ RSpec.configure do |config|
           },
           UserPayload: {
             type: :object,
-            required: %w[id email handle is_admin],
+            required: %w[id email handle is_admin is_super_admin],
             properties: {
               id:           { type: :string, format: :uuid },
               email:        { type: :string, format: :email },
               handle:       { type: :string },
               display_name: { type: :string, nullable: true },
               is_admin:     { type: :boolean },
+              is_super_admin: {
+                type: :boolean,
+                description: "UI gating only. The tier above admin: no spend ceilings, " \
+                             "no tool-round cap, no request throttle. Granted from the " \
+                             "server (admin:grant_super), never over HTTP, so no endpoint " \
+                             "can set it. Rails re-checks the column on every request " \
+                             "that acts on it."
+              },
               provider:     { type: :string, nullable: true,
                               enum: %w[google_oauth2 apple] }
             }

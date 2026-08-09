@@ -17,7 +17,11 @@ module AuthTokenResponse
       email: user.email,
       handle: user.handle,
       display_name: user.display_name,
-      is_admin: user.is_admin
+      is_admin: user.is_admin,
+      # UI gating only — it decides whether a hard-delete button renders.
+      # Rails re-checks the column on every request that acts on it, the
+      # same way `require_admin!` does for `is_admin`.
+      is_super_admin: user.is_super_admin
     }
     payload[:provider] = user.provider if include_provider
     payload

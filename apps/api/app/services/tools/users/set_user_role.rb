@@ -36,6 +36,13 @@ module Tools
         if target.id == actor.id && is_admin == false
           raise Errors::InvalidArgument, "You cannot remove your own admin rights."
         end
+        # Mirrors the REST guard: the super tier is shell-granted and
+        # shell-revoked, so no tool can take it away either.
+        if target.is_super_admin? && is_admin == false
+          raise Errors::InvalidArgument,
+                "#{target.email} is a super admin. That tier is managed from the server " \
+                "(admin:revoke_super), not from here."
+        end
 
         target.update!(is_admin: is_admin)
         ok(user_id: target.id, email: target.email, handle: target.handle, is_admin: target.is_admin)

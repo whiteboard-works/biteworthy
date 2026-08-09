@@ -84,6 +84,36 @@ describe('AdminUsersPage', () => {
     expect(row).toHaveTextContent('admin');
   });
 
+  // The super tier is granted and revoked from a shell, so the API
+  // refuses the toggle. Rendering a control that always fails would be
+  // worse than rendering none, and the refusal must not read as a
+  // page-load failure — `friendlyAdminError` turns an unrecognised 422
+  // into "Something went wrong loading admin data", which is a lie about
+  // a deliberate rule.
+  it('hides the toggle for a super admin and says where it is managed', async () => {
+    mockFetchUsers.mockResolvedValue(
+      payload([user({ is_admin: true, is_super_admin: true, handle: 'boss' })]),
+    );
+    render(<AdminUsersPage />);
+    const row = await screen.findByTestId('user-row-boss');
+
+    expect(within(row).queryByTestId('user-toggle-boss')).toBeNull();
+    expect(within(row).getByTestId('status-badge')).toHaveTextContent('super admin');
+    expect(row).toHaveTextContent('Managed on the server');
+  });
+
+  it('maps the super-admin refusal to instructions rather than a generic failure', async () => {
+    mockFetchUsers.mockResolvedValue(payload([user({ is_admin: true, handle: 'boss' })]));
+    mockSetAdmin.mockRejectedValue(new AdminError('x', 422, 'cannot_demote_super_admin'));
+    render(<AdminUsersPage />);
+    const row = await screen.findByTestId('user-row-boss');
+
+    fireEvent.click(within(row).getByTestId('user-toggle-boss'));
+    fireEvent.click(within(row).getByTestId('user-toggle-boss-confirm'));
+
+    expect(await screen.findByTestId('users-error')).toHaveTextContent('admin:revoke_super');
+  });
+
   it('search sends q and resets paging', async () => {
     mockFetchUsers.mockResolvedValue(payload([]));
     render(<AdminUsersPage />);

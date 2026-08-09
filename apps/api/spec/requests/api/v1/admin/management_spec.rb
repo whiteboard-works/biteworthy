@@ -137,6 +137,31 @@ RSpec.describe "Admin management endpoints", type: :request do
       expect(admin.reload.is_admin).to be true
     end
 
+    # The super tier is granted and revoked from a shell, never over
+    # HTTP. That boundary is the reason it can lift the spend ceilings at
+    # all: if one admin could hand it to another, "no ceiling" would be a
+    # thing any admin could give away. Without the guard this would also
+    # arrive as a 500 rather than a refusal — the
+    # `super_admin_implies_admin` CHECK constraint rejects the write.
+    it "refuses to demote a super admin" do
+      target = create(:user, :super_admin)
+
+      patch "/api/v1/admin/users/#{target.id}", params: { is_admin: false },
+                                                headers: auth_headers_for(admin)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("error" => "cannot_demote_super_admin")
+      expect(target.reload).to have_attributes(is_admin: true, is_super_admin: true)
+    end
+
+    it "reports the tier so the UI can explain the refused toggle" do
+      create(:user, :super_admin)
+
+      get "/api/v1/admin/users", headers: auth_headers_for(admin)
+
+      expect(response.parsed_body["users"]).to include(hash_including("is_super_admin" => true))
+    end
+
     it "404s non-admins" do
       get "/api/v1/admin/users", headers: auth_headers_for(create(:user))
       expect(response).to have_http_status(:not_found)

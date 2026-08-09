@@ -50,6 +50,17 @@ module Api
             return
           end
 
+          # The super tier is granted from a shell and revoked from a
+          # shell — that is the property that keeps "no spend ceiling"
+          # off the list of things one admin can hand another. Demoting a
+          # super admin here would also violate the
+          # `super_admin_implies_admin` CHECK constraint, so without this
+          # the honest refusal below would arrive as a 500.
+          if user.is_super_admin? && is_admin == false
+            render json: { error: "cannot_demote_super_admin" }, status: :unprocessable_entity
+            return
+          end
+
           user.update!(is_admin: is_admin == true)
           render json: serialize_user(user)
         end
@@ -58,13 +69,17 @@ module Api
 
         def serialize_user(user)
           {
-            id:           user.id,
-            email:        user.email,
-            handle:       user.handle,
-            display_name: user.display_name,
-            provider:     user.provider,
-            is_admin:     user.is_admin,
-            created_at:   user.created_at
+            id:             user.id,
+            email:          user.email,
+            handle:         user.handle,
+            display_name:   user.display_name,
+            provider:       user.provider,
+            is_admin:       user.is_admin,
+            # Read-only here — this endpoint cannot set it. Surfaced so
+            # the admin list can show why the toggle is refused rather
+            # than presenting a control that always fails.
+            is_super_admin: user.is_super_admin,
+            created_at:     user.created_at
           }
         end
       end

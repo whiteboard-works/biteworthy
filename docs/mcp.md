@@ -323,6 +323,59 @@ is the only place that audience is declared. `Registry.for(context)` drops
 them wholesale for non-admins, so a normal caller's `tools/list` never
 mentions them.
 
+### The super tier
+
+`users.is_super_admin` sits above `is_admin` and lifts the limits, not the
+permissions: the per-conversation and daily chat spend ceilings, the
+tool-round cap (12 → 60), the ingestion input-size caps (5×), and every
+`Rack::Attack` throttle. It grants **no additional tools** — the audience
+filter is unchanged, because `super_admin_implies_admin` (a CHECK
+constraint) guarantees a super admin is already an admin, so every
+existing `is_admin?` call site and every `.where(is_admin: …)` scope keeps
+working untouched.
+
+Two properties are the whole design, and both are asserted by specs:
+
+- **It is granted from a shell and nowhere else** — `admin:grant_super`
+  / `SUPER_ADMIN_EMAILS` via `Biteworthy::AdminRoster`. `set_user_role`
+  and `PATCH /admin/users/:id` cannot set it, and both refuse to *demote*
+  an account that has it. Any admin can promote another admin, so if
+  plain admin cleared the spend ceilings, one promotion would hand out an
+  uncapped Anthropic bill; keeping the grant on the shell side makes the
+  set of people who can spend without a ceiling equal to the set of
+  people with server access.
+- **The throttle exemption verifies the credential, never reads it.**
+  `Biteworthy::SuperAdminCredential` signature-checks a Devise JWT,
+  digest-looks-up an `bw_mcp_` token, or resolves a Doorkeeper access
+  token, caching the decision for 60s against a hash of the secret. The
+  tempting version — base64-decode the JWT and trust `sub`, which is what
+  the web app's `getServerUserId` does for UI purposes — would let anyone
+  opt out of every rate limit by claiming an id. Every error path returns
+  false.
+
+`skip_confirmations` is a separate column, defaulting on for the tier but
+independently settable. It turns off the destructive-tool confirmation
+gate — including an avoid-list *removal*, which un-hides dishes and is
+the one direction that can hurt somebody (Safety Property 5 in
+`docs/plans/chat-engine.md`). Both halves of the gate honour it: the chat
+parks before the tool boundary is reached, so `AgentLoop#confirm_required?`
+and `Tools::Base#confirmation_gate` each check it, and missing either one
+strands the turn waiting for an answer the other would have waved through.
+
+**Raised rather than lifted: the wall-clock turn deadline** (300s →
+1,800s) **and the ingestion input caps** (5×). Both are bounds on damage
+rather than permissions, and both re-admit a smaller version of the
+problem they guard when raised — which is the honest reading, not a
+technicality. The deadline: a wedged turn keeps `tick!` renewing its 120s
+lease, so it reads healthy to every watchdog for as long as the deadline
+allows; 30 minutes is acceptable only because the lock is **per
+conversation** and the operator holding it has `DELETE
+/conversations/:id/run`. The input caps: they bound what
+`ExtractMenuJob` base64-encodes into one request, so removing them would
+mean a multi-hundred-MB payload accepted at the door and dying on an
+Anthropic request-size 400 *after* the upload — the same
+discovered-too-late failure that keeps the content-type check unskippable.
+
 Three rails carry over from the admin REST endpoints, and they are the
 reason these tools are narrower than the models allow:
 

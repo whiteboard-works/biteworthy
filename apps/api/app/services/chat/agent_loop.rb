@@ -34,6 +34,10 @@ module Chat
     # A wall against a model that loops on a failing tool. Twelve is
     # comfortably past the longest real workflow (the scan flow is seven).
     MAX_ITERATIONS = 12
+    # Super admins get headroom rather than no wall at all — the turn
+    # deadline still bounds the turn, and an unbounded `loop` here would
+    # make a runaway cost real money before that fired.
+    SUPER_ADMIN_MAX_ITERATIONS = 60
 
     # The other wall, because rounds are not time. One round may sit for
     # the full `ANTHROPIC_READ_TIMEOUT` (240s), and `tick!` renews the
@@ -41,6 +45,10 @@ module Chat
     # the better part of an hour while every watchdog we have reads
     # healthy. Five minutes is several times the ~60s a real turn takes.
     TURN_DEADLINE_SECONDS_DEFAULT = 300
+    # Raised, not removed, for the super tier — and that raise re-admits
+    # a bounded version of what the 300s wall prevents. `caller_is_super_admin?`
+    # spells out why 30 minutes is an acceptable trade and no bound is not.
+    SUPER_ADMIN_TURN_DEADLINE_SECONDS_DEFAULT = 1_800
 
     PER_CONVERSATION_CEILING_CENTS_DEFAULT = 200   # $2
     DAILY_CEILING_CENTS_DEFAULT            = 2_000 # $20/day across all non-admin chat
@@ -210,7 +218,8 @@ module Chat
     end
 
     def drive
-      MAX_ITERATIONS.times do
+      rounds = max_iterations
+      rounds.times do
         return over_deadline if past_deadline?
 
         response  = call_model
@@ -223,7 +232,7 @@ module Chat
         return outcome if outcome.awaiting_confirmation?
       end
 
-      Result.new(state: :error, error: "Gave up after #{MAX_ITERATIONS} tool rounds without an answer.")
+      Result.new(state: :error, error: "Gave up after #{rounds} tool rounds without an answer.")
     end
 
     # Checked between rounds, which is the only place the transcript is
@@ -293,6 +302,13 @@ module Chat
     end
 
     def confirm_required?(call)
+      # A caller with `skip_confirmations` never parks. Checked here as
+      # well as in `Tools::Base#confirmation_gate` because the chat door
+      # parks *before* the tool boundary is reached — without this the
+      # turn would stop and wait for an answer that the gate below would
+      # then have waved through anyway.
+      return false if context.skip_confirmations?
+
       ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
     end
 
@@ -468,14 +484,24 @@ module Chat
       @server_context ||= { user_id: @conversation.user_id, public_host: @public_host }
     end
 
+    # Both ceilings are pre-call: the check runs before the request that
+    # would cross them, so a turn overshoots by at most one round's cost.
+    # That is why a $2 conversation reports 203¢ — post-call accounting
+    # could report the exact figure but could no longer refuse anything.
     def enforce_budget!
+      return if caller_is_super_admin?
+
       if @conversation.api_cost_cents >= per_conversation_ceiling
-        raise BudgetExceeded, "This conversation has reached its spend limit. Start a new one."
+        raise BudgetExceeded,
+              "This conversation has spent #{@conversation.api_cost_cents}¢ of its " \
+              "#{per_conversation_ceiling}¢ limit. Start a new one."
       end
       return if caller_is_admin?
       return if daily_spend < daily_ceiling
 
-      raise BudgetExceeded, "Chat is over its daily budget. Try again tomorrow."
+      raise BudgetExceeded,
+            "Chat has spent #{daily_spend}¢ of its #{daily_ceiling}¢ daily budget. " \
+            "Try again tomorrow."
     end
 
     # `with_lock` on the conversation clears its association cache, so
@@ -484,6 +510,31 @@ module Chat
       return @caller_is_admin if defined?(@caller_is_admin)
 
       @caller_is_admin = @conversation.user.is_admin?
+    end
+
+    # The super tier clears both spend ceilings and the round cap.
+    #
+    # The wall-clock deadline is **raised, not cleared** — 300s to 1,800s
+    # — and the honest reading of that is that it re-admits a smaller
+    # version of the problem the 300s wall was added for: a wedged turn
+    # keeps `tick!` renewing its 120s lease, so the run looks healthy to
+    # every watchdog for as long as the deadline allows. Two things make
+    # 30 minutes an acceptable trade where "no deadline at all" would not
+    # be. The lock is **per conversation** (a partial unique index on
+    # `conversation_id`), so the blast radius is the one conversation the
+    # operator is sitting in front of, not the chat. And that operator
+    # has `DELETE /conversations/:id/run` — a wedge here is recoverable
+    # by the person who caused it, which is not true of a community
+    # caller's turn. Removing the bound entirely would leave nothing but
+    # that button, and a closed laptop does not press it.
+    def caller_is_super_admin?
+      return @caller_is_super_admin if defined?(@caller_is_super_admin)
+
+      @caller_is_super_admin = @conversation.user.is_super_admin?
+    end
+
+    def max_iterations
+      caller_is_super_admin? ? SUPER_ADMIN_MAX_ITERATIONS : MAX_ITERATIONS
     end
 
     # An aggregate over every conversation opened today, read once per
@@ -510,7 +561,14 @@ module Chat
     end
 
     def turn_deadline_seconds
+      return super_admin_turn_deadline_seconds if caller_is_super_admin?
+
       Integer(ENV.fetch("CHAT_TURN_DEADLINE_SECONDS", TURN_DEADLINE_SECONDS_DEFAULT))
+    end
+
+    def super_admin_turn_deadline_seconds
+      Integer(ENV.fetch("CHAT_SUPER_ADMIN_TURN_DEADLINE_SECONDS",
+                        SUPER_ADMIN_TURN_DEADLINE_SECONDS_DEFAULT))
     end
   end
 end

@@ -23,5 +23,14 @@ FactoryBot.define do
     trait :admin do
       is_admin { true }
     end
+
+    # `is_admin` comes along because the `super_admin_implies_admin`
+    # CHECK constraint requires it — a factory that set only the super
+    # bit would fail to insert.
+    trait :super_admin do
+      is_admin           { true }
+      is_super_admin     { true }
+      skip_confirmations { true }
+    end
   end
 end

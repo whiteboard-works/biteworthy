@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -694,20 +694,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_140000) do
     t.string "encrypted_password", default: "", null: false
     t.string "handle", null: false
     t.boolean "is_admin", default: false, null: false
+    t.boolean "is_super_admin", default: false, null: false
     t.string "jti", null: false
     t.string "provider"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
+    t.boolean "skip_confirmations", default: false, null: false
     t.datetime "terms_accepted_at"
     t.string "uid"
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["handle"], name: "index_users_on_handle", unique: true
     t.index ["is_admin"], name: "index_users_on_is_admin", where: "(is_admin = true)"
+    t.index ["is_super_admin"], name: "index_users_on_is_super_admin", where: "(is_super_admin = true)"
     t.index ["jti"], name: "index_users_on_jti", unique: true
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.check_constraint "NOT (is_super_admin AND NOT is_admin)", name: "super_admin_implies_admin"
   end
 
   create_table "waitlist_signups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

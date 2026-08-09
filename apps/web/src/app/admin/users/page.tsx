@@ -56,6 +56,11 @@ export default function AdminUsersPage() {
     } catch (e) {
       if (e instanceof AdminError && e.code === 'cannot_demote_self') {
         setError('You cannot demote yourself — ask another admin.');
+      } else if (e instanceof AdminError && e.code === 'cannot_demote_super_admin') {
+        // Without this branch the deliberate refusal renders as
+        // friendlyAdminError's generic "Something went wrong loading
+        // admin data", which reads as a bug rather than a rule.
+        setError('Super admins are managed on the server — run admin:revoke_super first.');
       } else {
         setError(friendlyAdminError(e));
       }
@@ -125,7 +130,10 @@ export default function AdminUsersPage() {
                     {user.handle}
                     {user.is_admin && (
                       <span className="ml-bw-2 align-middle">
-                        <StatusBadge tone="bite" label="admin" />
+                        <StatusBadge
+                          tone="bite"
+                          label={user.is_super_admin ? 'super admin' : 'admin'}
+                        />
                       </span>
                     )}
                   </p>
@@ -135,13 +143,20 @@ export default function AdminUsersPage() {
                     {user.reviews_count ?? 0} reviews · {user.ingestion_runs_count ?? 0} scans
                   </p>
                 </div>
-                <ConfirmButton
-                  label={user.is_admin ? 'Demote' : 'Promote to admin'}
-                  busy={busyId === user.id}
-                  disabled={busyId !== null && busyId !== user.id}
-                  onConfirm={() => void toggle(user)}
-                  testId={`user-toggle-${user.handle}`}
-                />
+                {/* A super admin's toggle is refused by the API, so the
+                    control does not render at all — a button that always
+                    fails is worse than no button. */}
+                {user.is_super_admin ? (
+                  <span className="text-bw-xs text-zinc-500">Managed on the server</span>
+                ) : (
+                  <ConfirmButton
+                    label={user.is_admin ? 'Demote' : 'Promote to admin'}
+                    busy={busyId === user.id}
+                    disabled={busyId !== null && busyId !== user.id}
+                    onConfirm={() => void toggle(user)}
+                    testId={`user-toggle-${user.handle}`}
+                  />
+                )}
               </li>
             ))}
           </ul>

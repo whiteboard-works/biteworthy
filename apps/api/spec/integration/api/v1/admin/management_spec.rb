@@ -98,7 +98,7 @@ end
 def admin_user_row_schema
   {
     type: :object,
-    required: %w[id email handle is_admin],
+    required: %w[id email handle is_admin is_super_admin],
     properties: {
       id:           { type: :string, format: :uuid },
       email:        { type: :string },
@@ -106,6 +106,9 @@ def admin_user_row_schema
       display_name: { type: :string, nullable: true },
       provider:     { type: :string, nullable: true },
       is_admin:     { type: :boolean },
+      # Read-only here. PATCH cannot set it, and refuses to demote an
+      # account that has it — surfaced so the list can say why.
+      is_super_admin: { type: :boolean },
       created_at:   { type: :string, format: "date-time" },
       reviews_count:        { type: :integer },
       ingestion_runs_count: { type: :integer }
