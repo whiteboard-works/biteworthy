@@ -66,4 +66,28 @@ RSpec.describe SyncsDenormalizedIds do
 
     expect(item.reload.denormalized_ingredient_ids).to eq([rice.id])
   end
+
+  # The case above only holds because the deferral takes a SAVEPOINT rather
+  # than joining whatever transaction the caller already had open. Without
+  # `requires_new: true` the raise skips the flush (by design) while the join
+  # write stays put (not by design) — and a caller that rescues and carries
+  # on is not hypothetical: `AcceptStagedItems` rescues per dish precisely so
+  # one bad dish cannot abandon the rest. That would leave a dish live on a
+  # menu whose array disagrees with its join rows, which is the filter
+  # answering from data the audit log contradicts.
+  it "rolls its own writes back even inside a caller's transaction that rescues" do
+    item.id # materialize before the savepoint, or the rollback takes the dish too
+
+    ApplicationRecord.transaction do
+      Item.defer_denormalization do
+        ItemIngredient.create!(item: item, ingredient: rice, confidence: "confirmed", source: "human")
+        raise "boom"
+      end
+    rescue RuntimeError
+      # Exactly the shape AcceptStagedItems uses: swallow, keep going.
+    end
+
+    expect(item.reload.item_ingredients).to be_empty
+    expect(item.denormalized_ingredient_ids).to eq([])
+  end
 end

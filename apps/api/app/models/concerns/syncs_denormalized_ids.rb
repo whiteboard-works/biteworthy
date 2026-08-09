@@ -29,10 +29,18 @@ module SyncsDenormalizedIds
     # with an array that disagrees with its join rows is the one outcome this
     # must not have — issuing the flush on a doomed transaction would only
     # bury the real error under InFailedSqlTransaction.
+    #
+    # `requires_new: true` is what makes that true when a caller already has
+    # a transaction open. Without it Rails joins the caller's, so a raise
+    # inside the block skips the flush (by design) while the join writes stay
+    # put (not by design) if the caller rescues and carries on — which is
+    # exactly what `AcceptStagedItems` does per dish. The result would be the
+    # one outcome the paragraph above says is impossible, arrived at quietly.
+    # `promote!` takes a savepoint for the same reason.
     def defer(&block)
       return block.call if pending
 
-      Item.transaction do
+      Item.transaction(requires_new: true) do
         ActiveSupport::IsolatedExecutionState[PENDING_KEY] = Hash.new { |h, k| h[k] = Set.new }
         begin
           result = block.call
