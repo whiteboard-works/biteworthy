@@ -118,6 +118,26 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.state).to eq("active")
     end
 
+    # `delete_review` is gated by `destructive_hint`, which `Tools::Base`
+    # leaves alone. An argument-gated tool is the other half: the loop
+    # parks it here, and `Tools::Base` re-checks it on the way through, so
+    # approving has to *carry* to the tool rather than being implied by
+    # having reached the call. If the grant stopped travelling, the
+    # removal would silently not happen and the model would report it did.
+    it "carries approval through to an argument-gated tool" do
+      peanut = create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut")
+      user.profile.update!(avoid_ingredient_ids: [peanut.id])
+      remove = call_tool("update_avoid_lists", { "remove_ingredients" => ["nut-peanut"] })
+
+      parked = loop_with(remove).run(text: "stop avoiding peanut")
+      expect(parked).to be_awaiting_confirmation
+      expect(user.profile.reload.avoid_ingredient_ids).to eq([peanut.id])
+
+      loop_with(say("Done.")).run(confirm: true, fingerprint: parked_fingerprint)
+
+      expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+    end
+
     it "tells the model it was declined, and the review survives" do
       loop_with(delete_call).run(text: "delete my review")
 

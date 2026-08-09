@@ -126,6 +126,23 @@ Notes that bite:
 - **Declare `running_description`** on anything a person watches. It is the
   only text a user reads while a turn works, and it is the tool's to write —
   never the model's.
+- **`confirm_when` is enforced by `Base.call`, on both doors.**
+  `destructive_hint` is static, so an MCP client reads it and puts a human
+  in front of the call itself; `confirm_when` covers the case no annotation
+  can express — a tool that is dangerous only for certain arguments.
+  `update_avoid_lists` is the reason it exists: it declares
+  `destructive_hint: false` so *adding* an avoid stays frictionless, which
+  tells every client the call is safe, and it is — until the arguments say
+  `remove_ingredients`. Only the server knows that, so only the server can
+  ask. A gated call with no grant comes back as `confirmation_required`
+  carrying the declared sentence and a `confirmation_token`; the caller
+  asks, then repeats the call with `confirmation:`. The grant is bound to
+  a digest of the tool, the arguments, and the caller (`Tools::Confirmation`,
+  10-minute TTL), so an approval to stop avoiding peanut cannot be replayed
+  against peanut *and shellfish*, or against someone else's profile. The
+  chat parks before it gets there and mints a grant once the person taps
+  approve — one check, not a pre-check here and a different one over MCP,
+  which is how this gate came to guard only the chat for a while.
 - **New tools are deferred by default in the chat.** Only the core domains
   (discovery, profile, meta) stay resident; everything else loads on demand
   via tool search, which is what keeps a cold turn from carrying 13k tokens
@@ -256,11 +273,14 @@ wire formats, never two implementations.
 Three things it enforces that a bare tool loop would not:
 
 - **Confirmation before a destructive call.** The loop stops at the first
-  tool whose `destructive_hint` is true and parks it in
-  `conversations.pending_tool_call`. Nothing that publishes, deletes, or
-  changes what a person is shown runs because a model decided to. Each
-  such call needs its own answer, so a queue of them parks one at a time —
-  confirming one does not pre-authorize the next.
+  tool whose `destructive_hint` is true, or whose `confirm_when` trips on
+  the actual arguments, and parks it in `conversations.pending_tool_call`.
+  Nothing that publishes, deletes, or changes what a person is shown runs
+  because a model decided to. Each such call needs its own answer, so a
+  queue of them parks one at a time — confirming one does not pre-authorize
+  the next. On approval the loop mints a `Tools::Confirmation` grant and
+  passes it to the tool, because `Base.call` re-checks the argument-gated
+  half itself — see §"Writing a tool".
 - **Every `tool_use` gets a `tool_result`.** The Messages API rejects a
   transcript with an unanswered call, so a parked turn stores the results
   already computed next to the calls still queued, and resuming replays

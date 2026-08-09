@@ -156,6 +156,52 @@ RSpec.describe "POST /mcp", type: :request do
     end
   end
 
+  # The gate that stops an allergen leaving someone's avoid list without
+  # them saying so used to be read only by the chat's agent loop, which
+  # made it a property of one front door — this one removed the allergen
+  # with nothing asked. A stateless transport cannot stop and ask
+  # mid-call, so the refusal carries the sentence and a token instead.
+  describe "argument-gated confirmation" do
+    let!(:peanut) { create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut") }
+
+    before { user.profile.update!(avoid_ingredient_ids: [peanut.id]) }
+
+    def remove(extra = {})
+      rpc("tools/call",
+          { name: "update_avoid_lists", arguments: { remove_ingredients: ["nut-peanut"] }.merge(extra) },
+          headers: auth_headers_for(user))
+    end
+
+    it "refuses the removal first, and says what it needs said" do
+      body = remove
+
+      expect(body.dig("result", "isError")).to be(true)
+      expect(body.dig("result", "structuredContent", "error")).to eq("confirmation_required")
+      expect(body.dig("result", "structuredContent", "prompt")).to include("nut-peanut")
+      expect(user.profile.reload.avoid_ingredient_ids).to eq([peanut.id])
+    end
+
+    it "goes through on the second call, carrying the token" do
+      token = remove.dig("result", "structuredContent", "confirmation_token")
+
+      body = remove(confirmation: token)
+
+      expect(body.dig("result", "isError")).to be_falsey
+      expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+    end
+
+    # Adding is the safe direction and stays one call — friction there
+    # teaches people to click through the prompt they will one day need
+    # to actually read.
+    it "does not gate an add" do
+      body = rpc("tools/call",
+                 { name: "update_avoid_lists", arguments: { add_ingredients: ["nut-peanut"] } },
+                 headers: auth_headers_for(user))
+
+      expect(body.dig("result", "isError")).to be_falsey
+    end
+  end
+
   # Connecting Claude Code today means handing it a JWT carrying every
   # power the account has. A scoped token carries less, and the tool layer
   # is where that is enforced.
