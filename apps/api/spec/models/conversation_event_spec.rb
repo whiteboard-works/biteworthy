@@ -13,7 +13,7 @@ RSpec.describe ConversationEvent do
       run.release!(outcome: "done")
       described_class.append!(ConversationRun.acquire(conversation), { "type" => "done", "text" => "fin" })
 
-      expect(described_class.where(conversation_id: conversation.id).in_order.pluck(:position)).to eq([1, 2, 3, 4])
+      expect(described_class.where(conversation_id: conversation.id).in_order.pluck(:position)).to eq([ 1, 2, 3, 4 ])
     end
 
     # The narrator flushes every 80 characters, and the old version took
@@ -44,7 +44,7 @@ RSpec.describe ConversationEvent do
 
       expect { described_class.append!(run, { "type" => "done" }) }
         .to change { described_class.where(conversation_id: conversation.id).count }.by(1)
-      expect(described_class.where(conversation_id: conversation.id).in_order.pluck(:position)).to eq([1, 2])
+      expect(described_class.where(conversation_id: conversation.id).in_order.pluck(:position)).to eq([ 1, 2 ])
     end
   end
 end

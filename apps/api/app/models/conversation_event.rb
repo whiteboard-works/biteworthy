@@ -56,7 +56,7 @@ class ConversationEvent < ApplicationRecord
 
   def self.insert_at_next_position(run, payload)
     sql = sanitize_sql_array(
-      [INSERT_SQL, run.conversation_id, run.id, payload.to_json, Time.current, run.conversation_id]
+      [ INSERT_SQL, run.conversation_id, run.id, payload.to_json, Time.current, run.conversation_id ]
     )
     connection.exec_query(sql, "ConversationEvent Append").first
   end
