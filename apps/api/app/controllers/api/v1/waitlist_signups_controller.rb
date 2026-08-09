@@ -25,9 +25,16 @@ module Api
         end
 
         if signup.save
-          # Best-effort send; Postmark queueing failures shouldn't
-          # block the response (the user is already on the list).
-          WaitlistMailer.confirm(signup.id).deliver_later rescue nil
+          # Best-effort send; queueing failures shouldn't block the response
+          # (the user is already on the list). Reported rather than
+          # swallowed, though — silently sending no confirmations at all
+          # looks exactly like nobody signing up.
+          begin
+            WaitlistMailer.confirm(signup.id).deliver_later
+          rescue StandardError => e
+            Rails.logger.error("WaitlistMailer enqueue failed: #{e.class} #{e.message}")
+            Rails.error.report(e, handled: true, context: { waitlist_signup_id: signup.id })
+          end
           render json: { ok: true, duplicate: false }, status: :ok
         else
           render json: { ok: false, errors: signup.errors.full_messages }, status: :unprocessable_entity

@@ -1,0 +1,17 @@
+inherit_from: .rubocop_todo.yml
+
+# Rails' own omakase style, which the Gemfile has pulled in since the
+# project started and nothing ever inherited — so `rubocop` ran bare
+# defaults, reported ~700 offences nobody intended to fix, and CI had to
+# carry `continue-on-error` to stay usable. A linter that cannot fail is
+# not a linter; this is the config that makes the check mean something.
+inherit_gem:
+  rubocop-rails-omakase: rubocop.yml
+
+AllCops:
+  # Generated or vendored: schema.rb is rewritten by migrations, and the
+  # legacy tree is frozen reference material (see CLAUDE.md).
+  Exclude:
+    - "db/schema.rb"
+    - "bin/**/*"
+    - "vendor/**/*"

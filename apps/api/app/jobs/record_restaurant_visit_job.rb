@@ -27,8 +27,13 @@ class RecordRestaurantVisitJob < ApplicationJob
     visit.items_hidden_count  = items_hidden_count
     visit.save!
   rescue ActiveRecord::RecordNotUnique
-    # Lost the upsert race with another worker — retry once and let
-    # find_or_initialize_by find the row this time.
+    # Lost the upsert race with another worker — go round once more and let
+    # find_or_initialize_by find the row this time. Bounded, because Ruby's
+    # bare `retry` has no counter: if the row were deleted between the find
+    # and the save each pass would raise again and pin a worker thread
+    # forever, and this job is best-effort telemetry either way.
+    raise if (attempts = attempts.to_i + 1) > 1
+
     retry
   rescue ActiveRecord::InvalidForeignKey
     # User or restaurant deleted between request + job execution.

@@ -39,24 +39,38 @@ module Ingestion
         return
       end
 
-      out = timed_anthropic_call(@run, api_error: "anthropic_api_error",
-                                       validation_error: "schema_validation_failed") do |client|
-        client.messages_create(
-          system:          ExtractMenuPrompt.system(client),
-          messages:        ExtractMenuPrompt.user_messages(client, blobs),
-          response_schema: MenuExtractionSchema
-        )
-      end
-      return if out.nil?
+      # A previous attempt may already have paid for the vision call — it is
+      # the most expensive thing the product does, and `ApplicationJob`
+      # retries every StandardError three times. Anything raised below this
+      # point (a materialize failure, a lost connection mid-transition)
+      # leaves the run in :extracting, so the retry lands right back here.
+      # Without this the retry re-bills the call; `docs/ingestion.md` claims
+      # each stage is idempotent and this is what makes that true of the one
+      # stage where being wrong costs money.
+      if @run.staging.present?
+        result = @run.staging
+      else
+        out = timed_anthropic_call(@run, api_error: "anthropic_api_error",
+                                         validation_error: "schema_validation_failed") do |client|
+          client.messages_create(
+            system:          ExtractMenuPrompt.system(client),
+            messages:        ExtractMenuPrompt.user_messages(client, blobs),
+            response_schema: MenuExtractionSchema
+          )
+        end
+        return if out.nil?
 
-      result, elapsed_ms = out
+        result, elapsed_ms = out
+        # Saved before the transaction below, not inside it: a rollback there
+        # must not also discard the answer we just bought.
+        @run.update!(staging: result, latency_ms: elapsed_ms)
+      end
 
       # Materialize the dishes NOW, with empty ingredient/tag payloads, so a
       # caller sees real items seconds after extraction; ResolveRun enriches
       # them in place. Atomic with the transition so a run never sits in
       # :resolving without its items.
       @run.transaction do
-        @run.update!(staging: result, latency_ms: elapsed_ms)
         materialize_items!
         @run.transition_to!(:resolving)
       end
