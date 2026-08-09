@@ -144,8 +144,10 @@ RSpec.describe ConversationRun do
     it "accumulates the token split across rounds" do
       run = described_class.acquire(conversation)
 
-      run.record_round!({ "input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 21_650 })
-      run.record_round!({ "input_tokens" => 3,  "output_tokens" => 7, "cache_read_input_tokens" => 21_650 })
+      run.record_round!({ "input_tokens" => 10, "output_tokens" => 5, "cache_read_input_tokens" => 21_650 },
+                        model: Chat::AgentLoop::MODEL)
+      run.record_round!({ "input_tokens" => 3, "output_tokens" => 7, "cache_read_input_tokens" => 21_650 },
+                        model: Chat::AgentLoop::MODEL)
 
       run.reload
       expect(run.rounds).to eq(2)
@@ -172,14 +174,19 @@ RSpec.describe ConversationRun do
     # `tick!` and `release!` are conditional on the token; this was the
     # one accrual that was not, so a run whose lease had been stolen kept
     # writing tokens onto the row that replaced it.
-    it "writes nothing once the lease has been stolen" do
+    # Raises rather than returning false, the same way `tick!` does on the
+    # same condition — a boolean the caller ignores is not "finding out",
+    # and the loop would go on paying for model calls on a conversation it
+    # no longer owns.
+    it "raises LostLease and writes nothing once the lease has been stolen" do
       run = described_class.acquire(conversation)
       # `update_column` would also refresh the in-memory attribute, so the
       # object would go on matching itself. A real steal is another worker
       # writing the row while this object holds the old token.
       described_class.where(id: run.id).update_all(run_token: SecureRandom.uuid)
 
-      expect(run.record_round!({ "input_tokens" => 10 })).to be(false)
+      expect { run.record_round!({ "input_tokens" => 10 }, model: Chat::AgentLoop::MODEL) }
+        .to raise_error(described_class::LostLease)
       expect(described_class.find(run.id).input_tokens).to eq(0)
     end
   end

@@ -19,6 +19,24 @@ class StoreChatCostInMicroCents < ActiveRecord::Migration[8.1]
   # refuses early or one that never refuses. Postgres computes it, no
   # code can write it, and a console or dashboard reading
   # `api_cost_cents` keeps working unchanged.
+  #
+  # ⚠️ **This migration has a deploy window, deliberately accepted.**
+  # `config/deploy.yml` runs `db:prepare` on the new container's boot
+  # while kamal-proxy still holds traffic on the old release, so for the
+  # ~30s until `/up` passes, old code is talking to the new schema. In
+  # that window `Conversation.create!` and `record_usage!` still name the
+  # dropped `api_cost_cents` and raise `PG::UndefinedColumn` — a new chat
+  # or an in-flight CompletionJob would 500 and retry.
+  #
+  # The zero-downtime version is a two-deploy split: ship the micro column
+  # plus `self.ignored_columns += ["api_cost_cents"]` first, then drop and
+  # regenerate in a second deploy. That is the right call in production
+  # and the wrong one here — `docs/plans/chat-engine.md` states the
+  # constraint this arc runs under ("closed beta, two users; breaking
+  # changes are cheap, compatibility shims are not worth their weight"),
+  # and a shim plus a follow-up PR that must not be forgotten costs more
+  # than a self-healing 30-second window. Deploy it when nobody is
+  # mid-conversation.
   def up
     add_column :conversations, :api_cost_micro_cents, :bigint, null: false, default: 0
     execute <<~SQL.squish

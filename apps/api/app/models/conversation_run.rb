@@ -124,6 +124,11 @@ class ConversationRun < ApplicationRecord
   # real and belong on the run; its round count is not, because `rounds`
   # answers "how many times did the loop go around", and folding a side
   # call into it would quietly change what the metric means.
+  #
+  # Unlike `record_round!` this does **not** raise on a lost lease. It
+  # runs after the answer already exists, so turning a finished turn into
+  # an error to report a billing write is the wrong trade — the round
+  # accrual is on the critical path and this is not.
   def record_side_call!(usage, model:)
     self.class
         .where(id: id, run_token: run_token)
@@ -142,10 +147,17 @@ class ConversationRun < ApplicationRecord
   # writing tokens and cost onto the row that replaced it. This was the
   # one accrual that wrote unconditionally.
   #
+  # **Raises `LostLease` rather than returning false**, the same way
+  # `tick!` does on the same condition. A boolean the caller ignores is
+  # not "finding out": the loop would drop the round silently and keep
+  # calling the model — spending real money on a conversation it no
+  # longer owns — until the next `tick!` raised anyway. Raising here ends
+  # it a full model call earlier.
+  #
   # `rounds` moves in the same statement rather than through
   # `increment!`, so a lost lease cannot leave a run whose round count
   # advanced but whose tokens did not.
-  def record_round!(usage, model: nil)
+  def record_round!(usage, model:)
     updated = self.class
                   .where(id: id, run_token: run_token)
                   .update_all([
@@ -156,11 +168,13 @@ class ConversationRun < ApplicationRecord
                     usage["input_tokens"].to_i, usage["output_tokens"].to_i,
                     usage["cache_read_input_tokens"].to_i,
                     usage["cache_creation_input_tokens"].to_i,
-                    ::Ingestion::UsageCost.micro_cents(usage, model: model || Chat::AgentLoop::MODEL),
+                    ::Ingestion::UsageCost.micro_cents(usage, model: model),
                     Time.current
                   ])
-    reload if updated.positive?
-    updated.positive?
+    raise LostLease, "run #{id} no longer holds the lock" if updated.zero?
+
+    reload
+    true
   end
 
   # Releases the lock. Conditional on the token so a run that already lost

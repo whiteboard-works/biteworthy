@@ -505,20 +505,27 @@ module Chat
     def enforce_budget!
       return if caller_is_super_admin?
 
+      # The message reads the same column the guard compares. Not fixing a
+      # live bug — `append!` takes `with_lock` before every `call_model`
+      # and that reloads the row, so `api_cost_cents` is fresh in practice
+      # — but `increment!` refreshes only the column it touched and
+      # `api_cost_cents` is generated, so the old form was correct only by
+      # way of an incidental reload somewhere else.
       if @conversation.api_cost_micro_cents >= micro(per_conversation_ceiling)
         raise BudgetExceeded,
-              "This conversation has spent #{@conversation.api_cost_cents}¢ of its " \
-              "#{per_conversation_ceiling}¢ limit. Start a new one."
+              "This conversation has spent #{ceil_cents(@conversation.api_cost_micro_cents)}¢ " \
+              "of its #{per_conversation_ceiling}¢ limit. Start a new one."
       end
       return if caller_is_admin?
       return if daily_spend_micro < micro(daily_ceiling)
 
       raise BudgetExceeded,
-            "Chat has spent #{(daily_spend_micro / 1_000_000.0).ceil}¢ of its " \
+            "Chat has spent #{ceil_cents(daily_spend_micro)}¢ of its " \
             "#{daily_ceiling}¢ daily budget. Try again tomorrow."
     end
 
-    def micro(cents) = cents * 1_000_000
+    def micro(cents)       = cents * 1_000_000
+    def ceil_cents(micros) = (micros / 1_000_000.0).ceil
 
     # `with_lock` on the conversation clears its association cache, so
     # every append made the next round re-load the same user row.

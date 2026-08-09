@@ -423,6 +423,22 @@ RSpec.describe Chat::AgentLoop do
       expect(result.error).to include((described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT + 3).to_s)
       expect(result.error).to include(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT.to_s)
     end
+
+    # Deliberately no spec for "the refusal reports a stale figure".
+    # Review raised it and it is a real latent inconsistency — `increment!`
+    # refreshes only the column it incremented, and `api_cost_cents` is
+    # generated — but it is not reachable: `append!` takes `with_lock`
+    # before every `call_model`, and that reloads the row. A spec written
+    # for it passes with the bug in place, which is worse than no spec.
+    # The message reads from the same column the guard compares anyway,
+    # so the two cannot drift if that reload ever goes away.
+    it "accrues cost onto the run as well as the conversation" do
+      loop_with(say("hi")).run(text: "hello")
+
+      run = ConversationRun.where(conversation_id: conversation.id).last
+      expect(run.cost_micro_cents).to be > 0
+      expect(run.cost_micro_cents).to eq(conversation.reload.api_cost_micro_cents)
+    end
   end
 
   describe "runaway protection" do
