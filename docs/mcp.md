@@ -143,6 +143,20 @@ Notes that bite:
   chat parks before it gets there and mints a grant once the person taps
   approve — one check, not a pre-check here and a different one over MCP,
   which is how this gate came to guard only the chat for a while.
+
+  **What the server enforces is the protocol, not the human.** The refusal
+  hands the token to the same caller it just refused, because over a
+  stateless transport there is nowhere else to send it — no elicitation, no
+  socket back to the person. A client that never asks anyone satisfies the
+  gate by calling twice. What is actually bought: the question is
+  server-authored rather than composed by the model asking for a yes, it
+  cannot be answered for a *different* call than the one described, and a
+  client that does put a human in front of it has an exact sentence to
+  show. A client that does not is not stopped, and cannot be from here.
+
+  A grant has no nonce, so it is reusable for its whole TTL — which means a
+  gated tool must be idempotent. `confirmation_gate_spec` asserts that over
+  the real registry rather than trusting it.
 - **New tools are deferred by default in the chat.** Only the core domains
   (discovery, profile, meta) stay resident; everything else loads on demand
   via tool search, which is what keeps a cold turn from carrying 13k tokens

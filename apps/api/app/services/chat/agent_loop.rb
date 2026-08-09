@@ -280,7 +280,16 @@ module Chat
       # failure — domain error or tool bug — into an `isError` response.
       # A second rescue at this call site is how the two front doors drift
       # apart on what a broken tool looks like.
-      response = tool.call(server_context: server_context, confirmation: confirmation, **arguments_for(call))
+      # `.except(:confirmation)` is load-bearing: duplicate keywords are
+      # last-wins in Ruby, so a model that put a `confirmation` key in its
+      # own tool input would otherwise overwrite the grant minted after a
+      # person tapped approve — untrusted input outranking the server's
+      # own answer, and an approved removal silently not happening.
+      response = tool.call(
+        server_context: server_context,
+        **arguments_for(call).except(:confirmation),
+        confirmation: confirmation
+      )
       payload  = response.to_h
       remember_facts(call, payload)
       tool_result(call, payload[:structuredContent] || payload[:content], error: payload[:isError] == true)

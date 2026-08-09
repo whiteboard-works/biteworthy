@@ -127,6 +127,39 @@ RSpec.describe "argument-gated confirmation" do
     end
   end
 
+  # A grant has no nonce: within its TTL one yes authorizes the identical
+  # call any number of times. That is fine for a tool where doing it twice
+  # is doing it once, and not fine for anything that appends, posts, or
+  # spends — so the precondition is asserted over the real registry rather
+  # than left as a comment somebody has to find.
+  describe "the replay precondition" do
+    it "keeps every argument-gated tool idempotent" do
+      gated = Tools::Registry.all.select(&:confirm_when)
+
+      expect(gated).to be_present, "no tool declares confirm_when — has the gate been removed?"
+      expect(gated.reject { |tool| tool.annotations_value&.idempotent_hint == true }).to be_empty
+    end
+  end
+
+  # The advertised schema has to name the argument that satisfies the
+  # gate. Left out, it worked only because this tool omits
+  # `additionalProperties: false` — the first gated tool that declared it
+  # would have had its own confirmation rejected before dispatch, and the
+  # model would loop on `confirmation_required` with no way out.
+  describe "the advertised schema" do
+    it "declares the confirmation argument on a gated tool" do
+      properties = Tools::Profile::UpdateAvoidLists.input_schema_value.to_h[:properties]
+
+      expect(properties).to include(:confirmation)
+      expect(Tools::Profile::UpdateAvoidLists.input_schema_value.to_h[:required] || [])
+        .not_to include("confirmation")
+    end
+
+    it "leaves an ungated tool's schema alone" do
+      expect(Tools::Discovery::GetMenu.input_schema_value.to_h[:properties]).not_to include(:confirmation)
+    end
+  end
+
   # `destructive_hint` is static, so an MCP client reads it and puts a
   # human in front of the call itself. Re-asking here would cost a round
   # trip and add nothing — the argument-dependent case is the one no
