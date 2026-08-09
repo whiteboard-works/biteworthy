@@ -200,6 +200,39 @@ RSpec.describe "POST /mcp", type: :request do
       expect(body.dig("result", "resources").map { |r| r["uri"] }).to include("biteworthy://topology")
     end
 
+    # A menu someone attaches, the way they attach a file — the shape for
+    # "here are two menus, help me choose", which is not a thing a model
+    # decides to do mid-answer.
+    it "offers the menu as a template a client can fill in" do
+      body = rpc("resources/templates/list")
+
+      templates = body.dig("result", "resourceTemplates").map { |t| t["uriTemplate"] }
+      expect(templates).to include("biteworthy://restaurant/{restaurant}/menu")
+    end
+
+    it "reads a restaurant's menu at the filled-in uri" do
+      create(:city, slug: "durango").then { |c| create(:restaurant, :published, city: c, slug: "ninis", name: "Ninis Taqueria") }
+
+      body = rpc("resources/read", { uri: "biteworthy://restaurant/ninis/menu" })
+
+      expect(body.dig("result", "contents", 0, "text")).to include("Ninis Taqueria")
+    end
+
+    # The variable is named for the same argument the prompts use, so the
+    # completion that fills a prompt box fills this one too — one
+    # vocabulary rather than two that drift.
+    it "completes the template's variable from the same source as a prompt's" do
+      city = create(:city, slug: "durango")
+      create(:restaurant, :published, city: city, slug: "ninis-taqueria")
+
+      body = rpc("completion/complete", {
+        ref:      { type: "ref/resource", uri: "biteworthy://restaurant/{restaurant}/menu" },
+        argument: { name: "restaurant", value: "nin" }
+      })
+
+      expect(body.dig("result", "completion", "values")).to eq(["ninis-taqueria"])
+    end
+
     it "reads it as markdown, scoped to the caller" do
       body = rpc("resources/read", { uri: "biteworthy://topology" })
 
