@@ -39,6 +39,33 @@ RSpec.describe Tools::WorkflowPrompts do
     end
   end
 
+  # Audience alone stopped being the whole answer once a credential could
+  # be scoped: a signed-in read-only token clears every audience check and
+  # still cannot run a single write step. Offering it "Scan a menu into the
+  # database" is precisely the dead-end route this filter exists to avoid.
+  describe "scope filtering" do
+    let(:read_only) do
+      Tools::Context.new({ user_id: create(:user).id, scopes: ["discovery:read"] })
+    end
+
+    it "withholds a workflow whose steps the credential cannot run" do
+      offered = described_class.for(read_only).map(&:name_value)
+
+      expect(offered).to include("find_something_this_person_can_eat")
+      expect(offered).not_to include("scan_a_menu_into_the_database",
+                                     "set_up_or_adjust_what_gets_hidden")
+    end
+
+    it "offers every step of every workflow it does offer" do
+      available = Tools::Registry.for(read_only).map(&:name_value)
+
+      described_class.for(read_only).each do |prompt|
+        expect(prompt.workflow_steps - available).to be_empty,
+                                                    "#{prompt.name_value} names tools this caller cannot run"
+      end
+    end
+  end
+
   # The failure this guards is a prompt that tells a model to call a tool
   # that does not exist — documentation lying at runtime, which is exactly
   # what the topology spec was written to prevent.

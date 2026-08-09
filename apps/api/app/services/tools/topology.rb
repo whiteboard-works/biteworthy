@@ -142,6 +142,24 @@ module Tools
         ].join("\n")
       end
 
+      # A workflow is offered only when the caller can run all of it. The
+      # spec asserts the declared audience really does cover every step,
+      # so this cannot quietly start advertising an admin tool.
+      #
+      # Audience is not sufficient on its own any more: a scoped
+      # credential can be signed in, clear the audience check, and still
+      # not hold the scope a step needs. So the steps are checked against
+      # the caller's actual catalogue rather than against the declared
+      # audience alone — a read-only token being offered "Scan a menu into
+      # the database" is a route that dead-ends on its first write.
+      def workflows_for(context)
+        available = Registry.for(context).map(&:name_value).to_set
+
+        WORKFLOWS.select do |flow|
+          runnable?(flow[:audience], context) && flow[:steps].all? { |step| available.include?(step) }
+        end
+      end
+
       private
 
       def domains_for(context)
@@ -153,13 +171,6 @@ module Tools
 
           { name: name, summary: DOMAIN_SUMMARIES.fetch(name), tools: visible.map(&:name_value) }
         end
-      end
-
-      # A workflow is offered only when the caller can run all of it. The
-      # spec asserts the declared audience really does cover every step,
-      # so this cannot quietly start advertising an admin tool.
-      def workflows_for(context)
-        WORKFLOWS.select { |flow| runnable?(flow[:audience], context) }
       end
 
       def runnable?(audience, context)

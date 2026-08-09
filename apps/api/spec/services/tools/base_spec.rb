@@ -85,6 +85,55 @@ RSpec.describe Tools::Base do
     end
   end
 
+  # `Registry.for` filters a scoped credential's catalogue, so through the
+  # MCP door a caller never sees a tool its scopes do not cover and never
+  # reaches this check. That is exactly why it needs its own coverage: it
+  # is the boundary that has to hold if the filter ever regresses, and a
+  # backstop nothing exercises is a backstop nobody knows is broken.
+  #
+  # These use a real registered tool rather than the anonymous ones above,
+  # because `Scopes.for_tool` answers nil for a class the registry does not
+  # know — an anonymous subclass would pass the check by being unknown and
+  # prove nothing.
+  describe "scope enforcement" do
+    # Eager: the tool resolves the slug at call time. The refusal case does
+    # not need it — the scope check fires before arguments are resolved,
+    # which is itself the right order — but the two allowed cases do.
+    let!(:peanut) { create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut") }
+
+    it "refuses a write when the credential holds only the read on that domain" do
+      response = Tools::Profile::UpdateAvoidLists.call(
+        server_context: { user_id: user.id, scopes: ["profile:read"] },
+        add_ingredients: [peanut.slug]
+      )
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(payload(response)[:error]).to eq("forbidden")
+      expect(payload(response)[:message]).to include("profile:write")
+      expect(user.reload.profile&.avoid_ingredient_ids).to be_blank
+    end
+
+    it "lets the same call through once the write scope is held" do
+      response = Tools::Profile::UpdateAvoidLists.call(
+        server_context: { user_id: user.id, scopes: ["profile:write"] },
+        add_ingredients: [peanut.slug]
+      )
+
+      expect(response.to_h[:isError]).to be_falsey, payload(response).inspect
+      expect(user.reload.profile.avoid_ingredient_ids).to include(peanut.id)
+    end
+
+    # Every credential issued before scopes existed carries none.
+    it "treats an unscoped credential as unrestricted" do
+      response = Tools::Profile::UpdateAvoidLists.call(
+        server_context: { user_id: user.id },
+        add_ingredients: [peanut.slug]
+      )
+
+      expect(response.to_h[:isError]).to be_falsey
+    end
+  end
+
   describe "error translation" do
     it "turns a missing record into a not_found result instead of raising" do
       response = tool(:public) { |_ctx, _args| raise ActiveRecord::RecordNotFound, "no such thing" }

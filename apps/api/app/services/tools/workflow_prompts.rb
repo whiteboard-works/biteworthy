@@ -14,19 +14,26 @@ module Tools
   # runtime — the exact failure the topology spec was written to prevent.
   # Adding a workflow gets a prompt for free; editing one updates both.
   #
-  # Audience-filtered like everything else: a workflow is offered only to a
-  # caller who can run every step, so `prompts/list` never suggests a route
-  # that dead-ends in `forbidden` — same rule `Registry.for` applies to
-  # tools and `Topology.for` applies to the map.
+  # Filtered like everything else: a workflow is offered only to a caller
+  # who can run every step — by audience and by the scopes their credential
+  # holds — so `prompts/list` never suggests a route that dead-ends in
+  # `forbidden`. Same rule `Registry.for` applies to tools and
+  # `Topology.for` applies to the map, delegated rather than restated.
   module WorkflowPrompts
     class << self
       def all
         @all ||= Topology::WORKFLOWS.map { |workflow| build(workflow) }.freeze
       end
 
+      # Deferred to `Topology.workflows_for` rather than re-deciding here.
+      # This used to filter on audience alone, which was the same answer
+      # while audience was the only thing that gated a tool; once a scoped
+      # credential could clear the audience check and still be missing a
+      # step's scope, the two rules disagreed and this one offered routes
+      # that dead-end. One rule, in one place.
       def for(context)
-        allowed = context.admin? ? %i[public user admin] : (context.signed_in? ? %i[public user] : [:public])
-        all.select { |prompt| allowed.include?(prompt.workflow_audience) }
+        offered = Topology.workflows_for(context).map { |flow| slug_for(flow[:name]) }.to_set
+        all.select { |prompt| offered.include?(prompt.slug) }
       end
 
       private

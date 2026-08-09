@@ -126,6 +126,15 @@ RSpec.describe Tools::Registry do
       it "leaves an unscoped caller's catalogue alone" do
         expect(described_class.for(signed_in).size).to be > described_class.for(read_only).size
       end
+
+      # `discovery:read` is doorkeeper's default scope, so this is what an
+      # OAuth client that asked for nothing in particular gets. The server
+      # instructions tell it to read the map when the route is unclear; if
+      # the map's own tool were scoped away, that instruction would send it
+      # at a tool it cannot see.
+      it "still offers the map to a credential that never asked for meta" do
+        expect(described_class.for(read_only).map(&:name_value)).to include("describe_capabilities")
+      end
     end
   end
 

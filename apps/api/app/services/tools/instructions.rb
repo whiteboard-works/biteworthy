@@ -23,8 +23,9 @@ module Tools
       resource — or `describe_capabilities` if you cannot read resources — maps
       them to the workflows they compose into. Read it when a request is
       open-ended and the route is not obvious. It only lists what you can
-      actually run, so a missing workflow means this caller is not signed in or
-      is not an admin, not that the capability is broken.
+      actually run, so a missing workflow means this caller is not signed in,
+      is not an admin, or is connected with a credential granted narrower
+      access — not that the capability is broken.
 
       ## Reporting filtered menus
 

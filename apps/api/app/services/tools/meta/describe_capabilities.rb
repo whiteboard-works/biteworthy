@@ -17,8 +17,9 @@ module Tools
         single obvious call.
 
         Only what THIS caller can actually run is listed. If a workflow you
-        expected is missing, the caller is not signed in or is not an admin —
-        say that rather than trying the tool and reporting an error.
+        expected is missing, the caller is not signed in, is not an admin, or
+        is connected with a credential that was granted narrower access — say
+        that rather than trying the tool and reporting an error.
 
         Pass `domain` to get one group instead of all of them.
       TEXT
