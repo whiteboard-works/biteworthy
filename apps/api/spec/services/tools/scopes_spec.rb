@@ -6,9 +6,19 @@ require "rails_helper"
 # domain cannot ship without a scope for it — the same discipline that
 # keeps the topology map honest.
 RSpec.describe Tools::Scopes do
-  it "covers every registered domain, read and write" do
-    Tools::Registry::DOMAINS.each_key do |domain|
+  it "covers every gated domain, read and write" do
+    (Tools::Registry::DOMAINS.keys - described_class::UNGATED_DOMAINS).each do |domain|
       expect(described_class.available).to include("#{domain}:read", "#{domain}:write")
+    end
+  end
+
+  # Offering a scope that nothing checks would ask someone on a consent
+  # screen for permission that means nothing. `meta` is the server
+  # describing itself, already filtered to the caller.
+  it "offers no scope for a domain nothing gates" do
+    described_class::UNGATED_DOMAINS.each do |domain|
+      expect(described_class.available.grep(/\A#{domain}:/)).to be_empty
+      expect(described_class.valid?("#{domain}:read")).to be(false)
     end
   end
 

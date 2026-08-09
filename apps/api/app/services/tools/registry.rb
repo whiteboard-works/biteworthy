@@ -89,8 +89,12 @@ module Tools
         @all ||= DOMAINS.values.flatten.map { |name| Tools.const_get(name) }.freeze
       end
 
+      # Memoized, because scope filtering made this hot: `Registry.for`
+      # asks it once per tool, `McpController` calls `for` twice on every
+      # POST (tools, then workflow prompts), and the map adds more. The
+      # linear scan it replaces was 44 tools × 14 domains per call.
       def domain_of(tool)
-        DOMAINS.find { |_name, tools| tools.include?(tool.name.delete_prefix("Tools::")) }&.first
+        domain_index[tool.name.delete_prefix("Tools::")]
       end
 
       # Both filters, not just audience. A read-only credential that is
@@ -109,19 +113,18 @@ module Tools
 
       private
 
-      # `meta` is the server describing itself, and what it describes is
-      # already filtered to this caller — so leaving it in leaks nothing,
-      # while filtering it out costs a great deal. The server instructions
-      # tell the model to read the map when the route is not obvious, and
-      # `discovery:read` is doorkeeper's `default_scopes`, so every OAuth
-      # client that did not think to ask for `meta:read` would be told to
-      # call a tool it cannot see — the exact wasted turn this filter is
-      # here to prevent.
-      UNSCOPED_DOMAINS = %i[meta].freeze
+      def domain_index
+        @domain_index ||= DOMAINS.each_with_object({}) do |(domain, tools), index|
+          tools.each { |name| index[name] = domain }
+        end.freeze
+      end
 
+      # `Scopes.for_tool` answers nil for an ungated domain and
+      # `Scopes.satisfied?` reads nil as "nothing gates this", so the
+      # exemption arrives here for free — and, crucially, arrives at
+      # `Tools::Base#enforce_scope!` by the same route. Restating it here
+      # would let the catalogue and the boundary drift apart.
       def permitted_by_scope?(tool, context)
-        return true if UNSCOPED_DOMAINS.include?(domain_of(tool))
-
         Scopes.satisfied?(context.scopes, Scopes.for_tool(tool))
       end
 
