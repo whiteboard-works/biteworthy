@@ -39,4 +39,11 @@ class Item < ApplicationRecord
   def denormalized_tag_ids
     read_attribute(:tag_ids)
   end
+
+  # Bulk writers attach many joins to the same item, and every join rewrites
+  # the whole array. Inside this block the touched items are collected and
+  # each array is rebuilt once, before the block's transaction commits.
+  def self.defer_denormalization(&block)
+    SyncsDenormalizedIds.defer(&block)
+  end
 end

@@ -14,6 +14,18 @@ class IngestionItem < ApplicationRecord
     define_method("#{d}?") { decision == d }
   end
 
+  # "Worth a human look": text we could not match to the taxonomy, or nothing
+  # resolved at all — either way the dietary filter would be wrong or empty
+  # for this dish. In SQL rather than Ruby so a caller asking for these gets
+  # them from the whole scan, not from whichever page a limit happened to cut.
+  scope :needing_attention, -> {
+    where(<<~SQL.squish)
+      jsonb_array_length(COALESCE(unresolved_ingredients, '[]'::jsonb)) > 0
+      OR jsonb_array_length(COALESCE(unresolved_tags, '[]'::jsonb)) > 0
+      OR jsonb_array_length(COALESCE(ingredients_payload, '[]'::jsonb)) = 0
+    SQL
+  }
+
   # Materialize a staged ingestion item into a real Item +
   # ItemIngredient + ItemTag join rows. Called from the swipe-verify
   # UI (Phase 2.5) once a human has accepted (or edited then accepted)
@@ -42,7 +54,7 @@ class IngestionItem < ApplicationRecord
   # restaurant attached (which means we don't know where to put it).
   def promote!(decided_by: nil)
     return item if item.present?
-    raise "IngestionRun ##{ingestion_run_id} has no restaurant" if ingestion_run.restaurant_id.blank?
+    raise "IngestionRun ##{ingestion_run_id} has no restaurant" if promotion_run.restaurant_id.blank?
 
     confidence = decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
 
@@ -84,45 +96,26 @@ class IngestionItem < ApplicationRecord
 
   private
 
+  # `lock!` reloads the record, which clears its association cache — reading
+  # `ingestion_run` after the lock would re-fetch the run and its restaurant
+  # for every dish in a batch accept. The run can't change under us for the
+  # length of one promote, so hold the one we already had.
+  def promotion_run
+    @promotion_run ||= ingestion_run
+  end
+
   def create_item!(confidence)
     created = Item.create!(
-      restaurant: ingestion_run.restaurant,
+      restaurant: promotion_run.restaurant,
       name:        name,
       description: description.presence,
       status:      "published",
       confidence:  confidence
     )
 
-    Array(ingredients_payload).each do |row|
-      ingredient = resolve_ingredient(row)
-      next if ingredient.nil?
-
-      ItemIngredient.create!(
-        item: created, ingredient: ingredient,
-        confidence: confidence, source: "human"
-      )
-    end
-
-    Array(tags_payload).each do |row|
-      tag = resolve_tag(row)
-      next if tag.nil?
-
-      ItemTag.create!(
-        item: created, tag: tag,
-        confidence: confidence, source: "human"
-      )
-    end
-
-    Array(addons_payload).each do |row|
-      addon_name = row["name"] || row[:name]
-      next if addon_name.blank?
-
-      ItemModifier.create!(
-        item: created, name: addon_name, kind: "addition",
-        price_cents: row["price_cents"] || row[:price_cents]
-      )
-    end
-
+    insert_joins!(ItemIngredient, created, resolve_node_ids(Ingredient, ingredients_payload), confidence)
+    insert_joins!(ItemTag,        created, resolve_node_ids(Tag,        tags_payload),        confidence)
+    create_modifiers!(created)
     create_variants!(created)
     attach_dish_photo!(created)
 
@@ -145,8 +138,10 @@ class IngestionItem < ApplicationRecord
     apply_description!(target, snapshot)
     apply_variants!(target, snapshot)
 
-    created_ingredient_ids = append_ingredients!(target, confidence)
-    created_tag_ids        = append_tags!(target, confidence)
+    created_ingredient_ids =
+      insert_joins!(ItemIngredient, target, resolve_node_ids(Ingredient, ingredients_payload), confidence)
+    created_tag_ids =
+      insert_joins!(ItemTag, target, resolve_node_ids(Tag, tags_payload), confidence)
     snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
     snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
 
@@ -169,7 +164,7 @@ class IngestionItem < ApplicationRecord
   def locked_update_target
     return nil if matched_item_id.blank?
 
-    Item.lock.find_by(id: matched_item_id, restaurant_id: ingestion_run.restaurant_id)
+    Item.lock.find_by(id: matched_item_id, restaurant_id: promotion_run.restaurant_id)
   end
 
   def apply_description!(target, snapshot)
@@ -197,38 +192,51 @@ class IngestionItem < ApplicationRecord
     create_variants!(target)
   end
 
-  def append_ingredients!(target, confidence)
-    existing_ids = target.item_ingredients.pluck(:ingredient_id).to_set
-    Array(ingredients_payload).filter_map do |row|
-      ingredient = resolve_ingredient(row)
-      next if ingredient.nil? || existing_ids.include?(ingredient.id)
+  # One lookup for the whole payload instead of one per row. Unknown slugs
+  # are dropped on purpose — the extractor's noise must not fail a promotion
+  # (Admin::ItemEditor does the opposite, because an admin who typed a bad
+  # slug deserves to hear about it).
+  def resolve_node_ids(model, payload)
+    slugs = Ingestion::AssociationPayload.load_all(payload).filter_map { |row| row.slug.presence }.uniq
+    return [] if slugs.empty?
 
-      ItemIngredient.create!(
-        item: target, ingredient: ingredient,
-        confidence: confidence, source: "human"
-      ).id
-    end
+    by_slug = model.where(slug: slugs).pluck(:slug, :id).to_h
+    slugs.filter_map { |slug| by_slug[slug] }
   end
 
-  def append_tags!(target, confidence)
-    existing_ids = target.item_tags.pluck(:tag_id).to_set
-    Array(tags_payload).filter_map do |row|
-      tag = resolve_tag(row)
-      next if tag.nil? || existing_ids.include?(tag.id)
+  # One INSERT per join table, then one recompute of the denormalized array.
+  # Returns the ids actually created, which is what undo replays.
+  #
+  # insert_all skips validations, so `confidence` (the accept-confidence the
+  # trust model decided) and `source: "human"` are written verbatim — the DB
+  # CHECK constraints are the remaining guard. It also skips the callbacks
+  # that keep items.ingredient_ids/tag_ids honest, hence the explicit resync.
+  #
+  # ON CONFLICT DO NOTHING (via unique_by) is what makes the append path
+  # append-only: a slug already joined to this item is left exactly as it is,
+  # confidence and all, and never comes back in the created list. That also
+  # covers the concurrent-append race the old row-by-row rescue handled.
+  def insert_joins!(model, target, node_ids, confidence)
+    return [] if node_ids.empty?
 
-      begin
-        ItemTag.create!(item: target, tag: tag, confidence: confidence, source: "human").id
-      rescue ActiveRecord::RecordNotUnique
-        nil # (item_id, tag_id) unique index — someone else appended it first
-      end
-    end
+    foreign_key = model.denormalized_foreign_key
+    created = model.insert_all(
+      node_ids.map do |node_id|
+        { :item_id => target.id, foreign_key => node_id, :confidence => confidence, :source => "human" }
+      end,
+      unique_by: [:item_id, foreign_key],
+      returning: %i[id]
+    )
+    model.resync_denormalized_ids([target.id])
+    created.rows.flatten
   end
 
   # Restore what apply_update! changed, then release the link. Restore
   # is last-writer-wins over any manual edits made since the accept
   # (documented v1 caveat); matched_item_id survives so the card comes
   # back as an update card. Join destroys go row-by-row so the
-  # after_destroy callbacks keep the denormalized id arrays honest.
+  # after_destroy callbacks keep the denormalized id arrays honest — the
+  # arrays are rebuilt once at the end of the block rather than per row.
   def revert_update!
     changes = applied_changes || {}
     target = Item.lock.find_by(id: item_id)
@@ -249,8 +257,10 @@ class IngestionItem < ApplicationRecord
           )
         end
       end
-      ItemIngredient.where(id: changes["created_item_ingredient_ids"] || []).find_each(&:destroy)
-      ItemTag.where(id: changes["created_item_tag_ids"] || []).find_each(&:destroy)
+      Item.defer_denormalization do
+        ItemIngredient.where(id: changes["created_item_ingredient_ids"] || []).find_each(&:destroy)
+        ItemTag.where(id: changes["created_item_tag_ids"] || []).find_each(&:destroy)
+      end
     end
 
     update!(decision: "pending", item_id: nil, decided_at: nil, applied_changes: nil)
@@ -258,29 +268,23 @@ class IngestionItem < ApplicationRecord
 
   def create_variants!(target)
     # A size with no price is noise, not a variant — skip it.
-    Array(prices_payload).each_with_index do |row, index|
-      price_cents = row["price_cents"] || row[:price_cents]
-      next if price_cents.blank?
+    rows = Array(prices_payload).each_with_index.filter_map do |row, index|
+      row = row.with_indifferent_access
+      next if row[:price_cents].blank?
 
-      ItemVariant.create!(
-        item: target, size: row["size"] || row[:size],
-        price_cents: price_cents, position: index
-      )
+      { item_id: target.id, size: row[:size], price_cents: row[:price_cents], position: index }
     end
+    ItemVariant.insert_all(rows) if rows.any?
   end
 
-  def resolve_ingredient(row)
-    slug = row["slug"] || row[:slug]
-    return nil if slug.blank?
+  def create_modifiers!(target)
+    rows = Array(addons_payload).filter_map do |row|
+      row = row.with_indifferent_access
+      next if row[:name].blank?
 
-    Ingredient.find_by(slug: slug)
-  end
-
-  def resolve_tag(row)
-    slug = row["slug"] || row[:slug]
-    return nil if slug.blank?
-
-    Tag.find_by(slug: slug)
+      { item_id: target.id, name: row[:name], kind: "addition", price_cents: row[:price_cents] }
+    end
+    ItemModifier.insert_all(rows) if rows.any?
   end
 
   # Phase 4.11.3 — when Anthropic vision marked a per-dish photo on the
@@ -291,7 +295,7 @@ class IngestionItem < ApplicationRecord
   # method is a no-op for them.
   def attach_dish_photo!(created_item)
     return if image_bbox.blank?
-    source_blob = ingestion_run.inputs.blobs.first
+    source_blob = promotion_run.inputs.blobs.first
     return if source_blob.nil?
 
     cropped = Ingestion::DishPhotoCropper.call(source: source_blob, bbox: image_bbox)

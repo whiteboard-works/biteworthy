@@ -9,7 +9,8 @@
 #     trusted source — same convention SuggestionResolver#apply! uses);
 #     removals go row-by-row so ItemIngredient/ItemTag's after_destroy
 #     callbacks keep the denormalized items.ingredient_ids/tag_ids
-#     arrays honest. Never delete_all.
+#     arrays honest (rebuilt once for the whole edit, not once per row —
+#     see Item.defer_denormalization). Never delete_all.
 #   - `confidence` on the Item itself is NOT settable here. It moves
 #     only through promote! and confirm_community_associations! —
 #     strict-mode visibility must stay on those rails.
@@ -48,8 +49,10 @@ module Admin
         assign_section(attrs[:menu_section_id]) if attrs.key?(:menu_section_id)
         @item.save!
 
-        sync_ingredients(attrs[:ingredient_slugs]) if attrs.key?(:ingredient_slugs)
-        sync_tags(attrs[:tag_slugs])               if attrs.key?(:tag_slugs)
+        Item.defer_denormalization do
+          sync_ingredients(attrs[:ingredient_slugs]) if attrs.key?(:ingredient_slugs)
+          sync_tags(attrs[:tag_slugs])               if attrs.key?(:tag_slugs)
+        end
         replace_variants(attrs[:variants])         if attrs.key?(:variants)
         replace_modifiers(attrs[:modifiers])       if attrs.key?(:modifiers)
       end

@@ -37,8 +37,14 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 - `items` carry **denormalized arrays**: `ingredient_ids uuid[]`,
   `tag_ids uuid[]`. The Active Record join models (`ItemIngredient`,
   `ItemTag`) keep these in sync via after_save / after_destroy
-  callbacks. The arrays are what the filter and the taste scorer read;
-  the join tables are the source of truth + audit log.
+  callbacks — both through the shared `SyncsDenormalizedIds` concern,
+  which rebuilds the array from the join rows inside the UPDATE that
+  writes it. Bulk writers wrap their loop in
+  `Item.defer_denormalization` (one rebuild per item instead of one per
+  join row), or call `resync_denormalized_ids` themselves when they
+  wrote the joins with `insert_all` and no callback fired. The arrays
+  are what the filter and the taste scorer read; the join tables are
+  the source of truth + audit log.
 - `item_variants` — sized pricing.
 - `item_modifiers` — choices/additions/sides collapsed into one table.
   Ingestion writes these: a staged item's `addons_payload` promotes to

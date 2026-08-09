@@ -140,7 +140,7 @@ class GapFillResolveJob < ApplicationJob
         next
       end
 
-      merged << { "slug" => slug, "confidence" => row["confidence"], "source" => "ai" }
+      merged << Ingestion::AssociationPayload.dump(slug: slug, confidence: row["confidence"], source: "ai")
       known << slug
     end
     merged
@@ -168,7 +168,7 @@ class GapFillResolveJob < ApplicationJob
     ).each do |t|
       next if known.include?(t[:slug])
 
-      tags << { "slug" => t[:slug], "confidence" => t[:confidence], "source" => t[:source] }
+      tags << Ingestion::AssociationPayload.load(t).dump
       known << t[:slug]
     end
     Array(ai_cuisine_rows).each do |row|
@@ -180,7 +180,7 @@ class GapFillResolveJob < ApplicationJob
         next
       end
 
-      tags << { "slug" => slug, "confidence" => row["confidence"], "source" => "ai" }
+      tags << Ingestion::AssociationPayload.dump(slug: slug, confidence: row["confidence"], source: "ai")
       known << slug
     end
     tags

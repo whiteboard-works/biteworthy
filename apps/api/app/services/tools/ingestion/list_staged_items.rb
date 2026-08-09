@@ -65,12 +65,18 @@ module Tools
                 "This scan is still #{run.status} — poll get_scan_status until ready is true."
         end
 
-        scope = run.ingestion_items.order(:position, :created_at)
-                   .includes(matched_item: %i[item_variants ingredients tags])
+        # Every filter has to land before the limit. Selecting needs_attention
+        # out of an already-limited page made the flag lie on a big scan: it
+        # searched the first 50 dishes by position and could answer "none"
+        # while the dishes worth a look sat at position 120.
+        scope = run.ingestion_items
         scope = scope.where(decision: decision) if decision.present?
+        scope = scope.needing_attention         if needs_attention
 
-        rows = scope.limit((limit || DEFAULT_LIMIT).clamp(1, MAX_LIMIT)).map { |i| staged_item_row(i) }
-        rows = rows.select { |r| needs_attention?(r) } if needs_attention
+        rows = scope.order(:position, :created_at)
+                    .includes(matched_item: %i[item_variants ingredients tags])
+                    .limit((limit || DEFAULT_LIMIT).clamp(1, MAX_LIMIT))
+                    .map { |i| staged_item_row(i) }
 
         ok(
           scan_id:      run.id,
@@ -81,13 +87,6 @@ module Tools
           dishes:       rows
         )
       end
-
-      # "Worth a human look" means the filter would be wrong or empty for
-      # this dish — unmatched text, or nothing resolved at all.
-      def self.needs_attention?(row)
-        row[:unresolved].present? || Array(row[:ingredients]).empty?
-      end
-      private_class_method :needs_attention?
     end
   end
 end

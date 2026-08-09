@@ -73,10 +73,8 @@ module Ingestion
         matches.any? { |m| TagDeriver.under_any?(m[:path].to_s, %w[condiment]) }
     end
 
-    # jsonb payload rows keep string keys, matching what the LLM stages
-    # historically wrote and what the verify UI reads back.
     def payload_row(row)
-      { "slug" => row[:slug], "confidence" => row[:confidence], "source" => row[:source] }
+      AssociationPayload.load(row).dump
     end
   end
 end
