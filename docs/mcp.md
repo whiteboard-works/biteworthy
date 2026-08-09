@@ -354,7 +354,7 @@ audience filter, the same server instructions, driven against
 MCP tool classes as Messages API tool definitions — one registry, two
 wire formats, never two implementations.
 
-Three things it enforces that a bare tool loop would not:
+Four things it enforces that a bare tool loop would not:
 
 - **Confirmation before a destructive call.** The loop stops at the first
   tool whose `destructive_hint` is true, or whose `confirm_when` trips on
@@ -375,11 +375,29 @@ Three things it enforces that a bare tool loop would not:
   carries explicit `claude-opus-5` rates for this — the fallback
   understates Opus by ~1.7x, and a ceiling that undercounts is worse than
   no ceiling.
+- **Two walls, because rounds are not time.** `MAX_ITERATIONS` (12) bounds
+  how many tool rounds a turn may take; `CHAT_TURN_DEADLINE_SECONDS`
+  (default 300) bounds how long it may take to take them. Without the
+  second, one round could sit for the full 240s upstream read timeout
+  while `tick!` renewed the 120s lease at every step — a turn holding a
+  conversation for the better part of an hour and looking healthy. The
+  deadline is checked **between** rounds, the only point where every
+  `tool_use` already has its `tool_result`, and ends the turn as a stored,
+  replayable result (run state `failed`, outcome `timed_out`) rather than
+  a raise.
 
 Prompt caching: tools render into the cached prefix **before** system, so
 the single `cache_control` breakpoint goes on the last system block. That
 caches the whole tool catalog plus the instructions plus the topology
 together. Nothing per-request may sit above it.
+
+That whole prefix — catalog, instructions, topology — plus the profile
+snapshot below the breakpoint is built **once per turn**, not once per
+round: it cannot change within a turn, and rebuilding it re-rendered 44
+JSON schemas and walked the registry three more times to arrive at the
+same bytes. `Tools::Registry.for` memoizes on the `Tools::Context`, which
+is the object that fixes the answer — `user` is memoized on it and
+`scopes` arrive at construction.
 
 Messages store the Anthropic content-block array verbatim, including
 `thinking` blocks — a thinking block's signature is rejected if it is

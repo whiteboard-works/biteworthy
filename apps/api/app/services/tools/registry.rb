@@ -103,8 +103,16 @@ module Tools
       # deferred loading it pays for the schemas too. `enforce_scope!` in
       # `Tools::Base` is still the boundary; this keeps the catalogue
       # honest about what the caller can actually do.
+      #
+      # Memoized on the context rather than here, because the context is
+      # what the answer depends on and what has the right lifetime: `user`
+      # is already memoized on it and `scopes` arrive at construction, so
+      # a second walk over 44 tools can only reproduce the first. That
+      # matters because callers ask repeatedly — the chat loop wanted this
+      # list three times per model round, `McpController` twice per POST.
       def for(context)
-        all.select { |tool| visible_to?(tool, context) && permitted_by_scope?(tool, context) }
+        context.cached_tools ||=
+          all.select { |tool| visible_to?(tool, context) && permitted_by_scope?(tool, context) }
       end
 
       def find(name)

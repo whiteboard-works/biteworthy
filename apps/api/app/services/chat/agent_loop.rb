@@ -35,6 +35,13 @@ module Chat
     # comfortably past the longest real workflow (the scan flow is seven).
     MAX_ITERATIONS = 12
 
+    # The other wall, because rounds are not time. One round may sit for
+    # the full `ANTHROPIC_READ_TIMEOUT` (240s), and `tick!` renews the
+    # lease at every step — so twelve slow rounds hold a conversation for
+    # the better part of an hour while every watchdog we have reads
+    # healthy. Five minutes is several times the ~60s a real turn takes.
+    TURN_DEADLINE_SECONDS_DEFAULT = 300
+
     PER_CONVERSATION_CEILING_CENTS_DEFAULT = 200   # $2
     DAILY_CEILING_CENTS_DEFAULT            = 2_000 # $20/day across all non-admin chat
 
@@ -84,6 +91,7 @@ module Chat
       # unanswered `tool_use`, and an assistant message with no content at
       # all replays as a 400. Both are repaired before we add to the pile.
       @conversation.heal!
+      @deadline = Time.current + turn_deadline_seconds
 
       result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
       emit_terminal(result)
@@ -106,13 +114,23 @@ module Chat
     # reload — not just in the stream they were watching when they hit
     # stop.
     def stopped(message, state:)
+      @aborted_state = state
+      result = halt(message)
+      emit_terminal(result)
+      result
+    end
+
+    # The record half of ending a turn early: orphans answered, the reason
+    # written where a reload will show it. Split out because who emits
+    # differs — `stopped` is reached from a rescue and never returns
+    # through `run`'s own `emit_terminal`, while a halt returned up
+    # through `perform` does, and firing in both places would send the
+    # client two terminal events.
+    def halt(message)
       @conversation.answer_orphans!("Stopped before this ran. Nothing happened.")
       @conversation.append!(role: "assistant", content: [{ type: "text", text: message }])
       @conversation.update!(state: "active", pending_tool_call: nil)
-      @aborted_state = state
-      result = Result.new(state: :error, error: message)
-      emit_terminal(result)
-      result
+      Result.new(state: :error, error: message)
     end
 
     def finish_run(result)
@@ -124,6 +142,7 @@ module Chat
 
     def outcome_of(result)
       return "crashed" if result.nil?
+      return "timed_out" if @timed_out
       return "grounding_flagged" if @grounding_flagged
 
       result.state.to_s
@@ -192,6 +211,8 @@ module Chat
 
     def drive
       MAX_ITERATIONS.times do
+        return over_deadline if past_deadline?
+
         response  = call_model
         blocks    = Array(response["content"])
         @conversation.append!(role: "assistant", content: blocks)
@@ -203,6 +224,22 @@ module Chat
       end
 
       Result.new(state: :error, error: "Gave up after #{MAX_ITERATIONS} tool rounds without an answer.")
+    end
+
+    # Checked between rounds, which is the only place the transcript is
+    # whole: every `tool_use` from the previous round already has its
+    # `tool_result`. The turn therefore overruns by at most one round, and
+    # ends the way a stop does — written down, orphans answered, still
+    # replayable — rather than as a raise nobody stored.
+    def past_deadline? = Time.current >= @deadline
+
+    def over_deadline
+      Rails.logger.warn("[chat] conversation #{@conversation.id} passed its #{turn_deadline_seconds}s turn deadline")
+      # Recorded as the run's outcome, not its state, the same way a
+      # grounding flag is: `state` is a small enum with a CHECK constraint
+      # behind it, and "failed" is true — `outcome` is where why lives.
+      @timed_out = true
+      halt("That took too long, so I stopped it. Nothing further ran — ask again to pick it up.")
     end
 
     # Walks the turn's tool calls, stopping at the first that needs a
@@ -372,13 +409,19 @@ module Chat
       response
     end
 
+    # Only `messages` grows within a turn. Everything else here is the
+    # material that sits at or above the prompt-cache breakpoint, and
+    # rebuilding it for each of up to twelve rounds bought nothing: the
+    # catalogue re-rendered 44 JSON schemas, the topology walked the
+    # registry twice more, and the profile snapshot went back to Postgres
+    # — all to produce the bytes the cache is keyed on.
     def model_args
       {
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
         messages:   @conversation.transcript,
-        tools:      ToolCatalog.definitions(context),
+        tools:      tool_definitions,
         thinking:   { type: "adaptive" }
       }
     end
@@ -405,8 +448,16 @@ module Chat
       end
     end
 
+    # Built once per turn. The profile snapshot it carries is a snapshot
+    # by design — the prompt itself tells the model to trust a tool's
+    # response over it if the profile changes mid-turn — and the timestamp
+    # riding alongside it is what "now" was when the user asked.
     def system_prompt
-      SystemPrompt.new(context: context, page: @page).blocks(@client)
+      @system_prompt ||= SystemPrompt.new(context: context, page: @page).blocks(@client)
+    end
+
+    def tool_definitions
+      @tool_definitions ||= ToolCatalog.definitions(context)
     end
 
     def context
@@ -421,14 +472,33 @@ module Chat
       if @conversation.api_cost_cents >= per_conversation_ceiling
         raise BudgetExceeded, "This conversation has reached its spend limit. Start a new one."
       end
-      return if @conversation.user.is_admin?
+      return if caller_is_admin?
       return if daily_spend < daily_ceiling
 
       raise BudgetExceeded, "Chat is over its daily budget. Try again tomorrow."
     end
 
+    # `with_lock` on the conversation clears its association cache, so
+    # every append made the next round re-load the same user row.
+    def caller_is_admin?
+      return @caller_is_admin if defined?(@caller_is_admin)
+
+      @caller_is_admin = @conversation.user.is_admin?
+    end
+
+    # An aggregate over every conversation opened today, read once per
+    # turn instead of once per round. What this turn itself has spent
+    # since then is added back, so the round that crosses the ceiling
+    # still trips it — a runaway loop is the case the ceiling exists for,
+    # and it is the only spender a memoized baseline could miss by much.
     def daily_spend
-      Conversation.where(created_at: Time.current.utc.beginning_of_day..).sum(:api_cost_cents)
+      unless defined?(@daily_spend_baseline)
+        @daily_spend_baseline = Conversation.where(created_at: Time.current.utc.beginning_of_day..)
+                                            .sum(:api_cost_cents)
+        @own_spend_baseline   = @conversation.api_cost_cents
+      end
+
+      @daily_spend_baseline + (@conversation.api_cost_cents - @own_spend_baseline)
     end
 
     def per_conversation_ceiling
@@ -437,6 +507,10 @@ module Chat
 
     def daily_ceiling
       Integer(ENV.fetch("CHAT_DAILY_CEILING_CENTS", DAILY_CEILING_CENTS_DEFAULT))
+    end
+
+    def turn_deadline_seconds
+      Integer(ENV.fetch("CHAT_TURN_DEADLINE_SECONDS", TURN_DEADLINE_SECONDS_DEFAULT))
     end
   end
 end
