@@ -25,6 +25,17 @@ jobs:
     steps:
       - uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # NOT `secrets.GITHUB_TOKEN`. GitHub's recursion guard starts no
+          # workflow runs for a commit pushed with it, so an auto-merged
+          # PR's merge commit reaches master having triggered nothing — and
+          # `deploy-api.yml` (on: push) never fires. Master looks shipped
+          # while the box is stale, which is the worst shape a deploy bug
+          # can take: silent, and only visible if you check `merged_by`.
+          #
+          # Falls back so this file is correct with or without the secret:
+          # without it, merges still work and deploys still need a manual
+          # dispatch, exactly as before. Add AUTOMERGE_TOKEN and the deploy
+          # starts firing on its own, with no further change here.
+          token: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: squash
