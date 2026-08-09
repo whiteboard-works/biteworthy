@@ -15,9 +15,12 @@ import { RestaurantClient } from './RestaurantClient';
  * `?profile_token=`; the client island keeps using it on every
  * subsequent refetch.
  *
- * The fetch is anonymous — Phase 4 brings cookie-session auth that
- * would let us pass the user's JWT here for profile-aware filtering
- * during SSR.
+ * Both fetches carry the caller's JWT. The menu is filtered by who is
+ * asking — avoid lists, strictness, never-hide overrides, and taste
+ * scores all key off that header — so an anonymous items fetch for a
+ * signed-in reader renders someone else's menu. A share token still
+ * wins over the saved profile (`Menus::Filter.build` precedence), so
+ * passing the JWT does not hijack a shared link.
  */
 type Params = { slug: string };
 type Search = { p?: string };
@@ -37,7 +40,7 @@ export default async function RestaurantPage({
   const jwt = await getServerJwt();
   const [restaurant, initialItems] = await Promise.all([
     fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null),
-    fetchRestaurantItems(slug, { profileToken }).catch(() => null),
+    fetchRestaurantItems(slug, { profileToken, jwt: jwt ?? undefined }).catch(() => null),
   ]);
 
   if (!restaurant || !initialItems) notFound();

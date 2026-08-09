@@ -3,6 +3,7 @@ import {
   clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
+  fetchRestaurantItemsClient,
   fetchRestaurants,
   setItemFavorite,
   setNeverHide,
@@ -124,6 +125,73 @@ describe('fetchRestaurantItems', () => {
     await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl, jwt: 'jjj.www.ttt' });
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+  });
+});
+
+describe('fetchRestaurantItemsClient', () => {
+  // The menu is filtered by who is asking. A browser fetch straight to
+  // Rails is cross-origin and carries no `bw_session`, so it would answer
+  // a signed-in reader with the anonymous menu — which is exactly what the
+  // strictness toggle used to do.
+  it('goes through the Next proxy with same-origin credentials when signed in', async () => {
+    const fetchImpl = fakeFetch(200, itemsPayload);
+    await fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl, signedIn: true });
+
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toBe('/api/restaurants/cream-bean-berry-1/items');
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+
+  // Anonymous readers stay off the proxy: it reaches Rails from the Next
+  // server's IP, and rack-attack's ceiling keys on that IP — so proxying
+  // the highest-volume read for callers with no credential to carry would
+  // let ordinary browsing exhaust a bucket meant to catch scrapers.
+  it('goes straight to Rails when anonymous', async () => {
+    const fetchImpl = fakeFetch(200, itemsPayload);
+    await fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl });
+
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    expect(url).toContain('/api/v1/restaurants/cream-bean-berry-1/items');
+    expect(url).not.toMatch(/^\/api\/restaurants/);
+  });
+
+  it('forwards strictness and the share token on both routes', async () => {
+    for (const signedIn of [true, false]) {
+      const fetchImpl = fakeFetch(200, itemsPayload);
+      await fetchRestaurantItemsClient('cream-bean-berry-1', {
+        fetchImpl,
+        signedIn,
+        strictness: 'strict',
+        profileToken: 'tok-123',
+      });
+      const url = String(fetchImpl.mock.calls[0]![0]);
+      expect(url).toContain('strictness=strict');
+      expect(url).toContain('profile_token=tok-123');
+    }
+  });
+
+  // The proxy relays with `new NextResponse(body, { status })`, which has
+  // no statusText — echoing it rendered "Could not refresh items — 404 ".
+  it('surfaces the upstream error message rather than an empty statusText', async () => {
+    const fetchImpl = fakeFetch(404, { error: 'Restaurant not found' });
+    await expect(
+      fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl, signedIn: true }),
+    ).rejects.toThrow('Restaurant not found');
+  });
+
+  it('falls back to the status when upstream sends no JSON error', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error('not json');
+      },
+    })) as unknown as typeof fetch;
+    await expect(
+      fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl, signedIn: true }),
+    ).rejects.toThrow(/502/);
   });
 });
 

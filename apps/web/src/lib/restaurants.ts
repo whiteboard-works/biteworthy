@@ -165,19 +165,76 @@ export async function fetchItem(
   );
 }
 
-export async function fetchRestaurantItems(
-  slugOrId: string,
-  opts: FetchItemsOptions = {},
-): Promise<RestaurantItemsResponse> {
+function itemsQuery(opts: FetchItemsOptions): string {
   const params = new URLSearchParams();
   if (opts.profileToken) params.set('profile_token', opts.profileToken);
   if (opts.presetSlug) params.set('profile', opts.presetSlug);
   if (opts.strictness) params.set('strictness', opts.strictness);
   const qs = params.toString();
-  const path = `/restaurants/${encodeURIComponent(slugOrId)}/items${qs ? `?${qs}` : ''}`;
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * Server-side only. Pass `jwt` whenever the caller has one — the menu is
+ * filtered by who is asking, so omitting it silently returns the anonymous
+ * menu (`filter.source === 'none'`, no taste scores, no overrides).
+ */
+export async function fetchRestaurantItems(
+  slugOrId: string,
+  opts: FetchItemsOptions = {},
+): Promise<RestaurantItemsResponse> {
+  const path = `/restaurants/${encodeURIComponent(slugOrId)}/items${itemsQuery(opts)}`;
   const headers: Record<string, string> = {};
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<RestaurantItemsResponse>(path, { headers, fetchImpl: opts.fetchImpl });
+}
+
+/**
+ * Browser-side twin, through the Next proxy at `/api/restaurants/:slug/items`.
+ *
+ * A direct call to Rails from the browser is cross-origin and carries no
+ * credential — `bw_session` is HttpOnly and belongs to this origin. So a
+ * signed-in reader's refetch has to go through the proxy or it drops their
+ * profile, which is what a strictness toggle used to do.
+ *
+ * Anonymous readers go straight to Rails instead of through the proxy, and
+ * that is deliberate rather than an optimization. A proxied call reaches
+ * Rails from the Next server's IP, and rack-attack keys its ceiling on
+ * `req.ip` — so every proxied caller shares one bucket. Routing the
+ * product's highest-volume read through it unconditionally would let
+ * ordinary browsing exhaust a limit meant to catch scrapers. The proxy
+ * exists to carry a credential; with no credential to carry there is
+ * nothing to route through it.
+ */
+export async function fetchRestaurantItemsClient(
+  slug: string,
+  opts: Omit<FetchItemsOptions, 'jwt'> & { signedIn?: boolean } = {},
+): Promise<RestaurantItemsResponse> {
+  const { fetchImpl = fetch, signedIn = false } = opts;
+  if (!signedIn) return fetchRestaurantItems(slug, opts);
+
+  const res = await fetchImpl(
+    `/api/restaurants/${encodeURIComponent(slug)}/items${itemsQuery(opts)}`,
+    { credentials: 'same-origin' },
+  );
+  if (!res.ok) {
+    // The proxy relays with `new NextResponse(body, { status })`, which
+    // carries no statusText — so echoing it would render "404 " with
+    // nothing after it. The upstream body has the real reason.
+    throw new Error(await errorMessage(res));
+  }
+  return (await res.json()) as RestaurantItemsResponse;
+}
+
+/** Upstream's `error` field when it sent one, else a plain status line. */
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body.error) return body.error;
+  } catch {
+    // Non-JSON body — fall through to the status.
+  }
+  return `Request failed (${res.status})`;
 }
 
 /**
