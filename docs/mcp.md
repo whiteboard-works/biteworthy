@@ -384,11 +384,25 @@ person*, scope asks *may this credential*. An admin using a read-only
 token is still an admin, and the token still may not write.
 
 `Registry.for` filters on scope as well, so the catalogue a scoped
-credential sees — and the topology and workflow prompts derived from it —
-describe only what that credential can actually do. Showing a read-only
-token the write tools would have a model pick one, fail, and spend a turn
-learning what the list could have told it. `Tools::Base` remains the
-boundary; the filter is what keeps the catalogue honest.
+credential sees describes only what that credential can actually do.
+Showing a read-only token the write tools would have a model pick one,
+fail, and spend a turn learning what the list could have told it.
+`Tools::Base` remains the boundary; the filter is what keeps the catalogue
+honest.
+
+`Topology.workflows_for` checks each workflow's steps against that same
+filtered catalogue, and `WorkflowPrompts.for` delegates to it, so the map
+and the offered prompts narrow with the tool list rather than deciding
+separately. Audience alone is not enough here: a scoped credential can be
+signed in, clear every audience check, and still lack the scope a step
+needs.
+
+**`meta` is exempt from the scope filter.** `describe_capabilities` is the
+server describing itself, and what it describes is already filtered to the
+caller, so leaving it reachable leaks nothing. Filtering it out would cost
+a great deal: `discovery:read` is doorkeeper's `default_scopes`, so an
+OAuth client that did not think to ask for `meta:read` would be told by the
+server instructions to read a map it cannot reach.
 
 **An unscoped credential is unrestricted.** Every JWT issued before this
 existed carries no scopes, and treating that as "denied" would lock out

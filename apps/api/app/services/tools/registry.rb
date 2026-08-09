@@ -109,7 +109,19 @@ module Tools
 
       private
 
+      # `meta` is the server describing itself, and what it describes is
+      # already filtered to this caller — so leaving it in leaks nothing,
+      # while filtering it out costs a great deal. The server instructions
+      # tell the model to read the map when the route is not obvious, and
+      # `discovery:read` is doorkeeper's `default_scopes`, so every OAuth
+      # client that did not think to ask for `meta:read` would be told to
+      # call a tool it cannot see — the exact wasted turn this filter is
+      # here to prevent.
+      UNSCOPED_DOMAINS = %i[meta].freeze
+
       def permitted_by_scope?(tool, context)
+        return true if UNSCOPED_DOMAINS.include?(domain_of(tool))
+
         Scopes.satisfied?(context.scopes, Scopes.for_tool(tool))
       end
 
