@@ -22,7 +22,14 @@ RSpec.describe Menus::Filter do
     )
   end
 
+  # `reload` is load-bearing, not incidental. The join callbacks rebuild
+  # `items.ingredient_ids` with a batched `update_all`, which cannot write
+  # through to an in-memory record the way the old per-row `update_columns`
+  # did — so a freshly-built item still holds `[]` until it is re-read.
+  # Every production reader goes through `Menus::Query`, which loads items
+  # from the database, so this matches how the rule is actually exercised.
   def reasons(item, filter)
+    item = item.reload
     filter.reasons_for(item, Menus::Labels.for_filter([item], filter))
   end
 
@@ -100,7 +107,7 @@ RSpec.describe Menus::Filter do
       filter = filter_for(avoid_ingredients: [cheddar])
       labels = Menus::Labels::EMPTY
 
-      expect(filter.reasons_for(item, labels)).to eq([
+      expect(filter.reasons_for(item.reload, labels)).to eq([
         { kind: "avoid_ingredient", ingredient_id: cheddar.id,
           ingredient_name: nil, ingredient_family: nil }
       ])

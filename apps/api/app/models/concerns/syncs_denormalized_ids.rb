@@ -72,6 +72,16 @@ module SyncsDenormalizedIds
     # concurrently can't be lost in the gap between a SELECT and an UPDATE —
     # for allergen data that gap is a wrong answer, not a stale one.
     #
+    # The trade, and the one thing to know before reaching for this: a batch
+    # UPDATE cannot write through to in-memory records the way the per-row
+    # `update_columns` it replaced did. An `Item` you already hold keeps the
+    # array it was loaded with until you `reload` it. Every reader in the app
+    # goes through `Menus::Query`, which loads items from the database, so
+    # nothing live depends on the old behaviour — but code that writes joins
+    # and then reads `denormalized_*` off the same object will read staleness
+    # rather than an error, which is the kind of bug that surfaces as a dish
+    # filtered wrongly rather than as a failure.
+    #
     # Bulk writers that use insert_all (no callbacks) call this directly.
     def resync_denormalized_ids(item_ids)
       ids = Array(item_ids).compact.uniq
