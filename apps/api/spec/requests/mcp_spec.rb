@@ -163,6 +163,34 @@ RSpec.describe "POST /mcp", type: :request do
     end
   end
 
+  # Completing an argument is only worth anything if what someone picked
+  # reaches the conversation. Nothing exercised `prompts/get` before this.
+  describe "prompts/get" do
+    def rendered(args, headers: auth_headers_for(user))
+      body = rpc("prompts/get", { name: "scan_a_menu_into_the_database", arguments: args },
+                 headers: headers)
+      body.dig("result", "messages", 0, "content", "text")
+    end
+
+    it "carries the argument the person filled in" do
+      expect(rendered({ restaurant: "ninis-taqueria" })).to include("restaurant: ninis-taqueria")
+    end
+
+    # Optional means optional: the workflow has to open for someone who
+    # does not yet know which restaurant they mean, and a dangling
+    # "What I gave you —" would be the model's first impression.
+    it "renders cleanly with nothing filled in" do
+      text = rendered({})
+
+      expect(text).to include("Scan a menu into the database")
+      expect(text).not_to include("What I gave you")
+    end
+
+    it "still names the tool sequence, which is the point of the prompt" do
+      expect(rendered({})).to include("create_restaurant → start_menu_scan")
+    end
+  end
+
   # The tool map is served as a resource so a client that reads resources
   # learns how the tools compose without spending a turn on a tool call.
   describe "resources" do

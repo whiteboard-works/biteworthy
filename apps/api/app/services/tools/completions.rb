@@ -25,10 +25,13 @@ module Tools
     # `Topology::WORKFLOWS`, so a prompt and its completions come from one
     # place; adding an argument nothing here knows about is a spec failure
     # rather than a silently empty dropdown.
+    # Each resolver returns up to LIMIT + 1 — the extra row is how `call`
+    # answers `hasMore` without a second count query, so a resolver that
+    # trims to LIMIT itself would report "that's all of them" every time.
     ARGUMENTS = {
       restaurant: {
         description: "Restaurant slug. Start typing the name.",
-        resolve: ->(prefix) { Restaurant.published.then { |scope| Completions.by_prefix(scope, prefix) } }
+        resolve: ->(prefix) { Completions.by_prefix(Restaurant.published, prefix) }
       },
       city: {
         description: "City slug, e.g. \"durango\".",
@@ -38,7 +41,7 @@ module Tools
         description: "Ingredient or tag slug — what to avoid, or what to look up.",
         resolve: lambda { |prefix|
           (Completions.by_prefix(Ingredient.all, prefix) + Completions.by_prefix(Tag.all, prefix))
-            .sort.first(LIMIT)
+            .sort.first(LIMIT + 1)
         }
       }
     }.freeze

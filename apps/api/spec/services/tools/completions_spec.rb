@@ -97,6 +97,19 @@ RSpec.describe Tools::Completions do
       expect(result.dig(:completion, :values).size).to eq(described_class::LIMIT)
       expect(result.dig(:completion, :hasMore)).to be(true)
     end
+
+    # `avoid` merges two taxonomies, so it is the one resolver that can
+    # trim the overflow row before `call` ever sees it — and then reports
+    # "that's all of them" over a taxonomy with tens of thousands of
+    # nodes, which is the answer most likely to be capped and the one a
+    # person most needs to know is partial.
+    it "is true for the merged taxonomy list too" do
+      (described_class::LIMIT + 1).times { |i| create(:ingredient, slug: "z#{i}", path: "z.n#{i}") }
+
+      result = described_class.call(argument_name: :avoid, value: "z")
+      expect(result.dig(:completion, :values).size).to eq(described_class::LIMIT)
+      expect(result.dig(:completion, :hasMore)).to be(true)
+    end
   end
 
   # The drift guard. A workflow can declare an argument, get a box drawn
