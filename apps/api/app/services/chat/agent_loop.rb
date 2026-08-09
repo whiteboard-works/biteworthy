@@ -496,14 +496,23 @@ module Chat
       last   = turns.last
       blocks = Array(last && last[:content])
       tail   = blocks.last
-      return turns unless tail.is_a?(Hash)
-      return turns if NON_CACHEABLE_BLOCKS.include?(tail["type"] || tail[:type])
+      # Bailing out is correct but invisible — an uncached round costs
+      # nothing but money, so it shows up in the bill and nowhere else.
+      return uncacheable(turns, "last block is #{tail.class}") unless tail.is_a?(Hash)
+
+      type = tail["type"] || tail[:type]
+      return uncacheable(turns, "last block is #{type}") if NON_CACHEABLE_BLOCKS.include?(type)
 
       # Copied rather than mutated: `transcript` hands back the loaded
       # records' own jsonb, and marking it in place would write a
       # `cache_control` key into the stored message on the next save.
       marked = blocks[0..-2] + [ tail.merge(cache_control: { type: "ephemeral" }) ]
       turns[0..-2] + [ last.merge(content: marked) ]
+    end
+
+    def uncacheable(turns, why)
+      Rails.logger.info("[chat] transcript not cached for conversation #{@conversation.id}: #{why}")
+      turns
     end
 
     def emit(payload)

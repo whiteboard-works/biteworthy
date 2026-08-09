@@ -8,6 +8,8 @@ require "rails_helper"
 # destructive call waits for a human, every tool_use gets an answer, and
 # a conversation cannot spend without limit.
 RSpec.describe Chat::AgentLoop do
+  include ActiveSupport::Testing::TimeHelpers
+
   let(:user)       { create(:user) }
   let(:conversation) { Conversation.create!(user: user) }
   let!(:city)      { create(:city, slug: "durango", name: "Durango") }
@@ -294,15 +296,60 @@ RSpec.describe Chat::AgentLoop do
         end
       end
 
-      # The stored message must not gain a `cache_control` key — the
-      # transcript hands back the loaded records' own jsonb, and marking
-      # it in place would persist the breakpoint into the conversation.
-      it "does not write the breakpoint back into the stored transcript" do
+      # The hazard is in-memory, not on disk: `transcript` hands back the
+      # loaded records' own jsonb, so marking it in place would leave a
+      # stale second breakpoint on every later round of the same turn.
+      # Asserting against `messages.reload` would *not* catch that —
+      # `append!` only ever creates new rows, so an in-place mutation
+      # never reaches Postgres and a database assertion stays green while
+      # the bug ships. Check the objects the loop actually reuses.
+      it "marks a copy, leaving the transcript it was handed unmarked" do
         client = ScriptedClient.new(say("hi"))
         described_class.new(conversation, client: client).run(text: "hello")
 
-        stored = conversation.messages.reload.flat_map { |m| Array(m.content) }
-        expect(stored.none? { |b| b.key?("cache_control") }).to be(true)
+        live = conversation.transcript.flat_map { |m| Array(m[:content]) }
+        expect(live.none? { |b| b.is_a?(Hash) && (b[:cache_control] || b["cache_control"]) }).to be(true)
+      end
+
+      # The transcript breakpoint's prefix is `tools → system → messages`,
+      # so it needs the *whole* system array stable between turns — not
+      # just the part above the system breakpoint, which is all the
+      # existing prefix spec pins. A per-second timestamp in the volatile
+      # block therefore invalidated the transcript cache on every turn:
+      # the thing placed below the breakpoint to protect one cache was
+      # preventing the other. Bucketing it to the cache's own TTL is what
+      # makes cross-turn reuse possible at all.
+      # Time is frozen at a known point inside a bucket rather than
+      # offset from the wall clock: a relative `travel` straddles a
+      # boundary roughly a third of the time, which is a flake, not a
+      # finding.
+      it "keeps the whole system prompt identical across consecutive turns" do
+        travel_to Time.utc(2026, 8, 9, 12, 0, 30) do
+          first = ScriptedClient.new(say("one"))
+          described_class.new(conversation, client: first).run(text: "hello")
+
+          travel 2.minutes
+          second = ScriptedClient.new(say("two"))
+          described_class.new(conversation, client: second).run(text: "again")
+
+          expect(second.requests.first[:system]).to eq(first.requests.first[:system])
+        end
+      end
+
+      # And the bound is real, not a constant pretending to be a clock:
+      # past the bucket the prefix moves on, which is fine because the
+      # ephemeral cache entry has expired by then anyway.
+      it "moves the clock on once the bucket has passed" do
+        travel_to Time.utc(2026, 8, 9, 12, 0, 30) do
+          first = ScriptedClient.new(say("one"))
+          described_class.new(conversation, client: first).run(text: "hello")
+
+          travel 6.minutes
+          second = ScriptedClient.new(say("two"))
+          described_class.new(conversation, client: second).run(text: "again")
+
+          expect(second.requests.first[:system]).not_to eq(first.requests.first[:system])
+        end
       end
 
       # A thinking block's signature is rejected if it is not replayed

@@ -56,8 +56,25 @@ module Chat
     # Rides in the volatile block on purpose. A timestamp in the cached
     # prefix would invalidate it on every single turn, which is the
     # cheapest way to throw away a 21,650-token cache hit.
+    #
+    # **Bucketed to the cache TTL**, and that turned out to matter more
+    # than the placement did. Once C9 added a breakpoint in `messages`,
+    # this block stopped being harmlessly volatile: a `messages`
+    # breakpoint's prefix is `tools → system → messages`, so a
+    # second-resolution timestamp sitting in the last system block
+    # invalidates the *transcript* cache on every turn — the thing put
+    # below the breakpoint to protect one cache was silently preventing
+    # the other. Rounding to five minutes lets consecutive turns share the
+    # prefix, and five is not arbitrary: it is the ephemeral cache's own
+    # TTL, so precision finer than that buys nothing a cache could use.
+    #
+    # Labelled as approximate rather than quietly rounded, because the
+    # model relays it — "is this place open now" is a real question here.
+    TIME_BUCKET = 5.minutes
+
     def current_time
-      "Current time: #{@now.utc.iso8601} (UTC)."
+      bucket = Time.zone.at((@now.to_i / TIME_BUCKET.to_i) * TIME_BUCKET.to_i)
+      "Current time: #{bucket.utc.iso8601} (UTC, to the nearest #{TIME_BUCKET.inspect})."
     end
 
     def caller_section

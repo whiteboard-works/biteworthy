@@ -362,9 +362,42 @@ input column is the conversation being re-sent.
 rolled forward each round — the documented multi-turn pattern, where
 earlier breakpoints stay valid read points so hits accrue as the
 conversation grows. **Estimated ~69% off that eleven-round turn's input
-cost** (84¢ → 26¢), which is an estimate and not a measurement: like C7's
-cache claim, only a live turn showing `cache_read_input_tokens` climbing
-across rounds confirms it.
+cost** (84¢ → 26¢).
+
+The *mechanism* is verified, not assumed — a live two-round probe against
+Opus 5 with a breakpoint on the last user block:
+
+```
+round 1   input=2   cache_write=2460   cache_read=0
+round 2   input=2   cache_write=27     cache_read=2460
+```
+
+Round 2 read the whole prefix back at 0.1× and wrote only the 27 new
+tokens. What stays an estimate is the *magnitude* on a real turn, since
+that depends on how the transcript grows — the honest confirmation is a
+live turn showing `cache_read_input_tokens` climbing across rounds.
+
+**The timestamp nearly ate the whole win, and review caught it.** A
+`messages` breakpoint's prefix is `tools → system → messages`, so
+everything in the system array counts — including the volatile block
+below the *system* breakpoint. `current_time` was second-resolution and
+`CompletionJob` builds a fresh `AgentLoop` per turn, so the first round
+of every turn changed a byte above the transcript and missed by
+construction. Within a turn the timestamp is frozen, so rounds 2..N hit
+— which is where the 11-round win comes from — but a **single-round turn
+would have got strictly worse**: writing the whole conversation at 1.25×
+instead of reading it at 1.0×, buying nothing. The thing placed below
+the breakpoint to protect one cache was preventing the other.
+
+`current_time` is bucketed to five minutes now, which is the ephemeral
+cache's own TTL — precision finer than that cannot help a cache. It is
+labelled approximate in the prompt rather than silently rounded, because
+the model relays it and "is this place open now" is a real question here.
+
+Cross-turn reuse is therefore *possible*; it is not yet *measured*. A
+second hazard is still open: the API drops previous-turn `thinking`
+blocks once a new user message arrives, which moves the prefix bytes
+again. Treat the within-turn win as the one this change bought.
 
 Two properties it leans on, both asserted rather than assumed:
 
