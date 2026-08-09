@@ -88,7 +88,7 @@ the credential-gated wiring below. `docs/launch-readiness.md` is the
 linear human path from "code complete" to launch.
 
 1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
-2. **[BLOCKED] Phase 5.1.1-wiring — CI-driven `kamal deploy` on master push** (followup to #182). Needs first manual `kamal deploy` to prove the manual flow works before CI automation; that needs the Hetzner + Neon + GHCR provisioning per `docs/launch-readiness.md` step 1.
+2. **A bot-merged `apps/api` PR does not deploy — dispatch `deploy-api` by hand.** CI-driven `kamal deploy` itself is done (5.1.1-wiring, followup to #182): `deploy-api.yml` ships on every master push touching `apps/api/**`, and has been deploying the Hetzner box since 2026-07. The gap is upstream of it — `auto-merge.yml` passes `secrets.GITHUB_TOKEN` to `peter-evans/enable-pull-request-automerge`, and GitHub's recursion guard starts **no** workflows for a `GITHUB_TOKEN` merge commit, so an auto-merged API change silently never reaches the box. Check `merged_by`; if it is `github-actions[bot]`, dispatch `deploy-api` by hand (#537 needed exactly that on 2026-08-09). The durable fix is a PAT or GitHub App token on that action.
 
 **Admin backoffice workstream — SHIPPED 2026-07-30** (#467–#481,
 session-driven): all admin capability lives in `apps/web` `/admin`
