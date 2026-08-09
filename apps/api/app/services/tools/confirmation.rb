@@ -17,6 +17,16 @@ module Tools
   # "stop avoiding peanut" cannot be replayed against "stop avoiding
   # peanut and shellfish", and one person's approval is not another's.
   # Same principle as the chat's fingerprint and `Oauth::Handoff`.
+  #
+  # **A grant is reusable for its whole TTL, so a gated tool must be
+  # idempotent.** There is no nonce: within ten minutes one yes authorizes
+  # the identical call any number of times, which is harmless for
+  # `update_avoid_lists` (removing the same slug twice is the same
+  # profile) and would not be for anything that appends, posts, or spends.
+  # That is a precondition rather than a comment — `confirmation_gate_spec`
+  # asserts every tool declaring `confirm_when` also declares
+  # `idempotent_hint: true`, so a non-idempotent one cannot ship without
+  # someone deciding what to do about single use.
   module Confirmation
     PURPOSE = :tool_confirmation
     TTL     = 10.minutes

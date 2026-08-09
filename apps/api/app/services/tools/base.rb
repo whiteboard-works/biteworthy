@@ -119,9 +119,36 @@ module Tools
       # frictionless, which tells every client the call is safe. It is,
       # until the arguments say `remove_ingredients`. Only the server
       # knows that, so only the server can ask.
+      # Fails CLOSED. The block is author-written and runs against
+      # model-shaped arguments, so it can raise on a shape nobody
+      # anticipated — and the other caller, `Chat::AgentLoop`, has no
+      # rescue around it, so a raise there takes down the turn *before*
+      # anything is parked. Asking an unnecessary question is a bad turn;
+      # skipping a necessary one is someone eating something that hurts
+      # them.
       def gated_by_arguments?(args = {})
         gate = confirm_when
-        gate ? !!gate.call(args) : false
+        return false unless gate
+
+        !!gate.call(args)
+      rescue StandardError => e
+        Rails.logger.error("[tools] #{name_value} confirm_when raised: #{e.class}: #{e.message}")
+        true
+      end
+
+      # A tool that declares a gate advertises the argument that satisfies
+      # it. Leaving it out worked only by accident: the MCP server
+      # validates the model's input against this schema before dispatch,
+      # and `update_avoid_lists` happens not to declare
+      # `additionalProperties: false`. The first gated tool that did —
+      # which `Base` explicitly recommends for `**args` tools — would have
+      # had its own confirmation rejected as an unknown property, leaving
+      # the model looping on `confirmation_required` with no way out.
+      def input_schema_value
+        declared = super
+        return declared unless confirm_when
+
+        @gated_input_schema ||= MCP::Tool::InputSchema.new(with_confirmation_property(declared.to_h))
       end
 
       # nil when the tool declares nothing — the client falls back to its
@@ -171,6 +198,20 @@ module Tools
       end
 
       private
+
+      # Never required: the whole point is that the first call arrives
+      # without one and is told what to ask.
+      def with_confirmation_property(schema)
+        schema = schema.dup
+        schema[:properties] = (schema[:properties] || {}).merge(
+          confirmation: {
+            type: "string",
+            description: "The token from a previous confirmation_required response, after the " \
+                         "user agreed to the sentence it carried. Never invent one."
+          }
+        )
+        schema
+      end
 
       # Returns a response when the call needs a human and does not yet
       # have one, nil when it may proceed.
