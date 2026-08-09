@@ -106,8 +106,9 @@ RSpec.describe Tools::Registry do
     # spend a turn learning what the list could have said — and with
     # deferred loading it pays for the schemas too.
     describe "when the credential is scoped" do
+      let(:scoped_user) { create(:user) }
       let(:read_only) do
-        Tools::Context.new({ user_id: create(:user).id, scopes: ["profile:read", "discovery:read"] })
+        Tools::Context.new({ user_id: scoped_user.id, scopes: ["profile:read", "discovery:read"] })
       end
 
       it "leaves out the write tools the grant cannot use" do
@@ -134,6 +135,19 @@ RSpec.describe Tools::Registry do
       # at a tool it cannot see.
       it "still offers the map to a credential that never asked for meta" do
         expect(described_class.for(read_only).map(&:name_value)).to include("describe_capabilities")
+      end
+
+      # Listing a tool that then refuses to run is the wasted turn the
+      # exemption exists to prevent, so "is it offered" is only half the
+      # assertion. The exemption lives in `Scopes`, which both the
+      # catalogue and `Tools::Base` read, and this is what proves they
+      # agree rather than merely happening to today.
+      it "and the map it offers actually runs" do
+        response = Tools::Meta::DescribeCapabilities.call(
+          server_context: { user_id: scoped_user.id, scopes: ["discovery:read"] }
+        )
+
+        expect(response.to_h[:isError]).to be_falsey, response.to_h.inspect
       end
     end
   end

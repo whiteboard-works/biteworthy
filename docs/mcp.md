@@ -397,12 +397,19 @@ separately. Audience alone is not enough here: a scoped credential can be
 signed in, clear every audience check, and still lack the scope a step
 needs.
 
-**`meta` is exempt from the scope filter.** `describe_capabilities` is the
-server describing itself, and what it describes is already filtered to the
-caller, so leaving it reachable leaks nothing. Filtering it out would cost
-a great deal: `discovery:read` is doorkeeper's `default_scopes`, so an
-OAuth client that did not think to ask for `meta:read` would be told by the
-server instructions to read a map it cannot reach.
+**`meta` is ungated.** `describe_capabilities` is the server describing
+itself, and what it describes is already filtered to the caller, so leaving
+it reachable leaks nothing. Gating it would cost a great deal:
+`discovery:read` is doorkeeper's `default_scopes`, so an OAuth client that
+did not think to ask for `meta:read` would be told by the server
+instructions to read a map it cannot reach.
+
+The exemption is `Tools::Scopes::UNGATED_DOMAINS`, not a special case in
+the registry, because **both** the catalogue and `Tools::Base#enforce_scope!`
+ask that module. Exempting a domain in only one of them lists a tool that
+then refuses to run — the exact wasted turn the exemption exists to
+prevent. An ungated domain also drops out of `Scopes.available`, so no
+consent screen asks permission for something nothing checks.
 
 **An unscoped credential is unrestricted.** Every JWT issued before this
 existed carries no scopes, and treating that as "denied" would lock out

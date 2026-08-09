@@ -23,6 +23,19 @@ module Tools
     # did, and a scope check on them is a no-op rather than a lockout.
     ALL = "*"
 
+    # Domains no scope gates. `meta` is the server describing itself, and
+    # what it describes is already filtered to the caller, so leaving it
+    # reachable leaks nothing — while gating it costs a great deal:
+    # `discovery:read` is doorkeeper's `default_scopes`, so an OAuth client
+    # that did not think to ask for `meta:read` would be told by the server
+    # instructions to read a map it cannot reach.
+    #
+    # It lives here rather than in `Registry` because both the catalogue
+    # and `Tools::Base#enforce_scope!` ask this module. Exempting a domain
+    # in only one of them lists a tool that then refuses to run, which is
+    # the exact wasted turn the exemption exists to prevent.
+    UNGATED_DOMAINS = %i[meta].freeze
+
     # What each domain is, in words someone deciding whether to grant it
     # can act on. "taxonomy:write" tells a person nothing; "Change the
     # shared ingredient and tag catalogue" tells them enough to refuse.
@@ -46,9 +59,12 @@ module Tools
     }.freeze
 
     class << self
-      # Every scope a caller could be granted, as strings.
+      # Every scope a caller could be granted, as strings. Ungated domains
+      # are left out: a consent screen offering "meta:read" would be asking
+      # permission for something nothing checks.
       def available
-        @available ||= Registry::DOMAINS.keys.flat_map { |domain| ["#{domain}:read", "#{domain}:write"] }.freeze
+        @available ||= (Registry::DOMAINS.keys - UNGATED_DOMAINS)
+                       .flat_map { |domain| ["#{domain}:read", "#{domain}:write"] }.freeze
       end
 
       # The scope a given tool call requires, or nil for a class the
@@ -60,7 +76,7 @@ module Tools
         return nil if tool.nil? || tool.name.blank?
 
         domain = Registry.domain_of(tool)
-        return nil if domain.nil?
+        return nil if domain.nil? || UNGATED_DOMAINS.include?(domain)
 
         "#{domain}:#{tool.annotations_value&.read_only_hint ? 'read' : 'write'}"
       end

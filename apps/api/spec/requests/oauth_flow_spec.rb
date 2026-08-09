@@ -189,10 +189,30 @@ RSpec.describe "OAuth 2.1 authorization", type: :request do
     # refusal reads as "no such tool". What a consent screen has to
     # guarantee is that the unapproved write does not happen.
     it "cannot reach a tool outside the scopes that were approved" do
+      dairy = create(:ingredient, slug: "dairy", name: "Dairy", path: "dairy")
+      user.create_profile!(strictness: "balanced") if user.profile.nil?
+
       body = call_tool("update_avoid_lists", { add_ingredients: ["dairy"] })
 
-      expect(body["error"]).to be_present
-      expect(user.reload.profile&.avoid_ingredient_ids).to be_blank
+      # Named, not merely "some error": a renamed tool or a broken token
+      # path would satisfy `be_present` and leave this spec — the one
+      # guarding that consent means something — green.
+      expect(body.dig("error", "data")).to include("update_avoid_lists")
+      expect(user.reload.profile.avoid_ingredient_ids).not_to include(dairy.id)
+    end
+
+    # The refusal above reads as "no such tool" because the catalogue is
+    # filtered to what the grant holds. That is the claim worth pinning:
+    # the write tool was never offered to this token in the first place.
+    it "is never offered the tool it was not granted" do
+      post "/mcp", params: { jsonrpc: "2.0", id: 9, method: "tools/list" }.to_json,
+                   headers: { "Content-Type" => "application/json",
+                              "Accept" => "application/json, text/event-stream",
+                              "Authorization" => "Bearer #{secret}" }
+      listed = JSON.parse(response.body).dig("result", "tools").map { |t| t["name"] }
+
+      expect(listed).to include("get_profile")
+      expect(listed).not_to include("update_avoid_lists")
     end
 
     it "stops working once revoked" do
