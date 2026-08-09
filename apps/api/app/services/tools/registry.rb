@@ -93,8 +93,14 @@ module Tools
         DOMAINS.find { |_name, tools| tools.include?(tool.name.delete_prefix("Tools::")) }&.first
       end
 
+      # Both filters, not just audience. A read-only credential that is
+      # *shown* the write tools will have a model pick one, fail, and
+      # spend a turn learning what the list could have told it — and with
+      # deferred loading it pays for the schemas too. `enforce_scope!` in
+      # `Tools::Base` is still the boundary; this keeps the catalogue
+      # honest about what the caller can actually do.
       def for(context)
-        all.select { |tool| visible_to?(tool, context) }
+        all.select { |tool| visible_to?(tool, context) && permitted_by_scope?(tool, context) }
       end
 
       def find(name)
@@ -102,6 +108,10 @@ module Tools
       end
 
       private
+
+      def permitted_by_scope?(tool, context)
+        Scopes.satisfied?(context.scopes, Scopes.for_tool(tool))
+      end
 
       def visible_to?(tool, context)
         case tool.audience

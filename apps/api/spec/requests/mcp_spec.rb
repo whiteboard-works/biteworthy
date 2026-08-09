@@ -183,14 +183,26 @@ RSpec.describe "POST /mcp", type: :request do
 
     # The whole point: an admin's read-only token is still an admin's
     # token, and still may not write.
+    #
+    # The refusal arrives as "no such tool" rather than a scope complaint,
+    # because the catalogue is filtered to what the token can use — the
+    # same shape an admin-only tool has always had for a non-admin.
+    # `Tools::Base#enforce_scope!` is still the boundary underneath; this
+    # asserts the two things that matter regardless of which one answers:
+    # the write does not happen, and the token was never offered it.
     it "refuses a write the token was not granted, even for an admin" do
       admin = create(:user, is_admin: true)
       _, secret = McpToken.issue!(user: admin, name: "read only", scopes: ["discovery:read"])
 
       body = rpc(secret, "set_user_role", { user_id: admin.id, is_admin: false })
 
-      expect(body.dig(:result, :isError)).to be(true)
-      expect(body.dig(:result, :content, 0, :text)).to include("scope")
+      post "/mcp",
+           params: { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }.to_json,
+           headers: { "Authorization" => "Bearer #{secret}", "CONTENT_TYPE" => "application/json" }
+      listed = JSON.parse(response.body, symbolize_names: true).dig(:result, :tools).map { |tool| tool[:name] }
+
+      expect(body[:error]).to be_present
+      expect(listed).not_to include("set_user_role")
       expect(admin.reload.is_admin).to be(true)
     end
 

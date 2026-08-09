@@ -31,7 +31,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/base.rb` | `Tools::Base` — audience enforcement, error translation, `ok`/`error`, untrusted-content fencing |
 | `app/services/tools/context.rb` | Who is calling, resolved from the MCP `server_context` |
 | `app/services/tools/errors.rb` | Domain errors that become `isError` results rather than protocol errors |
-| `app/services/tools/registry.rb` | The catalog; `Registry.for(context)` filters by audience |
+| `app/services/tools/registry.rb` | The catalog; `Registry.for(context)` filters by audience and scope |
 | `app/services/tools/instructions.rb` | Server instructions — also the chat's system prompt |
 | `app/services/tools/topology.rb` | Which tools compose into which workflow |
 | `app/services/tools/topology_resource.rb` | The same map as `biteworthy://topology` |
@@ -92,9 +92,13 @@ Notes that bite:
 - **Descriptions are the interface.** The model decides whether to call a
   tool almost entirely from its description. Say *when* to call it and what
   the fields mean, not just what it does.
-- **`audience` gates visibility, not just access.** `Registry.for(context)`
-  drops tools the caller may not use, so a non-admin's `tools/list` never
-  mentions them. `Tools::Base` re-checks at call time as defence in depth.
+- **`audience` and scope both gate visibility, not just access.**
+  `Registry.for(context)` drops tools the caller may not use, so a
+  non-admin's `tools/list` never mentions the admin tools and a read-only
+  token's never mentions the writes. `Tools::Base` re-checks at call time
+  as defence in depth. One consequence to expect: a call to a tool the
+  caller cannot see comes back as "tool not found" rather than a scope
+  complaint, because it was never in that caller's catalogue.
 - **Raise `Errors::NotFound` / `Errors::InvalidArgument`**, don't return
   error hashes. `Base.call` turns them into `isError` results the model can
   recover from. An unexpected exception is contained too, but as
@@ -378,6 +382,13 @@ Enforcement lives in `Tools::Base` alongside the audience check, because
 they are different questions and both must pass: audience asks *may this
 person*, scope asks *may this credential*. An admin using a read-only
 token is still an admin, and the token still may not write.
+
+`Registry.for` filters on scope as well, so the catalogue a scoped
+credential sees — and the topology and workflow prompts derived from it —
+describe only what that credential can actually do. Showing a read-only
+token the write tools would have a model pick one, fail, and spend a turn
+learning what the list could have told it. `Tools::Base` remains the
+boundary; the filter is what keeps the catalogue honest.
 
 **An unscoped credential is unrestricted.** Every JWT issued before this
 existed carries no scopes, and treating that as "denied" would lock out
