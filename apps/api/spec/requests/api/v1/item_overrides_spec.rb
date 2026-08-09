@@ -31,6 +31,19 @@ RSpec.describe "POST/DELETE /api/v1/items/:id/never_hide", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    # Same shape as the favorites endpoints. This one is idempotent by
+    # design, so losing the race means the override already exists — the
+    # inherited 422 is the right default and the wrong answer here.
+    it "stays idempotent (200, not 422) when a concurrent insert wins the race" do
+      allow(UserItemOverride).to receive(:find_or_create_by!)
+        .and_raise(ActiveRecord::RecordNotUnique)
+
+      post "/api/v1/items/#{item.id}/never_hide", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("item_id" => item.id, "overridden_by_user" => true)
+    end
+
     it "404s for an unpublished item (no leaking draft ids)" do
       draft_item = create(:item, restaurant: restaurant) # default :draft
       post "/api/v1/items/#{draft_item.id}/never_hide", headers: headers

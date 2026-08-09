@@ -68,8 +68,13 @@ module Tools
               "publishes; everything before it stays in staging."
       },
       {
+        # Public because all three steps are. Leaving it at :user would
+        # show an anonymous caller the suggestions domain and the tool,
+        # then withhold the map that says how to use them — the same
+        # "the map disagrees with the door" failure the audience filter
+        # exists to prevent, inverted.
         name: "Report data that is wrong",
-        audience: :user,
+        audience: :public,
         arguments: %i[restaurant],
         steps: %w[explain_item search_taxonomy suggest_correction],
         note: "Queues a change; it does not edit the live menu. Check explain_item first — " \

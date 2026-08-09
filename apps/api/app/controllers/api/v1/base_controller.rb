@@ -36,7 +36,14 @@ module Api
         render json: { error: error.message }, status: :unprocessable_entity
       end
 
-      def render_already_exists(_error)
+      # Reported, not just rendered. Most of what lands here is a race on
+      # a rule the caller can see — two tabs, one review — and 422 is the
+      # honest answer. But a unique-index violation is also how a real
+      # bug looks (a slug collision on a create path, say), and those
+      # used to surface as 500s that something was watching. Swallowing
+      # them into a tidy 422 would make the bug quieter, not rarer.
+      def render_already_exists(error)
+        Rails.error.report(error, handled: true, context: { path: request.path })
         render json: { error: "That already exists." }, status: :unprocessable_entity
       end
 

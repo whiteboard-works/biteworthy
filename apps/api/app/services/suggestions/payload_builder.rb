@@ -45,6 +45,12 @@ module Suggestions
           { "ingredient_slug" => existing_slug(Ingredient, slug, "ingredient") }
         when "add_tag", "remove_tag"
           { "tag_slug" => existing_slug(Tag, slug, "tag") }
+        else
+          # KINDS is SuggestionResolver::ITEM_KINDS, edited by someone who
+          # may never open this file. Without this branch a sixth kind
+          # passes the guard above, falls through to nil, and hits a
+          # NOT NULL column — a 500 on both doors, for adding a constant.
+          raise InvalidPayload, "kind '#{kind}' has no payload rule here yet."
         end
       end
 

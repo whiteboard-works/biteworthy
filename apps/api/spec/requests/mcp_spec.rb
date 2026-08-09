@@ -271,10 +271,16 @@ RSpec.describe "POST /mcp", type: :request do
       expect(names).not_to include("moderate")
     end
 
+    # Derived from the workflows rather than listed, so this asserts the
+    # rule ("only what every step is public for") instead of a snapshot
+    # of how many workflows happened to qualify the day it was written.
     it "offers an anonymous caller only what is public" do
       names = prompts_for({}).map { |p| p[:name] }
+      public_flows = Tools::Topology.for(Tools::Context.new({}))[:workflows]
 
-      expect(names).to eq(["find_something_this_person_can_eat"])
+      expect(names).to match_array(public_flows.map { |f| f[:name].parameterize.underscore })
+      expect(names).to include("find_something_this_person_can_eat")
+      expect(names).not_to include("moderate")
     end
   end
 

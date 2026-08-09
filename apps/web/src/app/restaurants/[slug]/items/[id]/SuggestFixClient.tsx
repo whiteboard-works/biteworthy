@@ -4,7 +4,6 @@ import { useState, type FormEvent } from 'react';
 import {
   createSuggestion,
   SUGGESTION_KINDS,
-  SuggestionError,
   type SuggestionKind,
 } from '../../../../../lib/suggestions';
 import { useTracker } from '../../../../_PostHogProvider';
@@ -64,8 +63,14 @@ export function SuggestFixClient({
       setDone(true);
       setValue('');
     } catch (err) {
-      const status = err instanceof SuggestionError ? err.status : 0;
-      setError(status === 422 ? 'Couldn’t accept that — double-check the value.' : (err as Error).message);
+      // The server names the slug it could not find. Replacing that with
+      // "double-check the value" was survivable while an unknown slug was
+      // accepted and failed later in front of the owner; now that it is
+      // rejected here, the generic string is the whole dead end — someone
+      // who types "cilantro" instead of "herb-cilantro" has nothing to go
+      // on. Falls back only when the server sent no message at all.
+      const message = (err as Error).message?.trim();
+      setError(message || 'Couldn’t accept that — double-check the value.');
     } finally {
       setSubmitting(false);
     }
