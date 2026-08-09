@@ -336,6 +336,51 @@ limit is too small" and "24¢ for one question" were one bug.
   `9¢ turn · 34¢ conversation`, plus the `cache_write_tokens` C3 recorded
   and nothing displayed.
 
+### C9 — Cache the transcript, not just the prompt — SHIPPED
+
+C5 put the one `cache_control` breakpoint on the last system block and
+made the invariant "nothing per-request sits above it". That invariant
+held. What nobody checked is what sits *below* it: the entire
+conversation, re-read at full input price on every round.
+
+A round adds a few thousand tokens and then pays for all of them again on
+each later round, so a turn's cost grows with the square of its length.
+The evidence is production, not reasoning — three real runs on one
+conversation:
+
+| rounds | input tokens | cache reads | cost |
+|---|---|---|---|
+| 3 | 9,035 | 15,280 | 17.3¢ |
+| 12 | 127,367 | 84,040 | 77.9¢ |
+| 11 | 167,655 | 84,040 | 95.3¢ |
+
+167,655 input tokens for a transcript that was only ever a few thousand
+tokens long. The cache reads are the system prefix doing its job; the
+input column is the conversation being re-sent.
+
+`AgentLoop#cacheable` marks the last content block of the last message,
+rolled forward each round — the documented multi-turn pattern, where
+earlier breakpoints stay valid read points so hits accrue as the
+conversation grows. **Estimated ~69% off that eleven-round turn's input
+cost** (84¢ → 26¢), which is an estimate and not a measurement: like C7's
+cache claim, only a live turn showing `cache_read_input_tokens` climbing
+across rounds confirms it.
+
+Two properties it leans on, both asserted rather than assumed:
+
+- **The last message is always a `user` one at call time** — `drive`
+  calls the model at the top of its loop and appends the assistant reply
+  after, so a breakpoint never lands on a `thinking` block, whose
+  signature must replay byte-identically. A guard enforces it anyway.
+- **The marked block is a copy.** `transcript` hands back the loaded
+  records' own jsonb; marking it in place would persist `cache_control`
+  into the stored conversation.
+
+Known limit: a breakpoint looks back only 20 content blocks. A round
+appends one assistant and one user message, so consecutive requests are
+well inside that — but a single round fanning out to more than ~20
+parallel tool calls would miss and pay full price for that round.
+
 ## Open questions
 
 - **Whether the Postgres event relay is quiet enough at one poll per 200ms

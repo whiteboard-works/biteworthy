@@ -251,14 +251,76 @@ RSpec.describe Chat::AgentLoop do
       expect(names).not_to include("set_user_role")
     end
 
-    # Tools render into the cached prefix before system, so the single
+    # Tools render into the cached prefix before system, so the system
     # breakpoint belongs on the LAST system block — that caches the tool
-    # catalog and the instructions together.
-    it "sets exactly one cache breakpoint" do
+    # catalog and the instructions together. Exactly one, because a second
+    # one up there would only split a prefix that is already stable.
+    it "sets exactly one cache breakpoint in the system prompt" do
       client = ScriptedClient.new(say("hi"))
       described_class.new(conversation, client: client).run(text: "hello")
 
       expect(client.requests.first[:system].count { |b| b[:cache_control] }).to eq(1)
+    end
+
+    # The transcript is the expensive half and was not cached at all: a
+    # round adds a few thousand tokens and then pays full input price for
+    # all of them again on every later round. A real eleven-round turn
+    # billed 167,655 input tokens for a transcript only ever a few
+    # thousand tokens long.
+    describe "caching the transcript" do
+      def blocks_of(request) = request[:messages].flat_map { |m| Array(m[:content]) }
+
+      it "marks the last block so the conversation so far is a cached prefix" do
+        client = ScriptedClient.new(say("hi"))
+        described_class.new(conversation, client: client).run(text: "hello")
+
+        messages = client.requests.first[:messages]
+        expect(Array(messages.last[:content]).last[:cache_control]).to eq({ type: "ephemeral" })
+      end
+
+      # One rolling breakpoint, not one per round. Earlier ones stay valid
+      # read points on the server, so marking every message would spend
+      # breakpoints (there are four) to buy nothing.
+      it "marks exactly one block per request, at the end" do
+        client = ScriptedClient.new(
+          call_tool("get_restaurant", { "restaurant" => "ninis" }), say("done")
+        )
+        described_class.new(conversation, client: client).run(text: "hello")
+
+        client.requests.each do |request|
+          marked = blocks_of(request).select { |b| b.is_a?(Hash) && b[:cache_control] }
+          expect(marked.size).to eq(1)
+          expect(marked.first).to eq(blocks_of(request).last)
+        end
+      end
+
+      # The stored message must not gain a `cache_control` key — the
+      # transcript hands back the loaded records' own jsonb, and marking
+      # it in place would persist the breakpoint into the conversation.
+      it "does not write the breakpoint back into the stored transcript" do
+        client = ScriptedClient.new(say("hi"))
+        described_class.new(conversation, client: client).run(text: "hello")
+
+        stored = conversation.messages.reload.flat_map { |m| Array(m.content) }
+        expect(stored.none? { |b| b.key?("cache_control") }).to be(true)
+      end
+
+      # A thinking block's signature is rejected if it is not replayed
+      # byte-identically, so the breakpoint must never land on one. The
+      # loop's shape means it currently cannot; the guard is there so a
+      # future reordering fails safe instead of 400ing every turn.
+      it "leaves a trailing thinking block alone" do
+        conversation.append!(role: "user", content: [ { type: "text", text: "hi" } ])
+        conversation.append!(
+          role: "assistant",
+          content: [ { type: "thinking", thinking: "hmm", signature: "sig" } ]
+        )
+        loop_instance = described_class.new(conversation, client: ScriptedClient.new(say("ok")))
+
+        turns = loop_instance.send(:cacheable, conversation.transcript)
+
+        expect(turns.last[:content].last).not_to have_key(:cache_control)
+      end
     end
 
     # The property that matters is not where the breakpoint sits, it is

@@ -450,10 +450,60 @@ module Chat
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
-        messages:   @conversation.transcript,
+        messages:   cacheable(@conversation.transcript),
         tools:      tool_definitions,
         thinking:   { type: "adaptive" }
       }
+    end
+
+    # The transcript is the expensive half of a turn and it was not cached
+    # at all.
+    #
+    # C5 put the one `cache_control` breakpoint on the last system block,
+    # which caches tools + instructions + topology — stable, and worth it.
+    # Everything after that breakpoint is re-read at full input price on
+    # every round, and "everything after" is the conversation: the user's
+    # messages, the assistant's, and every tool result, including a whole
+    # menu from `get_menu`. A round adds a few thousand tokens and then
+    # pays for all of them again on each later round, so the cost of a
+    # turn grows with the square of its length. Measured on a real
+    # eleven-round turn: 167,655 input tokens for a transcript that was
+    # only ever a few thousand tokens long, and 95¢.
+    #
+    # A breakpoint on the last block makes the whole conversation so far a
+    # cached prefix for the next round: written once at 1.25×, read after
+    # that at 0.1×. Rolling it forward each round is the documented
+    # multi-turn pattern — earlier breakpoints stay valid read points, so
+    # hits accrue as the conversation grows rather than being rewritten.
+    #
+    # Two things this relies on, both true here and neither obvious:
+    #
+    #   * **The last message is always a `user` one at call time.** `drive`
+    #     calls the model at the top of its loop and appends the assistant
+    #     reply after, so a breakpoint never lands on a `thinking` block —
+    #     whose signature must replay byte-identically. The guard below
+    #     enforces it anyway rather than trusting the loop's shape to stay
+    #     that way.
+    #   * **A breakpoint only looks back 20 content blocks** for a prior
+    #     entry. A round appends one assistant message and one user
+    #     message — a handful of blocks — so consecutive requests are well
+    #     inside that. A single round that fanned out to more than ~20
+    #     parallel tool calls would silently miss and pay full price for
+    #     that round; it would still be correct, just not cached.
+    NON_CACHEABLE_BLOCKS = %w[thinking redacted_thinking].freeze
+
+    def cacheable(turns)
+      last   = turns.last
+      blocks = Array(last && last[:content])
+      tail   = blocks.last
+      return turns unless tail.is_a?(Hash)
+      return turns if NON_CACHEABLE_BLOCKS.include?(tail["type"] || tail[:type])
+
+      # Copied rather than mutated: `transcript` hands back the loaded
+      # records' own jsonb, and marking it in place would write a
+      # `cache_control` key into the stored message on the next save.
+      marked = blocks[0..-2] + [ tail.merge(cache_control: { type: "ephemeral" }) ]
+      turns[0..-2] + [ last.merge(content: marked) ]
     end
 
     def emit(payload)

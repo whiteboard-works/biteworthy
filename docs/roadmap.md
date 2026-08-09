@@ -69,6 +69,8 @@ Read its Decisions and Safety-properties tables before picking up a phase.
 - [x] C5 — prompts as ordered sections + a volatile trailing block (profile snapshot, page context)
 - [x] C6 — grounding review on dietary answers (Safety Property 1, enforced not instructed)
 - [x] C7 — deferred tool loading (M6): 67–79% off a cold turn; per-tool progress text
+- [x] C8 — exact cost accounting: micro-cents, the reviewer's spend, `run_token` on every accrual
+- [x] C9 — cache the transcript, not just the prompt (~69% off a long turn's input, estimated)
 
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint
