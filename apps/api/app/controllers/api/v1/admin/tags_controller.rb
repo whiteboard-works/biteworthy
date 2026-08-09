@@ -1,19 +1,22 @@
 module Api
   module V1
     module Admin
-      # Taxonomy CRUD (tags). Same v1 rails as ingredients: slug, path,
-      # AND family are immutable (allergen-family tags feed the filter's
-      # avoid arrays; a family change would silently re-classify
-      # everything referencing the tag), deletes are refused while
-      # referenced, merge/subtree-rename are v2. Kept as a sibling of
-      # IngredientsController rather than a shared superclass — the
-      # field sets diverge enough that the abstraction costs more than
-      # the ~60 duplicated lines.
+      # Taxonomy CRUD (tags). Same v1 rails as ingredients, plus an
+      # immutable `family` — allergen-family tags feed the filter's avoid
+      # arrays, so a family change would silently re-classify everything
+      # referencing the tag. The rails live in ::Taxonomy::Writer, shared
+      # with IngredientsController and the MCP taxonomy tools; this file
+      # is still a sibling rather than a subclass because what is left —
+      # the field set and the wire row — is where the two genuinely
+      # differ. (The comment this replaces argued the duplication was
+      # cheaper than the abstraction. It was written when there were two
+      # copies of the rules; a third arrived with the tool layer and they
+      # stopped agreeing.)
       class TagsController < BaseController
+        include TaxonomyErrorResponse
+
         DEFAULT_LIMIT = 100
         MAX_LIMIT     = 500
-
-        LTREE_PATH_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/
 
         def index
           limit  = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
@@ -37,83 +40,36 @@ module Api
         end
 
         def create
-          path = params[:path].to_s
-          return unless validate_path!(path)
-
-          family = params.require(:family).to_s
-          tag = Tag.create!(
+          tag = ::Taxonomy::Writer.create!(
+            Tag,
             slug:        params.require(:slug),
             name:        params.require(:name),
-            path:        path,
-            family:      family,
+            path:        params[:path].to_s,
+            family:      params.require(:family).to_s,
             description: params[:description].presence
           )
           render json: serialize_tag(tag, 0), status: :created
         end
 
         def update
-          tag = Tag.find(params[:id])
-          immutable = %i[slug path family].select { |f| params.key?(f) && params[f].to_s != tag[f].to_s }
-          if immutable.any?
-            render json: { error: "immutable_field", fields: immutable }, status: :unprocessable_entity
-            return
-          end
-
-          attrs = {}
-          attrs[:name]        = params[:name] if params.key?(:name)
-          attrs[:description] = params[:description].presence if params.key?(:description)
-          tag.update!(attrs)
+          tag = ::Taxonomy::Writer.update!(Tag.find(params[:id]), update_attrs)
 
           render json: serialize_tag(tag, ItemTag.where(tag_id: tag.id).count)
         end
 
         def destroy
-          tag = Tag.find(params[:id])
-
-          # Same narrow-the-race transaction as the ingredients twin.
-          tag.transaction do
-            tag.lock!
-
-            references = {
-              descendants: Tag.descendants_of(tag.path).where.not(id: tag.id).count,
-              items:       ItemTag.where(tag_id: tag.id).count,
-              presets:     DietaryProfileTag.where(tag_id: tag.id).count,
-              modifiers:   ItemModifier.where("tag_ids @> ARRAY[:id]::uuid[]", id: tag.id).count,
-              profiles:    profiles_referencing(tag.id)
-            }
-
-            if references.values.any?(&:positive?)
-              render json: { error: "in_use", references: references }, status: :conflict
-            else
-              tag.destroy!
-              head :no_content
-            end
-          end
+          ::Taxonomy::Writer.destroy!(Tag.find(params[:id]))
+          head :no_content
         end
 
         private
 
-        def validate_path!(path)
-          unless path.match?(LTREE_PATH_FORMAT)
-            render json: { error: "invalid_path" }, status: :unprocessable_entity
-            return false
-          end
-          if path.include?(".") && !Tag.exists?(path: path.rpartition(".").first)
-            render json: { error: "parent_missing", parent: path.rpartition(".").first },
-                   status: :unprocessable_entity
-            return false
-          end
-          true
-        end
-
-        def profiles_referencing(tag_id)
-          UserProfile.where(
-            "avoid_tag_ids @> ARRAY[:id]::uuid[] OR " \
-            "prefer_tag_ids @> ARRAY[:id]::uuid[] OR " \
-            "liked_tag_ids @> ARRAY[:id]::uuid[] OR " \
-            "disliked_tag_ids @> ARRAY[:id]::uuid[]",
-            id: tag_id
-          ).count
+        # slug/path/family go in only so the writer can refuse a change to
+        # them; it never writes an immutable field.
+        def update_attrs
+          attrs = params.permit(:slug, :path, :family, :name).to_h.symbolize_keys
+          attrs[:description] = params[:description].presence if params.key?(:description)
+          attrs
         end
 
         def serialize_tag(tag, items_count)

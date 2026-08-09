@@ -49,13 +49,12 @@ module Tools
       def self.perform(context:, kind:, slug:, name:, path:, **extra)
         context.admin!
         model = model_for(kind)
-        validate_path!(kind, path)
 
         if model.exists?(slug: slug)
           raise Errors::InvalidArgument, "A #{kind} with slug '#{slug}' already exists."
         end
 
-        node = model.create!(attrs_for(kind, slug, name, path, extra))
+        node = translate_errors { ::Taxonomy::Writer.create!(model, attrs_for(kind, slug, name, path, extra)) }
         ok(created: true, node: node_row(node, kind))
       end
 

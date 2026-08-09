@@ -339,12 +339,17 @@ reason these tools are narrower than the models allow:
   from their filter silently — profiles tolerate ids that no longer
   resolve.
 
-`edit_place` and `edit_item` share their validation with the REST
-controllers rather than reimplementing it: `Places::Writer` and
-`Admin::ItemEditor` respectively. That is deliberate — both validate
-before coercing, because Rails' casts are lossy in exactly the directions
-that corrupt live data (`"monday".to_i` is `0`, `"25:99"` becomes "closed",
-a non-numeric latitude becomes Null Island).
+`edit_place`, `edit_item`, and the three `*_taxonomy_node` tools share
+their validation with the REST controllers rather than reimplementing it:
+`Places::Writer`, `Admin::ItemEditor`, and `Taxonomy::Writer`
+respectively. That is deliberate — the place/item writers validate before
+coercing, because Rails' casts are lossy in exactly the directions that
+corrupt live data (`"monday".to_i` is `0`, `"25:99"` becomes "closed", a
+non-numeric latitude becomes Null Island), and `Taxonomy::Writer` exists
+because the alternative was already demonstrated: the two admin
+controllers and `Tools::Taxonomy::Base` each owned a copy of the rules,
+and only the tag controller counted `prefer_tag_ids` as a reference, so
+one tag was undeletable over REST and deletable over MCP.
 
 ## The first-party chat
 

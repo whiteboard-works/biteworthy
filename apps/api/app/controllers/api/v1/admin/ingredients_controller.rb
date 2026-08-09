@@ -1,24 +1,19 @@
 module Api
   module V1
     module Admin
-      # Taxonomy CRUD (ingredients). Deliberately narrow in v1:
-      #
-      #   - `slug` and `path` are IMMUTABLE after create. Ingestion
-      #     payloads resolve by slug at promote time (renaming one
-      #     silently drops joins — an allergen-safety P0), and an ltree
-      #     path rename orphans every descendant (nothing cascades).
-      #   - destroy is refused (409 + reference counts) while anything
-      #     points at the node: descendants, item joins, dietary-preset
-      #     rows, or user-profile avoid/taste arrays. UserProfile
-      #     tolerates stale ids on read, but deleting a node in
-      #     someone's avoid list would silently weaken their safety
-      #     filter's intent.
-      #   - merge + subtree rename are explicitly v2.
+      # Taxonomy CRUD (ingredients). Deliberately narrow in v1: `slug` and
+      # `path` are immutable after create, destroy is refused while
+      # anything points at the node, and merge + subtree rename are
+      # explicitly v2. Those rules and the reasons for them live in
+      # ::Taxonomy::Writer (root-scoped — a bare `Taxonomy::` here would
+      # resolve under Api::V1::Admin), shared with the MCP taxonomy tools.
+      # This controller is the HTTP adapter: params in, wire rows out,
+      # refusals rendered by TaxonomyErrorResponse.
       class IngredientsController < BaseController
+        include TaxonomyErrorResponse
+
         DEFAULT_LIMIT = 100
         MAX_LIMIT     = 500 # the taxonomy is small; the tree UI wants everything
-
-        LTREE_PATH_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/
 
         def index
           limit  = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
@@ -44,13 +39,11 @@ module Api
         end
 
         def create
-          path = params[:path].to_s
-          return unless validate_path!(path)
-
-          ingredient = Ingredient.create!(
+          ingredient = ::Taxonomy::Writer.create!(
+            Ingredient,
             slug:     params.require(:slug),
             name:     params.require(:name),
-            path:     path,
+            path:     params[:path].to_s,
             aliases:  Array(params[:aliases]).map(&:to_s).reject(&:blank?),
             allergen: ActiveModel::Type::Boolean.new.cast(params[:allergen]) || false
           )
@@ -58,79 +51,30 @@ module Api
         end
 
         def update
-          ingredient = Ingredient.find(params[:id])
-          immutable = %i[slug path].select { |f| params.key?(f) && params[f].to_s != ingredient[f].to_s }
-          if immutable.any?
-            render json: { error: "immutable_field", fields: immutable }, status: :unprocessable_entity
-            return
-          end
-
-          attrs = {}
-          attrs[:name]    = params[:name] if params.key?(:name)
-          attrs[:aliases] = Array(params[:aliases]).map(&:to_s).reject(&:blank?) if params.key?(:aliases)
-          # cast(nil) is nil and the column is NOT NULL — an explicit
-          # JSON null must not become a 500.
-          unless (allergen = ActiveModel::Type::Boolean.new.cast(params[:allergen])).nil?
-            attrs[:allergen] = allergen
-          end
-          ingredient.update!(attrs)
+          ingredient = ::Taxonomy::Writer.update!(Ingredient.find(params[:id]), update_attrs)
 
           count = ItemIngredient.where(ingredient_id: ingredient.id).count
           render json: serialize_ingredient(ingredient, count)
         end
 
         def destroy
-          ingredient = Ingredient.find(params[:id])
-
-          # Transaction + row lock narrows the check-then-destroy race
-          # (dependent: :destroy would silently cascade a join added in
-          # between). A concurrent INSERT can still slip past — admin-only
-          # endpoint, accepted.
-          ingredient.transaction do
-            ingredient.lock!
-
-            references = {
-              # `<@` includes the node itself — exclude it.
-              descendants: Ingredient.descendants_of(ingredient.path).where.not(id: ingredient.id).count,
-              items:       ItemIngredient.where(ingredient_id: ingredient.id).count,
-              presets:     DietaryProfileIngredient.where(ingredient_id: ingredient.id).count,
-              modifiers:   ItemModifier.where("ingredient_ids @> ARRAY[:id]::uuid[]", id: ingredient.id).count,
-              profiles:    profiles_referencing(ingredient.id)
-            }
-
-            if references.values.any?(&:positive?)
-              render json: { error: "in_use", references: references }, status: :conflict
-            else
-              ingredient.destroy!
-              head :no_content
-            end
-          end
+          ::Taxonomy::Writer.destroy!(Ingredient.find(params[:id]))
+          head :no_content
         end
 
         private
 
-        def validate_path!(path)
-          unless path.match?(LTREE_PATH_FORMAT)
-            render json: { error: "invalid_path" }, status: :unprocessable_entity
-            return false
+        # slug/path go in only so the writer can refuse a change to them;
+        # it never writes an immutable field.
+        def update_attrs
+          attrs = params.permit(:slug, :path, :name).to_h.symbolize_keys
+          attrs[:aliases] = Array(params[:aliases]).map(&:to_s).reject(&:blank?) if params.key?(:aliases)
+          # cast(nil) is nil and the column is NOT NULL — an explicit
+          # JSON null must not become a 500.
+          unless (allergen = ActiveModel::Type::Boolean.new.cast(params[:allergen])).nil?
+            attrs[:allergen] = allergen
           end
-          if path.include?(".") && !Ingredient.exists?(path: path.rpartition(".").first)
-            render json: { error: "parent_missing", parent: path.rpartition(".").first },
-                   status: :unprocessable_entity
-            return false
-          end
-          true
-        end
-
-        # The avoid array is GIN-indexed; the taste arrays aren't —
-        # taxonomy deletes are rare enough that a seq scan is fine.
-        def profiles_referencing(ingredient_id)
-          UserProfile.where(
-            "avoid_ingredient_ids @> ARRAY[:id]::uuid[] OR " \
-            "liked_ingredient_ids @> ARRAY[:id]::uuid[] OR " \
-            "disliked_ingredient_ids @> ARRAY[:id]::uuid[]",
-            id: ingredient_id
-          ).count
+          attrs
         end
 
         def serialize_ingredient(ingredient, items_count)

@@ -35,18 +35,12 @@ module Tools
         context.admin!
         node = find_node!(kind, slug)
 
-        # Row lock narrows the check-then-delete race; a concurrent insert
-        # can still slip past, which is accepted on an admin-only path.
-        node.with_lock do
-          counts = references(node, kind)
-          if counts.values.any?(&:positive?)
-            return ok(deleted: false, reason: "in_use", references: counts.select { |_, n| n.positive? })
-          end
-
-          node.destroy!
-        end
-
+        ::Taxonomy::Writer.destroy!(node)
         ok(deleted: true, kind: kind, slug: slug)
+      rescue ::Taxonomy::Writer::InUse => e
+        # Not an error the model should apologise for — it asked a fair
+        # question and the answer is "these things are in the way".
+        ok(deleted: false, reason: "in_use", references: e.references.select { |_, n| n.positive? })
       end
     end
   end

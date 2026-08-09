@@ -9,19 +9,14 @@ module Tools
     # count — a model choosing between `create_ingredient` and
     # `create_tag` alongside four other near-twins misroutes.
     #
-    # The v1 rails, carried over from the admin REST endpoints:
-    #
-    #   * `slug` and `path` are IMMUTABLE. Ingestion payloads resolve by
-    #     slug at promote time, so renaming one silently drops joins —
-    #     an allergen-safety P0 — and an ltree path rename orphans every
-    #     descendant, because nothing cascades.
-    #   * `family` is immutable on tags: allergen-family tags feed the
-    #     filter's avoid arrays, and re-classifying one silently changes
-    #     what gets hidden.
-    #   * Deleting is refused while anything points at the node.
+    # The write rules — path shape, parent-must-exist, slug/path/family
+    # immutability, and what counts as a reference that blocks a delete —
+    # live in ::Taxonomy::Writer (root-scoped, because a bare `Taxonomy::`
+    # here resolves to Tools::Taxonomy), shared with the admin REST
+    # controllers. What stays here is this door's half: resolving a slug,
+    # phrasing the refusals for a model to act on, and the wire rows.
     class Base < Tools::AdminBase
       KINDS = %w[ingredient tag].freeze
-      LTREE_PATH_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/
 
       KIND_PROPERTY = {
         type: "string",
@@ -41,40 +36,18 @@ module Tools
             raise(Errors::NotFound, "No #{kind} with slug '#{slug}'.")
         end
 
-        def validate_path!(kind, path)
-          unless path.to_s.match?(LTREE_PATH_FORMAT)
-            raise Errors::InvalidArgument,
-                  "path must be lowercase dot-separated segments, e.g. 'dairy.cheese.cheddar'."
-          end
-
-          parent = path.to_s.rpartition(".").first
-          return if parent.blank? || model_for(kind).exists?(path: parent)
-
-          raise Errors::InvalidArgument, "Create the parent '#{parent}' first."
-        end
-
-        # Every place a node can still be referenced. A delete that
-        # ignored these would drop a node out of somebody's avoid list —
-        # UserProfile tolerates stale ids on read, so the filter would
-        # silently weaken rather than fail loudly.
-        def references(node, kind)
-          if kind == "ingredient"
-            {
-              descendants: Ingredient.descendants_of(node.path).where.not(id: node.id).count,
-              items:       ItemIngredient.where(ingredient_id: node.id).count,
-              presets:     DietaryProfileIngredient.where(ingredient_id: node.id).count,
-              modifiers:   ItemModifier.where("ingredient_ids @> ARRAY[:id]::uuid[]", id: node.id).count,
-              profiles:    profiles_referencing(node.id, kind)
-            }
-          else
-            {
-              descendants: Tag.descendants_of(node.path).where.not(id: node.id).count,
-              items:       ItemTag.where(tag_id: node.id).count,
-              presets:     DietaryProfileTag.where(tag_id: node.id).count,
-              modifiers:   ItemModifier.where("tag_ids @> ARRAY[:id]::uuid[]", id: node.id).count,
-              profiles:    profiles_referencing(node.id, kind)
-            }
-          end
+        # The writer's errors are facts about the taxonomy; a model needs
+        # the next action, so each is re-phrased as one.
+        def translate_errors
+          yield
+        rescue ::Taxonomy::Writer::InvalidPath
+          raise Errors::InvalidArgument,
+                "path must be lowercase dot-separated segments, e.g. 'dairy.cheese.cheddar'."
+        rescue ::Taxonomy::Writer::ParentMissing => e
+          raise Errors::InvalidArgument, "Create the parent '#{e.parent}' first."
+        rescue ::Taxonomy::Writer::ImmutableField => e
+          raise Errors::InvalidArgument,
+                "#{e.fields.join(' and ')} cannot change. Create the right node and migrate the references."
         end
 
         def node_row(node, kind)
@@ -89,18 +62,6 @@ module Tools
           else
             row.merge(family: node.family, description: node.description)
           end
-        end
-
-        private
-
-        def profiles_referencing(id, kind)
-          column = kind == "ingredient" ? "ingredient_ids" : "tag_ids"
-          UserProfile.where(
-            "avoid_#{column} @> ARRAY[:id]::uuid[] OR " \
-            "liked_#{column} @> ARRAY[:id]::uuid[] OR " \
-            "disliked_#{column} @> ARRAY[:id]::uuid[]",
-            id: id
-          ).count
         end
       end
     end

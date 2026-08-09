@@ -46,7 +46,7 @@ module Tools
         attrs = editable_attrs(kind, fields)
         raise Errors::InvalidArgument, "Pass at least one field to change." if attrs.empty?
 
-        node.update!(attrs)
+        translate_errors { ::Taxonomy::Writer.update!(node, attrs) }
         ok(node_row(node, kind).merge(changed: attrs.keys))
       end
 
