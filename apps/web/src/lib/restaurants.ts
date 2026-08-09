@@ -60,9 +60,10 @@ export interface RestaurantSummary {
 }
 
 /**
- * Items endpoint payload. The server enriches reasons with name +
- * family — same shape `applyProfile` from filter-engine produces, so
- * client-side recomputation stays byte-identical.
+ * Items endpoint payload. `status` and `reasons` are the server's
+ * decision, rendered as received — the client never recomputes them.
+ * The server enriches each reason with name + family so a chip is a
+ * pure render with no second roundtrip.
  */
 export interface RestaurantItem extends FilterableItem {
   restaurant_id: string;

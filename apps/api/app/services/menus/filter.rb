@@ -6,8 +6,9 @@ module Menus
   # This used to live inside Api::V1::ItemsController. It moved here when
   # the MCP tool layer landed: `get_menu` and `GET /restaurants/:id/items`
   # must answer "why is this hidden?" identically, and two copies of
-  # `reasons_for` would drift. `packages/filter-engine/src/index.ts`
-  # mirrors this on the client — when this changes, that changes.
+  # `reasons_for` would drift. `reasons_for` below is now the ONLY
+  # implementation of the rule — web and mobile render the `status` /
+  # `reasons` they receive and never recompute them.
   #
   # Precedence when building: an explicit share token beats a named preset,
   # which beats the signed-in user's saved profile, which beats no filter
@@ -49,9 +50,9 @@ module Menus
       # Avoiding a node means avoiding everything under it — "I avoid
       # dairy" has to hide the dish tagged `dairy-cheddar`. Applied once
       # here rather than in each `from_*` so no source can be added that
-      # quietly skips it, and outside `Filter` itself so the comparison
-      # against `packages/filter-engine` stays like for like: that mirror
-      # takes an already-resolved avoid set.
+      # quietly skips it. Public because `Cities::RestaurantRanking`
+      # counts the same dishes in SQL and has to expand the same way, or
+      # its `visible_count` outruns the menu it links to.
       def resolve_subtrees(filter)
         filter.avoid_ingredient_ids = Subtree.ingredient_ids(filter.avoid_ingredient_ids)
         filter.avoid_tag_ids        = Subtree.tag_ids(filter.avoid_tag_ids)

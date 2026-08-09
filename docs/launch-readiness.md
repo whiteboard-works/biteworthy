@@ -66,7 +66,7 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 ### Shared packages (`packages/`)
 
 - `@biteworthy/api-types` — codegen'd from `docs/openapi.json` (Phase 1.6); CI drift-checked.
-- `@biteworthy/filter-engine` — pure-TS dietary filter, mirrors the SQL — Phase 3.7.
+- `@biteworthy/filter-engine` — menu wire types + shared presentation helpers (the filter itself is server-only) — Phase 3.7.
 - `@biteworthy/ui-tokens` — design tokens for Tailwind + RN StyleSheet.
 - `@biteworthy/eslint-config` — minimal flat config.
 - `@biteworthy/analytics` — Tracker abstraction + EVENTS taxonomy + noop — Phase 5.8.

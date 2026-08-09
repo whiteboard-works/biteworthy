@@ -3,13 +3,13 @@
 <!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
 ## Review guidelines
 
-**Context:** The Next.js web client for BiteWorthy. It pre-computes the visible/hidden menu set on the client via the shared filter engine, so its correctness depends on staying byte-for-byte in agreement with the Rails server filter. (See the repo-root `AGENTS.md` for the filter-parity and analytics contracts.)
+**Context:** The Next.js web client for BiteWorthy. It does **not** compute the visible/hidden menu set — the Rails API does, and this app renders the `status` / `reasons` each item arrives with. `@biteworthy/filter-engine` supplies the wire types and the presentation helpers (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), not a filter. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)
 
 GitHub surfaces only P0/P1 findings. CI runs `pnpm typecheck` / `lint` / `test` (`ci-js`) — don't restate those.
 
 Block a PR (P0/P1) when it:
 
-- **Re-implements avoid-list filtering in a component** instead of calling `@biteworthy/filter-engine`. The shared engine is the single source of truth; any local re-implementation diverges from the server and can render an unsafe item as safe.
+- **Decides visible/hidden in the client.** A component must render the server's `status` and `reasons`, never derive them — not from the item's `ingredient_ids` / `tag_ids`, not from a stored profile. The taxonomy is hierarchical and the browser does not have it, so a local re-derivation under-filters: someone avoiding `dairy` would be shown a dish tagged `dairy-cheddar` as safe.
 - **Emits an analytics event off-contract.** Use the `@biteworthy/analytics` `EVENTS` names and property shapes; never add the legal-E7 health fields (`preset_slug`, `strictness`, avoid-list counts) back to `profile_set`.
 - **Leaks a secret into the client bundle.** Only `NEXT_PUBLIC_*` env vars may reach client code; a non-`NEXT_PUBLIC_` server key imported into a `'use client'` component (or otherwise reachable from the client bundle) ships to the browser.
 

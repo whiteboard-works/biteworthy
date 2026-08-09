@@ -1,14 +1,19 @@
 require "rails_helper"
 
-# Phase 8.2 — SQL half of the SQL ↔ TS scoring parity contract.
+# Phase 8.2 — the regression fixture for the scoring SQL.
 #
-# Loads the SAME fixture the filter-engine vitest suite asserts
-# against (packages/filter-engine/fixtures/taste-parity.json),
-# materializes its items in Postgres (real join rows so the
-# denormalized arrays sync; real reviews so AVG(rating) is the real
-# aggregate), and asserts TasteScoring's SQL produces the fixture's
-# expected scores to 4 decimal places. If either implementation
-# drifts, its half of this contract fails.
+# Loads packages/filter-engine/fixtures/taste-parity.json, materializes
+# its items in Postgres (real join rows so the denormalized arrays sync;
+# real reviews so AVG(rating) is the real aggregate), and asserts
+# TasteScoring's SQL produces the fixture's expected scores to 4 decimal
+# places. Hand-written expectations, computed independently of the query
+# — which is what makes them worth asserting against.
+#
+# The fixture used to have a TS twin asserting the same numbers against a
+# `scoreItem` mirror; that mirror had no callers and was deleted, so this
+# spec is now its only consumer. The file stays here rather than moving
+# into spec/fixtures because it is data, not Ruby, and moving a shipped
+# fixture buys nothing.
 RSpec.describe TasteScoring do
   fixture_path = Rails.root.join("../../packages/filter-engine/fixtures/taste-parity.json")
   fixture      = JSON.parse(File.read(fixture_path))

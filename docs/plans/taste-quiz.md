@@ -12,8 +12,9 @@
 
 ## Reality check — what we have to build with
 
-The taste engine is fully built (`taste_scoring.rb`, `packages/filter-engine/src/taste.ts`,
-Top Picks UI). The constraint is **vocabulary**, from `apps/api/db/seeds/tags.yml:92`:
+The taste engine is fully built (`taste_scoring.rb` scores server-side;
+`packages/filter-engine/src/taste.ts` selects and phrases Top Picks from those
+scores). The constraint is **vocabulary**, from `apps/api/db/seeds/tags.yml:92`:
 
 | Family | Real tags today | Count |
 |---|---|---|
@@ -41,7 +42,7 @@ Top Picks UI). The constraint is **vocabulary**, from `apps/api/db/seeds/tags.ym
    that deselects to *disliked* is a bug; a love/pass card needs to land on a
    specific state). **Add explicit actions** `SET_TASTE_TAG {id, state}` and
    `SET_TASTE_INGREDIENT {id, state}` (state ∈ `liked|disliked|neutral`), keep
-   the cycle for the existing chip UI, and keep the filter-engine parity tests
+   the cycle for the existing chip UI, and keep `onboarding-reducer.test.ts`
    green. Small, clean addition.
 
 ---
@@ -127,7 +128,7 @@ Build the payload with `toProfilePayload(state, presets)` (full onboarding) or
 ## Build checklist
 
 - [ ] Expand `flavor` taxonomy (+ optional `texture`/`format` family) — *quality prereq*
-- [ ] Add `SET_TASTE_TAG` / `SET_TASTE_INGREDIENT` reducer actions + parity tests
+- [ ] Add `SET_TASTE_TAG` / `SET_TASTE_INGREDIENT` reducer actions + reducer tests
 - [ ] `fetchTags(['cuisine','prep','flavor'])` in the quiz path
 - [ ] Curate the hero-ingredient preset deck (seed-backed slugs)
 - [ ] Build the 6 screens (web `apps/web/src/app/onboarding`, mirror in mobile)

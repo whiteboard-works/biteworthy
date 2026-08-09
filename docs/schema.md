@@ -16,8 +16,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 - **Avoid lists store what the person chose, not its subtree.** `Menus::Subtree`
   expands a node to its ltree descendants when the filter is built, so avoiding
   `dairy` hides a dish tagged `dairy-cheddar`. Resolution happens outside the
-  filter so `packages/filter-engine` stays comparable line for line — that
-  mirror takes an already-resolved avoid set.
+  filter, in `Menus::Filter.resolve_subtrees`, so the filter stays a plain id
+  intersection and every consumer of an avoid set expands identically —
+  including the SQL count in `Cities::RestaurantRanking`.
 - `ingredients` — hierarchical via `path ltree`. Closed catalog: only
   admins/AI-pending-review can add nodes. `aliases[]` lets "garbanzo"
   resolve to "chickpea". `allergen` flag drives the strict-mode UI.
@@ -144,8 +145,13 @@ COUNT(items.id) FILTER (
 `&&` is Postgres's array-overlap operator. That one query replaces 30
 calls to the items endpoint during SEO page SSR.
 
-The filter computation is mirrored client-side by `applyProfile` in
-`packages/filter-engine/src/index.ts`, and the scorer by `scoreItem` in
-`packages/filter-engine/src/taste.ts` (shared fixture:
-`fixtures/taste-parity.json`). All are tested; all must change
-together.
+Both the ranking count above and the per-item filter read the same
+avoid set, expanded once through `Menus::Filter.resolve_subtrees` so an
+avoided parent node also excludes its `ltree` descendants.
+
+Nothing mirrors either computation client-side. `packages/filter-engine`
+holds wire types and presentation helpers only; a TS copy of the filter
+and the scorer used to live there and was deleted in Aug 2026 (no
+callers, and its parity test compared TS to TS). The scorer's regression
+fixture survives at `packages/filter-engine/fixtures/taste-parity.json`,
+now read only by `apps/api/spec/services/taste_scoring_spec.rb`.

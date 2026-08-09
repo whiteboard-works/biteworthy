@@ -1,5 +1,4 @@
 import { buildShareUrl } from '../../lib/share-url';
-import { decodeProfileToken } from '@biteworthy/filter-engine';
 
 const filter = {
   avoid_ingredient_ids: ['ing-dairy', 'ing-egg'],
@@ -13,11 +12,19 @@ describe('buildShareUrl', () => {
     expect(url.startsWith('https://biteworthy.example/r/cream-bean-berry-1?p=')).toBe(true);
   });
 
-  it('produces a token that decodes back to the same filter', () => {
+  // Only Rails decodes the token, so read the payload here rather than
+  // round-tripping through a TS decoder that no app code would run.
+  it('embeds the filter in the token Rails will decode', () => {
     const url = buildShareUrl('rest', filter, 'https://x.example');
     const token = url.split('?p=')[1]!;
-    const decoded = decodeProfileToken(token);
-    expect(decoded).toEqual(filter);
+    const padded = token.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const payload = JSON.parse(Buffer.from(padded + padding, 'base64').toString('utf8'));
+    expect(payload).toMatchObject({
+      ai: filter.avoid_ingredient_ids,
+      at: filter.avoid_tag_ids,
+      s: filter.strictness,
+    });
   });
 
   it('URL-encodes slugs that contain reserved characters', () => {

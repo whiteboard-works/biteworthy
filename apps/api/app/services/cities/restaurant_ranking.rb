@@ -6,13 +6,33 @@
 # Returns a deterministic order — `(visible_count DESC, name ASC)` —
 # so the same SEO page renders identically across requests / regions.
 #
-# One SQL query: filter logic mirrors `Items::FILTERED` in spirit but
-# applies it at the count level so we don't N+1 (running the items
-# endpoint 30 times during SSR would tank the page).
+# One SQL query, because the alternative is running the menu query
+# thirty times during SSR. The aggregate uses Postgres
+# `FILTER (WHERE ...)` clauses against the `items.ingredient_ids uuid[]`
+# + `items.tag_ids uuid[]` GIN arrays the schema is shaped around (see
+# `docs/schema.md`).
 #
-# The aggregate uses Postgres `FILTER (WHERE ...)` clauses against
-# the `items.ingredient_ids uuid[]` + `items.tag_ids uuid[]` GIN
-# arrays the schema is shaped around (see `docs/schema.md`).
+# **`visible_count` must mean the same thing here as on the restaurant
+# page**, or a /durango/vegan card promises more dishes than the menu
+# behind it delivers. Two halves to that:
+#
+#   * **Subtree expansion applies.** The avoid lists go through
+#     `Menus::Filter.resolve_subtrees` — the same entry point
+#     `Menus::Filter.build` uses — so avoiding `dairy` counts a dish
+#     tagged `dairy.cheddar` as hidden. This used to read the profile's
+#     raw ids, which happened to work only because presets are stored
+#     pre-expanded (`Menus::Subtree`'s note); any non-preset avoid set
+#     reaching here would have over-counted.
+#   * **The confidence rule intentionally does not.** It only fires
+#     under `strictness: "strict"`, and strictness is a property of a
+#     *person* — a `DietaryProfile` preset has no such column, and both
+#     callers (the anonymous SEO endpoint and the `search_restaurants`
+#     tool) pass a preset. The filter this ranking counts is therefore
+#     `balanced` by construction, exactly like
+#     `Menus::Filter.from_preset`, where the confidence clause is a
+#     no-op. Nothing to skip, so nothing is skipped. If a signed-in
+#     user's own profile is ever ranked here, that stops being true and
+#     the count needs an `items.confidence = 'confirmed'` clause.
 module Cities
   class RestaurantRanking
     Ranked = Struct.new(:restaurant, :visible_count, :total_count, keyword_init: true) do
@@ -29,8 +49,8 @@ module Cities
     # Returns an Array<Ranked>. Empty when the city has no published
     # restaurants.
     def call
-      avoid_ingredient_ids = @profile.avoid_ingredient_ids
-      avoid_tag_ids        = @profile.avoid_tag_ids
+      avoid_ingredient_ids = filter.avoid_ingredient_ids
+      avoid_tag_ids        = filter.avoid_tag_ids
 
       rows = Restaurant
         .published
@@ -56,6 +76,28 @@ module Cities
     end
 
     private
+
+    # The same Filter the menu endpoint would build for this preset, so
+    # the counts here and the item list there answer to one definition.
+    #
+    # Memoized because `resolve_subtrees` costs two queries per taxonomy,
+    # and for every preset shipping today the expansion is a no-op — the
+    # seeds store them pre-expanded, so `path <@ ANY(...)` re-derives the
+    # ids it was handed. Four queries per page for a guarantee rather than
+    # a coincidence is the right trade; four per row would not be. If the
+    # SEO pages ever become latency-sensitive, cache the expanded set per
+    # preset rather than dropping the call.
+    def filter
+      @filter ||= Menus::Filter.resolve_subtrees(
+        Menus::Filter.new(
+          avoid_ingredient_ids: @profile.avoid_ingredient_ids,
+          avoid_tag_ids:        @profile.avoid_tag_ids,
+          strictness:           Menus::Filter::DEFAULT_STRICTNESS,
+          source:               "preset",
+          preset_slug:          @profile.slug
+        )
+      )
+    end
 
     # `LEFT OUTER JOIN items` so restaurants with zero published items
     # still show up. Filter the joined items down to published-only
