@@ -3,6 +3,7 @@ import {
   clearNeverHide,
   fetchRestaurant,
   fetchRestaurantItems,
+  fetchRestaurantItemsClient,
   fetchRestaurants,
   setItemFavorite,
   setNeverHide,
@@ -124,6 +125,42 @@ describe('fetchRestaurantItems', () => {
     await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl, jwt: 'jjj.www.ttt' });
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+  });
+});
+
+describe('fetchRestaurantItemsClient', () => {
+  // The menu is filtered by who is asking. A browser fetch straight to
+  // Rails is cross-origin and carries no `bw_session`, so it would answer
+  // a signed-in reader with the anonymous menu — which is exactly what the
+  // strictness toggle used to do.
+  it('goes through the Next proxy with same-origin credentials', async () => {
+    const fetchImpl = fakeFetch(200, itemsPayload);
+    await fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl });
+
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(url).toBe('/api/restaurants/cream-bean-berry-1/items');
+    expect(init.credentials).toBe('same-origin');
+    expect((init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+
+  it('forwards strictness and the share token', async () => {
+    const fetchImpl = fakeFetch(200, itemsPayload);
+    await fetchRestaurantItemsClient('cream-bean-berry-1', {
+      fetchImpl,
+      strictness: 'strict',
+      profileToken: 'tok-123',
+    });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    expect(url).toContain('strictness=strict');
+    expect(url).toContain('profile_token=tok-123');
+  });
+
+  it('throws on non-2xx', async () => {
+    const fetchImpl = fakeFetch(500, { error: 'boom' });
+    await expect(fetchRestaurantItemsClient('cream-bean-berry-1', { fetchImpl })).rejects.toThrow(
+      /500/,
+    );
   });
 });
 

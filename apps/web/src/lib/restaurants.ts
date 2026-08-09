@@ -164,19 +164,49 @@ export async function fetchItem(
   );
 }
 
-export async function fetchRestaurantItems(
-  slugOrId: string,
-  opts: FetchItemsOptions = {},
-): Promise<RestaurantItemsResponse> {
+function itemsQuery(opts: FetchItemsOptions): string {
   const params = new URLSearchParams();
   if (opts.profileToken) params.set('profile_token', opts.profileToken);
   if (opts.presetSlug) params.set('profile', opts.presetSlug);
   if (opts.strictness) params.set('strictness', opts.strictness);
   const qs = params.toString();
-  const path = `/restaurants/${encodeURIComponent(slugOrId)}/items${qs ? `?${qs}` : ''}`;
+  return qs ? `?${qs}` : '';
+}
+
+/**
+ * Server-side only. Pass `jwt` whenever the caller has one — the menu is
+ * filtered by who is asking, so omitting it silently returns the anonymous
+ * menu (`filter.source === 'none'`, no taste scores, no overrides).
+ */
+export async function fetchRestaurantItems(
+  slugOrId: string,
+  opts: FetchItemsOptions = {},
+): Promise<RestaurantItemsResponse> {
+  const path = `/restaurants/${encodeURIComponent(slugOrId)}/items${itemsQuery(opts)}`;
   const headers: Record<string, string> = {};
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<RestaurantItemsResponse>(path, { headers, fetchImpl: opts.fetchImpl });
+}
+
+/**
+ * Browser-side twin, through the Next proxy at `/api/restaurants/:slug/items`.
+ *
+ * A direct call to Rails from the browser is cross-origin and carries no
+ * credential — `bw_session` is HttpOnly and belongs to this origin. So the
+ * client refetch has to go through the proxy or it drops the signed-in
+ * user's profile, which is what a strictness toggle used to do.
+ */
+export async function fetchRestaurantItemsClient(
+  slug: string,
+  opts: Omit<FetchItemsOptions, 'jwt'> = {},
+): Promise<RestaurantItemsResponse> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(
+    `/api/restaurants/${encodeURIComponent(slug)}/items${itemsQuery(opts)}`,
+    { credentials: 'same-origin' },
+  );
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return (await res.json()) as RestaurantItemsResponse;
 }
 
 /**
