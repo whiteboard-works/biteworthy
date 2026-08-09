@@ -1,6 +1,8 @@
 /**
- * The visible/hidden decision itself is the server's and is specced in
- * `apps/api/spec/services/menus/filter_spec.rb` — these cover only what
+ * The visible/hidden decision itself is the server's, and is specced
+ * directly in `apps/api/spec/services/menus/filter_spec.rb` (plus end to
+ * end in `spec/requests/api/v1/restaurants/items_spec.rb` and
+ * `spec/services/tools/discovery/get_menu_spec.rb`). These cover only what
  * this package still owns: chip strings, section grouping, and the
  * session-only "show anyway" override.
  */

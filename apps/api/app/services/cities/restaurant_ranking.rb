@@ -79,6 +79,14 @@ module Cities
 
     # The same Filter the menu endpoint would build for this preset, so
     # the counts here and the item list there answer to one definition.
+    #
+    # Memoized because `resolve_subtrees` costs two queries per taxonomy,
+    # and for every preset shipping today the expansion is a no-op — the
+    # seeds store them pre-expanded, so `path <@ ANY(...)` re-derives the
+    # ids it was handed. Four queries per page for a guarantee rather than
+    # a coincidence is the right trade; four per row would not be. If the
+    # SEO pages ever become latency-sensitive, cache the expanded set per
+    # preset rather than dropping the call.
     def filter
       @filter ||= Menus::Filter.resolve_subtrees(
         Menus::Filter.new(
