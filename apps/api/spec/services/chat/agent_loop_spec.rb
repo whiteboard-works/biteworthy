@@ -316,6 +316,132 @@ RSpec.describe Chat::AgentLoop do
       expect(result).not_to be_ok
       expect(result.error).to include("Gave up")
     end
+
+    # MAX_ITERATIONS bounds rounds, not time. A round may sit for the full
+    # upstream read timeout while `tick!` keeps renewing the lease, so a
+    # dozen slow ones hold a conversation for the better part of an hour
+    # and look healthy the whole way.
+    describe "the turn deadline" do
+      include ActiveSupport::Testing::TimeHelpers
+
+      after { travel_back }
+
+      def slow_client(*responses, streaming: false)
+        client = (streaming ? StreamingScriptedClient : ScriptedClient).new(*responses)
+        method = streaming ? :messages_stream : :messages_create
+        allow(client).to receive(method).and_wrap_original do |original, *args, **kwargs, &block|
+          travel(described_class::TURN_DEADLINE_SECONDS_DEFAULT + 1)
+          original.call(*args, **kwargs, &block)
+        end
+        client
+      end
+
+      # Checked between rounds, so the round that overran still finished
+      # answering its own tool calls. A raise here would leave the
+      # transcript ending on an unanswered `tool_use`, which the Messages
+      # API rejects from then on — the conversation would be dead, not
+      # merely one answer poorer.
+      it "stops between rounds, with every tool call still answered" do
+        client = slow_client(call_tool("get_menu", { "restaurant" => "ninis" }), say("never reached"))
+
+        result = described_class.new(conversation, client: client).run(text: "what can I eat")
+
+        expect(result).not_to be_ok
+        expect(result.error).to include("too long")
+        expect(client.requests.size).to eq(1)
+        answered = conversation.messages.reload.select(&:tool_result?)
+                               .flat_map { |m| m.content.map { |b| b["tool_use_id"] } }
+        expect(answered).to include("toolu_1")
+      end
+
+      # The user has to find out from a reload, not only from the stream
+      # they happened to be watching — and the run has to say why it ended
+      # so a slow turn is distinguishable from one somebody stopped.
+      it "leaves the conversation usable and names the outcome on the run" do
+        described_class.new(conversation, client: slow_client(call_tool("get_menu", { "restaurant" => "ninis" })))
+                       .run(text: "what can I eat")
+
+        expect(conversation.reload.state).to eq("active")
+        expect(conversation.messages.last.text).to include("too long")
+        run = ConversationRun.where(conversation_id: conversation.id).last
+        expect(run.state).to eq("failed")
+        expect(run.outcome).to eq("timed_out")
+      end
+
+      it "sends exactly one terminal event, not one per path that ended the turn" do
+        seen = []
+        described_class.new(conversation,
+                            client: slow_client(call_tool("get_menu", { "restaurant" => "ninis" }), streaming: true),
+                            on_event: ->(payload) { seen << payload }).run(text: "what can I eat")
+
+        expect(seen.count { |e| %w[done error awaiting_confirmation].include?(e[:type].to_s) }).to eq(1)
+      end
+    end
+  end
+
+  # The system prompt, the tool catalog, and the caller's profile snapshot
+  # are constant for the life of a turn — and they are exactly the bytes
+  # the prompt cache is keyed on. Rebuilding them for each of up to twelve
+  # rounds re-rendered 44 JSON schemas, walked the registry three more
+  # times, and went back to Postgres for a profile, to arrive at the same
+  # answer.
+  describe "the per-turn setup" do
+    def three_round_turn
+      client = ScriptedClient.new(
+        call_tool("get_restaurant", { "restaurant" => "ninis" }, id: "a"),
+        call_tool("get_restaurant", { "restaurant" => "ninis" }, id: "b"),
+        say("On Main Ave.")
+      )
+      described_class.new(conversation, client: client).run(text: "look twice")
+      client
+    end
+
+    it "builds the system prompt and the tool catalog once, whatever the round count" do
+      allow(Chat::SystemPrompt).to receive(:new).and_call_original
+      allow(Chat::ToolCatalog).to receive(:definitions).and_call_original
+
+      client = three_round_turn
+
+      expect(client.requests.size).to eq(3)
+      expect(Chat::SystemPrompt).to have_received(:new).once
+      expect(Chat::ToolCatalog).to have_received(:definitions).once
+    end
+
+    # Equal is not enough: the cache is keyed on bytes, and a rebuild that
+    # happened to agree would still be a rebuild waiting for the first
+    # per-round value to leak into it.
+    it "sends the identical system blocks and tools on every round" do
+      client = three_round_turn
+
+      expect(client.requests.map { |r| r[:system] }.uniq.size).to eq(1)
+      expect(client.requests.map { |r| r[:tools] }.uniq.size).to eq(1)
+    end
+
+    it "reads the day's spend once, not once per round" do
+      queries = capture_sql { three_round_turn }
+
+      expect(queries.grep(/SUM\("conversations"\."api_cost_cents"\)/).size).to eq(1)
+    end
+
+    # The transcript only grows by messages this loop wrote itself, so
+    # re-reading every jsonb blob each round — thinking blocks, signatures
+    # and all — was O(rounds²) bytes for nothing.
+    it "loads the stored transcript once, not once per round" do
+      queries = capture_sql { three_round_turn }
+
+      expect(queries.grep(/SELECT "messages"\.\* FROM "messages"/).size).to eq(1)
+    end
+
+    # The snapshot is deliberately a snapshot: the prompt tells the model
+    # to trust a tool's response over it when the profile changes mid-turn.
+    it "reads the caller's profile once, not once per round" do
+      peanut = create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut")
+      user.profile.update!(avoid_ingredient_ids: [peanut.id])
+
+      queries = capture_sql { three_round_turn }
+
+      expect(queries.grep(/FROM "ingredients"/).size).to eq(1)
+    end
   end
 
   # A turn runs for tens of seconds. Without these events the client can

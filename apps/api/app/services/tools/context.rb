@@ -11,6 +11,10 @@ module Tools
     # user lookup to decide whether a call needs one.
     attr_reader :user_id, :public_host, :request_id, :scopes
 
+    # `Registry.for`'s memo. It lives here because a context is the unit
+    # the filtered catalogue is constant over; see the comment there.
+    attr_accessor :cached_tools
+
     def initialize(server_context = nil)
       raw          = server_context || {}
       @user_id     = raw[:user_id]

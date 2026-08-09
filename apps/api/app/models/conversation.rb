@@ -19,8 +19,15 @@ class Conversation < ApplicationRecord
   # turn, verbatim. Tool-use, tool-result, and thinking blocks all have
   # to replay exactly — a thinking block's signature is rejected if it
   # was rebuilt rather than echoed.
+  #
+  # Read once per model call, and a turn is up to twelve of those. Every
+  # jsonb blob in the conversation came back on each one — thinking blocks
+  # and signatures included — for the sake of the one or two rows we
+  # ourselves had just written, which is O(rounds²) bytes off the wire for
+  # no new information. So the loaded rows are kept and every write path
+  # below keeps them honest rather than the read re-fetching to be sure.
   def transcript
-    stored = messages.reload.to_a
+    stored = (@stored_messages ||= messages.reload.to_a)
     stored.map { |m| { role: m.role, content: m.content } } + repair_for(stored.last)
   end
 
@@ -29,7 +36,9 @@ class Conversation < ApplicationRecord
   # index, and lose one side's message.
   def append!(role:, content:)
     with_lock do
-      messages.create!(role: role, content: content, position: next_position)
+      messages.create!(role: role, content: content, position: next_position).tap do |message|
+        @stored_messages&.push(message)
+      end
     end
   end
 
@@ -76,6 +85,11 @@ class Conversation < ApplicationRecord
     Message.where(conversation_id: id, role: "assistant")
            .where("content = '[]'::jsonb")
            .delete_all
+    # Deletes go around the association, and this runs at the top of every
+    # turn — which is also the one moment another process could have
+    # written since we last looked. Dropping the cache here is what keeps
+    # it a within-turn cache rather than a bet on nobody else existing.
+    @stored_messages = nil
   end
 
   # Writes real `tool_result` messages for calls that never got one.
