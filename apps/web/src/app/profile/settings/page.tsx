@@ -756,20 +756,6 @@ function MyReviewRow({ review }: { review: MyReview }) {
   );
 }
 
-// ─── Analytics opt-out (legal remediation E7a — pre-existing) ──────
-
-/**
- * Legal remediation E7a — the analytics opt-out the Privacy Policy
- * promises ("turn them off with the toggle in /profile/settings").
- *
- * Web analytics are on by default (the wrapper also honors the
- * browser's Do-Not-Track). This toggle writes the same
- * `localStorage.bw_analytics_opt_out` flag that `buildWebTracker`
- * reads, so flipping it off makes the tracker a no-op on the next
- * load. We never send the dietary profile on analytics events
- * regardless (see packages/analytics — profile_set carries no health
- * fields).
- */
 /**
  * The OAuth grants this person approved, and the only supported way to
  * take one back.
@@ -831,6 +817,14 @@ function ConnectedAppsSection() {
               <span className="block truncate text-bw-sm font-medium text-zinc-900">
                 {app.name}
               </span>
+              {/* Anyone can register an app under any name, so the name
+                  alone cannot tell two apart. The destination can — same
+                  thing the consent screen showed before approving. */}
+              {app.redirect_host ? (
+                <span className="block truncate text-bw-xs text-zinc-500">
+                  Sends you to {app.redirect_host}
+                </span>
+              ) : null}
               <ul className="mt-bw-1 flex flex-col gap-bw-1">
                 {app.scope_details.map((detail) => (
                   <li key={detail.scope} className="text-bw-xs text-zinc-500">
@@ -1031,6 +1025,20 @@ function McpTokensSection() {
   );
 }
 
+// ─── Analytics opt-out (legal remediation E7a — pre-existing) ──────
+
+/**
+ * Legal remediation E7a — the analytics opt-out the Privacy Policy
+ * promises ("turn them off with the toggle in /profile/settings").
+ *
+ * Web analytics are on by default (the wrapper also honors the
+ * browser's Do-Not-Track). This toggle writes the same
+ * `localStorage.bw_analytics_opt_out` flag that `buildWebTracker`
+ * reads, so flipping it off makes the tracker a no-op on the next
+ * load. We never send the dietary profile on analytics events
+ * regardless (see packages/analytics — profile_set carries no health
+ * fields).
+ */
 function AnalyticsSection() {
   // null until we've read localStorage (avoids an SSR/client mismatch).
   const [optedOut, setOptedOut] = useState<boolean | null>(null);

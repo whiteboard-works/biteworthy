@@ -30,6 +30,15 @@ RSpec.describe "Api::V1::ConnectedApps", type: :request do
     response.parsed_body["apps"]
   end
 
+  # What `/oauth/authorize` writes when a person approves. A refresh never
+  # writes one, which is what makes it the record of the connection.
+  def authorize!(to: user, app: client, scopes: "discovery:read profile:read")
+    Doorkeeper::AccessGrant.create!(
+      application: app, resource_owner_id: to.id, redirect_uri: app.redirect_uri.split.first,
+      expires_in: 600, scopes: scopes
+    )
+  end
+
   def tools_list(secret)
     post "/mcp",
          params: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }.to_json,
@@ -99,6 +108,45 @@ RSpec.describe "Api::V1::ConnectedApps", type: :request do
 
       expect(apps.length).to eq(1)
       expect(apps.first["scopes"]).to eq(["discovery:read", "profile:read"])
+    end
+
+    # The trap the oldest-live-token version of this fell into.
+    # `previous_refresh_token` is on the tokens table, so doorkeeper
+    # revokes the prior row the first time a refreshed token is used —
+    # after a week of two-hourly refreshes only the newest row is left,
+    # and "oldest live token" renders a week-old grant as "Connected
+    # today". The grant row is the record of the approval and a refresh
+    # never writes one.
+    it "dates the connection from the approval, not the last refresh" do
+      approved  = 8.days.ago
+      approval  = travel_to(approved) { authorize! }
+      travel_to(approved) { grant! }.revoke  # superseded by a refresh
+      refreshed = grant!
+
+      expect(approval.created_at).to be_within(1.second).of(approved)
+      expect(refreshed.created_at).to be_within(1.minute).of(Time.current)
+      expect(Time.zone.parse(apps.first["connected_at"])).to be_within(1.second).of(approved)
+    end
+
+    # Re-approving after a disconnect is a new connection, not a
+    # continuation of the one that was ended.
+    it "dates it from the most recent approval when an app was reconnected" do
+      travel_to(8.days.ago) { authorize! }
+      recent = 1.hour.ago
+      travel_to(recent) { authorize! }
+      grant!
+
+      expect(Time.zone.parse(apps.first["connected_at"])).to be_within(1.second).of(recent)
+    end
+
+    # A name is a claim: registration is unauthenticated, so two clients
+    # can both call themselves "Claude Desktop" and one of them can be
+    # hostile. The consent screen distinguishes them by destination, and a
+    # list you revoke from has to be at least as decidable.
+    it "names the destination the client registered, not only its name" do
+      grant!
+
+      expect(apps.first["redirect_host"]).to eq("claude.ai")
     end
   end
 
