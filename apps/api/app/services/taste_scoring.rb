@@ -9,14 +9,16 @@
 #   + 0.5 * (avg_visible_rating - 3) / 2          (0 when unreviewed)
 #
 # Safety filters, taste ranks: scores reorder and highlight, they
-# never hide. The TS mirror is `scoreItem` in
-# `packages/filter-engine/src/taste.ts` — the two implementations
-# share the fixture at `packages/filter-engine/fixtures/
-# taste-parity.json`, and BOTH must change together (repo rule).
+# never hide. This is the only implementation — clients render the
+# `taste_score` / `taste_reasons` the items endpoint emits and never
+# recompute them. `packages/filter-engine/fixtures/taste-parity.json`
+# pins the arithmetic above, asserted to 4dp by
+# `spec/services/taste_scoring_spec.rb`; change a weight or a term and
+# the fixture has to move with it.
 #
 # Callers pass Signals that have already had the avoid lists
 # subtracted (filter wins; an avoided id never scores) — see
-# ItemsController#build_taste_signals.
+# Menus::Filter#taste_signals_for.
 class TasteScoring
   WEIGHTS = {
     liked_tag:           2.0,

@@ -67,7 +67,7 @@ Pnpm + Turborepo monorepo. Three apps + five shared packages:
 - `apps/web` — Next.js 15 App Router + Tailwind. Dev port `:3001`.
 - `apps/mobile` — Expo SDK 56 + expo-router.
 - `packages/api-types` — TS types codegen'd from `docs/openapi.json` (see Cross-package contracts below).
-- `packages/filter-engine` — pure-TS dietary filter, shared by web + mobile, with Vitest tests. Mirrors the server-side SQL.
+- `packages/filter-engine` — the menu wire types plus the presentation helpers web + mobile share (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), with Vitest tests. **It does not filter** — despite the name, no client decides visible/hidden.
 - `packages/analytics` — the funnel-event taxonomy (`EVENTS` map + `EventPropsMap`; 9 core funnel/engagement events + 3 auth events). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add new events + optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
 - `packages/ui-tokens` — design tokens consumed by Tailwind (web) and `StyleSheet.create` (mobile).
 - `packages/eslint-config` — minimal flat config; framework rules live per-app.
@@ -143,7 +143,9 @@ Two consequences that affect almost every change in `app/models/item*.rb`:
 1. **Items carry denormalized `ingredient_ids uuid[]` and `tag_ids uuid[]`.** The Ruby filter, `TasteScoring`, and `Cities::RestaurantRanking` all read them, which is what keeps a restaurant page to a couple of queries instead of a join per item. The `ItemIngredient` and `ItemTag` join tables are the source of truth + audit log; `after_save`/`after_destroy` callbacks on the joins keep the arrays in sync. **Never write to the arrays directly** — write to the joins. **Reading them has a trap**: `item.ingredient_ids` resolves to the has_many-through reader, which shadows the identically-named column and costs a query per item — use `item.denormalized_ingredient_ids` / `denormalized_tag_ids` unless you actually need the join rows.
 2. **Every join row has `confidence` (`confirmed | suggested | inferred`) and `source` (`human | ai | owner`).** Strict-mode users (`user_profiles.strictness = 'strict'`) only see items where every association is `confirmed`. The honest-disclosure UX depends on these columns being accurate.
 
-The same computation lives in `packages/filter-engine/src/index.ts` (`applyProfile`) so a client can recompute visible/hidden without a roundtrip. **When the Ruby changes, the TS implementation must change with it** — both have tests; both must stay green. `TasteScoring` has its own TS mirror (`taste.ts`) sharing the `taste-parity.json` fixture.
+**There is exactly one filter, and it is the server's.** `Menus::Filter#reasons_for` decides `status` / `reasons`; web and mobile render what they receive and never recompute it. The same goes for ranking — `TasteScoring` emits `taste_score` / `taste_reasons` and the clients only select and phrase (`topPicksFromScores`, `tasteReasonLine`). A hand-mirrored TS copy of both used to live in `packages/filter-engine` with a lockstep rule attached; it was deleted in Aug 2026 because nothing ever called it, and its "parity" test compared TS to TS.
+
+If a client-side re-filter is ever genuinely wanted, the bar is a real shared fixture generated from `Menus::Query#serialize` that both suites assert against — the way `packages/filter-engine/fixtures/taste-parity.json` pins `TasteScoring` today. Note also that a client cannot filter correctly from a stored profile at all: `Menus::Subtree` expands an avoided node to its descendants before any comparison, and a client has no taxonomy to expand with.
 
 Taxonomy (`ingredients`, `tags`) is hierarchical via Postgres `ltree`. Adding/removing nodes is admin-gated. `aliases[]` is what lets "garbanzo" resolve to "chickpea".
 
@@ -151,8 +153,8 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 
 ## Cross-package contracts
 
-- **API types are generated, not hand-written.** The chain: rswag specs in `apps/api/spec/integration/` → `bin/openapi-export` writes `docs/openapi.json` → `pnpm --filter @biteworthy/api-types build:codegen` writes `src/generated.ts`. When you add or change an endpoint, write/update its rswag spec and re-run both steps in the same PR — CI (`codegen:check` in `ci-js.yml`) fails if `generated.ts` drifts from the checked-in spec. A few hand-written read-model types (Ingredient, Tag, Restaurant, Item) remain in `packages/api-types/src/index.ts` until their endpoints get rswag specs.
-- `@biteworthy/filter-engine` consumes `@biteworthy/api-types`. If you change the shape of an `Item`, fix both.
+- **API types are generated, not hand-written.** The chain: rswag specs in `apps/api/spec/integration/` → `bin/openapi-export` writes `docs/openapi.json` → `pnpm --filter @biteworthy/api-types build:codegen` writes `src/generated.ts`. When you add or change an endpoint, write/update its rswag spec and re-run both steps in the same PR — CI (`codegen:check` in `ci-js.yml`) fails if `generated.ts` drifts from the checked-in spec. Two hand-written enums remain in `packages/api-types/src/index.ts` — `Confidence` and `Strictness` — because they have no component schema behind them; adding a value to either Rails enum without adding it here is drift `codegen:check` cannot catch.
+- `@biteworthy/filter-engine` re-exports those two enums as the canonical filter wire types. Everything else it exposes is its own.
 - `@biteworthy/ui-tokens` is consumed by `apps/web/tailwind.config.ts` (as Tailwind theme extensions) and `apps/mobile` (mapped into `StyleSheet.create`). Token renames touch all three.
 
 ## Conventions specific to this repo

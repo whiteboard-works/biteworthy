@@ -1,179 +1,18 @@
+/**
+ * The visible/hidden decision itself is the server's and is specced in
+ * `apps/api/spec/services/menus/filter_spec.rb` — these cover only what
+ * this package still owns: chip strings, section grouping, and the
+ * session-only "show anyway" override.
+ */
 import { describe, expect, it } from 'vitest';
 import {
   applyOverrides,
-  applyProfile,
-  buildLabelLookup,
   groupItemsBySection,
-  hiddenReasonHeadline,
   hiddenReasonLabel,
-  type FilterableItem,
-  type FilterProfile,
   type FilteredItem,
   type HideReason,
   type ItemSection,
-  type LabelLookup,
 } from './index';
-
-const item = (overrides: Partial<FilterableItem> = {}): FilterableItem => ({
-  id: 'i1',
-  ingredient_ids: [],
-  tag_ids: [],
-  confidence: 'confirmed',
-  ...overrides,
-});
-
-const profile = (overrides: Partial<FilterProfile> = {}): FilterProfile => ({
-  avoid_ingredient_ids: [],
-  avoid_tag_ids: [],
-  prefer_tag_ids: [],
-  strictness: 'balanced',
-  ...overrides,
-});
-
-const labels: LabelLookup = {
-  ingredients: {
-    'ing-cheese':  { name: 'Cheese', family: 'dairy' },
-    'ing-almond':  { name: 'Almond', family: 'tree_nut' },
-    'ing-anonymous': { name: null, family: null }, // catalog gap
-  },
-  tags: {
-    'tag-cd': { name: 'Contains Dairy', family: 'allergen' },
-  },
-};
-
-describe('applyProfile', () => {
-  it('marks every item visible when no avoid lists hit', () => {
-    const out = applyProfile([item({ id: 'a' }), item({ id: 'b' })], profile(), labels);
-    expect(out.map((i) => i.status)).toEqual(['visible', 'visible']);
-    expect(out.flatMap((i) => i.reasons)).toEqual([]);
-  });
-
-  it('hides items containing an avoided ingredient and enriches the reason', () => {
-    const items = [
-      item({ id: 'a', ingredient_ids: ['ing-cheese'] }),
-      item({ id: 'b' }),
-    ];
-    const out = applyProfile(
-      items,
-      profile({ avoid_ingredient_ids: ['ing-cheese'] }),
-      labels,
-    );
-    expect(out[0]).toMatchObject({
-      status: 'hidden',
-      reasons: [
-        {
-          kind: 'avoid_ingredient',
-          ingredient_id: 'ing-cheese',
-          ingredient_name: 'Cheese',
-          ingredient_family: 'dairy',
-        },
-      ],
-    });
-    expect(out[1]!.status).toBe('visible');
-  });
-
-  it('hides items with an avoided tag', () => {
-    const items = [item({ tag_ids: ['tag-cd'] })];
-    const out = applyProfile(items, profile({ avoid_tag_ids: ['tag-cd'] }), labels);
-    expect(out[0]!.status).toBe('hidden');
-    expect(out[0]!.reasons[0]).toMatchObject({
-      kind: 'avoid_tag',
-      tag_name: 'Contains Dairy',
-      tag_family: 'allergen',
-    });
-  });
-
-  it('strict mode hides unconfirmed items even with no allergens', () => {
-    const items = [item({ confidence: 'suggested' })];
-    const out = applyProfile(items, profile({ strictness: 'strict' }), labels);
-    expect(out[0]!.status).toBe('hidden');
-    expect(out[0]!.reasons).toEqual([
-      { kind: 'unconfirmed_strict', confidence: 'suggested' },
-    ]);
-  });
-
-  it('balanced mode keeps unconfirmed items visible', () => {
-    const items = [item({ confidence: 'suggested' })];
-    const out = applyProfile(items, profile({ strictness: 'balanced' }), labels);
-    expect(out[0]!.status).toBe('visible');
-  });
-
-  it('emits multiple reasons when an item hits both ingredient + tag avoid', () => {
-    const items = [item({ ingredient_ids: ['ing-cheese'], tag_ids: ['tag-cd'] })];
-    const out = applyProfile(
-      items,
-      profile({ avoid_ingredient_ids: ['ing-cheese'], avoid_tag_ids: ['tag-cd'] }),
-      labels,
-    );
-    expect(out[0]!.reasons.map((r) => r.kind)).toEqual([
-      'avoid_ingredient',
-      'avoid_tag',
-    ]);
-  });
-
-  it('falls back to nulls when the label lookup is missing the id', () => {
-    const items = [item({ ingredient_ids: ['ing-anonymous'] })];
-    const out = applyProfile(
-      items,
-      profile({ avoid_ingredient_ids: ['ing-anonymous'] }),
-      labels,
-    );
-    expect(out[0]!.reasons[0]).toMatchObject({
-      ingredient_name: null,
-      ingredient_family: null,
-    });
-  });
-
-  it('works without any labels (raw ids only)', () => {
-    const items = [item({ ingredient_ids: ['ing-cheese'] })];
-    const out = applyProfile(items, profile({ avoid_ingredient_ids: ['ing-cheese'] }));
-    expect(out[0]!.reasons[0]).toMatchObject({
-      ingredient_id: 'ing-cheese',
-      ingredient_name: null,
-      ingredient_family: null,
-    });
-  });
-
-  it('preserves extra fields on the input item (passthrough)', () => {
-    interface RichItem extends FilterableItem {
-      name: string;
-      popularity: number;
-    }
-    const items: RichItem[] = [
-      { ...item({ id: 'a' }), name: 'Carne Asada', popularity: 5 },
-    ];
-    const out = applyProfile(items, profile());
-    expect(out[0]!.name).toBe('Carne Asada');
-    expect(out[0]!.popularity).toBe(5);
-  });
-});
-
-describe('buildLabelLookup', () => {
-  it('derives ingredient family from ltree path first segment', () => {
-    const lookup = buildLabelLookup({
-      ingredients: [
-        { id: 'ing-1', name: 'Cheddar', path: 'dairy.cheddar' },
-        { id: 'ing-2', name: 'Almond', path: 'tree_nut.almond' },
-      ],
-    });
-    expect(lookup.ingredients!['ing-1']).toEqual({ name: 'Cheddar', family: 'dairy' });
-    expect(lookup.ingredients!['ing-2']).toEqual({ name: 'Almond', family: 'tree_nut' });
-  });
-
-  it('takes tag family verbatim from the tag column', () => {
-    const lookup = buildLabelLookup({
-      tags: [{ id: 't-1', name: 'Vegan', family: 'diet' }],
-    });
-    expect(lookup.tags!['t-1']).toEqual({ name: 'Vegan', family: 'diet' });
-  });
-
-  it('handles missing path gracefully', () => {
-    const lookup = buildLabelLookup({
-      ingredients: [{ id: 'ing-x', name: 'Mystery' }],
-    });
-    expect(lookup.ingredients!['ing-x']).toEqual({ name: 'Mystery', family: null });
-  });
-});
 
 describe('hiddenReasonLabel', () => {
   it('formats avoid_ingredient', () => {
@@ -219,35 +58,6 @@ describe('hiddenReasonLabel', () => {
       ingredient_family: null,
     };
     expect(hiddenReasonLabel(r)).toBe('Contains restricted (Mystery)');
-  });
-});
-
-describe('hiddenReasonHeadline', () => {
-  const dairy: HideReason = {
-    kind: 'avoid_ingredient',
-    ingredient_id: 'i',
-    ingredient_name: 'Cheese',
-    ingredient_family: 'dairy',
-  };
-  const tag: HideReason = {
-    kind: 'avoid_tag',
-    tag_id: 't',
-    tag_name: 'Contains Dairy',
-    tag_family: 'allergen',
-  };
-
-  it('returns empty for no reasons', () => {
-    expect(hiddenReasonHeadline([])).toBe('');
-  });
-
-  it('shows just the first reason for a single reason', () => {
-    expect(hiddenReasonHeadline([dairy])).toBe('Hidden — Contains dairy (Cheese)');
-  });
-
-  it('appends "+N more" suffix', () => {
-    expect(hiddenReasonHeadline([dairy, tag])).toBe(
-      'Hidden — Contains dairy (Cheese) (+1 more)',
-    );
   });
 });
 

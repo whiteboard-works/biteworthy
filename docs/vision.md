@@ -61,7 +61,7 @@ constrained diners — who are loyal, higher-spend, and bring the whole
 table. "BiteWorthy-safe" becomes a signal worth earning.
 
 **4 — Deepen personalization.** Today the taste weights are constants in
-code (`packages/filter-engine`, mirrored in SQL). Tomorrow they're
+one SQL scorer (`apps/api/app/services/taste_scoring.rb`). Tomorrow they're
 learned from behavior (taps, reviews, overrides), then "people like
 you." The explainer line — *"because you love Thai and basil"* — becomes
 a real model, never a black box.

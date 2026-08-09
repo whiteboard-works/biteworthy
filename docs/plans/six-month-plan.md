@@ -91,7 +91,7 @@ Tags: **[MANUAL]** = human-only · **[CODE]** = loop-shippable · P0/P1/P2 = pri
 
 **Stream 2 — [CODE] pre-launch, ships during the window**
 - [ ] **[P0] The three safety guardrails** — highest-value code in the plan:
-  - Parity test: `packages/filter-engine` output ≡ API SQL filter on a shared adversarial fixture set (allergen present/absent × strict on/off), **CI-blocking**
+  - ~~Parity test: `packages/filter-engine` output ≡ API SQL filter~~ — **dropped Aug 2026.** There is no second filter to hold in parity: the TS mirror had no callers and was deleted, and its "parity" test compared TS to TS. What this item was really after is an adversarial fixture set (allergen present/absent × strict on/off) asserted against `Menus::Filter` — which is the bullet below.
   - Array-sync invariant + nightly reconciliation: `items.ingredient_ids/tag_ids` always equal the join rows; alert on drift
   - Adversarial test: a `suggested`/self-accepted item with a hidden allergen must **never** render safe for a user avoiding it, in any mode
 - [ ] **[P0] Anonymous filter picker on `/r/<slug>` + `localStorage`** — kills the empty-first-impression risk (backend already supports `?profile=`/`?profile_token=`)

@@ -101,8 +101,8 @@ module Menus
       }
     end
 
-    # Tags first, then ingredients, both in the SQL's sorted-uuid order —
-    # the TS mirror emits the same order so parity holds.
+    # Tags first, then ingredients, both in the SQL's sorted-uuid order,
+    # so the reason chips render in a stable sequence across requests.
     def taste_reasons_for(score_row, taste_labels)
       return [] if score_row.nil?
 

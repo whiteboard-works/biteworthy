@@ -1,32 +1,31 @@
 /**
- * BiteWorthy filter engine — single source of truth for the per-item
- * filter computation that runs on web, mobile, and (in spec form)
- * the Rails API.
+ * BiteWorthy filter engine — the wire types and presentation helpers
+ * every TS surface shares when it renders a filtered menu.
  *
- * The Rails endpoint at `GET /api/v1/restaurants/:id/items` is the
- * canonical producer of `FilteredItem` (Phase 1.7 + 3.4). This
- * package is the canonical *consumer* shape — every TS surface that
- * binds to the items endpoint imports its types from here. The
- * `applyProfile` function below produces the same payload shape the
- * Rails serializer emits, so a client can recompute hidden/visible
- * locally (e.g. when the user picks a different preset) without a
- * roundtrip and the snapshots stay byte-identical.
+ * **The filter itself is not here, and there is only one of it.** The
+ * Rails endpoint at `GET /api/v1/restaurants/:id/items` (and the
+ * `get_menu` tool behind it) decides `status` / `reasons` per item;
+ * `Menus::Filter#reasons_for` is the only implementation. Clients
+ * render what they receive and never recompute it.
+ *
+ * That is deliberate. The decision needs the taxonomy — the tree is
+ * hierarchical, `dairy` has ninety descendants with `dairy.cheddar`
+ * among them, and `Menus::Subtree` expands an avoided node into its
+ * subtree before any comparison happens. A client does not have the
+ * taxonomy, so a client-side copy would under-filter: a person
+ * avoiding `dairy` would be shown a dish tagged `dairy-cheddar` as
+ * safe. A hand-mirrored copy of the rule also has to be kept in
+ * lockstep by hand, and this repo carried one for months that no
+ * screen ever called.
+ *
+ * If a client-side re-filter is ever genuinely wanted (say, to switch
+ * preset without a roundtrip), the bar is a real shared fixture
+ * generated from `Menus::Query#serialize` that both suites assert
+ * against — the way `fixtures/taste-parity.json` pins `TasteScoring`.
+ * A TS test that builds its own expectations in TS proves nothing.
  *
  * Naming uses snake_case to match the wire format. Conversion to
  * camelCase happens at UI boundaries if needed.
- *
- * **The avoid lists handed to `applyProfile` must already be resolved.**
- * The taxonomy is hierarchical — `dairy` has ninety descendants, with
- * `dairy.cheddar` among them — and this function compares ids, not paths.
- * Expanding a node to its subtree needs the taxonomy, which a client does
- * not have, so the server does it: `Menus::Subtree` runs inside
- * `Menus::Filter.build`, and any payload a client filters against carries
- * the resolved set. That split is deliberate — resolution is the caller's
- * job on both sides, which is what keeps this file and `Menus::Filter`
- * comparable line for line.
- *
- * Passing a raw stored profile here would under-filter: a person avoiding
- * `dairy` would be shown a dish tagged `dairy-cheddar` as safe.
  */
 
 import type { Strictness, Confidence } from '@biteworthy/api-types';
@@ -88,117 +87,6 @@ export interface FilteredItem extends FilterableItem {
   overridden_by_user?: boolean;
 }
 
-/**
- * The filter contract. Avoid lists + strictness — exactly the inputs
- * the Rails `Filter` struct holds. `prefer_tag_ids` rides along on the
- * profile payload but nothing ranks by it: ordering comes from
- * `scoreItem` (taste.ts) via liked/disliked signals, or from
- * popularity. Kept on the type because the wire format still carries
- * it.
- */
-export interface FilterProfile {
-  avoid_ingredient_ids: string[];
-  avoid_tag_ids: string[];
-  prefer_tag_ids?: string[];
-  strictness: Strictness;
-}
-
-/**
- * Lookup tables for the chip enrichment. Pre-computed by the caller
- * (one fetch per ingredient/tag id, batched). Same shape Rails
- * builds in `ItemsController#build_label_lookup`.
- */
-export interface LabelLookup {
-  ingredients?: Record<string, { name: string | null; family: string | null }>;
-  tags?: Record<string, { name: string | null; family: string | null }>;
-}
-
-// ─── Core filter computation ───────────────────────────────────────
-
-/**
- * Mark each item visible/hidden under `profile` and emit the same
- * `reasons[]` payload the Rails serializer would. Pure function.
- *
- * `labels` is optional — when omitted, reasons still carry ids but
- * `*_name` and `*_family` come back as null. UI fallbacks render
- * "Contains restricted (ingredient)" in that case.
- */
-export function applyProfile<T extends FilterableItem>(
-  items: T[],
-  profile: FilterProfile,
-  labels: LabelLookup = {},
-): (T & FilteredItem)[] {
-  const avoidIngredients = new Set(profile.avoid_ingredient_ids);
-  const avoidTags = new Set(profile.avoid_tag_ids);
-  const ingredientLabels = labels.ingredients ?? {};
-  const tagLabels = labels.tags ?? {};
-
-  return items.map((item) => {
-    const reasons: HideReason[] = [];
-
-    for (const ing of item.ingredient_ids) {
-      if (!avoidIngredients.has(ing)) continue;
-      const label = ingredientLabels[ing] ?? null;
-      reasons.push({
-        kind: 'avoid_ingredient',
-        ingredient_id: ing,
-        ingredient_name: label?.name ?? null,
-        ingredient_family: label?.family ?? null,
-      });
-    }
-    for (const tag of item.tag_ids) {
-      if (!avoidTags.has(tag)) continue;
-      const label = tagLabels[tag] ?? null;
-      reasons.push({
-        kind: 'avoid_tag',
-        tag_id: tag,
-        tag_name: label?.name ?? null,
-        tag_family: label?.family ?? null,
-      });
-    }
-    if (profile.strictness === 'strict' && item.confidence !== 'confirmed') {
-      reasons.push({ kind: 'unconfirmed_strict', confidence: item.confidence });
-    }
-
-    return {
-      ...item,
-      status: reasons.length === 0 ? ('visible' as const) : ('hidden' as const),
-      reasons,
-    };
-  });
-}
-
-/**
- * Build a `LabelLookup` from a flat array of records — what the
- * caller usually has after a bulk fetch (`Ingredient.where(id: ids).pluck(...)`
- * on the API side, or a flat JSON lookup on the client).
- */
-export function buildLabelLookup(args: {
-  ingredients?: Array<{ id: string; name: string | null; path?: string | null }>;
-  tags?: Array<{ id: string; name: string | null; family?: string | null }>;
-}): LabelLookup {
-  const out: LabelLookup = {};
-  if (args.ingredients) {
-    out.ingredients = {};
-    for (const i of args.ingredients) {
-      out.ingredients[i.id] = {
-        name: i.name,
-        // Rails derives family from ltree's first segment
-        // (e.g. "dairy.cheddar" -> "dairy"). Mirror that here so
-        // either side can build a lookup from raw ingredient rows.
-        family: typeof i.path === 'string' ? (i.path.split('.')[0] ?? null) : null,
-      };
-    }
-  }
-  if (args.tags) {
-    out.tags = {};
-    for (const t of args.tags) {
-      out.tags[t.id] = { name: t.name, family: t.family ?? null };
-    }
-  }
-  return out;
-}
-
 // ─── Display helpers (single source of truth for chip strings) ─────
 
 function humanizeFamily(family: string | null | undefined): string {
@@ -221,14 +109,6 @@ export function hiddenReasonLabel(reason: HideReason): string {
     case 'unconfirmed_strict':
       return `AI confidence: ${reason.confidence} (strict mode)`;
   }
-}
-
-export function hiddenReasonHeadline(reasons: HideReason[]): string {
-  if (reasons.length === 0) return '';
-  const first = reasons[0]!;
-  const more = reasons.length - 1;
-  const suffix = more > 0 ? ` (+${more} more)` : '';
-  return `Hidden — ${hiddenReasonLabel(first)}${suffix}`;
 }
 
 // ─── Section grouping (shared by web + mobile screens) ─────────────
@@ -307,31 +187,17 @@ export {
   type TasteState,
 } from './onboarding-reducer';
 
-// ─── Taste scoring (Phase 8.2) ─────────────────────────────────────
+// ─── Top Picks selection over server-supplied scores (Phase 8.4) ───
 
 export {
-  hasTasteSignals,
-  scoreItem,
   tasteReasonLine,
-  topPicks,
   topPicksFromScores,
   MIN_POSITIVE_PICKS,
-  TASTE_WEIGHTS,
   TOP_PICKS_COUNT,
-  type ScorableItem,
   type ScoredWireItem,
-  type TasteProfile,
   type TasteReason,
-  type TasteScore,
 } from './taste';
 
 // ─── Shareable profile tokens (Phase 3.9) ──────────────────────────
 
-export {
-  decodeProfileToken,
-  encodeProfileToken,
-  shareableToFilterProfile,
-  PROFILE_TOKEN_VERSION,
-  InvalidProfileTokenError,
-  type ShareableProfile,
-} from './profile-token';
+export { encodeProfileToken, PROFILE_TOKEN_VERSION, type ShareableProfile } from './profile-token';

@@ -16,10 +16,10 @@ module Menus
   #   * **What the person chose stays what they chose.** The stored list is
   #     one id, so the UI shows "dairy" instead of ninety cheeses and
   #     removing it is one operation rather than ninety.
-  #   * **The filter algorithm is untouched**, which is what keeps it
-  #     honest against `packages/filter-engine`. That mirror takes an
-  #     already-resolved avoid set; expansion is the caller's job on both
-  #     sides, so the two implementations still compare like for like.
+  #   * **The filter algorithm is untouched.** `Menus::Filter#reasons_for`
+  #     stays a plain id intersection; expansion is the caller's job, so
+  #     every consumer of the avoid set — the menu query and the SQL
+  #     count in `Cities::RestaurantRanking` — resolves the same way.
   #
   # Presets are stored pre-expanded (vegan carries 328 ingredient ids) —
   # which is exactly the workaround that proves the filter never did this

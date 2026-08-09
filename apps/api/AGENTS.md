@@ -3,7 +3,7 @@
 <!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
 ## Review guidelines
 
-**Context:** The Rails API behind BiteWorthy's dietary filter. Allergen safety and the E1–E13 legal columns are the stakes: a wrong join-row confidence or a dropped safety/consent column can show an unsafe item to an allergic user or break a legal guarantee. (See the repo-root `AGENTS.md` for the cross-package filter-parity and analytics contracts.)
+**Context:** The Rails API behind BiteWorthy's dietary filter, and the only place the filter runs — the clients render the `status` / `reasons` this app emits, so a bug here reaches every surface with nothing downstream to catch it. Allergen safety and the E1–E13 legal columns are the stakes: a wrong join-row confidence or a dropped safety/consent column can show an unsafe item to an allergic user or break a legal guarantee. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)
 
 GitHub surfaces only P0/P1 findings, so phrase issues as block-worthy. CI runs RSpec + Brakeman (blocking) here; **RuboCop runs with `continue-on-error` (informational) — do not block on RuboCop/style.** Don't restate those gates.
 

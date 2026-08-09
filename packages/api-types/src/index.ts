@@ -7,12 +7,15 @@
  * Rails endpoint change. CI's `codegen:check` script fails the build
  * if `src/generated.ts` is out of sync with the spec.
  *
- * The hand-written domain types below are read-model shapes used by
- * `@biteworthy/filter-engine` and by ad-hoc client code. They stay
- * until ingredient / tag / restaurant list endpoints get their own
- * rswag specs (which would then generate them as components). Phase
- * 1.7 added `/restaurants/:id/items` but inlined the item shape in
- * the operation response rather than exposing it as a component.
+ * Two hand-written enums remain at the bottom: `Confidence` and
+ * `Strictness`, which `@biteworthy/filter-engine` re-exports as the
+ * canonical wire enums. The hand-written `Ingredient` / `Tag` /
+ * `Restaurant` / `Item` / `UserProfile` read models that used to sit
+ * beside them are gone — nothing imported them, and they had drifted
+ * into fiction (camelCase against a snake_case wire, a `path` Rails
+ * never emits, a `cityId` that is really a nested `city`). Anything
+ * that needs those shapes should come from the generated components,
+ * which means giving the endpoint an rswag spec first.
  */
 
 export type * from './generated';
@@ -41,55 +44,13 @@ export type Attachment     = components['schemas']['Attachment'];
 export type McpToken       = components['schemas']['McpToken'];
 export type TagRef         = components['schemas']['TagRef'];
 
-/**
- * The shape `filter-engine` cares about — a subset of ProfilePayload
- * with snake_case names mapped over for ergonomic JS usage.
- * Slated to be replaced when Phase 1.7 lands the filter SQL endpoint.
- */
-export interface UserProfile {
-  avoidIngredientIds: string[];
-  avoidTagIds: string[];
-  preferTagIds: string[];
-  strictness: Strictness;
-}
-
-// ---- Hand-written read-model types (slated for codegen in Phase 1.7) ----
+// ---- Canonical filter enums (hand-written; not yet codegen'd) ----
+//
+// `item_ingredients.confidence` / `user_profiles.strictness` in the
+// schema. Adding a value here without adding it to the Rails enum
+// (or vice versa) is the drift `codegen:check` cannot catch, since
+// these have no component schema behind them yet.
 
 export type Confidence = 'confirmed' | 'suggested' | 'inferred';
 
 export type Strictness = 'relaxed' | 'balanced' | 'strict';
-
-export interface Ingredient {
-  id: string;
-  slug: string;
-  name: string;
-  path: string;
-  aliases: string[];
-}
-
-export interface Tag {
-  id: string;
-  slug: string;
-  name: string;
-  family: 'diet' | 'allergen' | 'cuisine' | 'prep' | 'flavor';
-  path: string;
-}
-
-export interface Restaurant {
-  id: string;
-  slug: string;
-  name: string;
-  cityId: string;
-  website: string | null;
-  status: 'draft' | 'published' | 'closed';
-}
-
-export interface Item {
-  id: string;
-  restaurantId: string;
-  name: string;
-  description: string | null;
-  ingredientIds: string[];
-  tagIds: string[];
-  confidence: Confidence;
-}

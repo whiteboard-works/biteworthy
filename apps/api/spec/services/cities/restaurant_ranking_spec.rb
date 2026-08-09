@@ -95,4 +95,48 @@ RSpec.describe Cities::RestaurantRanking do
       expect(ranked.map { |r| r.restaurant.slug }).not_to include("draft-spot")
     end
   end
+
+  # `visible_count` is a public promise: the /durango/[diet] card says
+  # "4 dishes you can eat" and the restaurant page has to agree. These
+  # two pin where the ranking matches Menus::Filter and where it
+  # deliberately does not.
+  describe "agreement with the menu filter" do
+    let!(:dairy_parent) { create(:ingredient, slug: "dairy") }
+
+    it "expands an avoided parent to its subtree, like Menus::Filter does" do
+      # Preset stores only the parent `dairy`; the dish carries the
+      # child `dairy.cheese`. Comparing raw ids would call it visible
+      # and over-count the SEO card against the menu the user opens.
+      parent_preset = create(:dietary_profile, slug: "dairy-free")
+      create(:dietary_profile_ingredient, dietary_profile: parent_preset,
+                                          ingredient: dairy_parent, rule: "avoid")
+
+      ranked = described_class.new(city: city, dietary_profile: parent_preset).call
+      tacos_row = ranked.find { |r| r.restaurant.slug == "tacos" }
+
+      # Beef Cheese Taco carries dairy.cheese and must be hidden.
+      expect(tacos_row.visible_count).to eq(2)
+      expect(tacos_row.total_count).to eq(3)
+
+      menu_filter = Menus::Filter.build(preset_slug: "dairy-free")
+      expect(menu_filter.avoid_ingredient_ids).to include(dairy_parent.id, cheese.id)
+    end
+
+    it "counts unconfirmed items as visible — a preset carries no strictness" do
+      # The confidence rule fires only under strictness: "strict", which
+      # belongs to a signed-in person. Both callers rank a DietaryProfile,
+      # so this filter is balanced by construction and an AI-suggested
+      # item counts exactly as Menus::Filter would count it.
+      suggested = create(:restaurant, :published, slug: "suggested-spot", name: "Zed", city: city)
+      item = create(:item, :published, restaurant: suggested, name: "Maybe Vegan Bowl")
+      expect(item.confidence).to eq("suggested")
+
+      ranked = described_class.new(city: city, dietary_profile: vegan_preset).call
+      row = ranked.find { |r| r.restaurant.slug == "suggested-spot" }
+
+      expect(row.visible_count).to eq(1)
+      expect(Menus::Filter.build(preset_slug: "vegan").strictness).to eq("balanced")
+      expect(Menus::Filter.build(preset_slug: "vegan").reasons_for(item, Menus::Labels::EMPTY)).to be_empty
+    end
+  end
 end

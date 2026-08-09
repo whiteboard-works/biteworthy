@@ -16,7 +16,7 @@ biteworthy/
 │   └── mobile/      Expo / React Native
 ├── packages/
 │   ├── api-types/       TS types generated from the Rails OpenAPI spec
-│   ├── filter-engine/   Shared dietary-filter logic (web + mobile)
+│   ├── filter-engine/   Menu wire types + shared display helpers (web + mobile)
 │   ├── analytics/       Funnel-event taxonomy (web + mobile + api)
 │   ├── ui-tokens/       Shared design tokens
 │   └── eslint-config/
