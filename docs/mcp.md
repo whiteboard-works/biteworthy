@@ -211,6 +211,28 @@ Three properties, each pinned:
   so a workflow they cannot run cannot be completed against either. That
   falls out of `WorkflowPrompts.for` rather than being a second rule here.
 
+### The menu as a resource
+
+`biteworthy://restaurant/{restaurant}/menu` (`Tools::MenuResource`) is a
+resource **template**, so a person can attach a menu the way they attach a
+file rather than hoping the model reaches for `get_menu`. Different job
+from the tool, not a second copy of it: a tool is what the model calls
+mid-answer, a resource is what a human picks before typing — the right
+shape for "here are two menus, help me choose".
+
+**The filter applies, and hidden dishes stay in.** That is what makes it
+safe to be a resource at all. The attachment is not "the menu", it is
+*this reader's* menu, with every dish they cannot eat still present under
+"Cannot eat, and why". Dropping them would be a quieter lie than the tool
+could tell, because there is no tool call for anyone to question. It reads
+`Menus::Query`, so there is one filter underneath both surfaces.
+
+Dish text is fenced with `Tools::Untrusted.fence` — its own module now,
+because two surfaces emit extracted text and a fencing convention each
+surface spells for itself eventually gets spelled differently. The
+template variable is named `restaurant`, the same argument the prompts
+use, so one completion vocabulary serves both.
+
 **`listChanged` is deliberately not advertised.** It promises a
 `notifications/*/list_changed` when the catalogue changes, and a stateless
 transport has no channel to send one on. The gem defaults it to true, so

@@ -75,6 +75,11 @@ class McpController < ApplicationController
       # The tool map, so a client that reads resources can learn how the
       # tools compose without spending a turn on describe_capabilities.
       resources:      [Tools::TopologyResource],
+      # A menu a person can *attach*, the way they attach a file, instead
+      # of hoping the model reaches for get_menu. Same filter underneath,
+      # so an attachment is this reader's menu — hidden dishes included,
+      # each carrying its reason.
+      resource_templates: [Tools::MenuResource],
       # The same workflows as things a person can pick before typing —
       # "Scan a menu into the database" beats a blank box and 44 tools.
       # Generated from the topology, so they cannot drift from it.
