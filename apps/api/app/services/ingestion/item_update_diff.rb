@@ -61,7 +61,7 @@ module Ingestion
 
     def self.added_slugs(payload, existing_records)
       existing = existing_records.map(&:slug)
-      Array(payload).filter_map { |row| row["slug"] || row[:slug] }.uniq - existing
+      AssociationPayload.load_all(payload).filter_map(&:slug).uniq - existing
     end
     private_class_method :added_slugs
   end

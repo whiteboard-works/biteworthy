@@ -84,6 +84,35 @@ RSpec.describe "ingestion tools", type: :service do
       expect(names).to include(a_string_matching(/Mystery Plate/))
       expect(names).not_to include(a_string_matching(/Carne Asada/))
     end
+
+    # The filter has to run before the limit. Selecting out of an already
+    # limited page meant a big scan could answer "nothing needs attention"
+    # while the unresolved dishes sat past the cut — the exact opposite of
+    # what the flag promises, on the dishes the filter can't hide.
+    it "finds a dish needing attention past the page the limit would cut" do
+      create(:ingestion_item, ingestion_run: run, name: "Mystery Plate",
+                              position: 500, ingredients_payload: [])
+
+      response = Tools::Ingestion::ListStagedItems.call(
+        scan_id: run.id, needs_attention: true, limit: 1, server_context: ctx(owner)
+      )
+
+      expect(payload(response)[:dishes].map { |d| d[:name] })
+        .to contain_exactly(a_string_matching(/Mystery Plate/))
+      expect(payload(response)[:total_dishes]).to eq(1)
+    end
+
+    it "counts unresolved text as needing attention even when ingredients resolved" do
+      create(:ingestion_item, ingestion_run: run, name: "Secret Sauce Bowl",
+                              unresolved_ingredients: ["secret sauce"])
+
+      response = Tools::Ingestion::ListStagedItems.call(
+        scan_id: run.id, needs_attention: true, server_context: ctx(owner)
+      )
+
+      expect(payload(response)[:dishes].map { |d| d[:name] })
+        .to contain_exactly(a_string_matching(/Secret Sauce Bowl/))
+    end
   end
 
   describe "edit_staged_item" do

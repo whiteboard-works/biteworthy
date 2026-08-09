@@ -71,10 +71,10 @@ RSpec.describe ResolveItemsJob, type: :job do
 
     it "a promotion failing mid-joins rolls back its partial Item (no false-safe live dish)" do
       make_item(run, position: 1, name: "Limeade", description: "lime", decision: "rejected")
-      # First join row raises AFTER Item.create! succeeded — the savepoint
+      # The join insert raises AFTER Item.create! succeeded — the savepoint
       # in promote! must roll the partial Item back even though the job
       # rescues and carries on.
-      allow(ItemIngredient).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+      allow(ItemIngredient).to receive(:insert_all).and_raise(ActiveRecord::RecordInvalid)
       allow(Rails.logger).to receive(:error)
 
       described_class.perform_now(run.id)

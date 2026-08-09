@@ -120,28 +120,29 @@ module Tools
                 "Unknown #{label} slug(s): #{missing.join(', ')}. Use search_taxonomy to find the right ones."
         end
 
-        found.map { |r| { "slug" => r.slug, "confidence" => 1.0, "source" => "human" } }
+        found.map { |r| ::Ingestion::AssociationPayload.dump(slug: r.slug, confidence: 1.0, source: "human") }
       end
       private_class_method :human_payload
 
       def self.normalize_prices(rows)
         Array(rows).filter_map do |row|
-          cents = row["price_cents"] || row[:price_cents]
+          row   = row.with_indifferent_access
+          cents = row[:price_cents]
           next if cents.nil?
           raise Errors::InvalidArgument, "price_cents must be a whole number of cents." unless cents.to_s.match?(/\A\d+\z/)
 
-          { "size" => row["size"] || row[:size], "price_cents" => cents.to_i }.compact
+          { "size" => row[:size], "price_cents" => cents.to_i }.compact
         end
       end
       private_class_method :normalize_prices
 
       def self.normalize_addons(rows)
         Array(rows).filter_map do |row|
-          addon_name = (row["name"] || row[:name]).to_s.strip
+          row        = row.with_indifferent_access
+          addon_name = row[:name].to_s.strip
           next if addon_name.blank?
 
-          cents = row["price_cents"] || row[:price_cents]
-          { "name" => addon_name, "price_cents" => cents&.to_i, "source" => "human" }.compact
+          { "name" => addon_name, "price_cents" => row[:price_cents]&.to_i, "source" => "human" }.compact
         end
       end
       private_class_method :normalize_addons

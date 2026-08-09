@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_232217) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -246,6 +246,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_232217) do
     t.integer "uncached_input_tokens", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id"
+    t.index ["created_at"], name: "index_ingestion_runs_on_created_at"
     t.index ["restaurant_id"], name: "index_ingestion_runs_on_restaurant_id"
     t.index ["user_id"], name: "index_ingestion_runs_on_user_id"
     t.check_constraint "enrichment_status::text = ANY (ARRAY['pending'::character varying::text, 'completed'::character varying::text, 'failed'::character varying::text])", name: "ingestion_runs_enrichment_status_valid"

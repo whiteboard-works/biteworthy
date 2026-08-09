@@ -64,11 +64,7 @@ module Tools
         # are what a verifier needs to decide whether to trust a row, and
         # dropping them to save tokens would hide exactly the wrong thing.
         def payload_row(row)
-          {
-            slug:       row["slug"] || row[:slug],
-            confidence: row["confidence"] || row[:confidence],
-            source:     row["source"] || row[:source]
-          }.compact
+          ::Ingestion::AssociationPayload.load(row).to_h.compact
         end
 
         # A matched row means accepting applies an UPDATE to a live dish
