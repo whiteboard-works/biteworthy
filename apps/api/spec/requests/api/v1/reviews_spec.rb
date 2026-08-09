@@ -85,6 +85,38 @@ RSpec.describe "Reviews API", type: :request do
       expect(Review.last.photo).to be_attached
     end
 
+    # The unique index has always enforced one review per person per
+    # dish. With no validation to catch it first this raised
+    # RecordNotUnique, which Api::V1::BaseController did not rescue — so
+    # an ordinary second review was a 500, while `write_review` answered
+    # "use edit_review instead".
+    it "refuses a second review of the same dish instead of 500ing" do
+      create(:review, item: item, user: owner, rating: 4, body: "first")
+
+      expect {
+        post "/api/v1/items/#{item.id}/reviews",
+             params: { rating: 1, body: "second" },
+             headers: headers
+      }.not_to change(Review, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to match(/edit that review/)
+      expect(Review.where(user: owner, item: item).sole.body).to eq("first")
+    end
+
+    # `write_review` has scoped to published-restaurant dishes since M3a;
+    # this door checked only the dish, so a dish at a restaurant that was
+    # never published stayed reviewable here and not over MCP.
+    it "404s on a dish whose restaurant is not published" do
+      unpublished = create(:item, :published, restaurant: create(:restaurant))
+
+      post "/api/v1/items/#{unpublished.id}/reviews",
+           params: { rating: 5 },
+           headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "rejects ratings outside 1..5" do
       post "/api/v1/items/#{item.id}/reviews",
            params: { rating: 10 },

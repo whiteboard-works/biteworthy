@@ -55,6 +55,39 @@ RSpec.describe "Suggestion API", type: :request do
            params: { kind: "rename", payload: { name: "X" } }
       expect(response).to have_http_status(:not_found)
     end
+
+    # This used to be `params[:payload].to_unsafe_h` — whatever arrived
+    # was queued, and the bad slug only surfaced days later in front of
+    # the owner, who cannot fix somebody else's typo. `suggest_correction`
+    # has rejected it at submit time since M3a.
+    it "refuses an unknown slug at submit time rather than queueing it" do
+      expect {
+        post "/api/v1/items/#{item.id}/suggestions",
+             params: { kind: "add_ingredient", payload: { ingredient_slug: "not-a-real-slug" } }
+      }.not_to change(Suggestion, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to match(/not-a-real-slug/)
+    end
+
+    it "refuses a rename with no name" do
+      expect {
+        post "/api/v1/items/#{item.id}/suggestions",
+             params: { kind: "rename", payload: {} }
+      }.not_to change(Suggestion, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    # Same published-restaurant scoping as suggest_correction.
+    it "404s on a dish whose restaurant is not published" do
+      elsewhere = create(:item, :published, restaurant: create(:restaurant))
+
+      post "/api/v1/items/#{elsewhere.id}/suggestions",
+           params: { kind: "rename", payload: { name: "X" } }
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "GET /api/v1/restaurants/:id/suggestions" do

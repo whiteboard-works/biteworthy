@@ -10,12 +10,10 @@ module Api
       class BaseController < Api::V1::BaseController
         before_action :require_admin!
 
-        # Concurrent creates can slip past uniqueness validation and
-        # hit the unique index instead — surface as 422 like the
-        # sequential path, not a 500.
-        rescue_from ActiveRecord::RecordNotUnique do |error|
-          render json: { error: error.message }, status: :unprocessable_entity
-        end
+        # `RecordNotUnique` used to be rescued here and nowhere else, which
+        # is why the public review path 500'd on it. It moved up to
+        # Api::V1::BaseController; admin inherits the same 422, minus the
+        # raw PG constraint name this used to relay.
 
         private
 

@@ -9,8 +9,9 @@ module Api
         FavoriteItem.find_or_create_by!(user: current_user, item: @item)
         render json: serialize(true), status: :ok
       rescue ActiveRecord::RecordNotUnique
-        # A concurrent duplicate POST lost the race to the unique index.
-        # The favorite exists either way — stay idempotent (200), not 500.
+        # Deliberately narrower than the inherited 422: saving a dish is
+        # idempotent, so losing the race to the unique index means the
+        # favorite already exists and the caller got what they asked for.
         render json: serialize(true), status: :ok
       end
 

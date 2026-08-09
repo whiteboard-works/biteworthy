@@ -14,6 +14,13 @@ module Api
           o.never_hide = true
         end
         render json: serialize_override(true), status: :ok
+      rescue ActiveRecord::RecordNotUnique
+        # Same reasoning as FavoriteItems: a concurrent double-tap loses
+        # the race to the unique index, but the override exists either
+        # way, so the caller got what they asked for. Declared here
+        # because the inherited handler answers 422, which is the right
+        # default and the wrong answer for an idempotent endpoint.
+        render json: serialize_override(true), status: :ok
       end
 
       def destroy

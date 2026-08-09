@@ -26,8 +26,7 @@ module Api
       before_action :load_suggestion, only: [:update]
 
       def create
-        kind    = params[:kind].to_s
-        payload = params[:payload].is_a?(ActionController::Parameters) ? params[:payload].to_unsafe_h : {}
+        kind = params[:kind].to_s
 
         unless SuggestionResolver::ITEM_KINDS.include?(kind)
           return render json: {
@@ -36,14 +35,22 @@ module Api
           }, status: :unprocessable_entity
         end
 
+        # Built rather than accepted. This used to be
+        # `params[:payload].to_unsafe_h` — whatever arrived went into the
+        # jsonb column, so a typo'd slug queued fine and only failed days
+        # later in front of the owner, who cannot fix it. The tool door
+        # has validated at submit time since M3a; this is the same rule,
+        # not a second one.
         suggestion = Suggestion.create!(
           user:    current_user,
           subject: @item,
           kind:    kind,
           status:  "pending",
-          payload: payload
+          payload: ::Suggestions::PayloadBuilder.call(kind: kind, **submitted_fields)
         )
         render json: serialize(suggestion), status: :created
+      rescue ::Suggestions::PayloadBuilder::InvalidPayload => e
+        render json: { error: e.message }, status: :unprocessable_entity
       end
 
       def index
@@ -80,8 +87,20 @@ module Api
 
       private
 
+      # The wire shape is `payload: { ingredient_slug | tag_slug | name }`
+      # and stays that way — apps/web and apps/mobile both post it. Which
+      # key carries the slug depends on the kind, so the mapping lives
+      # with the rule rather than here.
+      def submitted_fields
+        payload = params[:payload].is_a?(ActionController::Parameters) ? params[:payload].to_unsafe_h : {}
+        {
+          slug: ::Suggestions::PayloadBuilder.slug_from(payload),
+          name: payload["name"]
+        }
+      end
+
       def load_item
-        @item = Item.published.find(params[:item_id])
+        @item = Item.published.joins(:restaurant).merge(Restaurant.published).find(params[:item_id])
       end
 
       def load_restaurant

@@ -32,9 +32,18 @@ module Tools
     TTL     = 10.minutes
 
     class << self
-      # Minted by whoever actually got the answer: the chat, once the
-      # person taps approve, and nothing else. A model never mints one —
-      # it can only carry back the token the server handed it.
+      # A model never mints one — it can only carry back a token the
+      # server handed it, and the digest binds that token to this exact
+      # tool, arguments, and user.
+      #
+      # It does NOT prove a human answered. The chat mints here once the
+      # person taps approve, which is the case this was written for. Over
+      # MCP there is nowhere to park a question mid-call, so
+      # `Tools::Base#confirmation_gate` refuses and hands back a freshly
+      # minted token with the sentence to read aloud — a client that never
+      # asks anyone satisfies the gate by calling twice. That is the
+      # documented trade (see docs/mcp.md §"Confirmation"): what the
+      # server enforces is the protocol, not the human.
       def mint(tool:, args:, user_id:)
         verifier.generate({ "d" => digest(tool: tool, args: args, user_id: user_id) },
                           purpose: PURPOSE, expires_in: TTL)

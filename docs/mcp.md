@@ -292,13 +292,24 @@ The other way live menu data changes. Same shape — propose, then a
 privileged party applies:
 
 ```
-suggest_correction   (anyone signed in; queues, changes nothing)
+suggest_correction   (anyone, signed in or not; queues, changes nothing)
                   →  list_suggestions   (owner or admin only)
                   →  resolve_suggestion (accept APPLIES it to the live dish)
 ```
 
 The gate is `claimed_by_user_id` on the restaurant, set by
 `claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
+
+`suggest_correction` is the one write in the whole surface with
+`audience :public`, and that is deliberate rather than an oversight.
+`POST /api/v1/items/:id/suggestions` has taken anonymous corrections
+since Phase 4.10 — someone who spots that a dish has cilantro should not
+need an account to say so — and the same act being allowed on one door
+and refused on the other is exactly the divergence this layer exists to
+prevent. It queues; it changes nothing; an anonymous row lands with
+`user_id: nil` and a `submitter` the serializer omits. The cost is a
+reviewer's attention, and `/mcp` has carried a 30/minute anonymous
+ceiling since #550.
 
 Accepting `remove_ingredient` deletes a join row, which un-hides that dish
 for everyone avoiding the ingredient — the most dangerous write available

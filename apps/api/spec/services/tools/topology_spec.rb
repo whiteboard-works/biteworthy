@@ -35,10 +35,19 @@ RSpec.describe Tools::Topology do
   end
 
   describe ".for" do
-    it "offers an anonymous caller only the workflows they can run" do
+    # Derived rather than hardcoded. The list was `["Find something this
+    # person can eat"]` until `suggest_correction` went public, at which
+    # point "Report data that is wrong" became runnable end to end by an
+    # anonymous caller — and a literal list can only ever say the count
+    # changed, never whether the change was right.
+    it "offers an anonymous caller exactly the workflows they can run" do
       names = described_class.for(anonymous)[:workflows].map { |flow| flow[:name] }
+      runnable = described_class::WORKFLOWS.select do |flow|
+        flow[:steps].all? { |step| Tools::Registry.find(step)&.audience == :public }
+      end
 
-      expect(names).to eq(["Find something this person can eat"])
+      expect(names).to match_array(runnable.map { |flow| flow[:name] })
+      expect(names).to include("Find something this person can eat", "Report data that is wrong")
     end
 
     it "adds the signed-in workflows once there is a user" do
@@ -54,11 +63,17 @@ RSpec.describe Tools::Topology do
 
     # Same filter as tools/list. A domain whose tools are all hidden must
     # not show up as an empty heading.
+    # `suggestions` is here on the strength of `suggest_correction` alone
+    # — an anonymous reader can report bad data, but cannot read or
+    # resolve the queue.
     it "lists no domain an anonymous caller has no tools in" do
       domains = described_class.for(anonymous)[:domains]
 
-      expect(domains.map { |d| d[:name] }).to contain_exactly(:meta, :discovery, :reviews)
+      expect(domains.map { |d| d[:name] })
+        .to contain_exactly(:meta, :discovery, :reviews, :suggestions)
       expect(domains).to all(satisfy { |d| d[:tools].any? })
+      expect(domains.find { |d| d[:name] == :suggestions }[:tools])
+        .to contain_exactly("suggest_correction")
     end
 
     it "never names a tool the caller cannot call" do
@@ -84,7 +99,9 @@ RSpec.describe Tools::Topology do
     it "answers anonymously with the public map" do
       response = described_class.call(server_context: {})
 
-      expect(payload(response)[:workflows].size).to eq(1)
+      expect(payload(response)[:workflows].size)
+        .to eq(Tools::Topology.for(Tools::Context.new({}))[:workflows].size)
+      expect(payload(response)[:workflows]).to be_present
     end
 
     it "narrows to one domain" do
