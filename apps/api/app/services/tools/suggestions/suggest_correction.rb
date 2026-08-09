@@ -3,7 +3,14 @@
 module Tools
   module Suggestions
     class SuggestCorrection < Suggestions::Base
-      audience :user
+      # Public, unlike the rest of this domain. Anonymous correction is a
+      # deliberate product decision on the REST door — "Anonymous
+      # suggestions land with user_id: nil but still queue for the owner"
+      # — and the two doors answering differently is the drift this layer
+      # exists to prevent. Suggesting a fix costs a reviewer's attention,
+      # not data: nothing here touches a live menu, and `/mcp` has had a
+      # 30/min anonymous ceiling since #550.
+      audience :public
 
       tool_name "suggest_correction"
       title "Suggest a fix to a dish"
@@ -40,46 +47,24 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      # `context.user` rather than `user!` — an anonymous correction is
+      # allowed and lands with `user_id: nil`, which `suggestion_row`
+      # already compacts the submitter out of.
       def self.perform(context:, item_id:, kind:, slug: nil, name: nil)
-        user = context.user!
-        raise Errors::InvalidArgument, "kind must be one of: #{KINDS.join(', ')}." unless KINDS.include?(kind)
-
         item    = Item.published.joins(:restaurant).merge(Restaurant.published).find(item_id)
-        payload = build_payload(kind, slug, name)
+        payload = ::Suggestions::PayloadBuilder.call(kind: kind, slug: slug, name: name)
 
         suggestion = Suggestion.create!(
-          user: user, subject: item, kind: kind, status: "pending", payload: payload
+          user: context.user, subject: item, kind: kind, status: "pending", payload: payload
         )
         ok(suggestion_row(suggestion))
+      rescue ::Suggestions::PayloadBuilder::UnknownSlug => e
+        # Only a model can act on this hint, so it is appended here rather
+        # than baked into the shared rule a browser also hits.
+        raise Errors::InvalidArgument, "#{e.message} Use search_taxonomy."
+      rescue ::Suggestions::PayloadBuilder::InvalidPayload => e
+        raise Errors::InvalidArgument, e.message
       end
-
-      # Validated here rather than at accept time: SuggestionResolver
-      # raises on a bad slug when the owner tries to apply it, which
-      # surfaces the submitter's typo to the wrong person days later.
-      def self.build_payload(kind, slug, name)
-        case kind
-        when "rename"
-          value = name.to_s.strip
-          raise Errors::InvalidArgument, "kind 'rename' needs a name." if value.empty?
-          { "name" => value }
-        when "add_ingredient", "remove_ingredient"
-          { "ingredient_slug" => resolve!(Ingredient, slug, "ingredient") }
-        when "add_tag", "remove_tag"
-          { "tag_slug" => resolve!(Tag, slug, "tag") }
-        end
-      end
-      private_class_method :build_payload
-
-      def self.resolve!(model, slug, label)
-        value = slug.to_s.strip
-        raise Errors::InvalidArgument, "That kind needs an #{label} slug." if value.empty?
-        unless model.exists?(slug: value)
-          raise Errors::InvalidArgument, "No #{label} with slug '#{value}'. Use search_taxonomy."
-        end
-
-        value
-      end
-      private_class_method :resolve!
     end
   end
 end

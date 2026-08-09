@@ -21,6 +21,14 @@ class Review < ApplicationRecord
 
   validates :rating,        presence: true, inclusion: { in: 1..5 }
   validates :hidden_reason, inclusion: { in: HIDDEN_REASONS }, allow_nil: true
+  # One review per person per dish. The unique index has always enforced
+  # this; without a validation to catch it first, `create` raised
+  # RecordNotUnique and the REST door 500'd on an ordinary second review
+  # while `write_review` answered "use edit_review instead". Editing is
+  # the right route, so the message says so rather than just refusing.
+  validates :item_id, uniqueness: {
+    scope: :user_id, message: "has already been reviewed by you — edit that review instead"
+  }
 
   scope :newest_first,        -> { order(created_at: :desc) }
   scope :visible,             -> { where(hidden_at: nil) }

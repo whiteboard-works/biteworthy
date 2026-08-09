@@ -25,6 +25,25 @@ RSpec.describe "suggestion tools" do
       expect(item.reload.denormalized_ingredient_ids).to include(dairy.id)
     end
 
+    # The REST door has taken anonymous corrections since Phase 4.10 and
+    # this one required a session, so the same act was allowed or refused
+    # depending on which door you walked through. Suggesting costs a
+    # reviewer's attention, not data — nothing here touches a live menu.
+    it "takes an anonymous correction, attributed to nobody" do
+      response = call(described_class, nil,
+                      item_id: item.id, kind: "rename", name: "Queso Fundido")
+
+      expect(payload(response)[:status]).to eq("pending")
+      expect(payload(response)).not_to have_key(:submitter)
+      expect(Suggestion.sole.user_id).to be_nil
+    end
+
+    it "is listed to an anonymous caller, not just reachable by one" do
+      visible = Tools::Registry.for(Tools::Context.new({})).map(&:name_value)
+
+      expect(visible).to include("suggest_correction")
+    end
+
     # A bad slug caught here is the submitter's problem; caught at accept
     # time it becomes the owner's, days later, with no way to fix it.
     it "rejects an unknown slug at submit time" do

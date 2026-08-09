@@ -32,7 +32,6 @@ RSpec.describe Tools::Registry do
       discovery:   :public,
       profile:     :user,
       ingestion:   :user,
-      suggestions: :user,
       claims:      :user,
       history:     :user,
       structure:   :admin,
@@ -46,6 +45,20 @@ RSpec.describe Tools::Registry do
 
         expect(tools.map(&:audience).uniq).to eq([expected])
       end
+    end
+
+    # Suggestions are mixed for a different reason than reviews: reading
+    # the queue and resolving from it are the owner's, but *submitting* a
+    # correction is anonymous — the REST door has taken anonymous
+    # suggestions since Phase 4.10, and a rule that holds on one door and
+    # not the other is the drift this layer exists to prevent.
+    it "keeps only suggest_correction public in the suggestions domain" do
+      by_audience = described_class::DOMAINS.fetch(:suggestions)
+                                            .map { |name| Tools.const_get(name) }
+                                            .group_by(&:audience)
+
+      expect(by_audience[:public].map(&:name_value)).to eq(["suggest_correction"])
+      expect(by_audience.keys).to contain_exactly(:public, :user)
     end
 
     # Reviews are deliberately mixed: reading is public, writing is not.

@@ -69,8 +69,12 @@ module Api
 
       private
 
+      # Published dish AND published restaurant. `write_review` has scoped
+      # it that way since M3a; here it was `Item.published` alone, so a
+      # dish at a restaurant that was never published — or was pulled —
+      # stayed reviewable over REST and not over MCP.
       def load_item
-        @item = Item.published.find(params[:item_id])
+        @item = Item.published.joins(:restaurant).merge(Restaurant.published).find(params[:item_id])
       end
 
       def load_review

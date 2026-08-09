@@ -8,6 +8,19 @@ module Api
       rescue_from ActiveRecord::RecordNotFound,    with: :render_not_found
       rescue_from ActiveRecord::RecordInvalid,     with: :render_unprocessable
       rescue_from ActionController::ParameterMissing, with: :render_unprocessable
+      # A unique index is a domain rule the database enforces, not a bug.
+      # Two controllers learned that separately — the admin namespace
+      # rescued it, FavoriteItemsController rescued it inline — and the
+      # review path, which had no model-level uniqueness validation to
+      # catch it first, 500'd on an ordinary second review. It belongs
+      # here so the next one does not have to rediscover it.
+      #
+      # A validation should still catch the common case with a sentence
+      # worth reading; this is the concurrent-race backstop, and the
+      # message is deliberately generic because the alternative is
+      # relaying PG's "duplicate key value violates unique constraint
+      # index_reviews_on_user_id_and_item_id" to a browser.
+      rescue_from ActiveRecord::RecordNotUnique,   with: :render_already_exists
 
       # Upper bound on pagination offset — deep pagination past this is
       # almost always a scraper, and an unbounded offset is a cheap DoS.
@@ -21,6 +34,10 @@ module Api
 
       def render_unprocessable(error)
         render json: { error: error.message }, status: :unprocessable_entity
+      end
+
+      def render_already_exists(_error)
+        render json: { error: "That already exists." }, status: :unprocessable_entity
       end
 
       # Shared pagination parsing for the index actions. Each controller

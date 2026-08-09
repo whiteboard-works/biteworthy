@@ -54,11 +54,17 @@ RSpec.describe Tools::Topology do
 
     # Same filter as tools/list. A domain whose tools are all hidden must
     # not show up as an empty heading.
+    # `suggestions` is here on the strength of `suggest_correction` alone
+    # — an anonymous reader can report bad data, but cannot read or
+    # resolve the queue.
     it "lists no domain an anonymous caller has no tools in" do
       domains = described_class.for(anonymous)[:domains]
 
-      expect(domains.map { |d| d[:name] }).to contain_exactly(:meta, :discovery, :reviews)
+      expect(domains.map { |d| d[:name] })
+        .to contain_exactly(:meta, :discovery, :reviews, :suggestions)
       expect(domains).to all(satisfy { |d| d[:tools].any? })
+      expect(domains.find { |d| d[:name] == :suggestions }[:tools])
+        .to contain_exactly("suggest_correction")
     end
 
     it "never names a tool the caller cannot call" do
