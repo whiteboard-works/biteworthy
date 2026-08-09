@@ -184,11 +184,15 @@ RSpec.describe "OAuth 2.1 authorization", type: :request do
     # The scopes the person actually saw are the scopes the token carries.
     # Read on a domain was approved; write on the same domain was not, and
     # that is exactly the line a consent screen is for.
+    # The catalogue this grant sees is filtered to the scopes it holds, so
+    # the write tool is not merely refused — it was never offered, and the
+    # refusal reads as "no such tool". What a consent screen has to
+    # guarantee is that the unapproved write does not happen.
     it "cannot reach a tool outside the scopes that were approved" do
       body = call_tool("update_avoid_lists", { add_ingredients: ["dairy"] })
 
-      expect(body.dig("result", "isError")).to be(true)
-      expect(body.dig("result", "content", 0, "text")).to match(/scope/i)
+      expect(body["error"]).to be_present
+      expect(user.reload.profile&.avoid_ingredient_ids).to be_blank
     end
 
     it "stops working once revoked" do

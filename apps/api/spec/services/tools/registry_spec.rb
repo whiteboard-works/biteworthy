@@ -100,6 +100,33 @@ RSpec.describe Tools::Registry do
         expect(tool.audience).not_to eq(:admin), "#{tool.name_value} was offered to a non-admin"
       end
     end
+
+    # Scope narrows the catalogue, not just the answer. A read-only OAuth
+    # grant that is shown the write tools has a model pick one, fail, and
+    # spend a turn learning what the list could have said — and with
+    # deferred loading it pays for the schemas too.
+    describe "when the credential is scoped" do
+      let(:read_only) do
+        Tools::Context.new({ user_id: create(:user).id, scopes: ["profile:read", "discovery:read"] })
+      end
+
+      it "leaves out the write tools the grant cannot use" do
+        names = described_class.for(read_only).map(&:name_value)
+
+        expect(names).to include("get_profile", "get_menu")
+        expect(names).not_to include("update_avoid_lists", "set_strictness")
+      end
+
+      it "leaves out domains the grant never mentioned" do
+        expect(described_class.for(read_only).map(&:name_value)).not_to include("write_review")
+      end
+
+      # An unscoped credential is every token issued before scopes existed.
+      # Narrowing those would be a silent lockout, not a safety win.
+      it "leaves an unscoped caller's catalogue alone" do
+        expect(described_class.for(signed_in).size).to be > described_class.for(read_only).size
+      end
+    end
   end
 
   describe ".find" do
