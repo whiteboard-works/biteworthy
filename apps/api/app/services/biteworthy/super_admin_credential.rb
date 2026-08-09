@@ -40,6 +40,21 @@ module Biteworthy
   class SuperAdminCredential
     CACHE_TTL = 60.seconds
 
+    # A safelist runs *before* every throttle, which is the whole point
+    # and also the hazard: without a bound, an unauthenticated caller can
+    # send a different garbage bearer on every request and force a fresh
+    # credential lookup each time — cache-missing by construction, and
+    # unthrottled by definition. The rate limiter would become the
+    # amplifier.
+    #
+    # So resolution itself is rate limited, per IP, on cache misses only.
+    # A real super admin misses once a minute and is never near the
+    # budget; a spray of unique bearers burns it in a few requests and
+    # then stops costing anything, and those requests fall through to the
+    # ordinary throttles they were trying to skip.
+    RESOLUTIONS_PER_IP     = 10
+    RESOLUTION_WINDOW      = 1.minute
+
     class << self
       def store
         @store ||= ActiveSupport::Cache::MemoryStore.new(size: 2.megabytes)
@@ -51,6 +66,10 @@ module Biteworthy
       def exempt?(request)
         secret = bearer(request)
         return false if secret.blank?
+
+        cached = store.read(cache_key(secret))
+        return cached unless cached.nil?
+        return false unless resolution_budget?(request.ip)
 
         store.fetch(cache_key(secret), expires_in: CACHE_TTL) { resolve(secret) }
       rescue StandardError => e
@@ -72,6 +91,26 @@ module Biteworthy
       # to keep a credential (the same reasoning as `mcp_bearer_key`).
       def cache_key(secret)
         "super_admin_credential:#{Digest::SHA256.hexdigest(secret)}"
+      end
+
+      # Counts only the lookups that would actually touch the database —
+      # a cache hit is free and never charged, so a signed-in super admin
+      # spends one resolution a minute no matter how much traffic they
+      # send. Bucketed by wall-clock window rather than a sliding count,
+      # which is the same shape `Rack::Attack` itself uses and needs no
+      # eviction pass.
+      def resolution_budget?(ip)
+        return true if ip.blank?
+
+        key   = "super_admin_resolutions:#{ip}:#{(Time.current.to_i / RESOLUTION_WINDOW).to_i}"
+        # MemoryStore#increment initialises a missing key to the amount,
+        # so the first call in a window returns 1 — no seeding needed.
+        spent = store.increment(key, 1, expires_in: RESOLUTION_WINDOW * 2)
+        # nil means the store could not count (not the case for
+        # MemoryStore, but a swap to a shared store should not silently
+        # start refusing every super admin). The cache-hit path above
+        # already covers the steady state, so allowing here is safe.
+        spent.nil? || spent <= RESOLUTIONS_PER_IP
       end
 
       def resolve(secret)

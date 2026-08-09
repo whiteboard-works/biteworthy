@@ -143,6 +143,36 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
 
+    # A safelist runs ahead of every throttle, so without a bound it is
+    # an amplifier: a unique bearer per request misses the cache by
+    # construction and forces a fresh credential lookup that nothing is
+    # rate limiting. These two pin that resolution itself is bounded, and
+    # that the bound does not fall on the person it exists to exempt.
+    it "stops resolving unique garbage bearers after a small budget" do
+      allow(Biteworthy::SuperAdminCredential).to receive(:resolve).and_call_original
+
+      40.times do |i|
+        get "/api/v1/me", headers: { "Authorization" => "Bearer garbage-#{i}-#{SecureRandom.hex(8)}" }
+      end
+
+      expect(Biteworthy::SuperAdminCredential)
+        .to have_received(:resolve)
+        .at_most(Biteworthy::SuperAdminCredential::RESOLUTIONS_PER_IP).times
+    end
+
+    it "does not charge the budget for a repeated credential" do
+      user = create(:user, :super_admin)
+      token, = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
+      allow(Biteworthy::SuperAdminCredential).to receive(:resolve).and_call_original
+
+      400.times { get "/api/v1/me", headers: { "Authorization" => "Bearer #{token}" } }
+
+      # One resolution for 400 requests — the cache answers the rest, so
+      # a real super admin never approaches the per-IP budget.
+      expect(Biteworthy::SuperAdminCredential).to have_received(:resolve).once
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
     # A properly-signed token stays signature-valid after sign-out —
     # `JTIMatcher` revokes by rotating `users.jti`, not by invalidating
     # the signature. A safelist that checked only the signature would

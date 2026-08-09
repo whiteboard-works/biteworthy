@@ -63,6 +63,10 @@ module Tools
         cost_ceiling_reached: "Scanning is paused — the service hit its daily processing budget. Try again tomorrow.",
         too_many_files:       "Too many files in one scan.",
         file_too_large:       "One of those files is too large.",
+        # Distinct from `file_too_large` on purpose: every file can be
+        # individually fine and the batch still be too big to extract in
+        # one request. Told as "split it up", because that is the action.
+        payload_too_large:    "Those files are too much to scan at once. Send them in smaller batches.",
         unsupported_file_type: "Only JPEG, PNG, HEIC, WebP, and PDF files can be scanned.",
         text_too_large:       "That menu text is too long to scan in one go."
       }.freeze

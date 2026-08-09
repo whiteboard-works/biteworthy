@@ -22,9 +22,27 @@ module Ingestion
     MAX_INPUT_FILE_BYTES_DEFAULT     = 10 * 1024 * 1024 # match UrlFetcher's 10 MB cap
     MAX_SOURCE_TEXT_CHARS_DEFAULT    = 50_000           # a very long menu is well under this
     # Headroom for the super tier — see `validate_files` for why these are
-    # multiplied rather than dropped. 5× is well past any real menu and
-    # still short of the request size that breaks the extraction call.
+    # multiplied rather than dropped. 5× is well past any real menu.
     SUPER_ADMIN_INPUT_MULTIPLIER     = 5
+
+    # The cap that actually bounds the extraction request, and the only
+    # one that is **not** multiplied for anybody.
+    #
+    # Multiplying the file count and the per-file size independently
+    # multiplies their product: 5× × 5× is 25× in aggregate, which turned
+    # a 100 MB ceiling into 2.5 GB. `ExtractMenuPrompt.user_messages`
+    # base64-encodes every blob into one in-memory request, so that is
+    # gigabytes of string built in the worker before Anthropic rejects it
+    # for being over the 32 MB request limit — the "fails after it has
+    # been paid for" shape the content-type check exists to avoid.
+    #
+    # The ceiling here is not about who is paying, it is about what the
+    # API will accept: base64 inflates by ~4/3, so 20 MB of input is
+    # ~27 MB on the wire before the prompt. It applies to everyone for
+    # the same reason the content-type check does. Chunking (which would
+    # let this rise, because the aggregate would no longer be one
+    # request) is a separate change.
+    MAX_TOTAL_INPUT_BYTES_DEFAULT    = 20 * 1024 * 1024
 
     ALLOWED_INPUT_CONTENT_TYPES = %w[
       image/jpeg image/png image/heic image/heif image/webp application/pdf
@@ -114,6 +132,13 @@ module Ingestion
 
       if @files.any? { |f| byte_size_of(f) > file_bytes_limit }
         return failure(:file_too_large, limit_bytes: file_bytes_limit)
+      end
+
+      # Checked after the per-file limits so the message names the
+      # specific problem where there is one, and last among the size
+      # checks because it is the one that binds for everybody.
+      if @files.sum { |f| byte_size_of(f) } > max_total_input_bytes
+        return failure(:payload_too_large, limit_bytes: max_total_input_bytes)
       end
 
       if @files.any? { |f| ALLOWED_INPUT_CONTENT_TYPES.exclude?(f.content_type.to_s) }
@@ -254,6 +279,10 @@ module Ingestion
 
     def max_source_text_chars
       Integer(ENV.fetch("INGESTION_MAX_SOURCE_TEXT_CHARS", MAX_SOURCE_TEXT_CHARS_DEFAULT))
+    end
+
+    def max_total_input_bytes
+      Integer(ENV.fetch("INGESTION_MAX_TOTAL_INPUT_BYTES", MAX_TOTAL_INPUT_BYTES_DEFAULT))
     end
   end
 end

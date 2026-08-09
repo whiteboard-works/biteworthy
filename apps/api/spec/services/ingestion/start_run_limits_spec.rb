@@ -103,6 +103,45 @@ RSpec.describe Ingestion::StartRun do
     end
   end
 
+  # Multiplying the count and the per-file size independently multiplies
+  # their product — 5× × 5× is 25× in aggregate, which turned a 100 MB
+  # ceiling into 2.5 GB. The extractor base64-encodes every blob into one
+  # in-memory request, so that is gigabytes built in the worker before
+  # Anthropic rejects it for exceeding the request limit.
+  describe "the aggregate payload ceiling" do
+    def files_totalling(bytes, count:)
+      Array.new(count) { upload(bytes: bytes / count) }
+    end
+
+    it "refuses a batch of individually-legal files that is too big together" do
+      user  = create(:user)
+      # Five files, each under the 10 MB per-file cap, 25 MB together.
+      files = files_totalling(25 * 1024 * 1024, count: 5)
+
+      result = start(user, files: files)
+
+      expect(result.error).to eq(:payload_too_large)
+      expect(result.detail[:limit_bytes]).to eq(described_class::MAX_TOTAL_INPUT_BYTES_DEFAULT)
+    end
+
+    # Not multiplied for anybody: this ceiling is about what the API will
+    # accept, not about who is paying for it — the same reasoning that
+    # keeps the content-type check unskippable.
+    it "binds a super admin too" do
+      user  = create(:user, :super_admin)
+      files = files_totalling(25 * 1024 * 1024, count: 5)
+
+      expect(start(user, files: files).error).to eq(:payload_too_large)
+    end
+
+    it "lets a realistic multi-page menu through" do
+      user  = create(:user)
+      files = files_totalling(8 * 1024 * 1024, count: 6)
+
+      expect(start(user, files: files).error).to be_nil
+    end
+  end
+
   # Already true before the super tier (super admin implies admin), but
   # worth pinning next to the caps it does *not* cover — the asymmetry is
   # the thing a future reader will otherwise assume is a mistake.
