@@ -161,6 +161,13 @@ six tools: a model choosing between `create_ingredient` and `create_tag`
 alongside four near-twins misroutes, and the two trees differ only in
 metadata.
 
+The taxonomy tools shipped here re-implementing the admin controllers'
+rules rather than sharing them, and D1 was right about what happens next:
+by 2026-08-09 the tag controller counted `prefer_tag_ids` as a reference
+and the tool did not, so one tag was undeletable over REST and deletable
+over MCP. Both doors now call `Taxonomy::Writer` (fifth extraction), which
+counts it.
+
 #### M3c — topology — SHIPPED (44 tools)
 
 The model needs to know which tools compose into a workflow, not just what
