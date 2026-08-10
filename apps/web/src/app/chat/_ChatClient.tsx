@@ -24,6 +24,7 @@ import {
 } from '../../lib/chat';
 import { Composer } from './_Composer';
 import { Transcript, type LiveTurn } from './_Transcript';
+import { useToolVisibility } from './_useToolVisibility';
 
 const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [] };
 
@@ -41,6 +42,7 @@ export function ChatClient(): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [showTools, toggleTools] = useToolVisibility();
   const bottom = useRef<HTMLDivElement>(null);
 
   const onFailure = useCallback(
@@ -236,13 +238,29 @@ export function ChatClient(): ReactElement {
           <h1 className="truncate text-bw-lg font-bold text-zinc-900">
             {active?.title ?? 'New chat'}
           </h1>
-          <button
-            type="button"
-            onClick={() => setHistoryOpen((v) => !v)}
-            className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700 md:hidden"
-          >
-            History
-          </button>
+          <div className="flex items-center gap-bw-2">
+            {/* A per-person preference for a quieter read, not a new
+                default — showing every tool call is the honest-disclosure
+                claim made visible, so it stays on unless someone turns it
+                off. `aria-pressed` because this is a toggle, not a
+                command. */}
+            <button
+              type="button"
+              onClick={toggleTools}
+              aria-pressed={showTools}
+              data-testid="tools-toggle"
+              className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700"
+            >
+              {showTools ? 'Hide tools' : 'Show tools'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((v) => !v)}
+              className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700 md:hidden"
+            >
+              History
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-bw-4 py-bw-6">
@@ -252,6 +270,7 @@ export function ChatClient(): ReactElement {
             live={live}
             pending={pending}
             busy={busy}
+            showTools={showTools}
             onAnswer={(approved) => void answer(approved)}
           />
           {active?.usage ? <UsagePills usage={active.usage} /> : null}

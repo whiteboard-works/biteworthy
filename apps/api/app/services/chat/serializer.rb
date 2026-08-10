@@ -30,10 +30,15 @@ module Chat
 
       def message(message)
         {
-          id:       message.id,
-          role:     message.role,
-          position: message.position,
-          blocks:   blocks(message)
+          id:         message.id,
+          role:       message.role,
+          position:   message.position,
+          # Recorded since the table existed and never sent. `position`
+          # orders a transcript; it does not answer "was this five minutes
+          # ago or last Tuesday", which is the question a reopened
+          # conversation raises.
+          created_at: message.created_at.iso8601,
+          blocks:     blocks(message)
         }
       end
 

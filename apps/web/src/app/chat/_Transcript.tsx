@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import type { ChatBlock, ChatMessage, PendingTool } from '../../lib/chat';
+import { Markdown } from './_Markdown';
 
 /** The assistant turn currently streaming, before it is persisted. */
 export interface LiveTurn {
@@ -15,6 +16,8 @@ interface TranscriptProps {
   live: LiveTurn | null;
   pending: PendingTool | null;
   busy: boolean;
+  /** Tool cards and their timestamps. Default on — see `useToolVisibility`. */
+  showTools: boolean;
   onAnswer: (approved: boolean) => void;
 }
 
@@ -23,6 +26,7 @@ export function Transcript({
   live,
   pending,
   busy,
+  showTools,
   onAnswer,
 }: TranscriptProps): ReactElement {
   const outcomes = toolOutcomes(messages);
@@ -30,9 +34,14 @@ export function Transcript({
   return (
     <div className="flex flex-col gap-bw-6" data-testid="chat-transcript">
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} outcomes={outcomes} />
+        <MessageRow
+          key={message.id}
+          message={message}
+          outcomes={outcomes}
+          showTools={showTools}
+        />
       ))}
-      {live ? <LiveRow turn={live} /> : null}
+      {live ? <LiveRow turn={live} showTools={showTools} /> : null}
       {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={onAnswer} /> : null}
     </div>
   );
@@ -56,13 +65,17 @@ function toolOutcomes(messages: ChatMessage[]): Map<string, boolean> {
 function MessageRow({
   message,
   outcomes,
+  showTools,
 }: {
   message: ChatMessage;
   outcomes: Map<string, boolean>;
+  showTools: boolean;
 }): ReactElement | null {
   // Tool results are carried on a user-role message because that is the
   // Messages API shape, not because a person typed them.
-  const visible = message.blocks.filter((b) => b.type !== 'tool_result');
+  const visible = message.blocks
+    .filter((b) => b.type !== 'tool_result')
+    .filter((b) => showTools || b.type !== 'tool_use');
   if (visible.length === 0) return null;
 
   if (message.role === 'user') {
@@ -76,9 +89,29 @@ function MessageRow({
   return (
     <div className="flex flex-col gap-bw-2" data-testid="assistant-message">
       {visible.map((block, index) => (
-        <AssistantBlock key={index} block={block} outcomes={outcomes} />
+        <AssistantBlock key={index} block={block} outcomes={outcomes} at={message.created_at} />
       ))}
     </div>
+  );
+}
+
+/**
+ * Shown beside tool cards only, and only when tools are shown.
+ *
+ * A timestamp on every bubble is noise in a conversation you are having;
+ * it earns its place next to the machinery, where the question is "when
+ * did it do that" — and it is the tool view that gets read after the
+ * fact, on a conversation reopened days later.
+ */
+function Timestamp({ at }: { at: string | undefined }): ReactElement | null {
+  if (!at) return null;
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) return null;
+
+  return (
+    <time dateTime={at} title={when.toLocaleString()} className="text-bw-xs text-zinc-400">
+      {when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+    </time>
   );
 }
 
@@ -98,18 +131,21 @@ function UserBubble({ text }: { text: string }): ReactElement {
 function AssistantBlock({
   block,
   outcomes,
+  at,
 }: {
   block: ChatBlock;
   outcomes: Map<string, boolean>;
+  at?: string;
 }): ReactElement | null {
-  if (block.type === 'text') {
-    return (
-      <p className="whitespace-pre-wrap text-bw-base leading-relaxed text-zinc-800">{block.text}</p>
-    );
-  }
+  // Markdown, because the model writes it whether or not anything renders
+  // it — lists, tables and emphasis were reaching people as asterisks.
+  // The user's own bubble stays plain text: they typed what they typed.
+  if (block.type === 'text') return <Markdown text={block.text} />;
   if (block.type === 'thinking') return <Thinking text={block.text} />;
   if (block.type === 'tool_use') {
-    return <ToolCard name={block.name} input={block.input} ok={outcomes.get(block.id)} />;
+    return (
+      <ToolCard name={block.name} input={block.input} ok={outcomes.get(block.id)} at={at} />
+    );
   }
   return null;
 }
@@ -133,11 +169,14 @@ function ToolCard({
   ok,
   running,
   doing,
+  at,
 }: {
   name: string;
   input?: Record<string, unknown>;
   ok?: boolean;
   running?: boolean;
+  /** When the message carrying this call was stored. */
+  at?: string;
   /** The tool's own sentence, when it declared one. Never model-supplied —
    *  this is the only thing a person can read while a turn is working, so
    *  it says what is happening rather than what the model intends. */
@@ -154,7 +193,8 @@ function ToolCard({
       data-testid="tool-card"
       className={`rounded-bw-md border px-bw-3 py-bw-2 text-bw-sm ${tone}`}
     >
-      <span className="font-medium">
+      <span className="flex items-baseline justify-between gap-bw-2 font-medium">
+        <span>
         {doing ? (
           running ? (
             <>{doing}…</>
@@ -168,6 +208,8 @@ function ToolCard({
             {running ? 'Running' : ok === false ? "Couldn't" : 'Did'} {humanize(name)}
           </>
         )}
+        </span>
+        <Timestamp at={at} />
       </span>
       {input && Object.keys(input).length > 0 ? (
         <details className="mt-bw-1">
@@ -181,25 +223,26 @@ function ToolCard({
   );
 }
 
-function LiveRow({ turn }: { turn: LiveTurn }): ReactElement {
+function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): ReactElement {
   return (
     <div className="flex flex-col gap-bw-2" data-testid="live-turn">
       {turn.thinking ? <Thinking text={turn.thinking} /> : null}
-      {turn.tools.map((tool, index) => (
-        <ToolCard
-          key={index}
-          name={tool.name}
-          ok={tool.ok}
-          doing={tool.doing}
-          running={tool.ok === undefined}
-        />
-      ))}
-      {turn.text ? (
-        <p className="whitespace-pre-wrap text-bw-base leading-relaxed text-zinc-800">
-          {turn.text}
-        </p>
-      ) : null}
-      {!turn.thinking && !turn.text && turn.tools.length === 0 ? (
+      {showTools
+        ? turn.tools.map((tool, index) => (
+            <ToolCard
+              key={index}
+              name={tool.name}
+              ok={tool.ok}
+              doing={tool.doing}
+              running={tool.ok === undefined}
+            />
+          ))
+        : null}
+      {/* Rendered as markdown while it streams too. A half-arrived list
+          renders as a shorter list rather than as raw asterisks that
+          rearrange themselves when the turn lands. */}
+      {turn.text ? <Markdown text={turn.text} /> : null}
+      {!turn.thinking && !turn.text && (!showTools || turn.tools.length === 0) ? (
         <p className="text-bw-sm text-zinc-400">Thinking…</p>
       ) : null}
     </div>

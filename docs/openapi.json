@@ -6394,6 +6394,7 @@
           "id",
           "role",
           "position",
+          "created_at",
           "blocks"
         ],
         "properties": {
@@ -6410,6 +6411,11 @@
           },
           "position": {
             "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the message was stored. `position` orders a transcript; this answers how long ago, which is the question a reopened conversation raises."
           },
           "blocks": {
             "type": "array",
