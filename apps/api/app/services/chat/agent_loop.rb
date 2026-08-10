@@ -241,6 +241,13 @@ module Chat
     def outcome_of(result)
       return "crashed" if result.nil?
       return "timed_out" if @timed_out
+      # A repaired answer and a disclaimed one are both turns the reviewer
+      # rejected, and they are not the same result. Kept apart so the
+      # false-flag-rate question in `docs/plans/chat-engine.md` can be
+      # answered from the runs table: a flag the model could satisfy on a
+      # second look is weaker evidence of a real problem than one it
+      # could not.
+      return "regrounded" if @regrounded
       return "grounding_flagged" if @grounding_flagged
 
       result.state.to_s
@@ -327,9 +334,11 @@ module Chat
 
         response  = call_model
         blocks    = Array(response["content"])
-        @conversation.append!(role: "assistant", content: blocks)
+        # Held rather than discarded: if the grounding reviewer rejects
+        # this answer, the repaired one replaces it in place.
+        message   = @conversation.append!(role: "assistant", content: blocks)
 
-        return finish(blocks) unless response["stop_reason"] == "tool_use"
+        return finish(blocks, message) unless response["stop_reason"] == "tool_use"
 
         outcome = continue_queue(blocks.select { |b| b["type"] == "tool_use" }, [])
         return outcome if outcome.awaiting_confirmation?
@@ -578,9 +587,12 @@ module Chat
       (call["input"] || {}).to_h.symbolize_keys
     end
 
-    def finish(blocks)
-      text = blocks.filter_map { |b| b["text"] if b["type"] == "text" }.join("\n").presence
-      Result.new(state: :done, text: ground(text))
+    def finish(blocks, message = nil)
+      Result.new(state: :done, text: ground(text_of(blocks), message))
+    end
+
+    def text_of(blocks)
+      blocks.filter_map { |b| b["text"] if b["type"] == "text" }.join("\n").presence
     end
 
     # The filter's own output for this turn, kept so a second model can
@@ -596,16 +608,13 @@ module Chat
     # Safety Property 1, enforced rather than instructed: a summary that
     # quietly drops the one dish someone is allergic to reads exactly like
     # a good answer, so something other than the author has to look.
-    def ground(text)
+    def ground(text, message = nil)
       # Nothing to check against means nothing to check. Most turns are
       # navigation or opinion, and a review of those is a model call spent
       # on nothing.
       return text if @facts.blank? || text.blank?
 
-      verdict = GroundingReview.new.call(answer: text, facts: @facts)
-      # Billed whether or not it flagged anything: the call happened. It
-      # is a haiku call priced at haiku rates, not the loop's model.
-      record_review_usage(verdict)
+      verdict = review(text)
       return text unless verdict.flagged?
 
       Rails.logger.warn("[chat] grounding flagged conversation #{@conversation.id}: #{verdict.problem}")
@@ -613,6 +622,92 @@ module Chat
       # `release!` in the ensure block owns that column and would overwrite
       # a direct write with "done".
       @grounding_flagged = true
+
+      # One repair attempt, then the disclaimer. A reviewer that rejects
+      # an answer twice is not going to be argued out of it on a third
+      # pass, and each attempt is latency on an answer already a minute
+      # old.
+      revised = message && reground(verdict)
+      return swap(message, revised) if revised && !review(revised[:text]).flagged?
+
+      disclaim(text)
+    end
+
+    # Billed whether or not it flagged anything: the call happened. It is
+    # a haiku call priced at haiku rates, not the loop's model.
+    def review(text)
+      GroundingReview.new.call(answer: text, facts: @facts).tap { |v| record_review_usage(v) }
+    end
+
+    # One more round with the reviewer's objection in front of the model.
+    #
+    # `GroundingReview`'s header used to price this as "a second full
+    # turn" and conclude it cost more than saying the answer might be
+    # incomplete. That was the wrong unit: by the time we are here the
+    # transcript, the tool results and the cached prefix all exist, so it
+    # is one call against a prefix the cache already holds.
+    #
+    # The objection is handed over **without being stored**. `Serializer`
+    # renders every message a conversation has, so a `user` message here
+    # would draw in the transcript as though the person had typed it, and
+    # a block type of our own invention is a 400 at the API. It lives for
+    # the length of one request.
+    #
+    # Deliberately not streamed even when the caller is watching: the
+    # flagged answer is already on their screen, and streaming a second
+    # one would paint it underneath rather than replace it.
+    #
+    # Best-effort throughout — a repair that fails must never cost the
+    # answer it was trying to improve, which is the same way the reviewer
+    # itself fails open.
+    def reground(verdict)
+      response = @client.messages_create(**model_args(extra: [objection(verdict)]))
+      @conversation.record_usage!(@client.last_usage, model: MODEL)
+      # A side call, not a round — the same distinction the reviewer's
+      # spend is booked under. `rounds` answers "how many times did the
+      # loop go around", and this happens after it stopped. `record_round!`
+      # would also raise `LostLease` on a stolen lease, which is the wrong
+      # trade once an answer exists: it turns a finished turn into an
+      # error in order to report a billing write. Billed at Opus rates,
+      # because that is the model that ran.
+      @run&.record_side_call!(@client.last_usage || {}, model: MODEL)
+
+      # A repair that wants to call tools is not a repair — re-entering
+      # the loop from inside `finish` would restart a turn that has
+      # already produced its answer. Take the text or take nothing.
+      return nil unless response["stop_reason"] == "end_turn"
+
+      blocks = Array(response["content"])
+      text   = text_of(blocks)
+      text && { blocks: blocks, text: text }
+    rescue StandardError => e
+      Rails.logger.warn("[chat] regrounding conversation #{@conversation.id} failed: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def objection(verdict)
+      instruction =
+        "A reviewer checked your answer against the filter output it was based on and " \
+        "rejected it: #{verdict.problem}\n\n" \
+        "Write the answer again so it is complete and correct against that data. Reply " \
+        "with the corrected answer only — no preamble, no apology, and no mention of " \
+        "this note."
+
+      { role: "user", content: [{ type: "text", text: instruction }] }
+    end
+
+    # The flagged answer is replaced rather than followed. Appending the
+    # correction would leave both on screen with nothing to say which one
+    # to trust — and the transcript is what every client redraws from once
+    # the turn ends. That the reviewer caught something is still recorded,
+    # as the run's outcome, which is where this has always been kept.
+    def swap(message, revised)
+      message.update!(content: revised[:blocks])
+      @regrounded = true
+      revised[:text]
+    end
+
+    def disclaim(text)
       @conversation.append!(role: "assistant",
                             content: [{ type: "text", text: GroundingReview::DISCLAIMER }])
       emit(type: "text_delta", text: "\n\n#{GroundingReview::DISCLAIMER}")
@@ -693,12 +788,16 @@ module Chat
     # catalogue re-rendered 44 JSON schemas, the topology walked the
     # registry twice more, and the profile snapshot went back to Postgres
     # — all to produce the bytes the cache is keyed on.
-    def model_args
+    # `extra` is appended after the stored transcript and never written
+    # down — the grounding repair's objection is the only user of it. It
+    # sits below the cache breakpoint `cacheable` marks, so the prefix
+    # this turn already paid for is still read rather than rebuilt.
+    def model_args(extra: [])
       {
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
-        messages:   cacheable(@conversation.transcript),
+        messages:   cacheable(@conversation.transcript) + extra,
         tools:      tool_definitions,
         thinking:   { type: "adaptive" }
       }

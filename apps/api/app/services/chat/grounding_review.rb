@@ -28,9 +28,17 @@ module Chat
   #     Ruby's eyes if you ask the wrong way, and each would wave through
   #     exactly the answer this exists to catch.
   #
-  #   * **A flag appends a disclaimer rather than retrying.** A turn is
-  #     already a minute; a second full turn to repair a partly-right
-  #     answer costs more than saying plainly that it may be incomplete.
+  #   * **A flag gets one repair attempt, then the disclaimer.** This
+  #     said a flag never retried, on the grounds that "a second full
+  #     turn to repair a partly-right answer costs more than saying
+  #     plainly that it may be incomplete". The arithmetic was wrong
+  #     rather than the judgement: by the time the reviewer has an
+  #     opinion, the transcript, the tool results and the cached prefix
+  #     all exist, so the repair is *one* call against a prefix the cache
+  #     already holds — not a turn. `AgentLoop#reground` makes it, hands
+  #     back the objection below without storing it, and falls through to
+  #     `DISCLAIMER` if the repair fails, comes back wanting tools, or is
+  #     rejected a second time.
   class GroundingReview
     # Cheap and fast: this runs on top of a turn that already took a
     # minute, and it is reading, not reasoning about, the filter output.

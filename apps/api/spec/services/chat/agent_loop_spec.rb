@@ -1259,8 +1259,127 @@ RSpec.describe Chat::AgentLoop do
       )
     end
 
+    # The repair path asks twice — once about the answer, once about the
+    # rewrite — so its specs need the two verdicts to differ.
+    def reviewing_in_turn(*verdicts)
+      reviewer = instance_double(Chat::GroundingReview)
+      allow(reviewer).to receive(:call).and_return(*verdicts)
+      allow(Chat::GroundingReview).to receive(:new).and_return(reviewer)
+    end
+
     def flagged(problem) = Chat::GroundingReview::Result.new(grounded: false, problem: problem, checked: true)
     def clean           = Chat::GroundingReview::Result.new(grounded: true, checked: true)
+
+    # The answer the reviewer rejected is replaced, not followed. Both on
+    # screen would leave nothing to say which one to trust, and the
+    # transcript is what every client redraws from once the turn ends.
+    describe "when the answer can be repaired" do
+      def repaired_turn
+        loop_with(
+          call_tool("get_menu", { "restaurant" => "ninis" }),
+          say("Have anything!"),
+          say("The queso fundido is hidden for you — it is dairy.")
+        ).run(text: "what can I eat")
+      end
+
+      before { reviewing_in_turn(flagged("dropped the queso"), clean) }
+
+      it "rewrites the answer in place rather than appending to it" do
+        before_count = conversation.messages.count
+
+        result = repaired_turn
+
+        expect(result.text).to eq("The queso fundido is hidden for you — it is dairy.")
+        expect(result.text).not_to include(Chat::GroundingReview::DISCLAIMER)
+        expect(conversation.messages.reload.last.text).to eq(result.text)
+        # user + assistant(tool_use) + tool_result + assistant(answer).
+        # A disclaimer would make it five.
+        expect(conversation.messages.count).to eq(before_count + 4)
+      end
+
+      # `Serializer` renders every stored message, so the objection as a
+      # `user` message would draw as though the person had typed it. It
+      # exists for the length of one request and is never written down.
+      it "keeps the reviewer's objection out of the transcript" do
+        repaired_turn
+
+        expect(conversation.messages.reload.map(&:text).compact.join(" "))
+          .not_to include("A reviewer checked")
+      end
+
+      # A repaired turn and a disclaimed one are both flags, and they are
+      # not the same result — the difference is what answers how often the
+      # reviewer is wrong.
+      it "records the repair apart from a plain flag" do
+        run = ConversationRun.acquire(conversation)
+
+        described_class.new(conversation, client: ScriptedClient.new(
+          call_tool("get_menu", { "restaurant" => "ninis" }),
+          say("Have anything!"),
+          say("The queso fundido is hidden for you — it is dairy.")
+        ), run: run).run(text: "what can I eat")
+
+        expect(run.reload.outcome).to eq("regrounded")
+      end
+
+      # The repair happens after the loop has stopped, so it is a side
+      # call and not a round — `rounds` answers "how many times did the
+      # loop go around", and booking this into it would make that number
+      # stop meaning what it was added to mean. Its spend still lands.
+      it "bills the repair without counting it as a round" do
+        run = ConversationRun.acquire(conversation)
+
+        described_class.new(conversation, client: ScriptedClient.new(
+          call_tool("get_menu", { "restaurant" => "ninis" }),
+          say("Have anything!"),
+          say("The queso fundido is hidden for you — it is dairy.")
+        ), run: run).run(text: "what can I eat")
+
+        # Two model calls went around the loop: the tool round and the
+        # answer. The repair is the third call and the fourth is unrelated.
+        expect(run.reload.rounds).to eq(2)
+        expect(run.cost_micro_cents).to be > 0
+      end
+    end
+
+    it "falls back to the disclaimer when the rewrite is rejected too" do
+      reviewing_in_turn(flagged("dropped the queso"), flagged("still dropped it"))
+
+      result = loop_with(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        say("Have anything, really!")
+      ).run(text: "what can I eat")
+
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+    end
+
+    # A repair that comes back wanting tools is not a repair — running it
+    # would restart a turn that has already produced its answer.
+    it "does not follow a rewrite that asks for more tools" do
+      reviewing_in_turn(flagged("dropped the queso"), clean)
+
+      result = loop_with(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        call_tool("get_menu", { "restaurant" => "ninis" }, id: "toolu_2")
+      ).run(text: "what can I eat")
+
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+    end
+
+    # The repair is an improvement, not a dependency. Whatever goes wrong
+    # inside it, the turn still ends with an answer and the disclaimer —
+    # the same way the reviewer itself fails open.
+    it "does not let a failed repair cost the answer" do
+      reviewing_in_turn(flagged("dropped the queso"), clean)
+
+      result = loop_with(call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!"))
+               .run(text: "what can I eat")
+
+      expect(result.text).to include("Have anything!")
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+    end
 
     it "appends a disclaimer to an answer the reviewer flagged" do
       reviewing(flagged("dropped the queso"))
