@@ -8,8 +8,6 @@ class Item < ApplicationRecord
   belongs_to :menu_section, optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
 
-  default_scope { order(:position, :created_at) }
-
   has_many :item_variants,    dependent: :destroy
   has_many :item_modifiers,   dependent: :destroy
   has_many :item_ingredients, dependent: :destroy
