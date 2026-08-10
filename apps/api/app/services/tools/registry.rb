@@ -72,7 +72,9 @@ module Tools
         "Structure::EditPlace"
       ],
       items: [
-        "Items::EditItem"
+        "Items::EditItem",
+        "Items::VerifyItemByHuman",
+        "Items::VerifyItemByRestaurant"
       ],
       taxonomy: [
         "Taxonomy::CreateTaxonomyNode",
