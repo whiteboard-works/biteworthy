@@ -222,7 +222,7 @@ GEM
     marcel (1.1.0)
     mcp (1.1.0)
       json_schemer (>= 2.4)
-    mini_magick (5.3.2)
+    mini_magick (5.3.3)
       logger
     mini_mime (1.1.5)
     minitest (6.0.6)
@@ -613,7 +613,7 @@ CHECKSUMS
   mail (2.9.0) sha256=6fa6673ecd71c60c2d996260f9ee3dd387d4673b8169b502134659ece6d34941
   marcel (1.1.0) sha256=fdcfcfa33cc52e93c4308d40e4090a5d4ea279e160a7f6af988260fa970e0bee
   mcp (1.1.0) sha256=930dafc0a8f34941d210ad907dd70bf93c1763fa60b98cb9162c77263e5dac32
-  mini_magick (5.3.2) sha256=a7ef54b480b15283c396eb8343d9e088471f54b31d9974cb7e523cc57598609f
+  mini_magick (5.3.3) sha256=b3beed8a8cef36bd03666365f14b89cd344da0ecd373af53e617c71bfd426aab
   mini_mime (1.1.5) sha256=8681b7e2e4215f2a159f9400b5816d85e9d8c6c6b491e96a12797e798f8bccef
   minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1
   msgpack (1.8.2) sha256=e440d11c99d6dfe8b2fbc4feb74c3518c1ba024357c70bbd734d9bb1a44d0d25
