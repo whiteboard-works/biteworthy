@@ -399,6 +399,23 @@ second hazard is still open: the API drops previous-turn `thinking`
 blocks once a new user message arrives, which moves the prefix bytes
 again. Treat the within-turn win as the one this change bought.
 
+Both block shapes the marker can land on are verified against the live
+API — a trailing `text` block (round 1) and a trailing `tool_result`
+block (every round after):
+
+```
+trailing text          cache_write=2835   cache_read=0
+trailing tool_result   cache_write=73     cache_read=2835
+```
+
+Review asked for a VCR cassette covering the changed request instead.
+The chat suite drives `ScriptedClient` and has no cassettes at all —
+that is the deliberate shape of these specs, not a gap — and the failure
+mode here is loud rather than silent: a breakpoint Anthropic rejected
+would 400 the very first turn, not corrupt one quietly. The probe above
+is the evidence; a recorded Opus turn with tools would be a new
+convention bought at real cost.
+
 Two properties it leans on, both asserted rather than assumed:
 
 - **The last message is always a `user` one at call time** — `drive`

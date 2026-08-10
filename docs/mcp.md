@@ -473,12 +473,46 @@ Four things it enforces that a bare tool loop would not:
   replayable result (run state `failed`, outcome `timed_out`) rather than
   a raise.
 
-Prompt caching: tools render into the cached prefix **before** system, so
-the single `cache_control` breakpoint goes on the last system block. That
-caches the whole tool catalog plus the instructions plus the topology
-together. Nothing per-request may sit above it.
+Prompt caching: **two** breakpoints, and the second one is why the first
+one's placement rule got stricter.
 
-That whole prefix — catalog, instructions, topology — plus the profile
+The first is on the last system block — tools render into the cached
+prefix *before* system, so that one caches the whole tool catalog plus
+the instructions plus the topology together. Nothing per-request may sit
+above it.
+
+The second rolls forward through `messages`: `AgentLoop#cacheable` marks
+the last content block of the last message on every request, so the
+conversation so far becomes a cached prefix for the next round. Without
+it a turn's cost grew with the *square* of its length — a real
+eleven-round turn billed 167,655 input tokens for a transcript only ever
+a few thousand tokens long, because every round re-sent every earlier
+round at full price.
+
+The consequence for the first breakpoint is the part worth internalising.
+A `messages` breakpoint's prefix is `tools → system → messages`, so the
+volatile block *below* the system breakpoint is above the transcript and
+counts for it. A per-request byte there no longer costs "just the
+volatile block" — it costs the whole conversation's cache. That is why
+`current_time` is bucketed to five minutes (`SystemPrompt::TIME_BUCKET`,
+matching the ephemeral TTL) rather than second-resolution: at second
+resolution the first round of every turn missed by construction, and a
+single-round turn got strictly *worse*, writing the transcript at 1.25×
+instead of reading it at 1.0×.
+
+The profile snapshot and page context still sit below the system
+breakpoint and are still per-turn — they are cached by the transcript
+breakpoint within a turn, and change between turns whenever the profile
+or the page does.
+
+Both shapes the marker lands on are verified against the live API rather
+than assumed — a trailing `text` block (round 1) and a trailing
+`tool_result` block (every round after), each writing on the first call
+and reading the whole prefix back on the second. The chat suite drives
+`ScriptedClient` and has no cassettes by design, so that check is a
+probe, not a test.
+
+That system prefix — catalog, instructions, topology — plus the profile
 snapshot below the breakpoint is built **once per turn**, not once per
 round: it cannot change within a turn, and rebuilding it re-rendered 44
 JSON schemas and walked the registry three more times to arrive at the
