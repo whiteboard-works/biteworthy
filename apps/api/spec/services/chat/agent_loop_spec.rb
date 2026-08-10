@@ -130,6 +130,33 @@ RSpec.describe Chat::AgentLoop do
       expect(text).to include("tool_search_tool_regex")
     end
 
+    # The suggestion guard is only half of it. Spelled *correctly*, an
+    # invisible tool used to come back "You do not have permission to do
+    # that" — a scope complaint, which answers the question the name was
+    # asking. `docs/mcp.md` promises "not found" instead, and the MCP
+    # door already delivers it by resolving against `Registry.for`.
+    it "does not confirm an invisible tool exists when named exactly" do
+      client = ScriptedClient.new(call_tool("list_users"), say("Can't."))
+
+      described_class.new(conversation, client: client).run(text: "list the users")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+      expect(text).not_to include("permission")
+    end
+
+    # The destructive ones leaked through a different door: `decide` runs
+    # before `execute`, so the turn parked and asked the person to approve
+    # a call that could only have failed — naming the tool in the prompt
+    # on the way past.
+    it "does not park on an invisible destructive tool" do
+      result = loop_with(call_tool("set_user_role", { "user_id" => user.id, "role" => "admin" }),
+                         say("Can't.")).run(text: "make me an admin")
+
+      expect(result).not_to be_awaiting_confirmation
+      expect(conversation.reload.state).to eq("active")
+    end
+
     it "suggests an admin tool to an admin" do
       admin  = create(:user, is_admin: true)
       convo  = Conversation.create!(user: admin)

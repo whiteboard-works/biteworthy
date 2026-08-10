@@ -404,7 +404,7 @@ module Chat
     # one derived from the live call.
     def park(results, queue)
       call        = queue.first
-      tool        = Tools::Registry.find(call["name"])
+      tool        = tool_for(call)
       fingerprint = Digest::SHA256.hexdigest(JSON.generate([call["name"], call["input"]]))
       pending     = {
         "name"        => call["name"],
@@ -422,7 +422,7 @@ module Chat
 
     # The sentence a person reads while the call runs.
     def doing(call)
-      Tools::Registry.find(call["name"])&.running_description_for(arguments_for(call))
+      tool_for(call)&.running_description_for(arguments_for(call))
     end
 
     # :run, :park, or :refuse. The mode owns the decision; this only
@@ -439,7 +439,7 @@ module Chat
     # boundary is reached, and without it the turn would stop and wait for
     # an answer the gate below would then have waved through.
     def decide(call)
-      policy.decide(Tools::Registry.find(call["name"]), arguments_for(call))
+      policy.decide(tool_for(call), arguments_for(call))
     end
 
     def policy
@@ -448,6 +448,27 @@ module Chat
 
     def refusal(call)
       tool_result(call, { error: "planning_mode", message: ModePolicy::REFUSAL }, error: true)
+    end
+
+    # Resolved against what this caller can *see*, not the whole
+    # registry. `docs/mcp.md` promises that a tool outside a caller's
+    # audience or scope answers "tool not found" rather than a scope
+    # complaint — existence is itself the secret — and the MCP door keeps
+    # that promise by handing the gem `Registry.for(context)`. This door
+    # was calling `Registry.find`, so an admin tool named exactly came
+    # back `forbidden: "You do not have permission to do that."`, which
+    # confirms it exists; named destructively it reached `decide` first
+    # and *parked*, asking someone to approve a call that could only fail.
+    # Two front doors, two answers to the same question, and the one that
+    # leaked is the one pointed at a model.
+    #
+    # A hash rather than a scan: `for(context)` is memoized on the
+    # context, but the loop asks three times per call and the old
+    # `Registry.find` walked all 44 tools each time.
+    def tool_for(call) = visible_tools[call["name"]]
+
+    def visible_tools
+      @visible_tools ||= Tools::Registry.for(context).index_by(&:name_value)
     end
 
     # A near miss is the likely shape of this failure, not an invented
@@ -465,7 +486,7 @@ module Chat
     def unknown_tool(call)
       name       = call["name"].to_s
       suggestion = DidYouMean::SpellChecker
-                   .new(dictionary: Tools::Registry.for(context).map(&:name_value))
+                   .new(dictionary: visible_tools.keys)
                    .correct(name).first
 
       message =
@@ -493,7 +514,7 @@ module Chat
     # every call — minting one per tool call would spend a signature on
     # `get_menu`.
     def standing_grant_for(call)
-      return nil unless ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
+      return nil unless ToolCatalog.confirm_required?(tool_for(call), arguments_for(call))
 
       grant_for(call)
     end
@@ -509,7 +530,7 @@ module Chat
 
     def execute(call, confirmation: nil)
       tick!
-      tool = Tools::Registry.find(call["name"])
+      tool = tool_for(call)
       return unknown_tool(call) if tool.nil?
 
       # No rescue here on purpose. `Tools::Base.call` is the boundary: it
