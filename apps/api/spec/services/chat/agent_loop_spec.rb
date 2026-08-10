@@ -145,6 +145,39 @@ RSpec.describe Chat::AgentLoop do
       expect(text).not_to include("permission")
     end
 
+    # A unit test on `ModePolicy` would not have caught the shape of this
+    # one: what made it bad was the blank prompt, and the prompt is read
+    # in `park`, one layer up. `accept_edits` used to park on any name it
+    # could not look up — which after the visible-set change meant every
+    # tool outside the caller's audience, not just a hallucinated one.
+    it "does not park a name it cannot look up, even in accept_edits" do
+      convo  = Conversation.create!(user: user, chat_mode: "accept_edits")
+      client = ScriptedClient.new(call_tool("drop_all_tables"), say("No such thing."))
+
+      result = described_class.new(convo, client: client, mode: "accept_edits").run(text: "go")
+
+      expect(result).not_to be_awaiting_confirmation
+      expect(convo.reload.state).to eq("active")
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+    end
+
+    # The same conflation in the other direction. Planning refused a name
+    # it could not look up, so a *misspelled read* came back as "this
+    # write did not run" with an instruction to stop attempting writes
+    # for the rest of the turn — the mode's reason attached to the
+    # model's typo, and the rest of the turn's tool use talked out of it.
+    it "does not call a misspelled read a write in planning mode" do
+      convo  = Conversation.create!(user: user, chat_mode: "planning")
+      client = ScriptedClient.new(call_tool("get_menuu"), say("Here is the plan."))
+
+      described_class.new(convo, client: client, mode: "planning").run(text: "what can I eat")
+
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+      expect(text).not_to include("planning_mode")
+    end
+
     # The destructive ones leaked through a different door: `decide` runs
     # before `execute`, so the turn parked and asked the person to approve
     # a call that could only have failed — naming the tool in the prompt
