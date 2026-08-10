@@ -284,6 +284,8 @@ RSpec.describe "admin/management", type: :request do
           status:          { type: :string, enum: %w[draft published removed] },
           menu_section_id: { type: :string, format: :uuid, nullable: true,
                              description: "must belong to this item's restaurant (422 otherwise)" },
+          position:        { type: :integer,
+                             description: "Position within the menu section for ordering" },
           ingredient_slugs: {
             type: :array,
             description: "Complete list; unknown slugs 422 with the offenders.",
