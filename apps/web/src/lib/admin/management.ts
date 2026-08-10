@@ -26,13 +26,21 @@ function qs(params: URLSearchParams): string {
 }
 
 export function fetchAdminRestaurants(
-  query: { q?: string; status?: string; community?: boolean; limit?: number; offset?: number } = {},
+  query: {
+    q?: string;
+    status?: string;
+    community?: boolean;
+    archived?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {},
   fetchImpl?: typeof fetch,
 ): Promise<AdminRestaurantsResponse> {
   const params = new URLSearchParams();
   if (query.q) params.set('q', query.q);
   if (query.status) params.set('status', query.status);
   if (query.community) params.set('filter', 'community_published');
+  if (query.archived) params.set('archived', 'true');
   if (query.limit != null) params.set('limit', String(query.limit));
   if (query.offset != null) params.set('offset', String(query.offset));
   return getAdminJson(`/api/admin/restaurants${qs(params)}`, fetchImpl);

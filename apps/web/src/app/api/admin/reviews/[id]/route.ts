@@ -1,19 +1,9 @@
 /**
- * `PATCH /api/admin/items/:id` — the deep edit: name, description,
- * status (removed = unpublish), section, ingredient/tag slugs, variants
- * and modifiers. The body is forwarded as-is; the server decides what
- * it permits.
+ * `DELETE /api/admin/reviews/:id` — archive, or destroy with
+ * `?hard=true` (Rails 404s a non-super admin).
  */
 import { type NextRequest } from 'next/server';
 import { adminProxy } from '../../../../../lib/api-proxy';
-
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return adminProxy(`/api/v1/admin/items/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: await request.text(),
-  });
-}
 
 // `hard=true` is forwarded explicitly rather than relaying the whole
 // query string: it is the one parameter this endpoint takes, and a
@@ -28,7 +18,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return adminProxy(`/api/v1/admin/items/${encodeURIComponent(id)}${hardSuffix(request)}`, {
+  return adminProxy(`/api/v1/admin/reviews/${encodeURIComponent(id)}${hardSuffix(request)}`, {
     method: 'DELETE',
   });
 }

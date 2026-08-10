@@ -8,7 +8,9 @@ import {
   type AdminReviewRow,
   type HideReason,
 } from '../../../lib/admin/reviews';
+import { destroyAdminReview } from '../../../lib/admin/deletes';
 import { friendlyAdminError } from '../../../lib/admin/shared';
+import { HardDeleteButton } from '../_HardDeleteButton';
 import { StatusBadge } from '../_StatusBadge';
 
 /**
@@ -20,9 +22,11 @@ import { StatusBadge } from '../_StatusBadge';
 export function ReviewModRow({
   review,
   onModerated,
+  onDeleted,
 }: {
   review: AdminReviewRow;
   onModerated: (updated: AdminReviewRow) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [reason, setReason] = useState<HideReason>('spam');
   const [busy, setBusy] = useState(false);
@@ -114,6 +118,16 @@ export function ReviewModRow({
             </button>
           </>
         )}
+        {/* Hiding records WHY, from a closed list of editorial reasons,
+            and is what moderation normally wants. Delete is for the row
+            that should never have existed — it leaves no reason behind
+            because there is no row left to explain. */}
+        <HardDeleteButton
+          onDelete={() => destroyAdminReview(review.id)}
+          onDeleted={() => onDeleted(review.id)}
+          disabled={busy}
+          testId={`review-delete-${review.id}`}
+        />
       </div>
 
       {error && (

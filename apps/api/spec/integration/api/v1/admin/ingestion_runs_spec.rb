@@ -41,6 +41,10 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                        input_kind:        { type: :string },
                        failure_message:   { type: :string, nullable: true },
                        api_cost_cents:    { type: :integer, nullable: true },
+                       # Null on a live run. An archived run is out of
+                       # the queue but its spend still counts — cost
+                       # reporting deliberately does not filter on this.
+                       archived_at:       { type: :string, format: "date-time", nullable: true },
                        created_at:        { type: :string, format: "date-time" },
                        user: {
                          type: :object, nullable: true,

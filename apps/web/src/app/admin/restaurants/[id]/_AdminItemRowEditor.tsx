@@ -7,7 +7,9 @@ import {
   type AdminItemEdits,
   type AdminItemRow,
 } from '../../../../lib/admin/management';
+import { destroyAdminItem } from '../../../../lib/admin/deletes';
 import { friendlyAdminError } from '../../../../lib/admin/shared';
+import { HardDeleteButton } from '../../_HardDeleteButton';
 import { StatusBadge, type BadgeTone } from '../../_StatusBadge';
 import {
   ItemDeepEditPanel,
@@ -49,11 +51,13 @@ export function AdminItemRowEditor({
   item,
   sections,
   onUpdated,
+  onDeleted,
 }: {
   item: AdminItemRow;
   /** Sections of THIS restaurant, for the move-to-section select. */
   sections?: Array<{ id: string; name: string; menuName: string }>;
   onUpdated: (updated: AdminItemRow) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState(false);
@@ -156,6 +160,15 @@ export function AdminItemRowEditor({
               </option>
             ))}
           </select>
+          {/* `removed` above is the normal way off a menu — it keeps the
+              reviews and saved-dish rows pointing at this item. Delete
+              takes those with it. */}
+          <HardDeleteButton
+            onDelete={() => destroyAdminItem(item.id)}
+            onDeleted={() => onDeleted(item.id)}
+            disabled={busy}
+            testId={`admin-item-delete-${item.id}`}
+          />
         </div>
       </div>
 

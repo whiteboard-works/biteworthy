@@ -402,6 +402,10 @@
                       "type": "string",
                       "format": "uuid"
                     },
+                    "deleted": {
+                      "type": "boolean",
+                      "description": "false — the row was archived, not destroyed"
+                    },
                     "slug": {
                       "type": "string"
                     },
@@ -420,9 +424,6 @@
                       "type": "string",
                       "format": "date-time",
                       "nullable": true
-                    },
-                    "deleted": {
-                      "type": "boolean"
                     }
                   }
                 }
@@ -465,7 +466,8 @@
                     "id",
                     "slug",
                     "name",
-                    "status"
+                    "status",
+                    "archived_at"
                   ],
                   "properties": {
                     "id": {
@@ -485,6 +487,11 @@
                         "published",
                         "closed"
                       ]
+                    },
+                    "archived_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
                     },
                     "city": {
                       "type": "object",
@@ -580,7 +587,8 @@
                     "id",
                     "slug",
                     "name",
-                    "status"
+                    "status",
+                    "archived_at"
                   ],
                   "properties": {
                     "id": {
@@ -600,6 +608,11 @@
                         "published",
                         "closed"
                       ]
+                    },
+                    "archived_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
                     },
                     "city": {
                       "type": "object",
@@ -803,13 +816,14 @@
                       "type": "string",
                       "format": "uuid"
                     },
+                    "deleted": {
+                      "type": "boolean",
+                      "description": "false — the row was archived, not destroyed"
+                    },
                     "archived_at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true
-                    },
-                    "deleted": {
-                      "type": "boolean"
                     }
                   }
                 }
@@ -1715,6 +1729,11 @@
                             "type": "integer",
                             "nullable": true
                           },
+                          "archived_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -1981,7 +2000,8 @@
                           "id",
                           "slug",
                           "name",
-                          "status"
+                          "status",
+                          "archived_at"
                         ],
                         "properties": {
                           "id": {
@@ -2001,6 +2021,11 @@
                               "published",
                               "closed"
                             ]
+                          },
+                          "archived_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
                           },
                           "city": {
                             "type": "object",

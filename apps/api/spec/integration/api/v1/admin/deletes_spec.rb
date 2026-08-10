@@ -59,9 +59,10 @@ RSpec.describe "admin/deletes", type: :request do
 
       response(200, "archived — the restaurant with archived_at set") do
         schema type: :object,
-               required: %w[id slug name status archived_at],
+               required: %w[id deleted archived_at],
                properties: {
                  id:          { type: :string, format: :uuid },
+                 deleted:     { type: :boolean, description: "false — the row was archived, not destroyed" },
                  slug:        { type: :string },
                  name:        { type: :string },
                  status:      { type: :string, enum: Restaurant::STATUSES },
@@ -121,9 +122,10 @@ RSpec.describe "admin/deletes", type: :request do
 
       response(200, "archived") do
         schema type: :object,
-               required: %w[id archived_at],
+               required: %w[id deleted archived_at],
                properties: {
                  id:          { type: :string, format: :uuid },
+                 deleted:     { type: :boolean, description: "false — the row was archived, not destroyed" },
                  archived_at: { type: :string, format: "date-time", nullable: true }
                }
         let(:Authorization) { bearer_for(create(:user, :admin)) }

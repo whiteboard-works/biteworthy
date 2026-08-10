@@ -7,15 +7,25 @@ import {
   type AdminUserRow,
   type AdminUsersResponse,
 } from '../../../lib/admin/management';
-import { AdminError, friendlyAdminError } from '../../../lib/admin/shared';
+import { destroyAdminUser } from '../../../lib/admin/deletes';
+import { AdminError, deleteErrorCopy, friendlyAdminError } from '../../../lib/admin/shared';
+import { useIsSuperAdmin } from '../_AdminTier';
 import { ConfirmButton } from '../_ConfirmButton';
 import { Pagination } from '../_Pagination';
 import { StatusBadge } from '../_StatusBadge';
+import { TypeToConfirm } from '../_TypeToConfirm';
 
 /**
- * /admin/users — search + the is_admin toggle. Promote/demote sit
- * behind the two-step confirm; the server's self-demotion refusal
- * surfaces as instructions (the system never reaches zero admins).
+ * /admin/users — search, the is_admin toggle, and account deletion.
+ * Promote/demote sit behind the two-step confirm; the server's
+ * self-demotion refusal surfaces as instructions (the system never
+ * reaches zero admins).
+ *
+ * Delete is super-admin only and asks for the handle to be typed. There
+ * is no archive: the app has no deactivated-account state, so this
+ * destroys the profile, reviews, saved rows, overrides, visits,
+ * conversations and tokens. Suggestions and scans nullify, so the
+ * moderation record of what they filed outlives the account.
  */
 
 const PAGE_SIZE = 25;
@@ -27,6 +37,8 @@ export default function AdminUsersPage() {
   const [data, setData] = useState<AdminUsersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const isSuperAdmin = useIsSuperAdmin();
 
   useEffect(() => {
     let active = true;
@@ -50,7 +62,10 @@ export default function AdminUsersPage() {
       const updated = await setUserAdmin(user.id, !user.is_admin);
       setData((prev) =>
         prev
-          ? { ...prev, users: prev.users.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)) }
+          ? {
+              ...prev,
+              users: prev.users.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)),
+            }
           : prev,
       );
     } catch (e) {
@@ -64,6 +79,28 @@ export default function AdminUsersPage() {
       } else {
         setError(friendlyAdminError(e));
       }
+    } finally {
+      setBusyId((cur) => (cur === user.id ? null : cur));
+    }
+  };
+
+  const remove = async (user: AdminUserRow) => {
+    setBusyId(user.id);
+    setError(null);
+    try {
+      await destroyAdminUser(user.id);
+      setDeletingId(null);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              users: prev.users.filter((u) => u.id !== user.id),
+              pagination: { ...prev.pagination, total: Math.max(0, prev.pagination.total - 1) },
+            }
+          : prev,
+      );
+    } catch (e) {
+      setError(deleteErrorCopy(e, { hard: true }));
     } finally {
       setBusyId((cur) => (cur === user.id ? null : cur));
     }
@@ -99,7 +136,11 @@ export default function AdminUsersPage() {
       </div>
 
       {error && (
-        <div role="alert" data-testid="users-error" className="mt-bw-4 rounded border border-red-300 bg-red-50 p-4 text-red-900">
+        <div
+          role="alert"
+          data-testid="users-error"
+          className="mt-bw-4 rounded border border-red-300 bg-red-50 p-4 text-red-900"
+        >
           {error}
         </div>
       )}
@@ -139,23 +180,53 @@ export default function AdminUsersPage() {
                   </p>
                   <p className="mt-bw-1 text-bw-xs text-zinc-500">
                     {user.email}
-                    {user.display_name && <> · {user.display_name}</>} ·{' '}
-                    {user.reviews_count ?? 0} reviews · {user.ingestion_runs_count ?? 0} scans
+                    {user.display_name && <> · {user.display_name}</>} · {user.reviews_count ?? 0}{' '}
+                    reviews · {user.ingestion_runs_count ?? 0} scans
                   </p>
                 </div>
                 {/* A super admin's toggle is refused by the API, so the
                     control does not render at all — a button that always
                     fails is worse than no button. */}
-                {user.is_super_admin ? (
-                  <span className="text-bw-xs text-zinc-500">Managed on the server</span>
-                ) : (
-                  <ConfirmButton
-                    label={user.is_admin ? 'Demote' : 'Promote to admin'}
-                    busy={busyId === user.id}
-                    disabled={busyId !== null && busyId !== user.id}
-                    onConfirm={() => void toggle(user)}
-                    testId={`user-toggle-${user.handle}`}
-                  />
+                <div className="flex items-center gap-bw-2">
+                  {user.is_super_admin ? (
+                    <span className="text-bw-xs text-zinc-500">Managed on the server</span>
+                  ) : (
+                    <>
+                      <ConfirmButton
+                        label={user.is_admin ? 'Demote' : 'Promote to admin'}
+                        busy={busyId === user.id}
+                        disabled={busyId !== null && busyId !== user.id}
+                        onConfirm={() => void toggle(user)}
+                        testId={`user-toggle-${user.handle}`}
+                      />
+                      {/* Hidden from a plain admin: the API answers
+                          `?hard=true` with a 404, so the button would
+                          only ever fail — the same reasoning that hides
+                          the toggle on a super admin above. */}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(user.id)}
+                          data-testid={`user-delete-${user.handle}`}
+                          className="rounded-bw-md border border-danger px-bw-3 py-bw-1 text-bw-sm font-semibold text-danger hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                {deletingId === user.id && (
+                  <div className="w-full">
+                    <TypeToConfirm
+                      expected={user.handle}
+                      label="Delete account"
+                      busy={busyId === user.id}
+                      onConfirm={() => void remove(user)}
+                      onCancel={() => setDeletingId(null)}
+                      testId={`user-delete-confirm-${user.handle}`}
+                    />
+                  </div>
                 )}
               </li>
             ))}

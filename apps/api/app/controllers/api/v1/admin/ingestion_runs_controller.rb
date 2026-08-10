@@ -63,7 +63,7 @@ module Api
             render_hard_deleted(run)
           else
             run.update!(archived_at: Time.current)
-            render json: { id: run.id, archived_at: run.archived_at }
+            render_archived(run, archived_at: run.archived_at)
           end
         end
 

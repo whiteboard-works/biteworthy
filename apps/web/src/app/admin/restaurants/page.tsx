@@ -30,6 +30,11 @@ export default function AdminRestaurantsPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [community, setCommunity] = useState(false);
+  // Archived restaurants are out of the list by default. Archive and
+  // delete themselves live on the detail page — the rows here are
+  // wrapped in a Link, and a button inside a link is a mis-click
+  // waiting to happen on the one control that has no undo.
+  const [archived, setArchived] = useState(false);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<AdminRestaurantsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +46,7 @@ export default function AdminRestaurantsPage() {
       q: q || undefined,
       status: status || undefined,
       community,
+      archived,
       limit: PAGE_SIZE,
       offset,
     })
@@ -53,7 +59,7 @@ export default function AdminRestaurantsPage() {
     return () => {
       active = false;
     };
-  }, [q, status, community, offset]);
+  }, [q, status, community, archived, offset]);
 
   return (
     <main data-testid="admin-restaurants">
@@ -101,10 +107,26 @@ export default function AdminRestaurantsPage() {
           />
           Community-published only
         </label>
+        <label className="flex items-center gap-bw-2 text-zinc-700">
+          <input
+            type="checkbox"
+            checked={archived}
+            onChange={(e) => {
+              setArchived(e.target.checked);
+              setOffset(0);
+            }}
+            data-testid="restaurants-archived-filter"
+          />
+          Archived
+        </label>
       </div>
 
       {error && (
-        <div role="alert" data-testid="restaurants-error" className="mt-bw-4 rounded border border-red-300 bg-red-50 p-4 text-red-900">
+        <div
+          role="alert"
+          data-testid="restaurants-error"
+          className="mt-bw-4 rounded border border-red-300 bg-red-50 p-4 text-red-900"
+        >
           {error}
         </div>
       )}

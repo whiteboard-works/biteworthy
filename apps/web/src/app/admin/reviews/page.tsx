@@ -50,6 +50,18 @@ export default function AdminReviewsPage() {
     );
   };
 
+  const onDeleted = (id: string) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            reviews: prev.reviews.filter((r) => r.id !== id),
+            pagination: { ...prev.pagination, total: Math.max(0, prev.pagination.total - 1) },
+          }
+        : prev,
+    );
+  };
+
   return (
     <main data-testid="admin-reviews">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Review moderation</h1>
@@ -107,7 +119,12 @@ export default function AdminReviewsPage() {
         <div className="mt-bw-4 space-y-bw-4">
           <ul className="space-y-bw-3">
             {data.reviews.map((review) => (
-              <ReviewModRow key={review.id} review={review} onModerated={onModerated} />
+              <ReviewModRow
+                key={review.id}
+                review={review}
+                onModerated={onModerated}
+                onDeleted={onDeleted}
+              />
             ))}
           </ul>
           <Pagination

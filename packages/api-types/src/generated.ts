@@ -205,6 +205,8 @@ export interface paths {
                             name: string;
                             /** @enum {string} */
                             status: "draft" | "published" | "closed";
+                            /** Format: date-time */
+                            archived_at: string | null;
                             city?: {
                                 /** Format: uuid */
                                 id?: string;
@@ -260,13 +262,14 @@ export interface paths {
                         "application/json": {
                             /** Format: uuid */
                             id: string;
+                            /** @description false — the row was archived, not destroyed */
+                            deleted: boolean;
                             slug?: string;
                             name?: string;
                             /** @enum {string} */
                             status?: "draft" | "published" | "closed";
                             /** Format: date-time */
                             archived_at?: string | null;
-                            deleted: boolean;
                         };
                     };
                 };
@@ -320,6 +323,8 @@ export interface paths {
                             name: string;
                             /** @enum {string} */
                             status: "draft" | "published" | "closed";
+                            /** Format: date-time */
+                            archived_at: string | null;
                             city?: {
                                 /** Format: uuid */
                                 id?: string;
@@ -439,9 +444,10 @@ export interface paths {
                         "application/json": {
                             /** Format: uuid */
                             id: string;
+                            /** @description false — the row was archived, not destroyed */
+                            deleted: boolean;
                             /** Format: date-time */
                             archived_at?: string | null;
-                            deleted: boolean;
                         };
                     };
                 };
@@ -954,6 +960,8 @@ export interface paths {
                                 failure_message?: string | null;
                                 api_cost_cents?: number | null;
                                 /** Format: date-time */
+                                archived_at?: string | null;
+                                /** Format: date-time */
                                 created_at?: string;
                                 user?: {
                                     /** Format: uuid */
@@ -1099,6 +1107,8 @@ export interface paths {
                                 name: string;
                                 /** @enum {string} */
                                 status: "draft" | "published" | "closed";
+                                /** Format: date-time */
+                                archived_at: string | null;
                                 city?: {
                                     /** Format: uuid */
                                     id?: string;

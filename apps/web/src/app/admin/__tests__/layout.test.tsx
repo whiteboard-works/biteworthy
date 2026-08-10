@@ -14,10 +14,13 @@ vi.mock('../../../lib/server-auth', () => ({
   getServerJwt: () => mockGetServerJwt(),
 }));
 
-const mockAdminStatus = vi.fn();
+const mockAdminIdentity = vi.fn();
 vi.mock('../../../lib/admin-auth', () => ({
-  adminStatus: (jwt: string | null) => mockAdminStatus(jwt),
+  adminIdentity: (jwt: string | null) => mockAdminIdentity(jwt),
 }));
+
+/** The layout reads status + tier from one call; most cases only care about status. */
+const identity = (status: string, isSuperAdmin = false) => ({ status, isSuperAdmin });
 
 const mockRedirect = vi.fn((_target: string): never => {
   throw new Error('NEXT_REDIRECT');
@@ -35,7 +38,7 @@ import AdminLayout, { dynamic, metadata } from '../layout';
 
 beforeEach(() => {
   mockGetServerJwt.mockReset();
-  mockAdminStatus.mockReset();
+  mockAdminIdentity.mockReset();
   mockRedirect.mockClear();
   mockNotFound.mockClear();
 });
@@ -43,28 +46,28 @@ beforeEach(() => {
 describe('AdminLayout', () => {
   it('redirects visitors without a usable session to login with a return path', async () => {
     mockGetServerJwt.mockResolvedValue(null);
-    mockAdminStatus.mockResolvedValue('unauthenticated');
+    mockAdminIdentity.mockResolvedValue(identity('unauthenticated'));
     await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_REDIRECT');
     expect(mockRedirect).toHaveBeenCalledWith('/login?next=/admin');
   });
 
   it('redirects an expired/revoked session (upstream 401) to login, not a 404', async () => {
     mockGetServerJwt.mockResolvedValue('stale-jwt');
-    mockAdminStatus.mockResolvedValue('unauthenticated');
+    mockAdminIdentity.mockResolvedValue(identity('unauthenticated'));
     await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_REDIRECT');
     expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   it('404s anyone not confirmed as admin', async () => {
     mockGetServerJwt.mockResolvedValue('jwt-1');
-    mockAdminStatus.mockResolvedValue('denied');
+    mockAdminIdentity.mockResolvedValue(identity('denied'));
     await expect(AdminLayout({ children: <p /> })).rejects.toThrow('NEXT_NOT_FOUND');
-    expect(mockAdminStatus).toHaveBeenCalledWith('jwt-1');
+    expect(mockAdminIdentity).toHaveBeenCalledWith('jwt-1');
   });
 
   it('renders the shell + nav + children for a confirmed admin', async () => {
     mockGetServerJwt.mockResolvedValue('jwt-1');
-    mockAdminStatus.mockResolvedValue('admin');
+    mockAdminIdentity.mockResolvedValue(identity('admin'));
     render(await AdminLayout({ children: <p data-testid="child">hi</p> }));
     expect(screen.getByTestId('admin-shell')).toBeInTheDocument();
     expect(screen.getByTestId('admin-nav')).toBeInTheDocument();

@@ -9,6 +9,13 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
  * what it graduated. Confidence renders but is never editable here.
  */
 
+// The page pushes back to the list after a permanent delete — no app
+// router is mounted under vitest, so useRouter needs a stand-in.
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 const mockFetchRestaurant = vi.fn();
 const mockFetchItems = vi.fn();
 const mockUpdateRestaurant = vi.fn();

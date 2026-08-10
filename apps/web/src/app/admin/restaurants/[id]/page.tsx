@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   fetchAdminRestaurant,
   fetchAdminRestaurantItems,
@@ -10,10 +11,17 @@ import {
   type AdminRestaurantDetail,
 } from '../../../../lib/admin/management';
 import { confirmCommunity } from '../../../../lib/admin/runs';
-import { AdminError, friendlyAdminError } from '../../../../lib/admin/shared';
+import {
+  archiveAdminRestaurant,
+  destroyAdminRestaurant,
+  restoreAdminRestaurant,
+} from '../../../../lib/admin/deletes';
+import { AdminError, deleteErrorCopy, friendlyAdminError } from '../../../../lib/admin/shared';
+import { useIsSuperAdmin } from '../../_AdminTier';
 import { ConfirmButton } from '../../_ConfirmButton';
 import { Pagination } from '../../_Pagination';
 import { StatusBadge } from '../../_StatusBadge';
+import { TypeToConfirm } from '../../_TypeToConfirm';
 import { AdminItemRowEditor } from './_AdminItemRowEditor';
 import { MenuManager } from './_MenuManager';
 import { PlaceEditor } from './_PlaceEditor';
@@ -35,6 +43,8 @@ const ITEMS_PAGE_SIZE = 50;
 
 export default function AdminRestaurantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
+  const isSuperAdmin = useIsSuperAdmin();
 
   const [restaurant, setRestaurant] = useState<AdminRestaurantDetail | null>(null);
   const [items, setItems] = useState<AdminItemsResponse | null>(null);
@@ -44,10 +54,21 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmResult, setConfirmResult] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', about: '', website: '', phone: '', status: 'draft' });
+  const [dangerBusy, setDangerBusy] = useState(false);
+  const [dangerError, setDangerError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    about: '',
+    website: '',
+    phone: '',
+    status: 'draft',
+  });
   // Flattened menu → section list, so an item row can move a dish
   // between sections without fetching the tree itself.
-  const [sections, setSections] = useState<Array<{ id: string; name: string; menuName: string }>>([]);
+  const [sections, setSections] = useState<Array<{ id: string; name: string; menuName: string }>>(
+    [],
+  );
 
   const onTreeChanged = useCallback((menus: AdminMenu[]) => {
     setSections(
@@ -151,10 +172,47 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
 
   const suggestedCount = restaurant?.items_by_confidence?.suggested ?? 0;
 
+  const onArchiveToggle = async () => {
+    if (!restaurant) return;
+    setDangerBusy(true);
+    setDangerError(null);
+    try {
+      if (restaurant.archived_at) {
+        await restoreAdminRestaurant(id);
+        setRestaurant({ ...restaurant, archived_at: null });
+      } else {
+        const res = await archiveAdminRestaurant(id);
+        setRestaurant({ ...restaurant, archived_at: res.archived_at ?? new Date().toISOString() });
+      }
+    } catch (e) {
+      setDangerError(deleteErrorCopy(e));
+    } finally {
+      setDangerBusy(false);
+    }
+  };
+
+  // The row is gone, so there is nothing left to render here — back to
+  // the list rather than a detail page for a record that no longer
+  // exists.
+  const onDestroy = async () => {
+    setDangerBusy(true);
+    setDangerError(null);
+    try {
+      await destroyAdminRestaurant(id);
+      router.push('/admin/restaurants');
+    } catch (e) {
+      setDangerError(deleteErrorCopy(e, { hard: true }));
+      setDangerBusy(false);
+    }
+  };
+
   return (
     <main data-testid="admin-restaurant-detail" className="space-y-bw-6">
       <header>
-        <Link href="/admin/restaurants" className="text-bw-xs font-semibold text-zinc-500 hover:text-bite">
+        <Link
+          href="/admin/restaurants"
+          className="text-bw-xs font-semibold text-zinc-500 hover:text-bite"
+        >
           ← All restaurants
         </Link>
         <h1 className="mt-bw-1 flex items-center gap-bw-3 text-bw-2xl font-bold text-zinc-900">
@@ -162,7 +220,13 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
           {restaurant && (
             <StatusBadge
               label={restaurant.status}
-              tone={restaurant.status === 'published' ? 'ok' : restaurant.status === 'closed' ? 'danger' : 'muted'}
+              tone={
+                restaurant.status === 'published'
+                  ? 'ok'
+                  : restaurant.status === 'closed'
+                    ? 'danger'
+                    : 'muted'
+              }
             />
           )}
         </h1>
@@ -174,7 +238,11 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
       </header>
 
       {error && (
-        <div role="alert" data-testid="restaurant-error" className="rounded border border-red-300 bg-red-50 p-4 text-red-900">
+        <div
+          role="alert"
+          data-testid="restaurant-error"
+          className="rounded border border-red-300 bg-red-50 p-4 text-red-900"
+        >
           {error}
         </div>
       )}
@@ -277,6 +345,65 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
         </section>
       )}
 
+      {restaurant && (
+        <section
+          data-testid="restaurant-danger-panel"
+          aria-labelledby="danger-heading"
+          className="rounded-bw-lg border border-zinc-200 bg-white p-bw-4"
+        >
+          <h2 id="danger-heading" className="text-bw-sm font-semibold text-zinc-900">
+            {restaurant.archived_at ? 'Archived' : 'Remove this restaurant'}
+          </h2>
+          <p className="mt-bw-1 text-bw-xs text-zinc-500">
+            {restaurant.archived_at
+              ? 'Hidden from search, the city pages, its own page and everyone\u2019s saved lists. Nothing has been deleted.'
+              : 'Archiving hides it everywhere the public can reach it and can be undone. The menu, items and reviews stay.'}
+          </p>
+
+          {dangerError && (
+            <p
+              role="alert"
+              data-testid="restaurant-danger-error"
+              className="mt-bw-2 text-bw-sm text-danger"
+            >
+              {dangerError}
+            </p>
+          )}
+
+          <div className="mt-bw-3 flex flex-wrap items-center gap-bw-2">
+            <ConfirmButton
+              label={restaurant.archived_at ? 'Restore' : 'Archive'}
+              busy={dangerBusy}
+              onConfirm={() => void onArchiveToggle()}
+              testId="restaurant-archive"
+            />
+            {/* Super admins only — Rails 404s `?hard=true` for anyone
+                else, so the button would exist only to fail. */}
+            {isSuperAdmin && !deleteOpen && (
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                data-testid="restaurant-delete"
+                className="rounded-bw-md border border-danger px-bw-3 py-bw-1 text-bw-sm font-semibold text-danger hover:bg-red-50"
+              >
+                Delete permanently
+              </button>
+            )}
+          </div>
+
+          {deleteOpen && (
+            <TypeToConfirm
+              expected={restaurant.name}
+              label="Delete restaurant"
+              busy={dangerBusy}
+              onConfirm={() => void onDestroy()}
+              onCancel={() => setDeleteOpen(false)}
+              testId="restaurant-delete-confirm"
+            />
+          )}
+        </section>
+      )}
+
       {restaurant && <MenuManager restaurantId={id} onTreeChanged={onTreeChanged} />}
       {restaurant && <PlaceEditor restaurantId={id} />}
 
@@ -294,7 +421,24 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
                 onUpdated={(updated) =>
                   setItems((prev) =>
                     prev
-                      ? { ...prev, items: prev.items.map((i) => (i.id === updated.id ? updated : i)) }
+                      ? {
+                          ...prev,
+                          items: prev.items.map((i) => (i.id === updated.id ? updated : i)),
+                        }
+                      : prev,
+                  )
+                }
+                onDeleted={(deletedId) =>
+                  setItems((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          items: prev.items.filter((i) => i.id !== deletedId),
+                          pagination: {
+                            ...prev.pagination,
+                            total: Math.max(0, prev.pagination.total - 1),
+                          },
+                        }
                       : prev,
                   )
                 }

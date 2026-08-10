@@ -374,6 +374,18 @@ not change `status`, which is why the three bypassing readers filter on
 `kept` rather than on status: an archived restaurant still reports
 `status: "published"`.
 
+On the web side the same rule lives in two components:
+`_HardDeleteButton` (a two-step confirm that **renders nothing** below
+the super tier) and `_TypeToConfirm` (retype the name, reserved for the
+two deletes that take other records with them — a restaurant and a user
+account). The tier reaches them through `AdminTierProvider`, filled from
+the `/me` call the admin layout already makes for its guard. That is UI
+gating, not the gate: Rails answers `?hard=true` with a 404 regardless.
+It exists because the repo's promote/demote toggle set the rule that a
+button which always fails is worse than no button — and because a 404
+rendered as "your admin access is gone" would send an operator who
+merely lacks a tier to sign in again, which fixes nothing.
+
 Taxonomy is the exception to the tier: `Taxonomy::Writer#destroy!` refuses
 to delete a node someone has in an avoid list, and a super admin gets that
 refusal too. A force that ignored it would silently weaken a live allergen

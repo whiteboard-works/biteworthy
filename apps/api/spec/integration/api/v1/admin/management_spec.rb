@@ -3,12 +3,16 @@ require "swagger_helper"
 def admin_restaurant_row_schema
   {
     type: :object,
-    required: %w[id slug name status],
+    required: %w[id slug name status archived_at],
     properties: {
       id:     { type: :string, format: :uuid },
       slug:   { type: :string },
       name:   { type: :string },
       status: { type: :string, enum: %w[draft published closed] },
+      # Present on every row and null on most. `status` is untouched by
+      # archiving, so a client that branches on status alone cannot tell
+      # a live restaurant from a hidden one — this is the field that can.
+      archived_at: { type: :string, format: "date-time", nullable: true },
       city: {
         type: :object, nullable: true,
         properties: { id: { type: :string, format: :uuid }, name: { type: :string } }

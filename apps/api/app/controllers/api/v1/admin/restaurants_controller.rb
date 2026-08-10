@@ -113,7 +113,7 @@ module Api
             render_hard_deleted(restaurant)
           else
             restaurant.update!(archived_at: Time.current)
-            render json: serialize_restaurant(restaurant)
+            render_archived(restaurant, serialize_restaurant(restaurant))
           end
         end
 
