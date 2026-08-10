@@ -209,6 +209,35 @@ describe('typing while a turn is running', () => {
     release();
   });
 
+  // Dequeuing before delivering is what stops a second flush picking up
+  // the same message — but it means a send the server never accepted
+  // would vanish with nothing but an error banner to show for it.
+  it('puts a queued message back when the send never reaches the server', async () => {
+    const release = heldTurn();
+    render(<ChatScreen />);
+    await type('what can I eat');
+    await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+    await type('and check Ninis too');
+    await screen.findByTestId('chat-queued');
+    mockSend.mockRejectedValueOnce(new Error('Network request failed'));
+
+    release();
+
+    expect(await screen.findByTestId('chat-error')).toHaveTextContent('Network request failed');
+    expect(await screen.findByTestId('chat-queued')).toHaveTextContent(/and check Ninis too/);
+  });
+
+  // The draft is cleared the instant Send is tapped, so a failed send has
+  // to hand it back or the text is gone for good.
+  it('gives the draft back when the send fails', async () => {
+    mockSend.mockRejectedValueOnce(new Error('Network request failed'));
+
+    render(<ChatScreen />);
+    await type('what can I eat');
+
+    await waitFor(() => expect(screen.getByLabelText('Message')).toHaveProp('value', 'what can I eat'));
+  });
+
   it('sends it once the turn it was typed during finishes', async () => {
     const release = heldTurn();
     render(<ChatScreen />);

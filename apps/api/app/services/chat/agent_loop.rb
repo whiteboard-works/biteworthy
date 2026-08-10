@@ -290,6 +290,11 @@ module Chat
         when :park
           return Result.new(state: :awaiting_confirmation, pending: park(results, queue.drop(index)))
         when :refuse
+          # Ticked like a real call even though nothing runs. `tick!` is
+          # what renews the lease and notices the stop button, and a model
+          # that answers a planning turn with twenty writes would
+          # otherwise spend the whole turn deaf to Stop.
+          tick!
           # Narrated like any other call, and deliberately so: the user
           # asked for a plan and what the model reached for on the way is
           # part of the answer. The refusal is the tool's own result, so

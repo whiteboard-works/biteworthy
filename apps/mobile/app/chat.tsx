@@ -64,7 +64,13 @@ const MAX_POLL_MS = 5 * 60 * 1000;
 const MODES: { value: ChatMode; label: string; hint: string }[] = [
   { value: 'planning', label: 'Plan', hint: 'Reads only. Proposes changes, never makes them.' },
   { value: 'manual', label: 'Manual', hint: 'Asks before anything destructive.' },
-  { value: 'accept_edits', label: 'Edits', hint: 'Makes edits without asking. Still asks before a delete.' },
+  // Says what it waives, not just what it keeps. "Still asks before a
+  // delete" was true and read as a much narrower promise than it is.
+  {
+    value: 'accept_edits',
+    label: 'Edits',
+    hint: 'Menu and profile changes go through without asking — including removing something from your avoid list. Still asks before a delete.',
+  },
   { value: 'auto', label: 'Auto', hint: 'Never asks.' },
 ];
 
@@ -95,6 +101,11 @@ export default function ChatScreen() {
   const deliverLatest = useRef<
     (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
   >(async () => false);
+  // A send is under way but `busy` has not caught up yet — see `deliver`.
+  const inFlight = useRef(false);
+  // A mode switch is in the air. `adopt` must not overwrite the picker
+  // with the value the server had before the PATCH landed.
+  const switchingMode = useRef(false);
 
   const requireJwt = useCallback(async (): Promise<string | null> => {
     const jwt = await getJwt();
@@ -113,7 +124,12 @@ export default function ChatScreen() {
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
-    setMode(next.mode ?? 'manual');
+    //
+    // Skipped while a switch is in the air: a turn's teardown refresh can
+    // be served before the PATCH commits, and adopting that response
+    // would snap the picker back to the mode the user just left — then
+    // stamp it onto the next send, re-enabling writes they turned off.
+    if (!switchingMode.current) setMode(next.mode ?? 'manual');
   };
 
   const refresh = async (jwt: string, id: string): Promise<Conversation | null> => {
@@ -143,16 +159,27 @@ export default function ChatScreen() {
     }
   };
 
-  const run = async (id: string, ask: (jwt: string) => Promise<{ after: number }>) => {
+  // Answers whether the server *accepted* the turn, which is a different
+  // question from whether it went well. Once `ask` resolves the message is
+  // recorded server-side and polling it is bookkeeping — a poll that fails
+  // must not read as "nothing was sent", or the caller restores a message
+  // that is already on its way.
+  const run = async (
+    id: string,
+    ask: (jwt: string) => Promise<{ after: number }>,
+  ): Promise<boolean> => {
     const jwt = await requireJwt();
-    if (!jwt) return;
+    // Navigating to login, so the screen holding the draft is going away.
+    if (!jwt) return true;
 
     setBusy(true);
     setError(null);
     setLive([]);
     const startedAt = Date.now();
+    let accepted = false;
     try {
       const { after } = await ask(jwt);
+      accepted = true;
       await watch(jwt, id, after);
     } catch (e) {
       setError((e as Error).message);
@@ -174,8 +201,14 @@ export default function ChatScreen() {
       // Not while a confirmation is parked: the server refuses a message
       // behind one, and the queued message is quite often the user
       // changing their mind about the thing being asked.
-      if (next && !next.pending) flush(next);
+      //
+      // `?? conversation` covers a failed refresh. Without it a failed
+      // `getConversation` strands the whole queue: the turn is over,
+      // `busy` is false, and nothing else drains it.
+      const settled = next ?? conversation;
+      if (settled && !settled.pending) flush(settled);
     }
+    return accepted;
   };
 
   // The conversation is handed in rather than read from state: the
@@ -187,7 +220,15 @@ export default function ChatScreen() {
 
     queue.current = queue.current.slice(1);
     setQueued(queue.current);
-    void deliverLatest.current(next.text, next.attachments, active);
+    void deliverLatest.current(next.text, next.attachments, active).then((sent) => {
+      if (sent) return;
+      // Put it back at the head rather than losing it. Dequeuing first is
+      // what keeps a second flush from picking up the same message, but a
+      // send that never reached the server would otherwise vanish with
+      // nothing but an error banner to show for it.
+      queue.current = [next, ...queue.current];
+      setQueued(queue.current);
+    });
   };
 
   // Answers whether the message actually left, so a caller that already
@@ -207,6 +248,11 @@ export default function ChatScreen() {
     if (!jwt) return true;
 
     let active = known ?? conversation;
+    // `busy` is React state set inside `run`, which on a first message
+    // only runs after `createConversation` resolves — two taps inside
+    // that window would both see an idle chat and open two conversations.
+    // A ref latches synchronously, which is the whole point.
+    inFlight.current = true;
     if (!active) {
       try {
         active = await createConversation(jwt);
@@ -214,13 +260,17 @@ export default function ChatScreen() {
         tracker.track('chat_started', { surface: Platform.OS === 'android' ? 'android' : 'ios' });
       } catch (e) {
         setError((e as Error).message);
+        inFlight.current = false;
         return false;
       }
     }
 
     const id = active.id;
-    await run(id, (token) => sendMessage(token, id, composed, mode));
-    return true;
+    try {
+      return await run(id, (token) => sendMessage(token, id, composed, mode));
+    } finally {
+      inFlight.current = false;
+    }
   };
   deliverLatest.current = deliver;
 
@@ -237,7 +287,12 @@ export default function ChatScreen() {
     // Cleared now rather than after the send lands: waiting leaves the
     // text sitting in the box while the conversation is created, which
     // reads as a dropped tap. It comes back if the send never happened.
-    if (!busy && pending === null) {
+    //
+    // An empty queue is part of "idle" on purpose — without it a message
+    // typed while a backlog is waiting jumps ahead of messages typed
+    // earlier, which is reachable whenever a flush was interrupted.
+    const idle = !busy && !inFlight.current && pending === null;
+    if (idle && queue.current.length === 0) {
       void deliver(text, files).then((sent) => {
         if (sent) return;
         setDraft(text);
@@ -255,6 +310,11 @@ export default function ChatScreen() {
     };
     queue.current = [...queue.current, message];
     setQueued(queue.current);
+
+    // Queued while nothing is running means an earlier flush was
+    // interrupted. Draining now — after appending, so order holds — gets
+    // the backlog moving without asking the user to understand any of it.
+    if (idle && conversation) flush(conversation);
   };
 
   const cancelQueued = (id: string) => {
@@ -282,11 +342,14 @@ export default function ChatScreen() {
 
     const jwt = await getJwt();
     if (!jwt) return;
+    switchingMode.current = true;
     try {
       await setConversationMode(jwt, conversation.id, next);
     } catch (e) {
       setMode(previous);
       setError((e as Error).message);
+    } finally {
+      switchingMode.current = false;
     }
   };
 

@@ -21,8 +21,12 @@ const MODES: { value: ChatMode; label: string; hint: string }[] = [
   { value: 'manual', label: 'Manual', hint: 'Asks before anything destructive.' },
   {
     value: 'accept_edits',
+    // Says what it waives, not just what it keeps. "Still asks before a
+    // delete" was true and read as a much narrower promise than it is —
+    // changes to your own avoid list go through silently under this mode,
+    // and that is the one direction that can hurt somebody.
     label: 'Accept edits',
-    hint: 'Makes edits without asking. Still asks before a delete.',
+    hint: 'Menu and profile changes go through without asking — including removing something from your avoid list. Still asks before a delete.',
   },
   { value: 'auto', label: 'Auto', hint: 'Never asks.' },
 ];

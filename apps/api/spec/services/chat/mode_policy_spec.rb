@@ -91,6 +91,16 @@ RSpec.describe Chat::ModePolicy do
       expect(decide("accept_edits", structure, { action: "create_section" })).to eq(:run)
       expect(decide("accept_edits", structure, { action: "delete_menu" })).to eq(:park)
     end
+
+    # Accepting a correction is not an edit the accepter authored: a
+    # stranger wrote it, and an accepted `remove_ingredient` un-hides that
+    # dish for **everyone** avoiding the ingredient. Rejecting only closes
+    # the row, so it stays an ordinary edit.
+    it "still stops before accepting a stranger's correction" do
+      suggestion = Tools::Suggestions::ResolveSuggestion
+      expect(decide("accept_edits", suggestion, { decision: "accepted" })).to eq(:park)
+      expect(decide("accept_edits", suggestion, { decision: "rejected" })).to eq(:run)
+    end
   end
 
   describe "auto" do

@@ -569,6 +569,47 @@ describe('ChatClient', () => {
       expect(sendMessage).toHaveBeenCalledTimes(1);
     });
 
+    // Dequeuing before delivering is what stops a second flush picking up
+    // the same message — but it means a send the server never accepted
+    // would vanish with nothing but an error banner to show for it.
+    it('puts a queued message back when the send never reaches the server', async () => {
+      const inFlight = heldTurn();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await type('and check Ninis too');
+      await screen.findByTestId('queued-messages');
+      sendMessage.mockRejectedValueOnce(new Error('Network request failed'));
+
+      inFlight.release();
+
+      expect(await screen.findByTestId('chat-error')).toHaveTextContent('Network request failed');
+      expect(await screen.findByTestId('queued-messages')).toHaveTextContent('and check Ninis too');
+    });
+
+    // Reachable whenever a flush was interrupted: the user sees a chip,
+    // types a follow-up, and the follow-up would arrive first.
+    it('keeps typed order when a message is sent on top of a backlog', async () => {
+      // Only the first turn is held — the flushes behind it have to be
+      // able to finish, or the queue never drains past one.
+      let release = () => {};
+      watchTurn.mockImplementationOnce(
+        () => new Promise<number | null>((resolve) => (release = () => resolve(null))),
+      );
+
+      render(<ChatClient />);
+      await type('first');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await type('second');
+      await type('third');
+
+      release();
+
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
+      const order = sendMessage.mock.calls.map((call) => call[1]);
+      expect(order).toEqual(['first', 'second', 'third']);
+    });
+
     // The server refuses a message queued behind a parked call — the
     // tool_use would dangle while the model answered something else.
     it('holds a queued message while a confirmation is parked', async () => {

@@ -56,8 +56,13 @@ export function ChatClient(): ReactElement {
   // `deliver` closes over `active` and `mode`, and the flush happens a
   // turn later, so the same staleness applies to it.
   const deliverLatest = useRef<
-    (text: string, attachments: Attachment[], known?: Conversation) => Promise<void>
-  >(async () => {});
+    (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
+  >(async () => false);
+  // A send is under way but `busy` has not caught up yet — see `deliver`.
+  const inFlight = useRef(false);
+  // A mode switch is in the air. `adopt` must not overwrite the picker
+  // with the value the server had before the PATCH landed.
+  const switchingMode = useRef(false);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -87,7 +92,13 @@ export function ChatClient(): ReactElement {
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
-    setMode(conversation.mode ?? 'manual');
+    //
+    // Skipped while a switch is in the air: a turn's teardown refresh can
+    // be served before the PATCH commits, and adopting that response
+    // would snap the picker back to the mode the user just left — then
+    // stamp it onto the next send, re-enabling writes they had turned
+    // off. Which is the exact direction this must never fail in.
+    if (!switchingMode.current) setMode(conversation.mode ?? 'manual');
   };
 
   // Emptying it here rather than at every call site: a queued message
@@ -170,15 +181,22 @@ export function ChatClient(): ReactElement {
   // Ask, then watch. The turn runs in a job, so the request that starts it
   // returns immediately and the narration is read back separately — which
   // is also why a dropped connection costs nothing but a reconnect.
-  const run = async (id: string, ask: () => Promise<{ after: number }>) => {
+  // Answers whether the server *accepted* the turn, which is a different
+  // question from whether it went well. Once `ask` resolves the message is
+  // recorded server-side and watching it is bookkeeping — a connection
+  // that drops mid-narration must not read as "nothing was sent", or the
+  // caller puts a message back that is already on its way.
+  const run = async (id: string, ask: () => Promise<{ after: number }>): Promise<boolean> => {
     setBusy(true);
     setError(null);
     setLive(EMPTY_TURN);
     const startedAt = Date.now();
     let tools = 0;
     let outcome = 'error';
+    let accepted = false;
     try {
       const { after } = await ask();
+      accepted = true;
       // A turn can outlive one connection — a menu scan legitimately runs
       // past the server's window. Each hop resumes from the position the
       // server handed back, so the narration is continuous on screen and
@@ -223,8 +241,15 @@ export function ChatClient(): ReactElement {
       // Not while a confirmation is parked: the server refuses a message
       // behind one, and more to the point the queued message may well be
       // the user changing their mind about the thing being asked.
-      if (conversation && !conversation.pending) flush(conversation);
+      //
+      // `?? active` covers a failed refresh. Without it a `getConversation`
+      // error strands the whole queue: the turn is over, `busy` is false,
+      // and nothing else drains it — the chips would sit there forever
+      // behind a generic error.
+      const settled = conversation ?? active;
+      if (settled && !settled.pending) flush(settled);
     }
+    return accepted;
   };
 
   // The conversation is handed in rather than read from state: the
@@ -237,7 +262,15 @@ export function ChatClient(): ReactElement {
 
     queue.current = queue.current.slice(1);
     setQueued(queue.current);
-    void deliverLatest.current(next.text, next.attachments, conversation);
+    void deliverLatest.current(next.text, next.attachments, conversation).then((sent) => {
+      if (sent) return;
+      // Put it back at the head rather than losing it. Dequeuing first is
+      // what keeps a second flush from picking up the same message, but it
+      // means a send that never reached the server would otherwise vanish
+      // with nothing but an error banner to show for it.
+      queue.current = [next, ...queue.current];
+      setQueued(queue.current);
+    });
   };
 
   const stop = async () => {
@@ -249,9 +282,20 @@ export function ChatClient(): ReactElement {
     }
   };
 
-  const deliver = async (text: string, attachments: Attachment[], known?: Conversation) => {
+  // Resolves false when the message never reached the server, so the
+  // caller can put it back where it came from.
+  const deliver = async (
+    text: string,
+    attachments: Attachment[],
+    known?: Conversation,
+  ): Promise<boolean> => {
     const composed = compose(text, attachments);
     let conversation = known ?? active;
+    // `busy` is React state set inside `run`, which on a first message
+    // only runs after `createConversation` resolves — two sends inside
+    // that window would both see an idle chat and open two conversations.
+    // A ref latches synchronously, which is the whole point.
+    inFlight.current = true;
     try {
       if (!conversation) {
         conversation = await createConversation();
@@ -260,12 +304,17 @@ export function ChatClient(): ReactElement {
       }
     } catch (e) {
       onFailure(e);
-      return;
+      inFlight.current = false;
+      return false;
     }
 
     const id = conversation.id;
     setMessages((current) => [...current, optimistic(composed, current.length)]);
-    await run(id, () => sendMessage(id, composed, pageContext(), mode));
+    try {
+      return await run(id, () => sendMessage(id, composed, pageContext(), mode));
+    } finally {
+      inFlight.current = false;
+    }
   };
   deliverLatest.current = deliver;
 
@@ -273,7 +322,12 @@ export function ChatClient(): ReactElement {
   // the composer does not need to know which, and the user finds out by
   // seeing a chip appear instead of a message.
   const send = (text: string, attachments: Attachment[]) => {
-    if (!busy && pending === null) {
+    const idle = !busy && !inFlight.current && pending === null;
+    // `queue.current.length` is part of "idle" on purpose. Without it a
+    // message typed while a backlog is waiting jumps the queue and
+    // arrives before messages typed earlier — reachable whenever a flush
+    // was interrupted and left chips behind.
+    if (idle && queue.current.length === 0) {
       void deliver(text, attachments);
       return;
     }
@@ -289,6 +343,12 @@ export function ChatClient(): ReactElement {
     };
     queue.current = [...queue.current, message];
     setQueued(queue.current);
+
+    // Queued while nothing is running means an earlier flush was
+    // interrupted. Draining now — after appending, so order holds — is
+    // what gets the backlog moving again without asking the user to
+    // understand any of this.
+    if (idle && active) flush(active);
   };
 
   const cancelQueued = (id: string) => {
@@ -313,10 +373,15 @@ export function ChatClient(): ReactElement {
     setMode(next);
     if (!active) return;
 
-    setConversationMode(active.id, next).catch((e) => {
-      setMode(previous);
-      onFailure(e);
-    });
+    switchingMode.current = true;
+    setConversationMode(active.id, next)
+      .catch((e) => {
+        setMode(previous);
+        onFailure(e);
+      })
+      .finally(() => {
+        switchingMode.current = false;
+      });
   };
 
   return (
