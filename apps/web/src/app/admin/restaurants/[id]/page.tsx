@@ -19,10 +19,9 @@ import {
 import { AdminError, deleteErrorCopy, friendlyAdminError } from '../../../../lib/admin/shared';
 import { useIsSuperAdmin } from '../../_AdminTier';
 import { ConfirmButton } from '../../_ConfirmButton';
-import { Pagination } from '../../_Pagination';
 import { StatusBadge } from '../../_StatusBadge';
 import { TypeToConfirm } from '../../_TypeToConfirm';
-import { AdminItemRowEditor } from './_AdminItemRowEditor';
+import { ItemsList } from './_ItemsList';
 import { MenuManager } from './_MenuManager';
 import { PlaceEditor } from './_PlaceEditor';
 import type { AdminMenu } from '../../../../lib/admin/structure';
@@ -408,40 +407,18 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
       {restaurant && <PlaceEditor restaurantId={id} />}
 
       {items && (
-        <section aria-labelledby="items-heading" className="space-y-bw-2">
-          <h2 id="items-heading" className="text-bw-sm font-semibold text-zinc-600">
-            Items ({items.pagination.total})
-          </h2>
-          <ul className="space-y-bw-2">
-            {items.items.map((item) => (
-              <AdminItemRowEditor
-                key={item.id}
-                item={item}
-                sections={sections}
-                onUpdated={(updated) =>
-                  setItems((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          items: prev.items.map((i) => (i.id === updated.id ? updated : i)),
-                        }
-                      : prev,
-                  )
-                }
-                // Refetch (the key the item panel already uses) rather
-                // than filter locally, so `itemsOffset` does not skip
-                // the dish that slid into the deleted one's index.
-                onDeleted={() => setItemsRefreshKey((k) => k + 1)}
-              />
-            ))}
-          </ul>
-          <Pagination
-            total={items.pagination.total}
-            limit={items.pagination.limit}
-            offset={items.pagination.offset}
-            onOffset={setItemsOffset}
-          />
-        </section>
+        <ItemsList
+          items={items.items}
+          sections={sections}
+          pagination={items.pagination}
+          onItemsChange={(updatedItems) =>
+            setItems((prev) =>
+              prev ? { ...prev, items: updatedItems } : prev
+            )
+          }
+          onItemDeleted={() => setItemsRefreshKey((k) => k + 1)}
+          onOffsetChange={setItemsOffset}
+        />
       )}
     </main>
   );

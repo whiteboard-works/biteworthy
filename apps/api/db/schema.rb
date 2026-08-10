@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_10_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_10_161800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -337,12 +337,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_120000) do
     t.uuid "menu_section_id"
     t.string "name", null: false
     t.integer "popularity", default: 0, null: false
+    t.integer "position", default: 0, null: false
     t.uuid "restaurant_id", null: false
     t.string "status", default: "draft", null: false
     t.uuid "tag_ids", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.index ["created_by_user_id"], name: "index_items_on_created_by_user_id"
     t.index ["ingredient_ids"], name: "index_items_on_ingredient_ids", using: :gin
+    t.index ["menu_section_id", "position"], name: "index_items_on_menu_section_id_and_position"
     t.index ["menu_section_id"], name: "index_items_on_menu_section_id"
     t.index ["name"], name: "index_items_on_name", opclass: :gin_trgm_ops, using: :gin
     t.index ["restaurant_id", "status"], name: "index_items_on_restaurant_id_and_status"

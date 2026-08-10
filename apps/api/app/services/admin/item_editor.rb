@@ -62,11 +62,15 @@ module Admin
     private
 
     def assign_scalars(attrs)
-      %i[name description status].each do |field|
+      %i[name description status position].each do |field|
         next unless attrs.key?(field)
         value = attrs[field]
-        # Scalar-only: a nested hash would be stringified into the column.
-        @item[field] = value if value.nil? || value.is_a?(String)
+        # position is an integer; others are strings
+        if field == :position
+          @item[field] = value.to_i if value.present?
+        else
+          @item[field] = value if value.nil? || value.is_a?(String)
+        end
       end
     end
 

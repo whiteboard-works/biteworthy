@@ -113,6 +113,8 @@ export function AdminItemRowEditor({
   };
 
   const price = item.variants?.[0]?.price_cents;
+  const section = sections?.find((s) => s.id === item.menu_section_id);
+  const menuLabel = section ? `${section.menuName} · ${section.name}` : 'Unsectioned';
 
   return (
     <li
@@ -121,12 +123,17 @@ export function AdminItemRowEditor({
     >
       <div className="flex flex-wrap items-center justify-between gap-bw-2">
         <div className="min-w-0">
-          <p className="font-semibold text-zinc-900">
-            {item.name}
-            {price != null && (
-              <span className="ml-bw-2 font-normal text-zinc-500">${(price / 100).toFixed(2)}</span>
-            )}
-          </p>
+          <div className="flex flex-wrap items-baseline gap-bw-2">
+            <p className="font-semibold text-zinc-900">
+              {item.name}
+              {price != null && (
+                <span className="ml-bw-2 font-normal text-zinc-500">${(price / 100).toFixed(2)}</span>
+              )}
+            </p>
+            <p className="text-bw-xs font-medium text-zinc-600 bg-zinc-100 rounded px-bw-1.5 py-bw-0.5">
+              {menuLabel}
+            </p>
+          </div>
           <p className="mt-bw-1 text-bw-xs text-zinc-500">
             {(item.ingredients ?? []).map((i) => i.name).join(', ') || 'no ingredients'}
             {(item.tags ?? []).length > 0 && (
