@@ -9,6 +9,7 @@ module Api
       # /api/v1/suggestions/:id (admins pass its gate_owner!).
       class SuggestionsController < BaseController
         include SuggestionPayload
+        include Deletable
 
         DEFAULT_LIMIT = 25
         MAX_LIMIT     = 100
@@ -39,6 +40,23 @@ module Api
             suggestions: suggestions.limit(limit).offset(offset).map { |s| suggestion_payload(s) },
             pagination: { total: total, limit: limit, offset: offset }
           }
+        end
+
+        # Hard only. Rejecting is PATCH /api/v1/suggestions/:id, which
+        # records the resolver and keeps the suggestion legible to the
+        # member who filed it. Restaurant claims are suggestions too
+        # (RestaurantClaim writes one), so this is the claim delete.
+        def destroy
+          authorize_hard_delete! or return
+          unless hard_delete_requested?
+            return render_soft_delete_unsupported(
+              use: "PATCH /api/v1/suggestions/:id with status=rejected"
+            )
+          end
+
+          suggestion = Suggestion.find(params[:id])
+          suggestion.destroy!
+          render_hard_deleted(suggestion)
         end
       end
     end

@@ -17,6 +17,26 @@ class Item < ApplicationRecord
   has_many :reviews,          dependent: :destroy
   has_many :user_item_overrides, dependent: :destroy
   has_many :favorite_items,   dependent: :destroy
+  # Destroying a promoted item used to raise InvalidForeignKey —
+  # `ingestion_items.item_id` had no association at all, unlike its
+  # sibling `matched_item_id`, which nullifies at the database level.
+  #
+  # Destroy rather than nullify, though `nullify` was the first
+  # instinct: `decision: "accepted"` with `item_id: nil` is exactly the
+  # shape two paths read as "accepted but not yet promoted".
+  # `ReExtractRun` would stop raising `HasPromotedItems` and let the run
+  # rewind, and `ResolveRun#promote_accepted_items!` would re-create the
+  # item an admin had just deleted. A staged row whose item is gone has
+  # no decision left to represent.
+  has_many :ingestion_items,  dependent: :destroy
+  # `suggestions.subject` is polymorphic, so there is no foreign key to
+  # stop this and no association to cascade it — a hard delete left the
+  # suggestion behind, and `belongs_to :subject` is required, so the
+  # orphan could never even be rejected ("Subject must exist") while
+  # still counting in the dashboard's pending queue. Restaurant claims
+  # are suggestions with a Restaurant subject, which is how a claimed
+  # restaurant could strand its own claim forever.
+  has_many :suggestions, as: :subject, dependent: :destroy
 
   has_one_attached :photo
 

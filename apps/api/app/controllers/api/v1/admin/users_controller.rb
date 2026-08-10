@@ -8,6 +8,7 @@ module Api
       # survives, so the system can never reach zero admins through
       # this API.
       class UsersController < BaseController
+        include Deletable
         DEFAULT_LIMIT = 25
         MAX_LIMIT     = 100
 
@@ -63,6 +64,36 @@ module Api
 
           user.update!(is_admin: is_admin == true)
           render json: serialize_user(user)
+        end
+
+        # Hard only, and there is no soft counterpart to point at: the
+        # app has no deactivated-account state, so a soft delete here
+        # would be a new concept rather than a reuse of one. Cascades
+        # through `dependent: :destroy` — profile, reviews, saved
+        # dishes and restaurants, overrides, visits, conversations, MCP
+        # tokens. Suggestions and ingestion runs nullify instead, so
+        # the moderation record of what they filed survives them.
+        #
+        # The two refusals mirror #update's. Deleting yourself would
+        # revoke the credential mid-request; deleting another super
+        # admin would make the API able to remove a tier only a shell
+        # can grant.
+        def destroy
+          require_super_admin! or return
+          user = User.find(params[:id])
+
+          if user.id == current_user.id
+            render json: { error: "cannot_delete_self" }, status: :unprocessable_entity
+            return
+          end
+
+          if user.is_super_admin?
+            render json: { error: "cannot_delete_super_admin" }, status: :unprocessable_entity
+            return
+          end
+
+          user.destroy!
+          render_hard_deleted(user)
         end
 
         private

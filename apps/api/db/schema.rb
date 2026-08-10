@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_10_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_10_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -232,6 +232,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_030000) do
 
   create_table "ingestion_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "api_cost_cents", default: 0, null: false
+    t.datetime "archived_at"
     t.integer "cached_input_tokens", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "enrichment_status", default: "pending", null: false
@@ -454,6 +455,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_030000) do
 
   create_table "restaurants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "about"
+    t.datetime "archived_at"
     t.uuid "city_id", null: false
     t.datetime "claimed_at"
     t.uuid "claimed_by_user_id"

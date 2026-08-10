@@ -159,11 +159,21 @@ Rails.application.routes.draw do
       # ERB /admin/dashboard capability by capability.
       namespace :admin do
         get :dashboard, to: "dashboards#show"
-        resources :ingestion_runs, only: [:index] do
-          member { post :re_extract }
+        # DELETE archives; DELETE ?hard=true destroys and is super-admin
+        # only (Api::V1::Admin::Deletable). Items, reviews and
+        # suggestions accept only the hard form — each already has a
+        # soft path of its own.
+        resources :ingestion_runs, only: [:index, :destroy] do
+          member do
+            post :re_extract
+            post :restore
+          end
         end
-        resources :restaurants, only: [:index, :show, :update] do
-          member { post :confirm_community }
+        resources :restaurants, only: [:index, :show, :update, :destroy] do
+          member do
+            post :confirm_community
+            post :restore
+          end
           resources :items, only: [:index]
           resources :menus, only: [:index, :create]
           # Address + hours are edited as a whole, never row-by-row —
@@ -174,19 +184,19 @@ Rails.application.routes.draw do
             put :hours,   to: "places#update_hours"
           end
         end
-        resources :items, only: [:update]
+        resources :items, only: [:update, :destroy]
         resources :menus, only: [:update, :destroy] do
           resources :menu_sections, only: [:create]
         end
         resources :menu_sections, only: [:update, :destroy]
-        resources :users, only: [:index, :update]
-        resources :reviews, only: [:index] do
+        resources :users, only: [:index, :update, :destroy]
+        resources :reviews, only: [:index, :destroy] do
           member do
             post :hide
             post :unhide
           end
         end
-        resources :suggestions, only: [:index]
+        resources :suggestions, only: [:index, :destroy]
         resources :ingredients, only: [:index, :create, :update, :destroy]
         resources :tags, only: [:index, :create, :update, :destroy]
       end

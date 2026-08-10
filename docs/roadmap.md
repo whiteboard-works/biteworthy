@@ -119,6 +119,8 @@ a public hours display ships).
 - [x] E4 — web: admin item deep-edit panel
 - [x] E5 — API: admin menus, sections, addresses, hours
 - [x] E6 — web: admin structure + place editors
+- [x] E7 — API: admin delete — archive by default, hard delete for super admins
+- [ ] E8 — web: admin delete/archive controls on the six admin pages
 
 Invariants: join `confidence` never directly editable (admin chip edits
 write `confirmed`/`human`, removals row-by-row so the denormalized

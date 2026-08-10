@@ -167,6 +167,746 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/restaurants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Restaurant detail + per-confidence item counts */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restaurant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "closed";
+                            city?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                            } | null;
+                            /** Format: uuid */
+                            created_by_user_id?: string | null;
+                            /** Format: uuid */
+                            claimed_by_user_id?: string | null;
+                            /** Format: date-time */
+                            created_at?: string;
+                            items_count?: number;
+                            suggested_items_count?: number;
+                            about?: string | null;
+                            website?: string | null;
+                            phone?: string | null;
+                            /** Format: date-time */
+                            claimed_at?: string | null;
+                            items_by_confidence?: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Archive a restaurant, or destroy it with ?hard=true */
+        delete: {
+            parameters: {
+                query?: {
+                    /** @description Super admins only. Destroys the row and, by `dependent: :destroy`, its menus, sections, items, addresses, hours and everyone's saved rows. */
+                    hard?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug?: string;
+                            name?: string;
+                            /** @enum {string} */
+                            status?: "draft" | "published" | "closed";
+                            /** Format: date-time */
+                            archived_at?: string | null;
+                            deleted: boolean;
+                        };
+                    };
+                };
+                /** @description hard delete requested by a plain admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update fields + status (slug immutable) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        about?: string;
+                        website?: string;
+                        phone?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "published" | "closed";
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated restaurant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "closed";
+                            city?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                            } | null;
+                            /** Format: uuid */
+                            created_by_user_id?: string | null;
+                            /** Format: uuid */
+                            claimed_by_user_id?: string | null;
+                            /** Format: date-time */
+                            created_at?: string;
+                            items_count?: number;
+                            suggested_items_count?: number;
+                            about?: string | null;
+                            website?: string | null;
+                            phone?: string | null;
+                            /** Format: date-time */
+                            claimed_at?: string | null;
+                            items_by_confidence?: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+                /** @description immutable slug change or invalid status */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Un-archive a restaurant */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restaurant, archived_at cleared */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ingestion_runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Archive an ingestion run, or destroy it with ?hard=true */
+        delete: {
+            parameters: {
+                query?: {
+                    /** @description Super admins only. Takes the run's staged IngestionItems with it; items already promoted to the menu are separate rows and survive. */
+                    hard?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date-time */
+                            archived_at?: string | null;
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ingestion_runs/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Un-archive an ingestion run */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the run, archived_at cleared */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroy a menu item (hard only) */
+        delete: {
+            parameters: {
+                query?: {
+                    /** @description Must be true — a bare DELETE is a 422. Super admins only. */
+                    hard?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            deleted: boolean;
+                        };
+                    };
+                };
+                /** @description bare DELETE — use status=removed instead */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            /** @description The endpoint that does this properly */
+                            use: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update name / description / status (removed = unpublish) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        /** @description null clears it; '' would store an empty string */
+                        description?: string | null;
+                        /** @enum {string} */
+                        status?: "draft" | "published" | "removed";
+                        /**
+                         * Format: uuid
+                         * @description must belong to this item's restaurant (422 otherwise)
+                         */
+                        menu_section_id?: string | null;
+                        /** @description Complete list; unknown slugs 422 with the offenders. */
+                        ingredient_slugs?: string[];
+                        tag_slugs?: string[];
+                        /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
+                        variants?: {
+                            size?: string | null;
+                            price_cents?: number | null;
+                            currency?: string;
+                        }[];
+                        /** @description Replaced wholesale. kind defaults to addition. */
+                        modifiers?: {
+                            name: string;
+                            /** @enum {string} */
+                            kind?: "choice" | "addition" | "side";
+                            price_cents?: number | null;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            /** Format: uuid */
+                            menu_section_id?: string | null;
+                            name: string;
+                            description?: string | null;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "removed";
+                            /** @enum {string} */
+                            confidence: "confirmed" | "suggested" | "inferred";
+                            popularity?: number;
+                            ingredient_count?: number;
+                            tag_count?: number;
+                            ingredients?: {
+                                /** Format: uuid */
+                                id?: string;
+                                slug?: string;
+                                name?: string;
+                            }[];
+                            tags?: {
+                                /** Format: uuid */
+                                id?: string;
+                                slug?: string;
+                                name?: string;
+                                family?: string;
+                            }[];
+                            modifiers?: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** @enum {string} */
+                                kind?: "choice" | "addition" | "side";
+                                price_cents?: number | null;
+                            }[];
+                            variants?: {
+                                size?: string | null;
+                                price_cents?: number | null;
+                                currency?: string;
+                            }[];
+                            /** Format: date-time */
+                            created_at?: string;
+                        };
+                    };
+                };
+                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                            slugs?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroy a review (hard only) */
+        delete: {
+            parameters: {
+                query?: {
+                    /** @description Must be true — a bare DELETE is a 422. Super admins only. Hiding a review is POST /hide, which records why. */
+                    hard?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            deleted: boolean;
+                        };
+                    };
+                };
+                /** @description bare DELETE — use POST /hide instead */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            /** @description The endpoint that does this properly */
+                            use: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suggestions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroy a suggestion or restaurant claim (hard only) */
+        delete: {
+            parameters: {
+                query?: {
+                    /** @description Must be true — a bare DELETE is a 422. Super admins only. */
+                    hard?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Destroy a user account
+         * @description Super admins only, and there is no archive form — the app has no deactivated-account state. Cascades to the profile, reviews, saved rows, overrides, visits, conversations and MCP tokens; suggestions and ingestion runs nullify, so the moderation record survives.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description destroyed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            deleted: boolean;
+                        };
+                    };
+                };
+                /** @description requested by a plain admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description cannot_delete_self or cannot_delete_super_admin */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Toggle is_admin (self-demotion refused) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        is_admin: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated user */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            email: string;
+                            handle: string;
+                            display_name?: string | null;
+                            provider?: string | null;
+                            is_admin: boolean;
+                            is_super_admin: boolean;
+                            /** Format: date-time */
+                            created_at?: string;
+                            reviews_count?: number;
+                            ingestion_runs_count?: number;
+                        };
+                    };
+                };
+                /** @description self-demotion refused — the system keeps >= 1 admin */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/admin/ingestion_runs": {
         parameters: {
             query?: never;
@@ -404,151 +1144,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/restaurants/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** Format: uuid */
-                id: string;
-            };
-            cookie?: never;
-        };
-        /** Restaurant detail + per-confidence item counts */
-        get: {
-            parameters: {
-                query?: never;
-                header: {
-                    Authorization: string;
-                };
-                path: {
-                    /** Format: uuid */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description the restaurant */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            slug: string;
-                            name: string;
-                            /** @enum {string} */
-                            status: "draft" | "published" | "closed";
-                            city?: {
-                                /** Format: uuid */
-                                id?: string;
-                                name?: string;
-                            } | null;
-                            /** Format: uuid */
-                            created_by_user_id?: string | null;
-                            /** Format: uuid */
-                            claimed_by_user_id?: string | null;
-                            /** Format: date-time */
-                            created_at?: string;
-                            items_count?: number;
-                            suggested_items_count?: number;
-                            about?: string | null;
-                            website?: string | null;
-                            phone?: string | null;
-                            /** Format: date-time */
-                            claimed_at?: string | null;
-                            items_by_confidence?: {
-                                [key: string]: number;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update fields + status (slug immutable) */
-        patch: {
-            parameters: {
-                query?: never;
-                header: {
-                    Authorization: string;
-                };
-                path: {
-                    /** Format: uuid */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        name?: string;
-                        about?: string;
-                        website?: string;
-                        phone?: string;
-                        /** @enum {string} */
-                        status?: "draft" | "published" | "closed";
-                    };
-                };
-            };
-            responses: {
-                /** @description the updated restaurant */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            slug: string;
-                            name: string;
-                            /** @enum {string} */
-                            status: "draft" | "published" | "closed";
-                            city?: {
-                                /** Format: uuid */
-                                id?: string;
-                                name?: string;
-                            } | null;
-                            /** Format: uuid */
-                            created_by_user_id?: string | null;
-                            /** Format: uuid */
-                            claimed_by_user_id?: string | null;
-                            /** Format: date-time */
-                            created_at?: string;
-                            items_count?: number;
-                            suggested_items_count?: number;
-                            about?: string | null;
-                            website?: string | null;
-                            phone?: string | null;
-                            /** Format: date-time */
-                            claimed_at?: string | null;
-                            items_by_confidence?: {
-                                [key: string]: number;
-                            };
-                        };
-                    };
-                };
-                /** @description immutable slug change or invalid status */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/api/v1/admin/restaurants/{restaurant_id}/items": {
         parameters: {
             query?: never;
@@ -644,137 +1239,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/items/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** Format: uuid */
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update name / description / status (removed = unpublish) */
-        patch: {
-            parameters: {
-                query?: never;
-                header: {
-                    Authorization: string;
-                };
-                path: {
-                    /** Format: uuid */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        name?: string;
-                        /** @description null clears it; '' would store an empty string */
-                        description?: string | null;
-                        /** @enum {string} */
-                        status?: "draft" | "published" | "removed";
-                        /**
-                         * Format: uuid
-                         * @description must belong to this item's restaurant (422 otherwise)
-                         */
-                        menu_section_id?: string | null;
-                        /** @description Complete list; unknown slugs 422 with the offenders. */
-                        ingredient_slugs?: string[];
-                        tag_slugs?: string[];
-                        /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
-                        variants?: {
-                            size?: string | null;
-                            price_cents?: number | null;
-                            currency?: string;
-                        }[];
-                        /** @description Replaced wholesale. kind defaults to addition. */
-                        modifiers?: {
-                            name: string;
-                            /** @enum {string} */
-                            kind?: "choice" | "addition" | "side";
-                            price_cents?: number | null;
-                        }[];
-                    };
-                };
-            };
-            responses: {
-                /** @description the updated item */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            /** Format: uuid */
-                            restaurant_id: string;
-                            /** Format: uuid */
-                            menu_section_id?: string | null;
-                            name: string;
-                            description?: string | null;
-                            /** @enum {string} */
-                            status: "draft" | "published" | "removed";
-                            /** @enum {string} */
-                            confidence: "confirmed" | "suggested" | "inferred";
-                            popularity?: number;
-                            ingredient_count?: number;
-                            tag_count?: number;
-                            ingredients?: {
-                                /** Format: uuid */
-                                id?: string;
-                                slug?: string;
-                                name?: string;
-                            }[];
-                            tags?: {
-                                /** Format: uuid */
-                                id?: string;
-                                slug?: string;
-                                name?: string;
-                                family?: string;
-                            }[];
-                            modifiers?: {
-                                /** Format: uuid */
-                                id?: string;
-                                name?: string;
-                                /** @enum {string} */
-                                kind?: "choice" | "addition" | "side";
-                                price_cents?: number | null;
-                            }[];
-                            variants?: {
-                                size?: string | null;
-                                price_cents?: number | null;
-                                currency?: string;
-                            }[];
-                            /** Format: date-time */
-                            created_at?: string;
-                        };
-                    };
-                };
-                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error?: string;
-                            slugs?: string[];
-                        };
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -833,78 +1297,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** Format: uuid */
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Toggle is_admin (self-demotion refused) */
-        patch: {
-            parameters: {
-                query?: never;
-                header: {
-                    Authorization: string;
-                };
-                path: {
-                    /** Format: uuid */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        is_admin: boolean;
-                    };
-                };
-            };
-            responses: {
-                /** @description the updated user */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            email: string;
-                            handle: string;
-                            display_name?: string | null;
-                            provider?: string | null;
-                            is_admin: boolean;
-                            is_super_admin: boolean;
-                            /** Format: date-time */
-                            created_at?: string;
-                            reviews_count?: number;
-                            ingestion_runs_count?: number;
-                        };
-                    };
-                };
-                /** @description self-demotion refused — the system keeps >= 1 admin */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
         trace?: never;
     };
     "/api/v1/admin/restaurants/{id}/confirm_community": {

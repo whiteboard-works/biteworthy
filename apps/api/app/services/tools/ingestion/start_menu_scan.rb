@@ -73,7 +73,11 @@ module Tools
 
       def self.perform(context:, restaurant:, source_url: nil, source_text: nil, attachment_ids: nil)
         user   = context.user!
-        record = Restaurant.find_by_id_or_slug!(restaurant)
+        # `.kept`, not `.published`: scanning a draft restaurant is the
+        # normal case, scanning an archived one buys nothing — publish
+        # would flip `status` back while `archived_at` keeps it hidden,
+        # so the spend is pure waste.
+        record = Restaurant.kept.find_by_id_or_slug!(restaurant)
 
         result = ::Ingestion::StartRun.call(
           user:        user,

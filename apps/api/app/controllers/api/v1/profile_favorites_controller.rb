@@ -11,12 +11,23 @@ module Api
     # Authenticated only — private data.
     class ProfileFavoritesController < BaseController
       def index
+        # This list deliberately shows draft/closed restaurants so the
+        # page can grey out the link — but an archived one is gone from
+        # the product, and a bookmark to it would 404 with no
+        # explanation. `Restaurant.published` (the archive chokepoint)
+        # is bypassed here on purpose, so the filter is explicit.
         restaurants = current_user.favorite_restaurants
+                                  .joins(:restaurant).merge(Restaurant.kept)
                                   .includes(:restaurant)
                                   .order(created_at: :desc)
                                   .map { |f| serialize_restaurant(f.restaurant) }
 
+        # Same filter on the dishes half. A saved dish at an archived
+        # restaurant would otherwise come back reporting
+        # `status: "published"` — archiving does not touch `status` —
+        # so the page renders a live link to a page that 404s.
         items = current_user.favorite_items
+                            .joins(item: :restaurant).merge(Restaurant.kept)
                             .includes(item: :restaurant)
                             .order(created_at: :desc)
                             .map { |f| serialize_item(f.item) }

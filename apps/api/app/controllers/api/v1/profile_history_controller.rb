@@ -17,7 +17,13 @@ module Api
         limit  = page_limit(default: DEFAULT_LIMIT, max: MAX_LIMIT)
         offset = page_offset
 
+        # The third reader that bypasses `Restaurant.published` — like
+        # the saved lists it shows unpublished restaurants so the page
+        # can grey out the link, so it filters `kept` itself. History is
+        # history, but a "recently viewed" link to a 404 is not history,
+        # it is a dead end.
         scope = current_user.restaurant_visits
+                            .joins(:restaurant).merge(Restaurant.kept)
                             .newest_first
                             .includes(restaurant: :city)
                             .offset(offset)

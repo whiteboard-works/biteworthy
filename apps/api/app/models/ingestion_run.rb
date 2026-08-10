@@ -34,6 +34,13 @@ class IngestionRun < ApplicationRecord
   # have a single attachment that the URL fetcher saved.
   has_many_attached :inputs
 
+  # A run is a log entry, so "delete" means "get it out of the admin
+  # list". Cost reporting deliberately does NOT filter on this —
+  # Ingestion::CostMetrics counts archived runs, because archiving a
+  # failed scan does not refund what it spent.
+  scope :kept,     -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
+
   validates :input_kind,        inclusion: { in: INPUT_KINDS }
   validates :status,            inclusion: { in: STATUSES }
   validates :enrichment_status, inclusion: { in: ENRICHMENT_STATUSES }

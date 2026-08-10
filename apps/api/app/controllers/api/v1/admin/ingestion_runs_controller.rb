@@ -4,16 +4,21 @@ module Api
       # GET  /api/v1/admin/ingestion_runs — the cross-user moderation
       # queue (web-admin twin of Avo's CommunityRuns filter).
       # POST /api/v1/admin/ingestion_runs/:id/re_extract
+      # POST /api/v1/admin/ingestion_runs/:id/restore
+      # DEL  /api/v1/admin/ingestion_runs/:id  archive (or ?hard=true)
       #
       # Per-run item review deliberately reuses the existing
       # creator-or-admin ingestion endpoints; only the cross-user queue
       # and the rewind are admin-only.
       class IngestionRunsController < BaseController
+        include Deletable
+
         DEFAULT_LIMIT = 25
         MAX_LIMIT     = 100
 
         def index
           runs = IngestionRun.order(created_at: :desc).includes(:user, :restaurant)
+          runs = params[:archived].to_s == "true" ? runs.archived : runs.kept
           if IngestionRun::STATUSES.include?(params[:status].to_s)
             runs = runs.where(status: params[:status].to_s)
           end
@@ -45,6 +50,29 @@ module Api
           render json: { error: "has_promoted_items" }, status: :unprocessable_entity
         end
 
+        # Archiving is what an admin does to a failed scan they have
+        # finished reading. A hard delete additionally takes the staged
+        # `IngestionItem`s with it (`dependent: :destroy`) — items
+        # already promoted to the menu are separate rows and survive.
+        def destroy
+          authorize_hard_delete! or return
+          run = IngestionRun.find(params[:id])
+
+          if hard_delete_requested?
+            run.destroy!
+            render_hard_deleted(run)
+          else
+            run.update!(archived_at: Time.current)
+            render json: { id: run.id, archived_at: run.archived_at }
+          end
+        end
+
+        def restore
+          run = IngestionRun.find(params[:id])
+          run.update!(archived_at: nil)
+          render json: { id: run.id, archived_at: nil }
+        end
+
         private
 
         # One grouped query for the page, not a COUNT per run — the
@@ -66,6 +94,7 @@ module Api
             input_kind:        run.input_kind,
             failure_message:   run.failure_message,
             api_cost_cents:    run.api_cost_cents,
+            archived_at:       run.archived_at,
             created_at:        run.created_at,
             user: run.user && {
               id: run.user.id, handle: run.user.handle,

@@ -44,7 +44,10 @@ module Tools
       end
 
       def self.saved_restaurants(user, rows)
-        user.favorited_restaurants.includes(:city).limit(rows).map do |restaurant|
+        # `.kept` for the same reason as ProfileFavoritesController:
+        # this reader shows unpublished restaurants on purpose and so
+        # does not inherit the archive filter from `published`.
+        user.favorited_restaurants.kept.includes(:city).limit(rows).map do |restaurant|
           {
             id: restaurant.id, slug: restaurant.slug, name: restaurant.name,
             city: restaurant.city.name, status: restaurant.status
@@ -54,7 +57,12 @@ module Tools
       private_class_method :saved_restaurants
 
       def self.saved_items(user, rows)
-        user.favorited_items.includes(:restaurant).limit(rows).map do |item|
+        # `.kept` on the dishes half too — otherwise the model reports a
+        # saved dish whose restaurant no longer resolves, and
+        # `explain_item`, the tool it is told to re-check with, merges
+        # `Restaurant.published` and fails.
+        user.favorited_items.joins(:restaurant).merge(Restaurant.kept)
+            .includes(:restaurant).limit(rows).map do |item|
           {
             id: item.id, name: untrusted(item.name),
             restaurant: { id: item.restaurant_id, slug: item.restaurant.slug, name: item.restaurant.name }
