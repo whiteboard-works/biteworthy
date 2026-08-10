@@ -18,6 +18,41 @@ class Conversation < ApplicationRecord
 
   def awaiting_confirmation? = state == "awaiting_confirmation"
 
+  # Whether anything that writes has run since the person last spoke.
+  #
+  # This is what the undo affordance keys off, and it exists because
+  # `accept_edits` and `auto` skip the confirmation gate: in those modes
+  # the grant is given before the call, so the only lever left is after
+  # it. Undo needs no transaction machinery — the transcript already
+  # holds the model's own calls and their arguments, so "undo what you
+  # just did" is a turn like any other.
+  #
+  # Read-only is the exception rather than mutating. A tool declaring no
+  # annotations, or a name this build does not recognise, counts as
+  # writing and the offer appears: failing toward offering to undo
+  # something harmless costs a sentence, and failing the other way leaves
+  # someone who just watched a destructive call with no way back.
+  # `Chat::ModePolicy.read_only?` is the same answer planning mode uses,
+  # deliberately — two places deciding "does this write" must not drift.
+  #
+  # Nothing to undo while parked: the call has not run, and the answer
+  # the person owes is yes or no, not a reversal.
+  #
+  # Tool results are `user`-role messages, so the scan starts at the last
+  # user message that is *not* one — otherwise every turn carrying a tool
+  # call would look like it began at its own results.
+  def mutated_since_last_user_message?
+    return false if awaiting_confirmation?
+
+    turn  = messages.to_a
+    spoke = turn.rindex { |message| message.role == "user" && !message.tool_result? }
+    return false if spoke.nil?
+
+    turn[(spoke + 1)..].any? do |message|
+      message.tool_uses.any? { |call| !Chat::ModePolicy.read_only?(Tools::Registry.find(call["name"])) }
+    end
+  end
+
   # The Anthropic `messages` array for the next request: every stored
   # turn, verbatim. Tool-use, tool-result, and thinking blocks all have
   # to replay exactly — a thinking block's signature is rejected if it

@@ -70,6 +70,10 @@ export type ChatUsage = ApiChatUsage;
 export interface Conversation extends ConversationSummary {
   messages: ChatMessage[];
   usage?: ChatUsage;
+  /** Whether a tool that writes has run since you last spoke. Sent only
+   *  alongside `messages`, so the sidebar's summaries never carry it —
+   *  answering it there would mean loading every transcript. */
+  can_undo?: boolean;
 }
 
 export interface Attachment {

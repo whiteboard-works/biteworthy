@@ -82,6 +82,55 @@ RSpec.describe "Api::V1::Conversations", type: :request do
     end
   end
 
+  # `can_undo` answers "did a write run since you last spoke", which the
+  # client turns into a one-click reversal. It rides with the messages
+  # rather than being sent unconditionally: the sidebar lists every
+  # conversation, and answering it there would load every message of
+  # every one.
+  describe "the undo affordance" do
+    let(:conversation) { create(:conversation, user: user) }
+
+    def a_turn_calling(name)
+      conversation.append!(role: "user", content: [{ type: "text", text: "do it" }])
+      conversation.append!(role: "assistant",
+                           content: [{ type: "tool_use", id: "t1", name: name, input: {} }])
+    end
+
+    it "offers undo after a write" do
+      a_turn_calling("update_avoid_lists")
+
+      get "/api/v1/conversations/#{conversation.id}", headers: headers
+
+      expect(response.parsed_body["can_undo"]).to be(true)
+    end
+
+    it "does not offer it after a read" do
+      a_turn_calling("get_menu")
+
+      get "/api/v1/conversations/#{conversation.id}", headers: headers
+
+      expect(response.parsed_body["can_undo"]).to be(false)
+    end
+
+    # The sidebar has no undo button, and paying a message load per row
+    # to tell it so is the kind of thing that is invisible until the
+    # list is long.
+    it "costs the index nothing" do
+      3.times { create(:conversation, user: user) }
+      a_turn_calling("update_avoid_lists")
+
+      loaded = 0
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        loaded += 1 if payload[:sql].include?('FROM "messages"')
+      end
+      get "/api/v1/conversations", headers: headers
+      ActiveSupport::Notifications.unsubscribe(sub)
+
+      expect(response.parsed_body["conversations"].first).not_to have_key("can_undo")
+      expect(loaded).to eq(0)
+    end
+  end
+
   describe "GET /api/v1/conversations/:id" do
     let(:conversation) { create(:conversation, user: user) }
 

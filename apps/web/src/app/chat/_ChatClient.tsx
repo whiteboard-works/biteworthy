@@ -504,6 +504,22 @@ export function ChatClient(): ReactElement {
             </button>
           </div>
         ) : null}
+        {/* Only once the turn is over: mid-turn the honest control is
+            Stop, and showing both invites undoing work still running.
+            Whether there is anything to reverse is the server's call —
+            it reads the tool annotations, the client only renders. */}
+        {!busy && active?.can_undo ? (
+          <div className="px-bw-4 pb-bw-2">
+            <button
+              type="button"
+              data-testid="undo-turn"
+              onClick={() => send('Undo everything you just did.', [])}
+              className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              Undo that
+            </button>
+          </div>
+        ) : null}
         <Composer
           queueing={busy || pending !== null}
           queued={queued}
@@ -544,7 +560,9 @@ function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
     run
       ? `${run.cache_read_tokens.toLocaleString()} cache r / ${run.cache_write_tokens.toLocaleString()} w`
       : null,
-    run ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out` : null,
+    run
+      ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out`
+      : null,
     run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
     // Two outcomes, because there are two runs. How the run these numbers
     // came from ended, and — only when it is something else worth seeing
