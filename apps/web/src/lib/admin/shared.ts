@@ -73,6 +73,29 @@ export async function patchAdminJson<T>(
   return (await res.json()) as T;
 }
 
+/**
+ * DELETE that returns a body. The admin delete surface answers 200 with
+ * the archived row or `{ id, deleted: true }`, where the taxonomy
+ * delete below answers 204 — two shapes, so two helpers rather than one
+ * that guesses.
+ *
+ * `hard` is a separate argument rather than part of the path because it
+ * is the difference between hiding a restaurant and destroying it with
+ * every menu, item and review attached; a caller has to say it out loud.
+ */
+export async function deleteAdminJson<T>(
+  path: string,
+  opts: { hard?: boolean } = {},
+  fetchImpl: typeof fetch = fetch,
+): Promise<T> {
+  const res = await fetchImpl(`${path}${opts.hard ? '?hard=true' : ''}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw await toAdminError(res);
+  return (await res.json()) as T;
+}
+
 /** DELETE; resolves on 204, throws AdminError (with body, e.g. 409 refs) otherwise. */
 export async function deleteAdmin(path: string, fetchImpl: typeof fetch = fetch): Promise<void> {
   const res = await fetchImpl(path, { method: 'DELETE', credentials: 'same-origin' });
@@ -88,4 +111,41 @@ export function friendlyAdminError(err: unknown): string {
     }
   }
   return 'Something went wrong loading admin data. Try again.';
+}
+
+/**
+ * Human copy for the delete surface's refusals. Separate from
+ * `friendlyAdminError` because a 404 means two different things here:
+ * for a read it means admin access is gone, but for `?hard=true` it is
+ * how the API declines a non-super admin without confirming the
+ * capability exists — and telling someone their access was revoked when
+ * they merely lack a tier is a wrong answer that sends them to the
+ * wrong place.
+ */
+export function deleteErrorCopy(err: unknown, opts: { hard?: boolean } = {}): string {
+  if (!(err instanceof AdminError)) return friendlyAdminError(err);
+  switch (err.code) {
+    case 'cannot_delete_self':
+      return 'You cannot delete your own account here.';
+    case 'cannot_delete_super_admin':
+      return 'Super admins are managed on the server — run admin:revoke_super first.';
+    case 'soft_delete_unsupported':
+      return typeof err.body?.use === 'string'
+        ? `That resource does not archive. Use ${err.body.use}.`
+        : 'That resource does not archive.';
+    case 'in_use':
+      return 'Still referenced — remove the references first.';
+    default:
+      // Two different things produce a 404 on a hard delete, and the
+      // copy must not assert either one. The likely case is that the
+      // row is already gone — `rescue_from RecordNotFound` answers 404,
+      // and the controls only render for super admins, so a tier
+      // refusal needs a session whose tier went stale after the page
+      // rendered. Naming the tier would tell an operator who has the
+      // permission to go looking for it.
+      if (opts.hard && err.status === 404) {
+        return 'Nothing was deleted — it may already be gone, or your access may have changed. Refresh and try again.';
+      }
+      return friendlyAdminError(err);
+  }
 }

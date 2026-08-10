@@ -7,7 +7,9 @@ import {
   type AdminSuggestionsResponse,
 } from '../../../lib/admin/suggestions';
 import { friendlyAdminError } from '../../../lib/admin/shared';
+import { destroyAdminSuggestion } from '../../../lib/admin/deletes';
 import { decideSuggestion, SuggestionError } from '../../../lib/suggestions';
+import { HardDeleteButton } from '../_HardDeleteButton';
 import { Pagination } from '../_Pagination';
 
 /**
@@ -47,6 +49,11 @@ export default function AdminSuggestionsPage() {
       active = false;
     };
   }, [offset, refreshKey]);
+
+  // Refetch rather than filter, for the reason `decide` gives below:
+  // local removal lies once a page empties or rows slide across the
+  // offset window.
+  const dropRow = () => setRefreshKey((k) => k + 1);
 
   const decide = async (id: string, decision: 'accepted' | 'rejected') => {
     setBusyId(id);
@@ -105,7 +112,13 @@ export default function AdminSuggestionsPage() {
         <div className="mt-bw-4 space-y-bw-4">
           <ul className="space-y-bw-3">
             {data.suggestions.map((s) => (
-              <SuggestionRow key={s.id} suggestion={s} busy={busyId === s.id} onDecide={decide} />
+              <SuggestionRow
+                key={s.id}
+                suggestion={s}
+                busy={busyId === s.id}
+                onDecide={decide}
+                onDeleted={dropRow}
+              />
             ))}
           </ul>
           <Pagination
@@ -124,11 +137,18 @@ function SuggestionRow({
   suggestion,
   busy,
   onDecide,
+  onDeleted,
 }: {
   suggestion: AdminSuggestionRow;
   busy: boolean;
   onDecide: (id: string, decision: 'accepted' | 'rejected') => void;
+  onDeleted: (id: string) => void;
 }) {
+  // A confirmed delete must take Accept and Reject with it — otherwise
+  // a click lands on a row already being destroyed.
+  const [deleting, setDeleting] = useState(false);
+  const inert = busy || deleting;
+
   return (
     <li
       data-testid={`admin-suggestion-${suggestion.id}`}
@@ -148,7 +168,7 @@ function SuggestionRow({
         <button
           type="button"
           onClick={() => onDecide(suggestion.id, 'accepted')}
-          disabled={busy}
+          disabled={inert}
           data-testid={`admin-suggestion-accept-${suggestion.id}`}
           className="rounded-bw-md bg-ok px-bw-3 py-bw-1 font-semibold text-white disabled:opacity-50"
         >
@@ -157,12 +177,22 @@ function SuggestionRow({
         <button
           type="button"
           onClick={() => onDecide(suggestion.id, 'rejected')}
-          disabled={busy}
+          disabled={inert}
           data-testid={`admin-suggestion-reject-${suggestion.id}`}
           className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 font-semibold text-zinc-700 hover:border-danger hover:text-danger disabled:opacity-50"
         >
           Reject
         </button>
+        {/* Rejecting keeps the suggestion legible to the member who
+            filed it and records who resolved it. Delete is for spam
+            and mistakes — nothing to keep, nobody to answer. */}
+        <HardDeleteButton
+          onDelete={() => destroyAdminSuggestion(suggestion.id)}
+          onDeleted={() => onDeleted(suggestion.id)}
+          onBusyChange={setDeleting}
+          disabled={busy}
+          testId={`admin-suggestion-delete-${suggestion.id}`}
+        />
       </div>
     </li>
   );

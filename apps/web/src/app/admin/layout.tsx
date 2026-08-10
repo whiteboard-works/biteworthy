@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getServerJwt } from '../../lib/server-auth';
-import { adminStatus } from '../../lib/admin-auth';
+import { adminIdentity } from '../../lib/admin-auth';
 import { AdminNav } from './_AdminNav';
+import { AdminTierProvider } from './_AdminTier';
 
 /**
  * Server-side shell + guard for every /admin page. Signed-out visitors
@@ -29,14 +30,14 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const status = await adminStatus(await getServerJwt());
+  const { status, isSuperAdmin } = await adminIdentity(await getServerJwt());
   if (status === 'unauthenticated') redirect('/login?next=/admin');
   if (status !== 'admin') notFound();
 
   return (
     <div className="mx-auto max-w-5xl px-bw-6 py-bw-6" data-testid="admin-shell">
       <AdminNav />
-      {children}
+      <AdminTierProvider isSuperAdmin={isSuperAdmin}>{children}</AdminTierProvider>
     </div>
   );
 }

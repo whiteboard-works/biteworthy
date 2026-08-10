@@ -26,6 +26,7 @@ export default function AdminReviewsPage() {
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<AdminReviewsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -40,7 +41,7 @@ export default function AdminReviewsPage() {
     return () => {
       active = false;
     };
-  }, [visibility, offset]);
+  }, [visibility, offset, refreshKey]);
 
   const onModerated = (updated: AdminReviewsResponse['reviews'][number]) => {
     setData((prev) =>
@@ -49,6 +50,12 @@ export default function AdminReviewsPage() {
         : prev,
     );
   };
+
+  // Refetch rather than filter locally. Dropping the row client-side
+  // leaves `offset` pointing at the old window, so the row that slid
+  // into the deleted one's server-side index is never rendered on any
+  // page — the reason the suggestions queue already refetches.
+  const onDeleted = () => setRefreshKey((k) => k + 1);
 
   return (
     <main data-testid="admin-reviews">
@@ -107,7 +114,12 @@ export default function AdminReviewsPage() {
         <div className="mt-bw-4 space-y-bw-4">
           <ul className="space-y-bw-3">
             {data.reviews.map((review) => (
-              <ReviewModRow key={review.id} review={review} onModerated={onModerated} />
+              <ReviewModRow
+                key={review.id}
+                review={review}
+                onModerated={onModerated}
+                onDeleted={onDeleted}
+              />
             ))}
           </ul>
           <Pagination

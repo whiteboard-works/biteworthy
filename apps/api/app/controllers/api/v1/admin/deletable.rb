@@ -61,11 +61,18 @@ module Api
           require_super_admin!
         end
 
-        # Every hard delete answers the same way. The body carries the
-        # id because the client has just removed a row from a list and
-        # the response is the only confirmation of *which* one.
+        # Every DELETE answers with `id` and `deleted`, whichever branch
+        # it took. The id because the client has just removed a row from
+        # a list and the response is the only confirmation of *which*
+        # one; `deleted` because otherwise the two 200 shapes differ,
+        # and a generated client cannot tell an archive from a
+        # destruction without re-reading the request it just sent.
         def render_hard_deleted(record)
           render json: { id: record.id, deleted: true }
+        end
+
+        def render_archived(record, extra = {})
+          render json: { id: record.id, deleted: false, **extra }
         end
       end
     end

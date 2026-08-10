@@ -18,6 +18,8 @@ export type ConfirmCommunityResponse =
 
 export interface AdminRunsQuery {
   status?: string;
+  /** Show the archived runs instead of the live queue. */
+  archived?: boolean;
   community?: boolean;
   restaurantId?: string;
   limit?: number;
@@ -31,6 +33,7 @@ export function fetchAdminRuns(
   const params = new URLSearchParams();
   if (query.status) params.set('status', query.status);
   if (query.community) params.set('community', 'true');
+  if (query.archived) params.set('archived', 'true');
   if (query.restaurantId) params.set('restaurant_id', query.restaurantId);
   if (query.limit != null) params.set('limit', String(query.limit));
   if (query.offset != null) params.set('offset', String(query.offset));

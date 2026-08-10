@@ -7,7 +7,9 @@ import {
   type AdminItemEdits,
   type AdminItemRow,
 } from '../../../../lib/admin/management';
+import { destroyAdminItem } from '../../../../lib/admin/deletes';
 import { friendlyAdminError } from '../../../../lib/admin/shared';
+import { HardDeleteButton } from '../../_HardDeleteButton';
 import { StatusBadge, type BadgeTone } from '../../_StatusBadge';
 import {
   ItemDeepEditPanel,
@@ -49,13 +51,18 @@ export function AdminItemRowEditor({
   item,
   sections,
   onUpdated,
+  onDeleted,
 }: {
   item: AdminItemRow;
   /** Sections of THIS restaurant, for the move-to-section select. */
   sections?: Array<{ id: string; name: string; menuName: string }>;
   onUpdated: (updated: AdminItemRow) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Edit and the status select must go inert while a delete is in
+  // flight — see HardDeleteButton's onBusyChange.
+  const [deleting, setDeleting] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<ItemDraft | null>(null);
@@ -137,7 +144,7 @@ export function AdminItemRowEditor({
           <button
             type="button"
             onClick={() => (draft ? closeEditor() : openEditor())}
-            disabled={busy}
+            disabled={busy || deleting}
             data-testid={`admin-item-edit-${item.id}`}
             className="font-semibold text-zinc-600 hover:text-bite disabled:opacity-50"
           >
@@ -146,7 +153,7 @@ export function AdminItemRowEditor({
           <select
             value={pendingRemoval ? 'removed' : item.status}
             onChange={(e) => onSelect(e.target.value)}
-            disabled={busy}
+            disabled={busy || deleting}
             data-testid={`admin-item-status-${item.id}`}
             className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 disabled:opacity-50"
           >
@@ -156,6 +163,16 @@ export function AdminItemRowEditor({
               </option>
             ))}
           </select>
+          {/* `removed` above is the normal way off a menu — it keeps the
+              reviews and saved-dish rows pointing at this item. Delete
+              takes those with it. */}
+          <HardDeleteButton
+            onDelete={() => destroyAdminItem(item.id)}
+            onDeleted={() => onDeleted(item.id)}
+            onBusyChange={setDeleting}
+            disabled={busy}
+            testId={`admin-item-delete-${item.id}`}
+          />
         </div>
       </div>
 

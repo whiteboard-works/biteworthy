@@ -4,7 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { fetchAdminRuns, type AdminRunRow, type AdminRunsResponse } from '../../../lib/admin/runs';
-import { friendlyAdminError } from '../../../lib/admin/shared';
+import { archiveAdminRun, destroyAdminRun, restoreAdminRun } from '../../../lib/admin/deletes';
+import { deleteErrorCopy, friendlyAdminError } from '../../../lib/admin/shared';
+import { ConfirmButton } from '../_ConfirmButton';
+import { HardDeleteButton } from '../_HardDeleteButton';
 import { StatusBadge, type BadgeTone } from '../_StatusBadge';
 import { Pagination } from '../_Pagination';
 
@@ -45,15 +48,19 @@ function RunsQueue() {
   const status = searchParams.get('status') ?? '';
   // Default ON: absent param means "community only"; 'false' opts out.
   const community = searchParams.get('community') !== 'false';
+  // Archived runs are out of the queue by default; the filter is how an
+  // admin gets back to one they archived by mistake.
+  const archived = searchParams.get('archived') === 'true';
   const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
 
   const [data, setData] = useState<AdminRunsResponse | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     setError(null);
-    fetchAdminRuns({ status: status || undefined, community, limit: PAGE_SIZE, offset })
+    fetchAdminRuns({ status: status || undefined, community, archived, limit: PAGE_SIZE, offset })
       .then((d) => {
         if (active) setData(d);
       })
@@ -63,15 +70,21 @@ function RunsQueue() {
     return () => {
       active = false;
     };
-  }, [status, community, offset]);
+  }, [status, community, archived, offset, refreshKey]);
 
-  const setQuery = (next: { status?: string; community?: boolean; offset?: number }) => {
+  const setQuery = (next: {
+    status?: string;
+    community?: boolean;
+    archived?: boolean;
+    offset?: number;
+  }) => {
     const params = new URLSearchParams();
     const s = next.status ?? status;
     const c = next.community ?? community;
     const o = next.offset ?? 0; // filter changes reset paging
     if (s) params.set('status', s);
     if (!c) params.set('community', 'false');
+    if (next.archived ?? archived) params.set('archived', 'true');
     if (o > 0) params.set('offset', String(o));
     const qs = params.toString();
     if (qs) {
@@ -110,6 +123,15 @@ function RunsQueue() {
             data-testid="runs-community-filter"
           />
           Community scans only
+        </label>
+        <label className="flex items-center gap-bw-2 text-zinc-700">
+          <input
+            type="checkbox"
+            checked={archived}
+            onChange={(e) => setQuery({ archived: e.target.checked })}
+            data-testid="runs-archived-filter"
+          />
+          Archived
         </label>
       </div>
 
@@ -155,7 +177,7 @@ function RunsQueue() {
         <div className="mt-bw-4 space-y-bw-4">
           <ul className="space-y-bw-2">
             {data.runs.map((run) => (
-              <RunRow key={run.id} run={run} />
+              <RunRow key={run.id} run={run} onChanged={() => setRefreshKey((k) => k + 1)} />
             ))}
           </ul>
           <Pagination
@@ -170,10 +192,24 @@ function RunsQueue() {
   );
 }
 
-function RunRow({ run }: { run: AdminRunRow }) {
+function RunRow({ run, onChanged }: { run: AdminRunRow; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const counts = run.decision_counts;
   const decided = counts.accepted + counts.rejected + counts.edited;
   const totalItems = decided + counts.pending;
+
+  const toggleArchive = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await (run.archived_at ? restoreAdminRun(run.id) : archiveAdminRun(run.id));
+      onChanged();
+    } catch (e) {
+      setError(deleteErrorCopy(e));
+      setBusy(false);
+    }
+  };
 
   return (
     <li data-testid={`run-row-${run.id}`}>
@@ -202,6 +238,34 @@ function RunRow({ run }: { run: AdminRunRow }) {
         </p>
         {run.failure_message && (
           <p className="mt-bw-1 truncate text-bw-xs text-danger">{run.failure_message}</p>
+        )}
+
+        <div className="mt-bw-2 flex flex-wrap items-center gap-bw-2">
+          {/* Archiving is what an admin does to a failed scan they have
+              finished reading — it leaves the queue, and the spend it
+              recorded still counts toward the daily cost report. */}
+          <ConfirmButton
+            label={run.archived_at ? 'Restore' : 'Archive'}
+            busy={busy}
+            onConfirm={() => void toggleArchive()}
+            testId={`run-archive-${run.id}`}
+          />
+          <HardDeleteButton
+            onDelete={() => destroyAdminRun(run.id)}
+            onDeleted={onChanged}
+            disabled={busy}
+            testId={`run-delete-${run.id}`}
+          />
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            data-testid={`run-error-${run.id}`}
+            className="mt-bw-2 text-bw-xs text-danger"
+          >
+            {error}
+          </p>
         )}
       </div>
     </li>

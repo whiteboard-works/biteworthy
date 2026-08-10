@@ -10,6 +10,11 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 
 const mockFetchUsers = vi.fn();
 const mockSetAdmin = vi.fn();
+const mockDestroyUser = vi.fn();
+vi.mock('../../../../lib/admin/deletes', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/admin/deletes')>()),
+  destroyAdminUser: (id: string) => mockDestroyUser(id),
+}));
 vi.mock('../../../../lib/admin/management', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/admin/management')>()),
   fetchAdminUsers: (q: unknown) => mockFetchUsers(q),
@@ -17,7 +22,17 @@ vi.mock('../../../../lib/admin/management', async (importOriginal) => ({
 }));
 
 import AdminUsersPage from '../page';
+import { AdminTierProvider } from '../../_AdminTier';
 import { AdminError } from '../../../../lib/admin/shared';
+
+/** The layout supplies the tier in production; the tests supply it here. */
+function renderAsTier(isSuperAdmin: boolean) {
+  return render(
+    <AdminTierProvider isSuperAdmin={isSuperAdmin}>
+      <AdminUsersPage />
+    </AdminTierProvider>,
+  );
+}
 
 function user(overrides: Record<string, unknown> = {}) {
   return {
@@ -41,6 +56,7 @@ function payload(users: unknown[]) {
 beforeEach(() => {
   mockFetchUsers.mockReset();
   mockSetAdmin.mockReset();
+  mockDestroyUser.mockReset();
 });
 
 describe('AdminUsersPage', () => {
@@ -126,5 +142,65 @@ describe('AdminUsersPage', () => {
         expect.objectContaining({ q: 'skylar', offset: 0 }),
       ),
     );
+  });
+
+  // Deleting an account destroys the profile, reviews, saved rows,
+  // overrides, visits and conversations. There is no archive to fall
+  // back to, so the friction is typing the handle — and the control is
+  // not offered at all to an admin the server would refuse.
+  describe('deleting an account', () => {
+    it('is not offered to a plain admin', async () => {
+      mockFetchUsers.mockResolvedValue(payload([user({ handle: 'diner_1' })]));
+      renderAsTier(false);
+      const row = await screen.findByTestId('user-row-diner_1');
+
+      expect(within(row).queryByTestId('user-delete-diner_1')).toBeNull();
+    });
+
+    it('needs the handle typed, then refetches without the row', async () => {
+      // Refetch, not a local filter: dropping the row client-side
+      // leaves `offset` on the old window and skips whoever slid into
+      // the deleted user's index.
+      mockFetchUsers.mockResolvedValueOnce(payload([user({ handle: 'diner_1' })]));
+      mockFetchUsers.mockResolvedValue(payload([]));
+      mockDestroyUser.mockResolvedValue({ id: 'u1', deleted: true });
+      renderAsTier(true);
+      const row = await screen.findByTestId('user-row-diner_1');
+
+      fireEvent.click(within(row).getByTestId('user-delete-diner_1'));
+      const panel = await screen.findByTestId('user-delete-confirm-diner_1');
+      expect(within(panel).getByTestId('user-delete-confirm-diner_1-confirm')).toBeDisabled();
+
+      fireEvent.change(within(panel).getByTestId('user-delete-confirm-diner_1-input'), {
+        target: { value: 'diner_1' },
+      });
+      fireEvent.click(within(panel).getByTestId('user-delete-confirm-diner_1-confirm'));
+
+      await vi.waitFor(() => expect(mockDestroyUser).toHaveBeenCalledWith('u1'));
+      await vi.waitFor(() => expect(screen.queryByTestId('user-row-diner_1')).toBeNull());
+      // The row vanishing proves nothing on its own — a local filter
+      // does that too, and leaves `offset` on the stale window. What
+      // has to be true is that the list was re-read from the server.
+      expect(mockFetchUsers).toHaveBeenCalledTimes(2);
+    });
+
+    // A 404 here means "not a super admin", not "your access is gone" —
+    // the generic copy would send the operator to sign in again, which
+    // fixes nothing.
+    it('does not claim a 404 was a tier refusal', async () => {
+      mockFetchUsers.mockResolvedValue(payload([user({ handle: 'diner_1' })]));
+      mockDestroyUser.mockRejectedValue(new AdminError('x', 404));
+      renderAsTier(true);
+      const row = await screen.findByTestId('user-row-diner_1');
+
+      fireEvent.click(within(row).getByTestId('user-delete-diner_1'));
+      fireEvent.change(screen.getByTestId('user-delete-confirm-diner_1-input'), {
+        target: { value: 'diner_1' },
+      });
+      fireEvent.click(screen.getByTestId('user-delete-confirm-diner_1-confirm'));
+
+      expect(await screen.findByTestId('users-error')).toHaveTextContent(/already be gone/i);
+      expect(screen.getByTestId('user-row-diner_1')).toBeInTheDocument();
+    });
   });
 });
