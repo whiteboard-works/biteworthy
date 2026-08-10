@@ -336,6 +336,84 @@ limit is too small" and "24¢ for one question" were one bug.
   `9¢ turn · 34¢ conversation`, plus the `cache_write_tokens` C3 recorded
   and nothing displayed.
 
+### C9 — Cache the transcript, not just the prompt — SHIPPED
+
+C5 put the one `cache_control` breakpoint on the last system block and
+made the invariant "nothing per-request sits above it". That invariant
+held. What nobody checked is what sits *below* it: the entire
+conversation, re-read at full input price on every round.
+
+A round adds a few thousand tokens and then pays for all of them again on
+each later round, so a turn's cost grows with the square of its length.
+The evidence is production, not reasoning — three real runs on one
+conversation:
+
+| rounds | input tokens | cache reads | cost |
+|---|---|---|---|
+| 3 | 9,035 | 15,280 | 17.3¢ |
+| 12 | 127,367 | 84,040 | 77.9¢ |
+| 11 | 167,655 | 84,040 | 95.3¢ |
+
+167,655 input tokens for a transcript that was only ever a few thousand
+tokens long. The cache reads are the system prefix doing its job; the
+input column is the conversation being re-sent.
+
+`AgentLoop#cacheable` marks the last content block of the last message,
+rolled forward each round — the documented multi-turn pattern, where
+earlier breakpoints stay valid read points so hits accrue as the
+conversation grows. **Estimated ~69% off that eleven-round turn's input
+cost** (84¢ → 26¢).
+
+The *mechanism* is verified, not assumed — a live two-round probe against
+Opus 5 with a breakpoint on the last user block:
+
+```
+round 1   input=2   cache_write=2460   cache_read=0
+round 2   input=2   cache_write=27     cache_read=2460
+```
+
+Round 2 read the whole prefix back at 0.1× and wrote only the 27 new
+tokens. What stays an estimate is the *magnitude* on a real turn, since
+that depends on how the transcript grows — the honest confirmation is a
+live turn showing `cache_read_input_tokens` climbing across rounds.
+
+**The timestamp nearly ate the whole win, and review caught it.** A
+`messages` breakpoint's prefix is `tools → system → messages`, so
+everything in the system array counts — including the volatile block
+below the *system* breakpoint. `current_time` was second-resolution and
+`CompletionJob` builds a fresh `AgentLoop` per turn, so the first round
+of every turn changed a byte above the transcript and missed by
+construction. Within a turn the timestamp is frozen, so rounds 2..N hit
+— which is where the 11-round win comes from — but a **single-round turn
+would have got strictly worse**: writing the whole conversation at 1.25×
+instead of reading it at 1.0×, buying nothing. The thing placed below
+the breakpoint to protect one cache was preventing the other.
+
+`current_time` is bucketed to five minutes now, which is the ephemeral
+cache's own TTL — precision finer than that cannot help a cache. It is
+labelled approximate in the prompt rather than silently rounded, because
+the model relays it and "is this place open now" is a real question here.
+
+Cross-turn reuse is therefore *possible*; it is not yet *measured*. A
+second hazard is still open: the API drops previous-turn `thinking`
+blocks once a new user message arrives, which moves the prefix bytes
+again. Treat the within-turn win as the one this change bought.
+
+Two properties it leans on, both asserted rather than assumed:
+
+- **The last message is always a `user` one at call time** — `drive`
+  calls the model at the top of its loop and appends the assistant reply
+  after, so a breakpoint never lands on a `thinking` block, whose
+  signature must replay byte-identically. A guard enforces it anyway.
+- **The marked block is a copy.** `transcript` hands back the loaded
+  records' own jsonb; marking it in place would persist `cache_control`
+  into the stored conversation.
+
+Known limit: a breakpoint looks back only 20 content blocks. A round
+appends one assistant and one user message, so consecutive requests are
+well inside that — but a single round fanning out to more than ~20
+parallel tool calls would miss and pay full price for that round.
+
 ## Open questions
 
 - **Whether the Postgres event relay is quiet enough at one poll per 200ms
