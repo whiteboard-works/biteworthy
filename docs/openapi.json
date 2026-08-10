@@ -1036,6 +1036,9 @@
                     "popularity": {
                       "type": "integer"
                     },
+                    "position": {
+                      "type": "integer"
+                    },
                     "ingredient_count": {
                       "type": "integer"
                     },
@@ -1186,6 +1189,10 @@
                     "format": "uuid",
                     "nullable": true,
                     "description": "must belong to this item's restaurant (422 otherwise)"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "description": "Position within the menu section for ordering"
                   },
                   "ingredient_slugs": {
                     "type": "array",

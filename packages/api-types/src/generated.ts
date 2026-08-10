@@ -587,6 +587,8 @@ export interface paths {
                          * @description must belong to this item's restaurant (422 otherwise)
                          */
                         menu_section_id?: string | null;
+                        /** @description Position within the menu section for ordering */
+                        position?: number;
                         /** @description Complete list; unknown slugs 422 with the offenders. */
                         ingredient_slugs?: string[];
                         tag_slugs?: string[];
@@ -627,6 +629,7 @@ export interface paths {
                             /** @enum {string} */
                             confidence: "confirmed" | "suggested" | "inferred";
                             popularity?: number;
+                            position?: number;
                             ingredient_count?: number;
                             tag_count?: number;
                             ingredients?: {

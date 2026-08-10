@@ -25,7 +25,7 @@ module Api
         def index
           restaurant = Restaurant.find(params[:restaurant_id])
           scope = Item.where(restaurant_id: restaurant.id)
-                      .order(:menu_section_id, :name, :id) # :id — stable pagination on name ties
+                      .order(:menu_section_id, :position, :created_at, :id)
                       .includes(:item_variants, :item_modifiers, :ingredients, :tags)
           scope = scope.where(status: params[:status]) if Item::STATUSES.include?(params[:status].to_s)
 
@@ -102,7 +102,7 @@ module Api
         # that facet alone rather than clearing it.
         def edit_attrs
           permitted = params.permit(
-            :name, :description, :status, :menu_section_id,
+            :name, :description, :status, :menu_section_id, :position,
             ingredient_slugs: [],
             tag_slugs:        [],
             variants:  [:size, :price_cents, :currency],
@@ -123,6 +123,7 @@ module Api
             status:           item.status,
             confidence:       item.confidence,
             popularity:       item.popularity,
+            position:         item.position,
             ingredient_count: item.ingredient_ids.size,
             tag_count:        item.tag_ids.size,
             # Names, not just counts — the admin panel edits by slug and
