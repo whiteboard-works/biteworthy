@@ -325,6 +325,11 @@ function interesting(outcome: string | null | undefined): string | null {
   return outcome && !BENIGN_OUTCOMES.has(outcome) ? outcome : null;
 }
 
+function formatCost(cents: number): string {
+  if (cents < 100) return `${cents}¢`;
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
   const run = usage.last_run;
   const pills = [
@@ -332,8 +337,8 @@ function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
     // conversation lifetime and labelled it "total" beside per-run token
     // counts, which invited reading a whole conversation's spend as the
     // price of the last dozen tokens.
-    run ? `${run.cost_cents}¢ turn` : null,
-    `${usage.cost_cents}¢ conversation`,
+    run ? `${formatCost(run.cost_cents)} turn` : null,
+    `${formatCost(usage.cost_cents)} conversation`,
     run ? `${run.rounds} rounds` : null,
     run
       ? `${run.cache_read_tokens.toLocaleString()} cache r / ${run.cache_write_tokens.toLocaleString()} w`

@@ -28,12 +28,18 @@ module Api
                                     .where(users: { is_admin: false })
                                     .where(created_at: today_utc)
                                     .count,
-            spend_today_cents: IngestionRun.where(created_at: today_utc).sum(:api_cost_cents),
+            spend_today_cents: total_spend_today(today_utc),
             ceiling_cents: Integer(ENV.fetch(
               "INGESTION_DAILY_COST_CEILING_CENTS",
               ::Ingestion::StartRun::DAILY_COST_CEILING_CENTS_DEFAULT
             ))
           }
+        end
+
+        def total_spend_today(today_utc)
+          ingestion_spend = IngestionRun.where(created_at: today_utc).sum(:api_cost_cents).to_i
+          chat_spend = Conversation.where(created_at: today_utc).sum(:api_cost_cents).to_i
+          ingestion_spend + chat_spend
         end
 
         # All four are cheap indexed counts (partial index on flagged
