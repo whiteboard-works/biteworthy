@@ -247,6 +247,24 @@ RSpec.describe "admin tools" do
     it "does not expose confidence as editable" do
       expect(described_class.input_schema_value.to_h[:properties]).not_to have_key(:confidence)
     end
+
+    it "prevents editing restaurant-verified items by non-verifying users" do
+      item.mark_restaurant_verified!(admin)
+
+      response = call(described_class, create(:user, is_admin: true), item_id: item.id, name: "Renamed")
+
+      expect(payload(response)[:error]).to eq("forbidden")
+      expect(item.reload.name).not_to eq("Renamed")
+    end
+
+    it "allows the verifying admin to re-edit a restaurant-verified item" do
+      item.mark_restaurant_verified!(admin)
+
+      response = call(described_class, admin, item_id: item.id, name: "Renamed")
+
+      expect(response.to_h[:structuredContent]).to have_key(:id)
+      expect(item.reload.name).to eq("Renamed")
+    end
   end
 
   describe Tools::Taxonomy::CreateTaxonomyNode do

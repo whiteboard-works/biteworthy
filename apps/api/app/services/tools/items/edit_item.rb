@@ -92,6 +92,10 @@ module Tools
         attrs = fields.slice(*EDITABLE)
         raise Errors::InvalidArgument, "Pass at least one field to change." if attrs.empty?
 
+        unless item.can_be_edited_by?(context.user)
+          raise Errors::Forbidden, "This dish is verified by the restaurant and cannot be edited."
+        end
+
         validate_status!(attrs[:status]) if attrs.key?(:status)
         validate_prices!(attrs)
 

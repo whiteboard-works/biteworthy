@@ -97,7 +97,11 @@ module Menus
         photo_url:          photo_url_for(item),
         # null / [] whenever the caller has no taste signals.
         taste_score:        score_row&.fetch(:score),
-        taste_reasons:      taste_reasons_for(score_row, taste_labels)
+        taste_reasons:      taste_reasons_for(score_row, taste_labels),
+        human_verified:     item.human_verified?,
+        human_verified_at:  item.human_verified_at,
+        restaurant_verified: item.restaurant_verified?,
+        restaurant_verified_at: item.restaurant_verified_at
       }
     end
 

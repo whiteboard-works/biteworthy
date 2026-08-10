@@ -73,7 +73,11 @@ module Tools
           rows.map do |item|
             {
               id: item.id, name: untrusted(item.name),
-              status: item.status, confidence: item.confidence
+              status: item.status, confidence: item.confidence,
+              human_verified: item.human_verified?,
+              human_verified_at: item.human_verified_at,
+              restaurant_verified: item.restaurant_verified?,
+              restaurant_verified_at: item.restaurant_verified_at
             }
           end
         end
