@@ -2239,6 +2239,9 @@
                           "popularity": {
                             "type": "integer"
                           },
+                          "position": {
+                            "type": "integer"
+                          },
                           "ingredient_count": {
                             "type": "integer"
                           },
@@ -5575,6 +5578,73 @@
           }
         }
       },
+      "patch": {
+        "summary": "Switch the conversation's mode",
+        "tags": [
+          "Chat"
+        ],
+        "description": "For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the conversation, with the new mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "a mode that does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "manual",
+                      "accept_edits",
+                      "auto"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "summary": "Delete a conversation and its transcript",
         "tags": [
@@ -5680,6 +5750,16 @@
                     "type": "string",
                     "maxLength": 20000
                   },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "manual",
+                      "accept_edits",
+                      "auto"
+                    ],
+                    "description": "Switch mode and send in one request, so the picker cannot lose a race with the message it was changed for. Omit to keep the conversation's current mode."
+                  },
                   "context": {
                     "type": "object",
                     "description": "Where the user is standing, so \"what can I eat here\" is answerable.",
@@ -5759,6 +5839,15 @@
                   "fingerprint": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "manual",
+                      "accept_edits",
+                      "auto"
+                    ]
                   }
                 }
               }
@@ -7021,6 +7110,7 @@
         "required": [
           "id",
           "state",
+          "mode",
           "created_at",
           "updated_at"
         ],
@@ -7040,6 +7130,16 @@
               "awaiting_confirmation",
               "failed"
             ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "planning",
+              "manual",
+              "accept_edits",
+              "auto"
+            ],
+            "description": "How much this conversation has agreed to in advance. `planning` refuses every write; `manual` parks the calls a tool says need a human; `accept_edits` waves those through except the ones no later edit can undo; `auto` parks nothing."
           },
           "pending": {
             "nullable": true,

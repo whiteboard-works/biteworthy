@@ -35,6 +35,7 @@ export type IngredientRef  = components['schemas']['IngredientRef'];
 // API — `codegen:check` in ci-js.yml fails if these stop matching the
 // rswag specs they came from.
 export type Conversation   = components['schemas']['Conversation'];
+export type ChatMode       = components['schemas']['Conversation']['mode'];
 export type ChatMessage    = components['schemas']['ChatMessage'];
 export type ChatBlock      = components['schemas']['ChatBlock'];
 export type PendingTool    = components['schemas']['PendingTool'];

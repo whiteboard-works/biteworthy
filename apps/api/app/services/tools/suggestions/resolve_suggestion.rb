@@ -33,6 +33,12 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
 
+      # Accepting is not an edit the person accepting is the author of: the
+      # change was written by a stranger, and an accepted `remove_ingredient`
+      # un-hides that dish for **everyone** avoiding the ingredient. Rejecting
+      # only closes the row, so it stays an ordinary edit.
+      unrecoverable_when { |args| args[:decision].to_s == "accepted" }
+
       def self.perform(context:, suggestion_id:, decision:)
         user = context.user!
         unless DECISIONS.include?(decision)

@@ -249,6 +249,116 @@ RSpec.describe Chat::AgentLoop do
     end
   end
 
+  # The unit-level statements about each mode are in mode_policy_spec.rb.
+  # These are the ones that matter most: that a mode saying no means
+  # nothing was written, not merely that a decision came back.
+  describe "chat modes" do
+    let!(:item)   { create(:item, :published, restaurant: restaurant) }
+    let!(:review) { create(:review, user: user, item: item, body: "fine") }
+    let!(:peanut) { create(:ingredient, name: "Peanut", slug: "nut-peanut", path: "nut.peanut") }
+
+    def loop_in(mode, *responses)
+      described_class.new(conversation, client: ScriptedClient.new(*responses), mode: mode)
+    end
+
+    def last_tool_result
+      conversation.messages.reload.reverse.find(&:tool_result?).content.first
+    end
+
+    describe "planning" do
+      let(:add) { call_tool("update_avoid_lists", { "add_ingredients" => ["nut-peanut"] }) }
+
+      it "refuses the write and leaves the profile alone" do
+        result = loop_in("planning", add, say("Here is what I would do.")).run(text: "avoid peanut")
+
+        expect(result.text).to eq("Here is what I would do.")
+        expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+      end
+
+      # The refusal has to reach the model as the tool's own answer, or it
+      # spends its remaining rounds retrying the call it cannot make.
+      it "tells the model why, as the tool result" do
+        loop_in("planning", add, say("Here is the plan.")).run(text: "avoid peanut")
+
+        expect(last_tool_result["is_error"]).to be(true)
+        expect(last_tool_result["content"].first["text"]).to include("Planning mode")
+      end
+
+      it "still runs a read" do
+        client = ScriptedClient.new(call_tool("get_restaurant", { "restaurant" => "ninis" }),
+                                    say("It is on Main Ave."))
+
+        described_class.new(conversation, client: client, mode: "planning").run(text: "where is it")
+
+        expect(last_tool_result["is_error"]).to be_falsey
+      end
+
+      # A refusal is not a confirmation question, so there is nothing for
+      # a standing grant to answer.
+      context "when the caller has skip_confirmations set" do
+        let(:user) { create(:user, :super_admin) }
+
+        it "refuses the write anyway" do
+          loop_in("planning", add, say("Here is the plan.")).run(text: "avoid peanut")
+
+          expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+        end
+      end
+    end
+
+    describe "accept_edits" do
+      it "runs an edit that manual would have parked" do
+        user.profile.update!(avoid_ingredient_ids: [peanut.id])
+        remove = call_tool("update_avoid_lists", { "remove_ingredients" => ["nut-peanut"] })
+
+        result = loop_in("accept_edits", remove, say("Done.")).run(text: "stop avoiding peanut")
+
+        expect(result).not_to be_awaiting_confirmation
+        expect(user.profile.reload.avoid_ingredient_ids).to be_empty
+      end
+
+      it "still stops before a call no later edit can undo" do
+        result = loop_in("accept_edits", call_tool("delete_review", { "review_id" => review.id }))
+                 .run(text: "delete my review")
+
+        expect(result).to be_awaiting_confirmation
+        expect(Review.exists?(review.id)).to be(true)
+      end
+    end
+
+    describe "auto" do
+      it "runs the destructive call without parking" do
+        result = loop_in("auto", call_tool("delete_review", { "review_id" => review.id }), say("Gone."))
+                 .run(text: "delete my review")
+
+        expect(result).not_to be_awaiting_confirmation
+        expect(Review.exists?(review.id)).to be(false)
+      end
+    end
+
+    # A mode picked while a turn is in flight belongs to the next turn.
+    # The conversation is only the fallback for a caller that names none.
+    it "prefers the mode the turn was sent under over the stored one" do
+      conversation.update!(chat_mode: "auto")
+
+      result = loop_in("manual", call_tool("delete_review", { "review_id" => review.id }))
+               .run(text: "delete my review")
+
+      expect(result).to be_awaiting_confirmation
+      expect(Review.exists?(review.id)).to be(true)
+    end
+
+    it "falls back to the conversation's mode when the turn names none" do
+      conversation.update!(chat_mode: "auto")
+
+      result = loop_with(call_tool("delete_review", { "review_id" => review.id }), say("Gone."))
+               .run(text: "delete my review")
+
+      expect(result).not_to be_awaiting_confirmation
+      expect(Review.exists?(review.id)).to be(false)
+    end
+  end
+
   describe "the request it builds" do
     # Everything up to and including the block carrying the breakpoint.
     def cached_prefix(client)

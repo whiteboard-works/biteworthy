@@ -20,6 +20,7 @@ module Chat
           id:         conversation.id,
           title:      conversation.title,
           state:      conversation.state,
+          mode:       conversation.chat_mode,
           pending:    pending(conversation),
           created_at: conversation.created_at.iso8601,
           updated_at: conversation.updated_at.iso8601

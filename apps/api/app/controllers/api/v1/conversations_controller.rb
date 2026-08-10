@@ -33,6 +33,22 @@ module Api
                                                                  usage: current_user.is_admin?)
       end
 
+      # Switching modes without sending anything, so the picker survives a
+      # reload and follows the user between devices.
+      #
+      # Only `mode` is writable. A turn carries its own mode in the queued
+      # payload, so this is not the value a running turn reads — it is the
+      # one the next send will stamp.
+      def update
+        mode = params[:mode].to_s
+        unless Chat::ModePolicy::MODES.include?(mode)
+          return render json: { error: "Unknown mode." }, status: :unprocessable_entity
+        end
+
+        conversation.update!(chat_mode: mode)
+        render json: Chat::Serializer.conversation(conversation)
+      end
+
       def destroy
         conversation.destroy!
         head :no_content

@@ -10,6 +10,9 @@ class Conversation < ApplicationRecord
   has_many :events, class_name: "ConversationEvent", dependent: :destroy, inverse_of: :conversation
 
   validates :state, inclusion: { in: STATES }
+  # The four gates in `Chat::ModePolicy`. Listed there rather than here so
+  # the column and the thing that reads it cannot drift.
+  validates :chat_mode, inclusion: { in: Chat::ModePolicy::MODES }
 
   scope :newest_first, -> { order(updated_at: :desc) }
 

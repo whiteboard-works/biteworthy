@@ -86,6 +86,50 @@ module Tools
         superclass.respond_to?(:confirm_when) ? superclass.confirm_when : nil
       end
 
+      # A call no later call can put back.
+      #
+      # `destructive_hint` is a wide net — it covers every write that
+      # changes stored data, which is most of them, and `edit_item` sits
+      # in it beside `delete_taxonomy_node`. That width is right for
+      # "should a human see this once", and useless for "may a standing
+      # grant cover this", which is what a chat mode is: `accept_edits`
+      # waves through the edits and still has to stop here.
+      #
+      # The line is recoverability, not blast radius. Editing a menu the
+      # wrong way is fixed by editing it again; deleting a taxonomy node
+      # or granting someone admin is not fixed by anything the model can
+      # call next.
+      #
+      # A block rather than a flag because the case that matters is
+      # argument-dependent the same way `confirm_when` is —
+      # `edit_menu_structure` creates, renames, and deletes through one
+      # tool. Read only by `Chat::ModePolicy`; MCP clients have no mode,
+      # so nothing outside the chat changes behaviour on it.
+      def unrecoverable_when(&block)
+        if block
+          @unrecoverable_when = block
+          return block
+        end
+        return @unrecoverable_when if defined?(@unrecoverable_when) && @unrecoverable_when
+
+        superclass.respond_to?(:unrecoverable_when) ? superclass.unrecoverable_when : nil
+      end
+
+      # Fails CLOSED, for the same reason `gated_by_arguments?` does: the
+      # block is author-written and runs against model-shaped arguments,
+      # and the cost of guessing wrong is asymmetric. A needless question
+      # in `accept_edits` is a moment of friction; a skipped one is a
+      # deletion nobody agreed to.
+      def unrecoverable?(args = {})
+        gate = unrecoverable_when
+        return false unless gate
+
+        !!gate.call(args)
+      rescue StandardError => e
+        Rails.logger.error("[tools] #{name_value} unrecoverable_when raised: #{e.class}: #{e.message}")
+        true
+      end
+
       # The sentence the user actually approves. Declared here rather than
       # composed by the model: what someone is agreeing to must not be
       # phrased by the thing asking for the agreement.

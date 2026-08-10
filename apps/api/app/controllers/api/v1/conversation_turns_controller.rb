@@ -39,6 +39,7 @@ module Api
         if conversation.awaiting_confirmation?
           return render_error("Answer the pending confirmation first.", :conflict)
         end
+        return render_error("Unknown mode.") unless apply_mode
 
         title_from(text)
         enqueue("kind" => "message", "text" => text, "page" => page_context)
@@ -49,6 +50,7 @@ module Api
 
         approved = confirm_answer
         return render_error("Send confirm: true or false.") if approved.nil?
+        return render_error("Unknown mode.") unless apply_mode
 
         enqueue("kind" => "confirm", "confirm" => approved, "fingerprint" => params[:fingerprint].presence)
       end
@@ -73,9 +75,28 @@ module Api
       # has nothing to run.
       def enqueue(payload)
         cursor = last_position
-        conversation.enqueue_turn!(payload)
+        # Stamped now, not read by the job later. A mode picked while this
+        # turn is in flight belongs to the next one — see `AgentLoop#initialize`.
+        conversation.enqueue_turn!(payload.merge("mode" => conversation.chat_mode))
         Chat::CompletionJob.perform_later(conversation.id)
         render json: { queued: true, after: cursor }, status: :accepted
+      end
+
+      # A client may switch modes and send in one request, so the picker
+      # cannot lose a race with the message it was changed for.
+      #
+      # An unrecognised value is refused rather than quietly read as
+      # `manual`. Falling back is safe in one direction only: someone who
+      # asked for `auto` and silently got `manual` is asked a question
+      # they did not expect, but someone who asked for `planning` and
+      # silently got `manual` has writes running they thought were off.
+      def apply_mode
+        mode = params[:mode].presence
+        return true if mode.nil?
+        return false unless Chat::ModePolicy::MODES.include?(mode.to_s)
+
+        conversation.update!(chat_mode: mode.to_s)
+        true
       end
 
       def relay

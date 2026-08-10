@@ -26,9 +26,9 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
     allow(AnthropicClient).to receive(:new).and_return(StreamingScriptedClient.new(*responses))
   end
 
-  def send_message(text, id: conversation.id)
+  def send_message(text, id: conversation.id, mode: nil)
     post "/api/v1/conversations/#{id}/messages",
-         params: { message: text }.to_json,
+         params: { message: text, mode: mode }.compact.to_json,
          headers: headers.merge("Content-Type" => "application/json")
   end
 
@@ -108,6 +108,42 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
 
       expect(conversation.reload.pending_turns).to be_empty
       expect(conversation.messages.reload.pluck(:role)).to eq(%w[user assistant user assistant])
+    end
+
+    # Stamped at enqueue rather than read by the job, so a mode picked
+    # while this turn is in flight belongs to the next one.
+    describe "the turn's mode" do
+      it "rides in the queued payload" do
+        send_message("hi", mode: "planning")
+
+        expect(conversation.reload.pending_turns.first["mode"]).to eq("planning")
+      end
+
+      # A client may switch and send in one request, so the picker cannot
+      # lose a race with the message it was changed for.
+      it "is persisted on the conversation too, so a reload keeps it" do
+        send_message("hi", mode: "auto")
+
+        expect(conversation.reload.chat_mode).to eq("auto")
+      end
+
+      it "defaults to whatever the conversation already had" do
+        conversation.update!(chat_mode: "accept_edits")
+
+        send_message("hi")
+
+        expect(conversation.reload.pending_turns.first["mode"]).to eq("accept_edits")
+      end
+
+      # Refused rather than quietly read as `manual`: someone who asked
+      # for `planning` and silently got `manual` has writes running they
+      # thought were off.
+      it "refuses an unknown mode without queuing the message" do
+        send_message("hi", mode: "yolo")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(conversation.reload.pending_turns).to be_empty
+      end
     end
 
     it "titles an untitled conversation from the opening message" do

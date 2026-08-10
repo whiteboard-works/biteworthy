@@ -31,6 +31,7 @@ const mockGet = jest.fn();
 const mockSend = jest.fn();
 const mockEvents = jest.fn();
 const mockAnswer = jest.fn();
+const mockSetMode = jest.fn();
 jest.mock('../../lib/api/chat', () => ({
   ...jest.requireActual('../../lib/api/chat'),
   createConversation: (...a: unknown[]) => mockCreate(...a),
@@ -38,6 +39,7 @@ jest.mock('../../lib/api/chat', () => ({
   sendMessage: (...a: unknown[]) => mockSend(...a),
   fetchEvents: (...a: unknown[]) => mockEvents(...a),
   answerConfirmation: (...a: unknown[]) => mockAnswer(...a),
+  setConversationMode: (...a: unknown[]) => mockSetMode(...a),
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
@@ -47,6 +49,7 @@ const blank = {
   id: 'c-1',
   title: null,
   state: 'active' as const,
+  mode: 'manual' as const,
   pending: null,
   created_at: '2026-08-08T00:00:00Z',
   updated_at: '2026-08-08T00:00:00Z',
@@ -71,11 +74,14 @@ beforeEach(() => {
   mockSend.mockResolvedValue({ queued: true, after: 0 });
   mockEvents.mockResolvedValue({ events: [], running: false });
   mockAnswer.mockResolvedValue({ queued: true, after: 0 });
+  mockSetMode.mockResolvedValue(blank);
 });
 
 async function type(text: string) {
   fireEvent.changeText(await screen.findByLabelText('Message'), text);
-  fireEvent.press(screen.getByText('Send'));
+  // "Send" when idle, "Queue" while a turn is running — the button says
+  // which of the two pressing it will do.
+  fireEvent.press(screen.getByText(/^(Send|Queue)$/));
 }
 
 it('opens on a prompt for what to ask', async () => {
@@ -154,7 +160,135 @@ describe('when a destructive call is parked', () => {
 
     fireEvent.press(await screen.findByText('No'));
 
-    await waitFor(() => expect(mockAnswer).toHaveBeenCalledWith('jwt-token', 'c-1', false, 'fp-1'));
+    await waitFor(() =>
+      expect(mockAnswer).toHaveBeenCalledWith('jwt-token', 'c-1', false, 'fp-1', 'manual'),
+    );
+  });
+
+  // The composer used to go dead here, which meant a parked confirmation
+  // also blocked "actually, never mind, do X instead" — the message most
+  // likely to be typed at exactly that moment.
+  it('still takes a message while the confirmation waits, and holds it', async () => {
+    render(<ChatScreen />);
+    await type('stop avoiding peanuts');
+    await screen.findByTestId('chat-confirm');
+
+    await type('actually, leave it');
+
+    expect(await screen.findByTestId('chat-queued')).toHaveTextContent(/actually, leave it/);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A menu scan is a minute or more. The input used to go dead for all of
+// it, so a thought that arrived during one had nowhere to go.
+describe('typing while a turn is running', () => {
+  // Two poll rounds with `running: true` first, so the turn is still in
+  // flight while the second message is typed.
+  function heldTurn() {
+    let release = () => {};
+    mockEvents.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ events: [], running: false });
+        }),
+    );
+    return () => release();
+  }
+
+  it('queues the message rather than dropping it or sending it now', async () => {
+    const release = heldTurn();
+    render(<ChatScreen />);
+    await type('what can I eat');
+    await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+
+    await type('and check Ninis too');
+
+    expect(await screen.findByTestId('chat-queued')).toHaveTextContent(/and check Ninis too/);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    release();
+  });
+
+  // Dequeuing before delivering is what stops a second flush picking up
+  // the same message — but it means a send the server never accepted
+  // would vanish with nothing but an error banner to show for it.
+  it('puts a queued message back when the send never reaches the server', async () => {
+    const release = heldTurn();
+    render(<ChatScreen />);
+    await type('what can I eat');
+    await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+    await type('and check Ninis too');
+    await screen.findByTestId('chat-queued');
+    mockSend.mockRejectedValueOnce(new Error('Network request failed'));
+
+    release();
+
+    expect(await screen.findByTestId('chat-error')).toHaveTextContent('Network request failed');
+    expect(await screen.findByTestId('chat-queued')).toHaveTextContent(/and check Ninis too/);
+  });
+
+  // The draft is cleared the instant Send is tapped, so a failed send has
+  // to hand it back or the text is gone for good.
+  it('gives the draft back when the send fails', async () => {
+    mockSend.mockRejectedValueOnce(new Error('Network request failed'));
+
+    render(<ChatScreen />);
+    await type('what can I eat');
+
+    await waitFor(() => expect(screen.getByLabelText('Message')).toHaveProp('value', 'what can I eat'));
+  });
+
+  it('sends it once the turn it was typed during finishes', async () => {
+    const release = heldTurn();
+    render(<ChatScreen />);
+    await type('what can I eat');
+    await waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+    await type('and check Ninis too');
+    await screen.findByTestId('chat-queued');
+
+    release();
+
+    await waitFor(() =>
+      expect(mockSend).toHaveBeenCalledWith('jwt-token', 'c-1', 'and check Ninis too', 'manual'),
+    );
+  });
+});
+
+// The gate is the server's. The picker only says which one to use.
+describe('the mode picker', () => {
+  it('opens in the mode the server stored', async () => {
+    mockGet.mockResolvedValue({ ...answered('ok'), mode: 'accept_edits' as const });
+
+    render(<ChatScreen />);
+    await type('hi');
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Edits mode').props.accessibilityState).toMatchObject({
+        selected: true,
+      }),
+    );
+  });
+
+  it('persists a switch so it survives a reload', async () => {
+    render(<ChatScreen />);
+    await type('hi');
+    await waitFor(() => expect(mockSend).toHaveBeenCalled());
+
+    fireEvent.press(screen.getByLabelText('Plan mode'));
+
+    await waitFor(() => expect(mockSetMode).toHaveBeenCalledWith('jwt-token', 'c-1', 'planning'));
+  });
+
+  // Someone in `auto` has switched off the only place a destructive call
+  // stops for a human. That has to be readable without opening anything.
+  it('says so on screen when the mode is not the default', async () => {
+    render(<ChatScreen />);
+    await screen.findByTestId('chat-welcome');
+    expect(screen.queryByTestId('chat-mode-notice')).toBeNull();
+
+    fireEvent.press(screen.getByLabelText('Auto mode'));
+
+    expect(await screen.findByTestId('chat-mode-notice')).toHaveTextContent('Never asks.');
   });
 });
 

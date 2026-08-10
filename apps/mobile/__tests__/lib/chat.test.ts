@@ -4,6 +4,7 @@ import {
   compose,
   fetchEvents,
   sendMessage,
+  setConversationMode,
   stopTurn,
   type Attachment,
 } from '../../lib/api/chat';
@@ -22,10 +23,33 @@ describe('chat api', () => {
   it('asks for a turn and gets back the cursor to watch from', async () => {
     const fetchImpl = jsonResponse(202, { queued: true, after: 7 });
 
-    const queued = await sendMessage('jwt', 'c-1', 'hi', { fetchImpl });
+    const queued = await sendMessage('jwt', 'c-1', 'hi', undefined, { fetchImpl });
 
     expect(queued.after).toBe(7);
     expect((fetchImpl as jest.Mock).mock.calls[0][0]).toContain('/api/v1/conversations/c-1/messages');
+  });
+
+  // The gate is the server's, so the mode has to travel with the turn —
+  // a client that keeps it to itself is a client whose picker does
+  // nothing.
+  it('carries the chosen mode with the turn', async () => {
+    const fetchImpl = jsonResponse(202, { queued: true, after: 1 });
+
+    await sendMessage('jwt', 'c-1', 'delete it', 'planning', { fetchImpl });
+
+    const init = (fetchImpl as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toEqual({ message: 'delete it', mode: 'planning' });
+  });
+
+  it('switches mode without sending anything', async () => {
+    const fetchImpl = jsonResponse(200, { id: 'c-1', mode: 'auto' });
+
+    await setConversationMode('jwt', 'c-1', 'auto', { fetchImpl });
+
+    const [url, init] = (fetchImpl as jest.Mock).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/v1/conversations/c-1');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'auto' });
   });
 
   // Mobile polls where web streams: React Native's fetch exposes no
@@ -49,7 +73,7 @@ describe('chat api', () => {
   it('sends the confirmation bound to the parked call', async () => {
     const fetchImpl = jsonResponse(202, { queued: true, after: 1 });
 
-    await answerConfirmation('jwt', 'c-1', false, 'fp-abc', { fetchImpl });
+    await answerConfirmation('jwt', 'c-1', false, 'fp-abc', undefined, { fetchImpl });
 
     const init = (fetchImpl as jest.Mock).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
@@ -65,10 +89,10 @@ describe('chat api', () => {
   it('surfaces the server message on a real failure', async () => {
     const fetchImpl = jsonResponse(422, { error: 'That message is too long.' });
 
-    await expect(sendMessage('jwt', 'c-1', 'x', { fetchImpl })).rejects.toThrow(
+    await expect(sendMessage('jwt', 'c-1', 'x', undefined, { fetchImpl })).rejects.toThrow(
       'That message is too long.',
     );
-    await expect(sendMessage('jwt', 'c-1', 'x', { fetchImpl })).rejects.toBeInstanceOf(ChatError);
+    await expect(sendMessage('jwt', 'c-1', 'x', undefined, { fetchImpl })).rejects.toBeInstanceOf(ChatError);
   });
 
   // Attachments travel as ids named in the message text, never as a side

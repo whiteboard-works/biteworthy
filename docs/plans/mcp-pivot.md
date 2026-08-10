@@ -372,10 +372,13 @@ behind it never does — which the M8 review caught and this closes. See
   Mapped addresses are normalized to IPv4 before the check now, and `::` and
   the NAT64 prefix are blocked. DNS rebinding between check and connect
   remains possible and remains documented as such.
-- **Two turns fired concurrently on one conversation would interleave.**
-  The UI prevents it by disabling the composer while streaming; the server
-  does not. A `running` state plus a check-and-set would fix it and costs a
-  migration — worth it once more than one client drives a conversation.
+- ~~**Two turns fired concurrently on one conversation would interleave.**~~
+  **Done, and no longer the UI's job.** `ConversationRun.acquire` is the
+  check-and-set — a lock held for the whole turn, with `conversations.pending_turns`
+  as the queue behind it, so a second ask is serialized rather than raced.
+  The composer no longer disables while a turn runs (a menu scan is a
+  minute of dead input); a message typed meanwhile is held client-side and
+  sent when the turn ends.
 - ~~**Uploaded blobs are never swept.**~~ **Done.**
   `PurgeUnscannedAttachmentsJob` runs daily and purges unattached blobs
   past a 24h grace window. `unattached` is a safe signal because
