@@ -242,16 +242,26 @@ export function ChatClient(): ReactElement {
             {/* A per-person preference for a quieter read, not a new
                 default — showing every tool call is the honest-disclosure
                 claim made visible, so it stays on unless someone turns it
-                off. `aria-pressed` because this is a toggle, not a
-                command. */}
+                off.
+
+                A state label, not an action one. "Hide tools" alongside
+                `aria-pressed={showTools}` announces as "Hide tools,
+                pressed" in exactly the state where tools are still
+                showing, which reads as the opposite of the truth. The
+                canonical toggle is a stable name plus a pressed state,
+                and the fill carries the same signal visually. */}
             <button
               type="button"
               onClick={toggleTools}
               aria-pressed={showTools}
               data-testid="tools-toggle"
-              className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700"
+              className={`rounded-bw-md border px-bw-3 py-bw-1 text-bw-sm ${
+                showTools
+                  ? 'border-zinc-400 bg-zinc-100 text-zinc-900'
+                  : 'border-zinc-300 text-zinc-500'
+              }`}
             >
-              {showTools ? 'Hide tools' : 'Show tools'}
+              Tools
             </button>
             <button
               type="button"

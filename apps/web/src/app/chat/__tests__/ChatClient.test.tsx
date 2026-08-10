@@ -119,17 +119,15 @@ describe('ChatClient', () => {
   // happen while the turn is still in flight.
   it('narrates a running tool with the sentence the tool declared', async () => {
     const inFlight: { release: () => void } = { release: () => {} };
-    watchTurn.mockImplementation(
-      (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
-        onEvent({
-          type: 'tool_use',
-          name: 'get_menu',
-          input: {},
-          doing: "Reading the menu at Nini's",
-        });
-        return new Promise<void>((resolve) => (inFlight.release = resolve));
-      },
-    );
+    watchTurn.mockImplementation((_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+      onEvent({
+        type: 'tool_use',
+        name: 'get_menu',
+        input: {},
+        doing: "Reading the menu at Nini's",
+      });
+      return new Promise<void>((resolve) => (inFlight.release = resolve));
+    });
 
     render(<ChatClient />);
     await type('what can I eat');
@@ -151,7 +149,9 @@ describe('ChatClient', () => {
           id: 'm-1',
           role: 'assistant',
           position: 1,
-          blocks: [{ type: 'tool_use', id: 't-1', name: 'get_menu', input: { restaurant: 'ninis' } }],
+          blocks: [
+            { type: 'tool_use', id: 't-1', name: 'get_menu', input: { restaurant: 'ninis' } },
+          ],
         },
         {
           id: 'm-2',
@@ -209,7 +209,8 @@ describe('ChatClient', () => {
     // people should not have to read arguments to know what they are
     // agreeing to.
     it('renders the sentence the tool declared when there is one', async () => {
-      const prompt = 'Stop avoiding nut-peanut? Dishes containing it will start showing as safe for you.';
+      const prompt =
+        'Stop avoiding nut-peanut? Dishes containing it will start showing as safe for you.';
       getConversation.mockResolvedValue({
         ...blank,
         state: 'awaiting_confirmation',
@@ -399,6 +400,24 @@ describe('ChatClient', () => {
       expect(await screen.findByTestId('tool-card')).toBeInTheDocument();
     });
 
+    // A stable name plus a pressed state, not an action label. "Hide
+    // tools" with `aria-pressed={showTools}` announces as "Hide tools,
+    // pressed" in exactly the state where tools are still showing, which
+    // is the opposite of the truth.
+    it('announces its state rather than its action', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByTestId('tool-card');
+
+      const toggle = screen.getByTestId('tools-toggle');
+      expect(toggle).toHaveTextContent('Tools');
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    });
+
     it('hides them on request and keeps the answer', async () => {
       render(<ChatClient />);
       await type('hi');
@@ -436,22 +455,30 @@ describe('ChatClient', () => {
 
   it('resumes from the cursor when a turn outlives one connection', async () => {
     watchTurn
-      .mockImplementationOnce(async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
-        onEvent({ type: 'text_delta', text: 'Reading ' });
-        return 7; // server closed mid-turn, resume from position 7
-      })
-      .mockImplementationOnce(async (_id: string, after: number, onEvent: (e: ChatEvent) => void) => {
-        expect(after).toBe(7);
-        onEvent({ type: 'done', text: 'Reading the menu.' });
-        return null;
-      });
+      .mockImplementationOnce(
+        async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+          onEvent({ type: 'text_delta', text: 'Reading ' });
+          return 7; // server closed mid-turn, resume from position 7
+        },
+      )
+      .mockImplementationOnce(
+        async (_id: string, after: number, onEvent: (e: ChatEvent) => void) => {
+          expect(after).toBe(7);
+          onEvent({ type: 'done', text: 'Reading the menu.' });
+          return null;
+        },
+      );
     getConversation.mockResolvedValue(answered('Reading the menu.'));
 
     render(<ChatClient />);
     await type('scan this');
 
     await waitFor(() => expect(watchTurn).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('Reading the menu.')).toBeInTheDocument();
+    // Settled bubble, not a bare text node — the live turn and the
+    // persisted message render the same words in different subtrees, so
+    // matching the text can resolve to the node `done` is about to
+    // unmount. Same reason as the streaming test above.
+    expect(await screen.findByTestId('assistant-message')).toHaveTextContent('Reading the menu.');
   });
 
   it('shows an error event without losing the conversation', async () => {

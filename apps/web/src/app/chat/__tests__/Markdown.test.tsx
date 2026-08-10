@@ -52,6 +52,50 @@ describe('Markdown', () => {
     expect(screen.getByText('click me')).toBeInTheDocument();
   });
 
+  // A protocol-relative URL starts with a slash and is *not* relative —
+  // it is absolute and cross-origin, inheriting the page's scheme. The
+  // "starts with / so it's ours" shortcut waved these straight through
+  // without the allowlist ever seeing them.
+  it.each(['//evil.tld/phish', '\\\\evil.tld/phish'])(
+    'refuses the protocol-relative link %s',
+    (href) => {
+      render(<Markdown text={`[deal](${href})`} />);
+
+      expect(screen.queryByRole('link')).toBeNull();
+      expect(screen.getByText('deal')).toBeInTheDocument();
+    },
+  );
+
+  // A single leading slash followed by a backslash never reaches the
+  // browser as a protocol-relative URL — react-markdown percent-encodes
+  // the backslash first, leaving an ordinary same-origin path. Pinned so
+  // the guard above is not "hardened" against a case that is already safe.
+  it('leaves a lone backslash as an encoded same-origin path', () => {
+    render(<Markdown text={'[deal](/\\evil.tld/phish)'} />);
+
+    expect(screen.getByRole('link', { name: 'deal' })).toHaveAttribute(
+      'href',
+      '/%5Cevil.tld/phish',
+    );
+  });
+
+  it('still links a genuine same-origin path', () => {
+    render(<Markdown text="[menu](/durango/vegan)" />);
+
+    expect(screen.getByRole('link', { name: 'menu' })).toHaveAttribute('href', '/durango/vegan');
+  });
+
+  // Markdown collapses a single newline into a space, and a model
+  // separating short lines with one `\n` — hours, an address, a dish per
+  // line — is the common case. The old renderer preserved them.
+  it('keeps single newlines as line breaks', () => {
+    const { container } = render(<Markdown text={'Open now.\nCall ahead.'} />);
+
+    const paragraph = container.querySelector('p');
+    expect(paragraph?.className).toContain('whitespace-pre-wrap');
+    expect(paragraph?.textContent).toBe('Open now.\nCall ahead.');
+  });
+
   // A half-arrived list is rendered while it streams, so unterminated
   // markup has to degrade rather than throw.
   it('survives markup that is still arriving', () => {

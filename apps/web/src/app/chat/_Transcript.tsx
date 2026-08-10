@@ -34,12 +34,7 @@ export function Transcript({
   return (
     <div className="flex flex-col gap-bw-6" data-testid="chat-transcript">
       {messages.map((message) => (
-        <MessageRow
-          key={message.id}
-          message={message}
-          outcomes={outcomes}
-          showTools={showTools}
-        />
+        <MessageRow key={message.id} message={message} outcomes={outcomes} showTools={showTools} />
       ))}
       {live ? <LiveRow turn={live} showTools={showTools} /> : null}
       {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={onAnswer} /> : null}
@@ -143,9 +138,7 @@ function AssistantBlock({
   if (block.type === 'text') return <Markdown text={block.text} />;
   if (block.type === 'thinking') return <Thinking text={block.text} />;
   if (block.type === 'tool_use') {
-    return (
-      <ToolCard name={block.name} input={block.input} ok={outcomes.get(block.id)} at={at} />
-    );
+    return <ToolCard name={block.name} input={block.input} ok={outcomes.get(block.id)} at={at} />;
   }
   return null;
 }
@@ -195,19 +188,19 @@ function ToolCard({
     >
       <span className="flex items-baseline justify-between gap-bw-2 font-medium">
         <span>
-        {doing ? (
-          running ? (
-            <>{doing}…</>
-          ) : ok === false ? (
-            <>Could not: {doing.toLowerCase()}</>
+          {doing ? (
+            running ? (
+              <>{doing}…</>
+            ) : ok === false ? (
+              <>Could not: {doing.toLowerCase()}</>
+            ) : (
+              doing
+            )
           ) : (
-            doing
-          )
-        ) : (
-          <>
-            {running ? 'Running' : ok === false ? "Couldn't" : 'Did'} {humanize(name)}
-          </>
-        )}
+            <>
+              {running ? 'Running' : ok === false ? "Couldn't" : 'Did'} {humanize(name)}
+            </>
+          )}
         </span>
         <Timestamp at={at} />
       </span>

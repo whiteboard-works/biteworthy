@@ -30,8 +30,17 @@ const SAFE_SCHEMES = ['http:', 'https:'];
 
 function isSafeHref(href: string | undefined): href is string {
   if (!href) return false;
-  // Relative links are ours and always fine.
-  if (href.startsWith('/') || href.startsWith('#')) return true;
+
+  // `//evil.tld/x` starts with a slash and is **not** relative — it is an
+  // absolute cross-origin URL that inherits the page's scheme, so a
+  // "starts with / means it's ours" shortcut waves it straight through
+  // and `new URL(href)` is never reached to catch it. Backslashes get the
+  // same treatment because browsers normalise `\\` to `//`.
+  if (/^\s*[/\\]{2}/.test(href)) return false;
+
+  // Now genuinely ours: a fragment or a path on this origin.
+  if (href.startsWith('#') || href.startsWith('/')) return true;
+
   try {
     return SAFE_SCHEMES.includes(new URL(href).protocol);
   } catch {
@@ -45,22 +54,32 @@ export function Markdown({ text }: { text: string }): ReactElement {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="mb-bw-2 last:mb-0">{children}</p>,
+          // `whitespace-pre-wrap` because markdown collapses a *single*
+          // newline into a space, and a model separating short lines with
+          // one `\n` — hours, an address, one dish per line — is the
+          // common case. The old renderer had this and losing it would
+          // have run those lines together. Deliberately not `remark-breaks`:
+          // same result for this content, one fewer dependency.
+          p: ({ children }) => <p className="mb-bw-2 whitespace-pre-wrap last:mb-0">{children}</p>,
           ul: ({ children }) => (
             <ul className="mb-bw-2 list-disc space-y-bw-1 pl-bw-4 last:mb-0">{children}</ul>
           ),
           ol: ({ children }) => (
             <ol className="mb-bw-2 list-decimal space-y-bw-1 pl-bw-4 last:mb-0">{children}</ol>
           ),
-          li: ({ children }) => <li className="pl-bw-1">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-zinc-900">{children}</strong>,
+          li: ({ children }) => <li className="whitespace-pre-wrap pl-bw-1">{children}</li>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-zinc-900">{children}</strong>
+          ),
           em: ({ children }) => <em className="italic">{children}</em>,
           h1: ({ children }) => <Heading>{children}</Heading>,
           h2: ({ children }) => <Heading>{children}</Heading>,
           h3: ({ children }) => <Heading>{children}</Heading>,
           h4: ({ children }) => <Heading>{children}</Heading>,
           code: ({ children }) => (
-            <code className="rounded-bw-sm bg-zinc-100 px-bw-1 py-[1px] text-bw-sm">{children}</code>
+            <code className="rounded-bw-sm bg-zinc-100 px-bw-1 py-[1px] text-bw-sm">
+              {children}
+            </code>
           ),
           pre: ({ children }) => (
             <pre className="mb-bw-2 overflow-x-auto rounded-bw-md bg-zinc-100 p-bw-3 text-bw-sm last:mb-0">
