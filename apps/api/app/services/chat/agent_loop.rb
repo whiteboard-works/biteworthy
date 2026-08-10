@@ -14,7 +14,9 @@ module Chat
   #     that publishes, deletes, or changes what a person is shown runs
   #     because a model decided to — a human answers first. Each such
   #     call needs its own confirmation, so a queue of them parks one at
-  #     a time.
+  #     a time. How much of that a person has agreed to up front is the
+  #     turn's `mode`; `Chat::ModePolicy` owns the four answers, and the
+  #     tool catalogue is the same under all of them.
   #
   #   * **Every tool_use gets a tool_result.** The Messages API rejects a
   #     transcript where an assistant's tool_use has no answer, so a
@@ -84,13 +86,19 @@ module Chat
     # needs the run before the turn starts — the event writer stamps every
     # row with it. A direct caller passing nothing gets the lock acquired
     # and released here instead.
-    def initialize(conversation, client: nil, public_host: nil, on_event: nil, run: nil, page: nil)
+    # `mode` is the chat mode the turn was *sent* under, carried in the
+    # queued payload rather than read off the conversation here. A mode
+    # picked after the send belongs to the next turn: someone who switches
+    # to planning while a turn is mid-flight is telling us what to do next,
+    # not retroactively withdrawing consent for the calls already running.
+    def initialize(conversation, client: nil, public_host: nil, on_event: nil, run: nil, page: nil, mode: nil)
       @conversation = conversation
       @client       = client || AnthropicClient.new(model: MODEL)
       @public_host  = public_host
       @on_event     = on_event
       @injected_run = run
       @page         = page
+      @mode         = ModePolicy.resolve(mode || conversation.chat_mode)
     end
 
     # `text` starts a new turn. `confirm` answers a parked tool call:
@@ -225,8 +233,14 @@ module Chat
       results << settled
       @conversation.update!(state: "active", pending_tool_call: nil)
 
-      # The rest of the queue still runs through the gate — confirming
-      # one destructive call does not pre-authorize the next.
+      # Deliberately not re-checked against the mode. Someone who switched
+      # to planning and then answered this prompt has given two
+      # instructions, and the one naming this exact call — bound to its
+      # fingerprint — is the more specific of the two.
+      #
+      # The rest of the queue still runs through the gate, and through the
+      # mode with it: confirming one destructive call does not
+      # pre-authorize the next.
       outcome = continue_queue(queue.drop(1), results)
       return outcome if outcome.awaiting_confirmation?
 
@@ -272,14 +286,23 @@ module Chat
     # nil-state :continue once every call in the turn is answered.
     def continue_queue(queue, results)
       queue.each_with_index do |call, index|
-        if confirm_required?(call)
+        case decide(call)
+        when :park
           return Result.new(state: :awaiting_confirmation, pending: park(results, queue.drop(index)))
+        when :refuse
+          # Narrated like any other call, and deliberately so: the user
+          # asked for a plan and what the model reached for on the way is
+          # part of the answer. The refusal is the tool's own result, so
+          # the transcript replays identically to what was watched live.
+          emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
+          emit(type: "tool_result", name: call["name"], ok: false)
+          results << refusal(call)
+        else
+          emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
+          result = execute(call, confirmation: standing_grant_for(call))
+          emit(type: "tool_result", name: call["name"], ok: !result[:is_error])
+          results << result
         end
-
-        emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
-        result = execute(call)
-        emit(type: "tool_result", name: call["name"], ok: !result[:is_error])
-        results << result
       end
 
       @conversation.append!(role: "user", content: results) if results.any?
@@ -317,15 +340,48 @@ module Chat
       Tools::Registry.find(call["name"])&.running_description_for(arguments_for(call))
     end
 
-    def confirm_required?(call)
-      # A caller with `skip_confirmations` never parks. Checked here as
-      # well as in `Tools::Base#confirmation_gate` because the chat door
-      # parks *before* the tool boundary is reached — without this the
-      # turn would stop and wait for an answer that the gate below would
-      # then have waved through anyway.
-      return false if context.skip_confirmations?
+    # :run, :park, or :refuse. The mode owns the decision; this only
+    # resolves the call into what the policy needs to read.
+    #
+    # `skip_confirmations` rides into the policy rather than short-
+    # circuiting in front of it, because it does not answer every
+    # question the policy asks: it is a standing yes to *parking*, and
+    # planning mode's refusal is not a confirmation question at all. One
+    # place decides which beats which.
+    #
+    # It is consulted on this side at all — `Tools::Base#confirmation_gate`
+    # checks it too — because the chat door parks *before* the tool
+    # boundary is reached, and without it the turn would stop and wait for
+    # an answer the gate below would then have waved through.
+    def decide(call)
+      policy.decide(Tools::Registry.find(call["name"]), arguments_for(call))
+    end
 
-      ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
+    def policy
+      @policy ||= ModePolicy.new(@mode, skip_confirmations: context.skip_confirmations?)
+    end
+
+    def refusal(call)
+      tool_result(call, { error: "planning_mode", message: ModePolicy::REFUSAL }, error: true)
+    end
+
+    # The mode's answer, in the form `Tools::Base` can verify.
+    #
+    # `accept_edits` and `auto` say run to calls that manual would have
+    # parked — but the tool boundary re-checks the gate on the way
+    # through, and it has to: MCP has no modes, so `confirmation_gate` is
+    # the only door on that side and must not learn to trust its caller.
+    # A mode is therefore a standing *answer*, not a bypass, and it
+    # travels as the same grant `resume` mints when a person answers one
+    # call in person.
+    #
+    # nil for anything that was not gated to begin with, which is nearly
+    # every call — minting one per tool call would spend a signature on
+    # `get_menu`.
+    def standing_grant_for(call)
+      return nil unless ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
+
+      grant_for(call)
     end
 
     # The person answered the question `park` wrote and the fingerprint
@@ -558,7 +614,7 @@ module Chat
     # response over it if the profile changes mid-turn — and the timestamp
     # riding alongside it is what "now" was when the user asked.
     def system_prompt
-      @system_prompt ||= SystemPrompt.new(context: context, page: @page).blocks(@client)
+      @system_prompt ||= SystemPrompt.new(context: context, page: @page, mode: @mode).blocks(@client)
     end
 
     def tool_definitions

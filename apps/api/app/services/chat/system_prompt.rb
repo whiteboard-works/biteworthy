@@ -26,10 +26,11 @@ module Chat
     # cache-busting noise at that.
     MAX_LISTED = 40
 
-    def initialize(context:, page: nil, now: nil)
+    def initialize(context:, page: nil, now: nil, mode: nil)
       @context = context
       @page    = page.presence && page.to_h.stringify_keys
       @now     = now || Time.current
+      @mode    = ModePolicy.resolve(mode)
     end
 
     # Stable blocks first, breakpoint on the last of them, volatile last.
@@ -48,10 +49,40 @@ module Chat
     end
 
     def volatile
-      [current_time, caller_section, page_section].compact.join("\n\n")
+      [current_time, mode_section, caller_section, page_section].compact.join("\n\n")
     end
 
     private
+
+    # Only planning mode says anything, and only because it changes what
+    # the model should *do*: writes come back refused, and a model that
+    # does not know why will spend its rounds retrying them.
+    #
+    # The other three are deliberately silent. `accept_edits` and `auto`
+    # change who answers the confirmation question, not whether the call
+    # was a good idea, and a model told its calls will not be questioned
+    # is a model with one less reason to be careful. It should reach for
+    # the same tools it would have reached for in manual.
+    #
+    # Below the cache breakpoint with the rest of the volatile block: a
+    # mode is per-turn, and a per-turn byte in the stable prefix costs the
+    # whole ~21.6k-token cache on every message.
+    def mode_section
+      return nil unless @mode == ModePolicy::PLANNING
+
+      <<~TEXT.strip
+        ## Planning mode is on
+
+        Read-only tools work normally. **Every write will be refused** —
+        it will not run, and nothing will change.
+
+        Use the reads you need, then answer with what you would do: the
+        specific changes, in order, and what each one would affect. Say
+        that planning mode is on and that they can switch it off to run
+        the plan. Do not attempt a write to find out whether it is
+        allowed.
+      TEXT
+    end
 
     # Rides in the volatile block on purpose. A timestamp in the cached
     # prefix would invalidate it on every single turn, which is the

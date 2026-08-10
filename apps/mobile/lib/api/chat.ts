@@ -59,10 +59,19 @@ export interface PendingTool {
   fingerprint: string | null;
 }
 
+/**
+ * How much this conversation has agreed to in advance.
+ *
+ * The gate is the server's — `Chat::ModePolicy` decides what runs, what
+ * parks, and what is refused. Nothing here re-implements it.
+ */
+export type ChatMode = 'planning' | 'manual' | 'accept_edits' | 'auto';
+
 export interface Conversation {
   id: string;
   title: string | null;
   state: 'active' | 'awaiting_confirmation' | 'failed';
+  mode: ChatMode;
   pending: PendingTool | null;
   created_at: string;
   updated_at: string;
@@ -163,12 +172,29 @@ export function sendMessage(
   jwt: string,
   id: string,
   message: string,
+  mode?: ChatMode,
   opts: Options = {},
 ): Promise<{ queued: boolean; after: number }> {
   return request(
     jwt,
     `/api/v1/conversations/${encodeURIComponent(id)}/messages`,
-    { method: 'POST', body: JSON.stringify({ message }) },
+    { method: 'POST', body: JSON.stringify({ message, mode }) },
+    opts,
+  );
+}
+
+/** Switch modes without sending anything, so the picker survives a
+ *  reload. A turn already in flight keeps the mode it was sent under. */
+export function setConversationMode(
+  jwt: string,
+  id: string,
+  mode: ChatMode,
+  opts: Options = {},
+): Promise<Conversation> {
+  return request(
+    jwt,
+    `/api/v1/conversations/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify({ mode }) },
     opts,
   );
 }
@@ -180,12 +206,13 @@ export function answerConfirmation(
   id: string,
   confirm: boolean,
   fingerprint: string | null,
+  mode?: ChatMode,
   opts: Options = {},
 ): Promise<{ queued: boolean; after: number }> {
   return request(
     jwt,
     `/api/v1/conversations/${encodeURIComponent(id)}/confirm`,
-    { method: 'POST', body: JSON.stringify({ confirm, fingerprint }) },
+    { method: 'POST', body: JSON.stringify({ confirm, fingerprint, mode }) },
     opts,
   );
 }

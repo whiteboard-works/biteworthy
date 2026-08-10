@@ -21,11 +21,13 @@ import {
   fetchEvents,
   getConversation,
   sendMessage,
+  setConversationMode,
   stopTurn,
   uploadAttachment,
   type Attachment,
   type ChatEvent,
   type ChatMessage,
+  type ChatMode,
   type Conversation,
   type PendingTool,
 } from '../lib/api/chat';
@@ -54,6 +56,25 @@ const POLL_MS = 900;
 // A worker that never picks the turn up would otherwise poll forever.
 const MAX_POLL_MS = 5 * 60 * 1000;
 
+/**
+ * How much the assistant may do without asking. Short labels because
+ * four of them share a phone's width; the full sentence is the
+ * accessibility hint, which is also where a screen reader wants it.
+ */
+const MODES: { value: ChatMode; label: string; hint: string }[] = [
+  { value: 'planning', label: 'Plan', hint: 'Reads only. Proposes changes, never makes them.' },
+  { value: 'manual', label: 'Manual', hint: 'Asks before anything destructive.' },
+  { value: 'accept_edits', label: 'Edits', hint: 'Makes edits without asking. Still asks before a delete.' },
+  { value: 'auto', label: 'Auto', hint: 'Never asks.' },
+];
+
+/** A message typed while the assistant was busy. */
+interface QueuedMessage {
+  id: string;
+  text: string;
+  attachments: Attachment[];
+}
+
 export default function ChatScreen() {
   const tracker = useTracker();
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -64,7 +85,16 @@ export default function ChatScreen() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ChatMode>('manual');
+  const [queued, setQueued] = useState<QueuedMessage[]>([]);
   const bottom = useRef<ScrollView>(null);
+  // Read from inside `run`'s teardown, which closes over the render that
+  // started the turn — by then the state is a minute stale. The refs are
+  // current; the state is what draws.
+  const queue = useRef<QueuedMessage[]>([]);
+  const deliverLatest = useRef<
+    (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
+  >(async () => false);
 
   const requireJwt = useCallback(async (): Promise<string | null> => {
     const jwt = await getJwt();
@@ -80,13 +110,20 @@ export default function ChatScreen() {
     setConversation(next);
     setMessages(next.messages ?? []);
     setPending(next.pending);
+    // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
+    // API that does not send one must not leave the picker claiming a
+    // looser gate than the server is applying.
+    setMode(next.mode ?? 'manual');
   };
 
-  const refresh = async (jwt: string, id: string) => {
+  const refresh = async (jwt: string, id: string): Promise<Conversation | null> => {
     try {
-      adopt(await getConversation(jwt, id));
+      const next = await getConversation(jwt, id);
+      adopt(next);
+      return next;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     }
   };
 
@@ -127,18 +164,49 @@ export default function ChatScreen() {
         tool_count: 0,
         duration_ms: Date.now() - startedAt,
       });
-      await refresh(jwt, id);
+      const next = await refresh(jwt, id);
+      // Drained from the teardown of the turn that was blocking it, not
+      // from an effect on `busy` — an effect fires on the render where
+      // `busy` flips false and the queue has already been shortened,
+      // which is one render before the next turn sets it back, so two
+      // queued messages would leave together.
+      //
+      // Not while a confirmation is parked: the server refuses a message
+      // behind one, and the queued message is quite often the user
+      // changing their mind about the thing being asked.
+      if (next && !next.pending) flush(next);
     }
   };
 
-  const send = async () => {
-    const text = compose(draft.trim(), attachments);
-    if (!text) return;
+  // The conversation is handed in rather than read from state: the
+  // `setConversation` that just ran may not have re-rendered yet, and a
+  // deliver that reads it as null opens a second conversation.
+  const flush = (active: Conversation) => {
+    const next = queue.current[0];
+    if (!next) return;
+
+    queue.current = queue.current.slice(1);
+    setQueued(queue.current);
+    void deliverLatest.current(next.text, next.attachments, active);
+  };
+
+  // Answers whether the message actually left, so a caller that already
+  // cleared the input can put it back rather than eating what someone
+  // typed because the network was down.
+  const deliver = async (
+    text: string,
+    files: Attachment[],
+    known?: Conversation,
+  ): Promise<boolean> => {
+    const composed = compose(text, files);
+    if (!composed) return false;
 
     const jwt = await requireJwt();
-    if (!jwt) return;
+    // Not a failure worth restoring for — this navigates to login, and
+    // the screen holding the draft is going away.
+    if (!jwt) return true;
 
-    let active = conversation;
+    let active = known ?? conversation;
     if (!active) {
       try {
         active = await createConversation(jwt);
@@ -146,13 +214,52 @@ export default function ChatScreen() {
         tracker.track('chat_started', { surface: Platform.OS === 'android' ? 'android' : 'ios' });
       } catch (e) {
         setError((e as Error).message);
-        return;
+        return false;
       }
     }
 
+    const id = active.id;
+    await run(id, (token) => sendMessage(token, id, composed, mode));
+    return true;
+  };
+  deliverLatest.current = deliver;
+
+  // What the Send button calls. Either this goes now or it waits its
+  // turn — the button says which, and a chip appears when it waited.
+  const submit = () => {
+    const text = draft.trim();
+    if (!text && attachments.length === 0) return;
+
+    const files = attachments;
     setDraft('');
     setAttachments([]);
-    await run(active.id, (token) => sendMessage(token, active.id, text));
+
+    // Cleared now rather than after the send lands: waiting leaves the
+    // text sitting in the box while the conversation is created, which
+    // reads as a dropped tap. It comes back if the send never happened.
+    if (!busy && pending === null) {
+      void deliver(text, files).then((sent) => {
+        if (sent) return;
+        setDraft(text);
+        setAttachments(files);
+      });
+      return;
+    }
+
+    // The id is a React key and a cancel handle, nothing more: it only
+    // has to be unique among the handful queued at once.
+    const message: QueuedMessage = {
+      id: `queued-${Date.now()}-${queue.current.length}`,
+      text,
+      attachments: files,
+    };
+    queue.current = [...queue.current, message];
+    setQueued(queue.current);
+  };
+
+  const cancelQueued = (id: string) => {
+    queue.current = queue.current.filter((message) => message.id !== id);
+    setQueued(queue.current);
   };
 
   const answer = async (approved: boolean) => {
@@ -161,8 +268,26 @@ export default function ChatScreen() {
     setPending(null);
     tracker.track('chat_confirmed', { approved });
     await run(conversation.id, (jwt) =>
-      answerConfirmation(jwt, conversation.id, approved, fingerprint),
+      answerConfirmation(jwt, conversation.id, approved, fingerprint, mode),
     );
+  };
+
+  // Persisted so the picker survives a reload; a conversation that does
+  // not exist yet has nowhere to persist it, and the first `sendMessage`
+  // carries it instead.
+  const changeMode = async (next: ChatMode) => {
+    const previous = mode;
+    setMode(next);
+    if (!conversation) return;
+
+    const jwt = await getJwt();
+    if (!jwt) return;
+    try {
+      await setConversationMode(jwt, conversation.id, next);
+    } catch (e) {
+      setMode(previous);
+      setError((e as Error).message);
+    }
   };
 
   const stop = async () => {
@@ -247,6 +372,53 @@ export default function ChatScreen() {
         ) : null}
       </ScrollView>
 
+      <View style={styles.modes} testID="chat-modes">
+        {MODES.map((option) => (
+          <Pressable
+            key={option.value}
+            onPress={() => void changeMode(option.value)}
+            accessibilityRole="button"
+            accessibilityLabel={`${option.label} mode`}
+            accessibilityHint={option.hint}
+            accessibilityState={{ selected: mode === option.value }}
+            style={[styles.mode, mode === option.value && styles.modeOn]}
+          >
+            <Text style={[styles.modeLabel, mode === option.value && styles.modeLabelOn]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Someone in `auto` has switched off the only place a destructive
+          call stops for a human. That has to be readable without opening
+          anything to check. */}
+      {mode !== 'manual' ? (
+        <Text style={[styles.modeNotice, mode === 'auto' && styles.modeNoticeLoud]} testID="chat-mode-notice">
+          {MODES.find((m) => m.value === mode)?.hint}
+        </Text>
+      ) : null}
+
+      {/* Cancelable, because "queued" and "sent" are different promises —
+          and the commonest reason to want one back is the assistant
+          answering it unprompted while the user was still typing. */}
+      {queued.length > 0 ? (
+        <View style={styles.chips} testID="chat-queued">
+          {queued.map((message) => (
+            <Pressable
+              key={message.id}
+              onPress={() => cancelQueued(message.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Cancel queued message: ${message.text || 'attachments'}`}
+            >
+              <Text style={styles.queuedChip}>
+                ⏳ {message.text || `${message.attachments.length} attachment(s)`} ✕
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {attachments.length > 0 ? (
         <View style={styles.chips} testID="chat-attachments">
           {attachments.map((file) => (
@@ -278,22 +450,24 @@ export default function ChatScreen() {
         >
           <Text style={styles.icon}>🖼️</Text>
         </Pressable>
+        {/* Deliberately not gated on whether a turn is running. The input
+            used to go dead for the length of one — a minute or more of a
+            menu scan — and a thought that arrived during it had nowhere
+            to go but the user's memory. It queues instead. */}
         <TextInput
           style={styles.input}
           value={draft}
           onChangeText={setDraft}
-          editable={!busy && pending === null}
-          placeholder="Ask about a menu, or add one"
+          placeholder={
+            busy || pending !== null
+              ? 'Type the next one — it will send when this finishes'
+              : 'Ask about a menu, or add one'
+          }
           accessibilityLabel="Message"
           multiline
         />
-        <Pressable
-          onPress={() => void send()}
-          disabled={busy || pending !== null}
-          accessibilityRole="button"
-          style={[styles.send, (busy || pending !== null) && styles.sendDisabled]}
-        >
-          <Text style={styles.sendLabel}>Send</Text>
+        <Pressable onPress={submit} accessibilityRole="button" style={styles.send}>
+          <Text style={styles.sendLabel}>{busy || pending !== null ? 'Queue' : 'Send'}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -395,6 +569,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2],
     paddingVertical: space[1],
   },
+  queuedChip: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: space[2],
+    paddingVertical: space[1],
+  },
+  modes: { flexDirection: 'row', gap: space[1], paddingHorizontal: space[4], paddingBottom: space[1] },
+  mode: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: space[2],
+    paddingVertical: space[1],
+  },
+  modeOn: { borderColor: colors.bite, backgroundColor: colors.bgAlt },
+  modeLabel: { fontSize: fontSize.xs, color: colors.textMuted },
+  modeLabelOn: { color: colors.text, fontWeight: '700' },
+  modeNotice: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: space[4], paddingBottom: space[1] },
+  modeNoticeLoud: { color: colors.danger },
   stop: { alignSelf: 'flex-start', paddingHorizontal: space[4], paddingBottom: space[2] },
   stopLabel: { fontSize: fontSize.sm, color: colors.textMuted },
   composer: {

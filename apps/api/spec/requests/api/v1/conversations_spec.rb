@@ -39,6 +39,47 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response.parsed_body).to include("state" => "active", "messages" => [])
       expect(user.conversations.count).to eq(1)
     end
+
+    # The historical behaviour, and the strictest of the four that still
+    # lets a turn write anything. Nobody opts into a gate.
+    it "starts in manual" do
+      post "/api/v1/conversations", headers: headers
+
+      expect(response.parsed_body["mode"]).to eq("manual")
+    end
+  end
+
+  describe "PATCH /api/v1/conversations/:id" do
+    let(:conversation) { create(:conversation, user: user) }
+
+    it "switches the mode without sending anything" do
+      patch "/api/v1/conversations/#{conversation.id}", params: { mode: "planning" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["mode"]).to eq("planning")
+      expect(conversation.reload.chat_mode).to eq("planning")
+    end
+
+    # Refused rather than quietly read as `manual`. Falling back is safe
+    # in one direction only: someone who asked for `auto` and got
+    # `manual` is asked a question they did not expect, but someone who
+    # asked for `planning` and got `manual` has writes running they
+    # thought were off.
+    it "refuses a mode that does not exist" do
+      patch "/api/v1/conversations/#{conversation.id}", params: { mode: "yolo" }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.chat_mode).to eq("manual")
+    end
+
+    it "cannot reach another account's conversation" do
+      other = create(:conversation, user: create(:user))
+
+      patch "/api/v1/conversations/#{other.id}", params: { mode: "auto" }, headers: headers
+
+      expect(response).to have_http_status(:not_found)
+      expect(other.reload.chat_mode).to eq("manual")
+    end
   end
 
   describe "GET /api/v1/conversations/:id" do

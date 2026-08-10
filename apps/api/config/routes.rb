@@ -118,7 +118,7 @@ Rails.application.routes.draw do
       # a turn streams, so it lands on its own controller (including
       # ActionController::Live changes the response for every action in
       # a controller).
-      resources :conversations, only: [:index, :create, :show, :destroy] do
+      resources :conversations, only: [:index, :create, :show, :update, :destroy] do
         member do
           post :messages, to: "conversation_turns#create"
           post :confirm,  to: "conversation_turns#confirm"

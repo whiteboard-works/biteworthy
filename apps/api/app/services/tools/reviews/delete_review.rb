@@ -25,6 +25,9 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # Someone's own words, destroyed. No tool rewrites them.
+      unrecoverable_when { true }
+
       def self.perform(context:, review_id:)
         review = find_review!(review_id)
         authorize_author!(context, review)

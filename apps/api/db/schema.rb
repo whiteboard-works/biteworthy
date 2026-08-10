@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_10_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -110,6 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_050000) do
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.virtual "api_cost_cents", type: :integer, as: "round(((api_cost_micro_cents)::numeric / 1000000.0))", stored: true
     t.bigint "api_cost_micro_cents", default: 0, null: false
+    t.string "chat_mode", default: "manual", null: false
     t.datetime "created_at", null: false
     t.jsonb "pending_tool_call"
     t.jsonb "pending_turns", default: [], null: false
@@ -120,6 +121,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_050000) do
     t.index ["created_at"], name: "index_conversations_on_created_at"
     t.index ["user_id", "updated_at"], name: "index_conversations_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_conversations_on_user_id"
+    t.check_constraint "chat_mode::text = ANY (ARRAY['planning'::character varying::text, 'manual'::character varying::text, 'accept_edits'::character varying::text, 'auto'::character varying::text])", name: "conversations_chat_mode_valid"
     t.check_constraint "state::text = ANY (ARRAY['active'::character varying::text, 'awaiting_confirmation'::character varying::text, 'failed'::character varying::text])", name: "conversations_state_valid"
   end
 

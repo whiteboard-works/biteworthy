@@ -10,6 +10,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   return proxyAuthed(`/api/v1/conversations/${encodeURIComponent(id)}`, { cache: 'no-store' });
 }
 
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  return proxyAuthed(`/api/v1/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: await request.text(),
+  });
+}
+
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   return proxyAuthed(`/api/v1/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });

@@ -157,6 +157,19 @@ Notes that bite:
   A grant has no nonce, so it is reusable for its whole TTL — which means a
   gated tool must be idempotent. `confirmation_gate_spec` asserts that over
   the real registry rather than trusting it.
+- **`unrecoverable_when` is the chat's `accept_edits` line, and nothing
+  else reads it.** `destructive_hint` is a wide net — every write that
+  changes stored data, which puts `edit_item` beside `delete_taxonomy_node`.
+  That width is right for "should a human see this once" and useless for
+  "may a standing grant cover this". The narrower question is
+  recoverability: a menu edited wrong is fixed by editing it again; a
+  deleted taxonomy node, a deleted review, and a granted admin role are
+  not. Four tools declare it today (`delete_taxonomy_node`,
+  `set_user_role`, `delete_review`, and `edit_menu_structure` for its two
+  `delete_*` actions), which is also why it takes a block rather than a
+  flag. Default is false — a tool that declares nothing is treated as an
+  edit, so add the declaration when you add a tool that destroys
+  something.
 - **New tools are deferred by default in the chat.** Only the core domains
   (discovery, profile, meta) stay resident; everything else loads on demand
   via tool search, which is what keeps a cold turn from carrying 13k tokens
@@ -444,9 +457,12 @@ independently settable. It turns off the destructive-tool confirmation
 gate — including an avoid-list *removal*, which un-hides dishes and is
 the one direction that can hurt somebody (Safety Property 5 in
 `docs/plans/chat-engine.md`). Both halves of the gate honour it: the chat
-parks before the tool boundary is reached, so `AgentLoop#confirm_required?`
-and `Tools::Base#confirmation_gate` each check it, and missing either one
-strands the turn waiting for an answer the other would have waved through.
+parks before the tool boundary is reached, so `Chat::ModePolicy` (via
+`AgentLoop#decide`) and `Tools::Base#confirmation_gate` each check it, and
+missing either one strands the turn waiting for an answer the other would
+have waved through. It is a standing answer to the *confirmation* question
+only — planning mode still refuses writes for a super admin, because that
+is a scope for the turn rather than a question being asked.
 
 **Raised rather than lifted: the wall-clock turn deadline** (300s →
 1,800s) **and the ingestion input caps** (5×). Both are bounds on damage
@@ -530,6 +546,31 @@ Four things it enforces that a bare tool loop would not:
   the next. On approval the loop mints a `Tools::Confirmation` grant and
   passes it to the tool, because `Base.call` re-checks the argument-gated
   half itself — see §"Writing a tool".
+
+  **How much of that a person has agreed to up front is the turn's
+  mode.** `Chat::ModePolicy` answers `:run` / `:park` / `:refuse` for one
+  call, and `conversations.chat_mode` is the four-value column behind it:
+
+  | mode | what runs | what stops |
+  | --- | --- | --- |
+  | `planning` | `read_only_hint: true` only | every write, **refused** (not parked) |
+  | `manual` *(default)* | everything else | whatever the tool says needs a human |
+  | `accept_edits` | + the edits manual would park | `unrecoverable_when` calls |
+  | `auto` | everything | nothing |
+
+  Three things about it are load-bearing. **The tool catalogue is
+  identical in all four** — filtering the array by mode reads as the
+  tidier design and would throw away the whole ~21.6k-token cached prefix
+  on every switch, since tools render ahead of system; planning refuses at
+  call time instead, and the refusal goes back as a `tool_result` so the
+  model re-plans rather than retrying. **A mode is a standing answer, not
+  a bypass**: `accept_edits` and `auto` still mint a real
+  `Tools::Confirmation` grant for a gated call, because `Base.call`
+  re-checks the gate and must not learn to trust its caller — MCP has no
+  modes and that boundary is the only door on that side. And **the mode
+  travels with the turn**, stamped into the queued payload at enqueue, so
+  switching mid-flight applies to the next turn rather than retroactively
+  to the calls already running.
 - **Every `tool_use` gets a `tool_result`.** The Messages API rejects a
   transcript with an unanswered call, so a parked turn stores the results
   already computed next to the calls still queued, and resuming replays
@@ -633,8 +674,9 @@ be a separate request because the one that started the turn is busy.
 | `GET /api/v1/conversations` | The caller's own, newest first |
 | `POST /api/v1/conversations` | Opens an empty one |
 | `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
+| `PATCH /api/v1/conversations/:id` | Sets `mode` — for switching without sending anything |
 | `DELETE /api/v1/conversations/:id` | Removes it and its messages |
-| `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE |
+| `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE. Optional `mode` switches and sends in one request |
 | `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
 | `POST /api/v1/attachments` | Multipart upload; returns a signed blob id for `start_menu_scan` |
 
@@ -662,9 +704,13 @@ the blob records its uploader: blob primary keys are sequential integers,
 so a raw id would let any account scan any other account's upload by
 counting.
 
-**Known gap:** two turns fired concurrently on one conversation would
-interleave. The UI disables the composer while streaming; the server does
-not enforce it.
+**Closed:** two turns fired concurrently on one conversation used to
+interleave, and the UI was what prevented it. The server enforces it now
+— `ConversationRun.acquire` is a lock held for the whole turn, and
+`conversations.pending_turns` is the queue behind it, so a second ask
+serializes rather than races. The composer no longer disables while a
+turn runs; a message typed meanwhile is held client-side and sent when
+the turn ends.
 
 ## Auth
 

@@ -21,6 +21,7 @@ const answerConfirmation = vi.fn();
 const watchTurn = vi.fn();
 const stopTurn = vi.fn();
 const uploadAttachment = vi.fn();
+const setConversationMode = vi.fn();
 
 vi.mock('../../../lib/chat', async () => {
   const actual = await vi.importActual<typeof import('../../../lib/chat')>('../../../lib/chat');
@@ -30,9 +31,11 @@ vi.mock('../../../lib/chat', async () => {
     createConversation: () => createConversation(),
     getConversation: (id: string) => getConversation(id),
     deleteConversation: (id: string) => deleteConversation(id),
-    sendMessage: (id: string, text: string, context?: unknown) => sendMessage(id, text, context),
-    answerConfirmation: (id: string, ok: boolean, fingerprint: string | null) =>
-      answerConfirmation(id, ok, fingerprint),
+    sendMessage: (id: string, text: string, context?: unknown, mode?: unknown) =>
+      sendMessage(id, text, context, mode),
+    answerConfirmation: (id: string, ok: boolean, fingerprint: string | null, mode?: unknown) =>
+      answerConfirmation(id, ok, fingerprint, mode),
+    setConversationMode: (id: string, mode: unknown) => setConversationMode(id, mode),
     watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
       watchTurn(id, after, onEvent),
     stopTurn: (id: string) => stopTurn(id),
@@ -46,6 +49,7 @@ const blank: Conversation = {
   id: 'c-1',
   title: null,
   state: 'active',
+  mode: 'manual',
   pending: null,
   created_at: '2026-08-08T00:00:00Z',
   updated_at: '2026-08-08T00:00:00Z',
@@ -73,6 +77,7 @@ beforeEach(() => {
   answerConfirmation.mockResolvedValue({ queued: true, after: 0 });
   watchTurn.mockResolvedValue(null);
   stopTurn.mockResolvedValue(undefined);
+  setConversationMode.mockResolvedValue(blank);
 });
 
 afterEach(() => {
@@ -81,7 +86,9 @@ afterEach(() => {
 
 async function type(text: string) {
   fireEvent.change(await screen.findByLabelText('Message'), { target: { value: text } });
-  fireEvent.click(screen.getByText('Send'));
+  // "Send" when idle, "Queue" while a turn is running — the button says
+  // which of the two pressing it will do.
+  fireEvent.click(screen.getByRole('button', { name: /^(Send|Queue)$/ }));
 }
 
 describe('ChatClient', () => {
@@ -185,13 +192,17 @@ describe('ChatClient', () => {
       });
     });
 
-    it('asks before running it, and disables the composer meanwhile', async () => {
+    // The composer stays live. It used to go dead here, which meant a
+    // parked confirmation also blocked "actually, never mind, do X
+    // instead" — the message most likely to be typed at exactly that
+    // moment. It queues behind the answer instead.
+    it('asks before running it, and keeps the composer usable meanwhile', async () => {
       render(<ChatClient />);
       await type('delete my review');
 
       expect(await screen.findByTestId('confirm-prompt')).toHaveTextContent('delete review');
       expect(answerConfirmation).not.toHaveBeenCalled();
-      expect(screen.getByLabelText('Message')).toBeDisabled();
+      expect(screen.getByLabelText('Message')).toBeEnabled();
     });
 
     // The fingerprint has to travel with the answer, or the server cannot
@@ -202,7 +213,9 @@ describe('ChatClient', () => {
 
       fireEvent.click(await screen.findByText('No'));
 
-      await waitFor(() => expect(answerConfirmation).toHaveBeenCalledWith('c-1', false, 'fp-1'));
+      await waitFor(() =>
+        expect(answerConfirmation).toHaveBeenCalledWith('c-1', false, 'fp-1', 'manual'),
+      );
     });
 
     // A declared sentence replaces the generic prompt and the JSON dump:
@@ -492,6 +505,145 @@ describe('ChatClient', () => {
     expect(await screen.findByTestId('chat-error')).toHaveTextContent('spend limit');
   });
 
+  // A turn is a minute or more of a menu scan. The input used to go dead
+  // for all of it, so the next thought had nowhere to go but the user's
+  // memory.
+  describe('typing while a turn is running', () => {
+    // Held open so the first turn is still in flight while the second
+    // message is typed.
+    // Resolves with `null` — "the turn is genuinely over" — rather than
+    // undefined, which the client reads as a dropped connection and
+    // reconnects from.
+    function heldTurn() {
+      const inFlight: { release: () => void } = { release: () => {} };
+      watchTurn.mockImplementation(
+        () => new Promise<number | null>((resolve) => (inFlight.release = () => resolve(null))),
+      );
+      return inFlight;
+    }
+
+    it('queues the message rather than dropping it or sending it now', async () => {
+      const inFlight = heldTurn();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+      await type('and check Ninis too');
+
+      expect(await screen.findByTestId('queued-messages')).toHaveTextContent('and check Ninis too');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      inFlight.release();
+    });
+
+    it('sends it once the turn it was typed during finishes', async () => {
+      const inFlight = heldTurn();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await type('and check Ninis too');
+      await screen.findByTestId('queued-messages');
+
+      inFlight.release();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'and check Ninis too', undefined, 'manual'),
+      );
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
+    // "Queued" and "sent" are different promises. The commonest reason to
+    // want it back is the assistant answering it unprompted while the
+    // user was still typing.
+    it('lets a queued message be taken back before it leaves', async () => {
+      const inFlight = heldTurn();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await type('never mind');
+      await screen.findByTestId('queued-messages');
+
+      fireEvent.click(screen.getByLabelText('Cancel queued message: never mind'));
+      inFlight.release();
+
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    // The server refuses a message queued behind a parked call — the
+    // tool_use would dangle while the model answered something else.
+    it('holds a queued message while a confirmation is parked', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({
+          type: 'awaiting_confirmation',
+          tool: { name: 'delete_review', input: {}, prompt: null, fingerprint: 'fp-1' },
+        });
+      });
+      getConversation.mockResolvedValue({
+        ...blank,
+        state: 'awaiting_confirmation',
+        pending: { name: 'delete_review', input: {}, prompt: null, fingerprint: 'fp-1' },
+      });
+
+      render(<ChatClient />);
+      await type('delete my review');
+      await screen.findByTestId('confirm-prompt');
+
+      await type('actually, leave it');
+
+      expect(await screen.findByTestId('queued-messages')).toHaveTextContent('actually, leave it');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The gate is the server's. The picker only says which one to use, so
+  // there is nothing here that could disagree with what actually ran.
+  describe('the mode picker', () => {
+    it('opens in the mode the server stored', async () => {
+      getConversation.mockResolvedValue({ ...answered('ok'), mode: 'accept_edits' });
+
+      render(<ChatClient />);
+      await type('hi');
+
+      await waitFor(() => expect(screen.getByTestId('mode-picker')).toHaveValue('accept_edits'));
+    });
+
+    it('persists a switch so it survives a reload', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByTestId('mode-picker'), { target: { value: 'planning' } });
+
+      await waitFor(() => expect(setConversationMode).toHaveBeenCalledWith('c-1', 'planning'));
+    });
+
+    it('sends the chosen mode with the turn', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await waitFor(() => expect(sendMessage).toHaveBeenCalled());
+      fireEvent.change(screen.getByTestId('mode-picker'), { target: { value: 'auto' } });
+
+      await type('go ahead');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenLastCalledWith('c-1', 'go ahead', undefined, 'auto'),
+      );
+    });
+
+    // Someone in `auto` has switched off the only place a destructive
+    // call stops for a human. That has to be visible without opening the
+    // picker to check.
+    it('says so on screen when the mode is not the default', async () => {
+      render(<ChatClient />);
+      await screen.findByTestId('chat-welcome');
+      expect(screen.queryByTestId('mode-notice')).toBeNull();
+
+      fireEvent.change(screen.getByTestId('mode-picker'), { target: { value: 'auto' } });
+
+      expect(await screen.findByTestId('mode-notice')).toHaveTextContent('Never asks');
+    });
+  });
+
   it('sends a signed-out visitor to log in', async () => {
     const { NotSignedInError } = await import('../../../lib/chat');
     listConversations.mockRejectedValue(new NotSignedInError());
@@ -524,6 +676,7 @@ describe('ChatClient', () => {
         'c-1',
         expect.stringContaining('attachment_id: signed-abc'),
         undefined,
+        'manual',
       ),
     );
   });
