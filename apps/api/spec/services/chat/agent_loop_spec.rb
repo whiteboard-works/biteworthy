@@ -101,6 +101,45 @@ RSpec.describe Chat::AgentLoop do
       block = conversation.messages.reload.find(&:tool_result?).content.first
       expect(block["content"].first["text"]).to include("unknown_tool")
     end
+
+    # Most of the catalogue is deferred behind tool search, so the model
+    # is usually calling a name it read once. Naming the near miss turns
+    # a wasted round — or a false "we don't support that" — into a
+    # correction the model can act on immediately.
+    it "names the near miss when the model typos a tool" do
+      client = ScriptedClient.new(call_tool("get_restraunt", { "restaurant" => "ninis" }), say("Here."))
+
+      described_class.new(conversation, client: client).run(text: "tell me about ninis")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("Did you mean get_restaurant?")
+    end
+
+    # An error string is a channel too. Suggestions are drawn from the
+    # tools this caller can see, so a guess that lands near an admin tool
+    # gets the generic answer rather than confirmation that it exists.
+    it "does not suggest a tool the caller cannot see" do
+      client = ScriptedClient.new(call_tool("set_user_roles"), say("Can't."))
+
+      described_class.new(conversation, client: client).run(text: "make me an admin")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      # Not `not_to include("set_user_role")` — the echoed typo contains
+      # it as a substring. What must be absent is the suggestion.
+      expect(text).not_to include("Did you mean")
+      expect(text).to include("tool_search_tool_regex")
+    end
+
+    it "suggests an admin tool to an admin" do
+      admin  = create(:user, is_admin: true)
+      convo  = Conversation.create!(user: admin)
+      client = ScriptedClient.new(call_tool("set_user_roles"), say("Done."))
+
+      described_class.new(convo, client: client).run(text: "make them an admin")
+
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("Did you mean set_user_role?")
+    end
   end
 
   describe "the confirmation gate" do
