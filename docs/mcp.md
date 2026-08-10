@@ -345,6 +345,14 @@ has no deactivated-account state.
 Restaurant claims are suggestions (`RestaurantClaim` writes one), so the
 suggestion delete is the claim delete.
 
+**A hard delete is only as complete as the model's `dependent:` list.** Every
+foreign key into these tables is a plain `REFERENCES` with no `ON DELETE`, so
+anything Ruby forgets arrives as a 500 rather than a refusal — and
+`suggestions.subject` is polymorphic, so it has no foreign key to forget
+*with*. `spec/models/hard_delete_cascade_spec.rb` builds the full graph and
+destroys it, which is where a new FK without a matching association gets
+caught.
+
 **The archive is honoured by one line, not thirty.** `Restaurant.published`
 is the chokepoint every public read already goes through — list, detail,
 menu, reviews, suggestions, the chat discovery tools, and
@@ -352,9 +360,19 @@ menu, reviews, suggestions, the chat discovery tools, and
 covers all of them at once. Exactly two readers bypass it, both on purpose:
 the saved-restaurant lists show draft and closed restaurants so the page can
 grey out the link, and they filter on `kept` themselves.
-`spec/requests/admin/archive_visibility_spec.rb` names each reader
+Exactly **three** readers bypass it, all on purpose: the saved-restaurant
+list, the saved-dish list, and browsing history all show draft and closed
+restaurants so the page can grey out the link, and each filters `kept`
+itself. `spec/requests/admin/archive_visibility_spec.rb` names every reader
 individually, so a future one that queries around `published` fails there
 rather than quietly serving an archived restaurant.
+
+Two things the archive deliberately does **not** do. It does not free the
+slug — `restaurants.slug` is unique across archived rows too, so re-creating
+an archived restaurant under its old slug needs the hard delete. And it does
+not change `status`, which is why the three bypassing readers filter on
+`kept` rather than on status: an archived restaurant still reports
+`status: "published"`.
 
 Taxonomy is the exception to the tier: `Taxonomy::Writer#destroy!` refuses
 to delete a node someone has in an avoid list, and a super admin gets that

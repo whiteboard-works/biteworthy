@@ -22,7 +22,12 @@ module Api
                                   .order(created_at: :desc)
                                   .map { |f| serialize_restaurant(f.restaurant) }
 
+        # Same filter on the dishes half. A saved dish at an archived
+        # restaurant would otherwise come back reporting
+        # `status: "published"` — archiving does not touch `status` —
+        # so the page renders a live link to a page that 404s.
         items = current_user.favorite_items
+                            .joins(item: :restaurant).merge(Restaurant.kept)
                             .includes(item: :restaurant)
                             .order(created_at: :desc)
                             .map { |f| serialize_item(f.item) }

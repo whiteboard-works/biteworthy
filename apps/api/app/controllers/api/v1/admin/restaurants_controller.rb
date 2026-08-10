@@ -26,7 +26,12 @@ module Api
           # restaurant needs a way to find it again.
           scope = params[:archived].to_s == "true" ? scope.archived : scope.kept
           scope = scope.where(status: params[:status]) if Restaurant::STATUSES.include?(params[:status].to_s)
-          scope = scope.community_published if params[:filter].to_s == "community_published"
+          # `.community`, not `.community_published`: the latter carries
+          # `kept` through `published`, which would contradict the
+          # archived filter above and return nothing.
+          if params[:filter].to_s == "community_published"
+            scope = scope.where(status: "published").community
+          end
           scope = scope.where(city_id: params[:city_id]) if params[:city_id].present?
 
           if params[:q].present?

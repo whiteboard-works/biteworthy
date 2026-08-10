@@ -30,6 +30,22 @@ RSpec.describe "hard delete cascades" do
       expect(Restaurant.exists?(restaurant.id)).to be(false)
     end
 
+    # `suggestions.subject` is polymorphic: no foreign key to catch this
+    # and no association to cascade it. The orphan is worse than a leak
+    # — `belongs_to :subject` is required, so it can never be rejected
+    # ("Subject must exist") while it keeps counting in the dashboard's
+    # pending queue. A restaurant claim is a suggestion with a
+    # Restaurant subject, which is how a claimed restaurant could
+    # strand its own claim forever.
+    it "takes the suggestions filed against it, claims included" do
+      claim = Suggestion.create!(subject: restaurant, user: create(:user),
+                                 kind: "claim", status: "pending", payload: {})
+
+      restaurant.destroy!
+
+      expect(Suggestion.exists?(claim.id)).to be(false)
+    end
+
     # The scan is what the restaurant cost to build, and
     # Ingestion::CostMetrics reports on runs by date, not by
     # restaurant. Destroying the spend record along with the
@@ -61,16 +77,27 @@ RSpec.describe "hard delete cascades" do
       expect { item.destroy! }.not_to raise_error
     end
 
-    # A staged row records what the pipeline proposed and what a human
-    # decided about it. That history is about the *run*, so it outlives
-    # the menu item the decision produced.
-    it "keeps the staged row that produced it" do
+    # Nullify was the first instinct and it was wrong: `decision:
+    # "accepted"` with `item_id: nil` is exactly the shape two paths
+    # read as "accepted but not yet promoted". ReExtractRun would stop
+    # refusing to rewind a run whose items had shipped, and ResolveRun
+    # would re-create the item an admin had just deleted.
+    it "takes the staged row with it rather than orphaning a decision" do
       item = create(:item)
-      staged = create(:ingestion_item, item: item)
+      staged = create(:ingestion_item, item: item, decision: "accepted")
 
       item.destroy!
 
-      expect(staged.reload.item_id).to be_nil
+      expect(IngestionItem.exists?(staged.id)).to be(false)
+    end
+
+    it "takes the suggestions filed against it" do
+      item = create(:item)
+      suggestion = create(:item_suggestion_pending, subject: item)
+
+      item.destroy!
+
+      expect(Suggestion.exists?(suggestion.id)).to be(false)
     end
   end
 

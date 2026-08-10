@@ -34,7 +34,10 @@ module Tools
 
       def self.perform(context:, limit: nil, offset: nil)
         user  = context.user!
-        scope = user.restaurant_visits
+        # `.kept` for the same reason as ProfileHistoryController: this
+        # reader shows unpublished restaurants on purpose, so it does not
+        # inherit the archive filter from `published`.
+        scope = user.restaurant_visits.joins(:restaurant).merge(Restaurant.kept)
         page  = scope.newest_first
                      .includes(restaurant: :city)
                      .offset(clamp_offset(offset))

@@ -78,27 +78,67 @@ RSpec.describe "archive visibility", type: :request do
 
     before { create(:favorite_restaurant, user: member, restaurant: restaurant) }
 
-    it "drops it from GET /profile/favorites" do
+    before { create(:favorite_item, user: member, item: item) }
+
+    # Both halves. The dishes half was missed the first time, and the
+    # failure is worse there than for restaurants: a saved dish carries
+    # its restaurant's `status`, which archiving does not touch, so the
+    # page renders a confident live link to a 404.
+    it "drops the restaurant and the dish from GET /profile/favorites" do
       get "/api/v1/profile/favorites", headers: bearer_for(member)
-      expect(json_ids(response)).to include(restaurant.id)
+      expect(json_ids(response)).to include(restaurant.id, item.id)
 
       archive!
       get "/api/v1/profile/favorites", headers: bearer_for(member)
       expect(json_ids(response)).not_to include(restaurant.id)
+      expect(json_ids(response)).not_to include(item.id)
     end
 
-    it "drops it from the list_saved chat tool" do
-      saved = -> { Tools::History::ListSaved.call(server_context: { user_id: member.id },
-                                                  kind: "restaurants") }
+    it "drops both from the list_saved chat tool" do
+      saved = -> { Tools::History::ListSaved.call(server_context: { user_id: member.id }) }
 
-      expect(saved_ids(saved.call)).to include(restaurant.id)
+      expect(saved_ids(saved.call)).to include(restaurant.id, item.id)
 
       archive!
       expect(saved_ids(saved.call)).not_to include(restaurant.id)
+      expect(saved_ids(saved.call)).not_to include(item.id)
+    end
+
+    # A visit is a "recently viewed" link, and a link to a 404 is a dead
+    # end rather than history. Third reader that bypasses `published`.
+    it "drops it from browsing history, REST and tool alike" do
+      create(:restaurant_visit, user: member, restaurant: restaurant)
+      archive!
+
+      get "/api/v1/profile/history", headers: bearer_for(member)
+      expect(json_ids(response)).not_to include(restaurant.id)
+
+      visits = Tools::History::ListVisits.call(server_context: { user_id: member.id })
+      expect(visits.to_h[:structuredContent][:visits]).to be_empty
     end
 
     def saved_ids(response)
-      response.to_h[:structuredContent].fetch(:restaurants).map { |r| r[:id] }
+      c = response.to_h[:structuredContent]
+      (c[:restaurants].to_a + c[:items].to_a).map { |r| r[:id] }
+    end
+  end
+
+  # Scanning a *draft* restaurant is the normal case, so this cannot
+  # use `published` — but a scan of an archived one buys nothing:
+  # publishing the run flips `status` back while `archived_at` keeps it
+  # hidden, so the Anthropic spend produces no visible menu.
+  describe "starting a scan" do
+    it "refuses an archived restaurant, by slug" do
+      member = create(:user)
+      archive!
+
+      result = Tools::Ingestion::StartMenuScan.call(
+        server_context: { user_id: member.id },
+        restaurant: restaurant.slug, source_text: "Tacos $5"
+      ).to_h
+
+      expect(result[:structuredContent][:error]).to eq("not_found")
+      expect(IngestionRun.count).to eq(0)
     end
   end
 
@@ -112,6 +152,21 @@ RSpec.describe "archive visibility", type: :request do
       expect(json_ids(response)).not_to include(restaurant.id)
 
       get "/api/v1/admin/restaurants", params: { archived: "true" }, headers: admin_headers
+      expect(json_ids(response)).to include(restaurant.id)
+    end
+
+    # `community_published` chains off `published`, which now carries
+    # `kept` — so combining it with the archived filter asked for
+    # `archived_at IS NOT NULL AND archived_at IS NULL`, a lens that
+    # could never return a row.
+    it "can still find an archived community restaurant in the moderation lens" do
+      restaurant.update!(created_by_user_id: create(:user).id)
+      archive!
+
+      get "/api/v1/admin/restaurants",
+          params: { archived: "true", filter: "community_published" },
+          headers: admin_headers
+
       expect(json_ids(response)).to include(restaurant.id)
     end
   end
