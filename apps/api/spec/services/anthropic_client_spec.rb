@@ -214,6 +214,27 @@ RSpec.describe AnthropicClient do
         }
       end
 
+      # Every non-streaming caller, not only the schema'd ones. A
+      # schema-less caller that got a half-finished answer with no signal
+      # is the quieter version of the same bug.
+      it "raises TruncatedError even when no schema was asked for" do
+        cut_off = {
+          id: "msg_x", model: "x", role: "assistant",
+          stop_reason: "max_tokens",
+          content: [{ type: "text", text: "Half a sentence that stops" }]
+        }.to_json
+        stub_request(:post, "#{base_url}/v1/messages")
+          .to_return(status: 200, body: cut_off,
+                     headers: { "Content-Type" => "application/json" })
+
+        expect {
+          client.messages_create(
+            system: [{ type: "text", text: "x" }],
+            messages: [{ role: "user", content: "y" }]
+          )
+        }.to raise_error(AnthropicClient::TruncatedError)
+      end
+
       # Only when it was actually cut off. A `max_tokens` stop on a
       # response that happens to be complete JSON is still a truncation —
       # but an `end_turn` that fails to parse is not, and must keep

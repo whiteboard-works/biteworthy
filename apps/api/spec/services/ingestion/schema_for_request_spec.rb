@@ -47,6 +47,39 @@ RSpec.describe Ingestion::SchemaForRequest do
     expect(Ingestion::MenuExtractionSchema.to_s).to include("minLength")
   end
 
+  # `def self.hash(schema)` shadows `Object#hash` on the class object, and
+  # Ruby calls that with zero arguments from its own internals — so any
+  # collection operation touching the class raises. Private visibility
+  # does not help; the interpreter does not consult it.
+  it "does not break Ruby's own hashing of the class" do
+    expect { [ described_class, String ].uniq }.not_to raise_error
+    expect { { described_class => 1 } }.not_to raise_error
+  end
+
+  # `UNSUPPORTED` is a list of schema *keywords*. One level below a
+  # `properties` key those same words are field names, so filtering there
+  # would silently drop a property the model must emit while `required`
+  # still demands it — a 400, or an output the post-hoc validator rejects.
+  it "keeps properties whose names collide with stripped keywords" do
+    schema = {
+      type: "object",
+      required: %w[format minimum],
+      properties: {
+        format:  { type: "string", minLength: 1 },
+        minimum: { type: "integer", minimum: 0 },
+        nested:  { type: "object", properties: { pattern: { type: "string", maxLength: 4 } } }
+      }
+    }
+
+    out = described_class.derive(schema)
+
+    expect(out[:properties].keys).to contain_exactly(:format, :minimum, :nested)
+    # …while still stripping the keywords *inside* each of them.
+    expect(out.dig(:properties, :format).keys).to eq([ :type ])
+    expect(out.dig(:properties, :minimum).keys).to eq([ :type ])
+    expect(out.dig(:properties, :nested, :properties, :pattern).keys).to eq([ :type ])
+  end
+
   # The property that actually matters: anything the constrained model can
   # emit must still satisfy the full schema, or extraction would fail
   # validation on its own well-formed output.

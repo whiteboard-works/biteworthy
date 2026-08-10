@@ -140,18 +140,21 @@ class AnthropicClient
 
     parsed = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
     @last_usage = parsed["usage"]
-    return parsed if response_schema.nil?
 
-    text = ResponseParser.first_text(parsed)
-    # Read before parsing. A truncated response *is* a parse failure, so
-    # whichever check runs first names the error — and "the model wrote
-    # malformed JSON" is the wrong name for "the model was cut off",
-    # pointing at the prompt when the problem is the budget.
+    # Checked for **every** non-streaming caller, not only the ones that
+    # asked for a schema. A schema-less caller gets a silently
+    # half-finished answer otherwise, which is the quieter version of the
+    # same bug. Raised before parsing because a truncated response *is* a
+    # parse failure, so whichever check runs first names the error — and
+    # "the model wrote malformed JSON" is the wrong name for "the model
+    # was cut off", pointing at the prompt when the problem is the budget.
     if parsed["stop_reason"] == "max_tokens"
-      raise TruncatedError.new(raw_body: text, max_tokens: max_tokens)
+      raise TruncatedError.new(raw_body: ResponseParser.first_text(parsed), max_tokens: max_tokens)
     end
 
-    ResponseParser.parse_and_validate(text, response_schema)
+    return parsed if response_schema.nil?
+
+    ResponseParser.parse_and_validate(ResponseParser.first_text(parsed), response_schema)
   end
 
   # Streaming twin of `messages_create`. Returns the same assembled Hash,
@@ -185,7 +188,24 @@ class AnthropicClient
     end
 
     @last_usage = stream.usage
-    stream.message
+    message = stream.message
+
+    # Logged, not raised — unlike the non-streaming path.
+    #
+    # The caller has already put this answer on someone's screen word by
+    # word. Turning a visible, mostly-complete reply into an error would
+    # replace something useful with nothing; the honest handling is that
+    # the operator can find out it happened. The chat is the only
+    # streaming caller and its `MAX_TOKENS` covers thinking *and* text on
+    # Opus 5, so a long think followed by a clipped answer is the shape
+    # to watch for.
+    if message.is_a?(Hash) && message["stop_reason"] == "max_tokens"
+      Rails.logger.warn(
+        "[anthropic] streamed response hit the #{max_tokens}-token output limit; answer is incomplete"
+      )
+    end
+
+    message
   end
 
   # Build a `system` array of content blocks. Each input is a Hash like

@@ -67,7 +67,8 @@ module Ingestion
         result = @run.staging
       else
         out = timed_anthropic_call(@run, api_error: "anthropic_api_error",
-                                         validation_error: "schema_validation_failed") do |client|
+                                         validation_error: "schema_validation_failed",
+                                         truncation_error: "menu_too_large") do |client|
           client.messages_create(
             system:          ExtractMenuPrompt.system(client),
             messages:        ExtractMenuPrompt.user_messages(client, blobs),
@@ -84,6 +85,15 @@ module Ingestion
             # Still validated after: the wire schema constrains shape, the
             # full one enforces the values structured outputs will not
             # carry (minimums, lengths).
+            #
+            # Which means the two can disagree in one direction, and it is
+            # worth naming rather than calling this lossless. `"w": 0` or
+            # `"name": ""` satisfies the grammar the model was constrained
+            # to and then fails `MenuExtractionSchema` — a run that pays
+            # for output the API told the model was acceptable. Left to
+            # fail rather than coerced: an empty dish name is bad data,
+            # and quietly repairing it would publish a nameless dish
+            # instead of refusing one.
             response_schema: MenuExtractionSchema
           )
         end

@@ -50,13 +50,26 @@ the pipeline's one heavyweight LLM call. (The extraction prompt does
 **Two schemas, one source.** The response is *constrained* by
 structured outputs (`output_config.format`) and then *validated*
 against the full schema. `Ingestion::SchemaForRequest.derive` produces
-the wire form from `MenuExtractionSchema` by dropping the keywords
-structured outputs reject (`minLength`, `minimum`, `maximum`,
-`exclusiveMinimum`) and rewriting `oneOf` as `anyOf`. Nothing is lost:
-the wire schema constrains *shape* while the model generates, and the
-full schema still enforces the *values* afterwards. Derived rather than
-hand-written because two schemas drift silently — a wire schema missing
-a field still produces valid-looking output, just without the field.
+the wire form from `MenuExtractionSchema` by rewriting `oneOf` as
+`anyOf` and dropping every keyword structured outputs reject — the list
+lives in `SchemaForRequest::UNSUPPORTED` (`minLength`, `maxLength`,
+`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
+`multipleOf`, `minItems`, `maxItems`, `pattern`, `format`). Derived
+rather than hand-written because two schemas drift silently: a wire
+schema missing a field still produces valid-looking output, just
+without the field.
+
+Keywords are only stripped where they *are* keywords. One level below a
+`properties` key the same words are field names, so a property called
+`format` survives while a `format:` constraint beside it does not.
+
+The two schemas can disagree in exactly one direction, and it is worth
+knowing rather than calling this lossless: a response with `"w": 0` or
+`"name": ""` satisfies the grammar the model was constrained to and
+then fails the full schema's `exclusiveMinimum` / `minLength`. That run
+pays for output the API told the model was acceptable. Left to fail
+rather than coerced — an empty dish name is bad data, and repairing it
+quietly would publish a nameless dish instead of refusing one.
 
 **`max_tokens` is 16,000, and the number matters.** It was the client's
 shared 8,000 default, which was never chosen for the one caller that
@@ -70,9 +83,13 @@ long one non-streaming call can take, and `ANTHROPIC_READ_TIMEOUT` is
 Anything genuinely larger belongs in more than one call.
 
 **Truncation is now its own failure.** `AnthropicClient` reads
-`stop_reason` before parsing and raises `TruncatedError`, which the run
-records as `output_truncated` — so "too big to extract in one pass"
-stops being reported as a schema problem and pointing at the prompt.
+`stop_reason` before parsing and raises `TruncatedError` on every
+non-streaming call, schema or not; extraction records it as
+`menu_too_large`, gap-fill as its own label, so "too big to do in one
+pass" stops being reported as a schema problem and pointing at the
+prompt. The streaming path (the chat, not ingestion) only **logs** it —
+the answer is already on screen word by word, and replacing something
+useful with an error is the wrong trade.
 
 **The system prompt is not cached, and never was.** It carried
 `cache: true` for months on ~976 tokens against Sonnet's 1,024-token
