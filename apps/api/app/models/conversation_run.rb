@@ -158,6 +158,7 @@ class ConversationRun < ApplicationRecord
   # `increment!`, so a lost lease cannot leave a run whose round count
   # advanced but whose tokens did not.
   def record_round!(usage, model:)
+    micro   = ::Ingestion::UsageCost.micro_cents(usage, model: model)
     updated = self.class
                   .where(id: id, run_token: run_token)
                   .update_all([
@@ -167,14 +168,35 @@ class ConversationRun < ApplicationRecord
                     "cost_micro_cents = cost_micro_cents + ?, updated_at = ?",
                     usage["input_tokens"].to_i, usage["output_tokens"].to_i,
                     usage["cache_read_input_tokens"].to_i,
-                    usage["cache_creation_input_tokens"].to_i,
-                    ::Ingestion::UsageCost.micro_cents(usage, model: model),
-                    Time.current
+                    usage["cache_creation_input_tokens"].to_i, micro, Time.current
                   ])
-    raise LostLease, "run #{id} no longer holds the lock" if updated.zero?
+    raise_lost_lease!(micro) if updated.zero?
 
     reload
     true
+  end
+
+  # The attribution is dropped; the money is not.
+  #
+  # `call_model` charges the conversation *before* this runs, and the
+  # daily ceiling sums these rows — so a charge that vanished because the
+  # lease moved would leave the two ledgers disagreeing and punch a hole
+  # in the ceiling. Anthropic billed the call either way.
+  #
+  # Only the money, though. Rounds and token counts are attribution, and
+  # attribution belongs to whoever holds the lease: `steal` rotates the
+  # token **in place**, so this is the same row the replacement is now
+  # using, and inflating its counters is exactly what the guard exists to
+  # prevent. The cost is different in kind — it was spent on this
+  # conversation, today, and the aggregate needs it whoever owns the row.
+  def raise_lost_lease!(micro)
+    if micro.positive?
+      self.class.where(id: id).update_all(
+        [ "cost_micro_cents = cost_micro_cents + ?, updated_at = ?", micro, Time.current ]
+      )
+    end
+
+    raise LostLease, "run #{id} no longer holds the lock"
   end
 
   # Releases the lock. Conditional on the token so a run that already lost

@@ -189,6 +189,27 @@ RSpec.describe ConversationRun do
         .to raise_error(described_class::LostLease)
       expect(described_class.find(run.id).input_tokens).to eq(0)
     end
+
+    # The attribution is dropped; the money is not. `call_model` charges
+    # the conversation before this runs, and the daily ceiling sums these
+    # rows — a charge that vanished because the lease moved would be a
+    # hole in the ceiling rather than a tidier ledger. Anthropic billed
+    # the call either way.
+    it "still records the cost of a call that was already billed" do
+      run = described_class.acquire(conversation)
+      described_class.where(id: run.id).update_all(run_token: SecureRandom.uuid)
+
+      expect { run.record_round!({ "input_tokens" => 1_000 }, model: Chat::AgentLoop::MODEL) }
+        .to raise_error(described_class::LostLease)
+
+      stolen = described_class.find(run.id)
+      expect(stolen.cost_micro_cents).to eq(1_000 * 500)
+      # Rounds and tokens belong to whoever holds the lease — `steal`
+      # rotates the token in place, so this is the row the replacement is
+      # using and inflating its counters is what the guard prevents.
+      expect(stolen.rounds).to eq(0)
+      expect(stolen.input_tokens).to eq(0)
+    end
   end
 
   describe "#record_side_call!" do
