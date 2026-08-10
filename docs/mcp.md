@@ -409,7 +409,13 @@ REST only (see below). Deliberate — the tools are what a model drives, and
 Two properties are the whole design, and both are asserted by specs:
 
 - **It is granted from a shell and nowhere else** — `admin:grant_super`
-  / `SUPER_ADMIN_EMAILS` via `Biteworthy::AdminRoster`. `set_user_role`
+  / `SUPER_ADMIN_EMAILS` via `Biteworthy::AdminRoster`. In production the
+  roster has to be in **two** places: a value in `.kamal/secrets` and the
+  variable's name in `config/deploy.yml`'s `env.secret:` list, which is
+  what actually puts it in the container. Missing the second is a loud
+  failure rather than a dangerous one — `admin:sync_super` aborts on a
+  blank roster, and both sync tasks only ever grant, so a typo cannot
+  demote the one operator who could still fix it. `set_user_role`
   and `PATCH /admin/users/:id` cannot set it, and both refuse to *demote*
   an account that has it. Any admin can promote another admin, so if
   plain admin cleared the spend ceilings, one promotion would hand out an
