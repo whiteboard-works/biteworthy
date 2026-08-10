@@ -18,6 +18,7 @@ module Api
       # denormalized ingredient_ids/tag_ids arrays (join callbacks own
       # them; edits go through the slug lists instead).
       class ItemsController < BaseController
+        include Deletable
         DEFAULT_LIMIT = 50
         MAX_LIMIT     = 200
 
@@ -55,6 +56,22 @@ module Api
                  status: :unprocessable_entity
         rescue ::Admin::ItemEditor::ForeignSection
           render json: { error: "foreign_menu_section" }, status: :unprocessable_entity
+        end
+
+        # Hard only. Taking an item off the menu is `status: "removed"`
+        # through #update, which keeps the reviews and saved-dish rows
+        # that point at it; destroying the row takes those with it.
+        def destroy
+          authorize_hard_delete! or return
+          unless hard_delete_requested?
+            return render_soft_delete_unsupported(
+              use: "PATCH /api/v1/admin/items/:id with status=removed"
+            )
+          end
+
+          item = Item.find(params[:id])
+          item.destroy!
+          render_hard_deleted(item)
         end
 
         private

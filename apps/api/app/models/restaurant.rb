@@ -18,7 +18,17 @@ class Restaurant < ApplicationRecord
   validates :slug, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
-  scope :published, -> { where(status: "published") }
+  # `published` is the chokepoint every public read already goes
+  # through — the list and detail endpoints, the item and review and
+  # suggestion loaders, the chat discovery tools, and
+  # Cities::RestaurantRanking. Folding the archive check in here is what
+  # makes an admin archive actually hide a restaurant, in one place
+  # instead of thirty. The two readers that deliberately bypass it are
+  # the saved-restaurant lists, which show unpublished rows on purpose;
+  # they filter on `kept` themselves.
+  scope :kept,      -> { where(archived_at: nil) }
+  scope :archived,  -> { where.not(archived_at: nil) }
+  scope :published, -> { kept.where(status: "published") }
   # Phase 6.4 — the moderation lens. Two ways a restaurant enters it:
   # a community member created it (created_by_user_id present), OR a
   # community member re-scanned an existing/seeded restaurant, which

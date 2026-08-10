@@ -11,6 +11,7 @@ module Api
       # "Mark spam" is just hide with reason "spam" — the UI offers it
       # as a preset, not a separate endpoint.
       class ReviewsController < BaseController
+        include Deletable
         DEFAULT_LIMIT = 25
         MAX_LIMIT     = 100
 
@@ -62,6 +63,22 @@ module Api
           review = Review.find(params[:id])
           review.unhide!
           render json: serialize_review(review)
+        end
+
+        # Hard only, on purpose — see Deletable. Hiding a review is
+        # #hide, which records *why*; a delete that had to pick a
+        # reason from that list would be recording a lie.
+        def destroy
+          authorize_hard_delete! or return
+          unless hard_delete_requested?
+            return render_soft_delete_unsupported(
+              use: "POST /api/v1/admin/reviews/:id/hide with a reason"
+            )
+          end
+
+          review = Review.find(params[:id])
+          review.destroy!
+          render_hard_deleted(review)
         end
 
         private

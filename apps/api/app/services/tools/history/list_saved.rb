@@ -44,7 +44,10 @@ module Tools
       end
 
       def self.saved_restaurants(user, rows)
-        user.favorited_restaurants.includes(:city).limit(rows).map do |restaurant|
+        # `.kept` for the same reason as ProfileFavoritesController:
+        # this reader shows unpublished restaurants on purpose and so
+        # does not inherit the archive filter from `published`.
+        user.favorited_restaurants.kept.includes(:city).limit(rows).map do |restaurant|
           {
             id: restaurant.id, slug: restaurant.slug, name: restaurant.name,
             city: restaurant.city.name, status: restaurant.status

@@ -323,6 +323,44 @@ is the only place that audience is declared. `Registry.for(context)` drops
 them wholesale for non-admins, so a normal caller's `tools/list` never
 mentions them.
 
+### Deleting things
+
+`DELETE /api/v1/admin/<resource>/:id` means **archive**;
+`?hard=true` means the row is gone, and is super-admin only (a plain admin
+gets the same 404 `require_admin!` gives a non-admin, so the response never
+confirms the capability exists). The rule lives once, in
+`Api::V1::Admin::Deletable`.
+
+Only **restaurants** and **ingestion runs** archive — they are the two with
+no tombstone of their own, so they got `archived_at`. Items, reviews and
+suggestions already had one before this existed (`status: "removed"`,
+`hidden_at`, `status: "rejected"`), and reaching those through `DELETE`
+would mean inventing a value to write: `Review#hide!` takes a reason from a
+closed list of *editorial* judgments, and a delete button recording "spam"
+because the enum had nothing better would put a false reason in a
+moderation audit trail. A bare `DELETE` on those three returns a 422 naming
+the endpoint that does it properly. Users have no archive at all — the app
+has no deactivated-account state.
+
+Restaurant claims are suggestions (`RestaurantClaim` writes one), so the
+suggestion delete is the claim delete.
+
+**The archive is honoured by one line, not thirty.** `Restaurant.published`
+is the chokepoint every public read already goes through — list, detail,
+menu, reviews, suggestions, the chat discovery tools, and
+`Cities::RestaurantRanking` — so `scope :published, -> { kept.where(…) }`
+covers all of them at once. Exactly two readers bypass it, both on purpose:
+the saved-restaurant lists show draft and closed restaurants so the page can
+grey out the link, and they filter on `kept` themselves.
+`spec/requests/admin/archive_visibility_spec.rb` names each reader
+individually, so a future one that queries around `published` fails there
+rather than quietly serving an archived restaurant.
+
+Taxonomy is the exception to the tier: `Taxonomy::Writer#destroy!` refuses
+to delete a node someone has in an avoid list, and a super admin gets that
+refusal too. A force that ignored it would silently weaken a live allergen
+filter.
+
 ### The super tier
 
 `users.is_super_admin` sits above `is_admin` and lifts the limits, not the
@@ -333,6 +371,10 @@ filter is unchanged, because `super_admin_implies_admin` (a CHECK
 constraint) guarantees a super admin is already an admin, so every
 existing `is_admin?` call site and every `.where(is_admin: …)` scope keeps
 working untouched.
+
+The one capability it does add is not a tool: **irreversible delete**, over
+REST only (see below). Deliberate — the tools are what a model drives, and
+`DROP the row` is the operation with no undo.
 
 Two properties are the whole design, and both are asserted by specs:
 

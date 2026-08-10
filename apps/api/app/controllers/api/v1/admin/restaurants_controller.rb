@@ -7,16 +7,24 @@ module Api
       #   GET   /api/v1/admin/restaurants/:id       detail + confidence counts
       #   PATCH /api/v1/admin/restaurants/:id       edit + status (publish/unpublish/close)
       #   POST  /api/v1/admin/restaurants/:id/confirm_community
+      #   POST  /api/v1/admin/restaurants/:id/restore
+      #   DEL   /api/v1/admin/restaurants/:id        archive (or ?hard=true)
       #
       # Slug is immutable in v1 — it's the SEO URL and the
       # find_by_id_or_slug! lookup key. Status writes go through the
       # model's inclusion validation (draft|published|closed).
       class RestaurantsController < BaseController
+        include Deletable
+
         DEFAULT_LIMIT = 25
         MAX_LIMIT     = 100
 
         def index
           scope = Restaurant.order(created_at: :desc).includes(:city)
+          # Archived rows are hidden from the list by default but stay
+          # reachable, because an admin who archives the wrong
+          # restaurant needs a way to find it again.
+          scope = params[:archived].to_s == "true" ? scope.archived : scope.kept
           scope = scope.where(status: params[:status]) if Restaurant::STATUSES.include?(params[:status].to_s)
           scope = scope.community_published if params[:filter].to_s == "community_published"
           scope = scope.where(city_id: params[:city_id]) if params[:city_id].present?
@@ -86,6 +94,30 @@ module Api
           render json: { restaurant_id: restaurant.id, confirmed: counts }
         end
 
+        # A hard delete here is the widest one in the app: `dependent:
+        # :destroy` takes the menus, sections, items, addresses, hours
+        # and everyone's saved-restaurant rows with it. That is the
+        # reason it is gated on super admin and the reason the web asks
+        # for the name to be typed.
+        def destroy
+          authorize_hard_delete! or return
+          restaurant = Restaurant.find(params[:id])
+
+          if hard_delete_requested?
+            restaurant.destroy!
+            render_hard_deleted(restaurant)
+          else
+            restaurant.update!(archived_at: Time.current)
+            render json: serialize_restaurant(restaurant)
+          end
+        end
+
+        def restore
+          restaurant = Restaurant.find(params[:id])
+          restaurant.update!(archived_at: nil)
+          render json: serialize_restaurant(restaurant)
+        end
+
         private
 
         def serialize_restaurant(restaurant)
@@ -94,6 +126,7 @@ module Api
             slug:   restaurant.slug,
             name:   restaurant.name,
             status: restaurant.status,
+            archived_at: restaurant.archived_at,
             city: restaurant.city && { id: restaurant.city.id, name: restaurant.city.name },
             created_by_user_id: restaurant.created_by_user_id,
             claimed_by_user_id: restaurant.claimed_by_user_id,

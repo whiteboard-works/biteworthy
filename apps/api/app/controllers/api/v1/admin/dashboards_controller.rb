@@ -43,7 +43,10 @@ module Api
             flagged_reviews: Review.awaiting_moderation.count,
             pending_suggestions: Suggestion.where(status: "pending").count,
             community_published_restaurants: Restaurant.community_published.count,
-            staged_runs: IngestionRun.where(status: "staged").count
+            # `.kept` — this is a queue depth, and an archived run is
+            # one an admin has already dealt with. Spend figures above
+            # deliberately do not filter: archiving does not refund.
+            staged_runs: IngestionRun.kept.where(status: "staged").count
           }
         end
       end
