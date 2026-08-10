@@ -207,12 +207,18 @@ RSpec.configure do |config|
           },
           ChatMessage: {
             type: :object,
-            required: %w[id role position blocks],
+            required: %w[id role position created_at blocks],
             properties: {
-              id:       { type: :string, format: :uuid },
-              role:     { type: :string, enum: %w[user assistant] },
-              position: { type: :integer },
-              blocks:   { type: :array, items: { "$ref" => "#/components/schemas/ChatBlock" } }
+              id:         { type: :string, format: :uuid },
+              role:       { type: :string, enum: %w[user assistant] },
+              position:   { type: :integer },
+              created_at: {
+                type: :string, format: "date-time",
+                description: "When the message was stored. `position` orders a transcript; " \
+                             "this answers how long ago, which is the question a reopened " \
+                             "conversation raises."
+              },
+              blocks:     { type: :array, items: { "$ref" => "#/components/schemas/ChatBlock" } }
             }
           },
           PendingTool: {

@@ -23,6 +23,8 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   position: number;
+  /** ISO 8601. `position` orders the transcript; this says how long ago. */
+  created_at?: string;
   blocks: ChatBlock[];
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ChatEvent, Conversation } from '../../../lib/chat';
 
 /**
@@ -102,7 +102,16 @@ describe('ChatClient', () => {
     await type('hi');
 
     expect(createConversation).toHaveBeenCalled();
-    expect(await screen.findByText('Ninis has 12 dishes you can eat.')).toBeInTheDocument();
+    // Asserted on the settled assistant bubble rather than by matching a
+    // bare text node. The streaming turn and the persisted message render
+    // the same words in different subtrees, so a `findByText` can resolve
+    // to the live node an instant before `done` unmounts it — leaving a
+    // detached element and a confusing "not in the document". What the
+    // reader cares about is that the answer landed in the assistant's
+    // message, which is what this now says.
+    expect(await screen.findByTestId('assistant-message')).toHaveTextContent(
+      'Ninis has 12 dishes you can eat.',
+    );
   });
 
   // The tool's own sentence, not its function name — it is the only thing
@@ -110,17 +119,15 @@ describe('ChatClient', () => {
   // happen while the turn is still in flight.
   it('narrates a running tool with the sentence the tool declared', async () => {
     const inFlight: { release: () => void } = { release: () => {} };
-    watchTurn.mockImplementation(
-      (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
-        onEvent({
-          type: 'tool_use',
-          name: 'get_menu',
-          input: {},
-          doing: "Reading the menu at Nini's",
-        });
-        return new Promise<void>((resolve) => (inFlight.release = resolve));
-      },
-    );
+    watchTurn.mockImplementation((_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+      onEvent({
+        type: 'tool_use',
+        name: 'get_menu',
+        input: {},
+        doing: "Reading the menu at Nini's",
+      });
+      return new Promise<void>((resolve) => (inFlight.release = resolve));
+    });
 
     render(<ChatClient />);
     await type('what can I eat');
@@ -142,7 +149,9 @@ describe('ChatClient', () => {
           id: 'm-1',
           role: 'assistant',
           position: 1,
-          blocks: [{ type: 'tool_use', id: 't-1', name: 'get_menu', input: { restaurant: 'ninis' } }],
+          blocks: [
+            { type: 'tool_use', id: 't-1', name: 'get_menu', input: { restaurant: 'ninis' } },
+          ],
         },
         {
           id: 'm-2',
@@ -200,7 +209,8 @@ describe('ChatClient', () => {
     // people should not have to read arguments to know what they are
     // agreeing to.
     it('renders the sentence the tool declared when there is one', async () => {
-      const prompt = 'Stop avoiding nut-peanut? Dishes containing it will start showing as safe for you.';
+      const prompt =
+        'Stop avoiding nut-peanut? Dishes containing it will start showing as safe for you.';
       getConversation.mockResolvedValue({
         ...blank,
         state: 'awaiting_confirmation',
@@ -356,24 +366,119 @@ describe('ChatClient', () => {
   // A menu scan legitimately outlives one connection. The reconnect has to
   // be invisible: the narration continues on screen and the turn is not
   // treated as finished.
+  // Showing every tool call is the honest-disclosure claim made visible,
+  // so hiding is a per-person preference and never the default. These pin
+  // both halves: it is on unless someone turned it off, and turning it
+  // off does not touch the answer itself.
+  describe('the tool-visibility toggle', () => {
+    const withTool: Conversation = {
+      ...blank,
+      title: 'hi',
+      messages: [
+        {
+          id: 'm-1',
+          role: 'assistant',
+          position: 1,
+          created_at: '2026-08-10T01:30:00Z',
+          blocks: [
+            { type: 'tool_use', id: 't1', name: 'get_menu', input: {} },
+            { type: 'text', text: 'Ninis has 12 dishes you can eat.' },
+          ],
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      window.localStorage.clear();
+      getConversation.mockResolvedValue(withTool);
+    });
+
+    it('shows tool cards by default', async () => {
+      render(<ChatClient />);
+      await type('hi');
+
+      expect(await screen.findByTestId('tool-card')).toBeInTheDocument();
+    });
+
+    // A stable name plus a pressed state, not an action label. "Hide
+    // tools" with `aria-pressed={showTools}` announces as "Hide tools,
+    // pressed" in exactly the state where tools are still showing, which
+    // is the opposite of the truth.
+    it('announces its state rather than its action', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByTestId('tool-card');
+
+      const toggle = screen.getByTestId('tools-toggle');
+      expect(toggle).toHaveTextContent('Tools');
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('hides them on request and keeps the answer', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByTestId('tool-card');
+
+      fireEvent.click(screen.getByTestId('tools-toggle'));
+
+      expect(screen.queryByTestId('tool-card')).toBeNull();
+      expect(screen.getByTestId('assistant-message')).toHaveTextContent(
+        'Ninis has 12 dishes you can eat.',
+      );
+    });
+
+    it('remembers the choice', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByTestId('tool-card');
+
+      fireEvent.click(screen.getByTestId('tools-toggle'));
+
+      expect(window.localStorage.getItem('bw_chat_show_tools')).toBe('false');
+    });
+
+    // Next to the machinery, not on every bubble: a timestamp on each
+    // line is noise in a conversation you are having, and "when did it do
+    // that" is the tool view's question.
+    it('timestamps the tool card', async () => {
+      render(<ChatClient />);
+      await type('hi');
+
+      const card = await screen.findByTestId('tool-card');
+      expect(within(card).getByRole('time')).toHaveAttribute('datetime', '2026-08-10T01:30:00Z');
+    });
+  });
+
   it('resumes from the cursor when a turn outlives one connection', async () => {
     watchTurn
-      .mockImplementationOnce(async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
-        onEvent({ type: 'text_delta', text: 'Reading ' });
-        return 7; // server closed mid-turn, resume from position 7
-      })
-      .mockImplementationOnce(async (_id: string, after: number, onEvent: (e: ChatEvent) => void) => {
-        expect(after).toBe(7);
-        onEvent({ type: 'done', text: 'Reading the menu.' });
-        return null;
-      });
+      .mockImplementationOnce(
+        async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+          onEvent({ type: 'text_delta', text: 'Reading ' });
+          return 7; // server closed mid-turn, resume from position 7
+        },
+      )
+      .mockImplementationOnce(
+        async (_id: string, after: number, onEvent: (e: ChatEvent) => void) => {
+          expect(after).toBe(7);
+          onEvent({ type: 'done', text: 'Reading the menu.' });
+          return null;
+        },
+      );
     getConversation.mockResolvedValue(answered('Reading the menu.'));
 
     render(<ChatClient />);
     await type('scan this');
 
     await waitFor(() => expect(watchTurn).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('Reading the menu.')).toBeInTheDocument();
+    // Settled bubble, not a bare text node — the live turn and the
+    // persisted message render the same words in different subtrees, so
+    // matching the text can resolve to the node `done` is about to
+    // unmount. Same reason as the streaming test above.
+    expect(await screen.findByTestId('assistant-message')).toHaveTextContent('Reading the menu.');
   });
 
   it('shows an error event without losing the conversation', async () => {

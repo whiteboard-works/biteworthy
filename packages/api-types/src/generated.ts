@@ -3513,6 +3513,11 @@ export interface components {
             /** @enum {string} */
             role: "user" | "assistant";
             position: number;
+            /**
+             * Format: date-time
+             * @description When the message was stored. `position` orders a transcript; this answers how long ago, which is the question a reopened conversation raises.
+             */
+            created_at: string;
             blocks: components["schemas"]["ChatBlock"][];
         };
         /** @description The call the confirmation gate parked. `prompt` is the sentence the tool itself declared; `fingerprint` must be echoed on /confirm so an answer can only settle the call it was drawn for. */
