@@ -15,6 +15,15 @@ class User < ApplicationRecord
   has_one  :profile, class_name: "UserProfile", dependent: :destroy
   has_many :reviews, dependent: :destroy
   has_many :mcp_tokens, dependent: :destroy
+  # Doorkeeper's tables reference `users` by `resource_owner_id` and
+  # ship no association of their own, so deleting a member who had
+  # connected an OAuth app raised InvalidForeignKey. Destroying them is
+  # also the only correct answer: a live grant for a deleted account is
+  # a credential with no owner.
+  has_many :oauth_access_grants, class_name: "Doorkeeper::AccessGrant",
+           foreign_key: :resource_owner_id, inverse_of: false, dependent: :destroy
+  has_many :oauth_access_tokens, class_name: "Doorkeeper::AccessToken",
+           foreign_key: :resource_owner_id, inverse_of: false, dependent: :destroy
   has_many :suggestions, dependent: :nullify
   has_many :user_item_overrides, dependent: :destroy
   has_many :overridden_items, through: :user_item_overrides, source: :item

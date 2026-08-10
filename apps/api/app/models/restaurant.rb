@@ -13,6 +13,14 @@ class Restaurant < ApplicationRecord
   has_many :menu_sections, through: :menus
   has_many :items,         dependent: :destroy
   has_many :favorite_restaurants, dependent: :destroy
+  has_many :restaurant_visits,    dependent: :destroy
+  # Nullify, not destroy: a run is the spend record for a scan, and
+  # Ingestion::CostMetrics reports by date rather than by restaurant.
+  # Destroying it with the restaurant would quietly reduce a historical
+  # total. Every FK into `restaurants` is a plain REFERENCES with no
+  # ON DELETE, so an association missing here is a 500, not a leak —
+  # spec/models/hard_delete_cascade_spec.rb is where that gets caught.
+  has_many :ingestion_runs,       dependent: :nullify
 
   validates :slug, :name, presence: true
   validates :slug, uniqueness: true

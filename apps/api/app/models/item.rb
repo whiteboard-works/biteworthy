@@ -17,6 +17,13 @@ class Item < ApplicationRecord
   has_many :reviews,          dependent: :destroy
   has_many :user_item_overrides, dependent: :destroy
   has_many :favorite_items,   dependent: :destroy
+  # A staged row records what the pipeline proposed and what a human
+  # decided about it — history about the *run*, which outlives the menu
+  # item that decision produced. `matched_item_id` already nullifies at
+  # the database level for the same reason; `item_id` had no
+  # association at all, so destroying a promoted item raised
+  # InvalidForeignKey.
+  has_many :ingestion_items,  dependent: :nullify
 
   has_one_attached :photo
 
