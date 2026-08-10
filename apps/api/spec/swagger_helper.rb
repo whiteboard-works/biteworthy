@@ -236,11 +236,19 @@ RSpec.configure do |config|
           },
           Conversation: {
             type: :object,
-            required: %w[id state created_at updated_at],
+            required: %w[id state mode created_at updated_at],
             properties: {
               id:         { type: :string, format: :uuid },
               title:      { type: :string, nullable: true },
               state:      { type: :string, enum: %w[active awaiting_confirmation failed] },
+              mode: {
+                type: :string,
+                enum: %w[planning manual accept_edits auto],
+                description: "How much this conversation has agreed to in advance. " \
+                             "`planning` refuses every write; `manual` parks the calls a " \
+                             "tool says need a human; `accept_edits` waves those through " \
+                             "except the ones no later edit can undo; `auto` parks nothing."
+              },
               pending:    { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] },
               created_at: { type: :string, format: :"date-time" },
               updated_at: { type: :string, format: :"date-time" },

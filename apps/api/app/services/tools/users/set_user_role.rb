@@ -28,6 +28,10 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # Reversible as a row, not as an event: whatever the grant was used
+      # for in between stands.
+      unrecoverable_when { true }
+
       def self.perform(context:, user_id:, is_admin:)
         actor = context.admin!
         raise Errors::InvalidArgument, "is_admin must be true or false." unless [true, false].include?(is_admin)

@@ -9,6 +9,7 @@
  */
 
 import type {
+  ChatMode as ApiChatMode,
   ChatUsage as ApiChatUsage,
   PendingTool as ApiPendingTool,
 } from '@biteworthy/api-types';
@@ -41,10 +42,20 @@ export interface ChatMessage {
  */
 export type PendingTool = ApiPendingTool;
 
+/**
+ * How much this conversation has agreed to in advance.
+ *
+ * The gate is the server's — `Chat::ModePolicy` decides what runs, what
+ * parks, and what is refused. Nothing here re-implements that; the picker
+ * sends a mode and renders what comes back.
+ */
+export type ChatMode = ApiChatMode;
+
 export interface ConversationSummary {
   id: string;
   title: string | null;
   state: 'active' | 'awaiting_confirmation' | 'failed';
+  mode: ChatMode;
   pending: PendingTool | null;
   created_at: string;
   updated_at: string;
@@ -161,11 +172,12 @@ export function sendMessage(
   id: string,
   message: string,
   context?: PageContext,
+  mode?: ChatMode,
 ): Promise<Queued> {
   return json(`/api/chat/conversations/${encodeURIComponent(id)}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, context }),
+    body: JSON.stringify({ message, context, mode }),
   });
 }
 
@@ -173,11 +185,22 @@ export function answerConfirmation(
   id: string,
   confirm: boolean,
   fingerprint: string | null,
+  mode?: ChatMode,
 ): Promise<Queued> {
   return json(`/api/chat/conversations/${encodeURIComponent(id)}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ confirm, fingerprint }),
+    body: JSON.stringify({ confirm, fingerprint, mode }),
+  });
+}
+
+/** Switch modes without sending anything, so the picker survives a
+ *  reload. A turn already in flight keeps the mode it was sent under. */
+export function setConversationMode(id: string, mode: ChatMode): Promise<Conversation> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
   });
 }
 

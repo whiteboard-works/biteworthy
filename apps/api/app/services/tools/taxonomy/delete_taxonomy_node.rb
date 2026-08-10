@@ -31,6 +31,10 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # The node is shared taxonomy — recreating one by the same slug does
+      # not restore what pointed at it.
+      unrecoverable_when { true }
+
       def self.perform(context:, kind:, slug:)
         context.admin!
         node = find_node!(kind, slug)

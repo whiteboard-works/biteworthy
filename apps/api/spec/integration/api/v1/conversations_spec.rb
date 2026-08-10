@@ -70,6 +70,38 @@ RSpec.describe "conversations", type: :request do
       end
     end
 
+    patch("Switch the conversation's mode") do
+      tags "Chat"
+      description "For switching without sending anything, so the picker survives a " \
+                  "reload. A turn carries the mode it was sent under, so this sets what " \
+                  "the *next* send will use — it does not change a turn already running."
+      consumes "application/json"
+      produces "application/json"
+      security [bearerAuth: []]
+      parameter name: :Authorization, in: :header, type: :string, required: true
+      parameter name: :body, in: :body, schema: {
+        type: :object,
+        required: %w[mode],
+        properties: {
+          mode: { type: :string, enum: %w[planning manual accept_edits auto] }
+        }
+      }
+
+      response(200, "the conversation, with the new mode") do
+        schema "$ref" => "#/components/schemas/Conversation"
+        let(:id)   { create(:conversation, user: account).id }
+        let(:body) { { mode: "planning" } }
+        run_test!
+      end
+
+      response(422, "a mode that does not exist") do
+        schema "$ref" => "#/components/schemas/ErrorResponse"
+        let(:id)   { create(:conversation, user: account).id }
+        let(:body) { { mode: "yolo" } }
+        run_test!
+      end
+    end
+
     delete("Delete a conversation and its transcript") do
       tags "Chat"
       security [bearerAuth: []]
@@ -98,6 +130,13 @@ RSpec.describe "conversations", type: :request do
         required: %w[message],
         properties: {
           message: { type: :string, maxLength: 20_000 },
+          mode: {
+            type: :string,
+            enum: %w[planning manual accept_edits auto],
+            description: "Switch mode and send in one request, so the picker cannot lose " \
+                         "a race with the message it was changed for. Omit to keep the " \
+                         "conversation's current mode."
+          },
           context: {
             type: :object,
             description: "Where the user is standing, so \"what can I eat here\" is answerable.",
@@ -148,7 +187,8 @@ RSpec.describe "conversations", type: :request do
         required: %w[confirm],
         properties: {
           confirm:     { type: :boolean },
-          fingerprint: { type: :string, nullable: true }
+          fingerprint: { type: :string, nullable: true },
+          mode:        { type: :string, enum: %w[planning manual accept_edits auto] }
         }
       }
 

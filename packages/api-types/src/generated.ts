@@ -3150,7 +3150,51 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Switch the conversation's mode
+         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        mode: "planning" | "manual" | "accept_edits" | "auto";
+                    };
+                };
+            };
+            responses: {
+                /** @description the conversation, with the new mode */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Conversation"];
+                    };
+                };
+                /** @description a mode that does not exist */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/conversations/{id}/messages": {
@@ -3185,6 +3229,11 @@ export interface paths {
                 content: {
                     "application/json": {
                         message: string;
+                        /**
+                         * @description Switch mode and send in one request, so the picker cannot lose a race with the message it was changed for. Omit to keep the conversation's current mode.
+                         * @enum {string}
+                         */
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
                         /** @description Where the user is standing, so "what can I eat here" is answerable. */
                         context?: {
                             path?: string;
@@ -3262,6 +3311,8 @@ export interface paths {
                     "application/json": {
                         confirm: boolean;
                         fingerprint?: string | null;
+                        /** @enum {string} */
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
                     };
                 };
             };
@@ -3935,6 +3986,11 @@ export interface components {
             title?: string | null;
             /** @enum {string} */
             state: "active" | "awaiting_confirmation" | "failed";
+            /**
+             * @description How much this conversation has agreed to in advance. `planning` refuses every write; `manual` parks the calls a tool says need a human; `accept_edits` waves those through except the ones no later edit can undo; `auto` parks nothing.
+             * @enum {string}
+             */
+            mode: "planning" | "manual" | "accept_edits" | "auto";
             pending?: components["schemas"]["PendingTool"] | null;
             /** Format: date-time */
             created_at: string;

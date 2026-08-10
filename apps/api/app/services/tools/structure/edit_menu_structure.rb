@@ -48,6 +48,11 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
 
+      # Creating and renaming are edits; the two deletes are not. A menu
+      # recreated by name is a new row, and the dishes its sections held
+      # are already unsectioned by then.
+      unrecoverable_when { |args| args[:action].to_s.start_with?("delete_") }
+
       class << self
         def perform(context:, action:, **args)
           context.admin!
