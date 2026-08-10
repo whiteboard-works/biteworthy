@@ -78,6 +78,9 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # An edit to a dish. The way back is another edit.
+      unrecoverable_when { false }
+
       EDITABLE = %i[
         name description status menu_section_id
         ingredient_slugs tag_slugs variants modifiers

@@ -77,6 +77,10 @@ const MODES: { value: ChatMode; label: string; hint: string }[] = [
 /** A message typed while the assistant was busy. */
 interface QueuedMessage {
   id: string;
+  /** The conversation it was typed into. `busy` is global, so a turn
+   *  running in one chat must not deliver a message meant for another —
+   *  null means "the one being created right now". */
+  conversationId: string | null;
   text: string;
   attachments: Attachment[];
 }
@@ -106,6 +110,9 @@ export default function ChatScreen() {
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
+  // Which switch is the newest, so an older PATCH resolving late cannot
+  // speak for the picker.
+  const modeTicket = useRef(0);
 
   const requireJwt = useCallback(async (): Promise<string | null> => {
     const jwt = await getJwt();
@@ -206,7 +213,10 @@ export default function ChatScreen() {
       // `getConversation` strands the whole queue: the turn is over,
       // `busy` is false, and nothing else drains it.
       const settled = next ?? conversation;
-      if (settled && !settled.pending) flush(settled);
+      // Only when the server took this turn. If `ask` was rejected, the
+      // message it was carrying is on its way back to the queue, and
+      // flushing now would send the one behind it first.
+      if (accepted && settled && !settled.pending) flush(settled);
     }
     return accepted;
   };
@@ -215,10 +225,14 @@ export default function ChatScreen() {
   // `setConversation` that just ran may not have re-rendered yet, and a
   // deliver that reads it as null opens a second conversation.
   const flush = (active: Conversation) => {
-    const next = queue.current[0];
+    // Only this conversation's messages, and `null` for one typed during
+    // the very first send, before the conversation existed.
+    const next = queue.current.find(
+      (message) => message.conversationId === active.id || message.conversationId === null,
+    );
     if (!next) return;
 
-    queue.current = queue.current.slice(1);
+    queue.current = queue.current.filter((message) => message.id !== next.id);
     setQueued(queue.current);
     void deliverLatest.current(next.text, next.attachments, active).then((sent) => {
       if (sent) return;
@@ -305,6 +319,7 @@ export default function ChatScreen() {
     // has to be unique among the handful queued at once.
     const message: QueuedMessage = {
       id: `queued-${Date.now()}-${queue.current.length}`,
+      conversationId: conversation?.id ?? null,
       text,
       attachments: files,
     };
@@ -342,14 +357,20 @@ export default function ChatScreen() {
 
     const jwt = await getJwt();
     if (!jwt) return;
+    // Switch twice quickly and two PATCHes are in the air with no
+    // ordering between them; the older one landing last would leave the
+    // picker and the server disagreeing about which gate is on. The
+    // counter makes every response except the newest a no-op.
+    const ticket = (modeTicket.current += 1);
     switchingMode.current = true;
     try {
       await setConversationMode(jwt, conversation.id, next);
     } catch (e) {
+      if (ticket !== modeTicket.current) return;
       setMode(previous);
       setError((e as Error).message);
     } finally {
-      switchingMode.current = false;
+      if (ticket === modeTicket.current) switchingMode.current = false;
     }
   };
 

@@ -101,6 +101,32 @@ RSpec.describe Chat::ModePolicy do
       expect(decide("accept_edits", suggestion, { decision: "accepted" })).to eq(:park)
       expect(decide("accept_edits", suggestion, { decision: "rejected" })).to eq(:run)
     end
+
+    # The tool's own description says it cannot be undone, and what it
+    # buys is visibility to people filtering for a real allergy.
+    it "still stops before promoting a restaurant's data to confirmed" do
+      expect(decide("accept_edits", Tools::Restaurants::ConfirmRestaurantData)).to eq(:park)
+    end
+
+    # The default has to fail closed. A standing grant cannot cover a
+    # destructive call nobody has classified — including one added to the
+    # codebase long after the grant was designed. `registry_spec` keeps
+    # the real catalogue from ever reaching this branch; this pins the
+    # branch itself.
+    it "parks a destructive tool that never said whether it can be undone" do
+      unclassified = Class.new(Tools::Base) do
+        tool_name "unclassified_write"
+        annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
+      end
+
+      expect(unclassified.recoverability_declared?).to be(false)
+      expect(decide("accept_edits", unclassified)).to eq(:park)
+    end
+
+    it "runs a destructive tool that declared itself an ordinary edit" do
+      expect(Tools::Items::EditItem.recoverability_declared?).to be(true)
+      expect(decide("accept_edits", Tools::Items::EditItem)).to eq(:run)
+    end
   end
 
   describe "auto" do

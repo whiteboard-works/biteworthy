@@ -30,6 +30,9 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # Hiding and unhiding are the same call with a different argument.
+      unrecoverable_when { false }
+
       def self.perform(context:, review_id:, action:, reason: nil)
         context.admin!
         raise Errors::InvalidArgument, "action must be one of: #{ACTIONS.join(', ')}." unless ACTIONS.include?(action)

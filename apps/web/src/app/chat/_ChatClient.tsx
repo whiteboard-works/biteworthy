@@ -63,6 +63,9 @@ export function ChatClient(): ReactElement {
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
+  // Which switch is the newest, so an older PATCH resolving late cannot
+  // speak for the picker.
+  const modeTicket = useRef(0);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -144,6 +147,11 @@ export function ChatClient(): ReactElement {
     setMessages([]);
     setPending(null);
     clearQueue();
+    // A fresh conversation starts where the server starts it. Carrying
+    // the last one's mode over means someone who used `auto` once gets a
+    // new chat silently in `auto` — a gate turned off by a decision they
+    // made about a different conversation.
+    setMode('manual');
   };
 
   const remove = async (id: string) => {
@@ -247,7 +255,11 @@ export function ChatClient(): ReactElement {
       // and nothing else drains it — the chips would sit there forever
       // behind a generic error.
       const settled = conversation ?? active;
-      if (settled && !settled.pending) flush(settled);
+      // Only when the server took this turn. If `ask` was rejected, the
+      // message it was carrying is on its way back to the head of the
+      // queue — flushing now would send the one behind it first and
+      // deliver the two out of the order they were typed.
+      if (accepted && settled && !settled.pending) flush(settled);
     }
     return accepted;
   };
@@ -257,17 +269,24 @@ export function ChatClient(): ReactElement {
   // `deliver` that reads `active` as null opens a second conversation
   // and sends the queued message into it.
   const flush = (conversation: Conversation) => {
-    const next = queue.current[0];
+    // Only this conversation's messages. `busy` is global, so a turn
+    // running in A while the user opens B and types puts B's message in
+    // the same queue — and A's teardown would then deliver it into A.
+    // `null` is a message typed during the very first send, before the
+    // conversation existed — this is the one it was meant for.
+    const next = queue.current.find(
+      (message) => message.conversationId === conversation.id || message.conversationId === null,
+    );
     if (!next) return;
 
-    queue.current = queue.current.slice(1);
+    queue.current = queue.current.filter((message) => message.id !== next.id);
     setQueued(queue.current);
     void deliverLatest.current(next.text, next.attachments, conversation).then((sent) => {
       if (sent) return;
-      // Put it back at the head rather than losing it. Dequeuing first is
-      // what keeps a second flush from picking up the same message, but it
-      // means a send that never reached the server would otherwise vanish
-      // with nothing but an error banner to show for it.
+      // Put it back where it was rather than losing it. Removing it first
+      // is what keeps a second flush from picking up the same message,
+      // but it means a send that never reached the server would otherwise
+      // vanish with nothing but an error banner to show for it.
       queue.current = [next, ...queue.current];
       setQueued(queue.current);
     });
@@ -322,25 +341,36 @@ export function ChatClient(): ReactElement {
   // the composer does not need to know which, and the user finds out by
   // seeing a chip appear instead of a message.
   const send = (text: string, attachments: Attachment[]) => {
-    const idle = !busy && !inFlight.current && pending === null;
-    // `queue.current.length` is part of "idle" on purpose. Without it a
-    // message typed while a backlog is waiting jumps the queue and
-    // arrives before messages typed earlier — reachable whenever a flush
-    // was interrupted and left chips behind.
-    if (idle && queue.current.length === 0) {
-      void deliver(text, attachments);
-      return;
-    }
-
     // The id is a React key and a cancel handle, nothing more: it only
     // has to be unique among the handful queued at once. The length
     // suffix is there because two messages sent inside the same
     // millisecond would otherwise collide.
     const message: QueuedMessage = {
       id: `queued-${Date.now()}-${queue.current.length}`,
+      conversationId: active?.id ?? null,
       text,
       attachments,
     };
+
+    const idle = !busy && !inFlight.current && pending === null;
+    // `queue.current.length` is part of "idle" on purpose. Without it a
+    // message typed while a backlog is waiting jumps the queue and
+    // arrives before messages typed earlier — reachable whenever a flush
+    // was interrupted and left chips behind.
+    if (idle && queue.current.length === 0) {
+      void deliver(text, attachments).then((sent) => {
+        if (sent) return;
+        // The composer has already cleared itself, so a rejected POST
+        // would otherwise take the message with it. It becomes a chip
+        // instead — visible, cancelable, and picked up by the next
+        // flush, which beats restoring text into a box the user has
+        // probably started typing in again.
+        queue.current = [message, ...queue.current];
+        setQueued(queue.current);
+      });
+      return;
+    }
+
     queue.current = [...queue.current, message];
     setQueued(queue.current);
 
@@ -373,14 +403,20 @@ export function ChatClient(): ReactElement {
     setMode(next);
     if (!active) return;
 
+    // Switch twice quickly and two PATCHes are in the air with no
+    // ordering between them; the older one landing last would leave the
+    // picker and the server disagreeing about which gate is on. The
+    // counter makes every response except the newest a no-op.
+    const ticket = (modeTicket.current += 1);
     switchingMode.current = true;
     setConversationMode(active.id, next)
       .catch((e) => {
+        if (ticket !== modeTicket.current) return;
         setMode(previous);
         onFailure(e);
       })
       .finally(() => {
-        switchingMode.current = false;
+        if (ticket === modeTicket.current) switchingMode.current = false;
       });
   };
 

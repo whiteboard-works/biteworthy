@@ -164,16 +164,24 @@ Notes that bite:
   "may a standing grant cover this". The narrower question is
   recoverability: a menu edited wrong is fixed by editing it again; a
   deleted taxonomy node, a deleted review, and a granted admin role are
-  not. Five tools declare it today — `delete_taxonomy_node`,
-  `set_user_role`, `delete_review`, `edit_menu_structure` for its two
-  `delete_*` actions, and `resolve_suggestion` for `accepted` only — which
-  is also why it takes a block rather than a flag. `resolve_suggestion` is
-  the one that is not about deletion: the change was written by a
-  stranger, and an accepted `remove_ingredient` un-hides that dish for
-  *everyone* avoiding the ingredient, so it is not an edit the accepter
-  authored. Default is false — a tool that declares nothing is treated as
-  an edit, so add the declaration when you add a tool that destroys
-  something or applies someone else's words.
+  not. It takes a block rather than a flag because the answer is often
+  argument-dependent — `edit_menu_structure` creates, renames, and
+  deletes through one tool, and `resolve_suggestion` is unrecoverable
+  only for `accepted`.
+
+  **Every `destructive_hint` tool must declare it, either way**, and
+  `registry_spec` fails the build otherwise. `accept_edits` parks an
+  undeclared destructive tool rather than running it, so the default
+  fails closed — that inversion is not decoration. The first cut defaulted
+  to "recoverable", and two separate review passes each found a tool
+  being waved through on it: `resolve_suggestion` (applying a *stranger's*
+  correction, where an accepted `remove_ingredient` un-hides a dish for
+  everyone avoiding the ingredient) and `confirm_restaurant_data` (whose
+  own description says "cannot be undone" and whose whole purpose is
+  making dishes visible to strict-mode users — people filtering for a
+  real allergy). Neither author did anything wrong; the default was.
+  Write `unrecoverable_when { false }` to say a destructive tool really
+  is an ordinary edit.
 
   **`update_avoid_lists` deliberately does not declare it.** A removal is
   still gated in `manual`, and `accept_edits` waves it through — which is

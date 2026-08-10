@@ -130,6 +130,19 @@ module Tools
         true
       end
 
+      # Whether anyone ever answered the question for this tool.
+      #
+      # `accept_edits` parks a destructive tool that has not — see
+      # `Chat::ModePolicy`. Absence has to read as "nobody has decided"
+      # rather than "no", because the alternative is a standing grant that
+      # silently covers whatever destructive tool gets added next. Both
+      # review passes on the mode feature found exactly that: a tool whose
+      # own description said "cannot be undone" running without a human,
+      # purely because nobody remembered a declaration. A tool that really
+      # is an ordinary edit says so with `unrecoverable_when { false }`,
+      # and `registry_spec` holds the line.
+      def recoverability_declared? = !unrecoverable_when.nil?
+
       # The sentence the user actually approves. Declared here rather than
       # composed by the model: what someone is agreeing to must not be
       # phrased by the thing asking for the agreement.
