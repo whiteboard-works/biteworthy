@@ -81,6 +81,25 @@ class AnthropicClient
     end
   end
 
+  # The model ran out of output budget mid-sentence.
+  #
+  # Its own class because it is not a validation failure, and calling it
+  # one sent us looking in the wrong place for months: a `max_tokens`
+  # response is well-formed JSON that simply stops, so `JSON.parse` blows
+  # up with "unexpected end of input" and the run was recorded as
+  # `schema_validation_failed` — a message that says the model wrote
+  # something wrong when in fact it wrote something *unfinished*, and the
+  # fix is a bigger budget or a smaller ask rather than a better prompt.
+  class TruncatedError < StandardError
+    attr_reader :raw_body, :max_tokens
+
+    def initialize(raw_body:, max_tokens:)
+      @raw_body   = raw_body
+      @max_tokens = max_tokens
+      super("Anthropic stopped at the #{max_tokens}-token output limit; the response is incomplete")
+    end
+  end
+
   attr_reader :api_key, :model, :base_url
 
   # The `usage` object from the most recent successful messages_create
@@ -124,6 +143,14 @@ class AnthropicClient
     return parsed if response_schema.nil?
 
     text = ResponseParser.first_text(parsed)
+    # Read before parsing. A truncated response *is* a parse failure, so
+    # whichever check runs first names the error — and "the model wrote
+    # malformed JSON" is the wrong name for "the model was cut off",
+    # pointing at the prompt when the problem is the budget.
+    if parsed["stop_reason"] == "max_tokens"
+      raise TruncatedError.new(raw_body: text, max_tokens: max_tokens)
+    end
+
     ResponseParser.parse_and_validate(text, response_schema)
   end
 

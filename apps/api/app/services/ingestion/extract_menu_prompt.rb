@@ -88,11 +88,23 @@ module Ingestion
     # it only alongside a cassette re-record.
     USER_INSTRUCTIONS = "Extract every menu item from these images."
 
-    # Build the system blocks array. Marks the instructions as
-    # cached so a re-extraction within the 5-minute window pays
-    # for cached input tokens instead of fresh ones.
+    # Build the system blocks array.
+    #
+    # **Not cached, and it never was.** This block carried `cache: true`
+    # for months on the belief that a re-extraction inside the 5-minute
+    # window would pay cached rates. It cannot: `count_tokens` puts this
+    # prompt at ~976 tokens and Sonnet's minimum cacheable prefix is
+    # 1,024, so Anthropic silently declines — every `IngestionRun` ever
+    # recorded has `cached_input_tokens: 0`, which is how this was
+    # settled rather than argued.
+    #
+    # Padding it over the line would be the wrong fix: the prompt is the
+    # length it needs to be, a run costs ~0.3¢ of system prompt, and
+    # scans are rare enough that a 5-minute window rarely sees two. A
+    # flag that reads as "this is cached" while it is not is worse than
+    # no flag, because it is the reason nobody looked.
     def self.system(client)
-      client.system_blocks(text: SYSTEM_INSTRUCTIONS, cache: true)
+      client.system_blocks(text: SYSTEM_INSTRUCTIONS)
     end
 
     # Build the user message: each input attachment becomes the content

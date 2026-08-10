@@ -19,6 +19,22 @@ module Ingestion
   class ExtractRun
     include TimedAnthropicCall
 
+    # The client default is 8,000, which was never chosen for this call —
+    # it is the shared default, and this is the one caller that emits a
+    # long structured document. A dense menu overran it and the run was
+    # reported as a *schema* failure, because a response cut off at the
+    # limit is also unparseable JSON.
+    #
+    # 16,000 rather than the model's 128,000 ceiling, deliberately.
+    # `max_tokens` is a cap, not a target, so a bigger number costs
+    # nothing when unused — but it is also the only thing bounding how
+    # long one non-streaming call can take, and `ANTHROPIC_READ_TIMEOUT`
+    # is 240s. At Sonnet's throughput 16k lands inside that; 128k does
+    # not, so the "fix" would trade a truncated response for a socket
+    # timeout, which is the same failure with a worse error message.
+    # Anything genuinely larger belongs in more than one call.
+    MAX_OUTPUT_TOKENS = 16_000
+
     def self.call(run) = new(run).call
 
     def initialize(run)
@@ -55,6 +71,19 @@ module Ingestion
           client.messages_create(
             system:          ExtractMenuPrompt.system(client),
             messages:        ExtractMenuPrompt.user_messages(client, blobs),
+            max_tokens:      MAX_OUTPUT_TOKENS,
+            # Constrained, not merely requested. Until now the schema was
+            # a prompt instruction plus a post-hoc check, which catches
+            # malformed output but cannot prevent it — and one of the two
+            # live failures was exactly that: a stray `>` where a `:`
+            # belonged, 4 KB into an otherwise fine response, far too
+            # early to be a truncation. Grammar-constrained decoding
+            # cannot emit that.
+            output_config:   { format: { type: "json_schema",
+                                         schema: SchemaForRequest.derive(MenuExtractionSchema) } },
+            # Still validated after: the wire schema constrains shape, the
+            # full one enforces the values structured outputs will not
+            # carry (minimums, lengths).
             response_schema: MenuExtractionSchema
           )
         end

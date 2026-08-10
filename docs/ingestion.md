@@ -47,7 +47,41 @@ Vision-capable Claude reads the input directly (no OCR step). This is
 the pipeline's one heavyweight LLM call. (The extraction prompt does
 **not** carry the taxonomy — that belongs to the gap-fill stage below.)
 
-Output (validated against a JSON Schema):
+**Two schemas, one source.** The response is *constrained* by
+structured outputs (`output_config.format`) and then *validated*
+against the full schema. `Ingestion::SchemaForRequest.derive` produces
+the wire form from `MenuExtractionSchema` by dropping the keywords
+structured outputs reject (`minLength`, `minimum`, `maximum`,
+`exclusiveMinimum`) and rewriting `oneOf` as `anyOf`. Nothing is lost:
+the wire schema constrains *shape* while the model generates, and the
+full schema still enforces the *values* afterwards. Derived rather than
+hand-written because two schemas drift silently — a wire schema missing
+a field still produces valid-looking output, just without the field.
+
+**`max_tokens` is 16,000, and the number matters.** It was the client's
+shared 8,000 default, which was never chosen for the one caller that
+emits a long structured document. A dense menu overran it and the run
+was recorded as `schema_validation_failed`, because a response cut off
+at the limit is *also* unparseable JSON — a message that says the model
+wrote something wrong when it wrote something unfinished. Not the
+model's 128,000 ceiling: `max_tokens` is the only thing bounding how
+long one non-streaming call can take, and `ANTHROPIC_READ_TIMEOUT` is
+240s, so a bigger cap trades a truncated response for a socket timeout.
+Anything genuinely larger belongs in more than one call.
+
+**Truncation is now its own failure.** `AnthropicClient` reads
+`stop_reason` before parsing and raises `TruncatedError`, which the run
+records as `output_truncated` — so "too big to extract in one pass"
+stops being reported as a schema problem and pointing at the prompt.
+
+**The system prompt is not cached, and never was.** It carried
+`cache: true` for months on ~976 tokens against Sonnet's 1,024-token
+minimum, so Anthropic silently declined; every `IngestionRun` ever
+recorded shows `cached_input_tokens: 0`. The flag is gone rather than
+the prompt padded — a run costs ~0.3¢ of system prompt and scans are
+rare enough that a 5-minute window rarely sees two.
+
+Output (constrained on the way out, validated on the way in):
 
 ```json
 {

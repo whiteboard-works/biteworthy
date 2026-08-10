@@ -32,6 +32,17 @@ module TimedAnthropicCall
       message = "#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}"
       fail_run ? run.fail!(message) : log_soft_failure(run, message)
       return nil
+    rescue AnthropicClient::TruncatedError => e
+      # Its own failure code, not `#{validation_error}`. A truncated
+      # response is a parse failure too, so it used to be reported as
+      # malformed model output — which reads as "the prompt is wrong"
+      # when the fix is a bigger budget or a smaller batch. The call was
+      # billed, so the usage still lands.
+      run.record_api_usage!(client.last_usage, model: client.model)
+      message = "output_truncated: hit the #{e.max_tokens}-token limit; " \
+                "the menu is too large to extract in one pass"
+      fail_run ? run.fail!(message) : log_soft_failure(run, message)
+      return nil
     rescue AnthropicClient::ValidationError => e
       run.record_api_usage!(client.last_usage, model: client.model)
       message = "#{validation_error}: #{e.errors.first(3).join('; ')}"

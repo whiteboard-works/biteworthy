@@ -184,6 +184,59 @@ RSpec.describe AnthropicClient do
         }
       end
 
+      # A response cut off at the output limit is *also* unparseable
+      # JSON, so whichever check runs first names the failure — and
+      # "the model wrote malformed JSON" is the wrong name for "the
+      # model was cut off". It sent us looking at the prompt for months
+      # while the fix was the budget. This is the production shape: the
+      # 2026-08-09 run billed 16¢ on 10,147 input tokens, which is only
+      # reachable with output at exactly the 8,000-token cap.
+      it "raises TruncatedError, not ValidationError, when the model was cut off" do
+        cut_off = {
+          id: "msg_x", model: "x", role: "assistant",
+          stop_reason: "max_tokens",
+          content: [{ type: "text", text: '{"sections": [{"name": "Tac' }]
+        }.to_json
+        stub_request(:post, "#{base_url}/v1/messages")
+          .to_return(status: 200, body: cut_off,
+                     headers: { "Content-Type" => "application/json" })
+
+        expect {
+          client.messages_create(
+            system: [{ type: "text", text: "x" }],
+            messages: [{ role: "user", content: "y" }],
+            max_tokens: 16_000,
+            response_schema: menu_schema
+          )
+        }.to raise_error(AnthropicClient::TruncatedError) { |error|
+          expect(error.max_tokens).to eq(16_000)
+          expect(error.message).to include("incomplete")
+        }
+      end
+
+      # Only when it was actually cut off. A `max_tokens` stop on a
+      # response that happens to be complete JSON is still a truncation —
+      # but an `end_turn` that fails to parse is not, and must keep
+      # reporting as the schema failure it is.
+      it "still raises ValidationError for malformed output that finished" do
+        malformed = {
+          id: "msg_x", model: "x", role: "assistant",
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: '{"sections": [{"name" >5600}]}' }]
+        }.to_json
+        stub_request(:post, "#{base_url}/v1/messages")
+          .to_return(status: 200, body: malformed,
+                     headers: { "Content-Type" => "application/json" })
+
+        expect {
+          client.messages_create(
+            system: [{ type: "text", text: "x" }],
+            messages: [{ role: "user", content: "y" }],
+            response_schema: menu_schema
+          )
+        }.to raise_error(AnthropicClient::ValidationError)
+      end
+
       it "raises ValidationError when the response text isn't JSON at all" do
         prose_body = {
           id: "msg_x", model: "x", role: "assistant",
