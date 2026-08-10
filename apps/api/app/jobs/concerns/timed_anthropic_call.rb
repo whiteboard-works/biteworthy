@@ -22,7 +22,8 @@ module TimedAnthropicCall
   # run is marked failed; `fail_run: false` (the post-staged gap-fill —
   # the run is already usable) logs instead, leaving the caller to
   # record the degradation (e.g. enrichment_status).
-  def timed_anthropic_call(run, api_error:, validation_error:, model: nil, fail_run: true)
+  def timed_anthropic_call(run, api_error:, validation_error:, truncation_error: "output_truncated",
+                           model: nil, fail_run: true)
     client  = AnthropicClient.new(model: model)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -30,6 +31,22 @@ module TimedAnthropicCall
       result = yield client
     rescue AnthropicClient::ApiError => e
       message = "#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}"
+      fail_run ? run.fail!(message) : log_soft_failure(run, message)
+      return nil
+    rescue AnthropicClient::TruncatedError => e
+      # Its own failure code, not `#{validation_error}`. A truncated
+      # response is a parse failure too, so it used to be reported as
+      # malformed model output — which reads as "the prompt is wrong"
+      # when the fix is a bigger budget or a smaller batch. The call was
+      # billed, so the usage still lands.
+      #
+      # The label is a keyword like its two neighbours, and for the same
+      # reason: this concern serves extraction *and* gap-fill, and a
+      # hardcoded "the menu is too large to extract" on a taxonomy
+      # resolution failure would be exactly the misleading diagnosis this
+      # rescue exists to stop producing.
+      run.record_api_usage!(client.last_usage, model: client.model)
+      message = "#{truncation_error}: hit the #{e.max_tokens}-token output limit"
       fail_run ? run.fail!(message) : log_soft_failure(run, message)
       return nil
     rescue AnthropicClient::ValidationError => e

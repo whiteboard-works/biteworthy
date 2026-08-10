@@ -47,7 +47,58 @@ Vision-capable Claude reads the input directly (no OCR step). This is
 the pipeline's one heavyweight LLM call. (The extraction prompt does
 **not** carry the taxonomy — that belongs to the gap-fill stage below.)
 
-Output (validated against a JSON Schema):
+**Two schemas, one source.** The response is *constrained* by
+structured outputs (`output_config.format`) and then *validated*
+against the full schema. `Ingestion::SchemaForRequest.derive` produces
+the wire form from `MenuExtractionSchema` by rewriting `oneOf` as
+`anyOf` and dropping every keyword structured outputs reject — the list
+lives in `SchemaForRequest::UNSUPPORTED` (`minLength`, `maxLength`,
+`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
+`multipleOf`, `minItems`, `maxItems`, `pattern`, `format`). Derived
+rather than hand-written because two schemas drift silently: a wire
+schema missing a field still produces valid-looking output, just
+without the field.
+
+Keywords are only stripped where they *are* keywords. One level below a
+`properties` key the same words are field names, so a property called
+`format` survives while a `format:` constraint beside it does not.
+
+The two schemas can disagree in exactly one direction, and it is worth
+knowing rather than calling this lossless: a response with `"w": 0` or
+`"name": ""` satisfies the grammar the model was constrained to and
+then fails the full schema's `exclusiveMinimum` / `minLength`. That run
+pays for output the API told the model was acceptable. Left to fail
+rather than coerced — an empty dish name is bad data, and repairing it
+quietly would publish a nameless dish instead of refusing one.
+
+**`max_tokens` is 16,000, and the number matters.** It was the client's
+shared 8,000 default, which was never chosen for the one caller that
+emits a long structured document. A dense menu overran it and the run
+was recorded as `schema_validation_failed`, because a response cut off
+at the limit is *also* unparseable JSON — a message that says the model
+wrote something wrong when it wrote something unfinished. Not the
+model's 128,000 ceiling: `max_tokens` is the only thing bounding how
+long one non-streaming call can take, and `ANTHROPIC_READ_TIMEOUT` is
+240s, so a bigger cap trades a truncated response for a socket timeout.
+Anything genuinely larger belongs in more than one call.
+
+**Truncation is now its own failure.** `AnthropicClient` reads
+`stop_reason` before parsing and raises `TruncatedError` on every
+non-streaming call, schema or not; extraction records it as
+`menu_too_large`, gap-fill as its own label, so "too big to do in one
+pass" stops being reported as a schema problem and pointing at the
+prompt. The streaming path (the chat, not ingestion) only **logs** it —
+the answer is already on screen word by word, and replacing something
+useful with an error is the wrong trade.
+
+**The system prompt is not cached, and never was.** It carried
+`cache: true` for months on ~976 tokens against Sonnet's 1,024-token
+minimum, so Anthropic silently declined; every `IngestionRun` ever
+recorded shows `cached_input_tokens: 0`. The flag is gone rather than
+the prompt padded — a run costs ~0.3¢ of system prompt and scans are
+rare enough that a 5-minute window rarely sees two.
+
+Output (constrained on the way out, validated on the way in):
 
 ```json
 {

@@ -81,6 +81,25 @@ class AnthropicClient
     end
   end
 
+  # The model ran out of output budget mid-sentence.
+  #
+  # Its own class because it is not a validation failure, and calling it
+  # one sent us looking in the wrong place for months: a `max_tokens`
+  # response is well-formed JSON that simply stops, so `JSON.parse` blows
+  # up with "unexpected end of input" and the run was recorded as
+  # `schema_validation_failed` — a message that says the model wrote
+  # something wrong when in fact it wrote something *unfinished*, and the
+  # fix is a bigger budget or a smaller ask rather than a better prompt.
+  class TruncatedError < StandardError
+    attr_reader :raw_body, :max_tokens
+
+    def initialize(raw_body:, max_tokens:)
+      @raw_body   = raw_body
+      @max_tokens = max_tokens
+      super("Anthropic stopped at the #{max_tokens}-token output limit; the response is incomplete")
+    end
+  end
+
   attr_reader :api_key, :model, :base_url
 
   # The `usage` object from the most recent successful messages_create
@@ -121,10 +140,21 @@ class AnthropicClient
 
     parsed = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
     @last_usage = parsed["usage"]
+
+    # Checked for **every** non-streaming caller, not only the ones that
+    # asked for a schema. A schema-less caller gets a silently
+    # half-finished answer otherwise, which is the quieter version of the
+    # same bug. Raised before parsing because a truncated response *is* a
+    # parse failure, so whichever check runs first names the error — and
+    # "the model wrote malformed JSON" is the wrong name for "the model
+    # was cut off", pointing at the prompt when the problem is the budget.
+    if parsed["stop_reason"] == "max_tokens"
+      raise TruncatedError.new(raw_body: ResponseParser.first_text(parsed), max_tokens: max_tokens)
+    end
+
     return parsed if response_schema.nil?
 
-    text = ResponseParser.first_text(parsed)
-    ResponseParser.parse_and_validate(text, response_schema)
+    ResponseParser.parse_and_validate(ResponseParser.first_text(parsed), response_schema)
   end
 
   # Streaming twin of `messages_create`. Returns the same assembled Hash,
@@ -158,7 +188,24 @@ class AnthropicClient
     end
 
     @last_usage = stream.usage
-    stream.message
+    message = stream.message
+
+    # Logged, not raised — unlike the non-streaming path.
+    #
+    # The caller has already put this answer on someone's screen word by
+    # word. Turning a visible, mostly-complete reply into an error would
+    # replace something useful with nothing; the honest handling is that
+    # the operator can find out it happened. The chat is the only
+    # streaming caller and its `MAX_TOKENS` covers thinking *and* text on
+    # Opus 5, so a long think followed by a clipped answer is the shape
+    # to watch for.
+    if message.is_a?(Hash) && message["stop_reason"] == "max_tokens"
+      Rails.logger.warn(
+        "[anthropic] streamed response hit the #{max_tokens}-token output limit; answer is incomplete"
+      )
+    end
+
+    message
   end
 
   # Build a `system` array of content blocks. Each input is a Hash like
