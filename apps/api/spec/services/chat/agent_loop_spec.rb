@@ -145,6 +145,23 @@ RSpec.describe Chat::AgentLoop do
       expect(text).not_to include("permission")
     end
 
+    # A unit test on `ModePolicy` would not have caught the shape of this
+    # one: what made it bad was the blank prompt, and the prompt is read
+    # in `park`, one layer up. `accept_edits` used to park on any name it
+    # could not look up — which after the visible-set change meant every
+    # tool outside the caller's audience, not just a hallucinated one.
+    it "does not park a name it cannot look up, even in accept_edits" do
+      convo  = Conversation.create!(user: user, chat_mode: "accept_edits")
+      client = ScriptedClient.new(call_tool("drop_all_tables"), say("No such thing."))
+
+      result = described_class.new(convo, client: client, mode: "accept_edits").run(text: "go")
+
+      expect(result).not_to be_awaiting_confirmation
+      expect(convo.reload.state).to eq("active")
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+    end
+
     # The destructive ones leaked through a different door: `decide` runs
     # before `execute`, so the turn parked and asked the person to approve
     # a call that could only have failed — naming the tool in the prompt

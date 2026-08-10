@@ -78,6 +78,17 @@ RSpec.describe Chat::ModePolicy do
       expect(decide("accept_edits", Tools::Items::EditItem)).to eq(:run)
     end
 
+    # The fail-closed rule is about a tool that *exists* and nobody has
+    # classified. A name that resolves to nothing is not an unclassified
+    # call, it is not a call — `execute` answers it with a not-found
+    # having run nothing, so there is no grant to withhold. Parking made
+    # the turn stop and ask someone to approve a tool that does not
+    # exist, and since `park` reads its sentence off the tool, the
+    # question arrived blank.
+    it "hands a name it cannot look up to execute rather than parking" do
+      expect(decide("accept_edits", nil)).to eq(:run)
+    end
+
     # The line is recoverability, not blast radius: an edit is fixed by
     # editing again, and these are not.
     it "still parks a call no later edit can undo" do

@@ -99,7 +99,17 @@ module Chat
     # cannot extend to a call nobody has classified — including one added
     # to the codebase months after the grant was designed.
     def accept_edits(tool, args)
-      return :park if tool.nil?
+      # A name that resolves to nothing is not an unclassified call — it
+      # is not a call at all. `execute` answers it with the not-found
+      # error and a spelling suggestion, having run nothing, so there is
+      # no grant to withhold. Parking asked someone to approve a tool
+      # that does not exist, and because `park` reads its sentence off
+      # the tool, the question arrived blank.
+      #
+      # The fail-closed rule below is about a tool that *exists* and has
+      # not been classified. Those are different facts and only the
+      # second one is a safety property.
+      return :run if tool.nil?
       return :park if tool.unrecoverable?(args)
       return :park if destructive?(tool) && !tool.recoverability_declared?
 
