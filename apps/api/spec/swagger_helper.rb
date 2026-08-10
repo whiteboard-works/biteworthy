@@ -253,6 +253,14 @@ RSpec.configure do |config|
               created_at: { type: :string, format: :"date-time" },
               updated_at: { type: :string, format: :"date-time" },
               messages:   { type: :array, items: { "$ref" => "#/components/schemas/ChatMessage" } },
+              can_undo: {
+                type: :boolean,
+                description: "Whether a tool that writes has run since the caller last spoke, " \
+                             "so a client can offer to reverse it. Sent only alongside " \
+                             "`messages` — the list endpoint omits it rather than loading " \
+                             "every transcript to answer. A tool that declares no annotations, " \
+                             "or one this build does not recognise, counts as writing."
+              },
               usage:      { "$ref" => "#/components/schemas/ChatUsage" }
             }
           },

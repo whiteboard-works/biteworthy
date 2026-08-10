@@ -26,7 +26,16 @@ module Chat
           updated_at: conversation.updated_at.iso8601
         }
         payload = payload.merge(usage: usage_for(conversation)) if usage
-        messages ? payload.merge(messages: conversation.messages.map { |m| message(m) }) : payload
+        return payload unless messages
+
+        # `can_undo` rides with the messages rather than being sent
+        # unconditionally, and that is a query-count decision: the index
+        # endpoint serializes every conversation in the sidebar, and
+        # answering "did a write run" for each would load every message
+        # of every one. The show endpoint has the rows in hand already,
+        # so mapping them first makes the predicate free.
+        rendered = conversation.messages.map { |m| message(m) }
+        payload.merge(messages: rendered, can_undo: conversation.mutated_since_last_user_message?)
       end
 
       def message(message)

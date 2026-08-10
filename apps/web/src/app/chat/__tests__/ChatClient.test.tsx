@@ -721,4 +721,57 @@ describe('ChatClient', () => {
       ),
     );
   });
+
+  // `accept_edits` and `auto` skip the confirmation gate, so after the
+  // fact is the only lever left. Whether there is anything to reverse is
+  // the server's answer — it reads the tool annotations; the client just
+  // renders what it is told and sends an ordinary turn.
+  describe('undo', () => {
+    function withUndo(canUndo: boolean): Conversation {
+      return { ...answered('Removed peanut from your avoid list.'), can_undo: canUndo };
+    }
+
+    it('offers to reverse a turn that wrote', async () => {
+      getConversation.mockResolvedValue(withUndo(true));
+      render(<ChatClient />);
+      await type('stop avoiding peanut');
+
+      fireEvent.click(await screen.findByTestId('undo-turn'));
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith(
+          'c-1',
+          'Undo everything you just did.',
+          undefined,
+          'manual',
+        ),
+      );
+    });
+
+    it('stays out of the way when nothing was written', async () => {
+      getConversation.mockResolvedValue(withUndo(false));
+      render(<ChatClient />);
+      await type('what can I eat here?');
+
+      await screen.findByTestId('assistant-message');
+      expect(screen.queryByTestId('undo-turn')).not.toBeInTheDocument();
+    });
+
+    // Mid-turn the honest control is Stop. Showing both invites undoing
+    // work that is still running.
+    it('does not appear while a turn is still going', async () => {
+      getConversation.mockResolvedValue(withUndo(true));
+      watchTurn.mockImplementation(
+        () =>
+          new Promise(() => {
+            /* never settles: the turn is still running */
+          }),
+      );
+      render(<ChatClient />);
+      await type('stop avoiding peanut');
+
+      expect(await screen.findByRole('button', { name: 'Stop' })).toBeInTheDocument();
+      expect(screen.queryByTestId('undo-turn')).not.toBeInTheDocument();
+    });
+  });
 });

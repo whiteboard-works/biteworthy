@@ -4001,6 +4001,8 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             messages?: components["schemas"]["ChatMessage"][];
+            /** @description Whether a tool that writes has run since the caller last spoke, so a client can offer to reverse it. Sent only alongside `messages` — the list endpoint omits it rather than loading every transcript to answer. A tool that declares no annotations, or one this build does not recognise, counts as writing. */
+            can_undo?: boolean;
             usage?: components["schemas"]["ChatUsage"];
         };
         /** @description Spend and cache accounting. Present only for admins — the server decides, so a non-admin never receives it. */

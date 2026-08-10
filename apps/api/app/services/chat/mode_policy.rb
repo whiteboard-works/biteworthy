@@ -78,6 +78,18 @@ module Chat
       ToolCatalog.confirm_required?(tool, args) ? :park : :run
     end
 
+    # Fails closed on a tool that declares no annotations at all, and on
+    # one this build has never heard of: silence is not a claim that
+    # nothing is written.
+    #
+    # Public because two callers need the same answer and must not drift
+    # on it — planning mode deciding whether a call may run at all, and
+    # `Conversation#mutated_since_last_user_message?` deciding whether
+    # there is anything to offer to undo.
+    def self.read_only?(tool)
+      tool&.annotations_value&.read_only_hint == true
+    end
+
     private
 
     # The standing yes, and the two things it does not cover.
@@ -94,11 +106,7 @@ module Chat
       :run
     end
 
-    # Fails closed on a tool that declares no annotations at all: silence
-    # is not a claim that nothing is written.
-    def read_only?(tool)
-      tool&.annotations_value&.read_only_hint == true
-    end
+    def read_only?(tool) = self.class.read_only?(tool)
 
     def destructive?(tool)
       tool.annotations_value&.destructive_hint == true
