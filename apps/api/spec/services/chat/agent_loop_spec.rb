@@ -101,6 +101,72 @@ RSpec.describe Chat::AgentLoop do
       block = conversation.messages.reload.find(&:tool_result?).content.first
       expect(block["content"].first["text"]).to include("unknown_tool")
     end
+
+    # Most of the catalogue is deferred behind tool search, so the model
+    # is usually calling a name it read once. Naming the near miss turns
+    # a wasted round — or a false "we don't support that" — into a
+    # correction the model can act on immediately.
+    it "names the near miss when the model typos a tool" do
+      client = ScriptedClient.new(call_tool("get_restraunt", { "restaurant" => "ninis" }), say("Here."))
+
+      described_class.new(conversation, client: client).run(text: "tell me about ninis")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("Did you mean get_restaurant?")
+    end
+
+    # An error string is a channel too. Suggestions are drawn from the
+    # tools this caller can see, so a guess that lands near an admin tool
+    # gets the generic answer rather than confirmation that it exists.
+    it "does not suggest a tool the caller cannot see" do
+      client = ScriptedClient.new(call_tool("set_user_roles"), say("Can't."))
+
+      described_class.new(conversation, client: client).run(text: "make me an admin")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      # Not `not_to include("set_user_role")` — the echoed typo contains
+      # it as a substring. What must be absent is the suggestion.
+      expect(text).not_to include("Did you mean")
+      expect(text).to include("tool_search_tool_regex")
+    end
+
+    # The suggestion guard is only half of it. Spelled *correctly*, an
+    # invisible tool used to come back "You do not have permission to do
+    # that" — a scope complaint, which answers the question the name was
+    # asking. `docs/mcp.md` promises "not found" instead, and the MCP
+    # door already delivers it by resolving against `Registry.for`.
+    it "does not confirm an invisible tool exists when named exactly" do
+      client = ScriptedClient.new(call_tool("list_users"), say("Can't."))
+
+      described_class.new(conversation, client: client).run(text: "list the users")
+
+      text = conversation.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+      expect(text).not_to include("permission")
+    end
+
+    # The destructive ones leaked through a different door: `decide` runs
+    # before `execute`, so the turn parked and asked the person to approve
+    # a call that could only have failed — naming the tool in the prompt
+    # on the way past.
+    it "does not park on an invisible destructive tool" do
+      result = loop_with(call_tool("set_user_role", { "user_id" => user.id, "role" => "admin" }),
+                         say("Can't.")).run(text: "make me an admin")
+
+      expect(result).not_to be_awaiting_confirmation
+      expect(conversation.reload.state).to eq("active")
+    end
+
+    it "suggests an admin tool to an admin" do
+      admin  = create(:user, is_admin: true)
+      convo  = Conversation.create!(user: admin)
+      client = ScriptedClient.new(call_tool("set_user_roles"), say("Done."))
+
+      described_class.new(convo, client: client).run(text: "make them an admin")
+
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("Did you mean set_user_role?")
+    end
   end
 
   describe "the confirmation gate" do
@@ -1010,14 +1076,21 @@ RSpec.describe Chat::AgentLoop do
     # budget check, the deadline check and the upstream call all sit at
     # the top of a round, by which point the previous round's results are
     # already written. Stop is one real producer (`tick!` runs inside
-    # `execute`); a raise anywhere in the queue walk is the other, and
-    # `Registry.find` stands in for it here.
+    # `execute`); a raise in the queue walk is the other.
+    #
+    # Stubbing `Tools::Base.call` itself is the stable way to stage that.
+    # It is the rescue wrapper, so replacing it models the one failure it
+    # cannot contain — a bug in the boundary rather than in a tool. An
+    # earlier version stubbed `Registry.find` and quietly stopped raising
+    # when the loop moved to resolving through `Registry.for`: the spec
+    # kept passing the wrong thing rather than failing.
     it "tells the model why a call never ran" do
-      allow(Tools::Registry).to receive(:find).and_raise(RuntimeError, "boom")
+      allow(Tools::Discovery::GetRestaurant).to receive(:call).and_raise(RuntimeError, "boom")
 
-      described_class.new(conversation,
-                          client: StreamingScriptedClient.new(call_tool("get_restaurant", { "r" => "ninis" })))
-                     .run(text: "go")
+      described_class.new(
+        conversation,
+        client: StreamingScriptedClient.new(call_tool("get_restaurant", { "restaurant" => "ninis" }))
+      ).run(text: "go")
 
       orphan = conversation.messages.reload.select(&:tool_result?).last
       expect(orphan.content.first["content"].first["text"]).to include("failed before this ran")

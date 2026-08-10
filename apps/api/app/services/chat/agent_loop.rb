@@ -404,7 +404,7 @@ module Chat
     # one derived from the live call.
     def park(results, queue)
       call        = queue.first
-      tool        = Tools::Registry.find(call["name"])
+      tool        = tool_for(call)
       fingerprint = Digest::SHA256.hexdigest(JSON.generate([call["name"], call["input"]]))
       pending     = {
         "name"        => call["name"],
@@ -422,7 +422,7 @@ module Chat
 
     # The sentence a person reads while the call runs.
     def doing(call)
-      Tools::Registry.find(call["name"])&.running_description_for(arguments_for(call))
+      tool_for(call)&.running_description_for(arguments_for(call))
     end
 
     # :run, :park, or :refuse. The mode owns the decision; this only
@@ -439,7 +439,7 @@ module Chat
     # boundary is reached, and without it the turn would stop and wait for
     # an answer the gate below would then have waved through.
     def decide(call)
-      policy.decide(Tools::Registry.find(call["name"]), arguments_for(call))
+      policy.decide(tool_for(call), arguments_for(call))
     end
 
     def policy
@@ -448,6 +448,56 @@ module Chat
 
     def refusal(call)
       tool_result(call, { error: "planning_mode", message: ModePolicy::REFUSAL }, error: true)
+    end
+
+    # Resolved against what this caller can *see*, not the whole
+    # registry. `docs/mcp.md` promises that a tool outside a caller's
+    # audience or scope answers "tool not found" rather than a scope
+    # complaint — existence is itself the secret — and the MCP door keeps
+    # that promise by handing the gem `Registry.for(context)`. This door
+    # was calling `Registry.find`, so an admin tool named exactly came
+    # back `forbidden: "You do not have permission to do that."`, which
+    # confirms it exists; named destructively it reached `decide` first
+    # and *parked*, asking someone to approve a call that could only fail.
+    # Two front doors, two answers to the same question, and the one that
+    # leaked is the one pointed at a model.
+    #
+    # A hash rather than a scan: `for(context)` is memoized on the
+    # context, but the loop asks three times per call and the old
+    # `Registry.find` walked all 44 tools each time.
+    def tool_for(call) = visible_tools[call["name"]]
+
+    def visible_tools
+      @visible_tools ||= Tools::Registry.for(context).index_by(&:name_value)
+    end
+
+    # A near miss is the likely shape of this failure, not an invented
+    # capability: `ToolCatalog` keeps three domains resident and defers
+    # the other 41 schemas behind tool search, so the model is usually
+    # working from a name it read once in a search result. "No tool named
+    # X" costs a round at best, and at worst becomes "Biteworthy can't do
+    # that" — a false limitation the person then carries away with them.
+    #
+    # Candidates come from `Registry.for(context)`, never `all`. The
+    # filtered set is what this caller can see, and offering
+    # `set_user_role` to a non-admin would leak the admin surface through
+    # an error string — the one thing `docs/mcp.md` promises an invisible
+    # tool never does. `for` is memoized on the context, so this is free.
+    def unknown_tool(call)
+      name       = call["name"].to_s
+      suggestion = DidYouMean::SpellChecker
+                   .new(dictionary: visible_tools.keys)
+                   .correct(name).first
+
+      message =
+        if suggestion
+          "No tool named #{name}. Did you mean #{suggestion}? Call it again with the corrected name."
+        else
+          "No tool named #{name}. Search for the capability with " \
+          "#{ToolCatalog::SEARCH_TOOL[:name]} before telling the user it is unsupported."
+        end
+
+      tool_result(call, { error: "unknown_tool", message: message }, error: true)
     end
 
     # The mode's answer, in the form `Tools::Base` can verify.
@@ -464,7 +514,7 @@ module Chat
     # every call — minting one per tool call would spend a signature on
     # `get_menu`.
     def standing_grant_for(call)
-      return nil unless ToolCatalog.confirm_required?(Tools::Registry.find(call["name"]), arguments_for(call))
+      return nil unless ToolCatalog.confirm_required?(tool_for(call), arguments_for(call))
 
       grant_for(call)
     end
@@ -480,10 +530,8 @@ module Chat
 
     def execute(call, confirmation: nil)
       tick!
-      tool = Tools::Registry.find(call["name"])
-      if tool.nil?
-        return tool_result(call, { error: "unknown_tool", message: "No tool named #{call['name']}." }, error: true)
-      end
+      tool = tool_for(call)
+      return unknown_tool(call) if tool.nil?
 
       # No rescue here on purpose. `Tools::Base.call` is the boundary: it
       # validates the model's arguments, authorizes, and converts every
