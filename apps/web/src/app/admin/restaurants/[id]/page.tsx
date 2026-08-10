@@ -19,7 +19,6 @@ import {
 import { AdminError, deleteErrorCopy, friendlyAdminError } from '../../../../lib/admin/shared';
 import { useIsSuperAdmin } from '../../_AdminTier';
 import { ConfirmButton } from '../../_ConfirmButton';
-import { Pagination } from '../../_Pagination';
 import { StatusBadge } from '../../_StatusBadge';
 import { TypeToConfirm } from '../../_TypeToConfirm';
 import { ItemsList } from './_ItemsList';
