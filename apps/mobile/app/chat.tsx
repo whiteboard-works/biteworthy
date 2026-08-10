@@ -151,7 +151,15 @@ export default function ChatScreen() {
   };
 
   /** Reads the narration until the server says nothing is in flight. */
-  const watch = async (jwt: string, id: string, after: number) => {
+  // `onEvent` exists so the caller can count what went past without this
+  // owning the tally. The same events drive the narration and the funnel
+  // metrics, and they are read in the one place they arrive.
+  const watch = async (
+    jwt: string,
+    id: string,
+    after: number,
+    onEvent?: (event: ChatEvent) => void,
+  ) => {
     let cursor = after;
     const deadline = Date.now() + MAX_POLL_MS;
 
@@ -159,6 +167,7 @@ export default function ChatScreen() {
       const page = await fetchEvents(jwt, id, cursor);
       for (const event of page.events) {
         cursor = event.position;
+        onEvent?.(event);
         setLive((lines) => describe(event, lines));
       }
       if (!page.running || Date.now() > deadline) return;
@@ -184,18 +193,29 @@ export default function ChatScreen() {
     setLive([]);
     const startedAt = Date.now();
     let accepted = false;
+    // Starts at `error` and is only lifted by a terminal event, matching
+    // web. Reporting `done` unless told otherwise is how every mobile
+    // turn — refused, crashed, or still parked — arrived in the funnel
+    // as a success, which is worse than no mobile data at all.
+    let tools = 0;
+    let outcome = 'error';
     try {
       const { after } = await ask(jwt);
       accepted = true;
-      await watch(jwt, id, after);
+      await watch(jwt, id, after, (event) => {
+        if (event.type === 'tool_use') tools += 1;
+        if (event.type === 'done') outcome = 'done';
+        if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLive([]);
       setBusy(false);
+      // Counts and outcome only — never the message, never which tools.
       tracker.track('chat_turn_completed', {
-        outcome: 'done',
-        tool_count: 0,
+        outcome,
+        tool_count: tools,
         duration_ms: Date.now() - startedAt,
       });
       const next = await refresh(jwt, id);
@@ -478,7 +498,10 @@ export default function ChatScreen() {
           call stops for a human. That has to be readable without opening
           anything to check. */}
       {mode !== 'manual' ? (
-        <Text style={[styles.modeNotice, mode === 'auto' && styles.modeNoticeLoud]} testID="chat-mode-notice">
+        <Text
+          style={[styles.modeNotice, mode === 'auto' && styles.modeNoticeLoud]}
+          testID="chat-mode-notice"
+        >
           {MODES.find((m) => m.value === mode)?.hint}
         </Text>
       ) : null}
@@ -637,7 +660,12 @@ const styles = StyleSheet.create({
   transcriptContent: { padding: space[4], gap: space[3] },
   welcomeTitle: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
   welcomeLine: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: space[1] },
-  bubble: { borderRadius: 12, paddingVertical: space[2], paddingHorizontal: space[3], maxWidth: '85%' },
+  bubble: {
+    borderRadius: 12,
+    paddingVertical: space[2],
+    paddingHorizontal: space[3],
+    maxWidth: '85%',
+  },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.bite },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.bgAlt },
   mineText: { color: colors.bg, fontSize: fontSize.base },
@@ -663,7 +691,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2],
     paddingVertical: space[1],
   },
-  modes: { flexDirection: 'row', gap: space[1], paddingHorizontal: space[4], paddingBottom: space[1] },
+  modes: {
+    flexDirection: 'row',
+    gap: space[1],
+    paddingHorizontal: space[4],
+    paddingBottom: space[1],
+  },
   mode: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -674,7 +707,12 @@ const styles = StyleSheet.create({
   modeOn: { borderColor: colors.bite, backgroundColor: colors.bgAlt },
   modeLabel: { fontSize: fontSize.xs, color: colors.textMuted },
   modeLabelOn: { color: colors.text, fontWeight: '700' },
-  modeNotice: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: space[4], paddingBottom: space[1] },
+  modeNotice: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    paddingHorizontal: space[4],
+    paddingBottom: space[1],
+  },
   modeNoticeLoud: { color: colors.danger },
   stop: { alignSelf: 'flex-start', paddingHorizontal: space[4], paddingBottom: space[2] },
   stopLabel: { fontSize: fontSize.sm, color: colors.textMuted },
@@ -699,7 +737,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
     paddingVertical: space[2],
   },
-  send: { backgroundColor: colors.bite, borderRadius: 12, paddingHorizontal: space[4], paddingVertical: space[2] },
+  send: {
+    backgroundColor: colors.bite,
+    borderRadius: 12,
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+  },
   sendDisabled: { opacity: 0.5 },
   sendLabel: { color: colors.bg, fontWeight: '700' },
   confirm: {
@@ -711,7 +754,12 @@ const styles = StyleSheet.create({
   },
   confirmText: { fontSize: fontSize.base, color: colors.text },
   confirmRow: { flexDirection: 'row', gap: space[2] },
-  confirmYes: { backgroundColor: colors.bite, borderRadius: 10, paddingHorizontal: space[3], paddingVertical: space[2] },
+  confirmYes: {
+    backgroundColor: colors.bite,
+    borderRadius: 10,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+  },
   confirmYesLabel: { color: colors.bg, fontWeight: '700' },
   confirmNo: {
     borderWidth: 1,

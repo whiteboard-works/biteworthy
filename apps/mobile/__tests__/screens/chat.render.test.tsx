@@ -43,7 +43,9 @@ jest.mock('../../lib/api/chat', () => ({
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import type { Tracker } from '@biteworthy/analytics';
 import ChatScreen from '../../app/chat';
+import { TrackerContext } from '../../lib/tracker-context';
 
 const blank = {
   id: 'c-1',
@@ -60,8 +62,18 @@ function answered(text: string) {
   return {
     ...blank,
     messages: [
-      { id: 'm-1', role: 'user' as const, position: 1, blocks: [{ type: 'text' as const, text: 'hi' }] },
-      { id: 'm-2', role: 'assistant' as const, position: 2, blocks: [{ type: 'text' as const, text }] },
+      {
+        id: 'm-1',
+        role: 'user' as const,
+        position: 1,
+        blocks: [{ type: 'text' as const, text: 'hi' }],
+      },
+      {
+        id: 'm-2',
+        role: 'assistant' as const,
+        position: 2,
+        blocks: [{ type: 'text' as const, text }],
+      },
     ],
   };
 }
@@ -113,10 +125,15 @@ it('creates a conversation on the first message and shows the reply', async () =
 it('polls the narration until the server says nothing is in flight', async () => {
   mockEvents
     .mockResolvedValueOnce({
-      events: [{ type: 'tool_use', name: 'get_menu', doing: "Reading the menu at Nini's", position: 1 }],
+      events: [
+        { type: 'tool_use', name: 'get_menu', doing: "Reading the menu at Nini's", position: 1 },
+      ],
       running: true,
     })
-    .mockResolvedValueOnce({ events: [{ type: 'done', text: 'Done.', position: 2 }], running: false });
+    .mockResolvedValueOnce({
+      events: [{ type: 'done', text: 'Done.', position: 2 }],
+      running: false,
+    });
   mockGet.mockResolvedValue(answered('Done.'));
 
   render(<ChatScreen />);
@@ -235,7 +252,9 @@ describe('typing while a turn is running', () => {
     render(<ChatScreen />);
     await type('what can I eat');
 
-    await waitFor(() => expect(screen.getByLabelText('Message')).toHaveProp('value', 'what can I eat'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Message')).toHaveProp('value', 'what can I eat'),
+    );
   });
 
   it('sends it once the turn it was typed during finishes', async () => {
@@ -299,4 +318,79 @@ it('shows a failure without losing the conversation', async () => {
   await type('x'.repeat(10));
 
   expect(await screen.findByTestId('chat-error')).toHaveTextContent('That message is too long.');
+});
+
+// `chat_turn_completed` feeds the launch funnel, and mobile reported a
+// hardcoded `outcome: 'done'` with `tool_count: 0` from a `finally` — so
+// every refused, crashed, or still-parked turn arrived as a success, and
+// no mobile turn ever showed a tool. The events driving the narration
+// carry both facts; they were read for one and dropped for the other.
+//
+// `useTracker()` falls back to `noopTracker`, which is why nothing caught
+// it: the screen has to be wrapped before a call is observable at all.
+describe('turn analytics', () => {
+  const track = jest.fn();
+  const spy = {
+    track,
+    identify: jest.fn(),
+    reset: jest.fn(),
+    flush: jest.fn(),
+  } as unknown as Tracker;
+
+  const renderTracked = () =>
+    render(
+      <TrackerContext.Provider value={spy}>
+        <ChatScreen />
+      </TrackerContext.Provider>,
+    );
+
+  const turn = () =>
+    track.mock.calls.find(([name]) => name === 'chat_turn_completed')?.[1] as
+      { outcome: string; tool_count: number } | undefined;
+
+  beforeEach(() => track.mockClear());
+
+  it('reports what actually happened, not a fixed success', async () => {
+    mockEvents
+      .mockResolvedValueOnce({
+        events: [{ type: 'tool_use', name: 'get_menu', doing: 'Reading', position: 1 }],
+        running: true,
+      })
+      .mockResolvedValueOnce({
+        events: [{ type: 'done', text: 'Done.', position: 2 }],
+        running: false,
+      });
+    mockGet.mockResolvedValue(answered('Done.'));
+
+    renderTracked();
+    await type('what can I eat');
+
+    await waitFor(() => expect(turn()).toBeDefined());
+    expect(turn()).toEqual(expect.objectContaining({ outcome: 'done', tool_count: 1 }));
+  });
+
+  it('does not call a refused turn a success', async () => {
+    mockSend.mockRejectedValue(new Error('That message is too long.'));
+
+    renderTracked();
+    await type('x'.repeat(10));
+
+    await waitFor(() => expect(turn()).toBeDefined());
+    expect(turn()).toEqual(expect.objectContaining({ outcome: 'error', tool_count: 0 }));
+  });
+
+  // A parked turn is neither a success nor a failure, and the funnel has
+  // a third value for exactly that.
+  it('reports a turn that stopped for a confirmation', async () => {
+    mockEvents.mockResolvedValue({
+      events: [{ type: 'awaiting_confirmation', position: 1 }],
+      running: false,
+    });
+
+    renderTracked();
+    await type('delete my review');
+
+    await waitFor(() => expect(turn()).toBeDefined());
+    expect(turn()).toEqual(expect.objectContaining({ outcome: 'awaiting_confirmation' }));
+  });
 });
