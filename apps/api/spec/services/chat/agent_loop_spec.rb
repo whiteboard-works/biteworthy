@@ -1076,14 +1076,21 @@ RSpec.describe Chat::AgentLoop do
     # budget check, the deadline check and the upstream call all sit at
     # the top of a round, by which point the previous round's results are
     # already written. Stop is one real producer (`tick!` runs inside
-    # `execute`); a raise anywhere in the queue walk is the other, and
-    # `Registry.find` stands in for it here.
+    # `execute`); a raise in the queue walk is the other.
+    #
+    # Stubbing `Tools::Base.call` itself is the stable way to stage that.
+    # It is the rescue wrapper, so replacing it models the one failure it
+    # cannot contain — a bug in the boundary rather than in a tool. An
+    # earlier version stubbed `Registry.find` and quietly stopped raising
+    # when the loop moved to resolving through `Registry.for`: the spec
+    # kept passing the wrong thing rather than failing.
     it "tells the model why a call never ran" do
-      allow(Tools::Registry).to receive(:find).and_raise(RuntimeError, "boom")
+      allow(Tools::Discovery::GetRestaurant).to receive(:call).and_raise(RuntimeError, "boom")
 
-      described_class.new(conversation,
-                          client: StreamingScriptedClient.new(call_tool("get_restaurant", { "r" => "ninis" })))
-                     .run(text: "go")
+      described_class.new(
+        conversation,
+        client: StreamingScriptedClient.new(call_tool("get_restaurant", { "restaurant" => "ninis" }))
+      ).run(text: "go")
 
       orphan = conversation.messages.reload.select(&:tool_result?).last
       expect(orphan.content.first["content"].first["text"]).to include("failed before this ran")
