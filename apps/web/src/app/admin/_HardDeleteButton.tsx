@@ -26,6 +26,7 @@ export function HardDeleteButton({
   confirmLabel,
   onDelete,
   onDeleted,
+  onBusyChange,
   disabled = false,
   testId,
 }: {
@@ -34,6 +35,13 @@ export function HardDeleteButton({
   onDelete: () => Promise<unknown>;
   /** Called after the server confirms — the caller drops the row. */
   onDeleted: () => void;
+  /**
+   * Reported so the row's other actions can go inert. Without it a
+   * confirmed delete leaves Accept/Reject/Hide clickable, and a click
+   * lands on a row that is being destroyed — two racing requests and a
+   * spurious error.
+   */
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
   testId: string;
 }) {
@@ -43,17 +51,26 @@ export function HardDeleteButton({
 
   if (!isSuperAdmin) return null;
 
+  const mark = (next: boolean) => {
+    setBusy(next);
+    onBusyChange?.(next);
+  };
+
   const run = async () => {
-    setBusy(true);
+    mark(true);
     setError(null);
     try {
       await onDelete();
       onDeleted();
     } catch (e) {
       setError(deleteErrorCopy(e, { hard: true }));
-      // Only on failure: on success the row unmounts, and setting state
-      // on an unmounted component is the classic warning here.
-      setBusy(false);
+    } finally {
+      // Always, not just on failure. Relying on the row unmounting
+      // leaves the button stuck disabled forever whenever it does not —
+      // a refetch that errors keeps the stale row mounted under the
+      // same key, and only a reload recovers. Setting state after
+      // unmount is a no-op in React 18+, so this costs nothing.
+      mark(false);
     }
   };
 

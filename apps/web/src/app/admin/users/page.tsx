@@ -36,6 +36,7 @@ export default function AdminUsersPage() {
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<AdminUsersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const isSuperAdmin = useIsSuperAdmin();
@@ -53,7 +54,7 @@ export default function AdminUsersPage() {
     return () => {
       active = false;
     };
-  }, [q, adminOnly, offset]);
+  }, [q, adminOnly, offset, refreshKey]);
 
   const toggle = async (user: AdminUserRow) => {
     setBusyId(user.id);
@@ -90,15 +91,10 @@ export default function AdminUsersPage() {
     try {
       await destroyAdminUser(user.id);
       setDeletingId(null);
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              users: prev.users.filter((u) => u.id !== user.id),
-              pagination: { ...prev.pagination, total: Math.max(0, prev.pagination.total - 1) },
-            }
-          : prev,
-      );
+      // Refetch rather than filter locally — a client-side removal
+      // leaves `offset` pointing at the old window, so the user who
+      // slid into the deleted one's index is skipped on the next page.
+      setRefreshKey((k) => k + 1);
     } catch (e) {
       setError(deleteErrorCopy(e, { hard: true }));
     } finally {

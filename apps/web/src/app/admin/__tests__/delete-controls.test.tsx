@@ -60,8 +60,41 @@ describe('HardDeleteButton', () => {
     fireEvent.click(screen.getByTestId('x-delete'));
     fireEvent.click(screen.getByTestId('x-delete-confirm'));
 
-    expect(await screen.findByTestId('x-delete-error')).toHaveTextContent(/super admins/i);
+    expect(await screen.findByTestId('x-delete-error')).toHaveTextContent(/already be gone/i);
     expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  // Relying on the row unmounting to clear `busy` leaves the button
+  // stuck disabled forever whenever it does not — a refetch that errors
+  // keeps the stale row mounted under the same key.
+  it('recovers its own busy state when the caller keeps the row mounted', async () => {
+    const onDelete = vi.fn().mockResolvedValue({ id: 'r1', deleted: true });
+    renderAsTier(true, <HardDeleteButton {...props} onDelete={onDelete} onDeleted={() => {}} />);
+
+    fireEvent.click(screen.getByTestId('x-delete'));
+    fireEvent.click(screen.getByTestId('x-delete-confirm'));
+
+    await waitFor(() => expect(screen.getByTestId('x-delete')).toBeEnabled());
+  });
+
+  // The row's other actions have to go inert too, or a click lands on a
+  // record already being destroyed.
+  it('reports busy so sibling actions can disable themselves', async () => {
+    const changes: boolean[] = [];
+    renderAsTier(
+      true,
+      <HardDeleteButton
+        {...props}
+        onDelete={() => Promise.resolve({})}
+        onDeleted={() => {}}
+        onBusyChange={(b) => changes.push(b)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('x-delete'));
+    fireEvent.click(screen.getByTestId('x-delete-confirm'));
+
+    await waitFor(() => expect(changes).toEqual([true, false]));
   });
 });
 
@@ -99,14 +132,22 @@ describe('TypeToConfirm', () => {
 });
 
 describe('deleteErrorCopy', () => {
-  // The distinction this function exists for. `friendlyAdminError`
-  // reads a 404 as "your admin access is gone", which for a hard delete
-  // is a wrong answer that sends the operator to the wrong place — they
-  // are still an admin, they are just not a super admin.
-  it('reads a 404 on a hard delete as a missing tier, not lost access', () => {
+  // A hard delete's 404 has two possible causes and the copy must not
+  // assert either. The likely one is that the row is already gone
+  // (`rescue_from RecordNotFound` answers 404); a tier refusal needs a
+  // session whose tier went stale, because the control does not render
+  // below super admin in the first place. Naming the tier — as this
+  // first shipped — tells an operator who *has* the permission to go
+  // hunting for it.
+  it('does not blame the tier for a 404 it cannot attribute', () => {
     const err = new AdminError('nope', 404);
 
-    expect(deleteErrorCopy(err, { hard: true })).toMatch(/super admins/i);
+    const hard = deleteErrorCopy(err, { hard: true });
+    expect(hard).toMatch(/already be gone/i);
+    expect(hard).not.toMatch(/super admin/i);
+
+    // A read's 404 keeps the shared wording — there it really does mean
+    // the caller is no longer an admin.
     expect(deleteErrorCopy(err)).toMatch(/admin access is gone/i);
   });
 

@@ -60,6 +60,9 @@ export function AdminItemRowEditor({
   onDeleted: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Edit and the status select must go inert while a delete is in
+  // flight — see HardDeleteButton's onBusyChange.
+  const [deleting, setDeleting] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<ItemDraft | null>(null);
@@ -141,7 +144,7 @@ export function AdminItemRowEditor({
           <button
             type="button"
             onClick={() => (draft ? closeEditor() : openEditor())}
-            disabled={busy}
+            disabled={busy || deleting}
             data-testid={`admin-item-edit-${item.id}`}
             className="font-semibold text-zinc-600 hover:text-bite disabled:opacity-50"
           >
@@ -150,7 +153,7 @@ export function AdminItemRowEditor({
           <select
             value={pendingRemoval ? 'removed' : item.status}
             onChange={(e) => onSelect(e.target.value)}
-            disabled={busy}
+            disabled={busy || deleting}
             data-testid={`admin-item-status-${item.id}`}
             className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 disabled:opacity-50"
           >
@@ -166,6 +169,7 @@ export function AdminItemRowEditor({
           <HardDeleteButton
             onDelete={() => destroyAdminItem(item.id)}
             onDeleted={() => onDeleted(item.id)}
+            onBusyChange={setDeleting}
             disabled={busy}
             testId={`admin-item-delete-${item.id}`}
           />

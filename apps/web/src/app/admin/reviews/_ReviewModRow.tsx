@@ -30,6 +30,9 @@ export function ReviewModRow({
 }) {
   const [reason, setReason] = useState<HideReason>('spam');
   const [busy, setBusy] = useState(false);
+  // Hide/unhide must go inert while a delete is in flight — see
+  // HardDeleteButton's onBusyChange.
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const act = async (fn: () => Promise<AdminReviewRow>) => {
@@ -84,7 +87,7 @@ export function ReviewModRow({
           <button
             type="button"
             onClick={() => void act(() => unhideReview(review.id))}
-            disabled={busy}
+            disabled={busy || deleting}
             data-testid={`review-unhide-${review.id}`}
             className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 font-semibold text-zinc-700 hover:border-ok hover:text-ok disabled:opacity-50"
           >
@@ -125,6 +128,7 @@ export function ReviewModRow({
         <HardDeleteButton
           onDelete={() => destroyAdminReview(review.id)}
           onDeleted={() => onDeleted(review.id)}
+          onBusyChange={setDeleting}
           disabled={busy}
           testId={`review-delete-${review.id}`}
         />

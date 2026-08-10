@@ -144,6 +144,11 @@ function SuggestionRow({
   onDecide: (id: string, decision: 'accepted' | 'rejected') => void;
   onDeleted: (id: string) => void;
 }) {
+  // A confirmed delete must take Accept and Reject with it — otherwise
+  // a click lands on a row already being destroyed.
+  const [deleting, setDeleting] = useState(false);
+  const inert = busy || deleting;
+
   return (
     <li
       data-testid={`admin-suggestion-${suggestion.id}`}
@@ -163,7 +168,7 @@ function SuggestionRow({
         <button
           type="button"
           onClick={() => onDecide(suggestion.id, 'accepted')}
-          disabled={busy}
+          disabled={inert}
           data-testid={`admin-suggestion-accept-${suggestion.id}`}
           className="rounded-bw-md bg-ok px-bw-3 py-bw-1 font-semibold text-white disabled:opacity-50"
         >
@@ -172,7 +177,7 @@ function SuggestionRow({
         <button
           type="button"
           onClick={() => onDecide(suggestion.id, 'rejected')}
-          disabled={busy}
+          disabled={inert}
           data-testid={`admin-suggestion-reject-${suggestion.id}`}
           className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 font-semibold text-zinc-700 hover:border-danger hover:text-danger disabled:opacity-50"
         >
@@ -184,6 +189,7 @@ function SuggestionRow({
         <HardDeleteButton
           onDelete={() => destroyAdminSuggestion(suggestion.id)}
           onDeleted={() => onDeleted(suggestion.id)}
+          onBusyChange={setDeleting}
           disabled={busy}
           testId={`admin-suggestion-delete-${suggestion.id}`}
         />

@@ -428,20 +428,10 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
                       : prev,
                   )
                 }
-                onDeleted={(deletedId) =>
-                  setItems((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          items: prev.items.filter((i) => i.id !== deletedId),
-                          pagination: {
-                            ...prev.pagination,
-                            total: Math.max(0, prev.pagination.total - 1),
-                          },
-                        }
-                      : prev,
-                  )
-                }
+                // Refetch (the key the item panel already uses) rather
+                // than filter locally, so `itemsOffset` does not skip
+                // the dish that slid into the deleted one's index.
+                onDeleted={() => setItemsRefreshKey((k) => k + 1)}
               />
             ))}
           </ul>

@@ -157,8 +157,12 @@ describe('AdminUsersPage', () => {
       expect(within(row).queryByTestId('user-delete-diner_1')).toBeNull();
     });
 
-    it('needs the handle typed, then drops the row', async () => {
-      mockFetchUsers.mockResolvedValue(payload([user({ handle: 'diner_1' })]));
+    it('needs the handle typed, then refetches without the row', async () => {
+      // Refetch, not a local filter: dropping the row client-side
+      // leaves `offset` on the old window and skips whoever slid into
+      // the deleted user's index.
+      mockFetchUsers.mockResolvedValueOnce(payload([user({ handle: 'diner_1' })]));
+      mockFetchUsers.mockResolvedValue(payload([]));
       mockDestroyUser.mockResolvedValue({ id: 'u1', deleted: true });
       renderAsTier(true);
       const row = await screen.findByTestId('user-row-diner_1');
@@ -174,12 +178,16 @@ describe('AdminUsersPage', () => {
 
       await vi.waitFor(() => expect(mockDestroyUser).toHaveBeenCalledWith('u1'));
       await vi.waitFor(() => expect(screen.queryByTestId('user-row-diner_1')).toBeNull());
+      // The row vanishing proves nothing on its own — a local filter
+      // does that too, and leaves `offset` on the stale window. What
+      // has to be true is that the list was re-read from the server.
+      expect(mockFetchUsers).toHaveBeenCalledTimes(2);
     });
 
     // A 404 here means "not a super admin", not "your access is gone" —
     // the generic copy would send the operator to sign in again, which
     // fixes nothing.
-    it('reads the tier refusal as a tier refusal', async () => {
+    it('does not claim a 404 was a tier refusal', async () => {
       mockFetchUsers.mockResolvedValue(payload([user({ handle: 'diner_1' })]));
       mockDestroyUser.mockRejectedValue(new AdminError('x', 404));
       renderAsTier(true);
@@ -191,7 +199,7 @@ describe('AdminUsersPage', () => {
       });
       fireEvent.click(screen.getByTestId('user-delete-confirm-diner_1-confirm'));
 
-      expect(await screen.findByTestId('users-error')).toHaveTextContent(/super admins/i);
+      expect(await screen.findByTestId('users-error')).toHaveTextContent(/already be gone/i);
       expect(screen.getByTestId('user-row-diner_1')).toBeInTheDocument();
     });
   });

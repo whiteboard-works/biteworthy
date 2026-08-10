@@ -136,8 +136,15 @@ export function deleteErrorCopy(err: unknown, opts: { hard?: boolean } = {}): st
     case 'in_use':
       return 'Still referenced — remove the references first.';
     default:
+      // Two different things produce a 404 on a hard delete, and the
+      // copy must not assert either one. The likely case is that the
+      // row is already gone — `rescue_from RecordNotFound` answers 404,
+      // and the controls only render for super admins, so a tier
+      // refusal needs a session whose tier went stale after the page
+      // rendered. Naming the tier would tell an operator who has the
+      // permission to go looking for it.
       if (opts.hard && err.status === 404) {
-        return 'Permanent delete is limited to super admins.';
+        return 'Nothing was deleted — it may already be gone, or your access may have changed. Refresh and try again.';
       }
       return friendlyAdminError(err);
   }
