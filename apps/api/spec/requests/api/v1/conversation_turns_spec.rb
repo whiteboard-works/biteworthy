@@ -218,13 +218,22 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       expect(response.body).to include("id: 1\n")
     end
 
-    it "sends nothing already seen" do
-      last = conversation.events.maximum(:position)
+    it "sends nothing already seen, and closes instead of holding the thread" do
+      last  = conversation.events.maximum(:position)
+      began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       get "/api/v1/conversations/#{conversation.id}/stream",
           headers: headers.merge("Last-Event-ID" => last.to_s)
 
       expect(streamed).to be_empty
+
+      # The timing is the point, not incidental. This reader is caught up
+      # on a finished turn, so there is no terminal event left to end the
+      # stream on: without an idle exit the request sits on a Puma thread
+      # for the full STREAM_SECONDS, which costs a thread in production
+      # and five silent minutes of CI here.
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - began
+      expect(elapsed).to be < 10
     end
 
     it "404s another account's conversation" do
