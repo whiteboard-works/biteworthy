@@ -300,7 +300,13 @@ function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
       : null,
     run ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out` : null,
     run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
-    run?.outcome && run.outcome !== 'done' ? run.outcome : null,
+    // From the newest run, not the one the tokens came from. A turn
+    // refused before its first round leaves an all-zero run behind, so
+    // the two are different rows and the outcome is the only part of it
+    // worth showing.
+    usage.last_outcome?.outcome && usage.last_outcome.outcome !== 'done'
+      ? usage.last_outcome.outcome
+      : null,
   ].filter((p): p is string => p !== null);
 
   return (

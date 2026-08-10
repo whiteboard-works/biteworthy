@@ -274,6 +274,41 @@ describe('ChatClient', () => {
       expect(pills).toHaveTextContent('8.2s');
     });
 
+    // The reported symptom: "203¢ total · 0 rounds · 0 cached ·
+    // 0 in / 0 out · 0.1s · error". A turn refused before its first round
+    // still leaves an all-zero run behind, so the numbers and the
+    // refusal belong to different runs. Show the last real numbers and
+    // the latest outcome, rather than one run's zeroes labelled as both.
+    it('keeps the last working turn on screen when a later one was refused', async () => {
+      getConversation.mockResolvedValue({
+        ...answered('ok'),
+        usage: {
+          cost_cents: 203,
+          last_outcome: { outcome: 'error', state: 'failed' },
+          last_run: {
+            outcome: 'done',
+            state: 'done',
+            rounds: 4,
+            input_tokens: 1200,
+            output_tokens: 400,
+            cache_read_tokens: 7550,
+            cache_write_tokens: 0,
+            cost_cents: 21,
+            duration_ms: 8200,
+          },
+        },
+      });
+
+      render(<ChatClient />);
+      await type('hi');
+
+      const pills = await screen.findByTestId('usage-pills');
+      expect(pills).toHaveTextContent('4 rounds');
+      expect(pills).toHaveTextContent('1,200 in / 400 out');
+      expect(pills).toHaveTextContent('error');
+      expect(pills).not.toHaveTextContent('0 rounds');
+    });
+
     it('renders nothing when the server withheld it', async () => {
       getConversation.mockResolvedValue(answered('ok'));
 

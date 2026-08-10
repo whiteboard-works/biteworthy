@@ -187,6 +187,50 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(usage.dig("last_run", "outcome")).to eq("done")
     end
 
+    # The reported symptom, exactly: "203¢ total · 0 rounds · 0 cached ·
+    # 0 in / 0 out · 0.1s · error". Nothing was reset — a turn refused
+    # before its first round still acquires a run, and `enforce_budget!`
+    # raises before any HTTP call, so the row is released all-zeros and
+    # the serializer was reading *that* as the last run. The numbers come
+    # from the last run that has any now, and the refusal travels
+    # separately.
+    it "keeps the last working run's numbers when a later turn is refused" do
+      admin = create(:user, :admin)
+      convo = create(:conversation, user: admin, spent_cents: 203)
+
+      worked = ConversationRun.acquire(convo)
+      worked.record_round!({ "input_tokens" => 1_200, "output_tokens" => 400,
+                             "cache_read_input_tokens" => 7_550 },
+                           model: Chat::AgentLoop::MODEL)
+      worked.release!(outcome: "done")
+
+      refused = ConversationRun.acquire(convo)
+      refused.release!(outcome: "error", state: "failed")
+
+      get "/api/v1/conversations/#{convo.id}", headers: auth_headers_for(admin)
+
+      usage = response.parsed_body["usage"]
+      expect(usage.dig("last_run", "rounds")).to eq(1)
+      expect(usage.dig("last_run", "input_tokens")).to eq(1_200)
+      expect(usage.dig("last_run", "cache_read_tokens")).to eq(7_550)
+      # And the refusal is still reported — it just is not the run the
+      # tokens came from.
+      expect(usage.dig("last_outcome", "outcome")).to eq("error")
+      expect(usage.dig("last_outcome", "state")).to eq("failed")
+    end
+
+    it "reports no run at all when none has ever done work" do
+      admin = create(:user, :admin)
+      convo = create(:conversation, user: admin)
+      ConversationRun.acquire(convo).release!(outcome: "nothing_queued")
+
+      get "/api/v1/conversations/#{convo.id}", headers: auth_headers_for(admin)
+
+      usage = response.parsed_body["usage"]
+      expect(usage["last_run"]).to be_nil
+      expect(usage.dig("last_outcome", "outcome")).to eq("nothing_queued")
+    end
+
     it "reads as empty rather than broken before any turn has run" do
       admin = create(:user, is_admin: true)
       convo = create(:conversation, user: admin)

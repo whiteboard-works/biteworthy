@@ -456,7 +456,7 @@ RSpec.describe Chat::AgentLoop do
       result = loop_with(say("hi")).run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("of its 200¢ limit")
+      expect(result.error).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
     it "stops everyone when the day's budget is gone" do
@@ -494,7 +494,7 @@ RSpec.describe Chat::AgentLoop do
                               .run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("of its 200¢ limit")
+      expect(result.error).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
     it "lets a super admin through the per-conversation ceiling" do
@@ -741,7 +741,7 @@ RSpec.describe Chat::AgentLoop do
       seen = events_for(say("hi"))
 
       expect(seen.last[:type]).to eq("error")
-      expect(seen.last[:message]).to include("of its 200¢ limit")
+      expect(seen.last[:message]).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
     # A dropped upstream connection is an outage, not a bug; the user

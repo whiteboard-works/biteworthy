@@ -46,11 +46,35 @@ module Chat
       # a diner has any use for. `api_cost_cents` answers "are we over
       # budget"; the per-round token split answers "where is the money
       # going", which is the question C3 added those columns for.
+      # `last_run` is the newest run **that did any work**, not simply the
+      # newest row.
+      #
+      # A turn that fails before its first round still creates a
+      # `ConversationRun` — `CompletionJob` acquires the lock, then
+      # `enforce_budget!` raises before any HTTP call, so the row is
+      # released all-zeros. Reading "the newest run" then reported
+      # `0 rounds · 0 in / 0 out · 0.1s` beside a real lifetime cost,
+      # which looks like the accounting broke rather than like the turn
+      # was refused. Budget rejections, a `heal!` failure, a lost lease,
+      # and `nothing_queued` no-op jobs all produce that row.
+      #
+      # So the numbers come from the last run that has any, and *why the
+      # newest one stopped* travels separately in `last_outcome`. Both
+      # facts are true and they are about different runs; conflating them
+      # was the bug.
       def usage_for(conversation)
-        run = ConversationRun.where(conversation_id: conversation.id).order(:created_at).last
+        runs    = ConversationRun.where(conversation_id: conversation.id).order(:created_at)
+        newest  = runs.last
+        run     = runs.where("rounds > 0").last
+
         {
-          cost_cents: conversation.api_cost_cents,
+          cost_cents:   conversation.api_cost_cents,
+          last_outcome: newest && { outcome: newest.outcome, state: newest.state },
           last_run: run && {
+            # Kept for the run these numbers belong to. `last_outcome`
+            # above answers "what happened most recently"; this answers
+            # "how did the run these tokens came from end", and after a
+            # refused turn they are different runs.
             outcome:            run.outcome,
             state:              run.state,
             rounds:             run.rounds,
