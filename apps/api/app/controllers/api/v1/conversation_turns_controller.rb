@@ -25,6 +25,10 @@ module Api
       # thread can be held by one reader, not how long a turn may run.
       STREAM_SECONDS    = 300
       POLL_SECONDS      = 0.2
+      # How often an idle stream asks whether its turn is still alive.
+      # Bounds how long a reader that is already caught up stays connected,
+      # without paying that query on every poll.
+      IDLE_CHECK_SECONDS = 1.0
       # A silent minute reads as a hang to every proxy in the path.
       KEEPALIVE_SECONDS = 15
       # One turn's narration is tens of rows, not thousands.
@@ -100,9 +104,10 @@ module Api
       end
 
       def relay
-        position  = resume_from
-        deadline  = Time.current + STREAM_SECONDS
-        last_beat = Time.current
+        position   = resume_from
+        deadline   = Time.current + STREAM_SECONDS
+        last_beat  = Time.current
+        next_check = Time.current
 
         while Time.current < deadline && !@disconnected
           events = conversation.events.after(position).in_order.limit(BATCH).to_a
@@ -117,6 +122,20 @@ module Api
           return if events.any? { |e| terminal?(e) } && !more_coming?
 
           if events.empty?
+            # The same exit, for a reader that arrives after the turn is
+            # already over — the common case being a reconnect at the last
+            # position it saw. Its terminal event was consumed by an
+            # earlier connection, so the check above can never fire, and
+            # without this the loop polls an idle conversation until the
+            # deadline: a thread held for five minutes to send nothing.
+            #
+            # Throttled because this branch runs every POLL_SECONDS while
+            # a turn is thinking, and the check costs two queries.
+            if Time.current >= next_check
+              next_check = Time.current + IDLE_CHECK_SECONDS
+              return if finished?(position)
+            end
+
             if Time.current - last_beat >= KEEPALIVE_SECONDS
               write_comment("keepalive")
               last_beat = Time.current
@@ -142,6 +161,17 @@ module Api
       def more_coming?
         conversation.reload.pending_turns? ||
           ConversationRun.running.exists?(conversation_id: conversation.id)
+      end
+
+      # Nothing running or queued, and the reader has seen everything.
+      #
+      # The order is load-bearing. A turn that ended between the batch
+      # read and this call has already written its terminal event, so the
+      # queue is checked first and the events afterwards — the reverse
+      # order can see an empty tail, then a drained queue, and close on a
+      # `done` the client never received.
+      def finished?(position)
+        !more_coming? && !conversation.events.after(position).exists?
       end
 
       def resume_from
