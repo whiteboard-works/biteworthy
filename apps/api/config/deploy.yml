@@ -117,6 +117,19 @@ env:
     - R2_SECRET_ACCESS_KEY
     - R2_BUCKET
     - R2_ENDPOINT
+    # Admin rosters. Read only by the `admin:sync` / `admin:sync_super`
+    # rake tasks, never at request time — once synced, the tier lives in
+    # `users.is_admin` / `users.is_super_admin`.
+    #
+    # Listing them here is what puts them in the container at all: a
+    # value in .kamal/secrets that is not named in this block never
+    # reaches the app. The failure that causes is loud rather than
+    # dangerous — `admin:sync_super` aborts on a blank roster, and the
+    # sync tasks only ever grant (see AdminRoster#sync_super), so a
+    # missing variable can never revoke anyone. Revoking is its own
+    # deliberate task.
+    - ADMIN_EMAILS
+    - SUPER_ADMIN_EMAILS
     # OAuth (Phase 1.2)
     - GOOGLE_OAUTH_CLIENT_ID
     - GOOGLE_OAUTH_CLIENT_SECRET
