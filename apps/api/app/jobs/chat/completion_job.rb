@@ -52,7 +52,15 @@ module Chat
         on_event:    writer,
         run:         run,
         page:        turn["page"],
-        mode:        turn["mode"]
+        # A queued payload is the authority for the turn it describes, and
+        # a missing key means it was written before modes existed — by
+        # definition under `manual`. Resolved to that here rather than
+        # letting `AgentLoop` fall back to the conversation's *current*
+        # mode: switch a conversation to `auto` while an older payload is
+        # still in the queue and the fallback would run it under a grant
+        # given after it was submitted. The conversation fallback stays
+        # for direct callers, who have no payload to read.
+        mode:        turn["mode"] || ModePolicy::MANUAL
       ).run(**arguments_for(turn))
     ensure
       # The terminal event is the client's cue to stop reading, so it has

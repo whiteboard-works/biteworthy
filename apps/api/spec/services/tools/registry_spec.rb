@@ -23,6 +23,29 @@ RSpec.describe Tools::Registry do
     expect(described_class.all.map(&:audience).uniq - %i[public user admin]).to be_empty
   end
 
+  # The trap this one closes bit twice in review on the same PR, in two
+  # different tools. `accept_edits` is a grant a person gives in advance,
+  # and it has to be decidable per tool whether that grant covers a
+  # destructive call. A tool that never says lands in `ModePolicy`'s
+  # fail-closed branch and parks — correct, but silently stricter than its
+  # author probably meant, and the *previous* default silently looser.
+  #
+  # So make the answer mandatory rather than inferred. `confirm_restaurant_data`
+  # is why: its own description says "cannot be undone" and that it makes
+  # dishes visible to strict-mode users, and it was being waved through on
+  # a default nobody had thought about.
+  it "makes every destructive tool say whether it can be undone" do
+    undeclared = described_class.all.select do |tool|
+      tool.annotations_value&.destructive_hint == true && !tool.recoverability_declared?
+    end
+
+    expect(undeclared.map(&:name_value)).to be_empty,
+      "these declare destructive_hint but no unrecoverable_when — add " \
+      "`unrecoverable_when { true }` if no later call undoes it, or " \
+      "`unrecoverable_when { false }` to say it is an ordinary edit: " \
+      "#{undeclared.map(&:name_value).join(', ')}"
+  end
+
   # The audience bug that shipped in M1: Ruby does not inherit
   # class-level ivars, so a domain base declaring `audience :user` left
   # every subclass at :public and listed write tools to anonymous

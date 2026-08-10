@@ -7,6 +7,10 @@ import { uploadAttachment, type Attachment } from '../../lib/chat';
  *  turn it was typed during finishes. */
 export interface QueuedMessage {
   id: string;
+  /** The conversation it was typed into. `busy` is global, so a turn
+   *  running in one chat must not deliver a message meant for another —
+   *  null means "the one being created right now". */
+  conversationId: string | null;
   text: string;
   attachments: Attachment[];
 }

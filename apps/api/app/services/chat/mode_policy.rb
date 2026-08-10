@@ -73,17 +73,35 @@ module Chat
     def decide(tool, args = {})
       return read_only?(tool) ? :run : :refuse if planning?
       return :run if mode == AUTO || @skip_confirmations
-      return tool&.unrecoverable?(args) ? :park : :run if mode == ACCEPT_EDITS
+      return accept_edits(tool, args) if mode == ACCEPT_EDITS
 
       ToolCatalog.confirm_required?(tool, args) ? :park : :run
     end
 
     private
 
+    # The standing yes, and the two things it does not cover.
+    #
+    # Undeclared destructive tools park. That is the whole safety
+    # property: this mode is a grant someone gave in advance, and it
+    # cannot extend to a call nobody has classified — including one added
+    # to the codebase months after the grant was designed.
+    def accept_edits(tool, args)
+      return :park if tool.nil?
+      return :park if tool.unrecoverable?(args)
+      return :park if destructive?(tool) && !tool.recoverability_declared?
+
+      :run
+    end
+
     # Fails closed on a tool that declares no annotations at all: silence
     # is not a claim that nothing is written.
     def read_only?(tool)
       tool&.annotations_value&.read_only_hint == true
+    end
+
+    def destructive?(tool)
+      tool.annotations_value&.destructive_hint == true
     end
   end
 end

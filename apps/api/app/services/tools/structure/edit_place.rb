@@ -55,6 +55,10 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      # Replaces the address and the week wholesale, which is destructive in
+      # the annotation's sense — but re-sending them is the way back.
+      unrecoverable_when { false }
+
       ADDRESS_KEYS = %i[street city region postal_code country latitude longitude].freeze
 
       def self.perform(context:, restaurant:, hours: nil, **address)
