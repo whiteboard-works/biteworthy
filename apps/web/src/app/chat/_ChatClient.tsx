@@ -285,6 +285,17 @@ export function ChatClient(): ReactElement {
  * it does only for admins — the visibility decision lives server-side, so
  * there is nothing here to get wrong.
  */
+/**
+ * Outcomes worth a pill. `done` is the happy path and `nothing_queued` is
+ * a job finding its work already drained — neither tells the operator
+ * anything, and printing them crowds out the one that would.
+ */
+const BENIGN_OUTCOMES = new Set(['done', 'nothing_queued']);
+
+function interesting(outcome: string | null | undefined): string | null {
+  return outcome && !BENIGN_OUTCOMES.has(outcome) ? outcome : null;
+}
+
 function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
   const run = usage.last_run;
   const pills = [
@@ -300,7 +311,18 @@ function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
       : null,
     run ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out` : null,
     run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
-    run?.outcome && run.outcome !== 'done' ? run.outcome : null,
+    // Two outcomes, because there are two runs. How the run these numbers
+    // came from ended, and — only when it is something else worth seeing
+    // — how the newest run ended.
+    //
+    // Showing only the newest one hides real failures behind harmless
+    // ones: send two messages quickly, one job drains both, the second
+    // turn ends `timed_out` with eight rounds, then a second job finds
+    // nothing queued and releases `nothing_queued`. The footer would
+    // report the timed-out run's numbers under a `nothing_queued` label
+    // and the failure would be gone.
+    interesting(run?.outcome),
+    usage.last_outcome?.outcome !== run?.outcome ? interesting(usage.last_outcome?.outcome) : null,
   ].filter((p): p is string => p !== null);
 
   return (

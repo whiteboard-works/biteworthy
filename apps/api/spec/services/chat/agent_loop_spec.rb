@@ -36,6 +36,18 @@ RSpec.describe Chat::AgentLoop do
   # specs say what they mean and convert at the edge.
   def micro(cents) = cents * 1_000_000
 
+  # Community spend for today, recorded the way it actually happens — on a
+  # run. The daily ceiling sums `conversation_runs.cost_micro_cents`, not
+  # conversations, so a spec that writes a conversation's total is
+  # describing a measure the code no longer uses.
+  def spend_today(cents)
+    other = Conversation.create!(user: create(:user))
+    run   = ConversationRun.acquire(other)
+    run.update_columns(cost_micro_cents: micro(cents))
+    run.release!(outcome: "done")
+    run
+  end
+
   describe "a plain turn" do
     it "returns the model's text and stores both sides" do
       result = loop_with(say("Hi there.")).run(text: "hello")
@@ -456,12 +468,32 @@ RSpec.describe Chat::AgentLoop do
       result = loop_with(say("hi")).run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("of its 200¢ limit")
+      expect(result.error).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
+    end
+
+    # The daily wall counts runs, not conversations. Charging a
+    # conversation's lifetime spend to its creation date meant a chat
+    # opened yesterday and continued today contributed nothing — and with
+    # a $10 per-conversation ceiling that is a $10 hole per long-lived
+    # conversation, in a product whose chats are meant to outlive a
+    # session.
+    it "counts today's spend from a conversation opened yesterday" do
+      old = nil
+      travel_to 2.days.ago do
+        old = Conversation.create!(user: create(:user))
+      end
+      run = ConversationRun.acquire(old)
+      run.record_round!({ "cache_creation_input_tokens" => 8_000_000 },
+                        model: described_class::MODEL)
+      run.release!(outcome: "done")
+
+      result = loop_with(say("hi")).run(text: "hello")
+
+      expect(result.error).to include("daily budget")
     end
 
     it "stops everyone when the day's budget is gone" do
-      Conversation.create!(user: create(:user),
-                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
+      spend_today(described_class::DAILY_CEILING_CENTS_DEFAULT)
 
       result = loop_with(say("hi")).run(text: "hello")
 
@@ -470,8 +502,7 @@ RSpec.describe Chat::AgentLoop do
 
     # An admin driving the tools must not be locked out by community spend.
     it "lets an admin through the daily ceiling" do
-      Conversation.create!(user: create(:user),
-                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
+      spend_today(described_class::DAILY_CEILING_CENTS_DEFAULT)
       admin_conversation = Conversation.create!(user: create(:user, is_admin: true))
 
       result = described_class.new(admin_conversation, client: ScriptedClient.new(say("hi"))).run(text: "hello")
@@ -494,7 +525,7 @@ RSpec.describe Chat::AgentLoop do
                               .run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("of its 200¢ limit")
+      expect(result.error).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
     it "lets a super admin through the per-conversation ceiling" do
@@ -510,8 +541,7 @@ RSpec.describe Chat::AgentLoop do
     end
 
     it "lets a super admin through the daily ceiling" do
-      Conversation.create!(user: create(:user),
-                           api_cost_micro_cents: micro(described_class::DAILY_CEILING_CENTS_DEFAULT))
+      spend_today(described_class::DAILY_CEILING_CENTS_DEFAULT)
       super_conversation = Conversation.create!(user: create(:user, :super_admin))
 
       result = described_class.new(super_conversation, client: ScriptedClient.new(say("hi")))
@@ -660,10 +690,13 @@ RSpec.describe Chat::AgentLoop do
       expect(client.requests.map { |r| r[:tools] }.uniq.size).to eq(1)
     end
 
+    # The aggregate is over `conversation_runs` now — spend incurred
+    # today, rather than the lifetime spend of conversations created
+    # today — but it is still read once per turn, not once per round.
     it "reads the day's spend once, not once per round" do
       queries = capture_sql { three_round_turn }
 
-      expect(queries.grep(/SUM\("conversations"\.\"api_cost_micro_cents\"\)/).size).to eq(1)
+      expect(queries.grep(/SUM\("conversation_runs"\."cost_micro_cents"\)/).size).to eq(1)
     end
 
     # The transcript only grows by messages this loop wrote itself, so
@@ -741,7 +774,7 @@ RSpec.describe Chat::AgentLoop do
       seen = events_for(say("hi"))
 
       expect(seen.last[:type]).to eq("error")
-      expect(seen.last[:message]).to include("of its 200¢ limit")
+      expect(seen.last[:message]).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
     # A dropped upstream connection is an outage, not a bug; the user

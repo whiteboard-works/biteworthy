@@ -254,6 +254,18 @@ RSpec.configure do |config|
                              "micro-cent total. Not the cost of the last turn — that is " \
                              "`last_run.cost_cents`."
               },
+              last_outcome: {
+                type: :object, nullable: true,
+                description: "How the most recent run ended, which after a refused turn " \
+                             "is a *different* run from `last_run`. A turn rejected before " \
+                             "its first round still creates an all-zero run, so its numbers " \
+                             "are not worth reporting but its outcome is.",
+                required: %w[state],
+                properties: {
+                  outcome: { type: :string, nullable: true },
+                  state:   { type: :string }
+                }
+              },
               last_run: {
                 type: :object, nullable: true,
                 required: %w[state rounds input_tokens output_tokens cache_read_tokens

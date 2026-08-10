@@ -31,9 +31,12 @@ module Chat
     MODEL          = "claude-opus-5"
     # Covers thinking AND text on Opus 5 — they share the budget.
     MAX_TOKENS     = 16_000
-    # A wall against a model that loops on a failing tool. Twelve is
-    # comfortably past the longest real workflow (the scan flow is seven).
-    MAX_ITERATIONS = 12
+    # A wall against a model that loops on a failing tool. Twelve was
+    # "comfortably past the longest real workflow (the scan flow is
+    # seven)" — and then real turns started arriving at eleven and twelve
+    # rounds, which is not comfortable, it is the wall. Twenty keeps the
+    # runaway guard while leaving the honest long turn room to finish.
+    MAX_ITERATIONS = 20
     # Super admins get headroom rather than no wall at all — the turn
     # deadline still bounds the turn, and an unbounded `loop` here would
     # make a runaway cost real money before that fired.
@@ -41,17 +44,30 @@ module Chat
 
     # The other wall, because rounds are not time. One round may sit for
     # the full `ANTHROPIC_READ_TIMEOUT` (240s), and `tick!` renews the
-    # lease at every step — so twelve slow rounds hold a conversation for
-    # the better part of an hour while every watchdog we have reads
-    # healthy. Five minutes is several times the ~60s a real turn takes.
-    TURN_DEADLINE_SECONDS_DEFAULT = 300
+    # lease at every step — so a long run of slow rounds holds a
+    # conversation for the better part of an hour while every watchdog we
+    # have reads healthy.
+    #
+    # Was five minutes, described as "several times the ~60s a real turn
+    # takes". Real turns are not 60s: the observed ones run eleven and
+    # twelve rounds, and at that length five minutes is the thing ending
+    # the turn rather than a guard against a stuck one. Ten.
+    TURN_DEADLINE_SECONDS_DEFAULT = 600
     # Raised, not removed, for the super tier — and that raise re-admits
-    # a bounded version of what the 300s wall prevents. `caller_is_super_admin?`
+    # a bounded version of what the deadline prevents. `caller_is_super_admin?`
     # spells out why 30 minutes is an acceptable trade and no bound is not.
     SUPER_ADMIN_TURN_DEADLINE_SECONDS_DEFAULT = 1_800
 
-    PER_CONVERSATION_CEILING_CENTS_DEFAULT = 200   # $2
-    DAILY_CEILING_CENTS_DEFAULT            = 2_000 # $20/day across all non-admin chat
+    # $2 was set when a turn was believed to cost ~8.5¢, which made it
+    # about twenty turns. Measured turns run 17–95¢, so it was really
+    # two to five — a conversation died mid-thought and the person was
+    # told to start a new one, losing the context that made it expensive
+    # in the first place. C9's transcript caching cuts the long-turn cost
+    # substantially, and $10 is the ceiling for what that leaves: enough
+    # that a real working session finishes, low enough to still catch a
+    # loop.
+    PER_CONVERSATION_CEILING_CENTS_DEFAULT = 1_000 # $10
+    DAILY_CEILING_CENTS_DEFAULT            = 5_000 # $50/day across all non-admin chat
 
     Result = Struct.new(:state, :text, :pending, :error, keyword_init: true) do
       def awaiting_confirmation? = state == :awaiting_confirmation
@@ -441,7 +457,7 @@ module Chat
 
     # Only `messages` grows within a turn. Everything else here is the
     # material that sits at or above the prompt-cache breakpoint, and
-    # rebuilding it for each of up to twelve rounds bought nothing: the
+    # rebuilding it for each of up to twenty rounds bought nothing: the
     # catalogue re-rendered 44 JSON schemas, the topology walked the
     # registry twice more, and the profile snapshot went back to Postgres
     # — all to produce the bytes the cache is keyed on.
@@ -596,9 +612,9 @@ module Chat
 
     # The super tier clears both spend ceilings and the round cap.
     #
-    # The wall-clock deadline is **raised, not cleared** — 300s to 1,800s
+    # The wall-clock deadline is **raised, not cleared** — 600s to 1,800s
     # — and the honest reading of that is that it re-admits a smaller
-    # version of the problem the 300s wall was added for: a wedged turn
+    # version of the problem the deadline was added for: a wedged turn
     # keeps `tick!` renewing its 120s lease, so the run looks healthy to
     # every watchdog for as long as the deadline allows. Two things make
     # 30 minutes an acceptable trade where "no deadline at all" would not
@@ -624,13 +640,28 @@ module Chat
     # since then is added back, so the round that crosses the ceiling
     # still trips it — a runaway loop is the case the ceiling exists for,
     # and it is the only spender a memoized baseline could miss by much.
+    # Summed over the **runs** that happened today, not over conversations
+    # *created* today.
+    #
+    # The old form charged a conversation's whole lifetime spend to its
+    # creation date, so a conversation opened yesterday and continued
+    # today contributed nothing to today's total. Chats are meant to
+    # survive across sessions — there is a history sidebar — so that is
+    # the normal case, not an edge one, and raising the per-conversation
+    # ceiling to $10 turned it from a $2 hole into a $10 one *per*
+    # long-lived conversation. A run belongs unambiguously to the day it
+    # ran on.
     def daily_spend_micro
       unless defined?(@daily_spend_baseline)
-        @daily_spend_baseline = Conversation.where(created_at: Time.current.utc.beginning_of_day..)
-                                            .sum(:api_cost_micro_cents)
+        @daily_spend_baseline = ConversationRun.where(created_at: Time.current.utc.beginning_of_day..)
+                                               .sum(:cost_micro_cents)
         @own_spend_baseline   = @conversation.api_cost_micro_cents
       end
 
+      # This turn's own accrual added back on top of the snapshot, so the
+      # round that crosses the ceiling still trips it — a runaway loop is
+      # what the ceiling is for, and it is the one spender a baseline read
+      # once per turn could miss by a lot.
       @daily_spend_baseline + (@conversation.api_cost_micro_cents - @own_spend_baseline)
     end
 

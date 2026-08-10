@@ -3540,6 +3540,11 @@ export interface components {
         ChatUsage: {
             /** @description The conversation's lifetime spend, rounded from an exact micro-cent total. Not the cost of the last turn — that is `last_run.cost_cents`. */
             cost_cents: number;
+            /** @description How the most recent run ended, which after a refused turn is a *different* run from `last_run`. A turn rejected before its first round still creates an all-zero run, so its numbers are not worth reporting but its outcome is. */
+            last_outcome?: {
+                outcome?: string | null;
+                state: string;
+            } | null;
             last_run?: {
                 outcome?: string | null;
                 state: string;

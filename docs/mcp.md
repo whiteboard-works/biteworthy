@@ -457,14 +457,21 @@ Four things it enforces that a bare tool loop would not:
   already computed next to the calls still queued, and resuming replays
   them in order. A tool that raises still produces an error result rather
   than leaving the call dangling.
-- **A spend ceiling per conversation and per day**, mirroring the
-  ingestion one, off `conversations.api_cost_cents`. `Ingestion::UsageCost`
-  carries explicit `claude-opus-5` rates for this — the fallback
-  understates Opus by ~1.7x, and a ceiling that undercounts is worse than
-  no ceiling.
-- **Two walls, because rounds are not time.** `MAX_ITERATIONS` (12) bounds
+- **A spend ceiling per conversation ($10) and per day ($50)**, mirroring
+  the ingestion one, off the exact `conversations.api_cost_micro_cents`.
+  `Ingestion::UsageCost` carries explicit `claude-opus-5` rates for this —
+  the fallback understates Opus by ~1.7x, and a ceiling that undercounts
+  is worse than no ceiling. The daily figure sums
+  `conversation_runs.cost_micro_cents` over the **runs that happened
+  today**, not the lifetime spend of conversations created today: chats
+  outlive a session, so charging a conversation's whole cost to its
+  creation date left every continued conversation invisible to the wall.
+- **Two walls, because rounds are not time.** `MAX_ITERATIONS` (20) bounds
   how many tool rounds a turn may take; `CHAT_TURN_DEADLINE_SECONDS`
-  (default 300) bounds how long it may take to take them. Without the
+  (default 600) bounds how long it may take to take them. Both were
+  raised from 12 and 300 once real turns turned out to run eleven and
+  twelve rounds — at that length the old figures were ending honest turns
+  rather than catching stuck ones. Without the
   second, one round could sit for the full 240s upstream read timeout
   while `tick!` renewed the 120s lease at every step — a turn holding a
   conversation for the better part of an hour and looking healthy. The
