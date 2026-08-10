@@ -45,10 +45,12 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M8 — public MCP: OAuth 2.1 (doorkeeper, PKCE-only), RFC 9728 + RFC 8414 metadata, RFC 7591 registration, RFC 8707 audience validation, consent in apps/web, connected-app revocation at `/profile/settings`
 
 **Web scanning is back as of M5** — `/chat`, reached from the hero CTA, the
-site header, and the restaurants empty state. **Mobile still has no scan
-path**: the Expo app can't speak the chat yet, and restoring its old screens
-would mean rebuilding against REST endpoints M2 deleted. Mobile chat is its
-own phase; MCP (Claude Code / Claude Desktop) covers scanning meanwhile.
+site header, and the restaurants empty state. **Mobile chat shipped
+2026-08-08** (#532/#533), which this paragraph claimed for two days it had
+not: the Expo app polls `GET /conversations/:id/events` rather than reading
+SSE, because React Native's XHR-backed fetch exposes no readable body. It
+renders plain text bubbles — markdown, tool cards, and usage pills are still
+web-only.
 
 ## Chat engine (active, 2026-08-08)
 
