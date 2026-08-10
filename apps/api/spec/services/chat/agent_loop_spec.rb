@@ -40,8 +40,8 @@ RSpec.describe Chat::AgentLoop do
   # run. The daily ceiling sums `conversation_runs.cost_micro_cents`, not
   # conversations, so a spec that writes a conversation's total is
   # describing a measure the code no longer uses.
-  def spend_today(cents)
-    other = Conversation.create!(user: create(:user))
+  def spend_today(cents, spender: nil)
+    other = Conversation.create!(user: spender || create(:user))
     run   = ConversationRun.acquire(other)
     run.update_columns(cost_micro_cents: micro(cents))
     run.release!(outcome: "done")
@@ -498,6 +498,19 @@ RSpec.describe Chat::AgentLoop do
       result = loop_with(say("hi")).run(text: "hello")
 
       expect(result.error).to include("daily budget")
+    end
+
+    # The ceiling is "$50/day across all non-admin chat" and admins are
+    # exempt from the check — so counting their spend in the sum let an
+    # operator driving the tools for an afternoon lock out every ordinary
+    # user while staying exempt themselves. Exempt from a ceiling and
+    # able to fill it is the wrong pair.
+    it "does not let an admin's own spend exhaust the community budget" do
+      spend_today(described_class::DAILY_CEILING_CENTS_DEFAULT, spender: create(:user, :admin))
+
+      result = loop_with(say("hi")).run(text: "hello")
+
+      expect(result.text).to eq("hi")
     end
 
     # An admin driving the tools must not be locked out by community spend.

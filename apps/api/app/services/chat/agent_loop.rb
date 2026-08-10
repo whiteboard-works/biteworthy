@@ -651,10 +651,24 @@ module Chat
     # ceiling to $10 turned it from a $2 hole into a $10 one *per*
     # long-lived conversation. A run belongs unambiguously to the day it
     # ran on.
+    #
+    # Admins are excluded from the **sum**, not merely from the check.
+    # `enforce_budget!` already lets them past this ceiling and the
+    # constant calls it "$50/day across all non-admin chat" — but the
+    # aggregate counted everyone, so an operator driving the tools for an
+    # afternoon could fill the community's budget and lock out every
+    # ordinary user while staying exempt themselves. Exempt from a
+    # ceiling and able to fill it is the wrong pair.
+    # `.where(users: { is_admin: false })` is how `DashboardsController`
+    # and `Admin::IngestionRunsController` already isolate community
+    # traffic; this is the same rule applied where it was missing.
     def daily_spend_micro
       unless defined?(@daily_spend_baseline)
-        @daily_spend_baseline = ConversationRun.where(created_at: Time.current.utc.beginning_of_day..)
-                                               .sum(:cost_micro_cents)
+        @daily_spend_baseline = ConversationRun
+                                .where(created_at: Time.current.utc.beginning_of_day..)
+                                .joins(conversation: :user)
+                                .where(users: { is_admin: false })
+                                .sum(:cost_micro_cents)
         @own_spend_baseline   = @conversation.api_cost_micro_cents
       end
 
