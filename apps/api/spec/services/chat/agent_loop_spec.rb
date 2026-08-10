@@ -162,6 +162,22 @@ RSpec.describe Chat::AgentLoop do
       expect(text).to include("unknown_tool")
     end
 
+    # The same conflation in the other direction. Planning refused a name
+    # it could not look up, so a *misspelled read* came back as "this
+    # write did not run" with an instruction to stop attempting writes
+    # for the rest of the turn — the mode's reason attached to the
+    # model's typo, and the rest of the turn's tool use talked out of it.
+    it "does not call a misspelled read a write in planning mode" do
+      convo  = Conversation.create!(user: user, chat_mode: "planning")
+      client = ScriptedClient.new(call_tool("get_menuu"), say("Here is the plan."))
+
+      described_class.new(convo, client: client, mode: "planning").run(text: "what can I eat")
+
+      text = convo.messages.reload.find(&:tool_result?).content.first["content"].first["text"]
+      expect(text).to include("unknown_tool")
+      expect(text).not_to include("planning_mode")
+    end
+
     # The destructive ones leaked through a different door: `decide` runs
     # before `execute`, so the turn parked and asked the person to approve
     # a call that could only have failed — naming the tool in the prompt

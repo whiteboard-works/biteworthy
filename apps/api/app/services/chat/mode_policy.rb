@@ -65,12 +65,24 @@ module Chat
 
     # :run, :park, or :refuse for one call.
     #
-    # `tool` is nil when the model invented a name. That is a bad call in
-    # every mode, but only planning has to decide something about it: an
-    # unknown tool cannot prove it only reads, so it does not get to run
-    # here. The other modes hand it to `execute`, which answers with the
-    # not-found error the model can act on.
+    # **A nil tool is not a call, and no mode has a decision to make
+    # about it.** It is nil when the model invented or misspelled a name,
+    # or named one outside this caller's audience — and `execute` answers
+    # all three with a not-found (plus a spelling suggestion) having run
+    # nothing. There is no grant to withhold and nothing to authorize, so
+    # every mode hands it straight through.
+    #
+    # Deciding on it instead meant answering the model's *typo* with the
+    # mode's reason, which is a reason it believes. Planning told a
+    # misspelled `get_menu` that "this write did not run" and to stop
+    # attempting writes for the rest of the turn — a read, refused as a
+    # write, with the turn's remaining tool use talked out of it.
+    # `accept_edits` parked, so the turn stopped and asked a person to
+    # approve a tool that does not exist; `park` reads its sentence off
+    # the tool, so the question arrived blank.
     def decide(tool, args = {})
+      return :run if tool.nil?
+
       return read_only?(tool) ? :run : :refuse if planning?
       return :run if mode == AUTO || @skip_confirmations
       return accept_edits(tool, args) if mode == ACCEPT_EDITS
@@ -98,18 +110,11 @@ module Chat
     # property: this mode is a grant someone gave in advance, and it
     # cannot extend to a call nobody has classified — including one added
     # to the codebase months after the grant was designed.
+    # Reached only with a real tool — `decide` returns on nil before it
+    # gets here. The fail-closed rule below is about a tool that
+    # *exists* and nobody has classified; that is the safety property,
+    # and it is a different fact from a name that resolves to nothing.
     def accept_edits(tool, args)
-      # A name that resolves to nothing is not an unclassified call — it
-      # is not a call at all. `execute` answers it with the not-found
-      # error and a spelling suggestion, having run nothing, so there is
-      # no grant to withhold. Parking asked someone to approve a tool
-      # that does not exist, and because `park` reads its sentence off
-      # the tool, the question arrived blank.
-      #
-      # The fail-closed rule below is about a tool that *exists* and has
-      # not been classified. Those are different facts and only the
-      # second one is a safety property.
-      return :run if tool.nil?
       return :park if tool.unrecoverable?(args)
       return :park if destructive?(tool) && !tool.recoverability_declared?
 

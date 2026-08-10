@@ -32,11 +32,14 @@ RSpec.describe Chat::ModePolicy do
       expect(decide("planning", unrecoverable)).to eq(:refuse)
     end
 
-    # An unknown tool cannot prove it only reads. The other modes hand it
-    # to `execute`, which answers with a not-found the model can act on;
-    # planning is the one mode that has to decide something about it.
-    it "refuses a tool it cannot look up" do
-      expect(decide("planning", nil)).to eq(:refuse)
+    # A name that resolves to nothing is not a call, so there is nothing
+    # to refuse: `execute` answers it with a not-found having run
+    # nothing. Refusing meant a *misspelled read* was told "this write
+    # did not run" and to stop attempting writes for the rest of the
+    # turn — the mode's reason attached to the model's typo, which is a
+    # reason it believes.
+    it "hands a name it cannot look up to execute rather than refusing" do
+      expect(decide("planning", nil)).to eq(:run)
     end
 
     # `skip_confirmations` is a standing answer to "may this run without
