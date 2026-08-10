@@ -710,7 +710,21 @@ RSpec.describe Chat::AgentLoop do
       result = loop_with(*calls).run(text: "go")
 
       expect(result).not_to be_ok
-      expect(result.error).to include("Gave up")
+      expect(result.error).to include("#{described_class::MAX_ITERATIONS} steps")
+    end
+
+    # The wall is only half the job. Returning a bare error `Result` told
+    # the person watching and nobody else: the reason lived in an SSE
+    # event, and `Chat::Serializer` builds a conversation from `messages`,
+    # so a reload showed their own question with nothing after it.
+    it "leaves the reason in the transcript, not just the stream" do
+      calls = Array.new(described_class::MAX_ITERATIONS) { call_tool("get_restaurant", { "restaurant" => "ninis" }) }
+
+      loop_with(*calls).run(text: "go")
+
+      last = conversation.messages.reload.last
+      expect(last.role).to eq("assistant")
+      expect(last.content.first["text"]).to include("#{described_class::MAX_ITERATIONS} steps")
     end
 
     # MAX_ITERATIONS bounds rounds, not time. A round may sit for the full
@@ -911,6 +925,102 @@ RSpec.describe Chat::AgentLoop do
       expect(result).not_to be_ok
       expect(seen.last).to eq(type: "error", message: "The assistant is unavailable right now. Try again in a moment.")
       expect(conversation.reload.state).to eq("active")
+    end
+  end
+
+  # Every way a turn can end has to leave the same thing behind: a
+  # sentence the person still sees after a reload. The stream is a view —
+  # `Chat::Serializer` builds a conversation from `messages` — so a turn
+  # that ends with an event and no message reads, on the next page load,
+  # as a question nobody ever answered.
+  #
+  # Not an alternation fix. A probe against `claude-opus-5` confirms the
+  # Messages API accepts consecutive same-role messages; what it refuses
+  # is a transcript *ending* on an assistant turn, which `repair_for`
+  # already covers. This is about what the person is left looking at.
+  describe "what a failed turn leaves behind" do
+    def last_assistant_text
+      last = conversation.messages.reload.last
+      last.role == "assistant" ? last.content.first["text"] : nil
+    end
+
+    it "writes down a budget refusal" do
+      conversation.update!(api_cost_micro_cents: micro(described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT))
+
+      loop_with(say("hi")).run(text: "hello")
+
+      expect(last_assistant_text).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
+    end
+
+    it "writes down an upstream failure" do
+      client = StreamingScriptedClient.new(AnthropicClient::ApiError.new(status: 529, body: "overloaded"))
+
+      described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(last_assistant_text).to include("unavailable right now")
+    end
+
+    # The floor, for an exception nobody named. Since #583 the client's
+    # stream closes on its own once the run is released — so without a
+    # message and a terminal event it closes on silence, and the turn
+    # simply stops mid-air.
+    it "apologises for a crash rather than vanishing" do
+      client = StreamingScriptedClient.new(RuntimeError.new("boom"))
+      seen   = []
+
+      result = described_class.new(conversation, client: client, on_event: ->(p) { seen << p }).run(text: "hello")
+
+      expect(result).not_to be_ok
+      expect(last_assistant_text).to include("something went wrong")
+      expect(seen.count { |e| e[:type] == "error" }).to eq(1)
+    end
+
+    # Crashing out of a *parked* turn is the case with teeth. `halt`
+    # clears `state` and `pending_tool_call`; without that the
+    # conversation stays awaiting an answer to a call that will never
+    # run, and every later message raises "answer the pending
+    # confirmation first" — locked out by the gate meant to protect them.
+    it "leaves a parked conversation usable after a crash" do
+      item   = create(:item, :published, restaurant: restaurant)
+      review = create(:review, user: user, item: item, body: "fine")
+      loop_with(call_tool("delete_review", { "review_id" => review.id })).run(text: "delete my review")
+      expect(conversation.reload.state).to eq("awaiting_confirmation")
+
+      fingerprint = conversation.pending_tool_call.dig("pending", "fingerprint")
+      allow(Tools::Registry).to receive(:find).and_raise(RuntimeError, "boom")
+      described_class.new(conversation, client: StreamingScriptedClient.new)
+                     .run(confirm: true, fingerprint: fingerprint)
+
+      expect(conversation.reload.state).to eq("active")
+      expect(conversation.pending_tool_call).to be_nil
+
+      allow(Tools::Registry).to receive(:find).and_call_original
+      result = loop_with(say("second time lucky")).run(text: "again")
+      expect(result).to be_ok
+      expect(result.text).to eq("second time lucky")
+    end
+
+    # `answer_orphans!` is the model's memory of the turn, not the user's.
+    # A call that never ran because someone hit stop and one that never
+    # ran because we crashed are different facts, and answering both with
+    # "stopped" teaches the next turn to mis-plan.
+    #
+    # An orphan needs the turn to die *between* storing the call and
+    # storing its result, which rules out most of the early exits: the
+    # budget check, the deadline check and the upstream call all sit at
+    # the top of a round, by which point the previous round's results are
+    # already written. Stop is one real producer (`tick!` runs inside
+    # `execute`); a raise anywhere in the queue walk is the other, and
+    # `Registry.find` stands in for it here.
+    it "tells the model why a call never ran" do
+      allow(Tools::Registry).to receive(:find).and_raise(RuntimeError, "boom")
+
+      described_class.new(conversation,
+                          client: StreamingScriptedClient.new(call_tool("get_restaurant", { "r" => "ninis" })))
+                     .run(text: "go")
+
+      orphan = conversation.messages.reload.select(&:tool_result?).last
+      expect(orphan.content.first["content"].first["text"]).to include("failed before this ran")
     end
   end
 

@@ -133,8 +133,22 @@ module Chat
     rescue ConversationRun::LostLease
       # Someone else owns this conversation now. Say nothing to the user
       # about it — the run that took over is the one talking to them.
+      #
+      # Deliberately the one early exit that does NOT halt: writing a
+      # message or answering orphans here would edit a transcript another
+      # run is actively appending to.
       Rails.logger.warn("[chat] run #{@run&.id} lost its lease on conversation #{@conversation.id}")
       Result.new(state: :error, error: "That turn was interrupted. Try again.")
+    rescue ArgumentError
+      # A caller bug, not a runtime failure — the controller settles a
+      # pending confirmation and checks for text before it ever enqueues,
+      # so reaching one of `perform`'s guards means our own code is wrong.
+      # Dressing it as an outage the user should retry would bury it.
+      raise
+    rescue StandardError => e
+      Rails.logger.error("[chat] conversation #{@conversation.id} crashed: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id })
+      crashed
     ensure
       finish_run(result) if @run
     end
@@ -158,11 +172,62 @@ module Chat
     # through `run`'s own `emit_terminal`, while a halt returned up
     # through `perform` does, and firing in both places would send the
     # client two terminal events.
-    def halt(message)
-      @conversation.answer_orphans!("Stopped before this ran. Nothing happened.")
+    #
+    # Every way a turn can end goes through here, and that is the point.
+    # The alternative — returning a bare error `Result` — told the person
+    # watching and nobody else: the reason lived only in an SSE event, and
+    # `Chat::Serializer` builds a conversation from `messages`, so a
+    # reload showed their own question with nothing after it.
+    #
+    # Not an alternation fix, though it was written up as one. The
+    # Messages API accepts consecutive same-role messages (probed on
+    # `claude-opus-5`: both `user, user` and `assistant, assistant` return
+    # normally). What it refuses is a transcript that *ends* on an
+    # assistant turn, and `Conversation#repair_for` already covers that.
+    #
+    # `orphan_reason` is what the *model* reads next turn, and it is
+    # deliberately not the sentence the user reads. A call that never ran
+    # because someone hit stop and one that never ran because we crashed
+    # are different facts; answering both with "stopped" is a transcript
+    # that lies to the next turn. Only stop and a raise inside the queue
+    # walk can actually strand a call — the budget, deadline and upstream
+    # checks all sit at the top of a round, by which point the previous
+    # round's results are already stored.
+    def halt(message, orphan_reason: "Stopped before this ran. Nothing happened.")
+      @conversation.answer_orphans!(orphan_reason)
       @conversation.append!(role: "assistant", content: [{ type: "text", text: message }])
       @conversation.update!(state: "active", pending_tool_call: nil)
       Result.new(state: :error, error: message)
+    end
+
+    # The floor under everything we did not name. Every other exit above
+    # describes a failure we understood; this one runs when we did not,
+    # and the worst it may leave behind is a person looking at their own
+    # message with no reply and no explanation.
+    #
+    # The persist is best-effort because the exception being recovered
+    # from may be the database itself, and a floor that raises while
+    # laying itself down is not a floor. The terminal event fires either
+    # way — #583 means a client whose run has been released will close its
+    # stream regardless, so without this it closes on silence and redraws
+    # a turn that simply stopped.
+    #
+    # Returns rather than re-raising: `finish_run`'s ensure already books
+    # the run as `crashed`, and letting it out would fail the Solid Queue
+    # job, whose retry re-enters `perform` and pops the *next* queued turn
+    # — losing this one's text while the drain loop was going to reach it
+    # anyway.
+    def crashed
+      message = "Sorry — something went wrong on my end and I stopped partway through. " \
+                "Try again, and start a new chat if it keeps happening."
+      begin
+        halt(message, orphan_reason: "The turn failed before this ran. Nothing happened.")
+      rescue StandardError => e
+        Rails.logger.error(
+          "[chat] conversation #{@conversation.id} could not record its own crash: #{e.class}: #{e.message}"
+        )
+      end
+      Result.new(state: :error, error: message).tap { |result| emit_terminal(result) }
     end
 
     def finish_run(result)
@@ -191,12 +256,19 @@ module Chat
       @conversation.append!(role: "user", content: [{ type: "text", text: text }])
       drive
     rescue BudgetExceeded => e
-      Result.new(state: :error, error: e.message)
+      # `enforce_budget!` already writes the sentence: it names the
+      # ceiling, the spend, and what to do — "start a new one" for the
+      # per-conversation wall, "try again tomorrow" for the daily one.
+      # Those are different instructions and a generic handoff line
+      # appended here would be wrong for the second, so the message rides
+      # through untouched. What changes is that it gets written down.
+      halt(e.message, orphan_reason: "The conversation hit its spend limit before this ran. Nothing happened.")
     rescue AnthropicClient::ApiError, AnthropicClient::Stream::IncompleteError => e
       # Upstream trouble, not a bug in us — say so plainly and leave the
       # conversation usable so the user can just try again.
       Rails.logger.error("[chat] conversation #{@conversation.id} upstream failure: #{e.class}: #{e.message}")
-      Result.new(state: :error, error: "The assistant is unavailable right now. Try again in a moment.")
+      halt("The assistant is unavailable right now. Try again in a moment.",
+           orphan_reason: "The assistant became unavailable before this ran. Nothing happened.")
     end
 
     def resume(confirm, fingerprint = nil)
@@ -262,7 +334,14 @@ module Chat
         return outcome if outcome.awaiting_confirmation?
       end
 
-      Result.new(state: :error, error: "Gave up after #{rounds} tool rounds without an answer.")
+      # Halted rather than returned, for the same reason the deadline is:
+      # the last round appended its `tool_result` message, so a bare
+      # return would leave the transcript ending on a `user` role.
+      halt(
+        "I worked through #{rounds} steps without getting to an answer, so I stopped. " \
+        "Ask me for a narrower piece of it and I'll pick it up from here.",
+        orphan_reason: "The turn hit its #{rounds}-step limit before this ran. Nothing happened."
+      )
     end
 
     # Checked between rounds, which is the only place the transcript is
@@ -278,7 +357,8 @@ module Chat
       # grounding flag is: `state` is a small enum with a CHECK constraint
       # behind it, and "failed" is true — `outcome` is where why lives.
       @timed_out = true
-      halt("That took too long, so I stopped it. Nothing further ran — ask again to pick it up.")
+      halt("That took too long, so I stopped it. Nothing further ran — ask again to pick it up.",
+           orphan_reason: "The turn ran out of time before this ran. Nothing happened.")
     end
 
     # Walks the turn's tool calls, stopping at the first that needs a
