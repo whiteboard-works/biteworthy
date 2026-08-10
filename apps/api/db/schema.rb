@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_10_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -102,6 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_230000) do
     t.datetime "updated_at", null: false
     t.index ["conversation_id", "created_at"], name: "index_conversation_runs_on_conversation_id_and_created_at"
     t.index ["conversation_id"], name: "index_conversation_runs_running_unique", unique: true, where: "((state)::text = 'running'::text)"
+    t.index ["created_at"], name: "index_conversation_runs_on_created_at"
     t.index ["run_token"], name: "index_conversation_runs_on_run_token", unique: true
     t.check_constraint "state::text = ANY (ARRAY['running'::character varying::text, 'done'::character varying::text, 'failed'::character varying::text, 'aborted'::character varying::text, 'lost_lease'::character varying::text])", name: "conversation_runs_state_valid"
   end

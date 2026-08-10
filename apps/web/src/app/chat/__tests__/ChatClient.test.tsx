@@ -309,6 +309,39 @@ describe('ChatClient', () => {
       expect(pills).not.toHaveTextContent('0 rounds');
     });
 
+    // Showing only the newest outcome would hide the failure behind a
+    // harmless one: two messages sent quickly, one job drains both, the
+    // second turn times out with 8 rounds, then a second job finds
+    // nothing queued and releases `nothing_queued`. The numbers on
+    // screen would be the timed-out run's under a benign label.
+    it('shows the failure of the run the numbers came from, not a benign newer one', async () => {
+      getConversation.mockResolvedValue({
+        ...answered('ok'),
+        usage: {
+          cost_cents: 88,
+          last_outcome: { outcome: 'nothing_queued', state: 'done' },
+          last_run: {
+            outcome: 'timed_out',
+            state: 'failed',
+            rounds: 8,
+            input_tokens: 9000,
+            output_tokens: 500,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            cost_cents: 44,
+            duration_ms: 600000,
+          },
+        },
+      });
+
+      render(<ChatClient />);
+      await type('hi');
+
+      const pills = await screen.findByTestId('usage-pills');
+      expect(pills).toHaveTextContent('timed_out');
+      expect(pills).not.toHaveTextContent('nothing_queued');
+    });
+
     it('renders nothing when the server withheld it', async () => {
       getConversation.mockResolvedValue(answered('ok'));
 
