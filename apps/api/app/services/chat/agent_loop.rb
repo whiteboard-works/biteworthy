@@ -642,7 +642,27 @@ module Chat
       # drop the disclaimer while doing it. That is strictly worse than
       # not trying: replacing a rejected answer is an action, and an
       # action needs a review that actually happened.
-      if revised && review(revised[:text]).cleared?
+      cleared = revised && review(revised[:text]).cleared?
+
+      # Ownership, checked once here rather than after each model call
+      # above — and here is the right place because **both remaining paths
+      # write**. The repair and the second review are each allowed 240
+      # seconds against a 120-second lease, and a repair that raises
+      # `TruncatedError` skips its own trailing tick entirely, so there is
+      # no shortage of ways to arrive at this line no longer owning the
+      # conversation. What matters is not which call was slow; it is
+      # whether we still own the transcript at the moment we write to it.
+      begin
+        tick!
+      rescue ConversationRun::Aborted
+        # A stop must not cost the reader the disclaimer. What is on
+        # screen is an answer the reviewer rejected, and saying nothing
+        # about it is the one outcome worse than saying it late. A lost
+        # lease still propagates, because that one is not ours to write.
+        nil
+      end
+
+      if cleared
         swapped = swap(message, revised)
         return swapped if swapped
       end

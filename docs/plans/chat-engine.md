@@ -254,9 +254,13 @@ evidence of a real problem than one it could not.
   `nil`, `0` are each pinned by a spec, because every one of them is truthy
   if you ask the wrong way and each would wave through exactly the answer
   this exists to catch.
-- **Appends rather than retries.** A turn is already a minute; a second
-  full turn to repair a partly-right answer costs more than saying plainly
-  that it may be incomplete.
+- **Repairs once, then appends.** This read "appends rather than retries",
+  on the grounds that a second full turn costs more than saying plainly
+  that the answer may be incomplete — see C-D6 for why the unit was wrong.
+  The repair is bounded by everything an ordinary round is bounded by: the
+  lease, the spend ceiling, and the turn deadline. Ownership is re-checked
+  immediately before the write, since the repair and the second review are
+  each allowed longer than the lease lasts.
 - The flag is recorded as the run's `outcome` rather than written directly
   — `release!` owns that column and would otherwise overwrite it with
   `"done"`. (Found by the spec, not by reading.)

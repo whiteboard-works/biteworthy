@@ -1440,11 +1440,17 @@ RSpec.describe Chat::AgentLoop do
       allow(Chat::GroundingReview).to receive(:new).and_return(reviewer)
       client = ScriptedClient.new(call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!"))
 
-      described_class.new(conversation, client: client, run: run).run(text: "what can I eat")
+      result = described_class.new(conversation, client: client, run: run).run(text: "what can I eat")
 
       # Two calls went out — the tool round and the answer. The repair
       # would have been a third.
       expect(client.requests.size).to eq(2)
+      # **And the disclaimer still lands.** A stop must not cost the
+      # reader that: what is on screen is an answer the reviewer rejected,
+      # and stopping is not consent to be left with it unqualified. This
+      # is why an abort is swallowed where a lost lease is re-raised.
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+      expect(conversation.messages.reload.last.text).to include("hidden for you")
     end
 
     # Reviews twice, running `on_first` as a side effect of the first
@@ -1522,6 +1528,33 @@ RSpec.describe Chat::AgentLoop do
       end
 
       result = described_class.new(conversation, client: client, run: run).run(text: "what can I eat")
+
+      expect(result).not_to be_ok
+      expect(conversation.messages.reload.last.text).to eq("Have anything!")
+    end
+
+    # The second review is allowed 240 seconds against a 120-second lease
+    # too, and a repair that raises `TruncatedError` skips its own
+    # trailing tick entirely. Rather than a tick after every call, the
+    # check sits immediately before the write — which is the thing that
+    # actually must not happen without ownership.
+    it "writes nothing when the lease is stolen during the second review" do
+      run = ConversationRun.acquire(conversation)
+      first    = true
+      reviewer = instance_double(Chat::GroundingReview)
+      allow(reviewer).to receive(:call) do
+        next clean.tap { ConversationRun.where(id: run.id).update_all(run_token: SecureRandom.uuid) } unless first
+
+        first = false
+        flagged("dropped the queso")
+      end
+      allow(Chat::GroundingReview).to receive(:new).and_return(reviewer)
+
+      result = described_class.new(conversation, client: ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        say("A rewrite this run no longer owns.")
+      ), run: run).run(text: "what can I eat")
 
       expect(result).not_to be_ok
       expect(conversation.messages.reload.last.text).to eq("Have anything!")
