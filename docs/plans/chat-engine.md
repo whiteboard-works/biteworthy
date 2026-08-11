@@ -45,7 +45,7 @@ that currently has no owner and gives it a tested path to a coherent UX.
 | C-D3 | A tool bug returns `tool_failed`, it does not raise | A bug must not kill a conversation, and must not read as a recoverable domain error either. The distinct code is what tells the model to stop rather than to rewrite its arguments. |
 | C-D4 | Confirmation binds to the exact `{tool, args}` tuple | The gate is only as good as what it is bound to. A model-supplied `confirmed: true` is not evidence, and neither is a stale tab's approval of a call it no longer displays. |
 | C-D5 | `defer_loading` over a homegrown tool router | Tools render *before* system in the cached prefix, so a per-turn tool bundle busts the whole 21,650-token cache on every routing change. Deferral appends and preserves it. |
-| C-D6 | Grounding review appends a disclaimer; it does not retry | Latency is already a minute. A second full turn to fix a partially-right answer costs more than saying plainly that the answer may be incomplete. |
+| C-D6 | Grounding review gets one repair attempt, then the disclaimer | **Reversed 2026-08-11.** This read "appends a disclaimer; it does not retry", because "a second full turn costs more than saying plainly that the answer may be incomplete". The judgement was right and the unit was wrong: by the time the reviewer has an opinion, the transcript, the tool results and the cached prefix all exist, so a repair is *one* call against a prefix the cache already holds — not a turn. The disclaimer is the fallback now, and a rewrite replaces the answer only on a verdict that was positively `cleared?`, never merely un-flagged: a reviewer that failed open does not complain, and "did not complain" is not approval. |
 
 ## Safety properties
 
@@ -232,8 +232,21 @@ reads exactly like a good answer.
 After a turn whose tools included `get_menu` or `explain_item`, a tool-less
 `claude-haiku-4-5` call gets the filter's own output and the assistant's
 text and answers whether the answer omitted a hidden dish, contradicted a
-`reasons[]`, or claimed a dish is safe. On a flag it appends a disclaimer
-and marks the run `grounding_flagged`.
+`reasons[]`, or claimed a dish is safe. On a flag it makes one repair
+attempt — the objection goes back to the model, fenced, as one unstored
+call — and replaces the answer in place if a second review positively
+clears it. Otherwise it appends the disclaimer. The run is marked
+`regrounded` or `grounding_flagged` accordingly, and the two are kept
+apart because a flag the model could satisfy on a second look is weaker
+evidence of a real problem than one it could not.
+
+> **The reviewer did not actually run until 2026-08-11 (#593).** It was
+> wired with `response_schema` alone, which validates a reply rather than
+> shaping one, so haiku answered in prose, every verdict failed
+> `JSON.parse`, and the fail-open path recorded `checked: false` on every
+> grounded turn. Anything below describing what the reviewer *does* was
+> aspirational before that date; the false-flag-rate question this plan
+> carries as open has correspondingly never had any data behind it.
 
 - **Fails open on infrastructure errors**, but never silently — a reviewer
   that is down must not take the chat with it.

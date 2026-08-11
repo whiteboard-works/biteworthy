@@ -670,25 +670,42 @@ module Chat
     # a block type of our own invention is a 400 at the API. It lives for
     # the length of one request.
     #
-    # Deliberately not streamed even when the caller is watching: the
-    # flagged answer is already on their screen, and streaming a second
-    # one would paint it underneath rather than replace it.
+    # The repaired answer is deliberately not streamed: the flagged one is
+    # already on screen, and streaming a second would paint it underneath
+    # rather than replace it. **But the wait is announced**, because the
+    # thing on screen is an answer we already know is wrong, and this
+    # change is what stretches the time it sits there unqualified from one
+    # haiku call to an Opus one. The line is emitted, never stored — the
+    # transcript every client redraws from at stream close holds only the
+    # final answer, so the qualifier does its job while it matters and
+    # leaves nothing behind.
     #
     # Best-effort throughout — a repair that fails must never cost the
     # answer it was trying to improve, which is the same way the reviewer
     # itself fails open.
+    RECHECKING = "\n\n_Checking that against the menu data again…_"
+
     def reground(verdict)
       # Every other model call reaches the API through `call_model`, which
-      # ticks the lease first. This one does not, and the gap in front of
-      # it is the whole tail of a turn — the final model call, the review,
-      # and now a repair — which can outrun `LEASE_SECONDS`. A stolen
-      # lease makes `release!` and `record_side_call!` both silent no-ops,
-      # so the turn's outcome is simply never recorded. Ticking here also
-      # means Stop is honoured before we spend Opus on a repair nobody is
-      # waiting for any more: `tick!` raises on an abort, the rescue below
-      # catches it, and the turn falls through to the disclaimer.
+      # ticks the lease and enforces the ceiling first. This one did
+      # neither. The gap in front of it is the whole tail of a turn — the
+      # final model call, the review, and now a repair — which can outrun
+      # `LEASE_SECONDS`, and a stolen lease makes `release!` and
+      # `record_side_call!` both silent no-ops, so the outcome is never
+      # recorded. The ceiling matters for the same reason it does
+      # everywhere else: this is a 16,000-token Opus call, and skipping
+      # the check breaks the documented bound that a conversation
+      # overshoots by at most one call's worth.
       tick!
+      enforce_budget!
+      emit(type: "text_delta", text: RECHECKING)
       response = @client.messages_create(**model_args(extra: [objection(verdict)]))
+      # The lease again, on the other side. A repair can legitimately run
+      # longer than the 120-second lease while the HTTP call is allowed
+      # 240, and a run that lost its lease mid-repair must not go on to
+      # `swap` — it would rewrite an assistant message belonging to a
+      # transcript another run is already appending to.
+      tick!
       # A side call, not a round — the same distinction the reviewer's
       # spend is booked under. `rounds` answers "how many times did the
       # loop go around", and this happens after it stopped. `record_round!`
@@ -706,7 +723,35 @@ module Chat
       blocks = Array(response["content"])
       text   = text_of(blocks)
       text && { blocks: blocks, text: text }
+    rescue ConversationRun::LostLease
+      # **Not swallowed.** Everything else here falls through to the
+      # disclaimer, which appends a message — and appending to a
+      # conversation another run now owns is the one failure this whole
+      # file is arranged to avoid. It goes up to `run`, which is the only
+      # place that knows to say nothing at all.
+      raise
+    rescue AnthropicClient::TruncatedError => e
+      # The one failure that was still billed. `messages_create` assigns
+      # `last_usage` and *then* raises on `stop_reason == "max_tokens"`,
+      # so a repair that runs out of output budget has really spent a full
+      # Opus call — and it was going unrecorded, which is spend telemetry
+      # and the next ceiling check both quietly missing it.
+      #
+      # Recorded here and nowhere else in this rescue on purpose: for
+      # every other failure `last_usage` still holds the *answer's* usage,
+      # already billed by `call_model`, and recording it again would
+      # charge the conversation twice for one call.
+      Rails.logger.warn("[chat] repair for conversation #{@conversation.id} hit the output limit")
+      record_side_usage(@client.last_usage, MODEL)
+      nil
     rescue StandardError => e
+      # An abort *is* swallowed, and the asymmetry with `LostLease` above
+      # is deliberate. Letting it propagate reaches `stopped`, which
+      # writes "Stopped. Nothing further ran." over a turn that did in
+      # fact run and produce a flagged answer — leaving that answer on
+      # screen with nothing said about it. Falling through to the
+      # disclaimer is both more honest and safer: the repair did not
+      # happen, and the reader is told the answer may be incomplete.
       Rails.logger.warn("[chat] regrounding conversation #{@conversation.id} failed: #{e.class}: #{e.message}")
       nil
     end

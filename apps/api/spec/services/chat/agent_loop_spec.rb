@@ -1447,6 +1447,124 @@ RSpec.describe Chat::AgentLoop do
       expect(client.requests.size).to eq(2)
     end
 
+    # Reviews twice, running `on_first` as a side effect of the first
+    # verdict — which is the only moment between the answer landing and
+    # the repair being attempted.
+    def reviewing_then(verdict = nil, &on_first)
+      first    = true
+      reviewer = instance_double(Chat::GroundingReview)
+      allow(reviewer).to receive(:call) do
+        next (verdict || clean) unless first
+
+        first = false
+        on_first.call
+        flagged("dropped the queso")
+      end
+      allow(Chat::GroundingReview).to receive(:new).and_return(reviewer)
+    end
+
+    def flagged_turn(client = nil)
+      described_class.new(conversation, client: client || ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!")
+      )).run(text: "what can I eat")
+    end
+
+    # The repair is a 16,000-token Opus call and it went out with no
+    # ceiling check at all, so a conversation that had just crossed its
+    # limit could still buy one — breaking the documented bound that a
+    # conversation overshoots by at most a single call.
+    it "does not buy a repair for a conversation that is out of money" do
+      reviewing_then { conversation.update!(api_cost_micro_cents: micro(1_000)) }
+      client = ScriptedClient.new(call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!"))
+
+      result = flagged_turn(client)
+
+      expect(client.requests.size).to eq(2)
+      expect(result.text).to include(Chat::GroundingReview::DISCLAIMER)
+    end
+
+    # A repair can legitimately outlive the 120-second lease while the
+    # HTTP call is allowed 240. A run that lost its lease must write
+    # nothing — the disclaimer `reground` otherwise falls through to would
+    # append to a transcript another run is already extending.
+    it "writes nothing when the lease was stolen out from under the repair" do
+      run = ConversationRun.acquire(conversation)
+      reviewing_then { ConversationRun.where(id: run.id).update_all(run_token: SecureRandom.uuid) }
+      before_count = conversation.messages.count
+
+      result = described_class.new(conversation, client: ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }), say("Have anything!")
+      ), run: run).run(text: "what can I eat")
+
+      expect(result).not_to be_ok
+      expect(conversation.messages.reload.count).to eq(before_count + 4)
+      expect(conversation.messages.last.text).not_to include(Chat::GroundingReview::DISCLAIMER)
+    end
+
+    # And the other side of it. The steal above happens before the repair,
+    # so the tick in front of it catches that one; this is the window the
+    # trailing tick exists for — the HTTP call is allowed 240 seconds and
+    # the lease lasts 120, so a repair can outlive its own ownership and
+    # come back ready to rewrite a message another run has moved past.
+    it "writes nothing when the lease is stolen during the repair itself" do
+      run = ConversationRun.acquire(conversation)
+      reviewing_in_turn(flagged("dropped the queso"), clean)
+      client = ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        say("A rewrite this run no longer owns.")
+      )
+      allow(client).to receive(:messages_create).and_wrap_original do |original, **args|
+        original.call(**args).tap do
+          # The repair is the third call this turn makes.
+          ConversationRun.where(id: run.id).update_all(run_token: SecureRandom.uuid) if client.requests.size == 3
+        end
+      end
+
+      result = described_class.new(conversation, client: client, run: run).run(text: "what can I eat")
+
+      expect(result).not_to be_ok
+      expect(conversation.messages.reload.last.text).to eq("Have anything!")
+    end
+
+    # `messages_create` assigns `last_usage` and *then* raises on
+    # `max_tokens`, so a repair that runs out of output budget really did
+    # spend a full Opus call. It was going unrecorded — spend telemetry
+    # and the next ceiling check both missing it.
+    it "bills a repair that ran out of output budget" do
+      reviewing_in_turn(flagged("dropped the queso"), clean)
+      run = ConversationRun.acquire(conversation)
+
+      described_class.new(conversation, client: ScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        AnthropicClient::TruncatedError.new(raw_body: "half an ans", max_tokens: 16_000)
+      ), run: run).run(text: "what can I eat")
+
+      # Two rounds at 100 input each, plus the truncated repair's own 100.
+      expect(run.reload.rounds).to eq(2)
+      expect(run.input_tokens).to eq(300)
+    end
+
+    # The thing on screen while a repair runs is an answer already known
+    # to be wrong, and this change stretches the time it sits there from
+    # one haiku call to an Opus one. Emitted, never stored — the
+    # transcript clients redraw from at stream close holds only the final
+    # answer.
+    it "says out loud that it is re-checking before the wait" do
+      reviewing_in_turn(flagged("dropped the queso"), clean)
+      seen = []
+
+      described_class.new(conversation, client: StreamingScriptedClient.new(
+        call_tool("get_menu", { "restaurant" => "ninis" }),
+        say("Have anything!"),
+        say("The queso fundido is hidden for you — it is dairy.")
+      ), on_event: ->(e) { seen << e }).run(text: "what can I eat")
+
+      expect(seen.map { |e| e[:text] }.compact.join).to include(described_class::RECHECKING)
+      expect(conversation.messages.reload.map(&:text).compact.join).not_to include(described_class::RECHECKING)
+    end
+
     it "falls back to the disclaimer when the rewrite is rejected too" do
       reviewing_in_turn(flagged("dropped the queso"), flagged("still dropped it"))
 
