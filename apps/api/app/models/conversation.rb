@@ -69,13 +69,18 @@ class Conversation < ApplicationRecord
     stored.map { |m| { role: m.role, content: m.content } } + repair_for(stored.last)
   end
 
-  # The first thing the person said, for whoever needs to name this.
+  # The rows this turn already has in hand.
   #
-  # Reads the rows `transcript` already loaded rather than asking for the
-  # one it wants. A `WHERE role = 'user' LIMIT 1` would be a cheaper
-  # query and a worse one: it is a second round trip to Postgres for a
-  # record sitting in memory, and the spec guarding this turn's message
-  # loads counts round trips, not rows.
+  # `transcript` loads them once per turn and every write path keeps them
+  # honest, so anything else that wants to look at this turn's messages
+  # should look here rather than asking Postgres again. A `WHERE role =
+  # 'user' LIMIT 1` is a cheaper query and a worse one: it is a second
+  # round trip for a record already in memory, and the spec guarding this
+  # turn's message loads counts round trips, not rows. Falls back to a
+  # real load for a caller that reaches this before any model call.
+  def loaded_messages = @stored_messages || messages.to_a
+
+  # The first thing the person said, for whoever needs to name this.
   #
   # A `tool_result` is a `user`-role message, so the earliest one is only
   # the person talking if it is not that. It never is in practice — a
@@ -83,7 +88,7 @@ class Conversation < ApplicationRecord
   # predicate and the alternative is naming a conversation after a menu
   # payload.
   def opening_question
-    opening = (@stored_messages || messages).find { |message| message.role == "user" }
+    opening = loaded_messages.find { |message| message.role == "user" }
     opening&.text unless opening&.tool_result?
   end
 

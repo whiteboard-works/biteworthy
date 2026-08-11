@@ -651,13 +651,18 @@ module Chat
     # opened to do and not re-named as it wanders.
     def name_conversation(result)
       return if @conversation.title.present?
-      # Nothing worth naming a conversation after, and on the path that
-      # matters most it would be actively wrong: a turn refused for
-      # spending its budget would answer by spending again. A turn that
-      # fails leaves the column null and the next one that works names it.
-      return unless result&.ok?
+      # An answer, specifically — not merely "did not error". A turn that
+      # parked on a confirmation has produced a question, not a reply, and
+      # naming from it would fix a half-finished exchange as the name for
+      # good. On the path that matters most, `ok?` would be actively
+      # wrong: a turn refused for spending its budget would answer by
+      # spending again.
+      return unless result&.state == :done
+      # The retry that makes failure cheap is unbounded on its own — see
+      # `Titler::NAMING_WINDOW_MESSAGES`.
+      return if @conversation.loaded_messages.size > Titler::NAMING_WINDOW_MESSAGES
 
-      named = Titler.new.call(question: @conversation.opening_question, answer: result&.text)
+      named = Titler.new.call(question: @conversation.opening_question, answer: result.text)
       record_side_usage(named.usage, named.model)
       @conversation.update!(title: named.title) if named.title.present?
     rescue StandardError => e

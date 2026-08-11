@@ -48,9 +48,32 @@ module Chat
     # for a sentence's worth of signal.
     MAX_EXCERPT = 600
 
+    # A title call has a person waiting behind it — the turn holds the
+    # conversation lock until this returns, so the `done` event and any
+    # queued next turn are both behind it. The shared defaults (240s
+    # read, three retries) are sized for the vision call that extracts a
+    # menu; inheriting them here means a 429 storm could withhold a
+    # finished answer for minutes to decorate it. A title is worth one
+    # quick attempt and nothing more.
+    TIMEOUT_SECONDS = 15
+    RETRIES         = 0
+
+    # Naming happens early or not at all.
+    #
+    # The retry that makes a failure cheap — leave `title` null and let
+    # the next turn try — is also unbounded on its own: a conversation
+    # nothing can name (a greeting the model correctly declines, an
+    # outage that outlasts the chat) would otherwise buy a haiku call on
+    # every turn forever, billed against the same per-conversation
+    # ceiling the answers come out of. After a few exchanges the opening
+    # is no longer what the conversation is about anyway, so the window
+    # closes.
+    NAMING_WINDOW_MESSAGES = 12
+
     SCHEMA = {
       "type" => "object",
       "required" => %w[title],
+      "additionalProperties" => false,
       "properties" => { "title" => { "type" => "string" } }
     }.freeze
 
@@ -107,15 +130,26 @@ module Chat
     # Lazily built: only the first turn of a conversation ever asks, so a
     # client per turn would be a connection per turn for nothing.
     def client
-      @client ||= @injected || AnthropicClient.new(model: MODEL)
+      @client ||= @injected || AnthropicClient.new(model: MODEL, timeout: TIMEOUT_SECONDS, retries: RETRIES)
     end
 
+    # **Constrained, not requested.** `response_schema` alone validates
+    # after the fact and shapes nothing: `ResponseParser` says so in as
+    # many words — "the Anthropic system prompt is responsible for
+    # telling the model 'respond with strict JSON, no prose'". This
+    # prompt asks for a title, so a schema without `output_config` would
+    # get one, in prose, and then throw it away as unparseable on every
+    # single call — a feature that fails open into doing nothing, quietly,
+    # forever. Grammar-constrained decoding is what actually makes the
+    # reply a `{"title": …}`; the post-hoc schema stays as the check.
     def ask(material)
       client.messages_create(
         model:      MODEL,
         max_tokens: 100,
         system:     client.system_blocks({ text: PROMPT, cache: true }),
         messages:   [ { role: "user", content: [ { type: "text", text: material } ] } ],
+        output_config:   { format: { type: "json_schema",
+                                     schema: ::Ingestion::SchemaForRequest.derive(SCHEMA) } },
         response_schema: SCHEMA
       )
     end
@@ -134,11 +168,26 @@ module Chat
     # guarantee. Newlines and control characters would break the row;
     # surrounding quotes are the model's most common way of ignoring the
     # instruction not to use them.
+    #
+    # The quotes come off only as a matched pair. Stripping each end
+    # independently turns `Dairy-free lunch at "Nonna"` — a title quoting
+    # a restaurant, exactly the specificity this wants — into one with an
+    # unbalanced quote left in the middle.
+    #
+    # And the clamp truncates with `omission: ""`. `String#truncate`
+    # otherwise appends an ellipsis, which is trailing punctuation, which
+    # is the thing two lines of prompt just asked the model not to do.
     def clean(title)
-      flat = title.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip.delete_prefix('"').delete_suffix('"').strip
+      flat = unquote(title.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip)
       return nil if flat.blank? || REJECTED.include?(flat.downcase.delete_suffix("."))
 
-      flat.truncate(MAX_LENGTH)
+      flat.truncate(MAX_LENGTH, omission: "")
+    end
+
+    def unquote(text)
+      return text unless text.length > 1 && text.start_with?('"') && text.end_with?('"')
+
+      text[1..-2].strip
     end
   end
 end
