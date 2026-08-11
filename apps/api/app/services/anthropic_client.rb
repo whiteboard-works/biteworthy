@@ -109,11 +109,19 @@ class AnthropicClient
   # onto IngestionRun.api_cost_cents. Nil until a call succeeds.
   attr_reader :last_usage
 
-  def initialize(api_key: nil, model: nil, base_url: nil, conn: nil)
+  # `timeout` and `retries` exist for callers whose work is optional.
+  # The defaults are sized for the vision call that legitimately runs
+  # minutes, and a caller on a user's critical path inherits that budget
+  # whether or not its own request deserves it — a 240-second read plus
+  # three retries is the right patience for extracting a menu and the
+  # wrong patience for anything a person is waiting behind.
+  def initialize(api_key: nil, model: nil, base_url: nil, conn: nil, timeout: nil, retries: nil)
     @api_key  = api_key  || ENV["ANTHROPIC_API_KEY"] || ""
     @model    = model    || DEFAULT_MODEL
     @base_url = base_url || ENDPOINT
     @conn     = conn # tests can inject a stubbed Faraday connection
+    @timeout  = timeout
+    @retries  = retries
   end
 
   # Low-level pass-through to /v1/messages. Returns a parsed Hash on
@@ -276,8 +284,8 @@ class AnthropicClient
       # 8k max_tokens budget legitimately runs minutes. faraday-retry
       # can multiply the worst case ~3x.
       f.options.open_timeout = Integer(ENV.fetch("ANTHROPIC_OPEN_TIMEOUT", 10))
-      f.options.timeout      = Integer(ENV.fetch("ANTHROPIC_READ_TIMEOUT", 240))
-      f.request  :retry, max: 3,
+      f.options.timeout      = @timeout || Integer(ENV.fetch("ANTHROPIC_READ_TIMEOUT", 240))
+      f.request  :retry, max: @retries || 3,
                           interval: 0.5,
                           backoff_factor: 2,
                           retry_statuses: [429, 500, 502, 503, 504],

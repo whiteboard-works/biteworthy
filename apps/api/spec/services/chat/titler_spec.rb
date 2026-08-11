@@ -74,6 +74,50 @@ RSpec.describe Chat::Titler, :real_titler do
     it "declines an empty title rather than storing a blank row" do
       expect(titling(named("   ")).call(question: "hi").title).to be_nil
     end
+
+    # `String#truncate` appends "..." by default, which is trailing
+    # punctuation — the exact thing the prompt two lines up asks against.
+    it "clamps without leaving punctuation behind" do
+      title = titling(named("Dairy-free lunch spots " * 8)).call(question: "hello").title
+
+      expect(title.length).to eq(described_class::MAX_LENGTH)
+      expect(title).not_to match(/[.…]\z/)
+    end
+
+    # Stripping each end independently mangles a title that quotes a
+    # restaurant — which is the specificity this is asking the model for.
+    it "leaves an inner quotation intact" do
+      expect(titling(named('Dairy-free lunch at "Nonna"')).call(question: "lunch").title)
+        .to eq('Dairy-free lunch at "Nonna"')
+    end
+  end
+
+  # `response_schema` validates a reply; it does not shape one. Without
+  # `output_config` the model answers this prompt in prose — it is asked
+  # for a title, not for JSON — and every call dies in `JSON.parse` and
+  # fails open to no title at all, forever and silently. Probed against
+  # live haiku before the constraint was added: the reply was
+  # `Gluten-free options at Ninis`, not `{"title": …}`.
+  it "constrains the reply to JSON rather than asking for it" do
+    client = ScriptedClient.new(named("Lunch at Ninis"))
+
+    described_class.new(client: client).call(question: "lunch")
+
+    expect(client.requests.first[:output_config])
+      .to eq(format: { type: "json_schema", schema: Ingestion::SchemaForRequest.derive(described_class::SCHEMA) })
+  end
+
+  # A person is waiting behind this: the turn holds the conversation lock
+  # until it returns, so the terminal event and any queued next turn are
+  # both behind a call made only to decorate an answer already on screen.
+  it "gives itself a smaller budget than the shared default" do
+    allow(AnthropicClient).to receive(:new).and_call_original
+
+    described_class.new.send(:client)
+
+    expect(AnthropicClient).to have_received(:new).with(
+      model: described_class::MODEL, timeout: described_class::TIMEOUT_SECONDS, retries: described_class::RETRIES
+    )
   end
 
   # The exchange can carry menu text transcribed from a stranger's
