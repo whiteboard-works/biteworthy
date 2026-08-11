@@ -102,20 +102,27 @@ module Chat
       # Fail open — but never silently. A reviewer that is down must not
       # take the chat with it.
       #
-      # **A reply that does not fit the schema is reported, not just
+      # **Anything that will not fix itself is reported, not just
       # logged**, and that distinction is the whole reason this went
       # unnoticed for as long as it did. "Unavailable" is a fair name for
-      # a timeout or a 503 — something outside us, transient, and not
-      # worth waking anyone. It is the wrong name for the model answering
-      # perfectly well in a shape we cannot read, which is not transient,
-      # never recovers, and means the check is off. Filed under one
-      # heading, months of the second looked exactly like a flaky
-      # upstream.
-      if e.is_a?(AnthropicClient::ValidationError)
-        Rails.logger.error("[chat] grounding review returned an unreadable verdict: #{e.message}")
-        Rails.error.report(e, handled: true, context: { component: "grounding_review" })
-      else
+      # a timeout or a 503 — outside us, transient, not worth waking
+      # anyone. It is the wrong name for the model answering perfectly
+      # well in a shape we cannot read, which never recovers and means
+      # the check is off. Filed under one heading, months of the second
+      # looked exactly like a flaky upstream.
+      #
+      # The test is on transience rather than on a list of shape errors,
+      # because the list was the first draft and it was too short: a 400
+      # rejecting the derived schema arrives as `ApiError`, and a
+      # `problem` string long enough to exhaust `max_tokens` arrives as
+      # `TruncatedError`. Both are permanent, both mean the reviewer is
+      # off, and neither is a `ValidationError`. Naming what recovers is
+      # a shorter and more stable list than naming what does not.
+      if transient?(e)
         Rails.logger.error("[chat] grounding review unavailable: #{e.class}: #{e.message}")
+      else
+        Rails.logger.error("[chat] grounding review is not working: #{e.class}: #{e.message}")
+        Rails.error.report(e, handled: true, context: { component: "grounding_review" })
       end
       # A call that raised part-way may still have been billed, so the
       # usage travels on the failure path too. `@client` is whatever the
@@ -125,6 +132,20 @@ module Chat
     end
 
     private
+
+    # The statuses `AnthropicClient`'s own retry middleware already treats
+    # as worth another attempt. Deliberately the same list: a failure the
+    # client thinks is worth retrying is by definition one we expect to
+    # pass on its own, which is exactly what "weather" means here.
+    TRANSIENT_STATUSES = [429, 500, 502, 503, 504].freeze
+
+    def transient?(error)
+      case error
+      when Faraday::TimeoutError, Faraday::ConnectionFailed then true
+      when AnthropicClient::ApiError then TRANSIENT_STATUSES.include?(error.status)
+      else false
+      end
+    end
 
     # Lazily built: most turns have no grounded facts and never ask, and
     # a client per turn is a connection per turn.

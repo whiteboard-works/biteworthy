@@ -162,6 +162,33 @@ RSpec.describe Chat::GroundingReview do
     expect(described_class::SCHEMA["additionalProperties"]).to be(false)
   end
 
+  # The one test that would have caught the original bug.
+  #
+  # Every other example here drives an `instance_double` that hands back
+  # an already-parsed Hash, so none of them touch `ResponseParser` and
+  # none of them can tell a constrained call from an unconstrained one —
+  # which is exactly how a reviewer that never parsed a verdict shipped
+  # green. This talks to the real API once, recorded, so the two claims
+  # the fix rests on become regression-testable artifacts rather than a
+  # live probe somebody ran once: that Anthropic accepts
+  # `SchemaForRequest.derive(SCHEMA)`, and that what comes back survives
+  # the parse into a verdict this class can read.
+  #
+  # Deliberately the *flagging* case. A reviewer wired to answer "fine"
+  # to everything also passes a test that only asks it to approve a good
+  # answer — that was true of production for months.
+  it "reads a real verdict off the wire", vcr: { cassette_name: "chat/grounding_review_flags_a_dropped_dish" } do
+    result = described_class.new.call(
+      answer: "Everything on the menu works for you — the carne asada and the queso fundido are both great.",
+      facts:  facts
+    )
+
+    expect(result.checked).to be(true)
+    expect(result.flagged?).to be(true)
+    expect(result.problem).to be_present
+    expect(result.usage).to be_present
+  end
+
   describe "when the verdict cannot be read" do
     # Still fails open — a reviewer that cannot answer must not take the
     # chat with it. What changes is that it stops looking like weather.
@@ -179,10 +206,49 @@ RSpec.describe Chat::GroundingReview do
         .with(instance_of(AnthropicClient::ValidationError), hash_including(handled: true))
     end
 
+    # A 400 rejecting the derived schema is the exact way this fix could
+    # regress, and it does not arrive as a `ValidationError`.
+    it "reports a schema the API refuses" do
+      review, client = reviewer({ "grounded" => true })
+      allow(client).to receive(:messages_create)
+        .and_raise(AnthropicClient::ApiError.new(status: 400, body: "Invalid JSON Schema in output format"))
+      allow(Rails.error).to receive(:report)
+
+      review.call(answer: "anything", facts: facts)
+
+      expect(Rails.error).to have_received(:report)
+    end
+
+    # A `problem` long enough to exhaust `max_tokens` is a permanent
+    # shape problem too, and it has its own error class.
+    it "reports a verdict that ran out of room" do
+      review, client = reviewer({ "grounded" => true })
+      allow(client).to receive(:messages_create)
+        .and_raise(AnthropicClient::TruncatedError.new(raw_body: "{\"grounded\": fal", max_tokens: 500))
+      allow(Rails.error).to receive(:report)
+
+      review.call(answer: "anything", facts: facts)
+
+      expect(Rails.error).to have_received(:report)
+    end
+
     # A timeout is weather. It must not page anyone.
     it "leaves an unreachable reviewer as a log line" do
       review, client = reviewer({ "grounded" => true })
       allow(client).to receive(:messages_create).and_raise(Faraday::TimeoutError)
+      allow(Rails.error).to receive(:report)
+
+      review.call(answer: "anything", facts: facts)
+
+      expect(Rails.error).not_to have_received(:report)
+    end
+
+    # Neither may a 429 or a 503 — those are what the client's own retry
+    # middleware already expects to pass on their own.
+    it "leaves a rate limit as a log line" do
+      review, client = reviewer({ "grounded" => true })
+      allow(client).to receive(:messages_create)
+        .and_raise(AnthropicClient::ApiError.new(status: 429, body: "slow down"))
       allow(Rails.error).to receive(:report)
 
       review.call(answer: "anything", facts: facts)
