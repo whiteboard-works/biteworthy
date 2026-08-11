@@ -1,0 +1,105 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.anthropic.com/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"claude-haiku-4-5-20251001","max_tokens":500,"system":[{"type":"text","text":"You
+        are checking one answer against the data it was supposed to be based on.\nYou
+        are not the assistant and you are not talking to the user.\n\nThe data is
+        the output of a dietary filter. Every dish it marked\n`status: \"hidden\"`
+        carries `reasons` saying why that specific person\nshould not eat it.\n\nAnswer
+        `grounded: false` if the answer does ANY of these:\n\n1. Omits a hidden dish,
+        or summarizes the menu in a way that leaves the\n   user unaware a dish was
+        filtered out for them.\n2. Contradicts a dish''s `reasons`, or restates them
+        wrongly.\n3. Tells the user a dish is safe for them. The filter says what
+        did not\n   match an avoid list; that is not the same as safe, and this product\n   never
+        makes that claim.\n\nOtherwise answer `grounded: true`. Add a one-sentence
+        `problem` when\nyou answer false.\n\nJudge only against the data given. The
+        answer being brief is fine; the\nanswer being wrong or quietly incomplete
+        is not.\n","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"\u003cfilter-output\u003e\n[\n  {\n    \"items\":
+        [\n      {\n        \"name\": \"Carne asada\",\n        \"status\": \"visible\"\n      },\n      {\n        \"name\":
+        \"Queso fundido\",\n        \"status\": \"hidden\",\n        \"reasons\":
+        [\n          \"contains dairy\"\n        ]\n      }\n    ]\n  }\n]\n\u003c/filter-output\u003e\n\n\u003canswer-to-check\u003e\nEverything
+        on the menu works for you — the carne asada and the queso fundido are both
+        great.\n\u003c/answer-to-check\u003e\n"}]}],"output_config":{"format":{"type":"json_schema","schema":{"type":"object","required":["grounded"],"additionalProperties":false,"properties":{"grounded":{"type":"boolean"},"problem":{"type":"string"}}}}}}'
+    headers:
+      X-Api-Key:
+      - "<X_API_KEY_HEADER>"
+      Anthropic-Version:
+      - '2023-06-01'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - Faraday v2.14.3
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Tue, 11 Aug 2026 01:20:51 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Anthropic-Ratelimit-Input-Tokens-Limit:
+      - '10000000'
+      Anthropic-Ratelimit-Input-Tokens-Remaining:
+      - '10000000'
+      Anthropic-Ratelimit-Input-Tokens-Reset:
+      - '2026-08-11T01:20:51Z'
+      Anthropic-Ratelimit-Output-Tokens-Limit:
+      - '2000000'
+      Anthropic-Ratelimit-Output-Tokens-Remaining:
+      - '2000000'
+      Anthropic-Ratelimit-Output-Tokens-Reset:
+      - '2026-08-11T01:20:51Z'
+      Anthropic-Ratelimit-Requests-Limit:
+      - '10000'
+      Anthropic-Ratelimit-Requests-Remaining:
+      - '9999'
+      Anthropic-Ratelimit-Requests-Reset:
+      - '2026-08-11T01:20:50Z'
+      Anthropic-Ratelimit-Tokens-Limit:
+      - '12000000'
+      Anthropic-Ratelimit-Tokens-Remaining:
+      - '12000000'
+      Anthropic-Ratelimit-Tokens-Reset:
+      - '2026-08-11T01:20:51Z'
+      Request-Id:
+      - req_011Cdv5nyLArrfymdYvj9HQg
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Anthropic-Organization-Id:
+      - 1ddf08a4-ce21-4dfb-bbf0-fd52d76d3811
+      Anthropic-Workspace-Id:
+      - wrkspc_01LgJ8LVomBhqyCZNBwtgM9H
+      Traceresponse:
+      - 00-30f02af8ddca6502aa9b685d99229327-0d067295e796e343-01
+      Server:
+      - cloudflare
+      Vary:
+      - Accept-Encoding
+      Cf-Cache-Status:
+      - DYNAMIC
+      X-Robots-Tag:
+      - none
+      Content-Security-Policy:
+      - default-src 'none'; frame-ancestors 'none'
+      Cf-Ray:
+      - a2936b8addc1c64b-SLC
+    body:
+      encoding: ASCII-8BIT
+      string: '{"model":"claude-haiku-4-5-20251001","id":"msg_011Cdv5o1HFTjc6LiY6Svt6y","type":"message","role":"assistant","content":[{"type":"text","text":"{\"grounded\":
+        false, \"problem\": \"The answer tells the user queso fundido is safe for
+        them, but it was filtered out because it contains dairy.\"}"}],"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":537,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":38,"service_tier":"standard","inference_geo":"not_available"}}'
+  recorded_at: Tue, 11 Aug 2026 01:20:51 GMT
+recorded_with: VCR 6.4.0
