@@ -126,6 +126,7 @@ module Chat
       @deadline = Time.current + turn_deadline_seconds
 
       result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
+      name_conversation(result)
       emit_terminal(result)
       result
     rescue ConversationRun::Aborted
@@ -618,15 +619,52 @@ module Chat
       [text, GroundingReview::DISCLAIMER].compact.join("\n\n")
     end
 
-    # The reviewer's spend lands on the conversation but deliberately not
-    # on `rounds`: a round is a turn of the agent loop, and inflating that
+    def record_review_usage(verdict)
+      record_side_usage(verdict.usage, verdict.model)
+    end
+
+    # A model call this turn made that was not a round of the loop.
+    #
+    # The spend lands on the conversation but deliberately not on
+    # `rounds`: a round is a turn of the agent loop, and inflating that
     # count would make "6 rounds" stop meaning what the metric was added
     # to mean. The tokens and the cost still accrue to the run.
-    def record_review_usage(verdict)
-      return if verdict.usage.blank?
+    def record_side_usage(usage, model)
+      return if usage.blank?
 
-      @conversation.record_usage!(verdict.usage, model: verdict.model)
-      @run&.record_side_call!(verdict.usage, model: verdict.model)
+      @conversation.record_usage!(usage, model: model)
+      @run&.record_side_call!(usage, model: model)
+    end
+
+    # Names the conversation off its opening exchange, once.
+    #
+    # Placed here rather than in a job because of what the clients do
+    # next: every one of them re-reads the conversation when the stream
+    # closes and merges it into the history list, so a title written
+    # before the terminal event appears in the sidebar on the same
+    # refresh that draws the answer. A job would land after that read,
+    # and the row would say "Untitled" until something else happened to
+    # refetch it.
+    #
+    # The opening user message rather than the latest one, deliberately —
+    # see `Chat::Titler` for why a conversation is named for what it was
+    # opened to do and not re-named as it wanders.
+    def name_conversation(result)
+      return if @conversation.title.present?
+      # Nothing worth naming a conversation after, and on the path that
+      # matters most it would be actively wrong: a turn refused for
+      # spending its budget would answer by spending again. A turn that
+      # fails leaves the column null and the next one that works names it.
+      return unless result&.ok?
+
+      named = Titler.new.call(question: @conversation.opening_question, answer: result&.text)
+      record_side_usage(named.usage, named.model)
+      @conversation.update!(title: named.title) if named.title.present?
+    rescue StandardError => e
+      # Never at the cost of the answer, which is already on screen. The
+      # column stays null — which is the same condition that got us here,
+      # so the next turn simply tries again.
+      Rails.logger.warn("[chat] naming conversation #{@conversation.id} failed: #{e.class}: #{e.message}")
     end
 
     def call_model

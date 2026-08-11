@@ -69,6 +69,24 @@ class Conversation < ApplicationRecord
     stored.map { |m| { role: m.role, content: m.content } } + repair_for(stored.last)
   end
 
+  # The first thing the person said, for whoever needs to name this.
+  #
+  # Reads the rows `transcript` already loaded rather than asking for the
+  # one it wants. A `WHERE role = 'user' LIMIT 1` would be a cheaper
+  # query and a worse one: it is a second round trip to Postgres for a
+  # record sitting in memory, and the spec guarding this turn's message
+  # loads counts round trips, not rows.
+  #
+  # A `tool_result` is a `user`-role message, so the earliest one is only
+  # the person talking if it is not that. It never is in practice — a
+  # result cannot precede the call it answers — but the check costs a
+  # predicate and the alternative is naming a conversation after a menu
+  # payload.
+  def opening_question
+    opening = (@stored_messages || messages).find { |message| message.role == "user" }
+    opening&.text unless opening&.tool_result?
+  end
+
   # Locked for the whole insert, not just the position read: two turns
   # racing would otherwise pick the same position, collide on the unique
   # index, and lose one side's message.
