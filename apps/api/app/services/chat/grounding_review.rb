@@ -93,6 +93,15 @@ module Chat
     # turn under-reported by one haiku call.
     Result = Struct.new(:grounded, :problem, :checked, :usage, :model, keyword_init: true) do
       def flagged? = checked && grounded != true
+
+      # **Positively verified — which is not the same as "did not
+      # complain".** A reviewer that failed open answers `checked: false`,
+      # and asking only `!flagged?` cannot tell that apart from a pass. So
+      # anything deciding to *act* on approval has to ask this instead:
+      # replacing an answer the reviewer already rejected on the strength
+      # of a review that never happened is how an outage turns into a
+      # silent promotion.
+      def cleared? = checked && grounded == true
     end
 
     def initialize(client: nil)
