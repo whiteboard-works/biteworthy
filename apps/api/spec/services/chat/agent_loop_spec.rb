@@ -1596,6 +1596,11 @@ RSpec.describe Chat::AgentLoop do
 
       expect(seen.map { |e| e[:text] }.compact.join).to include(described_class::RECHECKING)
       expect(conversation.messages.reload.map(&:text).compact.join).not_to include(described_class::RECHECKING)
+      # And it must ask to be sent *now*. `EventWriter` has no timer, so a
+      # 46-character notice with a minutes-long repair behind it would
+      # otherwise be written out only once the repair returned — after the
+      # wait it exists to explain, which is the same as not sending it.
+      expect(seen.find { |e| e[:text] == described_class::RECHECKING }).to include(flush: true)
     end
 
     # A fence the content can close is not a fence. The reviewer is

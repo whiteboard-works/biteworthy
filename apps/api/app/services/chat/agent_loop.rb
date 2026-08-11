@@ -726,7 +726,11 @@ module Chat
 
       tick!
       enforce_budget!
-      emit(type: "text_delta", text: RECHECKING)
+      # `flush:` because the notice is the whole point: `EventWriter`
+      # coalesces deltas and has no timer, so 46 characters with a
+      # minutes-long repair behind them would be written out only once the
+      # repair returned — after the wait it exists to explain.
+      emit(type: "text_delta", text: RECHECKING, flush: true)
       response = @client.messages_create(**model_args(extra: [objection(verdict)]))
       # The lease again, on the other side. A repair can legitimately run
       # longer than the 120-second lease while the HTTP call is allowed
