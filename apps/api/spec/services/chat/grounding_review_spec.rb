@@ -135,4 +135,59 @@ RSpec.describe Chat::GroundingReview do
     expect(sent).to eq(described_class::MODEL)
     expect(sent).not_to eq(Chat::AgentLoop::MODEL)
   end
+
+  # The reviewer shipped without this and therefore never ran. A schema
+  # passed to `messages_create` is checked against the reply, not imposed
+  # on it — `ResponseParser` says so in its own comment — and this prompt
+  # asks for `grounded: false`, not for JSON. Probed live: haiku answered
+  # "grounded: false\n\nproblem: The answer omits that Queso was hidden…",
+  # which `JSON.parse` rejects and the fail-open rescue swallows. Every
+  # grounded turn bought a haiku call and threw the verdict away.
+  it "constrains the verdict to JSON rather than asking for it" do
+    review, client = reviewer({ "grounded" => true })
+    sent = nil
+    allow(client).to receive(:messages_create) do |**args|
+      sent = args[:output_config]
+      { "grounded" => true }
+    end
+
+    review.call(answer: "anything", facts: facts)
+
+    expect(sent).to eq(format: { type: "json_schema",
+                                 schema: Ingestion::SchemaForRequest.derive(described_class::SCHEMA) })
+  end
+
+  # Structured outputs reject a schema that does not close the object.
+  it "closes the schema so the constrained path accepts it" do
+    expect(described_class::SCHEMA["additionalProperties"]).to be(false)
+  end
+
+  describe "when the verdict cannot be read" do
+    # Still fails open — a reviewer that cannot answer must not take the
+    # chat with it. What changes is that it stops looking like weather.
+    it "reports an unreadable verdict rather than filing it as an outage" do
+      review, client = reviewer({ "grounded" => true })
+      allow(client).to receive(:messages_create)
+        .and_raise(AnthropicClient::ValidationError.new(raw_body: "grounded: false", errors: ["not JSON"]))
+      allow(Rails.error).to receive(:report)
+
+      result = review.call(answer: "anything", facts: facts)
+
+      expect(result.flagged?).to be(false)
+      expect(result.checked).to be(false)
+      expect(Rails.error).to have_received(:report)
+        .with(instance_of(AnthropicClient::ValidationError), hash_including(handled: true))
+    end
+
+    # A timeout is weather. It must not page anyone.
+    it "leaves an unreachable reviewer as a log line" do
+      review, client = reviewer({ "grounded" => true })
+      allow(client).to receive(:messages_create).and_raise(Faraday::TimeoutError)
+      allow(Rails.error).to receive(:report)
+
+      review.call(answer: "anything", facts: facts)
+
+      expect(Rails.error).not_to have_received(:report)
+    end
+  end
 end
