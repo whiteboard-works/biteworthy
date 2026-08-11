@@ -42,7 +42,17 @@ module Chat
       @opened  ||= Time.current
       @buffer << payload[:text].to_s
 
-      flush! if @buffer.length >= FLUSH_CHARS || (Time.current - @opened) >= FLUSH_SECONDS
+      # `flush: true` is for a caller that knows it is about to block.
+      #
+      # Both ordinary triggers are evaluated *here*, when the next delta
+      # arrives — there is no timer — so a short delta with nothing behind
+      # it sits in the buffer indefinitely. That is harmless while tokens
+      # keep coming and useless exactly when they stop, which is the case
+      # `AgentLoop::RECHECKING` exists for: a 46-character notice emitted
+      # immediately before a repair that can take minutes would otherwise
+      # be written out only once the repair returned, i.e. after the wait
+      # it was meant to explain.
+      flush! if payload[:flush] || @buffer.length >= FLUSH_CHARS || (Time.current - @opened) >= FLUSH_SECONDS
     end
 
     def flush!
