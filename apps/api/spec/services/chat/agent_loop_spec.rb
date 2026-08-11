@@ -1304,5 +1304,90 @@ RSpec.describe Chat::AgentLoop do
       expect(run.reload.outcome).to eq("grounding_flagged")
     end
   end
+
+  # `conversations.title` existed from the first migration and nothing
+  # ever wrote to it, so every row in the history sidebar read "Untitled".
+  # These pin the two halves that keeps fixed: that a finished turn names
+  # the conversation, and that naming it can never cost the answer.
+  describe "naming a conversation" do
+    it "names an untitled conversation once its first turn lands" do
+      titled("Gluten-free options at Ninis")
+
+      loop_with(say("The al pastor works.")).run(text: "what can I eat without gluten")
+
+      expect(conversation.reload.title).to eq("Gluten-free options at Ninis")
+    end
+
+    # The whole point of naming it here rather than in a job: every client
+    # re-reads the conversation when the stream closes, and a title
+    # written after that read sits invisible until something else
+    # refetches.
+    it "writes the title before the turn's terminal event" do
+      titled("Lunch at Ninis")
+      titled_at = nil
+
+      described_class.new(conversation, client: StreamingScriptedClient.new(say("Sure.")),
+                                        on_event: lambda { |event|
+                                          titled_at ||= conversation.reload.title if event[:type] == "done"
+                                        }).run(text: "lunch")
+
+      expect(titled_at).to eq("Lunch at Ninis")
+    end
+
+    it "leaves a conversation the caller already named alone" do
+      conversation.update!(title: "Dinner plans")
+      expect(Chat::Titler).not_to receive(:new)
+
+      loop_with(say("Sure.")).run(text: "hello")
+
+      expect(conversation.reload.title).to eq("Dinner plans")
+    end
+
+    it "does not rename a conversation on every later turn" do
+      titled("First thing asked")
+      loop_with(say("One.")).run(text: "first question")
+
+      titled("Something else entirely")
+      loop_with(say("Two.")).run(text: "second question")
+
+      expect(conversation.reload.title).to eq("First thing asked")
+    end
+
+    # A turn refused for spending its budget would otherwise answer by
+    # spending again.
+    it "does not spend on naming a turn that failed" do
+      conversation.update!(api_cost_micro_cents: micro(1_000))
+      expect(Chat::Titler).not_to receive(:new)
+
+      loop_with(say("never reached")).run(text: "what can I eat")
+
+      expect(conversation.reload.title).to be_nil
+    end
+
+    # The turn is over and the answer is on screen by the time this runs.
+    it "keeps the answer when naming blows up" do
+      allow(Chat::Titler).to receive(:new).and_raise(StandardError, "titler exploded")
+
+      result = loop_with(say("The al pastor works.")).run(text: "what can I eat")
+
+      expect(result.text).to eq("The al pastor works.")
+      expect(conversation.reload.title).to be_nil
+    end
+
+    # Billed as a side call, not a round: `rounds` answers "how many times
+    # did the loop go around", and this happens after it stopped.
+    it "bills the naming call without counting it as a round" do
+      titled("Lunch at Ninis", usage: { "input_tokens" => 7, "output_tokens" => 3 })
+      run = ConversationRun.acquire(conversation)
+
+      described_class.new(conversation, client: ScriptedClient.new(say("Sure.")), run: run).run(text: "lunch")
+
+      # The round is worth 100/50 (ScriptedClient); the naming call adds
+      # its own on top without moving `rounds` off one.
+      expect(run.reload.rounds).to eq(1)
+      expect(run.input_tokens).to eq(107)
+      expect(run.output_tokens).to eq(53)
+    end
+  end
 end
 
