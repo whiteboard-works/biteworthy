@@ -1353,6 +1353,35 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.title).to eq("First thing asked")
     end
 
+    # A parked turn has produced a question, not an answer. Naming from it
+    # would fix a half-finished exchange as the name for good, since the
+    # title is written once and never revised.
+    it "waits for an answer rather than naming a turn parked on a confirmation" do
+      item   = create(:item, :published, restaurant: restaurant)
+      review = create(:review, user: user, item: item, body: "fine")
+      expect(Chat::Titler).not_to receive(:new)
+
+      result = loop_with(call_tool("delete_review", { "review_id" => review.id })).run(text: "delete my review")
+
+      expect(result).to be_awaiting_confirmation
+      expect(conversation.reload.title).to be_nil
+    end
+
+    # Leaving the column null so the next turn retries is what makes a
+    # failure cheap, and on its own it is unbounded: a conversation
+    # nothing can name would buy a haiku call on every turn forever,
+    # against the same ceiling the answers come out of.
+    it "stops trying once the opening is no longer what the chat is about" do
+      Array.new(Chat::Titler::NAMING_WINDOW_MESSAGES + 1) do |i|
+        conversation.append!(role: "user", content: [{ type: "text", text: "message #{i}" }])
+      end
+      expect(Chat::Titler).not_to receive(:new)
+
+      loop_with(say("Sure.")).run(text: "one more")
+
+      expect(conversation.reload.title).to be_nil
+    end
+
     # A turn refused for spending its budget would otherwise answer by
     # spending again.
     it "does not spend on naming a turn that failed" do
