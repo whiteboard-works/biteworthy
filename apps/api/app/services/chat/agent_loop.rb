@@ -662,7 +662,6 @@ module Chat
     # itself fails open.
     def reground(verdict)
       response = @client.messages_create(**model_args(extra: [objection(verdict)]))
-      @conversation.record_usage!(@client.last_usage, model: MODEL)
       # A side call, not a round — the same distinction the reviewer's
       # spend is booked under. `rounds` answers "how many times did the
       # loop go around", and this happens after it stopped. `record_round!`
@@ -670,7 +669,7 @@ module Chat
       # trade once an answer exists: it turns a finished turn into an
       # error in order to report a billing write. Billed at Opus rates,
       # because that is the model that ran.
-      @run&.record_side_call!(@client.last_usage || {}, model: MODEL)
+      record_side_usage(@client.last_usage, MODEL)
 
       # A repair that wants to call tools is not a repair — re-entering
       # the loop from inside `finish` would restart a turn that has
