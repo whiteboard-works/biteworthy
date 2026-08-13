@@ -1053,6 +1053,13 @@ module Chat
     # hour was the other candidate and is a straight loss — it prices
     # every write at 2× instead of 1.25× to rescue the 5 of 28 gaps that
     # fall between five minutes and an hour.
+    #
+    # The guard mirrors `cacheable`'s: at call time the last message is
+    # always a `user` one — `drive` calls the model before appending the
+    # reply, and `repair_for` answers a trailing orphan with tool results,
+    # which are also `user`. Appending to an assistant message would be a
+    # prefill rather than a note to the model, so it goes without the
+    # clock instead.
     def clocked(turns)
       last = turns.last
       return turns unless last.is_a?(Hash) && last[:role].to_s == "user"
