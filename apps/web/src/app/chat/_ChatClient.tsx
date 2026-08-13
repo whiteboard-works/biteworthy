@@ -202,6 +202,11 @@ export function ChatClient(): ReactElement {
     let tools = 0;
     let outcome = 'error';
     let accepted = false;
+    // The answer as the server settled on it, which is not always what
+    // streamed — a flagged turn's repair replaces the text after the
+    // fact, and the disclaimer arrives after that. Kept so the refetch
+    // below has something honest to fall back to when it fails.
+    let settledText: string | null = null;
     try {
       const { after } = await ask();
       accepted = true;
@@ -214,7 +219,10 @@ export function ChatClient(): ReactElement {
       for (let hop = 0; hop < MAX_RECONNECTS; hop += 1) {
         const resume = await watchTurn(id, cursor, (event) => {
           if (event.type === 'tool_use') tools += 1;
-          if (event.type === 'done') outcome = 'done';
+          if (event.type === 'done') {
+            outcome = 'done';
+            settledText = event.text;
+          }
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
           consume(event);
         });
@@ -238,6 +246,14 @@ export function ChatClient(): ReactElement {
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
       const conversation = await refresh(id);
+      // And if that reconciliation is the thing that failed, put the
+      // answer back. Clearing the live turn before refetching is right on
+      // the happy path — it is what stops the streamed copy and the
+      // stored one both being on screen — but it means one failed GET
+      // erases a turn the server has already written down and the user
+      // has already read. `done` carries the settled text precisely so
+      // this does not need the network twice.
+      if (!conversation && settledText) setLive({ ...EMPTY_TURN, text: settledText });
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
       // has already been shortened, which is one render before the next

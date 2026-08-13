@@ -199,12 +199,20 @@ export default function ChatScreen() {
     // as a success, which is worse than no mobile data at all.
     let tools = 0;
     let outcome = 'error';
+    // The answer itself. `describe` renders narration and errors only, so
+    // unlike web there is no streamed copy of the text on screen — the
+    // refetch below is the *only* thing that shows a mobile user what was
+    // said, and this is what makes a failed one survivable.
+    let settledText: string | null = null;
     try {
       const { after } = await ask(jwt);
       accepted = true;
       await watch(jwt, id, after, (event) => {
         if (event.type === 'tool_use') tools += 1;
-        if (event.type === 'done') outcome = 'done';
+        if (event.type === 'done') {
+          outcome = 'done';
+          settledText = event.text ?? null;
+        }
         if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
       });
     } catch (e) {
@@ -219,6 +227,16 @@ export default function ChatScreen() {
         duration_ms: Date.now() - startedAt,
       });
       const next = await refresh(jwt, id);
+      // A failed refetch used to lose the whole turn. Every message was
+      // safely stored server-side, but nothing on this screen held the
+      // answer — so the user was left looking at their own question with
+      // an error under it, for a turn that had in fact succeeded. The
+      // `done` event carries the settled text, so show that until a later
+      // refresh replaces it with the stored copy.
+      const answer = settledText;
+      if (!next && answer) {
+        setMessages((current) => [...current, localAnswer(answer, current.length)]);
+      }
       // Drained from the teardown of the turn that was blocking it, not
       // from an effect on `busy` — an effect fires on the render where
       // `busy` flips false and the queue has already been shortened,
@@ -582,6 +600,19 @@ export default function ChatScreen() {
 }
 
 /** One narration line. The tool's own sentence when it declared one. */
+// A stand-in for the assistant message the refetch could not fetch. It
+// lives only until the next successful `adopt`, which replaces `messages`
+// wholesale with what the server actually stored — so this can never
+// drift or accumulate.
+function localAnswer(text: string, position: number): ChatMessage {
+  return {
+    id: `local-${position}`,
+    role: 'assistant',
+    position,
+    blocks: [{ type: 'text', text }],
+  };
+}
+
 function describe(event: ChatEvent, lines: string[]): string[] {
   if (event.type === 'tool_use') return [...lines, event.doing ?? `Running ${event.name}`];
   if (event.type === 'error') return [...lines, event.message ?? 'Something went wrong.'];

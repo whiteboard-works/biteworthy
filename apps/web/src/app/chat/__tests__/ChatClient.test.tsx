@@ -121,6 +121,46 @@ describe('ChatClient', () => {
     );
   });
 
+  // Clearing the live turn before refetching is what stops the streamed
+  // copy and the stored one both being on screen. It also meant a single
+  // failed GET erased a turn the server had already written down and the
+  // person had already read — question still there, error underneath, and
+  // the answer gone until a reload.
+  describe('when the post-turn refetch fails', () => {
+    it('keeps the answer the turn already produced', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'text_delta', text: 'Ninis has 12 dishes you can eat.' });
+        onEvent({ type: 'done', text: 'Ninis has 12 dishes you can eat.' });
+      });
+      getConversation.mockRejectedValue(new Error('Network request failed'));
+
+      render(<ChatClient />);
+      await type('hi');
+
+      expect(await screen.findByTestId('chat-error')).toHaveTextContent('Network request failed');
+      expect(screen.getByText('Ninis has 12 dishes you can eat.')).toBeInTheDocument();
+    });
+
+    // And the *settled* answer, not the streamed one. A grounding repair
+    // rewrites the text after the fact and the disclaimer is appended
+    // after that, so replaying the deltas would leave the reader holding
+    // the version the server already rejected — the one case where
+    // showing something stale is worse than showing nothing.
+    it('shows what the server settled on, not what streamed', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'text_delta', text: 'Everything on the menu works for you.' });
+        onEvent({ type: 'done', text: 'The queso is out — it has dairy.' });
+      });
+      getConversation.mockRejectedValue(new Error('Network request failed'));
+
+      render(<ChatClient />);
+      await type('what can I eat');
+
+      expect(await screen.findByText('The queso is out — it has dairy.')).toBeInTheDocument();
+      expect(screen.queryByText('Everything on the menu works for you.')).toBeNull();
+    });
+  });
+
   // The tool's own sentence, not its function name — it is the only thing
   // a person can read while a turn is working, so the assertion has to
   // happen while the turn is still in flight.
