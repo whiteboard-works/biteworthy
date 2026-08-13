@@ -2787,6 +2787,61 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a menu photo or PDF for scanning
+         * @description Returns a **signed** blob id: unguessable, and recorded against the uploader, so one account cannot scan another's upload by walking ids. The declared content type is not trusted — the real one is sniffed after the write, and a file that is not a JPEG, PNG, HEIC, WebP, or PDF is purged rather than kept.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            /** @description The image or PDF. Rejected above the size ceiling. */
+            requestBody: {
+                content: {
+                    "multipart/form-data": string;
+                };
+            };
+            responses: {
+                /** @description the stored attachment */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Attachment"];
+                    };
+                };
+                /** @description nothing attached, too large, or not a scannable type */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -3380,6 +3435,53 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["ChatEventsPage"];
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Stream a turn's narration as server-sent events
+         * @description Each frame is one ChatEvent. `id:` on the frame is the narration cursor — send it back as `Last-Event-ID` to resume a dropped connection without replaying what was already shown, which is why the events are rows rather than a broadcast. The stream closes on a terminal event (`done`, `error`, `awaiting_confirmation`) unless another turn is already queued behind it, and closes on its own if the turn ended before the reader arrived.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                    /** @description Resume point. The `id:` of the last frame the client rendered. */
+                    "Last-Event-ID"?: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the narration, one ChatEvent per frame */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };

@@ -5209,6 +5209,64 @@
         }
       }
     },
+    "/api/v1/attachments": {
+      "post": {
+        "summary": "Upload a menu photo or PDF for scanning",
+        "tags": [
+          "Chat"
+        ],
+        "description": "Returns a **signed** blob id: unguessable, and recorded against the uploader, so one account cannot scan another's upload by walking ids. The declared content type is not trusted — the real one is sniffed after the write, and a file that is not a JPEG, PNG, HEIC, WebP, or PDF is purged rather than kept.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the stored attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attachment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "nothing attached, too large, or not a scannable type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true,
+          "description": "The image or PDF. Rejected above the size ceiling."
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "summary": "Log in with email + password",
@@ -5908,6 +5966,55 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}/stream": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Stream a turn's narration as server-sent events",
+        "tags": [
+          "Chat"
+        ],
+        "description": "Each frame is one ChatEvent. `id:` on the frame is the narration cursor — send it back as `Last-Event-ID` to resume a dropped connection without replaying what was already shown, which is why the events are rows rather than a broadcast. The stream closes on a terminal event (`done`, `error`, `awaiting_confirmation`) unless another turn is already queued behind it, and closes on its own if the turn ended before the reader arrived.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "description": "Resume point. The `id:` of the last frame the client rendered.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the narration, one ChatEvent per frame"
           }
         }
       }

@@ -223,6 +223,36 @@ RSpec.describe "conversations", type: :request do
     end
   end
 
+  # The endpoint web actually uses, and the one that was missing from the
+  # spec entirely — so `packages/api-types` described the polling fallback
+  # and not the primary path. It carries no JSON schema because it is not
+  # JSON: each frame is one `ChatEvent` in an SSE `data:` line, which is
+  # the same payload `/events` returns in an array.
+  path "/api/v1/conversations/{id}/stream" do
+    parameter name: :id, in: :path, type: :string, format: :uuid, required: true
+
+    get("Stream a turn's narration as server-sent events") do
+      tags "Chat"
+      description "Each frame is one ChatEvent. `id:` on the frame is the narration " \
+                  "cursor — send it back as `Last-Event-ID` to resume a dropped " \
+                  "connection without replaying what was already shown, which is why " \
+                  "the events are rows rather than a broadcast. The stream closes on a " \
+                  "terminal event (`done`, `error`, `awaiting_confirmation`) unless " \
+                  "another turn is already queued behind it, and closes on its own if " \
+                  "the turn ended before the reader arrived."
+      produces "text/event-stream"
+      security [bearerAuth: []]
+      parameter name: :Authorization, in: :header, type: :string, required: true
+      parameter name: "Last-Event-ID", in: :header, type: :string, required: false,
+                description: "Resume point. The `id:` of the last frame the client rendered."
+
+      response(200, "the narration, one ChatEvent per frame") do
+        let(:id) { create(:conversation, user: account).id }
+        run_test!
+      end
+    end
+  end
+
   path "/api/v1/conversations/{id}/run" do
     parameter name: :id, in: :path, type: :string, format: :uuid, required: true
 
