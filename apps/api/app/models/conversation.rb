@@ -65,8 +65,41 @@ class Conversation < ApplicationRecord
   # no new information. So the loaded rows are kept and every write path
   # below keeps them honest rather than the read re-fetching to be sure.
   def transcript
-    stored = (@stored_messages ||= messages.reload.to_a)
-    stored.map { |m| { role: m.role, content: m.content } } + repair_for(stored.last)
+    stored = stored_messages
+    stored.map { |m| { role: m.role, content: content_for(m) } } + repair_for(stored.last)
+  end
+
+  # The turn's rows, loaded once. Split out from `transcript` because
+  # `Chat::Compaction` runs *before* the first model call and needs the
+  # records themselves, not the serialized turns — and going to Postgres
+  # for them separately would be a second load of everything this turn is
+  # about to read anyway. The reload is kept here rather than dropped:
+  # `heal!` may have just repaired rows, and this is the point where the
+  # in-memory copy has to agree with what is stored.
+  def stored_messages
+    @stored_messages ||= messages.reload.to_a
+  end
+
+  # What the model is sent for this message, which is not always what is
+  # stored. A compacted message keeps its rows — the clients render from
+  # `messages` and a person's history must not be edited to save tokens —
+  # and hands the API a placeholder in place of results it fetched long
+  # enough ago to have stopped earning their keep.
+  #
+  # The `tool_use_id` survives, because that pairing is what the Messages
+  # API validates: an unanswered `tool_use` is a permanently dead
+  # conversation, not one cheaper turn. `Chat::Compaction` decides which
+  # messages; this is the whole of what the decision means.
+  def content_for(message)
+    return message.content if message.compacted_at.nil?
+
+    Array(message.content).map do |block|
+      next block unless (block["type"] || block[:type]) == "tool_result"
+
+      { "type" => "tool_result",
+        "tool_use_id" => block["tool_use_id"] || block[:tool_use_id],
+        "content" => [ { "type" => "text", "text" => Chat::Compaction::PLACEHOLDER } ] }
+    end
   end
 
   # The rows this turn already has in hand.

@@ -89,6 +89,10 @@ export interface ChatEvent {
   doing?: string | null;
   message?: string;
   tool?: PendingTool;
+  /** `compacted` only: how many messages had their stale tool results
+   *  dropped from what the model is sent, and roughly what that saved. */
+  messages?: number;
+  tokens_saved?: number;
 }
 
 export interface ChatEventsPage {

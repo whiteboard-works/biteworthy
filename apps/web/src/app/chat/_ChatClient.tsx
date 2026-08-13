@@ -29,7 +29,7 @@ import { ModeNotice, ModePicker } from './_ModePicker';
 import { Transcript, type LiveTurn } from './_Transcript';
 import { useToolVisibility } from './_useToolVisibility';
 
-const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [] };
+const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [], notices: [] };
 
 /** Enough hops for a very long scan; a bound, not an expectation. */
 const MAX_RECONNECTS = 20;
@@ -181,6 +181,19 @@ export function ChatClient(): ReactElement {
         if (last >= 0) tools[last] = { ...tools[last], name: event.name, ok: event.ok };
         return { ...(t ?? EMPTY_TURN), tools };
       });
+    } else if (event.type === 'compacted') {
+      // Said plainly, on the turn it happens. The alternative is an
+      // assistant that appears to forget a menu it had already read, with
+      // nothing on screen connecting the two.
+      setLive((t) => ({
+        ...(t ?? EMPTY_TURN),
+        notices: [
+          ...(t?.notices ?? []),
+          `Trimmed ${event.messages} earlier tool ${
+            event.messages === 1 ? 'result' : 'results'
+          } to keep this conversation within its budget. I can fetch anything I still need.`,
+        ],
+      }));
     } else if (event.type === 'error') {
       setError(event.message);
     }

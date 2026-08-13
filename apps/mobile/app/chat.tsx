@@ -584,6 +584,16 @@ export default function ChatScreen() {
 /** One narration line. The tool's own sentence when it declared one. */
 function describe(event: ChatEvent, lines: string[]): string[] {
   if (event.type === 'tool_use') return [...lines, event.doing ?? `Running ${event.name}`];
+  // Said plainly, on the turn it happens. The alternative is an assistant
+  // that appears to forget a menu it had already read, with nothing on
+  // screen connecting the two.
+  if (event.type === 'compacted') {
+    const n = event.messages ?? 0;
+    return [
+      ...lines,
+      `Trimmed ${n} earlier tool ${n === 1 ? 'result' : 'results'} to keep this conversation within its budget.`,
+    ];
+  }
   if (event.type === 'error') return [...lines, event.message ?? 'Something went wrong.'];
   return lines;
 }
