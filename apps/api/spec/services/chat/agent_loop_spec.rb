@@ -493,12 +493,17 @@ RSpec.describe Chat::AgentLoop do
     describe "caching the transcript" do
       def blocks_of(request) = request[:messages].flat_map { |m| Array(m[:content]) }
 
-      it "marks the last block so the conversation so far is a cached prefix" do
+      # "The conversation so far" means everything that was stored — the
+      # clock is appended after the mark on purpose and is the one block
+      # deliberately left outside the prefix.
+      it "marks the end of the stored transcript as a cached prefix" do
         client = ScriptedClient.new(say("hi"))
         described_class.new(conversation, client: client).run(text: "hello")
 
-        messages = client.requests.first[:messages]
-        expect(Array(messages.last[:content]).last[:cache_control]).to eq({ type: "ephemeral" })
+        blocks = Array(client.requests.first[:messages].last[:content])
+        expect(blocks[-2][:cache_control]).to eq({ type: "ephemeral" })
+        expect(blocks[-2][:text] || blocks[-2]["text"]).to eq("hello")
+        expect(blocks.last).not_to have_key(:cache_control)
       end
 
       # One rolling breakpoint, not one per round. Earlier ones stay valid
@@ -511,9 +516,12 @@ RSpec.describe Chat::AgentLoop do
         described_class.new(conversation, client: client).run(text: "hello")
 
         client.requests.each do |request|
-          marked = blocks_of(request).select { |b| b.is_a?(Hash) && b[:cache_control] }
+          blocks = blocks_of(request)
+          marked = blocks.select { |b| b.is_a?(Hash) && b[:cache_control] }
           expect(marked.size).to eq(1)
-          expect(marked.first).to eq(blocks_of(request).last)
+          # Last but for the clock, which rides below it by design.
+          expect(marked.first).to eq(blocks[-2])
+          expect(blocks.last[:text]).to include("Current time:")
         end
       end
 
@@ -538,18 +546,18 @@ RSpec.describe Chat::AgentLoop do
       # existing prefix spec pins. A per-second timestamp in the volatile
       # block therefore invalidated the transcript cache on every turn:
       # the thing placed below the breakpoint to protect one cache was
-      # preventing the other. Bucketing it to the cache's own TTL is what
-      # makes cross-turn reuse possible at all.
-      # Time is frozen at a known point inside a bucket rather than
-      # offset from the wall clock: a relative `travel` straddles a
-      # boundary roughly a third of the time, which is a flake, not a
-      # finding.
-      it "keeps the whole system prompt identical across consecutive turns" do
+      # preventing the other.
+      #
+      # The first fix bucketed the clock to five minutes, which made this
+      # pass for turns close together and left it failing for the rest.
+      # No amount of time passing may change the system array now, so the
+      # elapsed hour here is the assertion, not scene-setting.
+      it "keeps the whole system prompt identical however long the gap" do
         travel_to Time.utc(2026, 8, 9, 12, 0, 30) do
           first = ScriptedClient.new(say("one"))
           described_class.new(conversation, client: first).run(text: "hello")
 
-          travel 2.minutes
+          travel 1.hour
           second = ScriptedClient.new(say("two"))
           described_class.new(conversation, client: second).run(text: "again")
 
@@ -557,19 +565,55 @@ RSpec.describe Chat::AgentLoop do
         end
       end
 
-      # And the bound is real, not a constant pretending to be a clock:
-      # past the bucket the prefix moves on, which is fine because the
-      # ephemeral cache entry has expired by then anyway.
-      it "moves the clock on once the bucket has passed" do
-        travel_to Time.utc(2026, 8, 9, 12, 0, 30) do
+      # The bucket's real cost was not its width, it was that it flipped
+      # on wall-clock boundaries rather than on how long ago the last turn
+      # was. These two turns are forty seconds apart — well inside any
+      # cache TTL — and used to land either side of 12:05, which threw
+      # away the whole conversation's cache for the sake of a clock the
+      # user never sees. Measured on production, 4 of 19 same-conversation
+      # follow-ups sent within five minutes crossed a boundary like this.
+      it "survives two turns that straddle a five-minute boundary" do
+        travel_to Time.utc(2026, 8, 9, 12, 4, 50) do
           first = ScriptedClient.new(say("one"))
           described_class.new(conversation, client: first).run(text: "hello")
 
-          travel 6.minutes
+          travel 40.seconds
           second = ScriptedClient.new(say("two"))
           described_class.new(conversation, client: second).run(text: "again")
 
-          expect(second.requests.first[:system]).not_to eq(first.requests.first[:system])
+          expect(second.requests.first[:system]).to eq(first.requests.first[:system])
+          expect(cached_prefix(second)).to eq(cached_prefix(first))
+        end
+      end
+
+      # Where it went instead: onto the end of the last user message,
+      # after the block `cacheable` marked. Below the breakpoint is the
+      # whole point — a clock inside the cached prefix is a clock every
+      # later turn has to reproduce byte-for-byte to get a hit.
+      it "sends the clock below the breakpoint, not in the system prompt" do
+        client = ScriptedClient.new(say("hi"))
+        described_class.new(conversation, client: client).run(text: "hello")
+
+        request = client.requests.first
+        expect(request[:system].map { |b| b[:text] }.join).not_to include("Current time:")
+
+        blocks = request[:messages].last[:content]
+        marked = blocks.index { |b| b[:cache_control] }
+        expect(blocks.last[:text]).to include("Current time:")
+        expect(marked).to be < blocks.length - 1
+      end
+
+      # Rounding was a tax paid to the cache. Nothing downstream of the
+      # clock is cached now, so it can be exact again — and it has to be,
+      # because the model relays it and "are they open now" is a real
+      # question here.
+      it "states the time to the second rather than to the nearest bucket" do
+        travel_to Time.utc(2026, 8, 9, 12, 3, 27) do
+          client = ScriptedClient.new(say("hi"))
+          described_class.new(conversation, client: client).run(text: "hello")
+
+          expect(client.requests.first[:messages].last[:content].last[:text])
+            .to include("2026-08-09T12:03:27Z")
         end
       end
 
@@ -613,7 +657,9 @@ RSpec.describe Chat::AgentLoop do
 
       system = client.requests.first[:system]
       breakpoint = system.index { |b| b[:cache_control] }
-      expect(system[(breakpoint + 1)..].map { |b| b[:text] }.join).to include("Current time:")
+      # The caller's own avoid list — per-caller, per-turn, and the reason
+      # the snapshot can sit in the prompt at all.
+      expect(system[(breakpoint + 1)..].map { |b| b[:text] }.join).to include("source of truth")
     end
 
     it "asks for adaptive thinking on the flagship model" do

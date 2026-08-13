@@ -940,7 +940,7 @@ module Chat
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
-        messages:   cacheable(@conversation.transcript) + extra,
+        messages:   clocked(cacheable(@conversation.transcript)) + extra,
         tools:      tool_definitions,
         thinking:   { type: "adaptive" }
       }
@@ -1028,6 +1028,43 @@ module Chat
       emit(type: "compacted", messages: result.messages, tokens_saved: result.tokens_saved)
     rescue StandardError => e
       Rails.logger.warn("[chat] compaction failed on #{@conversation.id}: #{e.class}: #{e.message}")
+    end
+
+    # The clock, below every breakpoint — which is the only place it can
+    # sit without costing more than it is worth.
+    #
+    # It used to lead the volatile *system* block, bucketed to five
+    # minutes so that consecutive turns would at least share a prefix.
+    # That was a compromise with the wrong shape. A `messages` breakpoint
+    # caches `tools → system → messages`, so a system block that changes
+    # invalidates the transcript below it too, and the bucket flips on
+    # wall-clock boundaries rather than on how long ago the last turn was
+    # — two messages forty seconds apart straddle 16:04:59/16:05:01 and
+    # the second pays to re-write the whole conversation.
+    #
+    # Measured on production 2026-08-13: 4 of 19 follow-up turns sent
+    # inside the cache's own TTL crossed a boundary, and those turns spent
+    # 27% of their input on cache writes against 6% for turns that did
+    # not. Cache writes were 65.8% of all input cost.
+    #
+    # Appended after the block `cacheable` marked, so it is outside the
+    # cached prefix: it is never part of what a later turn has to match,
+    # and the seconds are free again. Widening the ephemeral TTL to an
+    # hour was the other candidate and is a straight loss — it prices
+    # every write at 2× instead of 1.25× to rescue the 5 of 28 gaps that
+    # fall between five minutes and an hour.
+    def clocked(turns)
+      last = turns.last
+      return turns unless last.is_a?(Hash) && last[:role].to_s == "user"
+
+      stamped = Array(last[:content]) + [ { type: "text", text: current_time } ]
+      turns[0..-2] + [ last.merge(content: stamped) ]
+    end
+
+    # No longer rounded: nothing downstream of it is cached, so precision
+    # is free. "Is this place open now" is a real question here.
+    def current_time
+      "Current time: #{Time.current.utc.iso8601} (UTC)."
     end
 
     def emit(payload)
