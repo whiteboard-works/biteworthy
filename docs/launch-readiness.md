@@ -99,8 +99,22 @@ cd apps/api
 cp .kamal/secrets.example .kamal/secrets
 # Edit values. The template inline-comments where each comes from.
 
-# Edit config/deploy.yml — replace <REPLACE_WITH_HETZNER_IP> twice
-# with the IP from above.
+# Point everything at the new IP. There are no <REPLACE_WITH_...>
+# placeholders any more -- the current IP is hardcoded in several
+# places and a rebuild has to update ALL of them, or CI keeps
+# deploying to the box you just replaced:
+#   1. apps/api/config/deploy.yml  -- the `hosts:` entry under BOTH
+#      the web and worker roles (two lines, same IP).
+#   2. .github/workflows/deploy-api.yml -- the ssh config + kamal
+#      host block near the end also name it literally.
+#   3. DNS: api.bite-worthy.com A -> new IP.
+#   4. The SSH_KNOWN_HOSTS repo secret -- re-pin to the NEW box's
+#      host keys. Only ever re-pin after confirming out-of-band that
+#      the box really was rebuilt; a host-key change you cannot
+#      explain is what a MITM looks like.
+#   5. SSH_PRIVATE_KEY, if the deploy key changed.
+# KAMAL_SECRETS_B64 does not need touching -- its values are
+# host-independent.
 
 # First deploy
 gem install kamal
