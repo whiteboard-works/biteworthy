@@ -156,17 +156,17 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
      replaced it). Either feed it into `TasteScoring` or drop it and
      its writers.
 
-- **`/login?next=` is an open redirect** — `login/page.tsx` replaces to
-  whatever `?next=` holds without validating it starts with `/`, so
-  `/login?next=https://evil.com` bounces a successful login off-site.
-  Pre-dates the admin workstream (the suggestions queue minted these
-  links first) but W1 added another producer. **The fix prescribed here
-  — `startsWith('/')`, reject `//` — is not sufficient**, and was
-  measured to be: `/\evil.com` and `.//evil.com` both pass it and still
-  leave the origin, because the router normalizes *after* the check
-  (backslashes become slashes for special schemes; dot-segment
-  resolution can create an authority on serialization). A guard has to
-  re-resolve the value it returns, not just inspect the one it got.
+- ~~**`/login?next=` is an open redirect**~~ — **closed 2026-08-14 (#600).**
+  It was in `/signup` as well, which this entry never said. The fix it
+  prescribed — `startsWith('/')`, reject `//` — would not have worked,
+  and that was measured rather than argued: URL parsing normalises a
+  backslash to a slash for special schemes, so `/\evil.com` starts with
+  one slash and still resolves off-origin; and dot-segment resolution
+  can *create* an authority on the way out, so `.//evil.com` passes an
+  input check and then serialises to the protocol-relative `//evil.com`.
+  Both classes bite after the check, not before, so `lib/safe-next.ts`
+  re-resolves the value it returns instead of inspecting the one it got.
+  See `docs/status.md` 2026-08-14.
 
 - **`pnpm build` fails on clean master** — `@biteworthy/mobile#build`
   (`expo export`) exits non-zero with no local changes, and `ci-js.yml`

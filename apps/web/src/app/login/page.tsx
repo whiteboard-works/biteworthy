@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { login, AuthError, authFailureReason } from '../../lib/auth';
+import { safeNext } from '../../lib/safe-next';
 import { useTracker } from '../_PostHogProvider';
 
 /**
@@ -33,7 +34,10 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const tracker = useTracker();
-  const next = params.get('next') ?? '/';
+  // Sanitised here rather than at the redirect, so the value that reaches
+  // the cross-link to /signup is the safe one too — otherwise a hostile
+  // `next` just rides one hop further before it is used.
+  const next = safeNext(params.get('next'), '/');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
