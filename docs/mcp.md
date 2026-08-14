@@ -628,9 +628,9 @@ the instructions plus the topology together. Nothing per-request may sit
 above it.
 
 The second rolls forward through `messages`: `AgentLoop#cacheable` marks
-the last content block of the last message on every request, so the
-conversation so far becomes a cached prefix for the next round. Without
-it a turn's cost grew with the *square* of its length — a real
+the last content block of the last stored message on every request, so
+the conversation so far becomes a cached prefix for the next round.
+Without it a turn's cost grew with the *square* of its length — a real
 eleven-round turn billed 167,655 input tokens for a transcript only ever
 a few thousand tokens long, because every round re-sent every earlier
 round at full price.
@@ -639,12 +639,27 @@ The consequence for the first breakpoint is the part worth internalising.
 A `messages` breakpoint's prefix is `tools → system → messages`, so the
 volatile block *below* the system breakpoint is above the transcript and
 counts for it. A per-request byte there no longer costs "just the
-volatile block" — it costs the whole conversation's cache. That is why
-`current_time` is bucketed to five minutes (`SystemPrompt::TIME_BUCKET`,
-matching the ephemeral TTL) rather than second-resolution: at second
-resolution the first round of every turn missed by construction, and a
-single-round turn got strictly *worse*, writing the transcript at 1.25×
-instead of reading it at 1.0×.
+volatile block" — it costs the whole conversation's cache.
+
+Which is why **the clock is not in the system prompt at all**. It was
+second-resolution (the first round of every turn missed by construction,
+and a single-round turn got strictly *worse* — writing the transcript at
+1.25× instead of reading it at 1.0×), then bucketed to five minutes to
+match the ephemeral TTL. The bucket was still the wrong shape: it flipped
+on wall-clock boundaries rather than on how long ago the last turn was,
+so two messages forty seconds apart could straddle 16:04:59 / 16:05:01
+and the second paid to re-write the whole conversation. Measured on
+production 2026-08-13, 4 of 19 follow-up turns sent *inside* the cache's
+own TTL crossed a boundary, and those spent 27% of their input on cache
+writes against 6% for the ones that did not. `AgentLoop#clocked` now
+appends it **after** the block `cacheable` marked — below every
+breakpoint, outside every cached prefix, and exact to the second again.
+
+The same measurement settles the other lever: do not widen the ephemeral
+TTL to an hour. Cache writes were 65.8% of all input cost (reads 18.0%,
+uncached 16.2%), and the 1h TTL prices every write at 2× instead of 1.25×
+to rescue only the 5 of 28 gaps that fall between five minutes and an
+hour. It is a straight loss at this traffic shape.
 
 The profile snapshot and page context still sit below the system
 breakpoint and are still per-turn — they are cached by the transcript

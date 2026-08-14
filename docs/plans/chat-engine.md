@@ -46,6 +46,7 @@ that currently has no owner and gives it a tested path to a coherent UX.
 | C-D4 | Confirmation binds to the exact `{tool, args}` tuple | The gate is only as good as what it is bound to. A model-supplied `confirmed: true` is not evidence, and neither is a stale tab's approval of a call it no longer displays. |
 | C-D5 | `defer_loading` over a homegrown tool router | Tools render *before* system in the cached prefix, so a per-turn tool bundle busts the whole 21,650-token cache on every routing change. Deferral appends and preserves it. |
 | C-D6 | Grounding review gets one repair attempt, then the disclaimer | **Reversed 2026-08-11.** This read "appends a disclaimer; it does not retry", because "a second full turn costs more than saying plainly that the answer may be incomplete". The judgement was right and the unit was wrong: by the time the reviewer has an opinion, the transcript, the tool results and the cached prefix all exist, so a repair is *one* call against a prefix the cache already holds — not a turn. The disclaimer is the fallback now, and a rewrite replaces the answer only on a verdict that was positively `cleared?`, never merely un-flagged: a reviewer that failed open does not complain, and "did not complain" is not approval. |
+| C-D7 | The clock rides below the transcript breakpoint, and the cache TTL stays at five minutes | Measured 2026-08-13. Anything volatile in the system array invalidates the conversation cached below it, and a wall-clock bucket flips on boundaries rather than on elapsed time — 4 of 19 follow-up turns sent *within* the TTL straddled one and re-wrote the whole transcript, at 27% write share against 6%. Appending the clock after the marked block removes the invalidation entirely and restores second resolution. The 1h TTL is the tempting second lever and is a straight loss: writes are already 65.8% of input cost, and doubling their price rescues only the 5 of 28 gaps that fall between five minutes and an hour. |
 | C-D8 | Long transcripts are compacted by eliding stale tool results, not by summarizing | Measured 2026-08-13: `tool_result` blocks are 59% and 66% of the two largest transcripts, and nothing else is both large and safe to drop — prose is what the person is reading and a `thinking` signature must replay verbatim. Elision keeps every `tool_use`, so the model can see what it asked and ask again; a summary cannot be re-derived and can be wrong about what it dropped. It is also deterministic and free, where a summarizer is a model call per compaction (Rule 5). **The cost case is narrower than the byte share suggests and is worth knowing:** with the transcript cached those stale results are read back at 0.1×, so a warm turn saves ~6% against a one-off re-write at 1.25× — eighteen turns to pay back, longer than conversations run. It pays on the *cold* turns. The ephemeral cache lasts five minutes and 9 of 28 measured gaps exceed that, so about a third of turns re-write the whole transcript: 121k input-equivalent tokens to resume a 97k-token conversation against 71k for a compacted one. Payback lands near four turns, and the $10 ceiling stops arriving mid-thought. |
 
 ## Safety properties
@@ -407,15 +408,31 @@ would have got strictly worse**: writing the whole conversation at 1.25×
 instead of reading it at 1.0×, buying nothing. The thing placed below
 the breakpoint to protect one cache was preventing the other.
 
-`current_time` is bucketed to five minutes now, which is the ephemeral
-cache's own TTL — precision finer than that cannot help a cache. It is
-labelled approximate in the prompt rather than silently rounded, because
-the model relays it and "is this place open now" is a real question here.
+It was bucketed to five minutes as the first fix — the ephemeral cache's
+own TTL, on the reasoning that precision finer than that cannot help a
+cache. **That reasoning was half right and the measurement, taken
+2026-08-13, is where the other half showed up.** A bucket flips on
+wall-clock boundaries, not on how long ago the last turn was, so two
+turns forty seconds apart can straddle 16:04:59 / 16:05:01 and the second
+re-writes the entire conversation. On production, 4 of 19 follow-up turns
+sent inside the cache's own TTL crossed a boundary, spending 27% of their
+input on cache writes against 6% for the ones that did not.
 
-Cross-turn reuse is therefore *possible*; it is not yet *measured*. A
-second hazard is still open: the API drops previous-turn `thinking`
-blocks once a new user message arrives, which moves the prefix bytes
-again. Treat the within-turn win as the one this change bought.
+So the clock left the system prompt entirely. `AgentLoop#clocked` appends
+it after the block `cacheable` marked, which is below every breakpoint
+and therefore in no cached prefix at all — the invalidation goes to zero
+and the seconds come back, so it no longer needs the "approximate" label
+it was carrying for the cache's benefit.
+
+Cross-turn reuse is now *measured*: 72.3% of input tokens are cache
+reads, and the remaining cost is dominated by writes (65.8% of input cost
+against 18.0% for reads) — which is what makes transcript size, not
+transcript re-reading, the next thing worth attacking. Widening the
+ephemeral TTL to an hour is **not** the lever —
+it prices every write at 2× to rescue the 5 of 28 gaps between five
+minutes and an hour. A second hazard is still open: the API drops
+previous-turn `thinking` blocks once a new user message arrives, which
+moves the prefix bytes again.
 
 Both block shapes the marker can land on are verified against the live
 API — a trailing `text` block (round 1) and a trailing `tool_result`

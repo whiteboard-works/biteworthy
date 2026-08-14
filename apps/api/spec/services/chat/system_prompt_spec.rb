@@ -4,6 +4,8 @@ require "rails_helper"
 # the cached prefix never varies per request, and the things that DO vary
 # are below the breakpoint where they cost nothing.
 RSpec.describe Chat::SystemPrompt do
+  include ActiveSupport::Testing::TimeHelpers
+
   let(:user)    { create(:user) }
   let(:context) { Tools::Context.new({ user_id: user.id }) }
   let(:client)  { AnthropicClient.new }
@@ -20,7 +22,7 @@ RSpec.describe Chat::SystemPrompt do
       prompt = described_class.new(context: context)
 
       expect(prompt.stable_sections.join).to include("Biteworthy answers one question")
-      expect(prompt.stable_sections.join).not_to include("Current time:")
+      expect(prompt.blocks(client).map { |b| b[:text] }.join).not_to include("Current time:")
     end
 
     it "sets the breakpoint on the last stable block, not the last block" do
@@ -31,11 +33,16 @@ RSpec.describe Chat::SystemPrompt do
       expect(rendered.count { |b| b[:cache_control] }).to eq(1)
     end
 
-    # A timestamp in the cached prefix is the cheapest possible way to
-    # throw away a 21,650-token cache hit on every single turn.
+    # A timestamp anywhere in this prompt is the cheapest possible way to
+    # throw away a 21,650-token cache hit on every single turn — and not
+    # only this prompt's. The transcript breakpoint's prefix is
+    # `tools → system → messages`, so a volatile system block below the
+    # system breakpoint still invalidates the conversation below *it*.
+    # The clock lives past both breakpoints now (`AgentLoop#clocked`), so
+    # nothing here reads a clock at all.
     it "does not vary with the clock" do
-      early = described_class.new(context: context, now: Time.utc(2026, 1, 1)).stable_sections
-      later = described_class.new(context: context, now: Time.utc(2026, 8, 8)).stable_sections
+      early = travel_to(Time.utc(2026, 1, 1)) { blocks }
+      later = travel_to(Time.utc(2026, 8, 8)) { blocks }
 
       expect(later).to eq(early)
     end
@@ -45,6 +52,24 @@ RSpec.describe Chat::SystemPrompt do
       there = described_class.new(context: context, page: { path: "/" }).stable_sections
 
       expect(there).to eq(here)
+    end
+  end
+
+  # The clock used to guarantee this block was never empty. Now that it
+  # rides below the transcript instead, a signed-in caller with no
+  # profile, in a non-planning mode, with no page context leaves every
+  # section nil — and the Messages API rejects an empty text block, so
+  # sending it would be a 400 on every one of that person's turns.
+  describe "when there is nothing volatile to say" do
+    it "omits the block rather than sending an empty one" do
+      user.profile&.destroy!
+      user.reload
+
+      rendered = blocks
+
+      expect(described_class.new(context: context).volatile).to eq("")
+      expect(rendered.map { |b| b[:text] }).to all(be_present)
+      expect(rendered.length).to eq(2)
     end
   end
 
