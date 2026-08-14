@@ -51,7 +51,7 @@ Phase 5.2 lights up real delivery. The pick has to clear three bars:
 
 ### Why SMTP, not the `postmark-rails` gem
 
-- **Provider portability.** SMTP is the universal protocol; switching providers is an `SMTP_*` edit in `.kamal/secrets` + `kamal env push` away. The `postmark-rails` gem locks every mailer's `delivery_method` to `:postmark` and adds a Mail::Postmark gem dep.
+- **Provider portability.** SMTP is the universal protocol; switching providers means editing the `SMTP_*` values in `deploy.yml`'s `env.clear` (address, username, domain, `DEVISE_MAILER_FROM`) plus the `SMTP_PASSWORD` in `.kamal/secrets` — no code. That is exactly what the 2026-07 Postmark→Resend swap turned out to be. The `postmark-rails` gem would instead lock every mailer's `delivery_method` to `:postmark` and add a Mail::Postmark dep.
 - **No new gems.** Rails ships the SMTP delivery method out of the box. Less surface to upgrade across Rails versions, less Bundler audit churn.
 - **Postmark's REST API isn't worth the complexity here.** The REST API gives back per-message metadata (open/click) that we don't need for transactional. SMTP returns a Message-ID which is enough to grep `kamal app logs` if a delivery is questioned.
 

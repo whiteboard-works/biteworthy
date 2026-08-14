@@ -74,7 +74,7 @@ The acceptance ("a review photo posted in production survives a server restart a
    R2_BUCKET=biteworthy-blobs
    R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
    ```
-4. `kamal env push && kamal deploy`, then `apps/api/bin/kamal-secrets-push` so the
+4. From `apps/api/`: `kamal env push && kamal deploy`, then `bin/kamal-secrets-push` so the
    `KAMAL_SECRETS_B64` repo secret carries the same values — `deploy-api.yml` rebuilds
    `.kamal/secrets` from it on every automated deploy, and would otherwise revert these.
 5. Optional CORS — required only if the Phase 5.4 web app starts uploading directly to R2 via signed URLs. ActiveStorage's redirect flow (Rails serves `rails_blob_url`, 302s to the R2 signed URL) doesn't need CORS.
