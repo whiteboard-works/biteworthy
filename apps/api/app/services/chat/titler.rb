@@ -3,11 +3,21 @@
 module Chat
   # Names a conversation from its opening exchange.
   #
-  # `conversations.title` has existed since the table did, and nothing has
-  # ever written to it: the column is set from `params[:title]` at create,
-  # web POSTs `{}` and mobile sends no body at all. So every row is `nil`
-  # and the history sidebar is a stack of rows all reading "Untitled" —
-  # the one screen whose whole job is telling conversations apart.
+  # `conversations.title` is set from `params[:title]` at create, and both
+  # clients leave it out — web POSTs `{}`, mobile sends no body — so every
+  # row arrived `nil` and the history sidebar was a stack of rows all
+  # reading "Untitled", the one screen whose whole job is telling
+  # conversations apart.
+  #
+  # **This runs only while the column is null, so nothing else may fill
+  # it.** `ConversationTurnsController` used to stamp the opening message
+  # into it, truncated to 60 characters, before enqueuing the turn — which
+  # meant `AgentLoop#name_conversation` found a title present and returned
+  # without ever calling this class. That is not a hypothetical: this file
+  # shipped dead for three days, and the request spec and the loop spec
+  # were both green because neither crossed the controller/job boundary.
+  # `conversation_turns_spec` now asserts the model's title through the
+  # whole path; keep it that way, and put no other writer in front.
   #
   # Server-side rather than in the clients, for two reasons that happen to
   # agree: web already re-fetches the conversation after every turn and
@@ -68,7 +78,17 @@ module Chat
     # ceiling the answers come out of. After a few exchanges the opening
     # is no longer what the conversation is about anyway, so the window
     # closes.
-    NAMING_WINDOW_MESSAGES = 12
+    #
+    # **Counted in exchanges, not in stored rows.** It was 12 messages,
+    # which conflates "how many times has this been tried" with "how big
+    # was one turn": a tool result is a `user`-role row, so a single
+    # opening turn that runs six tool rounds stores more than twelve
+    # messages and disqualifies itself before its first attempt — and
+    # since the count only grows, that conversation is never named at
+    # all. Exactly the workflows worth naming are the ones that reach
+    # for the most tools. Caught by Codex on #599, where removing the
+    # controller's raw-message fallback is what exposed it.
+    NAMING_WINDOW_EXCHANGES = 3
 
     SCHEMA = {
       "type" => "object",

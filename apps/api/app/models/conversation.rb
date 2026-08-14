@@ -125,6 +125,20 @@ class Conversation < ApplicationRecord
     opening&.text unless opening&.tool_result?
   end
 
+  # How many times the person has actually spoken.
+  #
+  # Not `messages.size`: a `tool_result` is a `user`-role row, so a turn
+  # that ran six tool rounds looks like a dozen "messages" while being one
+  # exchange. Anything bounding how long a conversation has been going —
+  # `Titler::NAMING_WINDOW_EXCHANGES` today — wants this number, or a
+  # single tool-heavy turn reads as a long conversation.
+  #
+  # Reads `loaded_messages`, so it costs nothing inside a turn that has
+  # already built its transcript.
+  def exchange_count
+    loaded_messages.count { |message| message.role == "user" && !message.tool_result? }
+  end
+
   # Locked for the whole insert, not just the position read: two turns
   # racing would otherwise pick the same position, collide on the unique
   # index, and lose one side's message.

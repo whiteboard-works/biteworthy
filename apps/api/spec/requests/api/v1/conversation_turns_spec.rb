@@ -146,10 +146,27 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       end
     end
 
-    it "titles an untitled conversation from the opening message" do
+    # The controller deliberately writes NO title. It used to stamp the
+    # opening message in before enqueuing, which left
+    # `AgentLoop#name_conversation` looking at a title that was already
+    # present — so `Chat::Titler` never ran, and the sidebar showed the
+    # raw question forever. Both halves had specs; neither crossed this
+    # boundary, so nothing failed. These two do cross it.
+    it "leaves the title for the turn to write, not the request" do
       send_message("what can I eat at Ninis?")
 
-      expect(conversation.reload.title).to eq("what can I eat at Ninis?")
+      expect(response).to have_http_status(:accepted)
+      expect(conversation.reload.title).to be_nil
+    end
+
+    it "names the conversation from the model once the turn lands" do
+      script(say("Ninis has three gluten-free dishes."))
+      titled("Gluten-free options at Ninis")
+
+      send_message("what can I eat at Ninis?")
+      work
+
+      expect(conversation.reload.title).to eq("Gluten-free options at Ninis")
     end
 
     it "rejects an empty message without queuing anything" do

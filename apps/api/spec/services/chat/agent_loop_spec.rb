@@ -1903,7 +1903,7 @@ RSpec.describe Chat::AgentLoop do
     # nothing can name would buy a haiku call on every turn forever,
     # against the same ceiling the answers come out of.
     it "stops trying once the opening is no longer what the chat is about" do
-      Array.new(Chat::Titler::NAMING_WINDOW_MESSAGES + 1) do |i|
+      Array.new(Chat::Titler::NAMING_WINDOW_EXCHANGES + 1) do |i|
         conversation.append!(role: "user", content: [{ type: "text", text: "message #{i}" }])
       end
       expect(Chat::Titler).not_to receive(:new)
@@ -1911,6 +1911,22 @@ RSpec.describe Chat::AgentLoop do
       loop_with(say("Sure.")).run(text: "one more")
 
       expect(conversation.reload.title).to be_nil
+    end
+
+    # The window counts exchanges, not stored rows, and this is why: a
+    # `tool_result` is a `user`-role message, so one opening turn that
+    # reaches for six tools stores more than a dozen of them. Counting
+    # rows closed the window before the first attempt — and since the
+    # count only grows, that conversation would never be named at all.
+    # The tool-heavy workflows are exactly the ones worth a name.
+    it "still names a first turn that ran many tool rounds" do
+      titled("Scanning the menu at Ninis")
+      rounds = Array.new(6) { |i| call_tool("get_restaurant", { "restaurant" => "ninis" }, id: "toolu_#{i}") }
+
+      loop_with(*rounds, say("Scanned.")).run(text: "scan the menu at ninis")
+
+      expect(conversation.messages.count).to be > Chat::Titler::NAMING_WINDOW_EXCHANGES
+      expect(conversation.reload.title).to eq("Scanning the menu at Ninis")
     end
 
     # A turn refused for spending its budget would otherwise answer by

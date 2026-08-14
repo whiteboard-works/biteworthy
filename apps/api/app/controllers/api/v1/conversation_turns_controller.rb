@@ -45,7 +45,6 @@ module Api
         end
         return render_error("Unknown mode.") unless apply_mode
 
-        title_from(text)
         enqueue("kind" => "message", "text" => text, "page" => page_context)
       end
 
@@ -245,14 +244,6 @@ module Api
         response.stream.write(": #{text}\n\n")
       rescue IOError, ActionController::Live::ClientDisconnected
         @disconnected = true
-      end
-
-      # The list needs a label and the first thing the user said is the
-      # best one available without spending a model call on it.
-      def title_from(text)
-        return if conversation.title.present?
-
-        conversation.update!(title: text.truncate(60, separator: " "))
       end
     end
   end
