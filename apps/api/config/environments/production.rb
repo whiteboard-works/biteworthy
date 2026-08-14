@@ -42,9 +42,13 @@ Rails.application.configure do
   config.action_mailer.smtp_settings = {
     address:              ENV.fetch("SMTP_ADDRESS", "smtp.resend.com"),
     port:                 ENV.fetch("SMTP_PORT", "587").to_i,
-    user_name:            ENV["SMTP_USERNAME"],
+    # "resend" is Resend's literal SMTP username, not an account name —
+    # defaulting it keeps SMTP_PASSWORD the only value a boot must supply.
+    user_name:            ENV.fetch("SMTP_USERNAME", "resend"),
     password:             ENV["SMTP_PASSWORD"],
-    domain:               ENV.fetch("SMTP_DOMAIN", "bite-worthy.com"),
+    # The verified sending domain is the subdomain, and the From address
+    # has to sit under whatever is verified.
+    domain:               ENV.fetch("SMTP_DOMAIN", "mail.bite-worthy.com"),
     authentication:       :plain,
     enable_starttls_auto: true
   }

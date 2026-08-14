@@ -19,6 +19,11 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * waitlist and shareable-filter-link data flows, and made the
  * analytics and deletion wording match what the code actually does.
  *
+ * The email subprocessor was corrected to Resend (PR #403 switched
+ * production SMTP; this page still named Postmark). Naming the wrong
+ * processor is the one drift here with legal weight, so the
+ * LAST_UPDATED date moves with it.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -33,7 +38,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-06-14';
+const LAST_UPDATED = '2026-08-14';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -132,8 +137,8 @@ export default function PrivacyPage(): ReactElement {
               to train the model. We do not send your reviews or profile to Anthropic.
             </li>
             <li>
-              <strong>Postmark</strong>: outbound email (claim verification, password reset). The
-              recipient address and message body pass through Postmark; we don’t store the message
+              <strong>Resend</strong>: outbound email (claim verification, password reset). The
+              recipient address and message body pass through Resend; we don’t store the message
               itself.
             </li>
             <li>

@@ -76,8 +76,9 @@ can launch without, or fast-follow.
 ### Wave 3 — needs the API live
 
 - [ ] **Wire Resend** — verify `mail.bite-worthy.com` sender (DKIM + SPF
-      DNS), set Server API Token. SOFT, but needed for password reset / claims /
-      waitlist. (~$15/mo at 10k mails; free ≤100/mo.)
+      DNS), generate an API key. SOFT, but needed for password reset / claims /
+      waitlist. (Free tier covers Durango-beta volume; confirm the current
+      limits + paid step-up at signup rather than trusting this line.)
 - [ ] **Create R2 bucket `biteworthy-blobs` + API token.** SOFT, but review/dish
       photos won't survive deploys without it. (~$1–3/mo.)
 - [ ] **Connect Vercel** (Hobby, free) — import repo, set 3 `NEXT_PUBLIC_*` vars,

@@ -82,10 +82,12 @@ The acceptance ("a human runs `email:smoke EMAIL=...` and receives the message")
 1. Sign up for Postmark (https://postmarkapp.com), create a "BiteWorthy" server in transactional mode.
 2. Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records — same registrar as the API CNAME from Phase 5.1).
 3. Generate a Postmark **Server API Token** (used as both SMTP user_name and password).
-4. Put the token in `apps/api/.kamal/secrets` (`SMTP_USERNAME` / `SMTP_PASSWORD`), with the
-   non-secret values (`SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `MAILER_HOST`) in `deploy.yml`'s
-   `env.clear`, then `kamal env push && kamal deploy`. A name in `.kamal/secrets` only reaches the
-   container if it is also listed in `deploy.yml`'s `env.secret`.
+4. Put the API key in `apps/api/.kamal/secrets` as `SMTP_PASSWORD` — the only secret of the set.
+   Everything else (`SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_DOMAIN`, `MAILER_HOST`)
+   is non-secret and already lives in `deploy.yml`'s `env.clear`. Then
+   `kamal env push && kamal deploy`. A name in `.kamal/secrets` only reaches the container if it
+   is also listed in `deploy.yml`'s `env.secret`, so don't add `SMTP_USERNAME` there — it would
+   silently never arrive.
 5. `kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
 
 Steps 1–3 are one-time; 4 happens on token rotation; 5 is the test.
