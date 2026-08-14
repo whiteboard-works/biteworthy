@@ -3,11 +3,21 @@
 module Chat
   # Names a conversation from its opening exchange.
   #
-  # `conversations.title` has existed since the table did, and nothing has
-  # ever written to it: the column is set from `params[:title]` at create,
-  # web POSTs `{}` and mobile sends no body at all. So every row is `nil`
-  # and the history sidebar is a stack of rows all reading "Untitled" —
-  # the one screen whose whole job is telling conversations apart.
+  # `conversations.title` is set from `params[:title]` at create, and both
+  # clients leave it out — web POSTs `{}`, mobile sends no body — so every
+  # row arrived `nil` and the history sidebar was a stack of rows all
+  # reading "Untitled", the one screen whose whole job is telling
+  # conversations apart.
+  #
+  # **This runs only while the column is null, so nothing else may fill
+  # it.** `ConversationTurnsController` used to stamp the opening message
+  # into it, truncated to 60 characters, before enqueuing the turn — which
+  # meant `AgentLoop#name_conversation` found a title present and returned
+  # without ever calling this class. That is not a hypothetical: this file
+  # shipped dead for three days, and the request spec and the loop spec
+  # were both green because neither crossed the controller/job boundary.
+  # `conversation_turns_spec` now asserts the model's title through the
+  # whole path; keep it that way, and put no other writer in front.
   #
   # Server-side rather than in the clients, for two reasons that happen to
   # agree: web already re-fetches the conversation after every turn and
