@@ -174,6 +174,16 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   builds web on its own and mobile ships through EAS), but it means the
   root `pnpm build` cannot be used as a pre-push check.
 
+- **`Chat::Titler` has no VCR cassette** — surfaced by Codex on #599.
+  `GroundingReview` has two under `spec/cassettes/chat/`; the titler has
+  none, because `titler_spec` injects a `ScriptedClient` and never makes
+  an HTTP request. Nothing therefore checks the titler's real request
+  shape — model id, structured-output config, parser — against Anthropic,
+  so a change to any of them fails silently in production rather than in
+  CI. Recording one needs a live call with a real key. Not a blocker
+  (the call has shipped and works), but it is an inconsistency in how
+  the two model calls in the chat are covered.
+
 - **Onboarding-chip flake recurred (3rd occurrence)** — the test fixed
   in #199 ("renders a chip per preset once the fetch resolves") timed
   out again on #304's CI runner (suite took 16.5s; 5s per-test cap).

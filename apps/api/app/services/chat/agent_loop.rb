@@ -897,8 +897,10 @@ module Chat
       # spending again.
       return unless result&.state == :done
       # The retry that makes failure cheap is unbounded on its own — see
-      # `Titler::NAMING_WINDOW_MESSAGES`.
-      return if @conversation.loaded_messages.size > Titler::NAMING_WINDOW_MESSAGES
+      # `Titler::NAMING_WINDOW_EXCHANGES`. Counted in exchanges, because
+      # a tool result is a `user` row and one long opening turn would
+      # otherwise close the window before its first attempt.
+      return if @conversation.exchange_count > Titler::NAMING_WINDOW_EXCHANGES
 
       named = Titler.new.call(question: @conversation.opening_question, answer: result.text)
       record_side_usage(named.usage, named.model)

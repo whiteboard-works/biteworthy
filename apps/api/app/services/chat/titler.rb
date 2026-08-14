@@ -78,7 +78,17 @@ module Chat
     # ceiling the answers come out of. After a few exchanges the opening
     # is no longer what the conversation is about anyway, so the window
     # closes.
-    NAMING_WINDOW_MESSAGES = 12
+    #
+    # **Counted in exchanges, not in stored rows.** It was 12 messages,
+    # which conflates "how many times has this been tried" with "how big
+    # was one turn": a tool result is a `user`-role row, so a single
+    # opening turn that runs six tool rounds stores more than twelve
+    # messages and disqualifies itself before its first attempt — and
+    # since the count only grows, that conversation is never named at
+    # all. Exactly the workflows worth naming are the ones that reach
+    # for the most tools. Caught by Codex on #599, where removing the
+    # controller's raw-message fallback is what exposed it.
+    NAMING_WINDOW_EXCHANGES = 3
 
     SCHEMA = {
       "type" => "object",
