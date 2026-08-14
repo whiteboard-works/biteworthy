@@ -79,6 +79,15 @@ follow-up list is complete; the canonical entries live in
   ToS, including the warranty/liability/indemnity/arbitration clauses.
   Only after this do the **DRAFT banners** (and the source-file DRAFT
   comments on `privacy/page.tsx` + `terms/page.tsx`) come off. Launch gate.
+  - **L1a — chat is undisclosed, and one sentence about it is false.**
+    The Privacy Policy says "We do not send your reviews or profile to
+    Anthropic"; `Chat::SystemPrompt` embeds the caller's strictness and
+    named avoid-lists in every turn's system prompt, and
+    `Tools::Reviews::ListReviews` can put review text in the context.
+    Neither document mentions chat at all. Data flows, retention, and the
+    questions for counsel are written up in
+    [`chat-privacy-l1-brief.md`](./chat-privacy-l1-brief.md) — take that
+    into the L1 pass. Found 2026-08-14 (#608).
 - **L2 — Register a DMCA designated agent** with the U.S. Copyright
   Office (~$6) for §512 safe harbor, and stand up the repeat-infringer
   review process over the `dmca_notices` table that E10 created. Wire the
