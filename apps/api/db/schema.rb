@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_14_152259) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_13_224805) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -336,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_14_152259) do
     t.uuid "ingredient_ids", default: [], null: false, array: true
     t.uuid "menu_section_id"
     t.string "name", null: false
+    t.integer "popularity", default: 0, null: false
     t.integer "position", default: 0, null: false
     t.uuid "restaurant_id", null: false
     t.string "status", default: "draft", null: false
