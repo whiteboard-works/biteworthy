@@ -47,7 +47,7 @@ can launch without, or fast-follow.
 
 | Item | Cost | Gate |
 |---|---|---|
-| Create **Hetzner** account + API token + ed25519 SSH key | ~$6/mo all-in | HARD |
+| Create **Hetzner** account + API token + ed25519 SSH key | ~$8.50/mo all-in | HARD |
 | Create **Neon** `biteworthy-prod` (aws-us-east-1), copy pooled URL | free tier | HARD |
 | Create **GHCR PAT** (`write:packages` + `read:packages`) | free | HARD |
 | **Start L1** — engage Colorado attorney for Privacy + ToS ⏳ *long lead* | varies | HARD |
@@ -242,11 +242,11 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 
 ## Outstanding manual items (Track A checklist)
 
-- [ ] **Hetzner + Neon + GHCR provisioning** → **first `kamal deploy`** (keystone #1)
+- [x] **Hetzner + Neon + GHCR provisioning** → **first `kamal deploy`** (keystone #1) — done; API live, and merges touching `apps/api/**` now deploy themselves
 - [ ] **Engage attorney for L1 Privacy/ToS sign-off** (keystone #2 — start now, long lead)
 - [ ] **Enable Anthropic billing** (keystone #3)
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**
-- [ ] **Resend / R2 / Vercel + domain / PostHog** wiring
+- [ ] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ (all done) · **PostHog** key wiring
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
 - [ ] **Remove DRAFT banners** (post-L1)
