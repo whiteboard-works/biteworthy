@@ -78,7 +78,7 @@ The acceptance ("a review photo posted in production survives a server restart a
    `KAMAL_SECRETS_B64` repo secret carries the same values — `deploy-api.yml` rebuilds
    `.kamal/secrets` from it on every automated deploy, and would otherwise revert these.
 5. Optional CORS — required only if the Phase 5.4 web app starts uploading directly to R2 via signed URLs. ActiveStorage's redirect flow (Rails serves `rails_blob_url`, 302s to the R2 signed URL) doesn't need CORS.
-6. (Pre-existing blobs only) `kamal app exec --role web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'` once the secrets are set, to migrate any old `:local` or `:amazon` blobs to R2. `--role web` is load-bearing: a bare `app exec` runs on `web` and `worker` at once, which would start two concurrent backfills.
+6. (Pre-existing blobs only) `kamal app exec --roles web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'` once the secrets are set, to migrate any old `:local` or `:amazon` blobs to R2. `--roles web` is load-bearing: a bare `app exec` runs on `web` and `worker` at once, which would start two concurrent backfills.
 
 ### Direct CDN serving (deferred)
 

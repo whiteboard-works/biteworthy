@@ -190,7 +190,7 @@ export default function PrivacyPage(): ReactElement {
               you’re signed in, the funnel events are linked to your account. What they carry is
               deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
               visible or hidden, and which <em>kind</em> of filter was applied — not the filter
-              itself. Changing your strictness or preset sends the before and after values.
+              itself. Toggling strictness on a menu sends the before and after value.
               Saving your dietary profile sends only that it happened, never the preset, the
               strictness, or how much you avoid — that association is the one we most want to
               avoid making. We never send review text, your email, or your specific avoid-lists.

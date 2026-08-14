@@ -709,7 +709,12 @@ Branch `feat/ingest-content-types` (the "next PR" from the fence entry below).
   cached endpoint. Gotcha: `kamal app exec` runs on ALL roles (web+worker)
   concurrently → the two seed runs raced ("Slug has already been taken"); the
   web run completed fully, so the data is correct. Use a single role for
-  one-off data tasks (`--role web` before `app exec`, not after).
+  one-off data tasks. *(Corrected 2026-08-14, #608: this line used to say
+  `--role web` had to come **before** `app exec` and not after. It doesn't —
+  `roles` is a Thor `class_option` on `Kamal::CLI::Base`, so `kamal app exec
+  --roles web …` and `kamal --roles web app exec …` both parse and both apply
+  the filter, verified against kamal 2.12 with a bogus role name. The real
+  flag is `--roles`, plural; `--role` only worked as an abbreviation.)*
 - **Durango city created** (empty) via psql INSERT so the `/durango/[diet]`
   SEO pages resolve; they self-heal from the build-time 404 via `revalidate`
   ISR once the API returns 200. Verified vegan/vegetarian/celiac/pescatarian
