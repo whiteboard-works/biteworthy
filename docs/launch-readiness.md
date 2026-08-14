@@ -81,7 +81,7 @@ Numbered roughly in dependency order. Each step lists what it unlocks.
 
 ```bash
 # Hetzner
-hcloud server create --name biteworthy-api --type cx22 \
+hcloud server create --name biteworthy-api --type cpx21 \
     --image ubuntu-24.04 --datacenter ash-dc1 --ssh-key skylar
 # Note the IP. DNS: api.bite-worthy.com A → that IP.
 
