@@ -61,6 +61,7 @@ module Menus
 
       def from_token(token, strictness: nil)
         decoded = ProfileToken.decode(token)
+        verify_token_ids!(decoded)
         new(
           avoid_ingredient_ids: decoded.avoid_ingredient_ids,
           avoid_tag_ids:        decoded.avoid_tag_ids,
@@ -68,6 +69,36 @@ module Menus
           source:               "profile_token",
           preset_slug:          nil
         )
+      end
+
+      # A shared link is a claim: *this menu is filtered to my profile*.
+      # `ProfileToken.decode` can only check the shape of what it was
+      # handed, and a well-formed UUID naming nothing expands to no
+      # subtree and matches no dish — so the claim would be made over a
+      # menu that is not filtered at all. Shape alone therefore does not
+      # close the hole it looks like it closes; membership does, and it
+      # is checked here because this is the layer that already has the
+      # database. Caught by Codex on #605.
+      #
+      # **Refusing the whole token is the point.** These ids can go stale
+      # when an admin removes a taxonomy node, which is exactly when the
+      # link stops meaning what it says — and "this link is no longer
+      # valid" (`ItemsController` turns it into a 422) is a far better
+      # answer to someone with an allergy than a menu quietly missing one
+      # of its reasons. That is the opposite of the call in
+      # `UserProfile#avoid_ids_are_real`, deliberately: there, refusing a
+      # stale id would lock a person out of editing their own filter, so
+      # only newly-added ids are checked. The person can fix a profile.
+      # Nobody can fix a link.
+      def verify_token_ids!(decoded)
+        missing = decoded.avoid_ingredient_ids -
+                  Ingredient.where(id: decoded.avoid_ingredient_ids).pluck(:id)
+        missing += decoded.avoid_tag_ids -
+                   Tag.where(id: decoded.avoid_tag_ids).pluck(:id)
+        return if missing.empty?
+
+        raise ProfileToken::InvalidTokenError,
+              "refers to #{missing.size} ingredient or tag that no longer exists"
       end
 
       def from_preset(slug, strictness: nil)

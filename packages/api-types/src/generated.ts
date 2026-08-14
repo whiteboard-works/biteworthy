@@ -3716,7 +3716,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description invalid strictness or other validation error */
+                /** @description invalid strictness, an avoid id that names no ingredient or tag, or a list sent in both wholesale and add_/remove_ form */
                 422: {
                     headers: {
                         [name: string]: unknown;

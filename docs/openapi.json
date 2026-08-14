@@ -6252,7 +6252,7 @@
             }
           },
           "422": {
-            "description": "invalid strictness or other validation error",
+            "description": "invalid strictness, an avoid id that names no ingredient or tag, or a list sent in both wholesale and add_/remove_ form",
             "content": {
               "application/json": {
                 "schema": {
@@ -6267,7 +6267,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "All fields are optional. Arrays replace wholesale; dietary_profile_slug is additive (unions the preset's avoid lists onto whatever else you sent). The avoid lists also accept add_/remove_ forms for incremental edits — use those from any screen that changes one entry at a time, because a rebuilt array silently reverts anything another client added since it loaded. Sending both forms for one list is a 422.",
+                "description": "All fields are optional. Arrays replace wholesale; dietary_profile_slug is additive (unions the preset's avoid lists onto whatever else you sent). The avoid lists also accept add_/remove_ forms for incremental edits — use those from any screen that changes one entry at a time, because a rebuilt array silently reverts anything another client added since it loaded. Sending both forms for one list is a 422.\n\nAn id in an avoid list has to *resolve*, not merely be a UUID: `format: uuid` is a syntax rule, and an id naming no ingredient or tag would save fine and then match no dish, so the safety filter would silently do nothing. Only ids a request **adds** are checked — one already stored stays acceptable even if its taxonomy node was since removed, so a stale entry can never lock someone out of editing their own filter.",
                 "properties": {
                   "avoid_ingredient_ids": {
                     "type": "array",

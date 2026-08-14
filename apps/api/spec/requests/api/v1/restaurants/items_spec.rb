@@ -287,6 +287,25 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(response.parsed_body["error"]).to match(/Invalid profile_token/)
     end
 
+    # The failure a shape check cannot catch. A well-formed UUID naming
+    # nothing expands to no subtree and matches no dish, so the menu comes
+    # back labelled `source: "profile_token"` — *this is filtered to my
+    # profile* — with every dish visible. Someone with an allergy follows
+    # a friend's link and is shown the thing they avoid. Refusing beats
+    # serving a claim the response cannot keep.
+    it "422s rather than serve an unfiltered menu as a filtered one" do
+      stale = ProfileToken.encode(
+        avoid_ingredient_ids: [SecureRandom.uuid],
+        avoid_tag_ids:        [],
+        strictness:           "balanced"
+      )
+
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{stale}"
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to match(/no longer exists/)
+    end
+
     it "422s on a token with an unsupported schema version" do
       future = Base64.urlsafe_encode64(JSON.generate(v: 99, ai: [], at: [], s: "balanced"), padding: false)
       get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{future}"

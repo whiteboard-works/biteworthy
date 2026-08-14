@@ -41,7 +41,16 @@ RSpec.describe "profile", type: :request do
                      "edits — use those from any screen that changes one " \
                      "entry at a time, because a rebuilt array silently " \
                      "reverts anything another client added since it " \
-                     "loaded. Sending both forms for one list is a 422.",
+                     "loaded. Sending both forms for one list is a 422.\n\n" \
+                     "An id in an avoid list has to *resolve*, not merely " \
+                     "be a UUID: `format: uuid` is a syntax rule, and an " \
+                     "id naming no ingredient or tag would save fine and " \
+                     "then match no dish, so the safety filter would " \
+                     "silently do nothing. Only ids a request **adds** are " \
+                     "checked — one already stored stays acceptable even if " \
+                     "its taxonomy node was since removed, so a stale entry " \
+                     "can never lock someone out of editing their own " \
+                     "filter.",
         properties: {
           avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
           avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
@@ -102,7 +111,14 @@ RSpec.describe "profile", type: :request do
         run_test!
       end
 
-      response(422, "invalid strictness or other validation error") do
+      # One block, not two: OpenAPI carries a single response per status,
+      # so a second `response(422, …)` here would not document a second
+      # cause — it would overwrite this description with whichever ran
+      # last. The causes are named here instead, and the avoid-id refusal
+      # is exercised as behaviour in
+      # `spec/requests/api/v1/profile_spec.rb`.
+      response(422, "invalid strictness, an avoid id that names no ingredient or tag, " \
+                    "or a list sent in both wholesale and add_/remove_ form") do
         schema "$ref" => "#/components/schemas/ValidationErrors"
         let(:account)       { create(:user, password: "password123") }
         let(:Authorization) do
