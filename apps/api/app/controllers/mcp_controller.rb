@@ -127,10 +127,11 @@ class McpController < ApplicationController
       user_id:     caller_user&.id,
       public_host: public_host,
       request_id:  request.request_id,
-      # Empty for a plain JWT, which carries every power the account has.
-      # A scoped credential narrows that, and the tool layer enforces it —
-      # in the JSON-RPC result, not as an HTTP 403, because the *request*
-      # authenticated fine and only one tool call was out of bounds.
+      # `Scopes::ALL` for a plain JWT, which carries every power the
+      # account has. A scoped credential narrows that, and the tool layer
+      # enforces it — in the JSON-RPC result, not as an HTTP 403, because
+      # the *request* authenticated fine and only one tool call was out
+      # of bounds.
       scopes:      granted_scopes
     }
   end
@@ -185,8 +186,17 @@ class McpController < ApplicationController
     request.authorization.present? && caller_user.nil?
   end
 
+  # A JWT is the whole account, and now says so. The fallback used to be
+  # `[]`, which `Scopes.satisfied?` read as unrestricted — the same
+  # spelling a scoped credential got when its grant came out empty. One
+  # of those two is meant to be unrestricted and the other is meant to be
+  # refused, so they no longer share a value.
+  #
+  # The `||` chain reads left to right on purpose: `oauth_token` always
+  # has at least doorkeeper's `default_scopes`, and an `McpToken` cannot
+  # be saved without a scope, so neither branch can yield an empty list.
   def granted_scopes
-    oauth_token&.scopes&.to_a || mcp_token&.scopes || []
+    oauth_token&.scopes&.to_a || mcp_token&.scopes || [ Tools::Scopes::ALL ]
   end
 
   # `resource_metadata` is the RFC 9728 pointer that turns a 401 into a

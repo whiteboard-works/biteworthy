@@ -884,6 +884,7 @@ function ConnectedAppsSection() {
 function McpTokensSection() {
   const [tokens, setTokens] = useState<McpTokenSummary[]>([]);
   const [available, setAvailable] = useState<string[]>([]);
+  const [fullAccessScope, setFullAccessScope] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [chosen, setChosen] = useState<string[]>([]);
   const [fresh, setFresh] = useState<McpTokenWithSecret | null>(null);
@@ -895,6 +896,7 @@ function McpTokensSection() {
       const list = await listTokens();
       setTokens(list.tokens);
       setAvailable(list.scopes);
+      setFullAccessScope(list.full_access_scope ?? null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -928,17 +930,23 @@ function McpTokensSection() {
     }
   };
 
+  // Full access and a granular list are alternatives, not additions —
+  // ticking both would show a set of narrow chips next to a wildcard that
+  // silently overrules every one of them.
   const toggle = (scope: string) =>
-    setChosen((current) =>
-      current.includes(scope) ? current.filter((s) => s !== scope) : [...current, scope],
-    );
+    setChosen((current) => {
+      if (current.includes(scope)) return current.filter((s) => s !== scope);
+      if (scope === fullAccessScope) return [scope];
+      return [...current.filter((s) => s !== fullAccessScope), scope];
+    });
 
   return (
     <section className="mt-bw-10" data-testid="mcp-tokens">
       <h2 className="text-bw-lg font-bold text-zinc-900">Access tokens</h2>
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
-        Tokens you paste into Claude Code or Claude Desktop yourself. Pick only what the app needs —
-        leave everything unticked and it gets the same access you have.
+        Tokens you paste into Claude Code or Claude Desktop yourself. Pick only what the app needs.
+        Full access gives it everything you can do, including anything your account administers — so
+        it is a choice you make, not what happens when you pick nothing.
       </p>
 
       {fresh ? (
@@ -966,7 +974,9 @@ function McpTokensSection() {
                 {token.name}
               </span>
               <span className="block truncate text-bw-xs text-zinc-500">
-                {token.scopes.length ? token.scopes.join(', ') : 'full access'}
+                {fullAccessScope && token.scopes.includes(fullAccessScope)
+                  ? 'full access'
+                  : token.scopes.join(', ')}
                 {token.last_used_at ? ' · used' : ' · never used'}
               </span>
             </span>
@@ -1008,11 +1018,25 @@ function McpTokensSection() {
               {scope}
             </button>
           ))}
+          {fullAccessScope ? (
+            <button
+              type="button"
+              onClick={() => toggle(fullAccessScope)}
+              aria-pressed={chosen.includes(fullAccessScope)}
+              className={`rounded-bw-md border px-bw-2 py-bw-1 text-bw-xs ${
+                chosen.includes(fullAccessScope)
+                  ? 'border-warn bg-warn/10 text-zinc-900'
+                  : 'border-zinc-300 text-zinc-600'
+              }`}
+            >
+              full access
+            </button>
+          ) : null}
         </div>
         <button
           type="button"
           onClick={() => void create()}
-          disabled={busy || name.trim() === ''}
+          disabled={busy || name.trim() === '' || chosen.length === 0}
           className="self-start rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
         >
           Create token

@@ -36,13 +36,48 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
     end
 
     it "caps how many can be live at once" do
-      McpToken::MAX_ACTIVE.times { |i| McpToken.issue!(user: user, name: "t#{i}") }
+      McpToken::MAX_ACTIVE.times { |i| McpToken.issue!(user: user, name: "t#{i}", scopes: ["discovery:read"]) }
 
+      # Scopes are sent so this fails on the cap and not on the empty-grant
+      # refusal below, which would pass for the wrong reason.
       post "/api/v1/mcp_tokens",
-           params: { name: "one too many" }.to_json,
+           params: { name: "one too many", scopes: ["discovery:read"] }.to_json,
            headers: headers.merge("Content-Type" => "application/json")
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to include("active tokens")
+    end
+
+    # The escalation. `compact_blank` turns a client asking for a narrow
+    # grant into an empty list, which used to satisfy every scope check —
+    # so the request that asked for nothing got everything, including the
+    # taxonomy, the moderation queue, and every user's role.
+    it "refuses a grant that empties out instead of granting everything" do
+      post "/api/v1/mcp_tokens",
+           params: { name: "sneaky", scopes: [ "", "   " ] }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(user.mcp_tokens).to be_empty
+    end
+
+    it "refuses a request that names no scopes at all" do
+      post "/api/v1/mcp_tokens",
+           params: { name: "unscoped" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(user.mcp_tokens).to be_empty
+    end
+
+    # Full authority is still available; it just has to be asked for.
+    it "grants everything when the wildcard is named" do
+      post "/api/v1/mcp_tokens",
+           params: { name: "ops", scopes: [Tools::Scopes::ALL] }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["scopes"]).to eq([Tools::Scopes::ALL])
     end
   end
 
@@ -66,8 +101,18 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
       expect(response.parsed_body["scopes"]).to include("discovery:read", "profile:write")
     end
 
+    # The UI has to be able to offer full access as a chip. Hardcoding the
+    # wildcard there would put the API's vocabulary in two places, which is
+    # the reason `scopes` is returned at all.
+    it "names the scope that grants everything" do
+      get "/api/v1/mcp_tokens", headers: headers
+
+      expect(response.parsed_body["full_access_scope"]).to eq(Tools::Scopes::ALL)
+      expect(response.parsed_body["scopes"]).not_to include(Tools::Scopes::ALL)
+    end
+
     it "leaves out revoked ones" do
-      token, = McpToken.issue!(user: user, name: "old laptop")
+      token, = McpToken.issue!(user: user, name: "old laptop", scopes: ["discovery:read"])
       token.revoke!
 
       get "/api/v1/mcp_tokens", headers: headers
@@ -76,7 +121,7 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
     end
 
     it "never shows another account's tokens" do
-      McpToken.issue!(user: create(:user), name: "someone else's")
+      McpToken.issue!(user: create(:user), name: "someone else's", scopes: ["discovery:read"])
 
       get "/api/v1/mcp_tokens", headers: headers
 
@@ -86,7 +131,7 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
 
   describe "DELETE /api/v1/mcp_tokens/:id" do
     it "revokes the caller's own token" do
-      token, secret = McpToken.issue!(user: user, name: "old laptop")
+      token, secret = McpToken.issue!(user: user, name: "old laptop", scopes: ["discovery:read"])
 
       delete "/api/v1/mcp_tokens/#{token.id}", headers: headers
 
@@ -97,7 +142,7 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
     # Revoking by id must not become a way to disable someone else's
     # integration.
     it "404s another account's token and leaves it working" do
-      token, secret = McpToken.issue!(user: create(:user), name: "theirs")
+      token, secret = McpToken.issue!(user: create(:user), name: "theirs", scopes: ["discovery:read"])
 
       delete "/api/v1/mcp_tokens/#{token.id}", headers: headers
 

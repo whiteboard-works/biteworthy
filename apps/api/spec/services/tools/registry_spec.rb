@@ -5,9 +5,15 @@ require "rails_helper"
 # domain, a domain base class whose `audience` failed to inherit, two
 # tools claiming the same name.
 RSpec.describe Tools::Registry do
-  let(:anonymous) { Tools::Context.new({}) }
-  let(:signed_in) { Tools::Context.new({ user_id: create(:user).id }) }
-  let(:admin)     { Tools::Context.new({ user_id: create(:user, is_admin: true).id }) }
+  # These three model a browser session or a plain JWT, which carries the
+  # whole account — `McpController#granted_scopes` returns exactly this.
+  # Stated rather than omitted so the examples below say which credential
+  # they are about: omitting the key would mean the same thing, but only
+  # by way of a default, and these are assertions about authority.
+  let(:full)      { [Tools::Scopes::ALL] }
+  let(:anonymous) { Tools::Context.new({ scopes: full }) }
+  let(:signed_in) { Tools::Context.new({ user_id: create(:user).id, scopes: full }) }
+  let(:admin)     { Tools::Context.new({ user_id: create(:user, is_admin: true).id, scopes: full }) }
 
   it "puts every registered tool in exactly one domain" do
     expect(described_class.all.select { |tool| described_class.domain_of(tool).nil? }).to be_empty
@@ -158,10 +164,23 @@ RSpec.describe Tools::Registry do
         expect(described_class.for(read_only).map(&:name_value)).not_to include("write_review")
       end
 
-      # An unscoped credential is every token issued before scopes existed.
-      # Narrowing those would be a silent lockout, not a safety win.
-      it "leaves an unscoped caller's catalogue alone" do
+      # Scope narrows; it never widens. A full-access credential keeps the
+      # catalogue a scoped one is trimmed out of.
+      it "leaves a full-access caller's catalogue alone" do
         expect(described_class.for(signed_in).size).to be > described_class.for(read_only).size
+      end
+
+      # The fail-open the wildcard replaced: a grant of nothing used to
+      # satisfy every check, so this caller saw the *whole* catalogue —
+      # more than the `read_only` one two examples up. What survives now is
+      # only what no scope gates, which is `meta` describing the server.
+      it "shows a credential granted nothing only what no scope gates" do
+        granted_nothing = Tools::Context.new({ user_id: scoped_user.id, scopes: [] })
+        offered = described_class.for(granted_nothing)
+
+        expect(offered).not_to be_empty
+        expect(offered.map { |tool| described_class.domain_of(tool) }.uniq)
+          .to match_array(Tools::Scopes::UNGATED_DOMAINS)
       end
 
       # `discovery:read` is doorkeeper's default scope, so this is what an

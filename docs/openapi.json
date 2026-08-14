@@ -5959,7 +5959,7 @@
         "tags": [
           "MCP"
         ],
-        "description": "Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary.",
+        "description": "Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary, and `full_access_scope` names the one that grants everything.",
         "security": [
           {
             "bearerAuth": []
@@ -5984,7 +5984,8 @@
                   "type": "object",
                   "required": [
                     "tokens",
-                    "scopes"
+                    "scopes",
+                    "full_access_scope"
                   ],
                   "properties": {
                     "tokens": {
@@ -5998,6 +5999,10 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "full_access_scope": {
+                      "type": "string",
+                      "description": "Grants everything the account can do. Not included in `scopes`, because it is a different kind of choice."
                     }
                   }
                 }
@@ -6011,7 +6016,7 @@
         "tags": [
           "MCP"
         ],
-        "description": "The only response that ever carries the secret. Omit `scopes` for a credential with the same access as the account.",
+        "description": "The only response that ever carries the secret. `scopes` is required and must name at least one grant; send the `full_access_scope` from GET to grant everything the account can do.",
         "security": [
           {
             "bearerAuth": []
@@ -6055,7 +6060,8 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name"
+                  "name",
+                  "scopes"
                 ],
                 "properties": {
                   "name": {
@@ -6067,7 +6073,8 @@
                     "items": {
                       "type": "string"
                     },
-                    "description": "e.g. discovery:read"
+                    "minItems": 1,
+                    "description": "e.g. discovery:read. An empty list is refused rather than read as full access — see full_access_scope."
                   }
                 }
               }

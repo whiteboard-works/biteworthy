@@ -1123,8 +1123,16 @@ module Chat
       @context ||= Tools::Context.new(server_context)
     end
 
+    # `scopes` is stated rather than left to `Context`'s default. A
+    # first-party turn is the signed-in person acting through their own
+    # session, so it carries the whole account — and the product's
+    # largest tool consumer should say that out loud rather than inherit
+    # it from an absent key.
     def server_context
-      @server_context ||= { user_id: @conversation.user_id, public_host: @public_host }
+      @server_context ||= {
+        user_id: @conversation.user_id, public_host: @public_host,
+        scopes: [ Tools::Scopes::ALL ]
+      }
     end
 
     # Both ceilings are pre-call: the check runs before the request that

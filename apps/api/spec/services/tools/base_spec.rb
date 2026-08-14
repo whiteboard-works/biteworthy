@@ -123,14 +123,30 @@ RSpec.describe Tools::Base do
       expect(user.reload.profile.avoid_ingredient_ids).to include(peanut.id)
     end
 
-    # Every credential issued before scopes existed carries none.
-    it "treats an unscoped credential as unrestricted" do
+    # Full authority is a value now, not the absence of one — a session or
+    # a plain JWT arrives carrying it (`McpController#granted_scopes`).
+    it "treats a wildcard credential as unrestricted" do
       response = Tools::Profile::UpdateAvoidLists.call(
-        server_context: { user_id: user.id },
+        server_context: { user_id: user.id, scopes: [Tools::Scopes::ALL] },
         add_ingredients: [peanut.slug]
       )
 
       expect(response.to_h[:isError]).to be_falsey
+      expect(user.reload.profile.avoid_ingredient_ids).to include(peanut.id)
+    end
+
+    # And the fail-open it replaced: this used to be read as unrestricted,
+    # so a credential that had been granted nothing could edit the avoid
+    # list — the one piece of data the whole product treats as safety
+    # critical.
+    it "refuses a credential that was granted nothing" do
+      response = Tools::Profile::UpdateAvoidLists.call(
+        server_context: { user_id: user.id, scopes: [] },
+        add_ingredients: [peanut.slug]
+      )
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(user.reload.profile.avoid_ingredient_ids).not_to include(peanut.id)
     end
   end
 

@@ -773,9 +773,10 @@ Manage them at **/profile/settings → Connected apps**, or from a shell:
 
 ```bash
 bin/rails "mcp:issue[you@example.com,Claude Code,discovery:read profile:read]"
+bin/rails "mcp:issue[you@example.com,ops,*]"   # full access, said out loud
 bin/rails "mcp:list[you@example.com]"
 bin/rails "mcp:revoke[<token id>]"
-bin/rails mcp:scopes          # every grantable scope
+bin/rails mcp:scopes          # every grantable scope, plus `*`
 ```
 
 The secret prints once; only its SHA-256 is stored, so a leaked database
@@ -820,9 +821,31 @@ then refuses to run — the exact wasted turn the exemption exists to
 prevent. An ungated domain also drops out of `Scopes.available`, so no
 consent screen asks permission for something nothing checks.
 
-**An unscoped credential is unrestricted.** Every JWT issued before this
-existed carries no scopes, and treating that as "denied" would lock out
-every working integration.
+**Full access is a value, not an absence.** `Tools::Scopes::ALL` (`*`) is
+the grant that covers everything, and a credential has to name it.
+
+It used to be spelled by saying nothing: an empty grant satisfied every
+check, which left the vocabulary no way to express "nothing" — so
+"nothing" and "everything" shared a spelling, and any path producing an
+empty list escalated silently to all thirteen gated domains. The
+inversion is the tell: `["profile:read"]` was refused `taxonomy:write`
+while `[]` was allowed it. `McpTokensController` reached it with
+`scopes: ["", "  "]`, which `compact_blank` turned into full access for a
+request that had asked for less than the minimum.
+
+Three things keep the two apart now:
+
+- `McpToken` validates `scopes` presence, so no token is minted without
+  stating its authority. Existing unscoped rows were backfilled to `{*}`
+  — nothing changed about what they can do, only how it is written down.
+- `McpController#granted_scopes` returns `[ALL]` for a plain JWT, and
+  `Chat::AgentLoop` states it for a first-party turn. Both genuinely are
+  the whole account; they just say so now.
+- `Tools::Context` holds the last distinction: **omitting `scopes`** means
+  no credential is narrowing this call (an in-process caller, a session)
+  and is unrestricted; **passing `scopes: []`** means a credential was
+  consulted and granted nothing, which is a refusal. Not saying and
+  saying nothing are different answers.
 
 ### Connecting Claude Code
 

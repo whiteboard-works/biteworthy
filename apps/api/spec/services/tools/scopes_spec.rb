@@ -58,12 +58,34 @@ RSpec.describe Tools::Scopes do
   end
 
   describe ".satisfied?" do
-    # Every credential issued before scopes existed carries none. Treating
-    # that as "denied" would lock out every working integration; treating
-    # it as "unrestricted" is what it has always been.
-    it "treats an unscoped credential as unrestricted" do
-      expect(described_class.satisfied?([], "users:write")).to be(true)
-      expect(described_class.satisfied?(nil, "users:write")).to be(true)
+    # The fail-open this replaced. An empty grant used to satisfy every
+    # check, so the vocabulary had no way to say "nothing" — and any path
+    # that produced an empty list escalated silently to all thirteen gated
+    # domains. `McpTokensController` reached it with two blank strings.
+    it "refuses a credential that was granted nothing" do
+      expect(described_class.satisfied?([], "users:write")).to be(false)
+      expect(described_class.satisfied?(nil, "users:write")).to be(false)
+    end
+
+    # The inversion that gave it away: asking for less than the minimum
+    # used to get you more than the maximum.
+    it "never lets an empty grant outrank a narrow one" do
+      narrow = described_class.satisfied?(["profile:read"], "taxonomy:write")
+
+      expect(described_class.satisfied?([], "taxonomy:write")).to eq(narrow)
+    end
+
+    # Full authority still exists — it is spelled, not implied.
+    it "honours the wildcard as the way to say everything" do
+      expect(described_class.satisfied?([described_class::ALL], "users:write")).to be(true)
+    end
+
+    # An ungated domain is reachable by a caller granted nothing at all:
+    # `meta` is the server describing itself, already filtered to whoever
+    # is asking, and gating it would hide the map from a client that never
+    # thought to ask for it.
+    it "still lets a nothing-grant reach what no scope gates" do
+      expect(described_class.satisfied?([], nil)).to be(true)
     end
 
     it "honours an exact grant" do

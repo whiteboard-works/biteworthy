@@ -46,6 +46,15 @@ vi.mock('../../../../lib/onboarding', () => ({
   searchIngredients: (...a: unknown[]) => mockSearchIngredients(...a),
 }));
 
+const mockListTokens = vi.fn();
+const mockCreateToken = vi.fn();
+const mockRevokeToken = vi.fn();
+vi.mock('../../../../lib/mcp-tokens', () => ({
+  listTokens: (...a: unknown[]) => mockListTokens(...a),
+  createToken: (...a: unknown[]) => mockCreateToken(...a),
+  revokeToken: (...a: unknown[]) => mockRevokeToken(...a),
+}));
+
 import ProfileSettingsPage from '../page';
 
 const PROFILE: ProfilePayload = {
@@ -82,6 +91,16 @@ beforeEach(() => {
   mockSearchIngredients.mockReset().mockResolvedValue([]);
   mockFetchMyReviews.mockReset().mockResolvedValue({ reviews: [], total: 0 });
   mockFetchMyFavorites.mockReset().mockResolvedValue({ restaurants: [], items: [] });
+  mockListTokens.mockReset().mockResolvedValue({
+    tokens: [],
+    scopes: ['discovery:read', 'profile:write'],
+    full_access_scope: '*',
+  });
+  mockCreateToken.mockReset().mockResolvedValue({
+    id: 't-1', name: 'Claude Code', scopes: ['discovery:read'], secret: 'bw_mcp_x',
+    created_at: '2026-08-14T00:00:00Z', last_used_at: null,
+  });
+  mockRevokeToken.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => localStorage.clear());
@@ -376,5 +395,77 @@ describe('ProfileSettingsPage — analytics toggle', () => {
     render(<ProfileSettingsPage />);
     const toggle = (await screen.findByLabelText('analytics-opt-in')) as HTMLInputElement;
     expect(toggle.checked).toBe(false);
+  });
+});
+
+/**
+ * Access tokens for MCP clients.
+ *
+ * A token used to get full access by naming no scopes at all, so the
+ * least deliberate way to fill this form — type a name, tick nothing,
+ * click — produced a credential that could reach the taxonomy, the
+ * moderation queue, and every user's role. The server refuses that now;
+ * these cover the half of the fix that has to happen where the person is
+ * actually looking.
+ */
+describe('ProfileSettingsPage — access tokens', () => {
+  const nameIt = async (label: string) => {
+    fireEvent.change(await screen.findByLabelText('Token name'), { target: { value: label } });
+  };
+
+  it('will not create a token until some authority has been chosen', async () => {
+    render(<ProfileSettingsPage />);
+    await nameIt('Claude Code');
+
+    expect(screen.getByText('Create token')).toBeDisabled();
+
+    fireEvent.click(screen.getByText('discovery:read'));
+    await waitFor(() => expect(screen.getByText('Create token')).toBeEnabled());
+  });
+
+  it('sends the wildcard when full access is the choice', async () => {
+    render(<ProfileSettingsPage />);
+    await nameIt('ops');
+
+    fireEvent.click(await screen.findByText('full access'));
+    fireEvent.click(screen.getByText('Create token'));
+
+    await waitFor(() => expect(mockCreateToken).toHaveBeenCalledWith('ops', ['*']));
+  });
+
+  // Ticking both would show a set of narrow chips beside a wildcard that
+  // silently overrules every one of them — a grant that reads as limited
+  // and behaves as total, which is the confusion this whole change is
+  // about.
+  it('treats full access and a narrow grant as alternatives', async () => {
+    render(<ProfileSettingsPage />);
+    const chip = async (label: string) => await screen.findByText(label);
+
+    fireEvent.click(await chip('discovery:read'));
+    fireEvent.click(await chip('full access'));
+
+    expect(await chip('full access')).toHaveAttribute('aria-pressed', 'true');
+    expect(await chip('discovery:read')).toHaveAttribute('aria-pressed', 'false');
+
+    // And back the other way, so neither is a trap door.
+    fireEvent.click(await chip('profile:write'));
+
+    expect(await chip('profile:write')).toHaveAttribute('aria-pressed', 'true');
+    expect(await chip('full access')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('says plainly which existing tokens hold everything', async () => {
+    mockListTokens.mockResolvedValue({
+      tokens: [
+        { id: 't-1', name: 'ops', scopes: ['*'], created_at: '2026-08-14T00:00:00Z', last_used_at: null },
+        { id: 't-2', name: 'reader', scopes: ['discovery:read'], created_at: '2026-08-14T00:00:00Z', last_used_at: null },
+      ],
+      scopes: ['discovery:read', 'profile:write'],
+      full_access_scope: '*',
+    });
+    render(<ProfileSettingsPage />);
+
+    expect(await screen.findByText(/full access ·/)).toBeInTheDocument();
+    expect(screen.getByText(/discovery:read ·/)).toBeInTheDocument();
   });
 });

@@ -18,9 +18,25 @@ module Tools
   # split follows the annotation a tool already carries rather than a
   # second list that would drift.
   module Scopes
-    # Granted when a token says nothing about scopes. Existing tokens —
-    # every one issued before this shipped — keep working exactly as they
-    # did, and a scope check on them is a no-op rather than a lockout.
+    # Full authority, as a value a caller has to *say*.
+    #
+    # It used to be spelled by saying nothing: an empty grant satisfied
+    # every check. That gave the vocabulary no way to express "nothing",
+    # so "nothing" and "everything" shared a spelling — and every path
+    # that can produce an empty list became a silent escalation to all 13
+    # gated domains, `taxonomy`, `moderation` and `users` among them.
+    # `McpTokensController` reached it with two blank strings; `Registry`
+    # and `Base` would then hand that token the full catalogue.
+    #
+    # The inversion is the tell: `["profile:read"]` was refused
+    # `taxonomy:write`, while `[]` was allowed it. Asking for less than
+    # the minimum got you more than the maximum.
+    #
+    # So a *stated* empty grant now means empty, and the callers that
+    # genuinely are unrestricted — a Devise JWT, a first-party chat turn —
+    # name this constant. `Context` keeps the other half of the
+    # distinction: a caller with no credential at all omits the key
+    # entirely rather than passing `[]`.
     ALL = "*"
 
     # Domains no scope gates. `meta` is the server describing itself, and
@@ -85,11 +101,13 @@ module Tools
       # is the wildcard, or when a write grant implies the read on the
       # same domain — asking for permission to edit a menu and then being
       # refused permission to look at one would be nonsense.
+      #
+      # An empty grant covers nothing. See `ALL` for what that changed.
       def satisfied?(granted, required)
         return true if required.nil?
 
         list = Array(granted)
-        return true if list.empty? || list.include?(ALL)
+        return true if list.include?(ALL)
         return true if list.include?(required)
 
         domain, action = required.split(":")

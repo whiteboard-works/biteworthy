@@ -75,7 +75,7 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     # already describes for the auth endpoints.
     it "gives a credentialed caller headroom an anonymous one does not have" do
       user = create(:user)
-      _, secret = McpToken.issue!(user: user, name: "Claude Code")
+      _, secret = McpToken.issue!(user: user, name: "Claude Code", scopes: [ "discovery:read" ])
 
       31.times { rpc("Authorization" => "Bearer #{secret}") }
 
@@ -85,8 +85,8 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     # Two credentials must not share a counter, or one busy client
     # throttles everyone else who happens to be on the same address.
     it "counts two credentials separately" do
-      first  = McpToken.issue!(user: create(:user), name: "one").last
-      second = McpToken.issue!(user: create(:user), name: "two").last
+      first  = McpToken.issue!(user: create(:user), name: "one", scopes: [ "discovery:read" ]).last
+      second = McpToken.issue!(user: create(:user), name: "two", scopes: [ "discovery:read" ]).last
 
       100.times { rpc("Authorization" => "Bearer #{first}") }
       rpc("Authorization" => "Bearer #{second}")
@@ -108,7 +108,7 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     end
 
     it "exempts a super admin's MCP token from the credential ceiling" do
-      _, secret = McpToken.issue!(user: create(:user, :super_admin), name: "shell")
+      _, secret = McpToken.issue!(user: create(:user, :super_admin), name: "shell", scopes: [ "discovery:read" ])
 
       200.times { rpc("Authorization" => "Bearer #{secret}") }
 
@@ -116,7 +116,7 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     end
 
     it "does not exempt a plain admin" do
-      _, secret = McpToken.issue!(user: create(:user, :admin), name: "mod")
+      _, secret = McpToken.issue!(user: create(:user, :admin), name: "mod", scopes: [ "discovery:read" ])
 
       200.times { rpc("Authorization" => "Bearer #{secret}") }
 
