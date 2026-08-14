@@ -132,6 +132,9 @@ non-secret half is already committed in `deploy.yml`'s `env.clear`
   ```
   Only the key is a secret — `SMTP_USERNAME` is the literal string `resend` and
   is already set in `env.clear`.
+- **Then run `apps/api/bin/kamal-secrets-push`** to sync the `KAMAL_SECRETS_B64` repo
+  secret. `deploy-api.yml` rebuilds `.kamal/secrets` from it on every automated deploy,
+  so skipping this means the next merge to master quietly reverts the key.
 - Confirm: `kamal smoke` continues to pass; then `bin/rails biteworthy:email:smoke EMAIL=you@example.com` over `kamal app exec` to send a test message.
 
 ### 3. Wire production storage (Phase 5.3)
@@ -147,7 +150,8 @@ non-secret half is already committed in `deploy.yml`'s `env.clear`
   R2_BUCKET=biteworthy-blobs
   R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
   ```
-- `kamal env push && kamal deploy`.
+- `kamal env push && kamal deploy`, then `apps/api/bin/kamal-secrets-push` (see above — CI
+  rebuilds `.kamal/secrets` from the repo secret and would revert these otherwise).
 - (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
 
 ### 4. Provision the web app on Vercel (Phase 5.4)

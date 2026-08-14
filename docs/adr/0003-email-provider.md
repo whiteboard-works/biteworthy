@@ -79,18 +79,25 @@ If a future phase needs Postmark's tag-based analytics or template engine, swapp
 
 The acceptance ("a human runs `email:smoke EMAIL=...` and receives the message") needs:
 
-1. Sign up for Postmark (https://postmarkapp.com), create a "BiteWorthy" server in transactional mode.
-2. Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records — same registrar as the API CNAME from Phase 5.1).
-3. Generate a Postmark **Server API Token** (used as both SMTP user_name and password).
+*(Rewritten for Resend per the banner at the top; the original steps stood up a
+Postmark server and token, which no longer authenticate against anything we run.)*
+
+1. In Resend, add **`mail.bite-worthy.com`** as a sending domain — the subdomain, not the apex.
+2. Publish the DKIM + SPF records Resend emits, at the same registrar as the API `A` record from Phase 5.1.
+3. Generate a Resend **API key** with send access.
 4. Put the API key in `apps/api/.kamal/secrets` as `SMTP_PASSWORD` — the only secret of the set.
-   Everything else (`SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_DOMAIN`, `MAILER_HOST`)
-   is non-secret and already lives in `deploy.yml`'s `env.clear`. Then
+   Everything else (`SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_DOMAIN`, `MAILER_HOST`,
+   `DEVISE_MAILER_FROM`) is non-secret and already lives in `deploy.yml`'s `env.clear`. Then
    `kamal env push && kamal deploy`. A name in `.kamal/secrets` only reaches the container if it
    is also listed in `deploy.yml`'s `env.secret`, so don't add `SMTP_USERNAME` there — it would
    silently never arrive.
-5. `kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
+5. **Run `apps/api/bin/kamal-secrets-push`.** `kamal env push` only updates the box you just
+   deployed from; `deploy-api.yml` rebuilds `.kamal/secrets` from the `KAMAL_SECRETS_B64` repo
+   secret on every automated deploy, so without this the next merge to master silently reverts
+   the key.
+6. `kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
 
-Steps 1–3 are one-time; 4 happens on token rotation; 5 is the test.
+Steps 1–3 are one-time; 4–5 happen together on every key rotation; 6 is the test.
 
 ### Phase 4 mailer surfaces — what works after this lands
 

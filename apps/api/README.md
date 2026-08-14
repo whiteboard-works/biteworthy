@@ -91,6 +91,7 @@ gem install kamal
 kamal setup            # installs Docker on box, pulls image, boots kamal-proxy
 kamal env push          # uploads .kamal/secrets to the box
 kamal deploy            # full deploy; db:prepare runs from the entrypoint on puma boot
+bin/kamal-secrets-push  # syncs KAMAL_SECRETS_B64 so CI deploys use the same values
 
 # 7. Confirm.
 kamal smoke             # alias for `app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"`
@@ -135,6 +136,7 @@ Production SMTP is wired in `config/environments/production.rb`. Decision + trad
 ```bash
 kamal env push
 kamal deploy
+bin/kamal-secrets-push   # or the next CI deploy reverts it
 ```
 
 **Confirm delivery:**
@@ -160,6 +162,7 @@ Production blobs (review photos, dish photos, ingestion menu pages) live on **Cl
 #    R2_ENDPOINT in .kamal/secrets (template at .kamal/secrets.example).
 kamal env push
 kamal deploy
+bin/kamal-secrets-push   # or the next CI deploy reverts it
 ```
 
 **(Optional) Migrate any pre-existing blobs to R2:**
