@@ -75,13 +75,12 @@ can launch without, or fast-follow.
 
 ### Wave 3 — needs the API live
 
-- [ ] **Wire Resend** — verify `mail.bite-worthy.com` sender (DKIM + SPF
-      DNS), generate an API key, put it in `apps/api/.kamal/secrets` as
-      `SMTP_PASSWORD`, then (from `apps/api/`) `kamal env push && kamal deploy`
-      and `bin/kamal-secrets-push` so CI deploys don't revert it. SOFT, but
-      needed for password reset / claims / waitlist. (Free tier covers
-      Durango-beta volume; confirm the current limits + paid step-up at signup
-      rather than trusting this line.)
+- [x] **Wire Resend** — **DONE 2026-08-14.** `mail.bite-worthy.com` verified,
+      API key in `.kamal/secrets` as `SMTP_PASSWORD`, deployed and synced to
+      `KAMAL_SECRETS_B64`. `biteworthy:email:smoke` delivered end-to-end and
+      landed in the **inbox, not spam** — so DKIM/SPF are good enough for a
+      cold sending domain. Password reset, claim verification and the waitlist
+      mailer are live.
 - [ ] **Create R2 bucket `biteworthy-blobs` + API token.** SOFT, but review/dish
       photos won't survive deploys without it. (~$1–3/mo.)
 - [ ] **Connect Vercel** (Hobby, free) — import repo, set 3 `NEXT_PUBLIC_*` vars,

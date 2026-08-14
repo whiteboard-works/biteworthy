@@ -111,15 +111,24 @@ curl https://api.bite-worthy.com/up
 
 Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after this manual flow proves out (queued as Phase 5.1.1-wiring).
 
-### 2. Wire production email (Phase 5.2)
+### 2. Wire production email (Phase 5.2) — ✅ **DONE 2026-08-14**
 
-**Unlocks:** Devise password reset, restaurant claim verification (Phase 4.9), waitlist confirmation emails (Phase 5.10).
+**Unlocks:** Devise password reset, restaurant claim verification (Phase 4.9), waitlist confirmation emails (Phase 5.10). All three are live.
 
 Provider is **Resend** (PR #403 — the Postmark account in ADR 0003 was never
 stood up, and Mailgun's free plan refused a second sending domain). The
-non-secret half is already committed in `deploy.yml`'s `env.clear`
+non-secret half is committed in `deploy.yml`'s `env.clear`
 (`smtp.resend.com`, port 587, username `resend`, domain
-`mail.bite-worthy.com`). What's left:
+`mail.bite-worthy.com`).
+
+`mail.bite-worthy.com` is verified, the API key is in `.kamal/secrets` as
+`SMTP_PASSWORD`, deployed, and synced to `KAMAL_SECRETS_B64`.
+`bin/rails biteworthy:email:smoke` delivered end-to-end and the message landed
+in the **inbox rather than spam**, which is the part worth recording — a cold
+sending subdomain often doesn't on the first try.
+
+The steps below are kept as the runbook for rotating the key or standing the
+provider up again on a new box:
 
 - In Resend, add **`mail.bite-worthy.com`** as a sending domain and publish the
   DKIM + SPF records it emits at the registrar. The subdomain is deliberate —
