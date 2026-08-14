@@ -89,6 +89,17 @@ RSpec.describe "Chat::AgentLoop asking a question" do
       expect(conversation.messages.map(&:content).flatten.to_s).to include("at least two options")
     end
 
+    # This path bypasses `Tools::Base.call` and so the input-schema
+    # validator with it, which makes the element type our problem: a
+    # crashed turn is a much worse answer than "fix your arguments".
+    it "refuses a malformed option rather than crashing the turn" do
+      result, = run_with(turn(ask(options: [ nil, { "id" => "b", "label" => "B" } ])),
+                         said("let me try that again"), text: "hi")
+
+      expect(result.state).to eq(:done)
+      expect(conversation.reload.state).to eq("active")
+    end
+
     it "refuses options that share an id" do
       same = [ { "id" => "a", "label" => "One" }, { "id" => "a", "label" => "Two" } ]
       result, = run_with(turn(ask(options: same)), said("let me try again"), text: "hi")

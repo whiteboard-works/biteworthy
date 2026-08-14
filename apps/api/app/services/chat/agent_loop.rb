@@ -474,7 +474,13 @@ module Chat
       input    = call["input"] || {}
       question = input["question"].to_s.strip
       options  = Array(input["options"])
+      # The element type is checked before anything is read off it. This
+      # path bypasses `Tools::Base.call` and therefore the input-schema
+      # validator, so `options: [null, {…}]` would otherwise raise on
+      # `o["id"]` and turn a recoverable tool error into a crashed turn —
+      # the one outcome this method exists to avoid.
       invalid  = question.blank? || options.size < 2 ||
+                 options.any? { |o| !o.is_a?(Hash) } ||
                  options.any? { |o| o["id"].to_s.strip.blank? || o["label"].to_s.strip.blank? } ||
                  options.map { |o| o["id"].to_s }.uniq.size != options.size
 
