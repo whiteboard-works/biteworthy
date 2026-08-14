@@ -18,6 +18,7 @@ const getConversation = vi.fn();
 const deleteConversation = vi.fn();
 const sendMessage = vi.fn();
 const answerConfirmation = vi.fn();
+const answerQuestion = vi.fn();
 const watchTurn = vi.fn();
 const stopTurn = vi.fn();
 const uploadAttachment = vi.fn();
@@ -35,6 +36,8 @@ vi.mock('../../../lib/chat', async () => {
       sendMessage(id, text, context, mode),
     answerConfirmation: (id: string, ok: boolean, fingerprint: string | null, mode?: unknown) =>
       answerConfirmation(id, ok, fingerprint, mode),
+    answerQuestion: (id: string, answer: unknown, fingerprint: string | null, mode?: unknown) =>
+      answerQuestion(id, answer, fingerprint, mode),
     setConversationMode: (id: string, mode: unknown) => setConversationMode(id, mode),
     watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
       watchTurn(id, after, onEvent),
@@ -75,6 +78,7 @@ beforeEach(() => {
   // separately, so tests drive the two halves independently.
   sendMessage.mockResolvedValue({ queued: true, after: 0 });
   answerConfirmation.mockResolvedValue({ queued: true, after: 0 });
+  answerQuestion.mockResolvedValue({ queued: true, after: 0 });
   watchTurn.mockResolvedValue(null);
   stopTurn.mockResolvedValue(undefined);
   setConversationMode.mockResolvedValue(blank);
@@ -119,6 +123,77 @@ describe('ChatClient', () => {
     expect(await screen.findByTestId('assistant-message')).toHaveTextContent(
       'Ninis has 12 dishes you can eat.',
     );
+  });
+
+  // The model could always just *write* "did you mean the taqueria or the
+  // cantina?" and wait. What comes back then is a string — "the first
+  // one", "taqueria", "yes" — and every call after it rests on the model
+  // reading that the way the person meant. Answering with an id the
+  // server wrote down removes the interpretation step entirely.
+  describe('when the assistant asks a question', () => {
+    const question = {
+      question: "Which Nini's did you mean?",
+      options: [
+        { id: 'taqueria', label: "Nini's Taqueria" },
+        { id: 'cantina', label: "Nini's Cantina", detail: 'On Main' },
+      ],
+      fingerprint: 'fp-q1',
+    };
+
+    beforeEach(() => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'awaiting_answers', question });
+      });
+      getConversation.mockResolvedValue({ ...blank, state: 'awaiting_answers', question });
+    });
+
+    it('draws the options the server wrote down', async () => {
+      render(<ChatClient />);
+      await type('what can I eat at ninis');
+
+      const prompt = await screen.findByTestId('question-prompt');
+      expect(prompt).toHaveTextContent("Which Nini's did you mean?");
+      expect(within(prompt).getByRole('button', { name: /Nini's Taqueria/ })).toBeInTheDocument();
+    });
+
+    it('answers with the option id, not its label', async () => {
+      render(<ChatClient />);
+      await type('what can I eat at ninis');
+      const prompt = await screen.findByTestId('question-prompt');
+
+      fireEvent.click(within(prompt).getByRole('button', { name: /Nini's Taqueria/ }));
+
+      await waitFor(() =>
+        expect(answerQuestion).toHaveBeenCalledWith(
+          'c-1',
+          { optionId: 'taqueria' },
+          'fp-q1',
+          'manual',
+        ),
+      );
+    });
+
+    // An option list that misses the obvious answer is worse than no
+    // options, so there is always a way to say something else.
+    it('takes an answer that was not on the list', async () => {
+      render(<ChatClient />);
+      await type('what can I eat at ninis');
+      const prompt = await screen.findByTestId('question-prompt');
+
+      fireEvent.change(within(prompt).getByLabelText('Something else'), {
+        target: { value: 'neither, the one on Main' },
+      });
+      fireEvent.click(within(prompt).getByRole('button', { name: 'Send' }));
+
+      await waitFor(() =>
+        expect(answerQuestion).toHaveBeenCalledWith(
+          'c-1',
+          { text: 'neither, the one on Main' },
+          'fp-q1',
+          'manual',
+        ),
+      );
+    });
   });
 
   // The tool's own sentence, not its function name — it is the only thing

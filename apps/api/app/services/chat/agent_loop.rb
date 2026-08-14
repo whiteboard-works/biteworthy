@@ -73,7 +73,14 @@ module Chat
 
     Result = Struct.new(:state, :text, :pending, :error, keyword_init: true) do
       def awaiting_confirmation? = state == :awaiting_confirmation
+      def awaiting_answers?      = state == :awaiting_answers
       def ok?                    = state != :error
+
+      # Both ways a turn can stop mid-flight owing the person a reply.
+      # Every caller deciding "did this turn finish" wants this rather
+      # than one of them — the two differ in what is being asked, not in
+      # whether the loop should go on.
+      def parked? = awaiting_confirmation? || awaiting_answers?
     end
 
     class BudgetExceeded < StandardError; end
@@ -110,7 +117,7 @@ module Chat
     # into a single ordered list, and the resulting transcript is not
     # merely confusing — it is rejected by the Messages API, which makes
     # the conversation permanently unusable rather than one turn poorer.
-    def run(text: nil, confirm: nil, fingerprint: nil)
+    def run(text: nil, confirm: nil, fingerprint: nil, answer: nil)
       @run = @injected_run || ConversationRun.acquire(@conversation)
       if @run.nil?
         result = Result.new(state: :error, error: "This conversation is already answering. Wait for it to finish.")
@@ -125,7 +132,7 @@ module Chat
       @conversation.heal!
       @deadline = Time.current + turn_deadline_seconds
 
-      result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
+      result = perform(text: text, confirm: confirm, fingerprint: fingerprint, answer: answer)
       name_conversation(result)
       emit_terminal(result)
       result
@@ -253,10 +260,15 @@ module Chat
       result.state.to_s
     end
 
-    def perform(text:, confirm:, fingerprint: nil)
+    def perform(text:, confirm:, fingerprint: nil, answer: nil)
       if @conversation.awaiting_confirmation?
         raise ArgumentError, "answer the pending confirmation before sending a message" if text
         return resume(confirm, fingerprint)
+      end
+
+      if @conversation.awaiting_answers?
+        raise ArgumentError, "answer the pending question before sending a message" if text
+        return resume_answer(answer, fingerprint)
       end
 
       raise ArgumentError, "text is required to start a turn" if text.blank?
@@ -322,7 +334,7 @@ module Chat
       # mode with it: confirming one destructive call does not
       # pre-authorize the next.
       outcome = continue_queue(queue.drop(1), results)
-      return outcome if outcome.awaiting_confirmation?
+      return outcome if outcome.parked?
 
       drive
     end
@@ -341,7 +353,7 @@ module Chat
         return finish(blocks, message) unless response["stop_reason"] == "tool_use"
 
         outcome = continue_queue(blocks.select { |b| b["type"] == "tool_use" }, [])
-        return outcome if outcome.awaiting_confirmation?
+        return outcome if outcome.parked?
       end
 
       # Halted rather than returned, for the same reason the deadline is:
@@ -393,6 +405,15 @@ module Chat
           emit(type: "tool_result", name: call["name"], ok: false)
           results << refusal(call)
         else
+          # Parked *before* execution, exactly like a confirmation and for
+          # the same reason: this call's `tool_result` has to be the
+          # person's answer, so the tool must not already have written
+          # one. Nothing is dispatched — the loop is the thing that asks.
+          if halts?(call)
+            parked = park_question(results, queue.drop(index))
+            return parked.is_a?(Result) ? parked : Result.new(state: :awaiting_answers, pending: parked)
+          end
+
           emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
           result = execute(call, confirmation: standing_grant_for(call))
           emit(type: "tool_result", name: call["name"], ok: !result[:is_error])
@@ -428,6 +449,119 @@ module Chat
         pending_tool_call: { "results" => results, "queue" => queue, "pending" => pending }
       )
       pending
+    end
+
+    def halts?(call) = tool_for(call)&.halts_turn? == true
+
+    # Parks a question and hands back what a client needs to draw it.
+    #
+    # Validated here rather than in the tool, because the tool never runs:
+    # the loop stops on the decision to call it. A malformed question is
+    # therefore a `tool_failed`-shaped answer the model can fix on its
+    # next round, not a parked conversation nobody can un-park — which is
+    # the failure this has to avoid, since a bad park needs a human with
+    # database access to clear.
+    #
+    # The fingerprint is computed once and stored, never recomputed from
+    # the parked row: jsonb does not preserve key order, so a hash taken
+    # after the round trip would not reliably match one taken before it.
+    # Same reasoning as `park`, and the same failure-closed answer.
+    def park_question(results, queue)
+      call     = queue.first
+      # `call["input"]` rather than `arguments_for`, which symbolizes keys
+      # for dispatch into a `perform` signature. Nothing is dispatched
+      # here, and the options are stored and compared as they arrived.
+      input    = call["input"] || {}
+      question = input["question"].to_s.strip
+      options  = Array(input["options"])
+      # The element type is checked before anything is read off it. This
+      # path bypasses `Tools::Base.call` and therefore the input-schema
+      # validator, so `options: [null, {…}]` would otherwise raise on
+      # `o["id"]` and turn a recoverable tool error into a crashed turn —
+      # the one outcome this method exists to avoid.
+      invalid  = question.blank? || options.size < 2 ||
+                 options.any? { |o| !o.is_a?(Hash) } ||
+                 options.any? { |o| o["id"].to_s.strip.blank? || o["label"].to_s.strip.blank? } ||
+                 options.map { |o| o["id"].to_s }.uniq.size != options.size
+
+      if invalid
+        emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
+        emit(type: "tool_result", name: call["name"], ok: false)
+        results << tool_result(call, {
+          error: "invalid",
+          message: "ask_questions needs a question and at least two options, each with a " \
+                   "non-empty unique id and label. Nothing was asked."
+        }, error: true)
+        return continue_queue(queue.drop(1), results)
+      end
+
+      pending = {
+        "question"    => question,
+        "options"     => options.map { |o| o.slice("id", "label", "detail").compact },
+        "fingerprint" => Digest::SHA256.hexdigest(JSON.generate([ call["name"], call["input"] ]))
+      }
+
+      @conversation.update!(
+        state: "awaiting_answers",
+        pending_questions: pending,
+        pending_tool_call: { "results" => results, "queue" => queue, "pending" => pending }
+      )
+      pending
+    end
+
+    # The answer arrives as this call's `tool_result`, so from the model's
+    # side `ask_questions` reads as an ordinary tool that took a while to
+    # return. `chosen` is the option id the server wrote down; `text` is
+    # the escape hatch for a person whose answer was not on the list.
+    def resume_answer(answer, fingerprint = nil)
+      parked  = @conversation.pending_tool_call || {}
+      results = Array(parked["results"])
+      queue   = Array(parked["queue"])
+      call    = queue.first
+      return Result.new(state: :error, error: "Nothing is waiting on you.") if call.nil?
+
+      # Fails closed, like the confirmation gate: a tab left open on an
+      # earlier question must not answer whatever is parked now, and a
+      # missing stored fingerprint is a mismatch rather than a pass.
+      expected = parked.dig("pending", "fingerprint")
+      if expected.blank? || fingerprint != expected
+        return Result.new(state: :error, error: "That question is out of date. Reload and read it again.")
+      end
+
+      chosen = chosen_option(parked, answer)
+      return Result.new(state: :error, error: "Pick one of the options, or type an answer.") if chosen.nil?
+
+      emit(type: "tool_result", name: call["name"], ok: true)
+      results << tool_result(call, chosen)
+      @conversation.update!(state: "active", pending_tool_call: nil, pending_questions: nil)
+
+      outcome = continue_queue(queue.drop(1), results)
+      return outcome if outcome.parked?
+
+      drive
+    end
+
+    # An id the server itself wrote, or the person's own words — and
+    # nothing else. A model reading its own option list back out of a
+    # typed "yes" is the thing this whole tool exists to remove, so an id
+    # that is not on the list is refused rather than passed through as
+    # free text.
+    def chosen_option(parked, answer)
+      answer  = (answer || {}).stringify_keys
+      options = Array(parked.dig("pending", "options"))
+      id      = answer["option_id"].presence
+      typed   = answer["text"].to_s.strip
+
+      if id
+        picked = options.find { |o| o["id"] == id }
+        return nil if picked.nil?
+
+        return { "answered" => "option", "option_id" => picked["id"], "label" => picked["label"] }
+      end
+
+      return nil if typed.blank?
+
+      { "answered" => "text", "text" => typed }
     end
 
     # The sentence a person reads while the call runs.
@@ -1022,6 +1156,7 @@ module Chat
       case result.state
       when :done                  then emit(type: "done", text: result.text)
       when :awaiting_confirmation then emit(type: "awaiting_confirmation", tool: result.pending)
+      when :awaiting_answers      then emit(type: "awaiting_answers", question: result.pending)
       when :error                 then emit(type: "error", message: result.error)
       end
     end

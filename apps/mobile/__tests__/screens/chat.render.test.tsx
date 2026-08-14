@@ -31,6 +31,7 @@ const mockGet = jest.fn();
 const mockSend = jest.fn();
 const mockEvents = jest.fn();
 const mockAnswer = jest.fn();
+const mockAnswerQuestion = jest.fn();
 const mockSetMode = jest.fn();
 jest.mock('../../lib/api/chat', () => ({
   ...jest.requireActual('../../lib/api/chat'),
@@ -39,6 +40,7 @@ jest.mock('../../lib/api/chat', () => ({
   sendMessage: (...a: unknown[]) => mockSend(...a),
   fetchEvents: (...a: unknown[]) => mockEvents(...a),
   answerConfirmation: (...a: unknown[]) => mockAnswer(...a),
+  answerQuestion: (...a: unknown[]) => mockAnswerQuestion(...a),
   setConversationMode: (...a: unknown[]) => mockSetMode(...a),
 }));
 
@@ -86,6 +88,7 @@ beforeEach(() => {
   mockSend.mockResolvedValue({ queued: true, after: 0 });
   mockEvents.mockResolvedValue({ events: [], running: false });
   mockAnswer.mockResolvedValue({ queued: true, after: 0 });
+  mockAnswerQuestion.mockResolvedValue({ queued: true, after: 0 });
   mockSetMode.mockResolvedValue(blank);
 });
 
@@ -118,6 +121,44 @@ it('creates a conversation on the first message and shows the reply', async () =
 
   await waitFor(() => expect(mockCreate).toHaveBeenCalled());
   expect(await screen.findByText('Ninis has 12 dishes you can eat.')).toBeOnTheScreen();
+});
+
+// Answering with an id the server wrote down removes the step where the
+// model has to read "the first one" the way the person meant it.
+describe('when the assistant asks a question', () => {
+  const question = {
+    question: "Which Nini's did you mean?",
+    options: [
+      { id: 'taqueria', label: "Nini's Taqueria" },
+      { id: 'cantina', label: "Nini's Cantina" },
+    ],
+    fingerprint: 'fp-q1',
+  };
+
+  beforeEach(() => {
+    mockEvents.mockResolvedValue({
+      events: [{ type: 'awaiting_answers', question, position: 1 }],
+      running: false,
+    });
+    mockGet.mockResolvedValue({ ...blank, state: 'awaiting_answers', question });
+  });
+
+  it('draws the options and answers with the id, not the label', async () => {
+    render(<ChatScreen />);
+    await type('what can I eat at ninis');
+
+    fireEvent.press(await screen.findByText("Nini's Taqueria"));
+
+    await waitFor(() =>
+      expect(mockAnswerQuestion).toHaveBeenCalledWith(
+        'jwt-token',
+        'c-1',
+        { optionId: 'taqueria' },
+        'fp-q1',
+        'manual',
+      ),
+    );
+  });
 });
 
 // Mobile polls where web streams — React Native's fetch exposes no

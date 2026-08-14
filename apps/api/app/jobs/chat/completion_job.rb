@@ -33,6 +33,23 @@ module Chat
           return
         end
 
+        # A message queued *while* the turn was still running, which then
+        # parked on a confirmation or a question. The person owes an
+        # answer before anything else can be delivered, and `AgentLoop`
+        # treats a message arriving in that state as a caller bug and
+        # re-raises — so popping it here would take the job down and lose
+        # the message with it. It goes back at the head; the turn that
+        # answers drains it on its way out.
+        #
+        # The controller already refuses a message sent *at* a parked
+        # conversation. This is the narrower race it cannot see: the park
+        # had not happened yet when the request arrived.
+        if conversation.parked? && turn["kind"] == "message"
+          conversation.requeue_turn!(turn)
+          run.release!(outcome: "held_behind_park")
+          return
+        end
+
         execute(conversation, run, turn)
 
         # The run was released by the loop's ensure before this check, so a
@@ -71,6 +88,8 @@ module Chat
     def arguments_for(turn)
       case turn["kind"]
       when "confirm" then { confirm: turn["confirm"], fingerprint: turn["fingerprint"] }
+      when "answer"  then { answer: { "option_id" => turn["option_id"], "text" => turn["text"] },
+                            fingerprint: turn["fingerprint"] }
       else                { text: turn["text"] }
       end
     end

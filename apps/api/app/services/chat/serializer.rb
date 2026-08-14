@@ -22,6 +22,7 @@ module Chat
           state:      conversation.state,
           mode:       conversation.chat_mode,
           pending:    pending(conversation),
+          question:   question(conversation),
           created_at: conversation.created_at.iso8601,
           updated_at: conversation.updated_at.iso8601
         }
@@ -111,6 +112,26 @@ module Chat
             cost_cents:         (run.cost_micro_cents / 1_000_000.0).round,
             duration_ms:        run.duration_ms
           }
+        }
+      end
+
+      # The question the loop parked on, so a reloaded page can redraw it
+      # rather than stranding the conversation on a prompt nobody can see.
+      #
+      # Read from `pending_questions` rather than reconstructed from the
+      # parked tool call: the options a person is answering must be the
+      # ones the server wrote down, not ones re-derived from the model's
+      # arguments at draw time.
+      def question(conversation)
+        return nil unless conversation.awaiting_answers?
+
+        parked = conversation.pending_questions || {}
+        return nil if parked["question"].blank?
+
+        {
+          question:    parked["question"],
+          options:     Array(parked["options"]),
+          fingerprint: parked["fingerprint"]
         }
       end
 

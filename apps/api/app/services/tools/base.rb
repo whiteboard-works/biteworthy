@@ -86,6 +86,32 @@ module Tools
         superclass.respond_to?(:confirm_when) ? superclass.confirm_when : nil
       end
 
+      # A tool that ends the turn and speaks for it.
+      #
+      # Normally the loop runs a tool, hands the result back to the model,
+      # and the model writes the answer. A halting tool takes that last
+      # part over: `Chat::AgentLoop#continue_queue` stops at it, and what
+      # the *tool* declared is what the person sees. `ask_questions` is
+      # the reason it exists — a question is not useful once the model has
+      # already gone on to answer around it — but the mechanism is
+      # deliberately not about questions, because the next one will not be
+      # either.
+      #
+      # It is not a permission decision and does not belong to
+      # `ModePolicy`: a halting tool halts in every mode. The mode still
+      # decides whether the call may run at all, and this is only asked
+      # once it may.
+      #
+      # Walks the superclass chain, like every other declaration here.
+      def halts_turn(value = nil)
+        return @halts_turn = value unless value.nil?
+        return @halts_turn if defined?(@halts_turn) && !@halts_turn.nil?
+
+        superclass.respond_to?(:halts_turn) ? superclass.halts_turn : nil
+      end
+
+      def halts_turn? = halts_turn == true
+
       # A call no later call can put back.
       #
       # `destructive_hint` is a wide net — it covers every write that
