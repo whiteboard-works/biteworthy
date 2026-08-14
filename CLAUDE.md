@@ -134,7 +134,7 @@ The schema is shaped around one question: "given a user's avoid lists, which ite
 
 **The filter does not run in SQL, and it never removes rows.** `ItemsController#index` loads every published item at the restaurant in one query, then computes a per-item `reasons[]` in Ruby (array intersection against the avoid lists, plus the strict-mode confidence check). Items with a non-empty `reasons[]` come back as `status: "hidden"` with the reasons attached. That is the honest-disclosure contract: a hidden item must always be able to say why it's hidden, so it has to survive the query.
 
-Ranking is separate. When the signed-in user has taste signals, `TasteScoring.scores_for` runs one SQL query per restaurant (liked/disliked overlap ± popularity ± average visible rating) and the response is re-sorted by `taste_score`. Otherwise the order is `popularity DESC, name ASC`. Nothing sorts by `user_profiles.prefer_tag_ids`.
+Ranking is separate. When the signed-in user has taste signals, `TasteScoring.scores_for` runs one SQL query per restaurant (liked/disliked overlap ± average visible rating) and the response is re-sorted by `taste_score`. Otherwise the order is plain `name ASC`. Nothing sorts by `user_profiles.prefer_tag_ids`, and `items.popularity` is gone — it was read in three places, written by none, and its scoring term was structurally zero.
 
 The array-overlap SQL does exist, just not here — `Cities::RestaurantRanking` uses `NOT (items.ingredient_ids && ARRAY[…]::uuid[])` inside a `COUNT(…) FILTER` to rank a city's restaurants by how many dishes pass a preset, in one query instead of 30 calls to the items endpoint.
 

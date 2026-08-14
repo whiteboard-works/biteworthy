@@ -5,8 +5,13 @@
 #   + 1.0 * |item.ingredient_ids ∩ liked_ingredient_ids|
 #   - 2.0 * |item.tag_ids ∩ disliked_tag_ids|
 #   - 1.0 * |item.ingredient_ids ∩ disliked_ingredient_ids|
-#   + 0.5 * (popularity / max_popularity_at_restaurant)
 #   + 0.5 * (avg_visible_rating - 3) / 2          (0 when unreviewed)
+#
+# There was a sixth term, `0.5 * popularity / max_popularity`, and it was
+# always zero: nothing in the app ever wrote `items.popularity`, so the
+# column was dropped rather than given a writer. If a popularity signal
+# arrives later (`restaurant_visits` and `favorite_items` are the obvious
+# sources) it comes back as a term here and a weight below.
 #
 # Safety filters, taste ranks: scores reorder and highlight, they
 # never hide. This is the only implementation — clients render the
@@ -25,7 +30,6 @@ class TasteScoring
     liked_ingredient:    1.0,
     disliked_tag:        2.0, # subtracted
     disliked_ingredient: 1.0, # subtracted
-    popularity:          0.5,
     rating:              0.5
   }.freeze
 
@@ -49,14 +53,11 @@ class TasteScoring
           + ? * cardinality(scored.matched_liked_ingredient_ids)
           - ? * scored.disliked_tag_count
           - ? * scored.disliked_ingredient_count
-          + ? * COALESCE(scored.popularity::float8 / NULLIF(scored.max_popularity, 0), 0)
           + ? * COALESCE((scored.avg_rating - 3) / 2.0, 0)) AS score,
            scored.matched_liked_tag_ids,
            scored.matched_liked_ingredient_ids
     FROM (
       SELECT items.id,
-             items.popularity,
-             MAX(items.popularity) OVER () AS max_popularity,
              (SELECT COALESCE(array_agg(t ORDER BY t), '{}')
                 FROM unnest(items.tag_ids) AS t
                WHERE t = ANY(CAST(? AS uuid[])))    AS matched_liked_tag_ids,
@@ -92,7 +93,7 @@ class TasteScoring
       SCORES_SQL,
       WEIGHTS[:liked_tag], WEIGHTS[:liked_ingredient],
       WEIGHTS[:disliked_tag], WEIGHTS[:disliked_ingredient],
-      WEIGHTS[:popularity], WEIGHTS[:rating],
+      WEIGHTS[:rating],
       pg_uuid_array(signals.liked_tag_ids),
       pg_uuid_array(signals.liked_ingredient_ids),
       pg_uuid_array(signals.disliked_tag_ids),

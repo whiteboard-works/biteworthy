@@ -35,7 +35,6 @@ RSpec.describe TasteScoring do
                     id:         row["id"],
                     restaurant: restaurant,
                     name:       row["name"],
-                    popularity: row["popularity"],
                     ingredients: Ingredient.where(id: row["ingredient_ids"]),
                     tag_list:    Tag.where(id: row["tag_ids"]))
       row["review_ratings"].each { |rating| create(:review, item: item, rating: rating) }
@@ -72,9 +71,9 @@ RSpec.describe TasteScoring do
 
   describe "scoping" do
     it "scores only published items at the given restaurant" do
-      create(:item, restaurant: restaurant, name: "Draft Special", popularity: 999) # status: draft
+      create(:item, restaurant: restaurant, name: "Draft Special") # status: draft
       other = create(:restaurant, :published)
-      create(:item, :published, restaurant: other, name: "Elsewhere", popularity: 1)
+      create(:item, :published, restaurant: other, name: "Elsewhere")
 
       scores = described_class.scores_for(
         restaurant_id: restaurant.id,
@@ -86,19 +85,31 @@ RSpec.describe TasteScoring do
       expect(scores.keys).to match_array(items.map(&:id))
     end
 
+    # Asserted as a comparison rather than against a number. The plate
+    # matches no signal and has no visible review, so its score is 0.0 —
+    # and 0.0 is also what "the scorer never ran" looks like, so a bare
+    # `eq(0.0)` would pass for the wrong reason. Pinning the hidden review
+    # as a no-op AND the same review as a real move proves the rating term
+    # both exists and skips what it should.
     it "ignores hidden reviews in the rating term" do
       plate = items.find { |i| i.name == "Cheese Plate" } # unreviewed in fixture
-      create(:review, item: plate, rating: 5, hidden_at: Time.current)
+      score = lambda do
+        described_class.scores_for(
+          restaurant_id: restaurant.id,
+          signals:       described_class::Signals.new(
+            liked_ingredient_ids: [], liked_tag_ids: [fixture["tags"].keys.first],
+            disliked_ingredient_ids: [], disliked_tag_ids: []
+          )
+        ).fetch(plate.id)[:score]
+      end
 
-      scores = described_class.scores_for(
-        restaurant_id: restaurant.id,
-        signals:       described_class::Signals.new(
-          liked_ingredient_ids: [], liked_tag_ids: [fixture["tags"].keys.first],
-          disliked_ingredient_ids: [], disliked_tag_ids: []
-        )
-      )
-      # Still no rating term: 0.5 * (50/100) only.
-      expect(scores.fetch(plate.id)[:score]).to be_within(0.00005).of(0.25)
+      baseline = score.call
+      review   = create(:review, item: plate, rating: 5, hidden_at: Time.current)
+      expect(score.call).to be_within(0.00005).of(baseline)
+
+      review.update!(hidden_at: nil)
+      # 0.5 * (5 - 3) / 2
+      expect(score.call).to be_within(0.00005).of(baseline + 0.5)
     end
   end
 end

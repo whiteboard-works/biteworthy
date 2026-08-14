@@ -31,7 +31,6 @@ export type TasteReason =
 export interface ScoredWireItem {
   id: string;
   name: string;
-  popularity: number;
   status: ItemStatus;
   taste_score?: number | null;
   taste_reasons?: TasteReason[];
@@ -53,21 +52,20 @@ export function topPicksFromScores<T extends ScoredWireItem>(
     (i) => i.status === 'visible' && typeof i.taste_score === 'number' && i.taste_score > 0,
   );
   if (positive.length < MIN_POSITIVE_PICKS) return [];
+  // Score, then name. There was a `popularity DESC` tie-break between the
+  // two; the server never wrote that field, so it tied on every pair it
+  // was asked about, and the column is gone. Removing it changes no
+  // ordering that has ever been rendered.
   return [...positive]
-    .sort(
-      (a, b) =>
-        b.taste_score! - a.taste_score! ||
-        b.popularity - a.popularity ||
-        a.name.localeCompare(b.name),
-    )
+    .sort((a, b) => b.taste_score! - a.taste_score! || a.name.localeCompare(b.name))
     .slice(0, n);
 }
 
 /**
  * "Because you like Spicy & Basil" — the one-line explainer per
  * pick, built from the names the server enriched into taste_reasons.
- * Null when there are no named reasons (the pick scored on
- * popularity/rating alone).
+ * Null when there are no named reasons (the pick scored on its
+ * rating alone).
  */
 export function tasteReasonLine(reasons: TasteReason[] | undefined): string | null {
   const names = (reasons ?? [])

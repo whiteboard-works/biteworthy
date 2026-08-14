@@ -32,7 +32,6 @@ const baseItem: RestaurantItem = {
   restaurant_id: 'rest-1',
   name: 'Pad Thai',
   description: 'Rice noodles, peanut, lime.',
-  popularity: 0,
   confidence: 'confirmed',
   ingredient_ids: [],
   tag_ids: [],

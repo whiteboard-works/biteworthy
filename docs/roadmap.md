@@ -143,11 +143,20 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   others — promoting the CHECK constraints to VALID, and the
   case-sensitive `users.email` — were closed in #496 once a read-only
   prod audit cleared them.)
-  1. **`items.popularity` is read but never written.** It orders the
-     menu and carries a 0.5 weight in `TasteScoring`, and nothing has
-     ever set it, so that whole term is structurally zero. Either wire
-     a writer (`restaurant_visits` + `favorite_items` are the obvious
-     signals) or drop the column and the weight. Product call.
+  1. **`items.popularity` — being dropped, in two deploys.** Step one
+     (#601) removes every reader: the `TasteScoring` weight, the menu's
+     `popularity DESC` ordering, the Top Picks tie-break, and the field
+     in the item payload, with `Item.ignored_columns` covering the
+     column that is still there. **Step two is the migration and is
+     [BLOCKED] on two things**: #601 reaching production (a rolling
+     Kamal deploy runs `db:prepare` in the new container while the proxy
+     still serves the old one, so dropping a column the old release
+     reads is a `PG::UndefinedColumn` window on the menu path), and a
+     read-only production audit of stored values — the dev database has
+     5 of 5 rows non-zero, so "no writer in the code" does not establish
+     "no data in production", and the drop is irreversible.
+     `restaurant_visits` and `favorite_items` remain the obvious inputs
+     if a real popularity signal is wanted instead.
   2. **`restaurants.slug` is globally unique.** Two "Taco Bell"s in
      different cities collide, and slug generation isn't city-scoped.
      Inert while Durango is the only city; blocks city #2.

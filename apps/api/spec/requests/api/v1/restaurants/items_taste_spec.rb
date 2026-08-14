@@ -14,20 +14,23 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
   let(:spicy_tag) { create(:tag, slug: "flavor-spicy", name: "Spicy") }
   let(:basil)     { create(:ingredient, slug: "herb-basil", name: "Basil") }
 
-  # Popularity order is curry < noodles, so legacy sort leads with
-  # noodles — a taste profile that likes spice must flip them.
+  # Named so the default order (name ASC) leads with the noodles — a
+  # taste profile that likes spice has to flip them, which is the whole
+  # point of the scorer. This used to lean on `popularity` (90 vs 10) for
+  # the same setup; that column was never written by anything and is gone,
+  # so the tie-break it was standing in for is now simply the name.
   let!(:plain_noodles) do
     create(:item, :published, :confirmed,
-           restaurant: restaurant, name: "Plain Noodles", popularity: 90)
+           restaurant: restaurant, name: "Plain Noodles")
   end
   let!(:spicy_curry) do
     create(:item, :published, :confirmed,
-           restaurant: restaurant, name: "Spicy Basil Curry", popularity: 10,
+           restaurant: restaurant, name: "Spicy Basil Curry",
            ingredients: [basil], tag_list: [spicy_tag])
   end
 
   describe "anonymous callers" do
-    it "gets null taste_score, empty taste_reasons, legacy popularity sort" do
+    it "gets null taste_score, empty taste_reasons, plain name sort" do
       get "/api/v1/restaurants/#{restaurant.id}/items"
 
       body = response.parsed_body
@@ -59,15 +62,16 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
       expect(body["items"].pluck("name")).to eq(["Spicy Basil Curry", "Plain Noodles"])
 
       curry = body["items"].first
-      # 2.0 (spicy tag) + 1.0 (basil) + 0.5 * (10/90) popularity term.
-      expect(curry["taste_score"]).to be_within(0.00005).of(3.0 + 0.5 * (10.0 / 90))
+      # 2.0 (spicy tag) + 1.0 (basil). No reviews, so no rating term.
+      expect(curry["taste_score"]).to be_within(0.00005).of(3.0)
       expect(curry["taste_reasons"]).to eq([
         { "kind" => "liked_tag", "tag_id" => spicy_tag.id, "tag_name" => "Spicy" },
         { "kind" => "liked_ingredient", "ingredient_id" => basil.id, "ingredient_name" => "Basil" }
       ])
 
       noodles = body["items"].last
-      expect(noodles["taste_score"]).to be_within(0.00005).of(0.5) # max popularity only
+      # Matches nothing and has no reviews: scored, and scored zero.
+      expect(noodles["taste_score"]).to be_within(0.00005).of(0.0)
       expect(noodles["taste_reasons"]).to eq([])
     end
 
@@ -92,7 +96,7 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
       # The liked tag scored nothing and is not cited as a reason-to-like;
       # only the basil like survives.
       expect(curry["taste_reasons"].pluck("kind")).to eq(["liked_ingredient"])
-      expect(curry["taste_score"]).to be_within(0.00005).of(1.0 + 0.5 * (10.0 / 90))
+      expect(curry["taste_score"]).to be_within(0.00005).of(1.0)
     end
 
     it "turns taste off when the caller picks a preset (?profile=)" do

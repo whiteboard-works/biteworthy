@@ -43,7 +43,6 @@ def admin_item_row_schema
       description:      { type: :string, nullable: true },
       status:           { type: :string, enum: %w[draft published removed] },
       confidence:       { type: :string, enum: %w[confirmed suggested inferred] },
-      popularity:       { type: :integer },
       position:         { type: :integer },
       ingredient_count: { type: :integer },
       tag_count:        { type: :integer },

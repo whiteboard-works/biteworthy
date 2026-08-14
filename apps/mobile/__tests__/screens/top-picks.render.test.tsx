@@ -23,7 +23,6 @@ const item = (overrides: Partial<RestaurantItem> & { id: string }): RestaurantIt
   name: overrides.id,
   description: '',
   confidence: 'confirmed',
-  popularity: 0,
   ingredient_ids: [],
   tag_ids: [],
   menu_section_id: null,

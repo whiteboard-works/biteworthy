@@ -72,7 +72,6 @@ function item(overrides: Record<string, unknown> = {}) {
     description: null,
     status: 'published',
     confidence: 'suggested',
-    popularity: 0,
     ingredient_count: 3,
     tag_count: 1,
     variants: [{ size: null, price_cents: 450 }],

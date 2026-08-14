@@ -28,7 +28,6 @@ FactoryBot.define do
     description { "" }
     status     { "draft" }
     confidence { "suggested" }
-    popularity { 0 }
 
     transient do
       sequence(:rotation_idx) { |n| n }

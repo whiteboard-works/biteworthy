@@ -14,7 +14,6 @@ const item = (overrides: Partial<RestaurantItem> & { id: string }): RestaurantIt
   restaurant_id: 'rest-1',
   name: overrides.id,
   description: '',
-  popularity: 0,
   ingredient_ids: [],
   tag_ids: [],
   confidence: 'confirmed',
@@ -26,8 +25,7 @@ const item = (overrides: Partial<RestaurantItem> & { id: string }): RestaurantIt
   ...overrides,
 });
 
-const scored = (id: string, taste_score: number, popularity = 0) =>
-  item({ id, taste_score, popularity });
+const scored = (id: string, taste_score: number) => item({ id, taste_score });
 
 describe('topPicksFromScores', () => {
   it('returns [] below 3 positive-score items (no fake enthusiasm)', () => {
@@ -49,13 +47,13 @@ describe('topPicksFromScores', () => {
     expect(topPicksFromScores(items).map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('caps at 5, sorted score desc → popularity desc → name asc', () => {
+  it('caps at 5, sorted score desc → name asc', () => {
     const items = [
       scored('f', 1),
       scored('e', 2),
       scored('d', 3),
-      scored('tie-z', 4, 10),
-      scored('tie-a', 4, 10),
+      scored('tie-z', 4),
+      scored('tie-a', 4),
       scored('best', 5),
     ];
     expect(topPicksFromScores(items).map((i) => i.id)).toEqual([

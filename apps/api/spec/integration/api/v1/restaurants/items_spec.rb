@@ -41,7 +41,6 @@ RSpec.describe "restaurants/items", type: :request do
                        name:           { type: :string },
                        description:    { type: :string, nullable: true },
                        confidence:     { type: :string, enum: %w[confirmed suggested inferred] },
-                       popularity:     { type: :integer },
                        ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
                        tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
                        status:         { type: :string, enum: %w[visible hidden] },

@@ -69,7 +69,6 @@ export interface RestaurantItem extends FilterableItem {
   restaurant_id: string;
   name: string;
   description: string;
-  popularity: number;
   status: 'visible' | 'hidden';
   reasons: HideReason[];
   /** Phase 4.2 — set by the API when authenticated. */

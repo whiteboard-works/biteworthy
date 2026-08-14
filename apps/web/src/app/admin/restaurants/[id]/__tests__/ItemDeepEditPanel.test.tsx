@@ -33,7 +33,6 @@ const item = {
   description: 'Grilled steak.',
   status: 'published',
   confidence: 'suggested',
-  popularity: 0,
   ingredient_count: 1,
   tag_count: 1,
   ingredients: [{ id: 'ing1', slug: 'meat-beef', name: 'Beef' }],

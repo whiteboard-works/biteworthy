@@ -90,7 +90,6 @@ describe('fetchRestaurantItems', () => {
       name: 'Pad Thai',
       description: 'Rice noodles, peanut, lime.',
       confidence: 'confirmed',
-      popularity: 0,
       ingredient_ids: [],
       tag_ids: [],
       menu_section_id: null,

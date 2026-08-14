@@ -89,7 +89,7 @@ path is:
 # ItemsController#index — apps/api/app/controllers/api/v1/items_controller.rb
 restaurant.items.published
           .includes(menu_section: :menu, photo_attachment: :blob)
-          .order(popularity: :desc, name: :asc)
+          .order(name: :asc)
 ```
 
 …then, per item, in Ruby:
@@ -121,12 +121,11 @@ score = 2.0 * |tag_ids ∩ liked_tag_ids|
       + 1.0 * |ingredient_ids ∩ liked_ingredient_ids|
       - 2.0 * |tag_ids ∩ disliked_tag_ids|
       - 1.0 * |ingredient_ids ∩ disliked_ingredient_ids|
-      + 0.5 * popularity / max_popularity_at_restaurant
       + 0.5 * (avg_visible_rating - 3) / 2
 ```
 
 It only runs for a signed-in user with taste signals; everyone else
-keeps the `popularity DESC, name ASC` order. Scores reorder and
+keeps the plain `name ASC` order. Scores reorder and
 highlight — they never hide. Note that `user_profiles.prefer_tag_ids`
 is **not** an input to any of this.
 
