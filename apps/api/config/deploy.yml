@@ -139,11 +139,18 @@ env:
     - APPLE_OAUTH_PRIVATE_KEY
 
 # Convenient aliases for the operator laptop.
+#
+# `--roles web` on every one of these is load-bearing, not tidiness. A bare
+# `app exec` runs on the `web` AND `worker` roles concurrently, and both roles
+# live on the same box — so `kamal seed` without it starts two racing imports
+# (that is not hypothetical: it happened, "Slug has already been taken", see
+# docs/status.md). `smoke` would double-run, and an interactive `console` /
+# `shell` across two targets is incoherent to begin with.
 aliases:
-  console: app exec --interactive --reuse "bin/rails console"
-  shell:   app exec --interactive --reuse "bash"
-  smoke:   app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"
-  seed:    app exec "bin/rails biteworthy:seed:durango FILE=docs/seeds/durango.csv"
+  console: app exec --interactive --reuse --roles web "bin/rails console"
+  shell:   app exec --interactive --reuse --roles web "bash"
+  smoke:   app exec --roles web "bin/rails biteworthy:production:smoke EXIT_CODE=1"
+  seed:    app exec --roles web "bin/rails biteworthy:seed:durango FILE=docs/seeds/durango.csv"
 
 # A single-VM box benefits from `accessories` only when we actually
 # add Redis or another sidecar. Today we have neither — Solid Queue

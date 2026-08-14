@@ -45,6 +45,15 @@ export function initPostHog(
 /**
  * Adapter from posthog-js to `AnalyticsClient`. The interface exposes
  * three methods: capture, identify, reset.
+ *
+ * **`identify` is implemented but deliberately never called.** No caller
+ * exists in web or mobile, so PostHog keeps its random distinct ID and
+ * funnel events are not linked to an account — which is what
+ * `/privacy` and `/terms` now tell users. Calling this would newly
+ * associate health-adjacent events with an identity, the exact linkage
+ * the E7 remediation removed from `profile_set`
+ * (see packages/analytics EventPropsMap). If you wire it up, update both
+ * legal pages in the same change.
  */
 export function createPostHogClient(client: PostHogJsInstance): AnalyticsClient {
   return {

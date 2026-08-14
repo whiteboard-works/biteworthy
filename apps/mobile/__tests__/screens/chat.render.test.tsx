@@ -387,15 +387,26 @@ describe('turn analytics', () => {
   beforeEach(() => track.mockClear());
 
   it('reports what actually happened, not a fixed success', async () => {
-    mockEvents
-      .mockResolvedValueOnce({
-        events: [{ type: 'tool_use', name: 'get_menu', doing: 'Reading', position: 1 }],
-        running: true,
-      })
-      .mockResolvedValueOnce({
-        events: [{ type: 'done', text: 'Done.', position: 2 }],
-        running: false,
-      });
+    // Keyed on the cursor, not on call order. Two `mockResolvedValueOnce`
+    // values here made the assertion fail about a third of the time on an
+    // unmodified master: `watch` sleeps a real 900ms between polls
+    // (POLL_MS in app/chat.tsx) and `mockEvents` is not reset per test, so
+    // under load a stray poll — this turn's or a previous test's — could
+    // take one of the queued values and leave the real second poll with
+    // `undefined`. `outcome` starts at 'error' and is only lifted by the
+    // terminal event, so a stolen `done` reported the turn as a failure.
+    // Answering by cursor makes the sequence independent of how many times
+    // it is called, which is the same trick `heldTurn` uses above.
+    mockEvents.mockImplementation((_jwt: unknown, _id: unknown, after: number) =>
+      Promise.resolve(
+        after < 1
+          ? {
+              events: [{ type: 'tool_use', name: 'get_menu', doing: 'Reading', position: 1 }],
+              running: true,
+            }
+          : { events: [{ type: 'done', text: 'Done.', position: 2 }], running: false },
+      ),
+    );
     mockGet.mockResolvedValue(answered('Done.'));
 
     renderTracked();

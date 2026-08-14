@@ -186,8 +186,9 @@ export default function PrivacyPage(): ReactElement {
               <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
               Do-Not-Track signal automatically. On mobile, analytics are off by default and only
-              fire if you enable them in <em>Settings → Analytics</em>. When analytics are on and
-              you’re signed in, the funnel events are linked to your account. What they carry is
+              fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
+              random analytics ID, <strong>not to your account</strong> — signing in does not
+              connect them to your identity. What they carry is
               deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
               visible or hidden, and which <em>kind</em> of filter was applied — not the filter
               itself. Toggling strictness on a menu sends the before and after value.
