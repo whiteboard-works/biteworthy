@@ -81,7 +81,7 @@ The acceptance ("`curl https://api.bite-worthy.com/up` returns 200") needs:
 4. `hcloud server create --name biteworthy-api --type cpx21 --datacenter ash-dc1 --image ubuntu-24.04 --ssh-key skylar`
 5. DNS: `api.bite-worthy.com` `A` record at the Hetzner IP.
 6. `cp .kamal/secrets.example .kamal/secrets`, fill in real values.
-7. Edit `config/deploy.yml`, replace `<REPLACE_WITH_HETZNER_IP>` placeholders.
+7. Point the config at the box's IP — `config/deploy.yml`'s `hosts:` under both roles, plus `deploy-api.yml`'s ssh/kamal blocks, DNS, and the `SSH_KNOWN_HOSTS` secret. (This ADR shipped with `<REPLACE_WITH_HETZNER_IP>` placeholders; they were filled in at provisioning and the values are now literal. `docs/launch-readiness.md` §1 carries the full rebuild list.)
 8. `kamal setup && kamal env push && kamal deploy`.
 9. `kamal smoke` (alias for the production smoke task).
 
