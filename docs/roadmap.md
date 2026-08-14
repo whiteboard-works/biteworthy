@@ -143,20 +143,15 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   others — promoting the CHECK constraints to VALID, and the
   case-sensitive `users.email` — were closed in #496 once a read-only
   prod audit cleared them.)
-  1. **`items.popularity` — being dropped, in two deploys.** Step one
-     (#601) removes every reader: the `TasteScoring` weight, the menu's
-     `popularity DESC` ordering, the Top Picks tie-break, and the field
-     in the item payload, with `Item.ignored_columns` covering the
-     column that is still there. **Step two is the migration and is
-     [BLOCKED] on two things**: #601 reaching production (a rolling
-     Kamal deploy runs `db:prepare` in the new container while the proxy
-     still serves the old one, so dropping a column the old release
-     reads is a `PG::UndefinedColumn` window on the menu path), and a
-     read-only production audit of stored values — the dev database has
-     5 of 5 rows non-zero, so "no writer in the code" does not establish
-     "no data in production", and the drop is irreversible.
-     `restaurant_visits` and `favorite_items` remain the obvious inputs
-     if a real popularity signal is wanted instead.
+  1. ~~**`items.popularity` is read but never written.**~~ **Closed
+     2026-08-14.** Dropped in two deploys: #601 removed every reader
+     (the `TasteScoring` weight, the menu's `popularity DESC` ordering,
+     the Top Picks tie-break, the item payload field) and shipped;
+     #603 dropped the column once that was live. A read-only production
+     audit gated the irreversible half and came back empty — 89 items,
+     none non-zero — so the scoring term really was structurally zero in
+     production. `restaurant_visits` and `favorite_items` remain the
+     obvious inputs if a real popularity signal is ever wanted.
   2. ~~**`restaurants.slug` is globally unique.**~~ **Closed 2026-08-14
      — generation is city-aware; the column stays globally unique.**
      `Restaurants::Create#unique_slug_for` now falls back to
