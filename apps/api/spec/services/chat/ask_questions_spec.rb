@@ -98,6 +98,26 @@ RSpec.describe "Chat::AgentLoop asking a question" do
     end
   end
 
+  # The narrower race the controller cannot see. It refuses a message
+  # sent *at* a parked conversation, but a message can arrive while the
+  # turn is still running and only then does the turn park. `AgentLoop`
+  # treats a message in that state as a caller bug and re-raises, so the
+  # job would go down and take the message with it.
+  describe "a message queued just before the park" do
+    before { run_with(turn(ask), text: "what can I eat at ninis") }
+
+    it "holds it rather than losing it with the job" do
+      expect(conversation.reload.state).to eq("awaiting_answers")
+      conversation.enqueue_turn!("kind" => "message", "text" => "actually, never mind")
+
+      expect {
+        Chat::CompletionJob.new.perform(conversation.id)
+      }.not_to raise_error
+
+      expect(conversation.reload.pending_turns.first["text"]).to eq("actually, never mind")
+    end
+  end
+
   describe "answering" do
     before { run_with(turn(ask), text: "what can I eat at ninis") }
 

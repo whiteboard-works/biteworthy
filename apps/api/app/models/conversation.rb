@@ -150,6 +150,14 @@ class Conversation < ApplicationRecord
 
   def pending_turns? = Array(pending_turns).any?
 
+  # Puts a popped turn back at the head, for the one caller that pops a
+  # turn it then discovers it may not run. Locked for the same reason
+  # `enqueue_turn!` is: a controller appending while this prepends would
+  # otherwise lose one side.
+  def requeue_turn!(turn)
+    with_lock { update!(pending_turns: [ turn ] + Array(pending_turns)) }
+  end
+
   # Run at the start of every turn, because the damage a dead turn leaves
   # behind is only visible on the next one.
   #
