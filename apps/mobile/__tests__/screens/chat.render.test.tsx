@@ -220,15 +220,33 @@ describe('when a destructive call is parked', () => {
 describe('typing while a turn is running', () => {
   // Two poll rounds with `running: true` first, so the turn is still in
   // flight while the second message is typed.
+  // **The release has to survive arriving before the first poll.** It
+  // used to start as a no-op that each `fetchEvents` call overwrote, so a
+  // release that landed before the screen reached `watch` did nothing at
+  // all — and the poll starting a moment later then hung forever, `watch`
+  // never returned, and the queued message was never flushed. The failure
+  // read as "the queue dropped it": one `send`, carrying the *first*
+  // message.
+  //
+  // Locally the poll always won that race, which is why this only failed
+  // on CI. It is an ordering bug rather than a slow one, so waiting longer
+  // would not have helped — recording the release and settling whatever
+  // comes next is what makes it deterministic.
   function heldTurn() {
-    let release = () => {};
+    let released = false;
+    const pending: Array<() => void> = [];
     mockEvents.mockImplementation(
       () =>
         new Promise((resolve) => {
-          release = () => resolve({ events: [], running: false });
+          const settle = () => resolve({ events: [], running: false });
+          if (released) settle();
+          else pending.push(settle);
         }),
     );
-    return () => release();
+    return () => {
+      released = true;
+      pending.splice(0).forEach((settle) => settle());
+    };
   }
 
   it('queues the message rather than dropping it or sending it now', async () => {
