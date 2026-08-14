@@ -187,10 +187,13 @@ export default function PrivacyPage(): ReactElement {
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
               Do-Not-Track signal automatically. On mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. When analytics are on and
-              you’re signed in, the funnel events (e.g. <em>app_open</em>, <em>menu_filtered</em>)
-              are linked to your account and include coarse signals such as your strictness setting,
-              which dietary preset you use, and counts of hidden/visible items. We never send review
-              text, your email, or your specific avoid-lists.
+              you’re signed in, the funnel events are linked to your account. What they carry is
+              deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
+              visible or hidden, and which <em>kind</em> of filter was applied — not the filter
+              itself. Changing your strictness or preset sends the before and after values.
+              Saving your dietary profile sends only that it happened, never the preset, the
+              strictness, or how much you avoid — that association is the one we most want to
+              avoid making. We never send review text, your email, or your specific avoid-lists.
             </li>
             <li>
               <strong>We do not sell or share</strong> your personal information, and we will not

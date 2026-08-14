@@ -142,7 +142,7 @@ bin/kamal-secrets-push   # or the next CI deploy reverts it
 **Confirm delivery:**
 
 ```bash
-kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
+kamal app exec --role web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
 ```
 
 Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
@@ -168,7 +168,7 @@ bin/kamal-secrets-push   # or the next CI deploy reverts it
 **(Optional) Migrate any pre-existing blobs to R2:**
 
 ```bash
-kamal app exec 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
+kamal app exec --role web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
 ```
 
 The backfill task is **idempotent** — blobs already on the configured service are no-ops, so it's safe to re-run after every deploy or any future service flip (R2 → S3 or back). Logs `[ok] / [skip] / [FAIL]` per blob.

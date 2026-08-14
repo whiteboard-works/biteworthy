@@ -95,7 +95,10 @@ Postmark server and token, which no longer authenticate against anything we run.
    deployed from; `deploy-api.yml` rebuilds `.kamal/secrets` from the `KAMAL_SECRETS_B64` repo
    secret on every automated deploy, so without this the next merge to master silently reverts
    the key.
-6. `kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
+6. `kamal app exec --role web 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
+   **`--role web` matters** — a bare `app exec` runs on `web` *and* `worker` concurrently,
+   so the smoke would send two messages. (Learned the hard way: a bare `app exec db:seed`
+   raced itself in production, see `docs/status.md`.)
 
 Steps 1–3 are one-time; 4–5 happen together on every key rotation; 6 is the test.
 

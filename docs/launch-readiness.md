@@ -137,7 +137,7 @@ non-secret half is already committed in `deploy.yml`'s `env.clear`
   skipping this means the next merge to master quietly reverts the key.
   (All three commands run from `apps/api/` — Kamal resolves `config/deploy.yml`
   relative to the working directory, and step 1 already `cd`'d there.)
-- Confirm: `kamal smoke` continues to pass; then `bin/rails biteworthy:email:smoke EMAIL=you@example.com` over `kamal app exec` to send a test message.
+- Confirm: `kamal smoke` continues to pass; then `kamal app exec --role web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'` to send a test message (`--role web`, or it runs on the worker too and sends twice).
 
 ### 3. Wire production storage (Phase 5.3)
 
@@ -155,7 +155,7 @@ non-secret half is already committed in `deploy.yml`'s `env.clear`
 - From `apps/api/`: `kamal env push && kamal deploy`, then `bin/kamal-secrets-push`
   (see above — CI rebuilds `.kamal/secrets` from the repo secret and would revert these
   otherwise).
-- (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
+- (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec --role web "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
 
 ### 4. Provision the web app on Vercel (Phase 5.4)
 

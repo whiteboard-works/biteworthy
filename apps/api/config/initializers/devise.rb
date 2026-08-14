@@ -3,7 +3,7 @@
 # config/routes.rb's devise_for inside the api/v1 namespace.
 
 Devise.setup do |config|
-  config.mailer_sender = ENV.fetch("DEVISE_MAILER_FROM", "no-reply@biteworthy.app")
+  config.mailer_sender = ENV.fetch("DEVISE_MAILER_FROM", "no-reply@mail.bite-worthy.com")
 
   require "devise/orm/active_record"
 

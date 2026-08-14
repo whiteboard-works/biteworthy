@@ -90,7 +90,9 @@ can launch without, or fast-follow.
 ### Wave 4 — needs API + Vercel live
 
 - [ ] **Seed 30 Durango restaurants** — populate `docs/seeds/durango.csv`, run
-      `bin/rails biteworthy:seed:durango` via `kamal app exec`, swipe-verify to the
+      `bin/rails biteworthy:seed:durango` via `kamal app exec --role web` (bare
+      `app exec` runs on the worker too and the two runs race — this exact
+      command did it once already), swipe-verify to the
       80%-published threshold. ~$15. **HARD — coverage *is* the day-one product.**
 - [ ] **Set PostHog keys** — `NEXT_PUBLIC_POSTHOG_KEY` (Vercel) +
       `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
