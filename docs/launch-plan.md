@@ -81,10 +81,10 @@ can launch without, or fast-follow.
       landed in the **inbox, not spam** — so DKIM/SPF are good enough for a
       cold sending domain. Password reset, claim verification and the waitlist
       mailer are live.
-- [ ] **Create R2 bucket `biteworthy-blobs` + API token.** SOFT, but review/dish
-      photos won't survive deploys without it. (~$1–3/mo.)
-- [ ] **Connect Vercel** (Hobby, free) — import repo, set 3 `NEXT_PUBLIC_*` vars,
-      add `bite-worthy.com` + `www` custom domains (DNS). **HARD for the public site.**
+- [x] **Create R2 bucket `biteworthy-blobs` + API token.** — **DONE.** Review + dish
+      photos persist across deploys. (~$1–3/mo.)
+- [x] **Connect Vercel** (Hobby, free) — **DONE.** `bite-worthy.com` + `www` live,
+      auto-deploying on master merge.
 
 ### Wave 4 — needs API + Vercel live
 
@@ -97,8 +97,10 @@ can launch without, or fast-follow.
       `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
 - [ ] **Remove DRAFT banners** from `apps/web/src/app/privacy/page.tsx` +
       `terms/page.tsx` (+ source DRAFT comments) — **only after L1 sign-off.**
-- [ ] *(loop-shippable)* Phase 5.1.1-wiring — CI `kamal deploy` on master push
-      (roadmap "Next up" #2). Can only be validated after the manual deploy proves out.
+- [x] *(loop-shippable)* Phase 5.1.1-wiring — **DONE.** `deploy-api.yml` runs
+      `kamal deploy` on merges touching `apps/api/**`, including auto-merged PRs
+      (that needs `AUTOMERGE_TOKEN`, not `GITHUB_TOKEN`, or the merge commit
+      triggers nothing).
 
 ### Wave 5 — needs seeded data + icon + L1
 

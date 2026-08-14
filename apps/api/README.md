@@ -98,7 +98,7 @@ kamal smoke             # alias for `app exec "bin/rails biteworthy:production:s
 curl https://api.bite-worthy.com/up
 ```
 
-**Every deploy (CI automation deferred to a small follow-up after manual deploys are proven):**
+**Every deploy is automatic** — `.github/workflows/deploy-api.yml` runs `kamal deploy` on merges to master touching `apps/api/**`. To ship out-of-band from the laptop:
 
 ```bash
 kamal deploy

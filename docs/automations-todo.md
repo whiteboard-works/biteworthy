@@ -55,10 +55,10 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
 
 ## P2 — deploy + ops (blocked on launch provisioning)
 
-7. [B] **CI-driven `kamal deploy` on master push + post-deploy
-   `kamal smoke`** — already queued as Phase 5.1.1-wiring; needs the
-   first manual deploy (Hetzner + Neon + GHCR provisioning,
-   `docs/launch-readiness.md` step 1).
+7. [DONE] **CI-driven `kamal deploy` on master push** — `deploy-api.yml`
+   ships every master push touching `apps/api/**`, including auto-merged
+   PRs (needs `AUTOMERGE_TOKEN`, which exists). Post-deploy `kamal smoke`
+   is the only piece of this item still open.
 8. [B] **Uptime probe + daily production smoke cron** (`/up` poll +
    `biteworthy:production:smoke` via `kamal app exec`) — needs a live
    deploy to point at.

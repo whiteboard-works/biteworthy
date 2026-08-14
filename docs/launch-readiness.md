@@ -109,7 +109,7 @@ kamal smoke        # alias for the production smoke task
 curl https://api.bite-worthy.com/up
 ```
 
-Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after this manual flow proves out (queued as Phase 5.1.1-wiring).
+Subsequent deploys are automatic: `.github/workflows/deploy-api.yml` runs `kamal deploy` on every merge to master touching `apps/api/**`. Run `kamal deploy` by hand only for out-of-band ships.
 
 ### 2. Wire production email (Phase 5.2) — ✅ **DONE 2026-08-14**
 

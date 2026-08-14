@@ -46,7 +46,7 @@ Audience here is more "founders / techies who happen to live in southwest Colora
 
 > BiteWorthy is live in Durango.
 >
-> A free dietary filter for restaurant menus — built solo, on cheap independent infrastructure (Hetzner CPX21, Neon, Cloudflare R2, Vercel for the web — total ~$8/mo all-in), open-sourced.
+> A free dietary filter for restaurant menus — built solo, on cheap independent infrastructure (Hetzner CPX21, Neon, Cloudflare R2, Vercel for the web — total ~$8.50/mo all-in), open-sourced.
 >
 > Free, no ads, opt-in analytics. The dietary filter is byte-identical between web and mobile because it's a single TypeScript package both apps import.
 >
