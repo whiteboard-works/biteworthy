@@ -67,16 +67,18 @@ The acceptance ("a review photo posted in production survives a server restart a
 
 1. Create a Cloudflare account + an R2 bucket named `biteworthy-blobs` (or your preferred name). Enable public access if you want CDN-served URLs without ActiveStorage's signed-redirect; otherwise leave private and rely on Rails-routed URLs (`rails_blob_url`).
 2. Generate an R2 API token with read/write to the bucket. Note the **endpoint** URL Cloudflare gives (typically `https://<accountid>.r2.cloudflarestorage.com`).
-3. ```bash
-   fly secrets set \
-       R2_ACCESS_KEY_ID=<token-id> \
-       R2_SECRET_ACCESS_KEY=<token-secret> \
-       R2_BUCKET=biteworthy-blobs \
-       R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+3. Add to `apps/api/.kamal/secrets` (all four are already listed in `deploy.yml`'s `env.secret`):
+   ```bash
+   R2_ACCESS_KEY_ID=<token-id>
+   R2_SECRET_ACCESS_KEY=<token-secret>
+   R2_BUCKET=biteworthy-blobs
+   R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
    ```
-4. `fly deploy`.
+4. From `apps/api/`: `kamal env push && kamal deploy`, then `bin/kamal-secrets-push` so the
+   `KAMAL_SECRETS_B64` repo secret carries the same values — `deploy-api.yml` rebuilds
+   `.kamal/secrets` from it on every automated deploy, and would otherwise revert these.
 5. Optional CORS — required only if the Phase 5.4 web app starts uploading directly to R2 via signed URLs. ActiveStorage's redirect flow (Rails serves `rails_blob_url`, 302s to the R2 signed URL) doesn't need CORS.
-6. (Pre-existing blobs only) `fly ssh console -C 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'` once the secrets are set, to migrate any old `:local` or `:amazon` blobs to R2.
+6. (Pre-existing blobs only) `kamal app exec --roles web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'` once the secrets are set, to migrate any old `:local` or `:amazon` blobs to R2. `--roles web` is load-bearing: a bare `app exec` runs on `web` and `worker` at once, which would start two concurrent backfills.
 
 ### Direct CDN serving (deferred)
 
@@ -98,6 +100,6 @@ Either is non-blocking for v1 launch. The redirect overhead (~40ms) is invisible
 ## Consequences
 
 - **Cost** — projected $1–3/month at launch volume; scales linearly with storage but not with traffic.
-- **Operational** — one provider for blobs (separate from the API host on Fly.io). Cloudflare account is a new place to look when something's wrong; document credentials in 1Password alongside Fly + Postmark.
+- **Operational** — one provider for blobs (separate from the API host on Hetzner). Cloudflare account is a new place to look when something's wrong; document credentials in 1Password alongside the Hetzner + SMTP credentials.
 - **Test infra** — unchanged. The `:test` ActiveStorage service (in-memory) keeps specs fast and offline.
 - **Migration** — `bin/rails biteworthy:storage:backfill` is reusable for any future service flip (R2 → S3, or back), not just this one launch event.

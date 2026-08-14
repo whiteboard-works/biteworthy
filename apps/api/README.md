@@ -90,7 +90,8 @@ cp .kamal/secrets.example .kamal/secrets
 gem install kamal
 kamal setup            # installs Docker on box, pulls image, boots kamal-proxy
 kamal env push          # uploads .kamal/secrets to the box
-kamal deploy            # full deploy with db:prepare pre-deploy hook
+kamal deploy            # full deploy; db:prepare runs from the entrypoint on puma boot
+bin/kamal-secrets-push  # syncs KAMAL_SECRETS_B64 so CI deploys use the same values
 
 # 7. Confirm.
 kamal smoke             # alias for `app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"`
@@ -121,26 +122,27 @@ Useful aliases (all in `config/deploy.yml`):
 |---|---|
 | Container image | `Dockerfile` + `.dockerignore` + `bin/docker-entrypoint` |
 | Kamal config | `config/deploy.yml` |
-| Kamal hooks | `.kamal/hooks/` (`pre-deploy` runs `db:prepare`) |
+| Migrations | `bin/docker-entrypoint` runs `db:prepare` when the `web` role boots |
 | Kamal secrets | `.kamal/secrets` (gitignored; template at `.kamal/secrets.example`) |
 | Smoke task | `lib/tasks/production.rake` (wraps `app/services/biteworthy/production_smoke.rb`) |
 | Production env defaults | `env.clear` block in `config/deploy.yml`; secrets in `.kamal/secrets` |
 
 ## Email (Phase 5.2)
 
-Production SMTP is wired in `config/environments/production.rb`. Decision + trade-offs in `docs/adr/0003-email-provider.md` (Postmark via plain SMTP). Dev + test use the `:test` adapter — no real delivery — so specs don't open sockets.
+Production SMTP is wired in `config/environments/production.rb`. Decision + trade-offs in `docs/adr/0003-email-provider.md` (plain SMTP, no provider gem — that ADR's Postmark pick was later swapped for **Resend** in PR #403). Dev + test use the `:test` adapter — no real delivery — so specs don't open sockets.
 
-**One-time bootstrap (human):** sign up for Postmark, create a "BiteWorthy" server, verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records), generate a Server API token, then put the Postmark token into `SMTP_USERNAME` / `SMTP_PASSWORD` in `.kamal/secrets` (template at `.kamal/secrets.example`) and:
+**One-time bootstrap (human):** in Resend, add `mail.bite-worthy.com` as a sending domain and publish the DKIM + SPF records at the registrar, generate an API key with send access, then put that key into `SMTP_PASSWORD` in `.kamal/secrets` (template at `.kamal/secrets.example`) and:
 
 ```bash
 kamal env push
 kamal deploy
+bin/kamal-secrets-push   # or the next CI deploy reverts it
 ```
 
 **Confirm delivery:**
 
 ```bash
-kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
+kamal app exec --roles web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
 ```
 
 Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
@@ -160,12 +162,13 @@ Production blobs (review photos, dish photos, ingestion menu pages) live on **Cl
 #    R2_ENDPOINT in .kamal/secrets (template at .kamal/secrets.example).
 kamal env push
 kamal deploy
+bin/kamal-secrets-push   # or the next CI deploy reverts it
 ```
 
 **(Optional) Migrate any pre-existing blobs to R2:**
 
 ```bash
-kamal app exec 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
+kamal app exec --roles web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
 ```
 
 The backfill task is **idempotent** — blobs already on the configured service are no-ops, so it's safe to re-run after every deploy or any future service flip (R2 → S3 or back). Logs `[ok] / [skip] / [FAIL]` per blob.

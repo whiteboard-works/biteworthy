@@ -34,10 +34,10 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Cities ranking endpoint at `/api/v1/cities/:slug/restaurants?profile=:diet` for the SEO pages — Phase 5.6.
 - Durango batch ingest task at `bin/rails biteworthy:seed:durango FILE=…` — Phase 5.7.
 - Production smoke at `bin/rails biteworthy:production:smoke` — Phase 5.1.
-- Production SMTP (Postmark) + email smoke task — Phase 5.2.
+- Production SMTP (Resend) + email smoke task — Phase 5.2.
 - Production storage on Cloudflare R2 + idempotent backfill task — Phase 5.3.
 - Waitlist signup endpoint + confirmation mailer — Phase 5.10.
-- Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example` + `.kamal/hooks/pre-deploy`) — Phase 5.1.1.
+- Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example`) — Phase 5.1.1.
 - 377 rspec examples passing.
 
 ### Web (Next.js 15, `apps/web/`)
@@ -104,7 +104,7 @@ cp .kamal/secrets.example .kamal/secrets
 gem install kamal
 kamal setup        # installs Docker on box, pulls image, kamal-proxy
 kamal env push     # uploads .kamal/secrets
-kamal deploy       # full deploy, runs db:prepare via pre-deploy hook
+kamal deploy       # full deploy; db:prepare runs from the entrypoint on puma boot
 kamal smoke        # alias for the production smoke task
 curl https://api.bite-worthy.com/up
 ```
@@ -115,16 +115,29 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
 
 **Unlocks:** Devise password reset, restaurant claim verification (Phase 4.9), waitlist confirmation emails (Phase 5.10).
 
-- Sign up for Postmark (https://postmarkapp.com).
-- Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records).
-- Generate a Server API token.
-- **Add to `.kamal/secrets`** and re-run `kamal env push`:
+Provider is **Resend** (PR #403 — the Postmark account in ADR 0003 was never
+stood up, and Mailgun's free plan refused a second sending domain). The
+non-secret half is already committed in `deploy.yml`'s `env.clear`
+(`smtp.resend.com`, port 587, username `resend`, domain
+`mail.bite-worthy.com`). What's left:
+
+- In Resend, add **`mail.bite-worthy.com`** as a sending domain and publish the
+  DKIM + SPF records it emits at the registrar. The subdomain is deliberate —
+  the From address (`no-reply@mail.bite-worthy.com`) has to live under whatever
+  domain is verified.
+- Generate a Resend **API key** with send access.
+- **Add to `.kamal/secrets`** and re-run `kamal env push && kamal deploy`:
   ```
-  SMTP_USERNAME=<postmark-token>
-  SMTP_PASSWORD=<same-postmark-token>
+  SMTP_PASSWORD=<resend-api-key>
   ```
-  (Postmark uses the same token for both fields.)
-- Confirm: `kamal smoke` continues to pass; then `bin/rails biteworthy:email:smoke EMAIL=you@example.com` over `kamal app exec` to send a test message.
+  Only the key is a secret — `SMTP_USERNAME` is the literal string `resend` and
+  is already set in `env.clear`.
+- **Then run `bin/kamal-secrets-push`** to sync the `KAMAL_SECRETS_B64` repo secret.
+  `deploy-api.yml` rebuilds `.kamal/secrets` from it on every automated deploy, so
+  skipping this means the next merge to master quietly reverts the key.
+  (All three commands run from `apps/api/` — Kamal resolves `config/deploy.yml`
+  relative to the working directory, and step 1 already `cd`'d there.)
+- Confirm: `kamal smoke` continues to pass; then `kamal app exec --roles web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'` to send a test message (`--roles web`, or it runs on the worker too and sends twice).
 
 ### 3. Wire production storage (Phase 5.3)
 
@@ -139,8 +152,10 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
   R2_BUCKET=biteworthy-blobs
   R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
   ```
-- `kamal env push && kamal deploy`.
-- (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
+- From `apps/api/`: `kamal env push && kamal deploy`, then `bin/kamal-secrets-push`
+  (see above — CI rebuilds `.kamal/secrets` from the repo secret and would revert these
+  otherwise).
+- (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec --roles web "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
 
 ### 4. Provision the web app on Vercel (Phase 5.4)
 

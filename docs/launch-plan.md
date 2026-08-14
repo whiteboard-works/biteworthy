@@ -52,7 +52,7 @@ can launch without, or fast-follow.
 | Create **GHCR PAT** (`write:packages` + `read:packages`) | free | HARD |
 | **Start L1** — engage Colorado attorney for Privacy + ToS ⏳ *long lead* | varies | HARD |
 | Register **DMCA designated agent (L2)** + repeat-infringer process | ~$6 | HARD (DMCA feature) |
-| Sign up **Postmark / Cloudflare R2 / Vercel / PostHog** accounts | free tiers | mixed |
+| Sign up **Resend / Cloudflare R2 / Vercel / PostHog** accounts | free tiers | mixed |
 | **Apple Developer** ($99/yr) + **Google Play Console** ($25 one-time) | $124 | HARD (mobile) |
 | Turn on **Anthropic billing** | ~$15 total downstream | keystone |
 | Design **`icon-source.svg`** | — | HARD (mobile) |
@@ -75,9 +75,13 @@ can launch without, or fast-follow.
 
 ### Wave 3 — needs the API live
 
-- [ ] **Wire Postmark** — verify `bite-worthy.com` sender (DKIM + Return-Path
-      DNS), set Server API Token. SOFT, but needed for password reset / claims /
-      waitlist. (~$15/mo at 10k mails; free ≤100/mo.)
+- [ ] **Wire Resend** — verify `mail.bite-worthy.com` sender (DKIM + SPF
+      DNS), generate an API key, put it in `apps/api/.kamal/secrets` as
+      `SMTP_PASSWORD`, then (from `apps/api/`) `kamal env push && kamal deploy`
+      and `bin/kamal-secrets-push` so CI deploys don't revert it. SOFT, but
+      needed for password reset / claims / waitlist. (Free tier covers
+      Durango-beta volume; confirm the current limits + paid step-up at signup
+      rather than trusting this line.)
 - [ ] **Create R2 bucket `biteworthy-blobs` + API token.** SOFT, but review/dish
       photos won't survive deploys without it. (~$1–3/mo.)
 - [ ] **Connect Vercel** (Hobby, free) — import repo, set 3 `NEXT_PUBLIC_*` vars,
@@ -86,7 +90,9 @@ can launch without, or fast-follow.
 ### Wave 4 — needs API + Vercel live
 
 - [ ] **Seed 30 Durango restaurants** — populate `docs/seeds/durango.csv`, run
-      `bin/rails biteworthy:seed:durango` via `kamal app exec`, swipe-verify to the
+      `bin/rails biteworthy:seed:durango` via `kamal app exec --roles web` (bare
+      `app exec` runs on the worker too and the two runs race — this exact
+      command did it once already), swipe-verify to the
       80%-published threshold. ~$15. **HARD — coverage *is* the day-one product.**
 - [ ] **Set PostHog keys** — `NEXT_PUBLIC_POSTHOG_KEY` (Vercel) +
       `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
@@ -120,7 +126,7 @@ can launch without, or fast-follow.
 
 ```
 Hetzner + Neon + GHCR + DNS ─┐
-                             ├─► first `kamal deploy` ─► Postmark / R2 / Vercel+domain
+                             ├─► first `kamal deploy` ─► Resend / R2 / Vercel+domain
 Anthropic billing ─► cassette┘                        └─► seed 30 ─► screenshots ─► eas submit
 Anthropic billing ─► seed 30                                          │
 L1 attorney ─► remove DRAFT banners ─► (store requires signed docs) ──┘ ─► press
@@ -241,7 +247,7 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 - [ ] **Engage attorney for L1 Privacy/ToS sign-off** (keystone #2 — start now, long lead)
 - [ ] **Enable Anthropic billing** (keystone #3)
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**
-- [ ] **Postmark / R2 / Vercel + domain / PostHog** wiring
+- [ ] **Resend / R2 / Vercel + domain / PostHog** wiring
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
 - [ ] **Remove DRAFT banners** (post-L1)

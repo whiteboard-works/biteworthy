@@ -19,6 +19,11 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * waitlist and shareable-filter-link data flows, and made the
  * analytics and deletion wording match what the code actually does.
  *
+ * The email subprocessor was corrected to Resend (PR #403 switched
+ * production SMTP; this page still named Postmark). Naming the wrong
+ * processor is the one drift here with legal weight, so the
+ * LAST_UPDATED date moves with it.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -33,7 +38,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-06-14';
+const LAST_UPDATED = '2026-08-14';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -132,8 +137,8 @@ export default function PrivacyPage(): ReactElement {
               to train the model. We do not send your reviews or profile to Anthropic.
             </li>
             <li>
-              <strong>Postmark</strong>: outbound email (claim verification, password reset). The
-              recipient address and message body pass through Postmark; we don’t store the message
+              <strong>Resend</strong>: outbound email (claim verification, password reset). The
+              recipient address and message body pass through Resend; we don’t store the message
               itself.
             </li>
             <li>
@@ -182,10 +187,13 @@ export default function PrivacyPage(): ReactElement {
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
               Do-Not-Track signal automatically. On mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. When analytics are on and
-              you’re signed in, the funnel events (e.g. <em>app_open</em>, <em>menu_filtered</em>)
-              are linked to your account and include coarse signals such as your strictness setting,
-              which dietary preset you use, and counts of hidden/visible items. We never send review
-              text, your email, or your specific avoid-lists.
+              you’re signed in, the funnel events are linked to your account. What they carry is
+              deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
+              visible or hidden, and which <em>kind</em> of filter was applied — not the filter
+              itself. Toggling strictness on a menu sends the before and after value.
+              Saving your dietary profile sends only that it happened, never the preset, the
+              strictness, or how much you avoid — that association is the one we most want to
+              avoid making. We never send review text, your email, or your specific avoid-lists.
             </li>
             <li>
               <strong>We do not sell or share</strong> your personal information, and we will not

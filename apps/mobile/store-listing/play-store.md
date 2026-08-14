@@ -42,7 +42,7 @@ Google Play Console → BiteWorthy → Main store listing.
 
 ## Data safety
 
-Mirrors `app-store.md`'s App Privacy answers. The Play data-safety form has separate questions for "data collected" vs "data shared"; we **collect** the data listed in the privacy policy and **share** none of it (Anthropic + Postmark + R2 + PostHog are processors, not third-party recipients in the Play sense — the form has a "service provider" exception).
+Mirrors `app-store.md`'s App Privacy answers. The Play data-safety form has separate questions for "data collected" vs "data shared"; we **collect** the data listed in the privacy policy and **share** none of it (Anthropic + Resend + R2 + PostHog are processors, not third-party recipients in the Play sense — the form has a "service provider" exception).
 
 ## Pricing & distribution
 

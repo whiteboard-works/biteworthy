@@ -26,9 +26,11 @@ Rails.application.configure do
   config.action_mailer.perform_caching = false
 
   # Phase 5.2 — production SMTP. Provider-agnostic: any SMTP-capable
-  # service (Postmark, SES, SendGrid, Mailgun) works by setting the
-  # SMTP_* env vars in `.kamal/secrets`. ADR 0003 documents the
-  # Postmark pick + alternatives.
+  # service (Resend, Postmark, SES, SendGrid) works by setting the
+  # SMTP_* env vars. ADR 0003 documents the pick + alternatives; the
+  # provider is Resend as of PR #403, and the live values come from
+  # deploy.yml's `env.clear` (address/port/domain/username) plus
+  # SMTP_PASSWORD from `.kamal/secrets`.
   #
   # Fail loudly if delivery raises — Solid Queue retries the mailer
   # job on transient errors, but a misconfigured server should NOT
@@ -38,11 +40,15 @@ Rails.application.configure do
   config.action_mailer.raise_delivery_errors = true
   config.action_mailer.perform_deliveries    = true
   config.action_mailer.smtp_settings = {
-    address:              ENV.fetch("SMTP_ADDRESS", "smtp.postmarkapp.com"),
+    address:              ENV.fetch("SMTP_ADDRESS", "smtp.resend.com"),
     port:                 ENV.fetch("SMTP_PORT", "587").to_i,
-    user_name:            ENV["SMTP_USERNAME"],
+    # "resend" is Resend's literal SMTP username, not an account name —
+    # defaulting it keeps SMTP_PASSWORD the only value a boot must supply.
+    user_name:            ENV.fetch("SMTP_USERNAME", "resend"),
     password:             ENV["SMTP_PASSWORD"],
-    domain:               ENV.fetch("SMTP_DOMAIN", "bite-worthy.com"),
+    # The verified sending domain is the subdomain, and the From address
+    # has to sit under whatever is verified.
+    domain:               ENV.fetch("SMTP_DOMAIN", "mail.bite-worthy.com"),
     authentication:       :plain,
     enable_starttls_auto: true
   }

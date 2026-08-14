@@ -1,11 +1,14 @@
 #!/bin/bash -e
 
-# Phase 5.1 — Docker entrypoint shared by the `app` (puma) and
-# `worker` (solid_queue:start) processes Fly runs from the same image.
+# Phase 5.1 — Docker entrypoint shared by the `web` (puma) and
+# `worker` (solid_queue:start) Kamal roles, which boot from the same image.
 #
-# Only the puma process should run `db:prepare` on boot. The release
-# command in fly.toml ALSO runs `db:prepare` so this is belt-and-
-# suspenders — running it twice is a no-op when the schema is current.
+# Only the puma role should run `db:prepare` on boot, and this is the ONLY
+# place it runs — ADR 0002's `fly.toml` release command is gone, and the
+# Kamal pre-deploy hook that replaced it was removed too (it ran before any
+# container existed, so it could never work on a first deploy). A failed
+# migration exits the container, `/up` never passes, and kamal-proxy holds
+# traffic on the old release.
 
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
