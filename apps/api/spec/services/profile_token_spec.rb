@@ -1,10 +1,15 @@
 require "rails_helper"
 
 RSpec.describe ProfileToken do
+  # Real ids, because `decode` now requires them to be ids. Both clients
+  # mint a token out of the filter the server handed them, so a token in
+  # the wild has never carried anything else — the slug-shaped fixtures
+  # these replaced were illustrative, and they let the parity examples
+  # pin a shape that could not occur.
   let(:sample_payload) do
     {
-      avoid_ingredient_ids: %w[ing-dairy ing-egg],
-      avoid_tag_ids:        %w[tag-contains-dairy],
+      avoid_ingredient_ids: %w[3f1d6c8a-2b47-4e91-9c3d-8a5e10f2b764 9b2e40d7-6c15-4a83-b0f9-2d7c48e15a3b],
+      avoid_tag_ids:        %w[c47a1e59-8d30-4b62-9f14-6e0a3b8d72c5],
       strictness:           "balanced"
     }
   end
@@ -42,12 +47,12 @@ RSpec.describe ProfileToken do
     # languages. Produced by encodeProfileToken(sample, { expiresAt:
     # 4102444800 }) in the TS module.
     FIXED_EXP = 4_102_444_800
-    TS_TOKEN  = "eyJ2IjoyLCJhaSI6WyJpbmctZGFpcnkiLCJpbmctZWdnIl0sImF0IjpbInRhZy1jb250YWlucy1kYWlyeSJdLCJzIjoiYmFsYW5jZWQiLCJleHAiOjQxMDI0NDQ4MDB9".freeze
+    TS_TOKEN  = "eyJ2IjoyLCJhaSI6WyIzZjFkNmM4YS0yYjQ3LTRlOTEtOWMzZC04YTVlMTBmMmI3NjQiLCI5YjJlNDBkNy02YzE1LTRhODMtYjBmOS0yZDdjNDhlMTVhM2IiXSwiYXQiOlsiYzQ3YTFlNTktOGQzMC00YjYyLTlmMTQtNmUwYTNiOGQ3MmM1Il0sInMiOiJiYWxhbmNlZCIsImV4cCI6NDEwMjQ0NDgwMH0".freeze
 
     it "decodes a token produced by the TS encoder (sample payload)" do
       decoded = described_class.decode(TS_TOKEN)
-      expect(decoded.avoid_ingredient_ids).to eq(%w[ing-dairy ing-egg])
-      expect(decoded.avoid_tag_ids).to        eq(%w[tag-contains-dairy])
+      expect(decoded.avoid_ingredient_ids).to eq(sample_payload[:avoid_ingredient_ids])
+      expect(decoded.avoid_tag_ids).to        eq(sample_payload[:avoid_tag_ids])
       expect(decoded.strictness).to           eq("balanced")
     end
 
@@ -107,7 +112,33 @@ RSpec.describe ProfileToken do
         JSON.generate(v: 2, ai: [42], at: [], s: "balanced", exp: 4_102_444_800), padding: false
       )
       expect { described_class.decode(bad) }
-        .to raise_error(ProfileToken::InvalidTokenError, /ai must be an array of strings/)
+        .to raise_error(ProfileToken::InvalidTokenError, /ai must be an array of ingredient ids/)
+    end
+
+    # A string is not enough. These tokens are minted client-side and are
+    # not signed — the module's own header calls strict structural
+    # validation one of the two real protections — but the check stopped
+    # at "array of strings". Because the avoid lists are compared in Ruby
+    # by array intersection, an id that is not an id matches no dish and
+    # is indistinguishable from no filter at all, so someone following a
+    # shared link would be shown an unfiltered menu labelled as filtered
+    # to the sharer's profile.
+    it "rejects ids that are strings but not ids" do
+      %w[peanut ../../etc/passwd 3f1d6c8a2b474e919c3d8a5e10f2b764].each do |junk|
+        bad = Base64.urlsafe_encode64(
+          JSON.generate(v: 2, ai: [junk], at: [], s: "balanced", exp: 4_102_444_800), padding: false
+        )
+        expect { described_class.decode(bad) }
+          .to raise_error(ProfileToken::InvalidTokenError, /ingredient ids/), "accepted #{junk.inspect}"
+      end
+    end
+
+    it "rejects a junk tag id too, not just an ingredient one" do
+      bad = Base64.urlsafe_encode64(
+        JSON.generate(v: 2, ai: [], at: ["gluten"], s: "balanced", exp: 4_102_444_800), padding: false
+      )
+      expect { described_class.decode(bad) }
+        .to raise_error(ProfileToken::InvalidTokenError, /tag ids/)
     end
   end
 end

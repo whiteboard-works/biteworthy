@@ -21,6 +21,17 @@ class ProfileToken
   # Default lifetime of a shared link: 30 days.
   TTL_SECONDS = 30 * 24 * 60 * 60
 
+  # The TS header calls strict structural validation one of the two real
+  # protections here, since the token is minted client-side and signing
+  # would be theater. That validation stopped at "an array of strings",
+  # which let `ai: ["peanut"]` through — and because the avoid lists are
+  # compared in Ruby by array intersection, a junk id matches no dish and
+  # is indistinguishable from an empty filter. The person who followed a
+  # shared link would be handed a menu that says it is filtered to the
+  # sharer's profile and is not filtered at all. Refusing the token says
+  # so; the items endpoint already turns this into a 422.
+  UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+
   Decoded = Struct.new(:avoid_ingredient_ids, :avoid_tag_ids, :strictness, keyword_init: true)
 
   class InvalidTokenError < StandardError; end
@@ -62,8 +73,8 @@ class ProfileToken
       s   = payload["s"]
       exp = payload["exp"]
 
-      raise InvalidTokenError, "ai must be an array of strings" unless ai.is_a?(Array) && ai.all?(String)
-      raise InvalidTokenError, "at must be an array of strings" unless at.is_a?(Array) && at.all?(String)
+      raise InvalidTokenError, "ai must be an array of ingredient ids" unless id_array?(ai)
+      raise InvalidTokenError, "at must be an array of tag ids" unless id_array?(at)
       raise InvalidTokenError, "s must be one of #{STRICTNESSES.join('|')}" unless STRICTNESSES.include?(s)
       raise InvalidTokenError, "exp must be a number" unless exp.is_a?(Numeric)
       raise InvalidTokenError, "expired" if exp <= now
@@ -72,6 +83,10 @@ class ProfileToken
     end
 
     private
+
+    def id_array?(value)
+      value.is_a?(Array) && value.all? { |id| id.is_a?(String) && id.match?(UUID) }
+    end
 
     # `Base64.urlsafe_decode64` requires padding; the token format
     # strips it. Add it back so the decode succeeds.

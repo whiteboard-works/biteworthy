@@ -178,6 +178,22 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
      replaced it). Either feed it into `TasteScoring` or drop it and
      its writers.
 
+- **The avoid lists accept ids that mean nothing** — the *soft* taste
+  arrays validate that their UUIDs resolve; the *hard* safety arrays
+  did not, so an unknown id (or a slug, which casts to NULL in a
+  `uuid[]` column) saved fine and then matched no dish. The same hole
+  sat behind the share link, where `ProfileToken.decode` checked
+  `ai`/`at` only as "an array of strings". **Fixed in #605**, with two
+  deliberate asymmetries worth keeping straight. `avoid_ids_are_real`
+  checks only ids a save *introduces*, because those arrays are
+  rewritten wholesale and re-checking an echoed-back stale id would
+  lock someone out of editing their own safety filter. The token is the
+  opposite — `Menus::Filter.from_token` refuses it whole if any id no
+  longer resolves, because a stale link is exactly when "this menu is
+  filtered to my profile" stops being true, and shape alone does not
+  close that: a well-formed UUID naming nothing matches no dish either.
+  A person can fix a profile; nobody can fix a link.
+
 - ~~**`/login?next=` is an open redirect**~~ — **closed 2026-08-14 (#600).**
   It was in `/signup` as well, which this entry never said. The fix it
   prescribed — `startsWith('/')`, reject `//` — would not have worked,

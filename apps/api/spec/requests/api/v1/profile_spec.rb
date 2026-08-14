@@ -52,7 +52,12 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
 
       it "drops ids that no longer resolve to a live row (stale ids)" do
         stale = SecureRandom.uuid
-        user.profile.update!(avoid_ingredient_ids: [cheese.id, stale])
+        # `update_columns`, because the state being modelled is an admin
+        # removing the taxonomy node *after* the id was stored — which
+        # never passes through a validation. Writing it with `update!`
+        # would instead be asserting that an avoid list accepts an
+        # unknown id, which it no longer does.
+        user.profile.update_columns(avoid_ingredient_ids: [cheese.id, stale])
 
         get "/api/v1/profile", headers: headers
 
@@ -345,6 +350,59 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(response.parsed_body["strictness"]).to eq("strict")
+      end
+
+      # The asymmetry this closes: the soft arrays above rejected an
+      # unknown UUID while the avoid lists — the hard safety filter —
+      # took anything. A save that reports success and then filters
+      # nothing is the one failure mode this product cannot have.
+      it "422s on an unknown avoid ingredient rather than storing a filter that matches nothing" do
+        patch "/api/v1/profile",
+              params: { avoid_ingredient_ids: [SecureRandom.uuid] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["errors"]).to have_key("avoid_ingredient_ids")
+        expect(user.reload.profile.avoid_ingredient_ids).to be_empty
+      end
+
+      # A slug where an id belongs. `uuid[]` casts it to NULL on the way
+      # in, so this used to store `[nil]` and report 200 — a person who
+      # believed they had told us about an allergy and had not.
+      it "422s on a value that is not a UUID at all" do
+        patch "/api/v1/profile",
+              params: { avoid_ingredient_ids: ["peanut"] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(user.reload.profile.avoid_ingredient_ids).to be_empty
+      end
+
+      it "422s on an unknown avoid tag" do
+        patch "/api/v1/profile",
+              params: { avoid_tag_ids: [SecureRandom.uuid] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["errors"]).to have_key("avoid_tag_ids")
+      end
+
+      # The lockout this validation must not cause, and the reason it
+      # only checks ids the save *introduces*. An admin removing a
+      # taxonomy node leaves a dangling id in everyone who avoided it;
+      # the settings page rewrites this array wholesale, so echoing that
+      # id back has to keep working or the person can never edit their
+      # own safety filter again.
+      it "lets a save carry a stale avoid id it did not introduce" do
+        stale = SecureRandom.uuid
+        user.profile.update_columns(avoid_ingredient_ids: [stale])
+
+        patch "/api/v1/profile",
+              params: { avoid_ingredient_ids: [stale, cheese.id] }.to_json,
+              headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(user.reload.profile.avoid_ingredient_ids).to contain_exactly(stale, cheese.id)
       end
 
       it "accepts an id that also sits in an avoid list (filter wins; scoring ignores it)" do
