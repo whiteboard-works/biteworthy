@@ -91,7 +91,7 @@ Steps 1–3 + 8–9 are the recurring ones; 4–7 are one-time setup.
 
 **You own the OS.** Apt updates, kernel reboots, fail2ban, log rotation. Hetzner provides the host; we provide the discipline. Mitigations baked in:
 - `unattended-upgrades` configured during `kamal setup` (security patches automatic).
-- Hetzner snapshots are €0.012/GB-month + on-demand; daily snapshot of the 40GB disk = €0.50/mo. Worth it.
+- Hetzner snapshots are €0.012/GB-month + on-demand. The CPX21's disk is 80 GB, so a full-disk snapshot is ~€0.96/mo — an upper bound, since Hetzner bills snapshot *used* space rather than provisioned size. (This ADR budgeted €0.50 against the CX22's 40 GB.) Worth it either way.
 - Major-version OS upgrades are operator events (not automatic). Document them.
 
 **Single point of failure.** One box; if it dies, mobile + web go dark until we provision a new one. Mitigations:
@@ -107,7 +107,7 @@ Steps 1–3 + 8–9 are the recurring ones; 4–7 are one-time setup.
 
 ## Consequences
 
-- **Cost** — ~$8/mo (Hetzner CPX21, up from the CX22's ~$5 this ADR projected) + $0 (Neon free tier) + $0 (GHCR for private repo). Hetzner snapshots ~$0.50/mo. **Total: ~$8.50/mo** at launch volume — up from the ~$6 this ADR originally projected, because the CX22 it specified isn't available in US datacenters. Still under Fly's projected $5–15/mo at the top of that range, and the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
+- **Cost** — ~$8/mo (Hetzner CPX21, up from the CX22's ~$5 this ADR projected) + $0 (Neon free tier) + $0 (GHCR for private repo). Hetzner snapshots up to ~$1/mo (80 GB disk, billed on used space). **Total: ~$9/mo** at launch volume — up from the ~$6 this ADR originally projected, because the CX22 it specified isn't available in US datacenters and the CPX21 that replaced it carries double the disk. Still under Fly's projected $5–15/mo at the top of that range, and the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
 - **Operational discipline** — operator owns OS-level health. Acceptable trade for the cost + control delta. Document a 30-min monthly maintenance window in the launch runbook.
 - **Rebuild story** — losing the Hetzner box is recoverable in ~15 min. Losing both the box AND Neon is the catastrophic case (we don't currently snapshot Neon ourselves; revisit if growth warrants).
 - **Observability** — Sentry from ADR 0001 still applies; Phase 2.9's cost dashboard at `/admin/dashboard` works regardless of host. PostHog (Phase 5.8) handles funnel analytics.

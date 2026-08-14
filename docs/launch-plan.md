@@ -47,7 +47,7 @@ can launch without, or fast-follow.
 
 | Item | Cost | Gate |
 |---|---|---|
-| Create **Hetzner** account + API token + ed25519 SSH key | ~$8.50/mo all-in | HARD |
+| Create **Hetzner** account + API token + ed25519 SSH key | ~$9/mo all-in | HARD |
 | Create **Neon** `biteworthy-prod` (aws-us-east-1), copy pooled URL | free tier | HARD |
 | Create **GHCR PAT** (`write:packages` + `read:packages`) | free | HARD |
 | **Start L1** — engage Colorado attorney for Privacy + ToS ⏳ *long lead* | varies | HARD |
