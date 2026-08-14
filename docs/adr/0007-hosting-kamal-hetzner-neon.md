@@ -1,4 +1,4 @@
-# ADR 0007: production hosting (Kamal + Hetzner CX22 + Neon Postgres)
+# ADR 0007: production hosting (Kamal + Hetzner CPX21 + Neon Postgres)
 
 - **Date:** 2026-04-30
 - **Status:** Accepted
@@ -8,20 +8,20 @@
 
 ADR 0002 picked Fly.io and Phase 5.1's PR #172 shipped the wiring (Dockerfile, fly.toml, smoke task, README). Before the live deploy happened, the human elected to reverse the pick — concerns about Fly's ongoing pricing direction + a preference for owning the host rather than leasing per-VM-hour.
 
-This ADR captures the new pick: **Kamal** (Basecamp's container deployer) on **Hetzner CX22** (one box, two roles), with **Neon** for managed Postgres and **GitHub Container Registry** for the image. ADR 0001's stack-line "Hosting | Fly.io (api)" should be read alongside this — the high-level "self-managed Docker on a VPS" posture is the same intent; the specific provider differs.
+This ADR captures the new pick: **Kamal** (Basecamp's container deployer) on **Hetzner CPX21** (one box, two roles), with **Neon** for managed Postgres and **GitHub Container Registry** for the image. ADR 0001's stack-line "Hosting | Fly.io (api)" should be read alongside this — the high-level "self-managed Docker on a VPS" posture is the same intent; the specific provider differs.
 
 ## Decision
 
-### Compute — 1 × Hetzner CX22 in Ashburn
+### Compute — 1 × Hetzner CPX21 in Ashburn
 
 Single box for v1 launch:
-- **Hetzner CX22** — 4 GB RAM, 2 vCPU, 40 GB SSD. **~€4.5–5/mo all-in.**
+- **Hetzner CPX21** — 4 GB RAM, 3 vCPU, 80 GB SSD. **~€8/mo all-in.** (This ADR specified a **CX22** — 2 vCPU / 40 GB / ~€4.5. The CX line is not offered in Hetzner's US datacenters, so provisioning in Ashburn landed on the CPX equivalent: more vCPU and disk, roughly €3/mo more. Verified against `hcloud server describe biteworthy-api` on 2026-08-14.)
 - **Datacenter:** `ash-dc1` (Ashburn, Virginia, USA). Nearest Hetzner US datacenter to Durango (~30 ms RTT, dominated by the WAN hop anyway).
 - **Both processes on one box:**
   - `web` role — puma serving `:3000`
   - `worker` role — `bundle exec rake solid_queue:start`
   - Same OCI image, different `cmd`. Configured as Kamal **roles** in `config/deploy.yml`.
-- **Why same box, not split:** CX22 has more headroom than the dual-Fly-machine spec it replaces (which was 2 × shared-cpu-1x at 512 MB each = 1 GB total; CX22 alone is 4 GB). Splitting buys nothing at launch volume + costs an extra €5/mo. Revisit only if puma's RSS + worker's image-decode buffers actually contend.
+- **Why same box, not split:** the box has more headroom than the dual-Fly-machine spec it replaces (which was 2 × shared-cpu-1x at 512 MB each = 1 GB total; this box alone is 4 GB). Splitting buys nothing at launch volume + costs an extra €5/mo. Revisit only if puma's RSS + worker's image-decode buffers actually contend.
 - **OS:** Ubuntu 24.04 LTS (Hetzner default). Unattended-upgrades configured during `kamal setup` for security patches; major-version upgrades are manual operator events.
 
 ### Postgres — Neon (managed, free tier)
@@ -30,7 +30,7 @@ Single box for v1 launch:
 - **Region:** `aws-us-east-1` (matches Hetzner Ashburn's RTT envelope).
 - **Connection string:** Neon's **pooled** URL (NOT the unpooled one — puma + worker concurrency would exhaust unpooled connections fast). Sets `DATABASE_URL` via `.kamal/secrets`.
 - **Backups:** Neon handles 7-day point-in-time recovery on free tier. We don't need our own `pg_dump` cron.
-- **Why managed Postgres, not Postgres-on-Hetzner-CX22:**
+- **Why managed Postgres, not Postgres-on-the-app-box:**
   - Box rebuilds (kernel upgrades, hardware migrations, mistakes) never risk data.
   - We don't run a backup pipeline ourselves.
   - Neon's branching is genuinely useful for staging (clone prod schema + sample data on demand).
@@ -78,10 +78,10 @@ The acceptance ("`curl https://api.bite-worthy.com/up` returns 200") needs:
 1. **Hetzner Cloud account** (https://hetzner.cloud). Generate API token + add ed25519 SSH public key.
 2. **Neon account** (https://neon.tech). Create `biteworthy-prod` project in `aws-us-east-1`. Copy the **pooled** connection string.
 3. **GitHub PAT** with `write:packages` + `read:packages` scopes.
-4. `hcloud server create --name biteworthy-api --type cx22 --datacenter ash-dc1 --image ubuntu-24.04 --ssh-key skylar`
+4. `hcloud server create --name biteworthy-api --type cpx21 --datacenter ash-dc1 --image ubuntu-24.04 --ssh-key skylar`
 5. DNS: `api.bite-worthy.com` `A` record at the Hetzner IP.
 6. `cp .kamal/secrets.example .kamal/secrets`, fill in real values.
-7. Edit `config/deploy.yml`, replace `<REPLACE_WITH_HETZNER_IP>` placeholders.
+7. Point the config at the box's IP — `config/deploy.yml`'s `hosts:` under both roles, plus `deploy-api.yml`'s ssh/kamal blocks, DNS, and the `SSH_KNOWN_HOSTS` secret. (This ADR shipped with `<REPLACE_WITH_HETZNER_IP>` placeholders; they were filled in at provisioning and the values are now literal. `docs/launch-readiness.md` §1 carries the full rebuild list.)
 8. `kamal setup && kamal env push && kamal deploy`.
 9. `kamal smoke` (alias for the production smoke task).
 
@@ -91,7 +91,7 @@ Steps 1–3 + 8–9 are the recurring ones; 4–7 are one-time setup.
 
 **You own the OS.** Apt updates, kernel reboots, fail2ban, log rotation. Hetzner provides the host; we provide the discipline. Mitigations baked in:
 - `unattended-upgrades` configured during `kamal setup` (security patches automatic).
-- Hetzner snapshots are €0.012/GB-month + on-demand; daily snapshot of the 40GB disk = €0.50/mo. Worth it.
+- Hetzner snapshots are €0.012/GB-month + on-demand. The CPX21's disk is 80 GB, so a full-disk snapshot is ~€0.96/mo — an upper bound, since Hetzner bills snapshot *used* space rather than provisioned size. (This ADR budgeted €0.50 against the CX22's 40 GB.) Worth it either way.
 - Major-version OS upgrades are operator events (not automatic). Document them.
 
 **Single point of failure.** One box; if it dies, mobile + web go dark until we provision a new one. Mitigations:
@@ -107,7 +107,7 @@ Steps 1–3 + 8–9 are the recurring ones; 4–7 are one-time setup.
 
 ## Consequences
 
-- **Cost** — projected ~$5/mo (Hetzner CX22) + $0 (Neon free tier) + $0 (GHCR for private repo). One-time Hetzner snapshot setup ~$0.50/mo. **Total: ~$6/mo** at launch volume. Compared to Fly's projected $5–15/mo, the floor is similar but the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
+- **Cost** — ~$8/mo (Hetzner CPX21, up from the CX22's ~$5 this ADR projected) + $0 (Neon free tier) + $0 (GHCR for private repo). Hetzner snapshots up to ~$1/mo (80 GB disk, billed on used space). **Total: ~$9/mo** at launch volume — up from the ~$6 this ADR originally projected, because the CX22 it specified isn't available in US datacenters and the CPX21 that replaced it carries double the disk. Still under Fly's projected $5–15/mo at the top of that range, and the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
 - **Operational discipline** — operator owns OS-level health. Acceptable trade for the cost + control delta. Document a 30-min monthly maintenance window in the launch runbook.
 - **Rebuild story** — losing the Hetzner box is recoverable in ~15 min. Losing both the box AND Neon is the catastrophic case (we don't currently snapshot Neon ourselves; revisit if growth warrants).
 - **Observability** — Sentry from ADR 0001 still applies; Phase 2.9's cost dashboard at `/admin/dashboard` works regardless of host. PostHog (Phase 5.8) handles funnel analytics.

@@ -51,7 +51,7 @@ bundle exec rspec
 
 ## Production deploy (Phase 5.1.1)
 
-Hosted on **Hetzner CX22** + **Neon Postgres** + **Cloudflare R2**, deployed with **Kamal** (image registry: GitHub Container Registry). Decision + trade-offs in `docs/adr/0007-hosting-kamal-hetzner-neon.md` (which supersedes ADR 0002's Fly.io pick).
+Hosted on **Hetzner CPX21** + **Neon Postgres** + **Cloudflare R2**, deployed with **Kamal** (image registry: GitHub Container Registry). Decision + trade-offs in `docs/adr/0007-hosting-kamal-hetzner-neon.md` (which supersedes ADR 0002's Fly.io pick).
 
 **One-time bootstrap (human, ~30 minutes):**
 
@@ -59,7 +59,7 @@ Hosted on **Hetzner CX22** + **Neon Postgres** + **Cloudflare R2**, deployed wit
 # 1. Provision the box. Hetzner Cloud Console or hcloud CLI:
 hcloud server create \
     --name biteworthy-api \
-    --type cx22 \
+    --type cpx21 \
     --image ubuntu-24.04 \
     --datacenter ash-dc1 \
     --ssh-key skylar
@@ -83,8 +83,15 @@ cp .kamal/secrets.example .kamal/secrets
 # ANTHROPIC_API_KEY, ADMIN_*, SMTP_*, R2_*. Template's inline notes
 # explain where each value comes from.
 
-# 5. Edit config/deploy.yml — replace the two <REPLACE_WITH_HETZNER_IP>
-#    placeholders with the IP from step 1.
+# 5. Point everything at the new IP. The placeholders are long gone —
+#    the current IP is hardcoded, and a rebuild must update ALL of:
+#      - config/deploy.yml: the `hosts:` entry under BOTH roles
+#      - .github/workflows/deploy-api.yml: its ssh config + kamal host
+#      - DNS: api.bite-worthy.com A -> new IP
+#      - SSH_KNOWN_HOSTS secret: re-pin the NEW box's keys (only after
+#        confirming out-of-band it was really rebuilt)
+#      - SSH_PRIVATE_KEY, if the deploy key changed
+#    Miss the workflow and CI keeps shipping to the replaced box.
 
 # 6. First deploy.
 gem install kamal
@@ -98,7 +105,7 @@ kamal smoke             # alias for `app exec "bin/rails biteworthy:production:s
 curl https://api.bite-worthy.com/up
 ```
 
-**Every deploy (CI automation deferred to a small follow-up after manual deploys are proven):**
+**Every deploy is automatic** — `.github/workflows/deploy-api.yml` runs `kamal deploy` on merges to master touching `apps/api/**`. To ship out-of-band from the laptop:
 
 ```bash
 kamal deploy

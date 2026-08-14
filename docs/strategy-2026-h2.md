@@ -92,10 +92,10 @@ longer the product's identity; they're a guarantee underneath it. See §7.
 
 - [ ] **L1 attorney sign-off** on `/privacy` + `/terms` → remove DRAFT banners (hard gate)
 - [ ] **L3 dish-photo liability** — counsel ruling on auto-cropping third-party menu photos; decide now (opt-in-upload fallback exists)
-- [ ] Provision in dependency order: Hetzner cx22 → Neon → GHCR PAT → Kamal deploy
+- [x] Provision in dependency order: Hetzner cpx21 → Neon → GHCR PAT → Kamal deploy — done
 - [x] Resend SMTP (Devise reset, claim verification, waitlist) — live 2026-08-14, smoke delivered to inbox
-- [ ] Cloudflare R2 bucket (review + dish photos)
-- [ ] Vercel (bite-worthy.com domain + SSR restaurant pages)
+- [x] Cloudflare R2 bucket (review + dish photos) — live
+- [x] Vercel (bite-worthy.com domain + SSR restaurant pages) — live
 - [ ] PostHog API key (funnel measurement)
 - [ ] Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)
 - [ ] Record the ingestion cassette (~$0.05) so CI greens on real ExtractMenuJob

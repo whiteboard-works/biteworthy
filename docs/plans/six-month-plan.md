@@ -80,11 +80,11 @@ Tags: **[MANUAL]** = human-only · **[CODE]** = loop-shippable · P0/P1/P2 = pri
 ### Phase 0 — The launch window (Weeks 0–4): two streams in parallel
 
 **Stream 1 — [MANUAL] Track A critical path** (the real gate; detail in `docs/launch-plan.md`)
-- [ ] **Provision Hetzner cx22 → Neon → GHCR PAT → first `kamal deploy`** (keystone)
+- [x] **Provision Hetzner cpx21 → Neon → GHCR PAT → first `kamal deploy`** (keystone) — done
 - [ ] **Engage the L1 attorney on `/privacy` + `/terms` — day one** (long lead; blocks DRAFT-banner removal + store submission). Also get the **L3 dish-photo auto-crop liability ruling**.
 - [ ] **Enable Anthropic billing**
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**; **design `icon-source.svg`**
-- [ ] ~~Resend SMTP~~ (done 2026-08-14) **· Cloudflare R2 · Vercel (domain + SSR) · PostHog API key**
+- [ ] ~~Resend SMTP~~ · ~~Cloudflare R2~~ · ~~Vercel (domain + SSR)~~ — all done · **PostHog API key** remains
 - [ ] **Seed 30 Durango restaurants (~$15 ingestion)** — coverage *is* the day-one product
 - [ ] **Set up Neon snapshots** — ADR-0007 admits no self-snapshot today; one un-backed-up wipe during early word-of-mouth is a pre-mortem death. Don't launch without it.
 - [ ] **Gate: verify strict-mode `visible_count` is non-trivial on seeded data *before* inviting anyone** (the empty-menu check)
@@ -170,7 +170,7 @@ Plus two pass/fail guards: **zero safety incidents** (P0 tests hold) and
 
 ## Outstanding manual items (still human-only — none loop-shippable)
 
-- [ ] **Provisioning → first `kamal deploy`** (keystone)
+- [x] **Provisioning → first `kamal deploy`** (keystone) — done; API live on Hetzner
 - [ ] **Engage L1 attorney now** (keystone, long lead) + **L3 dish-photo ruling**
 - [ ] **Anthropic billing**; **Apple + Google + DMCA**; **design icon SVG**; **seed 30 Durango**
 - [ ] **Set up Neon snapshots** (no backup exists today — real data-loss risk)

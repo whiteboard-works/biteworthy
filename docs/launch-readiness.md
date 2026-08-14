@@ -75,13 +75,15 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 
 Numbered roughly in dependency order. Each step lists what it unlocks.
 
-### 1. Provision the Rails API (Phase 5.1.1)
+### 1. Provision the Rails API (Phase 5.1.1) — ✅ **DONE**
 
-**Unlocks:** every API-dependent flow (the web app's API calls, the mobile app's calls, the seed task).
+**Unlocks:** every API-dependent flow. All live: `https://api.bite-worthy.com/up` returns 200 and merges touching `apps/api/**` deploy themselves.
+
+Kept as the runbook for rebuilding the box:
 
 ```bash
 # Hetzner
-hcloud server create --name biteworthy-api --type cx22 \
+hcloud server create --name biteworthy-api --type cpx21 \
     --image ubuntu-24.04 --datacenter ash-dc1 --ssh-key skylar
 # Note the IP. DNS: api.bite-worthy.com A → that IP.
 
@@ -97,8 +99,22 @@ cd apps/api
 cp .kamal/secrets.example .kamal/secrets
 # Edit values. The template inline-comments where each comes from.
 
-# Edit config/deploy.yml — replace <REPLACE_WITH_HETZNER_IP> twice
-# with the IP from above.
+# Point everything at the new IP. There are no <REPLACE_WITH_...>
+# placeholders any more -- the current IP is hardcoded in several
+# places and a rebuild has to update ALL of them, or CI keeps
+# deploying to the box you just replaced:
+#   1. apps/api/config/deploy.yml  -- the `hosts:` entry under BOTH
+#      the web and worker roles (two lines, same IP).
+#   2. .github/workflows/deploy-api.yml -- the ssh config + kamal
+#      host block near the end also name it literally.
+#   3. DNS: api.bite-worthy.com A -> new IP.
+#   4. The SSH_KNOWN_HOSTS repo secret -- re-pin to the NEW box's
+#      host keys. Only ever re-pin after confirming out-of-band that
+#      the box really was rebuilt; a host-key change you cannot
+#      explain is what a MITM looks like.
+#   5. SSH_PRIVATE_KEY, if the deploy key changed.
+# KAMAL_SECRETS_B64 does not need touching -- its values are
+# host-independent.
 
 # First deploy
 gem install kamal
@@ -109,7 +125,7 @@ kamal smoke        # alias for the production smoke task
 curl https://api.bite-worthy.com/up
 ```
 
-Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after this manual flow proves out (queued as Phase 5.1.1-wiring).
+Subsequent deploys are automatic: `.github/workflows/deploy-api.yml` runs `kamal deploy` on every merge to master touching `apps/api/**`. Run `kamal deploy` by hand only for out-of-band ships.
 
 ### 2. Wire production email (Phase 5.2) — ✅ **DONE 2026-08-14**
 

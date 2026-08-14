@@ -47,7 +47,7 @@ can launch without, or fast-follow.
 
 | Item | Cost | Gate |
 |---|---|---|
-| Create **Hetzner** account + API token + ed25519 SSH key | ~$6/mo all-in | HARD |
+| Create **Hetzner** account + API token + ed25519 SSH key | ~$9/mo all-in | HARD |
 | Create **Neon** `biteworthy-prod` (aws-us-east-1), copy pooled URL | free tier | HARD |
 | Create **GHCR PAT** (`write:packages` + `read:packages`) | free | HARD |
 | **Start L1** — engage Colorado attorney for Privacy + ToS ⏳ *long lead* | varies | HARD |
@@ -69,9 +69,9 @@ can launch without, or fast-follow.
 
 ### Wave 2 — the keystone deploy
 
-- [ ] **Run the first `kamal deploy`** — `kamal setup && kamal env push &&
-      kamal deploy && kamal smoke`; replace the two `<REPLACE_WITH_HETZNER_IP>`
-      placeholders. **HARD. Unlocks every API flow.**
+- [x] **Run the first `kamal deploy`** — **DONE.** API live at
+      `https://api.bite-worthy.com`; subsequent deploys are automatic via
+      `deploy-api.yml` on merges touching `apps/api/**`.
 
 ### Wave 3 — needs the API live
 
@@ -81,10 +81,10 @@ can launch without, or fast-follow.
       landed in the **inbox, not spam** — so DKIM/SPF are good enough for a
       cold sending domain. Password reset, claim verification and the waitlist
       mailer are live.
-- [ ] **Create R2 bucket `biteworthy-blobs` + API token.** SOFT, but review/dish
-      photos won't survive deploys without it. (~$1–3/mo.)
-- [ ] **Connect Vercel** (Hobby, free) — import repo, set 3 `NEXT_PUBLIC_*` vars,
-      add `bite-worthy.com` + `www` custom domains (DNS). **HARD for the public site.**
+- [x] **Create R2 bucket `biteworthy-blobs` + API token.** — **DONE.** Review + dish
+      photos persist across deploys. (~$1–3/mo.)
+- [x] **Connect Vercel** (Hobby, free) — **DONE.** `bite-worthy.com` + `www` live,
+      auto-deploying on master merge.
 
 ### Wave 4 — needs API + Vercel live
 
@@ -97,8 +97,10 @@ can launch without, or fast-follow.
       `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
 - [ ] **Remove DRAFT banners** from `apps/web/src/app/privacy/page.tsx` +
       `terms/page.tsx` (+ source DRAFT comments) — **only after L1 sign-off.**
-- [ ] *(loop-shippable)* Phase 5.1.1-wiring — CI `kamal deploy` on master push
-      (roadmap "Next up" #2). Can only be validated after the manual deploy proves out.
+- [x] *(loop-shippable)* Phase 5.1.1-wiring — **DONE.** `deploy-api.yml` runs
+      `kamal deploy` on merges touching `apps/api/**`, including auto-merged PRs
+      (that needs `AUTOMERGE_TOKEN`, not `GITHUB_TOKEN`, or the merge commit
+      triggers nothing).
 
 ### Wave 5 — needs seeded data + icon + L1
 
@@ -242,11 +244,11 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 
 ## Outstanding manual items (Track A checklist)
 
-- [ ] **Hetzner + Neon + GHCR provisioning** → **first `kamal deploy`** (keystone #1)
+- [x] **Hetzner + Neon + GHCR provisioning** → **first `kamal deploy`** (keystone #1) — done; API live, and merges touching `apps/api/**` now deploy themselves
 - [ ] **Engage attorney for L1 Privacy/ToS sign-off** (keystone #2 — start now, long lead)
 - [ ] **Enable Anthropic billing** (keystone #3)
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**
-- [ ] **Resend / R2 / Vercel + domain / PostHog** wiring
+- [ ] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ (all done) · **PostHog** key wiring
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
 - [ ] **Remove DRAFT banners** (post-L1)
