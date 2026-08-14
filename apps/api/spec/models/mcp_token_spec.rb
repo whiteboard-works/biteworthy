@@ -40,6 +40,22 @@ RSpec.describe McpToken do
     end
   end
 
+  describe "#revoke!" do
+    # A live credential that cannot be turned off is the worst state a
+    # token can be in, so revoking does not run validations — the scopes
+    # presence rule must not refuse to revoke a row whose scopes column
+    # nobody is touching. Reachable in the Kamal window where the old
+    # release can still mint `scopes = '{}'` after the backfill has run.
+    it "revokes a row that could not pass validation" do
+      token, secret = described_class.issue!(user: user, name: "from the old release",
+                                             scopes: [ "discovery:read" ])
+      token.update_column(:scopes, [])
+
+      expect { token.revoke! }.not_to raise_error
+      expect(described_class.authenticate(secret)).to be_nil
+    end
+  end
+
   describe ".authenticate" do
     it "resolves a live token" do
       token, secret = described_class.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"])

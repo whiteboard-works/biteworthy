@@ -66,7 +66,20 @@ class McpToken < ApplicationRecord
     update_column(:last_used_at, Time.current)
   end
 
-  def revoke! = update!(revoked_at: Time.current)
+  # **Revoking must never be blocked by a validation.** `update!` runs
+  # them all, so the `scopes` presence rule above could refuse to revoke a
+  # row whose scopes column nobody was touching — leaving a live
+  # credential that cannot be turned off through the API, which is the
+  # worst state a token can be in.
+  #
+  # That is reachable, narrowly. During a Kamal rollout the new container
+  # runs `db:prepare` while kamal-proxy still routes to the old release
+  # (`config/deploy.yml:77-79`), so for the length of the healthcheck the
+  # old controller can still mint a token with `scopes = '{}'` — after the
+  # backfill has already passed over it. Post-cutover that token grants
+  # nothing, which is the safe direction, but it also has to be
+  # revocable. Caught by Codex on #604.
+  def revoke! = update_column(:revoked_at, Time.current)
   def revoked? = revoked_at.present?
 
   private
