@@ -160,8 +160,19 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   whatever `?next=` holds without validating it starts with `/`, so
   `/login?next=https://evil.com` bounces a successful login off-site.
   Pre-dates the admin workstream (the suggestions queue minted these
-  links first) but W1 added another producer. Fix: `startsWith('/')`
-  guard (reject `//`) before `router.replace`.
+  links first) but W1 added another producer. **The fix prescribed here
+  — `startsWith('/')`, reject `//` — is not sufficient**, and was
+  measured to be: `/\evil.com` and `.//evil.com` both pass it and still
+  leave the origin, because the router normalizes *after* the check
+  (backslashes become slashes for special schemes; dot-segment
+  resolution can create an authority on serialization). A guard has to
+  re-resolve the value it returns, not just inspect the one it got.
+
+- **`pnpm build` fails on clean master** — `@biteworthy/mobile#build`
+  (`expo export`) exits non-zero with no local changes, and `ci-js.yml`
+  never runs `build`, so nothing catches it. Not blocking today (Vercel
+  builds web on its own and mobile ships through EAS), but it means the
+  root `pnpm build` cannot be used as a pre-push check.
 
 - **Onboarding-chip flake recurred (3rd occurrence)** — the test fixed
   in #199 ("renders a chip per preset once the fetch resolves") timed
