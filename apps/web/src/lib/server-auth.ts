@@ -7,9 +7,10 @@
  * `fetchRestaurantItems({ jwt })` etc. and the Rails endpoint applies
  * `current_user.profile` automatically (Phase 1.7 contract).
  *
- * The cookie name is centralized here so callers don't have to spell
- * it (and the dev shortcut + legacy `bw_jwt` reader stays in
- * `jwt-cookie.ts` for the client-side path).
+ * The cookie name is centralized here so callers don't have to spell it.
+ * `bw_session` is now the web app's only auth cookie — the Phase 3.8
+ * `bw_jwt` reader in `jwt-cookie.ts` was JS-readable by design, said so
+ * in its own header, and was deleted once nothing imported it.
  */
 import { cookies } from 'next/headers';
 

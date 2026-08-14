@@ -7,9 +7,10 @@
  * cookie back via the server helpers below and forward as a Bearer
  * header to Rails — Rails-side auth contract is unchanged.
  *
- * The legacy `bw_jwt` JS-readable cookie from Phase 3.8 stays around
- * for the dev shortcut + for non-auth flows that need a token in the
- * URL (claim, password reset). Production reads `bw_session`.
+ * `bw_session` is the only auth cookie. The Phase 3.8 `bw_jwt` cookie
+ * this used to mention was JS-readable — it described itself as "not
+ * secure for production" — and it is gone: nothing had imported it since
+ * the server-managed cookie landed.
  */
 'use client';
 
