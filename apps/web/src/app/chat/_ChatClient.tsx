@@ -66,6 +66,11 @@ export function ChatClient(): ReactElement {
   // Which switch is the newest, so an older PATCH resolving late cannot
   // speak for the picker.
   const modeTicket = useRef(0);
+  // Which conversation is on screen *now*. `run`'s teardown closes over
+  // the render that started the turn, and the history controls let
+  // someone open another conversation while one is still running — so
+  // the fallback below has to ask this rather than trust `active`.
+  const shown = useRef<string | null>(null);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -89,6 +94,7 @@ export function ChatClient(): ReactElement {
   }, [messages, live, pending]);
 
   const adopt = (conversation: Conversation) => {
+    shown.current = conversation.id;
     setActive(conversation);
     setMessages(conversation.messages);
     setPending(conversation.pending);
@@ -134,6 +140,7 @@ export function ChatClient(): ReactElement {
   const open = async (id: string) => {
     setHistoryOpen(false);
     setError(null);
+    shown.current = id;
     setLive(null);
     clearQueue();
     await refresh(id);
@@ -142,6 +149,7 @@ export function ChatClient(): ReactElement {
   const startNew = () => {
     setHistoryOpen(false);
     setError(null);
+    shown.current = null;
     setLive(null);
     setActive(null);
     setMessages([]);
@@ -253,7 +261,28 @@ export function ChatClient(): ReactElement {
       // erases a turn the server has already written down and the user
       // has already read. `done` carries the settled text precisely so
       // this does not need the network twice.
-      if (!conversation && settledText) setLive({ ...EMPTY_TURN, text: settledText });
+      // Written into `messages` rather than the single `live` slot, for
+      // two reasons the slot cannot cover. It is global, so a turn in
+      // conversation A whose refetch fails would draw A's answer under
+      // B's transcript if the reader had moved on — dietary text
+      // attributed to the wrong question. And it is transient: the queue
+      // flush below starts the next turn, which opens with
+      // `setLive(EMPTY_TURN)` and would erase this before it was read.
+      // The next successful `adopt` replaces `messages` wholesale, so
+      // the stand-in cannot linger or accumulate.
+      const restored = settledText;
+      if (!conversation && restored && shown.current === id) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: `local-${current.length}`,
+            role: 'assistant',
+            position: current.length,
+            created_at: new Date().toISOString(),
+            blocks: [{ type: 'text', text: restored }],
+          },
+        ]);
+      }
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
       // has already been shortened, which is one render before the next
