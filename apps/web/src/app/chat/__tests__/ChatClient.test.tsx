@@ -121,6 +121,25 @@ describe('ChatClient', () => {
     );
   });
 
+  // Dropping data the model was working from shows up later as the
+  // assistant mysteriously forgetting a menu it had already read. A
+  // person who was not told has no way to connect the two.
+  it('says when it trimmed stale tool results to stay in budget', async () => {
+    const inFlight: { release: () => void } = { release: () => {} };
+    watchTurn.mockImplementation((_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+      onEvent({ type: 'compacted', messages: 4, tokens_saved: 61000 });
+      return new Promise<void>((resolve) => (inFlight.release = resolve));
+    });
+
+    render(<ChatClient />);
+    await type('what can I eat');
+
+    expect(await screen.findByTestId('live-notice')).toHaveTextContent(
+      /Trimmed 4 earlier tool results/,
+    );
+    inFlight.release();
+  });
+
   // The tool's own sentence, not its function name — it is the only thing
   // a person can read while a turn is working, so the assertion has to
   // happen while the turn is still in flight.

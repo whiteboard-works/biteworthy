@@ -9,6 +9,11 @@ export interface LiveTurn {
   thinking: string;
   text: string;
   tools: { name: string; ok?: boolean; doing?: string | null }[];
+  /** Things the server did to the turn that the person should know about
+   *  — today only that it dropped stale tool results to keep the
+   *  conversation inside its budget. Not persisted: it describes this
+   *  turn's handling, not its content, so it goes when the turn settles. */
+  notices: string[];
 }
 
 interface TranscriptProps {
@@ -219,6 +224,11 @@ function ToolCard({
 function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): ReactElement {
   return (
     <div className="flex flex-col gap-bw-2" data-testid="live-turn">
+      {turn.notices.map((notice, index) => (
+        <p key={index} className="text-bw-sm italic text-zinc-400" data-testid="live-notice">
+          {notice}
+        </p>
+      ))}
       {turn.thinking ? <Thinking text={turn.thinking} /> : null}
       {showTools
         ? turn.tools.map((tool, index) => (
@@ -235,7 +245,7 @@ function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): R
           renders as a shorter list rather than as raw asterisks that
           rearrange themselves when the turn lands. */}
       {turn.text ? <Markdown text={turn.text} /> : null}
-      {!turn.thinking && !turn.text && (!showTools || turn.tools.length === 0) ? (
+      {!turn.thinking && !turn.text && turn.notices.length === 0 && (!showTools || turn.tools.length === 0) ? (
         <p className="text-bw-sm text-zinc-400">Thinking…</p>
       ) : null}
     </div>

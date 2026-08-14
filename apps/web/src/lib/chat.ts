@@ -93,6 +93,7 @@ export type ChatEvent =
   | { type: 'done'; text: string | null }
   | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
+  | { type: 'compacted'; messages: number; tokens_saved: number }
   | { type: 'reconnect'; after: number }
   | { type: 'error'; message: string };
 

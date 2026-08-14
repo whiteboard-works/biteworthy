@@ -120,6 +120,24 @@ it('creates a conversation on the first message and shows the reply', async () =
   expect(await screen.findByText('Ninis has 12 dishes you can eat.')).toBeOnTheScreen();
 });
 
+it('says when it trimmed stale tool results to stay in budget', async () => {
+  mockEvents
+    .mockResolvedValueOnce({
+      events: [{ type: 'compacted', messages: 4, tokens_saved: 61000, position: 1 }],
+      running: true,
+    })
+    .mockResolvedValueOnce({
+      events: [{ type: 'done', text: 'Done.', position: 2 }],
+      running: false,
+    });
+  mockGet.mockResolvedValue(answered('Done.'));
+
+  render(<ChatScreen />);
+  await type('what can I eat');
+
+  expect(await screen.findByText(/Trimmed 4 earlier tool results/)).toBeOnTheScreen();
+});
+
 // Mobile polls where web streams — React Native's fetch exposes no
 // readable body. `running` is what stops it asking forever.
 it('polls the narration until the server says nothing is in flight', async () => {

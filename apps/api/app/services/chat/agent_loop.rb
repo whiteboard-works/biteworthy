@@ -123,6 +123,7 @@ module Chat
       # unanswered `tool_use`, and an assistant message with no content at
       # all replays as a 400. Both are repaired before we add to the pile.
       @conversation.heal!
+      compact!
       @deadline = Time.current + turn_deadline_seconds
 
       result = perform(text: text, confirm: confirm, fingerprint: fingerprint)
@@ -1002,6 +1003,31 @@ module Chat
     def uncacheable(turns, why)
       Rails.logger.info("[chat] transcript not cached for conversation #{@conversation.id}: #{why}")
       turns
+    end
+
+    # Before the turn, not after: the point is for *this* turn to be sent
+    # the shorter transcript, and `heal!` has just settled what the rows
+    # are.
+    #
+    # **Announced rather than done quietly.** Dropping data the model was
+    # working from is the kind of thing that shows up later as the
+    # assistant mysteriously forgetting a menu it had already read, and a
+    # person who was not told has no way to connect the two. It is one
+    # narration line, on the turn it happens.
+    #
+    # Failing here must not cost the turn. Compaction is an optimisation;
+    # a conversation that cannot be compacted is expensive, not broken.
+    def compact!
+      result = Compaction.call(@conversation)
+      return unless result.compacted?
+
+      Rails.logger.info(
+        "[chat] compacted #{result.messages} messages on conversation #{@conversation.id}: " \
+        "~#{result.tokens_before} → ~#{result.tokens_after} tokens"
+      )
+      emit(type: "compacted", messages: result.messages, tokens_saved: result.tokens_saved)
+    rescue StandardError => e
+      Rails.logger.warn("[chat] compaction failed on #{@conversation.id}: #{e.class}: #{e.message}")
     end
 
     def emit(payload)

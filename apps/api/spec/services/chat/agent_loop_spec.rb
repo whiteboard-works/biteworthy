@@ -1013,6 +1013,60 @@ RSpec.describe Chat::AgentLoop do
       expect(seen.last[:message]).to include("of its #{described_class::PER_CONVERSATION_CEILING_CENTS_DEFAULT}¢ limit")
     end
 
+    # Dropping data the model was working from shows up later as the
+    # assistant mysteriously forgetting a menu it had already read, and a
+    # person who was not told has no way to connect the two.
+    describe "compacting a long conversation" do
+      before do
+        4.times do |i|
+          conversation.append!(role: "assistant", content: [
+            { "type" => "tool_use", "id" => "t-#{i}", "name" => "get_menu", "input" => {} }
+          ])
+          conversation.append!(role: "user", content: [
+            { "type" => "tool_result", "tool_use_id" => "t-#{i}", "content" => "x" * 90_000 }
+          ])
+        end
+        Chat::Compaction::KEEP_RECENT_MESSAGES.times do |i|
+          conversation.append!(role: "user", content: [ { "type" => "text", "text" => "f#{i}" } ])
+          conversation.append!(role: "assistant", content: [ { "type" => "text", "text" => "f#{i}" } ])
+        end
+      end
+
+      it "says so, rather than quietly forgetting" do
+        seen = []
+        described_class.new(conversation, client: ScriptedClient.new(say("hi")),
+                                          on_event: ->(p) { seen << p }).run(text: "hello")
+
+        notice = seen.find { |e| e[:type] == "compacted" }
+        expect(notice[:messages]).to eq(4)
+        expect(notice[:tokens_saved]).to be > 20_000
+      end
+
+      # Before the model call, not after it — the point is for *this* turn
+      # to be sent the shorter transcript, not the next one.
+      it "sends the shortened transcript on the turn that shortened it" do
+        client = ScriptedClient.new(say("hi"))
+        described_class.new(conversation, client: client).run(text: "hello")
+
+        sent = client.requests.first[:messages].flat_map { |m| Array(m[:content]) }
+                     .select { |b| (b["type"] || b[:type]) == "tool_result" }
+        expect(sent).not_to be_empty
+        expect(sent.map { |b| b["content"].first["text"] }).to all(eq(Chat::Compaction::PLACEHOLDER))
+      end
+
+      # Compaction is an optimisation. A conversation that cannot be
+      # compacted is expensive, not broken, and must still answer.
+      it "answers the turn even if compacting blows up" do
+        allow(Chat::Compaction).to receive(:call).and_raise(ActiveRecord::StatementInvalid, "nope")
+
+        result = described_class.new(conversation, client: ScriptedClient.new(say("hi")))
+                                .run(text: "hello")
+
+        expect(result).to be_ok
+        expect(result.text).to eq("hi")
+      end
+    end
+
     # A dropped upstream connection is an outage, not a bug; the user
     # should be told to retry and the conversation must stay usable.
     it "turns an upstream failure into one honest error" do
