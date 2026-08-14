@@ -55,6 +55,24 @@ RSpec.describe Chat::SystemPrompt do
     end
   end
 
+  # The clock used to guarantee this block was never empty. Now that it
+  # rides below the transcript instead, a signed-in caller with no
+  # profile, in a non-planning mode, with no page context leaves every
+  # section nil — and the Messages API rejects an empty text block, so
+  # sending it would be a 400 on every one of that person's turns.
+  describe "when there is nothing volatile to say" do
+    it "omits the block rather than sending an empty one" do
+      user.profile&.destroy!
+      user.reload
+
+      rendered = blocks
+
+      expect(described_class.new(context: context).volatile).to eq("")
+      expect(rendered.map { |b| b[:text] }).to all(be_present)
+      expect(rendered.length).to eq(2)
+    end
+  end
+
   describe "the volatile block" do
     # The payoff: most turns no longer spend a get_profile round trip
     # before they can answer anything.

@@ -33,12 +33,21 @@ module Chat
     end
 
     # Stable blocks first, breakpoint on the last of them, volatile last.
+    # The volatile block is *omitted* when it has nothing in it, rather
+    # than sent empty. Until the clock moved out of it (see
+    # `AgentLoop#clocked`) it could never be blank, and it can now: a
+    # signed-in caller with no profile, in a non-planning mode, with no
+    # page context leaves all three sections nil. The Messages API
+    # rejects an empty text content block outright, so that combination
+    # would have been a 400 on every turn rather than a wasted block.
     def blocks(client)
-      client.system_blocks(
+      sections = [
         { text: Tools::Instructions.text },
-        { text: Tools::Topology.markdown(@context), cache: true },
-        { text: volatile }
-      )
+        { text: Tools::Topology.markdown(@context), cache: true }
+      ]
+      body = volatile
+      sections << { text: body } if body.present?
+      client.system_blocks(*sections)
     end
 
     # Split out so a spec can assert what is above the breakpoint without

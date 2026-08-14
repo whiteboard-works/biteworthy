@@ -603,6 +603,24 @@ RSpec.describe Chat::AgentLoop do
         expect(marked).to be < blocks.length - 1
       end
 
+      # The repair is the request most likely to be rewriting a
+      # time-sensitive claim ("are they open now"), and it was the one
+      # request going out with no clock at all: `reground` runs after
+      # `drive` appended the final assistant message, so the stored
+      # transcript ends on `assistant` and `clocked`'s role guard
+      # declines it. Clocking after `extra` lands puts the stamp on the
+      # objection's own user message.
+      it "stamps the grounding repair, whose transcript ends on an assistant turn" do
+        loop_instance = described_class.new(conversation, client: ScriptedClient.new(say("hi")))
+        conversation.append!(role: "user", content: [ { "type" => "text", "text" => "hi" } ])
+        conversation.append!(role: "assistant", content: [ { "type" => "text", "text" => "answer" } ])
+
+        objection = { role: "user", content: [ { type: "text", text: "reviewer says no" } ] }
+        args = loop_instance.send(:model_args, extra: [ objection ])
+
+        expect(args[:messages].last[:content].last[:text]).to include("Current time:")
+      end
+
       # Rounding was a tax paid to the cache. Nothing downstream of the
       # clock is cached now, so it can be exact again — and it has to be,
       # because the model relays it and "are they open now" is a real

@@ -935,12 +935,21 @@ module Chat
     # down — the grounding repair's objection is the only user of it. It
     # sits below the cache breakpoint `cacheable` marks, so the prefix
     # this turn already paid for is still read rather than rebuilt.
+    #
+    # `clocked` wraps the *whole* array rather than the transcript alone,
+    # which matters only for the repair: by the time `reground` runs,
+    # `drive` has appended the final assistant message, so the stored
+    # transcript ends on `assistant` and `clocked`'s role guard would
+    # decline it. Clocking after the objection lands puts the stamp on
+    # the objection's own `user` message instead — so the one request
+    # most likely to be rewriting a time-sensitive claim is not the one
+    # request sent with no clock at all.
     def model_args(extra: [])
       {
         model:      MODEL,
         max_tokens: MAX_TOKENS,
         system:     system_prompt,
-        messages:   clocked(cacheable(@conversation.transcript)) + extra,
+        messages:   clocked(cacheable(@conversation.transcript) + extra),
         tools:      tool_definitions,
         thinking:   { type: "adaptive" }
       }
