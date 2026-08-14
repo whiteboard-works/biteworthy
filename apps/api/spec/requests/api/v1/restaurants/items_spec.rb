@@ -306,6 +306,24 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       expect(response.parsed_body["error"]).to match(/no longer exists/)
     end
 
+    # Postgres matches a uuid by value, so a link carrying uppercase ids
+    # has always resolved. The membership check above compares in Ruby,
+    # where `pluck` returns the canonical lowercase — so a naive
+    # subtraction would refuse a link that works.
+    it "still accepts a token whose ids are not in canonical case" do
+      shouty = ProfileToken.encode(
+        avoid_ingredient_ids: [cheese.id.upcase],
+        avoid_tag_ids:        [],
+        strictness:           "balanced"
+      )
+
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{shouty}"
+
+      expect(response).to have_http_status(:ok)
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Cheese Quesadilla"]["status"]).to eq("hidden")
+    end
+
     it "422s on a token with an unsupported schema version" do
       future = Base64.urlsafe_encode64(JSON.generate(v: 99, ai: [], at: [], s: "balanced"), padding: false)
       get "/api/v1/restaurants/#{restaurant.id}/items?profile_token=#{future}"

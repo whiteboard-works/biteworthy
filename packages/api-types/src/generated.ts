@@ -3736,6 +3736,8 @@ export interface paths {
                 profile?: string;
                 /** @description Override the strictness from profile/user */
                 strictness?: "relaxed" | "balanced" | "strict";
+                /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile` and over the signed-in user's own profile. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
+                profile_token?: string;
             };
             header?: never;
             path: {
@@ -3755,6 +3757,8 @@ export interface paths {
                     profile?: string;
                     /** @description Override the strictness from profile/user */
                     strictness?: "relaxed" | "balanced" | "strict";
+                    /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile` and over the signed-in user's own profile. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
+                    profile_token?: string;
                 };
                 header?: never;
                 path: {
@@ -3834,6 +3838,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description profile_token malformed, expired, or naming ids that no longer exist */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
