@@ -80,7 +80,7 @@ Tags: **[MANUAL]** = human-only · **[CODE]** = loop-shippable · P0/P1/P2 = pri
 ### Phase 0 — The launch window (Weeks 0–4): two streams in parallel
 
 **Stream 1 — [MANUAL] Track A critical path** (the real gate; detail in `docs/launch-plan.md`)
-- [ ] **Provision Hetzner cx22 → Neon → GHCR PAT → first `kamal deploy`** (keystone)
+- [x] **Provision Hetzner cpx21 → Neon → GHCR PAT → first `kamal deploy`** (keystone) — done
 - [ ] **Engage the L1 attorney on `/privacy` + `/terms` — day one** (long lead; blocks DRAFT-banner removal + store submission). Also get the **L3 dish-photo auto-crop liability ruling**.
 - [ ] **Enable Anthropic billing**
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**; **design `icon-source.svg`**

@@ -1,8 +1,8 @@
 # Phase 5.1.1 — Kamal config for the BiteWorthy API.
 #
-# Deploys to a single Hetzner CX22 (4 GB / 2 vCPU / Ashburn US) with
+# Deploys to a single Hetzner CPX21 (4 GB / 3 vCPU / 80 GB / Ashburn US) with
 # both `web` (puma) and `worker` (Solid Queue) running on the same
-# box as separate Kamal roles. Tier up to CX32 or split the worker
+# box as separate Kamal roles. Tier up to CPX31 or split the worker
 # to a second host only if launch volume reveals headroom issues.
 #
 # Postgres lives on Neon (managed, free tier, aws-us-east-1). The
@@ -15,7 +15,7 @@
 # `write:packages`).
 #
 # Bring-up (one-time, human; full version in apps/api/README.md):
-#   hcloud server create --name biteworthy-api --type cx22 \
+#   hcloud server create --name biteworthy-api --type cpx21 \
 #       --image ubuntu-24.04 --datacenter ash-dc1 --ssh-key skylar
 #   cp .kamal/secrets.example .kamal/secrets   # then fill in
 #   kamal setup           # installs Docker on box + boots kamal-proxy

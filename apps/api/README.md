@@ -51,7 +51,7 @@ bundle exec rspec
 
 ## Production deploy (Phase 5.1.1)
 
-Hosted on **Hetzner CX22** + **Neon Postgres** + **Cloudflare R2**, deployed with **Kamal** (image registry: GitHub Container Registry). Decision + trade-offs in `docs/adr/0007-hosting-kamal-hetzner-neon.md` (which supersedes ADR 0002's Fly.io pick).
+Hosted on **Hetzner CPX21** + **Neon Postgres** + **Cloudflare R2**, deployed with **Kamal** (image registry: GitHub Container Registry). Decision + trade-offs in `docs/adr/0007-hosting-kamal-hetzner-neon.md` (which supersedes ADR 0002's Fly.io pick).
 
 **One-time bootstrap (human, ~30 minutes):**
 
@@ -59,7 +59,7 @@ Hosted on **Hetzner CX22** + **Neon Postgres** + **Cloudflare R2**, deployed wit
 # 1. Provision the box. Hetzner Cloud Console or hcloud CLI:
 hcloud server create \
     --name biteworthy-api \
-    --type cx22 \
+    --type cpx21 \
     --image ubuntu-24.04 \
     --datacenter ash-dc1 \
     --ssh-key skylar
