@@ -61,9 +61,11 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
    (which needs `AUTOMERGE_TOKEN`; it exists). The smoke half is **not** —
    `deploy-api.yml` ends at `kamal deploy` and secret cleanup, so a deploy
    that boots a broken release is not caught by anything here.
-8. [B] **Uptime probe + daily production smoke cron** (`/up` poll +
-   `biteworthy:production:smoke` via `kamal app exec`) — needs a live
-   deploy to point at.
+8. [ ] **Uptime probe + daily production smoke cron** (`/up` poll +
+   `biteworthy:production:smoke` via `kamal app exec --roles web`) —
+   unblocked: the API has been live since 2026-07 and deploys itself. This
+   and #7's smoke half are the same gap seen from two directions, and
+   nothing currently notices a bad release.
 
 ## P3 — agent loop
 

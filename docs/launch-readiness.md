@@ -75,9 +75,11 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 
 Numbered roughly in dependency order. Each step lists what it unlocks.
 
-### 1. Provision the Rails API (Phase 5.1.1)
+### 1. Provision the Rails API (Phase 5.1.1) — ✅ **DONE**
 
-**Unlocks:** every API-dependent flow (the web app's API calls, the mobile app's calls, the seed task).
+**Unlocks:** every API-dependent flow. All live: `https://api.bite-worthy.com/up` returns 200 and merges touching `apps/api/**` deploy themselves.
+
+Kept as the runbook for rebuilding the box:
 
 ```bash
 # Hetzner
