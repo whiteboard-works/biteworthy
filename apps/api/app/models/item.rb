@@ -1,24 +1,24 @@
 class Item < ApplicationRecord
   include HasPhotoValidation
 
-  # Step one of dropping `popularity`, which nothing ever wrote. The
-  # column is still there; this release simply stops reading it, and a
-  # follow-up migration removes it.
+  # `popularity` is gone as of #603. This line outlives it on purpose,
+  # for one more deploy.
   #
-  # **The split is not ceremony.** `bin/docker-entrypoint` runs
+  # **The split was not ceremony.** `bin/docker-entrypoint` runs
   # `db:prepare` when the new puma container boots, and `deploy.yml` says
   # in as many words that kamal-proxy keeps traffic on the *old* release
-  # until the new one's healthcheck passes. So a migration and the code
-  # that stops needing it in one release means the old container answers
-  # menu requests with `ORDER BY items.popularity` against a column that
-  # is already gone — `PG::UndefinedColumn` on the product's busiest read
-  # path, for the length of every deploy window.
+  # until the new one's healthcheck passes. Dropping the column in the
+  # same release that stopped reading it would have had the old container
+  # answering menu requests with `ORDER BY items.popularity` against a
+  # column already gone — `PG::UndefinedColumn` on the product's busiest
+  # read path, for the length of every deploy window. So #601 removed the
+  # readers, shipped, and this release drops the column.
   #
-  # `ignored_columns` is what makes the follow-up safe in the other
-  # direction too: Rails builds INSERT and UPDATE column lists from the
-  # cached schema, so a container that still believes in the column would
-  # write it. Listed here, it does not exist as far as this release is
-  # concerned. Caught by Codex on #601.
+  # The same window is why the declaration stays now: during *this*
+  # deploy the old container still has a schema cache with the column in
+  # it, and Rails builds INSERT and UPDATE column lists from that cache.
+  # Listed here, it does not exist as far as either release is concerned.
+  # Safe to delete once this one is live. Caught by Codex on #601.
   self.ignored_columns += %w[popularity]
 
   STATUSES   = %w[draft published removed].freeze
