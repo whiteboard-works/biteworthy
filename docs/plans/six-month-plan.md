@@ -170,7 +170,7 @@ Plus two pass/fail guards: **zero safety incidents** (P0 tests hold) and
 
 ## Outstanding manual items (still human-only — none loop-shippable)
 
-- [ ] **Provisioning → first `kamal deploy`** (keystone)
+- [x] **Provisioning → first `kamal deploy`** (keystone) — done; API live on Hetzner
 - [ ] **Engage L1 attorney now** (keystone, long lead) + **L3 dish-photo ruling**
 - [ ] **Anthropic billing**; **Apple + Google + DMCA**; **design icon SVG**; **seed 30 Durango**
 - [ ] **Set up Neon snapshots** (no backup exists today — real data-loss risk)

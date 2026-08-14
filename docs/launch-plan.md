@@ -69,9 +69,9 @@ can launch without, or fast-follow.
 
 ### Wave 2 — the keystone deploy
 
-- [ ] **Run the first `kamal deploy`** — `kamal setup && kamal env push &&
-      kamal deploy && kamal smoke`; replace the two `<REPLACE_WITH_HETZNER_IP>`
-      placeholders. **HARD. Unlocks every API flow.**
+- [x] **Run the first `kamal deploy`** — **DONE.** API live at
+      `https://api.bite-worthy.com`; subsequent deploys are automatic via
+      `deploy-api.yml` on merges touching `apps/api/**`.
 
 ### Wave 3 — needs the API live
 

@@ -107,7 +107,7 @@ Steps 1–3 + 8–9 are the recurring ones; 4–7 are one-time setup.
 
 ## Consequences
 
-- **Cost** — ~$8/mo (Hetzner CPX21, up from the CX22's ~$5 this ADR projected) + $0 (Neon free tier) + $0 (GHCR for private repo). One-time Hetzner snapshot setup ~$0.50/mo. **Total: ~$6/mo** at launch volume. Compared to Fly's projected $5–15/mo, the floor is similar but the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
+- **Cost** — ~$8/mo (Hetzner CPX21, up from the CX22's ~$5 this ADR projected) + $0 (Neon free tier) + $0 (GHCR for private repo). Hetzner snapshots ~$0.50/mo. **Total: ~$8.50/mo** at launch volume — up from the ~$6 this ADR originally projected, because the CX22 it specified isn't available in US datacenters. Still under Fly's projected $5–15/mo at the top of that range, and the ceiling is dramatically lower as traffic grows (no per-GB-hour billing).
 - **Operational discipline** — operator owns OS-level health. Acceptable trade for the cost + control delta. Document a 30-min monthly maintenance window in the launch runbook.
 - **Rebuild story** — losing the Hetzner box is recoverable in ~15 min. Losing both the box AND Neon is the catastrophic case (we don't currently snapshot Neon ourselves; revisit if growth warrants).
 - **Observability** — Sentry from ADR 0001 still applies; Phase 2.9's cost dashboard at `/admin/dashboard` works regardless of host. PostHog (Phase 5.8) handles funnel analytics.
