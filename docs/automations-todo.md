@@ -55,10 +55,12 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
 
 ## P2 — deploy + ops (blocked on launch provisioning)
 
-7. [DONE] **CI-driven `kamal deploy` on master push** — `deploy-api.yml`
-   ships every master push touching `apps/api/**`, including auto-merged
-   PRs (needs `AUTOMERGE_TOKEN`, which exists). Post-deploy `kamal smoke`
-   is the only piece of this item still open.
+7. [~] **CI-driven `kamal deploy` on master push + post-deploy
+   `kamal smoke`** — the deploy half is **done**: `deploy-api.yml` ships
+   every master push touching `apps/api/**`, including auto-merged PRs
+   (which needs `AUTOMERGE_TOKEN`; it exists). The smoke half is **not** —
+   `deploy-api.yml` ends at `kamal deploy` and secret cleanup, so a deploy
+   that boots a broken release is not caught by anything here.
 8. [B] **Uptime probe + daily production smoke cron** (`/up` poll +
    `biteworthy:production:smoke` via `kamal app exec`) — needs a live
    deploy to point at.
