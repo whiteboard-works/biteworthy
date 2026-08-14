@@ -234,13 +234,36 @@ RSpec.configure do |config|
               fingerprint: { type: :string, nullable: true }
             }
           },
+          PendingQuestion: {
+            type: :object,
+            required: %w[question options],
+            description: "A question the loop parked on. The client renders exactly these " \
+                         "options and answers with an `id`, so the model receives a choice " \
+                         "rather than a string it has to interpret.",
+            properties: {
+              question:    { type: :string },
+              options: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[id label],
+                  properties: {
+                    id:     { type: :string },
+                    label:  { type: :string },
+                    detail: { type: :string }
+                  }
+                }
+              },
+              fingerprint: { type: :string, nullable: true, description: "Binds an answer to this question." }
+            }
+          },
           Conversation: {
             type: :object,
             required: %w[id state mode created_at updated_at],
             properties: {
               id:         { type: :string, format: :uuid },
               title:      { type: :string, nullable: true },
-              state:      { type: :string, enum: %w[active awaiting_confirmation failed] },
+              state:      { type: :string, enum: %w[active awaiting_confirmation awaiting_answers failed] },
               mode: {
                 type: :string,
                 enum: %w[planning manual accept_edits auto],
@@ -250,6 +273,7 @@ RSpec.configure do |config|
                              "except the ones no later edit can undo; `auto` parks nothing."
               },
               pending:    { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] },
+              question:   { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingQuestion" }] },
               created_at: { type: :string, format: :"date-time" },
               updated_at: { type: :string, format: :"date-time" },
               messages:   { type: :array, items: { "$ref" => "#/components/schemas/ChatMessage" } },

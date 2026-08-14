@@ -71,6 +71,8 @@ module Chat
     def arguments_for(turn)
       case turn["kind"]
       when "confirm" then { confirm: turn["confirm"], fingerprint: turn["fingerprint"] }
+      when "answer"  then { answer: { "option_id" => turn["option_id"], "text" => turn["text"] },
+                            fingerprint: turn["fingerprint"] }
       else                { text: turn["text"] }
       end
     end

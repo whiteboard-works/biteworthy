@@ -5856,6 +5856,97 @@
         }
       }
     },
+    "/api/v1/conversations/{id}/answer": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Answer a parked question",
+        "tags": [
+          "Chat"
+        ],
+        "description": "Settles an `ask_questions` the loop parked on. Send `option_id` when the person picked one of the options the server wrote down, or `text` when none of them fitted — an option list that misses the obvious answer is worse than no options. An `option_id` that is not on the stored list is refused rather than passed through as free text, which is the whole point: the model gets an id it can act on instead of a string it has to interpret. `fingerprint` binds the answer to the question that was drawn.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "409": {
+            "description": "nothing is waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "neither an option nor an answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "option_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "An id from the stored options."
+                  },
+                  "text": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Their own words, if none fitted."
+                  },
+                  "fingerprint": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "manual",
+                      "accept_edits",
+                      "auto"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/conversations/{id}/events": {
       "parameters": [
         {
@@ -7105,6 +7196,45 @@
           }
         }
       },
+      "PendingQuestion": {
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "description": "A question the loop parked on. The client renders exactly these options and answers with an `id`, so the model receives a choice rather than a string it has to interpret.",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "label"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "fingerprint": {
+            "type": "string",
+            "nullable": true,
+            "description": "Binds an answer to this question."
+          }
+        }
+      },
       "Conversation": {
         "type": "object",
         "required": [
@@ -7128,6 +7258,7 @@
             "enum": [
               "active",
               "awaiting_confirmation",
+              "awaiting_answers",
               "failed"
             ]
           },
@@ -7146,6 +7277,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/PendingTool"
+              }
+            ]
+          },
+          "question": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PendingQuestion"
               }
             ]
           },

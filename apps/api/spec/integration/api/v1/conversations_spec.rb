@@ -201,6 +201,53 @@ RSpec.describe "conversations", type: :request do
     end
   end
 
+  path "/api/v1/conversations/{id}/answer" do
+    parameter name: :id, in: :path, type: :string, format: :uuid, required: true
+
+    post("Answer a parked question") do
+      tags "Chat"
+      description "Settles an `ask_questions` the loop parked on. Send `option_id` when " \
+                  "the person picked one of the options the server wrote down, or `text` " \
+                  "when none of them fitted — an option list that misses the obvious " \
+                  "answer is worse than no options. An `option_id` that is not on the " \
+                  "stored list is refused rather than passed through as free text, which " \
+                  "is the whole point: the model gets an id it can act on instead of a " \
+                  "string it has to interpret. `fingerprint` binds the answer to the " \
+                  "question that was drawn."
+      consumes "application/json"
+      produces "application/json"
+      security [ bearerAuth: [] ]
+      parameter name: :Authorization, in: :header, type: :string, required: true
+      parameter name: :body, in: :body, schema: {
+        type: :object,
+        properties: {
+          option_id:   { type: :string, nullable: true, description: "An id from the stored options." },
+          text:        { type: :string, nullable: true, description: "Their own words, if none fitted." },
+          fingerprint: { type: :string, nullable: true },
+          mode:        { type: :string, enum: %w[planning manual accept_edits auto] }
+        }
+      }
+
+      response(409, "nothing is waiting") do
+        schema "$ref" => "#/components/schemas/ErrorResponse"
+        let(:id)   { create(:conversation, user: account).id }
+        let(:body) { { option_id: "taqueria" } }
+        run_test!
+      end
+
+      response(422, "neither an option nor an answer") do
+        schema "$ref" => "#/components/schemas/ErrorResponse"
+        let(:id) do
+          create(:conversation, user: account, state: "awaiting_answers",
+                                pending_questions: { "question" => "Which?", "options" => [],
+                                                     "fingerprint" => "fp" }).id
+        end
+        let(:body) { {} }
+        run_test!
+      end
+    end
+  end
+
   path "/api/v1/conversations/{id}/events" do
     parameter name: :id, in: :path, type: :string, format: :uuid, required: true
     parameter name: :after, in: :query, type: :integer, required: false,

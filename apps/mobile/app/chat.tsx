@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   answerConfirmation,
+  answerQuestion,
   compose,
   createConversation,
   fetchEvents,
@@ -29,6 +30,7 @@ import {
   type ChatMessage,
   type ChatMode,
   type Conversation,
+  type PendingQuestion,
   type PendingTool,
 } from '../lib/api/chat';
 import { getJwt } from '../lib/auth';
@@ -90,6 +92,7 @@ export default function ChatScreen() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingTool | null>(null);
+  const [question, setQuestion] = useState<PendingQuestion | null>(null);
   const [live, setLive] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -128,6 +131,7 @@ export default function ChatScreen() {
     setConversation(next);
     setMessages(next.messages ?? []);
     setPending(next.pending);
+    setQuestion(next.question ?? null);
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
@@ -206,6 +210,10 @@ export default function ChatScreen() {
         if (event.type === 'tool_use') tools += 1;
         if (event.type === 'done') outcome = 'done';
         if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+        if (event.type === 'awaiting_answers') {
+          outcome = 'awaiting_answers';
+          if (event.question) setQuestion(event.question);
+        }
       });
     } catch (e) {
       setError((e as Error).message);
@@ -367,6 +375,18 @@ export default function ChatScreen() {
     );
   };
 
+  // The mirror of `answer`, for the other parked state. Cleared before
+  // the request, so a second tap cannot answer a question the server has
+  // already settled.
+  const reply = async (chosen: { optionId?: string; text?: string }) => {
+    if (!conversation || !question) return;
+    const { fingerprint } = question;
+    setQuestion(null);
+    await run(conversation.id, (jwt) =>
+      answerQuestion(jwt, conversation.id, chosen, fingerprint, mode),
+    );
+  };
+
   // Persisted so the picker survives a reload; a conversation that does
   // not exist yet has nowhere to persist it, and the first `sendMessage`
   // carries it instead.
@@ -468,6 +488,10 @@ export default function ChatScreen() {
         {busy && live.length === 0 ? <ActivityIndicator testID="chat-thinking" /> : null}
 
         {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={answer} /> : null}
+
+        {question ? (
+          <QuestionPrompt question={question} busy={busy} onAnswer={(a) => void reply(a)} />
+        ) : null}
 
         {error ? (
           <Text style={styles.error} testID="chat-error">
@@ -620,6 +644,52 @@ function MessageRow({ message }: { message: ChatMessage }) {
  * people are shown runs because a model decided to — the server parks the
  * call and this is where the person answers.
  */
+// Real options rather than a sentence to reply to. What comes back is
+// an id the server itself wrote down, so nothing downstream rests on
+// reading "the first one" correctly.
+function QuestionPrompt({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: PendingQuestion;
+  busy: boolean;
+  onAnswer: (answer: { optionId?: string; text?: string }) => void;
+}) {
+  const [typed, setTyped] = useState('');
+
+  return (
+    <View style={styles.confirm} testID="chat-question">
+      <Text style={styles.confirmText}>{question.question}</Text>
+      {question.options.map((option) => (
+        <Pressable
+          key={option.id}
+          disabled={busy}
+          onPress={() => onAnswer({ optionId: option.id })}
+          accessibilityRole="button"
+          style={styles.confirmNo}
+        >
+          <Text style={styles.confirmNoLabel}>{option.label}</Text>
+          {option.detail ? <Text style={styles.live}>{option.detail}</Text> : null}
+        </Pressable>
+      ))}
+      {/* Always available. An option list that misses the obvious answer
+          is worse than no options at all. */}
+      <TextInput
+        style={styles.input}
+        value={typed}
+        onChangeText={setTyped}
+        editable={!busy}
+        accessibilityLabel="Something else"
+        placeholder="Something else…"
+        onSubmitEditing={() => {
+          if (typed.trim()) onAnswer({ text: typed.trim() });
+        }}
+      />
+    </View>
+  );
+}
+
 function ConfirmPrompt({
   tool,
   busy,

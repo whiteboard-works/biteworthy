@@ -3338,6 +3338,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a parked question
+         * @description Settles an `ask_questions` the loop parked on. Send `option_id` when the person picked one of the options the server wrote down, or `text` when none of them fitted — an option list that misses the obvious answer is worse than no options. An `option_id` that is not on the stored list is refused rather than passed through as free text, which is the whole point: the model gets an id it can act on instead of a string it has to interpret. `fingerprint` binds the answer to the question that was drawn.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description An id from the stored options. */
+                        option_id?: string | null;
+                        /** @description Their own words, if none fitted. */
+                        text?: string | null;
+                        fingerprint?: string | null;
+                        /** @enum {string} */
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
+                    };
+                };
+            };
+            responses: {
+                /** @description nothing is waiting */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description neither an option nor an answer */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations/{id}/events": {
         parameters: {
             query?: {
@@ -3984,18 +4052,30 @@ export interface components {
             prompt: string | null;
             fingerprint: string | null;
         };
+        /** @description A question the loop parked on. The client renders exactly these options and answers with an `id`, so the model receives a choice rather than a string it has to interpret. */
+        PendingQuestion: {
+            question: string;
+            options: {
+                id: string;
+                label: string;
+                detail?: string;
+            }[];
+            /** @description Binds an answer to this question. */
+            fingerprint?: string | null;
+        };
         Conversation: {
             /** Format: uuid */
             id: string;
             title?: string | null;
             /** @enum {string} */
-            state: "active" | "awaiting_confirmation" | "failed";
+            state: "active" | "awaiting_confirmation" | "awaiting_answers" | "failed";
             /**
              * @description How much this conversation has agreed to in advance. `planning` refuses every write; `manual` parks the calls a tool says need a human; `accept_edits` waves those through except the ones no later edit can undo; `auto` parks nothing.
              * @enum {string}
              */
             mode: "planning" | "manual" | "accept_edits" | "auto";
             pending?: components["schemas"]["PendingTool"] | null;
+            question?: components["schemas"]["PendingQuestion"] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_10_161800) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_14_001500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -112,6 +112,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_161800) do
     t.bigint "api_cost_micro_cents", default: 0, null: false
     t.string "chat_mode", default: "manual", null: false
     t.datetime "created_at", null: false
+    t.jsonb "pending_questions"
     t.jsonb "pending_tool_call"
     t.jsonb "pending_turns", default: [], null: false
     t.string "state", default: "active", null: false
@@ -122,7 +123,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_161800) do
     t.index ["user_id", "updated_at"], name: "index_conversations_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_conversations_on_user_id"
     t.check_constraint "chat_mode::text = ANY (ARRAY['planning'::character varying::text, 'manual'::character varying::text, 'accept_edits'::character varying::text, 'auto'::character varying::text])", name: "conversations_chat_mode_valid"
-    t.check_constraint "state::text = ANY (ARRAY['active'::character varying::text, 'awaiting_confirmation'::character varying::text, 'failed'::character varying::text])", name: "conversations_state_valid"
+    t.check_constraint "state::text = ANY (ARRAY['active'::character varying, 'awaiting_confirmation'::character varying, 'awaiting_answers'::character varying, 'failed'::character varying]::text[])", name: "conversations_state_valid"
   end
 
   create_table "dietary_profile_ingredients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -389,6 +390,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_10_161800) do
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "compacted_at"
     t.jsonb "content", default: [], null: false
     t.uuid "conversation_id", null: false
     t.datetime "created_at", null: false

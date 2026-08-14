@@ -57,6 +57,7 @@ export interface ConversationSummary {
   state: 'active' | 'awaiting_confirmation' | 'failed';
   mode: ChatMode;
   pending: PendingTool | null;
+  question?: PendingQuestion | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +94,7 @@ export type ChatEvent =
   | { type: 'done'; text: string | null }
   | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
+  | { type: 'awaiting_answers'; question: PendingQuestion }
   | { type: 'reconnect'; after: number }
   | { type: 'error'; message: string };
 
@@ -182,6 +184,39 @@ export function sendMessage(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, context, mode }),
+  });
+}
+
+/** One option the server wrote down. The client renders exactly these
+ *  and answers with an `id` — never with the label, and never with what
+ *  the person typed over the top of it. */
+export interface QuestionOption {
+  id: string;
+  label: string;
+  detail?: string;
+}
+
+/** A question the loop parked on, waiting for the person to settle
+ *  something the model would otherwise have to guess at. */
+export interface PendingQuestion {
+  question: string;
+  options: QuestionOption[];
+  fingerprint: string | null;
+}
+
+/** `optionId` when they picked one of ours, `text` when none fitted. An
+ *  option list that misses the obvious answer is worse than no options,
+ *  so there is always a way to say something else. */
+export function answerQuestion(
+  id: string,
+  answer: { optionId?: string; text?: string },
+  fingerprint: string | null,
+  mode?: ChatMode,
+): Promise<Queued> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ option_id: answer.optionId, text: answer.text, fingerprint, mode }),
   });
 }
 

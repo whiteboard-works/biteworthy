@@ -2,7 +2,13 @@ class Conversation < ApplicationRecord
   # `awaiting_confirmation` is the human gate. The loop stops there
   # rather than calling a tool annotated destructive, and the call it
   # wanted to make waits in `pending_tool_call` until the user answers.
-  STATES = %w[active awaiting_confirmation failed].freeze
+  # `awaiting_answers` is the second parked state, and it is a different
+  # question from the first: `awaiting_confirmation` asks yes or no about
+  # a call the model wants to make, this asks *which one did you mean*.
+  # The answer comes back as the id of an option the server wrote down
+  # rather than as free text, so nothing downstream rests on reading a
+  # typed "the first one" correctly. See `Tools::Meta::AskQuestions`.
+  STATES = %w[active awaiting_confirmation awaiting_answers failed].freeze
 
   belongs_to :user
   has_many :messages, -> { order(:position) }, dependent: :destroy, inverse_of: :conversation
@@ -17,6 +23,13 @@ class Conversation < ApplicationRecord
   scope :newest_first, -> { order(updated_at: :desc) }
 
   def awaiting_confirmation? = state == "awaiting_confirmation"
+  def awaiting_answers?      = state == "awaiting_answers"
+
+  # Either way of being stopped and owing the person a reply. Anything
+  # asking "may another turn start" wants this rather than one of them —
+  # the two states differ in what is being asked, not in whether the
+  # conversation is free.
+  def parked? = awaiting_confirmation? || awaiting_answers?
 
   # Whether anything that writes has run since the person last spoke.
   #
@@ -42,7 +55,7 @@ class Conversation < ApplicationRecord
   # user message that is *not* one — otherwise every turn carrying a tool
   # call would look like it began at its own results.
   def mutated_since_last_user_message?
-    return false if awaiting_confirmation?
+    return false if parked?
 
     turn  = messages.to_a
     spoke = turn.rindex { |message| message.role == "user" && !message.tool_result? }

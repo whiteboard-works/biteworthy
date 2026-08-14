@@ -43,10 +43,28 @@ module Api
         if conversation.awaiting_confirmation?
           return render_error("Answer the pending confirmation first.", :conflict)
         end
+        if conversation.awaiting_answers?
+          return render_error("Answer the pending question first.", :conflict)
+        end
         return render_error("Unknown mode.") unless apply_mode
 
         title_from(text)
         enqueue("kind" => "message", "text" => text, "page" => page_context)
+      end
+
+      # An option id the server itself wrote down, or the person's own
+      # words if none of the options fit. Never the model's reading of a
+      # typed "yes" — that is the whole reason the tool exists.
+      def answer
+        return render_error("Nothing is waiting on you.", :conflict) unless conversation.awaiting_answers?
+
+        option_id = params[:option_id].presence
+        text      = params[:text].to_s.strip
+        return render_error("Pick an option or type an answer.") if option_id.nil? && text.blank?
+        return render_error("Unknown mode.") unless apply_mode
+
+        enqueue("kind" => "answer", "option_id" => option_id, "text" => text.presence,
+                "fingerprint" => params[:fingerprint].presence)
       end
 
       def confirm

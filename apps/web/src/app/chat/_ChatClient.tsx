@@ -10,6 +10,7 @@ import {
   getConversation,
   listConversations,
   answerConfirmation,
+  answerQuestion,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -22,6 +23,7 @@ import {
   type Conversation,
   type ConversationSummary,
   type PageContext,
+  type PendingQuestion,
   type PendingTool,
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
@@ -41,6 +43,7 @@ export function ChatClient(): ReactElement {
   const [active, setActive] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingTool | null>(null);
+  const [question, setQuestion] = useState<PendingQuestion | null>(null);
   const [live, setLive] = useState<LiveTurn | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +95,7 @@ export function ChatClient(): ReactElement {
     setActive(conversation);
     setMessages(conversation.messages);
     setPending(conversation.pending);
+    setQuestion(conversation.question ?? null);
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
@@ -181,6 +185,8 @@ export function ChatClient(): ReactElement {
         if (last >= 0) tools[last] = { ...tools[last], name: event.name, ok: event.ok };
         return { ...(t ?? EMPTY_TURN), tools };
       });
+    } else if (event.type === 'awaiting_answers') {
+      setQuestion(event.question);
     } else if (event.type === 'error') {
       setError(event.message);
     }
@@ -395,6 +401,18 @@ export function ChatClient(): ReactElement {
     await run(id, () => answerConfirmation(id, approved, fingerprint, mode));
   };
 
+  // The mirror of `answer`, for the other parked state. Cleared before
+  // the request for the same reason: the prompt is gone the moment it is
+  // answered, and leaving it up invites a second click on a question the
+  // server has already settled.
+  const reply = async (chosen: { optionId?: string; text?: string }) => {
+    if (!active || !question) return;
+    const id = active.id;
+    const { fingerprint } = question;
+    setQuestion(null);
+    await run(id, () => answerQuestion(id, chosen, fingerprint, mode));
+  };
+
   // Persisted so the picker survives a reload; a conversation that does
   // not exist yet has nowhere to persist it, and the first `sendMessage`
   // carries it instead.
@@ -480,6 +498,8 @@ export function ChatClient(): ReactElement {
             messages={messages}
             live={live}
             pending={pending}
+            question={question}
+            onAnswerQuestion={(answer) => void reply(answer)}
             busy={busy}
             showTools={showTools}
             onAnswer={(approved) => void answer(approved)}

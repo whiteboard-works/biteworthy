@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactElement } from 'react';
-import type { ChatBlock, ChatMessage, PendingTool } from '../../lib/chat';
+import { useState, type ReactElement } from 'react';
+import type { ChatBlock, ChatMessage, PendingQuestion, PendingTool } from '../../lib/chat';
 import { Markdown } from './_Markdown';
 
 /** The assistant turn currently streaming, before it is persisted. */
@@ -15,6 +15,8 @@ interface TranscriptProps {
   messages: ChatMessage[];
   live: LiveTurn | null;
   pending: PendingTool | null;
+  question: PendingQuestion | null;
+  onAnswerQuestion: (answer: { optionId?: string; text?: string }) => void;
   busy: boolean;
   /** Tool cards and their timestamps. Default on — see `useToolVisibility`. */
   showTools: boolean;
@@ -25,9 +27,11 @@ export function Transcript({
   messages,
   live,
   pending,
+  question,
   busy,
   showTools,
   onAnswer,
+  onAnswerQuestion,
 }: TranscriptProps): ReactElement {
   const outcomes = toolOutcomes(messages);
 
@@ -38,6 +42,9 @@ export function Transcript({
       ))}
       {live ? <LiveRow turn={live} showTools={showTools} /> : null}
       {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={onAnswer} /> : null}
+      {question ? (
+        <QuestionPrompt question={question} busy={busy} onAnswer={onAnswerQuestion} />
+      ) : null}
     </div>
   );
 }
@@ -247,6 +254,72 @@ function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): R
  * people are shown runs because a model decided to — the server parks the
  * call and this is where the person answers.
  */
+// Real options rather than a sentence to reply to. The point is that
+// what comes back is an id the server itself wrote down, so nothing
+// downstream rests on the model reading "the first one" correctly.
+function QuestionPrompt({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: PendingQuestion;
+  busy: boolean;
+  onAnswer: (answer: { optionId?: string; text?: string }) => void;
+}): ReactElement {
+  const [typed, setTyped] = useState('');
+
+  return (
+    <div
+      data-testid="question-prompt"
+      className="rounded-bw-md border border-zinc-300 bg-zinc-50 px-bw-4 py-bw-3"
+    >
+      <p className="text-bw-base font-medium text-zinc-900">{question.question}</p>
+      <div className="mt-bw-3 flex flex-col gap-bw-2">
+        {question.options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            disabled={busy}
+            onClick={() => onAnswer({ optionId: option.id })}
+            className="rounded-bw-sm border border-zinc-300 px-bw-3 py-bw-2 text-left text-bw-sm hover:bg-white disabled:opacity-50"
+          >
+            <span className="font-medium">{option.label}</span>
+            {option.detail ? (
+              <span className="block text-bw-xs text-zinc-600">{option.detail}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+      {/* Always available. An option list that misses the obvious answer
+          is worse than no options at all. */}
+      <form
+        className="mt-bw-3 flex gap-bw-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (typed.trim()) onAnswer({ text: typed.trim() });
+        }}
+      >
+        <input
+          type="text"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          disabled={busy}
+          aria-label="Something else"
+          placeholder="Something else…"
+          className="flex-1 rounded-bw-sm border border-zinc-300 px-bw-2 py-bw-1 text-bw-sm"
+        />
+        <button
+          type="submit"
+          disabled={busy || !typed.trim()}
+          className="rounded-bw-sm border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm disabled:opacity-50"
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function ConfirmPrompt({
   tool,
   busy,

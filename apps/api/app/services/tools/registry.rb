@@ -11,7 +11,8 @@ module Tools
     # `tools/list` dump.
     DOMAINS = {
       meta: [
-        "Meta::DescribeCapabilities"
+        "Meta::DescribeCapabilities",
+        "Meta::AskQuestions"
       ],
       discovery: [
         "Discovery::SearchRestaurants",

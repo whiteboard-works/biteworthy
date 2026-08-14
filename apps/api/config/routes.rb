@@ -122,6 +122,11 @@ Rails.application.routes.draw do
         member do
           post :messages, to: "conversation_turns#create"
           post :confirm,  to: "conversation_turns#confirm"
+          # Answering a parked `ask_questions`. Its own path rather than a
+          # flag on /confirm: the two park for different reasons and the
+          # bodies have nothing in common — one is a yes/no, the other is
+          # the id of an option the server wrote down.
+          post :answer,   to: "conversation_turns#answer"
           # The narration. Separate from the request that starts a turn,
           # because the turn now runs in a job and outlives any one
           # connection.
