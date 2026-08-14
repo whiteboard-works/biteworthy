@@ -9,8 +9,12 @@ module Menus
   # must always be able to say why — so it has to survive the query.
   #
   # Ranking is separate. With taste signals the response is re-sorted by
-  # `taste_score`; otherwise the order is `popularity DESC, name ASC`.
-  # Score never hides anything; it only reorders and highlights.
+  # `taste_score`; otherwise the order is `name ASC`. Score never hides
+  # anything; it only reorders and highlights.
+  #
+  # The order used to read `popularity DESC, name ASC`, which was `name
+  # ASC` wearing a hat: nothing ever wrote `items.popularity`, so every
+  # row tied on the first key. The column is gone.
   #
   # Callers: Api::V1::ItemsController and Tools::Discovery::GetMenu.
   class Query
@@ -50,7 +54,7 @@ module Menus
     def load_items
       @restaurant.items.published
                  .includes(menu_section: :menu, photo_attachment: :blob)
-                 .order(popularity: :desc, name: :asc)
+                 .order(name: :asc)
                  .to_a
     end
 
@@ -68,7 +72,7 @@ module Menus
                         scores: scores, taste_labels: taste_labels)
       end
 
-      rendered.sort_by! { |i| [-(i[:taste_score] || 0.0), -i[:popularity], i[:name]] } if scores
+      rendered.sort_by! { |i| [-(i[:taste_score] || 0.0), i[:name]] } if scores
       rendered
     end
 
@@ -85,7 +89,6 @@ module Menus
         name:               item.name,
         description:        item.description,
         confidence:         item.confidence,
-        popularity:         item.popularity,
         ingredient_ids:     item.denormalized_ingredient_ids,
         tag_ids:            item.denormalized_tag_ids,
         menu_section_id:    section&.id,

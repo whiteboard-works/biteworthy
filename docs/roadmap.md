@@ -143,11 +143,14 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   others — promoting the CHECK constraints to VALID, and the
   case-sensitive `users.email` — were closed in #496 once a read-only
   prod audit cleared them.)
-  1. **`items.popularity` is read but never written.** It orders the
-     menu and carries a 0.5 weight in `TasteScoring`, and nothing has
-     ever set it, so that whole term is structurally zero. Either wire
-     a writer (`restaurant_visits` + `favorite_items` are the obvious
-     signals) or drop the column and the weight. Product call.
+  1. ~~**`items.popularity` is read but never written.**~~ **Closed
+     2026-08-14 — dropped, not wired.** The column is gone, with the
+     `TasteScoring` weight, the menu's `popularity DESC` ordering, the
+     Top Picks tie-break, and the field in the item payload. It was
+     never writable even by hand — the admin item editor's `permit`
+     list left it out — so no data was lost. `restaurant_visits` and
+     `favorite_items` remain the obvious inputs if a real popularity
+     signal is wanted later.
   2. **`restaurants.slug` is globally unique.** Two "Taco Bell"s in
      different cities collide, and slug generation isn't city-scoped.
      Inert while Durango is the only city; blocks city #2.

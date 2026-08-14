@@ -170,7 +170,7 @@ product.
 |---|---|
 | Taste model — `liked/disliked_{tag,ingredient}_ids` arrays, disjoint-set validated | `apps/api/app/models/user_profile.rb:8` |
 | `PATCH /api/v1/profile` already accepts taste arrays (no schema/API change) | `apps/api/app/controllers/api/v1/profiles_controller.rb:62` |
-| Scoring engine: `+2/liked tag, +1/liked ing, −2/−1 disliked` + popularity + rating | `apps/api/app/services/taste_scoring.rb` |
+| Scoring engine: `+2/liked tag, +1/liked ing, −2/−1 disliked` + rating | `apps/api/app/services/taste_scoring.rb` |
 | **"Filter wins"** — avoid lists subtracted *before* scoring (safety guaranteed) | `taste_scoring.rb:37` |
 | Regression fixture pinning the scoring arithmetic to 4dp | `packages/filter-engine/fixtures/taste-parity.json` (read by `spec/services/taste_scoring_spec.rb`) |
 | Top Picks UI + "Because you like X & Y" reasons (web + mobile), hides for zero-signal | `apps/web/.../TopPicksRow.tsx`, `items_controller.rb:154` |

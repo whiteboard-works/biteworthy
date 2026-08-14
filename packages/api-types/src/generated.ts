@@ -628,7 +628,6 @@ export interface paths {
                             status: "draft" | "published" | "removed";
                             /** @enum {string} */
                             confidence: "confirmed" | "suggested" | "inferred";
-                            popularity?: number;
                             position?: number;
                             ingredient_count?: number;
                             tag_count?: number;
@@ -1206,7 +1205,6 @@ export interface paths {
                                 status: "draft" | "published" | "removed";
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
-                                popularity?: number;
                                 position?: number;
                                 ingredient_count?: number;
                                 tag_count?: number;
@@ -3795,7 +3793,6 @@ export interface paths {
                                 description?: string | null;
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
-                                popularity?: number;
                                 ingredient_ids: string[];
                                 tag_ids: string[];
                                 /** @enum {string} */

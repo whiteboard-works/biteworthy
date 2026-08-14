@@ -62,7 +62,7 @@ export type HideReason =
 
 /**
  * Minimum item shape the filter operates on. The Rails serializer
- * emits a superset (popularity, description, etc.) — those flow
+ * emits a superset (description, photo_url, etc.) — those flow
  * through unchanged.
  */
 export interface FilterableItem {

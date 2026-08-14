@@ -117,7 +117,6 @@ describe('groupItemsBySection', () => {
       name: overrides.name ?? 'Item',
       description: '',
       confidence: 'confirmed',
-      popularity: 0,
       ingredient_ids: [],
       tag_ids: [],
       menu_section_id: null,

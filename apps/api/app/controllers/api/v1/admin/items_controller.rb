@@ -122,7 +122,6 @@ module Api
             description:      item.description,
             status:           item.status,
             confidence:       item.confidence,
-            popularity:       item.popularity,
             position:         item.position,
             ingredient_count: item.ingredient_ids.size,
             tag_count:        item.tag_ids.size,

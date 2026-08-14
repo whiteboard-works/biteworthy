@@ -10,9 +10,8 @@ describe('topPicksFromScores (server-scored wire items)', () => {
   const wire = (
     id: string,
     taste_score: number | null | undefined,
-    popularity = 0,
     status: 'visible' | 'hidden' = 'visible',
-  ): ScoredWireItem => ({ id, name: id, popularity, status, taste_score });
+  ): ScoredWireItem => ({ id, name: id, status, taste_score });
 
   it('returns [] when scores are null (anonymous / zero-signal payload)', () => {
     expect(topPicksFromScores([wire('a', null), wire('b', null), wire('c', null)])).toEqual([]);
@@ -22,14 +21,14 @@ describe('topPicksFromScores (server-scored wire items)', () => {
     expect(topPicksFromScores([wire('a', 2), wire('b', 1), wire('c', 0)])).toEqual([]);
   });
 
-  it('excludes hidden items, caps at 5, sorts score → popularity → name', () => {
+  it('excludes hidden items, caps at 5, sorts score → name', () => {
     const items = [
-      wire('hidden-best', 9, 0, 'hidden'),
+      wire('hidden-best', 9, 'hidden'),
       wire('f', 1),
       wire('e', 2),
       wire('d', 3),
-      wire('tie-z', 4, 10),
-      wire('tie-a', 4, 10),
+      wire('tie-z', 4),
+      wire('tie-a', 4),
       wire('best', 5),
     ];
     expect(topPicksFromScores(items).map((i) => i.id)).toEqual([

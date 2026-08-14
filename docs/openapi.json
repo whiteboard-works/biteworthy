@@ -1033,9 +1033,6 @@
                         "inferred"
                       ]
                     },
-                    "popularity": {
-                      "type": "integer"
-                    },
                     "position": {
                       "type": "integer"
                     },
@@ -2235,9 +2232,6 @@
                               "suggested",
                               "inferred"
                             ]
-                          },
-                          "popularity": {
-                            "type": "integer"
                           },
                           "position": {
                             "type": "integer"
@@ -6509,9 +6503,6 @@
                               "suggested",
                               "inferred"
                             ]
-                          },
-                          "popularity": {
-                            "type": "integer"
                           },
                           "ingredient_ids": {
                             "type": "array",
