@@ -54,6 +54,15 @@ export interface EncodeProfileTokenOptions {
 }
 
 export interface ShareableProfile {
+  /**
+   * Ingredient and tag **ids**, as UUIDs — the values the server handed
+   * back in the filter, which is where both callers already get them.
+   * Rails refuses a token whose entries are not ids: the avoid lists are
+   * compared by array intersection, so an id that is not an id matches
+   * no dish and is indistinguishable from no filter at all, which would
+   * show whoever opened the link an unfiltered menu labelled as the
+   * sharer's.
+   */
   avoid_ingredient_ids: string[];
   avoid_tag_ids: string[];
   strictness: Strictness;

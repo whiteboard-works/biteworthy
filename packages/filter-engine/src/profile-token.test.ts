@@ -8,9 +8,17 @@
 import { describe, expect, it } from 'vitest';
 import { encodeProfileToken, PROFILE_TOKEN_VERSION, type ShareableProfile } from './profile-token';
 
+// Real ids. Rails refuses a token carrying anything else, and these are
+// the same values `profile_token_spec.rb` pins the encoded bytes against.
+const INGREDIENT_IDS = [
+  '3f1d6c8a-2b47-4e91-9c3d-8a5e10f2b764',
+  '9b2e40d7-6c15-4a83-b0f9-2d7c48e15a3b',
+];
+const TAG_IDS = ['c47a1e59-8d30-4b62-9f14-6e0a3b8d72c5'];
+
 const sample: ShareableProfile = {
-  avoid_ingredient_ids: ['ing-dairy', 'ing-egg'],
-  avoid_tag_ids: ['tag-contains-dairy'],
+  avoid_ingredient_ids: INGREDIENT_IDS,
+  avoid_tag_ids: TAG_IDS,
   strictness: 'balanced',
 };
 
@@ -25,8 +33,8 @@ describe('encodeProfileToken', () => {
   it('encodes the avoid lists and strictness under the short wire keys', () => {
     expect(payloadOf(encodeProfileToken(sample))).toMatchObject({
       v: PROFILE_TOKEN_VERSION,
-      ai: ['ing-dairy', 'ing-egg'],
-      at: ['tag-contains-dairy'],
+      ai: INGREDIENT_IDS,
+      at: TAG_IDS,
       s: 'balanced',
     });
   });
@@ -36,9 +44,9 @@ describe('encodeProfileToken', () => {
     const wide: ShareableProfile = {
       avoid_ingredient_ids: Array.from(
         { length: 30 },
-        (_, i) => `ing-${i.toString(16).padStart(8, '0')}`,
+        (_, i) => `3f1d6c8a-2b47-4e91-9c3d-8a5e10f2${i.toString(16).padStart(4, '0')}`,
       ),
-      avoid_tag_ids: ['tag-contains-dairy'],
+      avoid_tag_ids: TAG_IDS,
       strictness: 'strict',
     };
     expect(encodeProfileToken(wide)).toMatch(/^[A-Za-z0-9_-]+$/);

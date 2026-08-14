@@ -58,8 +58,12 @@ RSpec.describe "GET /api/v1/users/:handle", type: :request do
   it "never exposes the dietary profile, even when fully populated" do
     liked_ingredient = create(:ingredient)
     liked_tag        = create(:tag)
-    avoid_ingredient = "11111111-1111-1111-1111-111111111111"
-    avoid_tag        = "22222222-2222-2222-2222-222222222222"
+    # Real rows rather than sentinel UUIDs: the avoid lists validate that
+    # their ids resolve, the same as the taste fields beside them. The id
+    # is still the needle this example greps the response for — it just
+    # has to be an id something actually has.
+    avoid_ingredient = create(:ingredient).id
+    avoid_tag        = create(:tag).id
 
     user.profile.update!(
       strictness:            "strict",
