@@ -157,9 +157,22 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
      "no data in production", and the drop is irreversible.
      `restaurant_visits` and `favorite_items` remain the obvious inputs
      if a real popularity signal is wanted instead.
-  2. **`restaurants.slug` is globally unique.** Two "Taco Bell"s in
-     different cities collide, and slug generation isn't city-scoped.
-     Inert while Durango is the only city; blocks city #2.
+  2. ~~**`restaurants.slug` is globally unique.**~~ **Closed 2026-08-14
+     — generation is city-aware; the column stays globally unique.**
+     `Restaurants::Create#unique_slug_for` now falls back to
+     `taco-bell-durango` before `taco-bell-2`, and only when the
+     collision is genuinely across cities. The column was deliberately
+     *not* moved to a `[city_id, slug]` index: `find_by_id_or_slug!`
+     and the web route `/restaurants/[slug]` carry no city, so per-city
+     uniqueness makes `find_by!(slug:)` ambiguous — it would return
+     whichever row Postgres reached first, which for a filtered menu is
+     another restaurant's dietary data. City #2 is unblocked either way,
+     and every URL already issued still resolves. One rough edge left:
+     `Biteworthy::DurangoSeed` looks a restaurant up by `[city, slug]`,
+     so seeding a second city with a name that collides on slug fails
+     that row loudly (`RecordNotUnique`, caught per row and reported)
+     rather than corrupting the first city's. The CSV's explicit `slug`
+     column is the operator's escape hatch.
   3. **`user_profiles.prefer_tag_ids` has no reader.** Onboarding and
      the profile endpoints write it; nothing ranks by it (taste signals
      replaced it). Either feed it into `TasteScoring` or drop it and

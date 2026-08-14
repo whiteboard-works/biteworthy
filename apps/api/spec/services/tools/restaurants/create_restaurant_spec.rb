@@ -52,10 +52,25 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(payload(response)[:created]).to be(true)
   end
 
-  it "suffixes a colliding slug rather than failing" do
+  # The collision that actually happens is the same chain in two cities —
+  # every town has a Taco Bell — and `taco-bell-2` is a URL that says
+  # nothing about which one it is. The city is the disambiguator a person
+  # would have reached for, so the generator reaches for it first.
+  it "disambiguates a slug colliding across cities with the city name" do
     create(:restaurant, name: "Ninis", slug: "ninis-taqueria", city: create(:city, slug: "telluride"))
 
     response = call(name: "Ninis Taqueria", city_slug: "durango")
+
+    expect(payload(response)[:restaurant][:slug]).to eq("ninis-taqueria-durango")
+  end
+
+  # Two of the same chain in ONE city is the case the city cannot settle.
+  # Appending "durango" there would name what they have in common, so the
+  # number is both the honest answer and the only distinguishing one.
+  it "falls back to a number when the collision is inside one city" do
+    create(:restaurant, name: "Ninis", slug: "ninis-taqueria", city: city)
+
+    response = call(name: "Ninis Taqueria", city_slug: "durango", force: true)
 
     expect(payload(response)[:restaurant][:slug]).to eq("ninis-taqueria-2")
   end
