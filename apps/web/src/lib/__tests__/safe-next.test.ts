@@ -37,6 +37,22 @@ describe('safeNext', () => {
     expect(safeNext('\\/\\/evil.com', '/')).toBe('/');
   });
 
+  // These resolve to the sentinel origin — so an input-only origin check
+  // passes them — and then *serialise* to the pathname `//evil.com`,
+  // which the router parses as protocol-relative and follows off-site.
+  // The guard re-resolves the value it is about to return for this case.
+  it('refuses a dot-segment path that normalises into a protocol-relative one', () => {
+    expect(safeNext('.//evil.com', '/')).toBe('/');
+    expect(safeNext('/a/..//evil.com', '/')).toBe('/');
+    expect(safeNext('/./..//evil.com', '/')).toBe('/');
+  });
+
+  // Dot segments that resolve to a real in-app path still work. The guard
+  // rejects the escape, not the notation.
+  it('keeps a dot-segment path that stays in-app', () => {
+    expect(safeNext('/restaurants/../history', '/')).toBe('/history');
+  });
+
   it('refuses a non-http scheme', () => {
     expect(safeNext('javascript:alert(1)', '/')).toBe('/');
     expect(safeNext('data:text/html,<script>alert(1)</script>', '/')).toBe('/');

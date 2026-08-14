@@ -36,5 +36,18 @@ export function safeNext(raw: string | null | undefined, fallback: string): stri
   }
   if (url.origin !== BASE) return fallback;
 
-  return `${url.pathname}${url.search}${url.hash}`;
+  // Checking the input's origin is not enough, because resolution can
+  // *create* a host on the way out. `.//evil.com` and `/a/..//evil.com`
+  // both resolve against the sentinel — so the check above passes — and
+  // then serialise to the pathname `//evil.com`, which the router parses
+  // as protocol-relative and follows off-site. The value actually being
+  // returned is therefore re-resolved, and has to land in-app too.
+  const destination = `${url.pathname}${url.search}${url.hash}`;
+  try {
+    if (new URL(destination, BASE).origin !== BASE) return fallback;
+  } catch {
+    return fallback;
+  }
+
+  return destination;
 }
