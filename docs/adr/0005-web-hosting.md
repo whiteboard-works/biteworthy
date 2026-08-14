@@ -36,7 +36,7 @@ Revisit Cloudflare Pages in Phase 6+ if Vercel pricing ever bites or if we need 
 
 ### Region — `iad1` (Washington DC)
 
-Vercel functions run in a region. `iad1` is the eastern-US default and the closest free-tier option to Durango. Latency for SSR-heavy routes (restaurant pages, the future `/durango/[diet]` pages) lives or dies on the round-trip to the API at Fly's `den` region — `iad1` → `den` is ~30ms, which dominates everything else and is fine for v1.
+Vercel functions run in a region. `iad1` is the eastern-US default and the closest free-tier option to Durango. Latency for SSR-heavy routes (restaurant pages, the future `/durango/[diet]` pages) lives or dies on the round-trip to the API — which ADR 0007 put in Hetzner's Ashburn datacenter (`ash-dc1`), the same metro as `iad1`, so that hop is ~1–2ms and no longer the thing that dominates. (This ADR originally sized the hop at ~30ms against Fly's `den` region; the Hetzner pick made it cheaper, not worse, so the `iad1` choice stands.)
 
 Multi-region SSR is paid-tier. Revisit when the funnel justifies it.
 
@@ -88,5 +88,5 @@ Steps 1–2 + 4 are one-time bootstrap; 3 happens on env-var rotation.
 ## Consequences
 
 - **Cost** — free at launch volume. First paid tier ($20/mo) kicks in at >100 GB bandwidth, which we won't hit pre-organic-growth.
-- **Operational** — three places to look when something breaks: Vercel (web), Fly (api), Cloudflare R2 (blobs). Document credentials side-by-side in 1Password.
+- **Operational** — three places to look when something breaks: Vercel (web), Hetzner (api), Cloudflare R2 (blobs). Document credentials side-by-side in 1Password.
 - **Cookie-domain semantics** — the `NEXT_PUBLIC_COOKIE_DOMAIN` indirection lets dev work without breaking prod. Future subdomain additions (e.g. `app.bite-worthy.com`) inherit the cookie automatically.

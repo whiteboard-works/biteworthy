@@ -1,8 +1,26 @@
 # ADR 0003: production email (Postmark via SMTP)
 
 - **Date:** 2026-04-30
-- **Status:** Accepted
+- **Status:** **Provider superseded by PR #403 (2026-07-15) — production SMTP is Resend.** The SMTP-not-a-gem decision below still stands.
 - **Refines:** ADR 0001 (the stack pick named SMTP-as-pluggable but didn't pick a provider)
+
+> **Provider changed, mechanism unchanged.** The Postmark account was never
+> stood up. Mailgun was tried next and its free plan refused `bite-worthy.com`
+> as a second sending domain (403), so PR #403 pointed `deploy.yml` at
+> **Resend** — already paid for on other Whiteboard Works projects. The
+> verified sending domain is the subdomain `mail.bite-worthy.com`, hence
+> `SMTP_ADDRESS=smtp.resend.com`, `SMTP_USERNAME=resend` (a literal, non-secret),
+> `SMTP_PASSWORD` = the Resend API key (secret), and
+> `DEVISE_MAILER_FROM=no-reply@mail.bite-worthy.com`.
+>
+> This ADR's *reasoning* — provider-agnostic SMTP over a provider gem — is
+> exactly what made that swap a 15-line `deploy.yml` change with no code
+> touched, so it is kept as the record. Read the provider name below as
+> historical; read `apps/api/config/deploy.yml` for what actually ships.
+>
+> **Still pending a human:** Resend DNS verification for `mail.bite-worthy.com`
+> + dropping the API key into `.kamal/secrets`. Until both are done, production
+> email does not send. See `docs/launch-readiness.md`.
 
 ## Context
 
@@ -33,9 +51,9 @@ Phase 5.2 lights up real delivery. The pick has to clear three bars:
 
 ### Why SMTP, not the `postmark-rails` gem
 
-- **Provider portability.** SMTP is the universal protocol; switching providers is a `fly secrets set SMTP_*=...` away. The `postmark-rails` gem locks every mailer's `delivery_method` to `:postmark` and adds a Mail::Postmark gem dep.
+- **Provider portability.** SMTP is the universal protocol; switching providers is an `SMTP_*` edit in `.kamal/secrets` + `kamal env push` away. The `postmark-rails` gem locks every mailer's `delivery_method` to `:postmark` and adds a Mail::Postmark gem dep.
 - **No new gems.** Rails ships the SMTP delivery method out of the box. Less surface to upgrade across Rails versions, less Bundler audit churn.
-- **Postmark's REST API isn't worth the complexity here.** The REST API gives back per-message metadata (open/click) that we don't need for transactional. SMTP returns a Message-ID which is enough to grep `fly logs` if a delivery is questioned.
+- **Postmark's REST API isn't worth the complexity here.** The REST API gives back per-message metadata (open/click) that we don't need for transactional. SMTP returns a Message-ID which is enough to grep `kamal app logs` if a delivery is questioned.
 
 If a future phase needs Postmark's tag-based analytics or template engine, swapping in `postmark-rails` is a one-PR operation.
 
@@ -64,14 +82,11 @@ The acceptance ("a human runs `email:smoke EMAIL=...` and receives the message")
 1. Sign up for Postmark (https://postmarkapp.com), create a "BiteWorthy" server in transactional mode.
 2. Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records — same registrar as the API CNAME from Phase 5.1).
 3. Generate a Postmark **Server API Token** (used as both SMTP user_name and password).
-4. `fly secrets set \
-       SMTP_ADDRESS=smtp.postmarkapp.com \
-       SMTP_PORT=587 \
-       SMTP_USERNAME=$POSTMARK_TOKEN \
-       SMTP_PASSWORD=$POSTMARK_TOKEN \
-       SMTP_DOMAIN=bite-worthy.com \
-       MAILER_HOST=https://bite-worthy.com`
-5. `fly ssh console -C 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
+4. Put the token in `apps/api/.kamal/secrets` (`SMTP_USERNAME` / `SMTP_PASSWORD`), with the
+   non-secret values (`SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `MAILER_HOST`) in `deploy.yml`'s
+   `env.clear`, then `kamal env push && kamal deploy`. A name in `.kamal/secrets` only reaches the
+   container if it is also listed in `deploy.yml`'s `env.secret`.
+5. `kamal app exec 'bin/rails biteworthy:email:smoke EMAIL=skylar@gmail.com'`.
 
 Steps 1–3 are one-time; 4 happens on token rotation; 5 is the test.
 
@@ -87,7 +102,7 @@ Steps 1–3 are one-time; 4 happens on token rotation; 5 is the test.
 
 **Single provider** — no failover. If Postmark has a regional outage, mail queues in Solid Queue (mailer jobs auto-retry). Multi-provider failover is Phase 6+ work.
 
-**SMTP password = API token** — Postmark's pattern (no separate username). Token rotation = `fly secrets set` + Fly rolling restart.
+**SMTP password = API token** — Postmark's pattern (no separate username). Token rotation = edit `.kamal/secrets` + `kamal env push && kamal deploy` (Kamal cuts over with no downtime).
 
 ## Consequences
 

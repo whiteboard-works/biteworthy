@@ -34,10 +34,10 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Cities ranking endpoint at `/api/v1/cities/:slug/restaurants?profile=:diet` for the SEO pages — Phase 5.6.
 - Durango batch ingest task at `bin/rails biteworthy:seed:durango FILE=…` — Phase 5.7.
 - Production smoke at `bin/rails biteworthy:production:smoke` — Phase 5.1.
-- Production SMTP (Postmark) + email smoke task — Phase 5.2.
+- Production SMTP (Resend) + email smoke task — Phase 5.2.
 - Production storage on Cloudflare R2 + idempotent backfill task — Phase 5.3.
 - Waitlist signup endpoint + confirmation mailer — Phase 5.10.
-- Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example` + `.kamal/hooks/pre-deploy`) — Phase 5.1.1.
+- Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example`) — Phase 5.1.1.
 - 377 rspec examples passing.
 
 ### Web (Next.js 15, `apps/web/`)
@@ -104,7 +104,7 @@ cp .kamal/secrets.example .kamal/secrets
 gem install kamal
 kamal setup        # installs Docker on box, pulls image, kamal-proxy
 kamal env push     # uploads .kamal/secrets
-kamal deploy       # full deploy, runs db:prepare via pre-deploy hook
+kamal deploy       # full deploy; db:prepare runs from the entrypoint on puma boot
 kamal smoke        # alias for the production smoke task
 curl https://api.bite-worthy.com/up
 ```
@@ -115,15 +115,23 @@ Subsequent deploys: `kamal deploy`. CI automation is a small follow-up after thi
 
 **Unlocks:** Devise password reset, restaurant claim verification (Phase 4.9), waitlist confirmation emails (Phase 5.10).
 
-- Sign up for Postmark (https://postmarkapp.com).
-- Verify the `bite-worthy.com` sender domain (DKIM + Return-Path DNS records).
-- Generate a Server API token.
-- **Add to `.kamal/secrets`** and re-run `kamal env push`:
+Provider is **Resend** (PR #403 — the Postmark account in ADR 0003 was never
+stood up, and Mailgun's free plan refused a second sending domain). The
+non-secret half is already committed in `deploy.yml`'s `env.clear`
+(`smtp.resend.com`, port 587, username `resend`, domain
+`mail.bite-worthy.com`). What's left:
+
+- In Resend, add **`mail.bite-worthy.com`** as a sending domain and publish the
+  DKIM + SPF records it emits at the registrar. The subdomain is deliberate —
+  the From address (`no-reply@mail.bite-worthy.com`) has to live under whatever
+  domain is verified.
+- Generate a Resend **API key** with send access.
+- **Add to `.kamal/secrets`** and re-run `kamal env push && kamal deploy`:
   ```
-  SMTP_USERNAME=<postmark-token>
-  SMTP_PASSWORD=<same-postmark-token>
+  SMTP_PASSWORD=<resend-api-key>
   ```
-  (Postmark uses the same token for both fields.)
+  Only the key is a secret — `SMTP_USERNAME` is the literal string `resend` and
+  is already set in `env.clear`.
 - Confirm: `kamal smoke` continues to pass; then `bin/rails biteworthy:email:smoke EMAIL=you@example.com` over `kamal app exec` to send a test message.
 
 ### 3. Wire production storage (Phase 5.3)

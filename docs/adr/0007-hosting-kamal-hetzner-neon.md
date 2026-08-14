@@ -39,7 +39,7 @@ Single box for v1 launch:
 ### Container deploys — Kamal
 
 - **Kamal 2** (`gem install kamal`). Zero-downtime deploys via the bundled `kamal-proxy`. Automatic Let's Encrypt for `api.bite-worthy.com`. Single-command rollback (`kamal rollback`).
-- **Pre-deploy hook** at `.kamal/hooks/pre-deploy` runs `db:prepare` against the new image before traffic cuts over (Fly's `[deploy] release_command` analog). Failed migration ⇒ no traffic cutover.
+- **Migrations on boot.** `db:prepare` runs from `bin/docker-entrypoint` when the `web` role starts. (This ADR originally specified a `.kamal/hooks/pre-deploy` hook as Fly's `[deploy] release_command` analog; it was removed because it ran before any container or env existed, which can't work on a first deploy.) The protection is the same either way: a failed migration exits the container, `/up` never passes, and kamal-proxy holds traffic on the old release.
 - **Why Kamal over alternatives:**
   - **vs raw Docker Compose** — Kamal handles the multi-host TLS + zero-downtime cutover for us. Compose would mean writing nginx + certbot + a deploy script.
   - **vs Coolify** (self-hosted PaaS) — Coolify's UX is closer to Render/Heroku, but it's a 3rd-party layer to keep up with. Kamal is just bash + Docker primitives; if Kamal disappears tomorrow, the box still runs the image.
@@ -56,7 +56,7 @@ Single box for v1 launch:
 Reused unchanged:
 - `apps/api/Dockerfile` — multi-stage Rails 8 production image. Kamal builds the same OCI image Fly would have.
 - `apps/api/.dockerignore` — excludes `.env`, `.kamal/secrets` (added by this PR), logs, specs, docs.
-- `apps/api/bin/docker-entrypoint` — runs `db:prepare` on the puma process. Belt-and-suspenders alongside the new pre-deploy hook.
+- `apps/api/bin/docker-entrypoint` — runs `db:prepare` on the puma process. This ended up being the only place it runs (see above).
 - `apps/api/lib/tasks/production.rake` + `app/services/biteworthy/production_smoke.rb` — the smoke runner. URL-driven; works against any host.
 - All of Phase 5.2 (SMTP), Phase 5.3 (R2 storage), Phase 5.4 (Vercel for web), Phase 5.5–5.10. Orthogonal.
 
@@ -65,7 +65,7 @@ Reused unchanged:
 - **Delete** `apps/api/fly.toml`.
 - **Add** `apps/api/config/deploy.yml` — Kamal config: web + worker roles, GHCR registry, kamal-proxy with `/up` healthcheck + Let's Encrypt for `api.bite-worthy.com`, libjemalloc preload, env-var passthrough.
 - **Add** `apps/api/.kamal/secrets.example` — bash-sourceable template for every secret.
-- **Add** `apps/api/.kamal/hooks/pre-deploy` — runs `db:prepare` against the new image before traffic cutover.
+- ~~**Add** `apps/api/.kamal/hooks/pre-deploy`~~ — added here, then removed: a pre-deploy hook runs before any container or env exists, so it can never work on a first deploy. `bin/docker-entrypoint` covers it.
 - **Update** `apps/api/.gitignore` — exclude `.kamal/secrets`.
 - **Update** `apps/api/.env.example` — drop Fly-specific docs, add Kamal/Hetzner/Neon section.
 - **Update** `apps/api/README.md` "Production deploy" section — full bootstrap commands inline.

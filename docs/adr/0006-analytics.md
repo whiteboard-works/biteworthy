@@ -54,8 +54,8 @@ This PR doesn't install `posthog-js` or `posthog-react-native`. The wrapper retu
 
 The structural-only split mirrors:
 - Phase 4.11.2 (schema + prompt + materialize, cassette deferred)
-- Phase 5.1 (Dockerfile + fly.toml, fly auth login deferred)
-- Phase 5.2 (SMTP config, Postmark account deferred)
+- Phase 5.1 (Dockerfile + deploy config, host provisioning deferred)
+- Phase 5.2 (SMTP config, provider account deferred)
 - Phase 5.3 (storage.yml + backfill, Cloudflare R2 bucket deferred)
 - Phase 5.4 (vercel.json + sitemap, Vercel project deferred)
 
@@ -78,8 +78,8 @@ Same playbook every time: loop ships wiring; humans drop credentials.
 
 1. Sign up for PostHog Cloud, create a "BiteWorthy" project. Pick the US or EU region based on user-data-residency preference (no strong constraint — beta is Durango-only).
 2. Generate a project API key.
-3. `fly secrets set NEXT_PUBLIC_POSTHOG_KEY=$KEY` for web (it's a public key so prefix with NEXT_PUBLIC; PostHog separates ingest from query by host).
-4. Set the same as `EXPO_PUBLIC_POSTHOG_KEY` in EAS / Vercel env (mobile bundle has no Fly).
+3. Set `NEXT_PUBLIC_POSTHOG_KEY=$KEY` in the Vercel project's environment variables — web is the only surface that reads it (it's a public key, hence the NEXT_PUBLIC prefix; PostHog separates ingest from query by host).
+4. Set the same value as `EXPO_PUBLIC_POSTHOG_KEY` in EAS. The API box never needs the key — nothing server-side emits analytics events.
 5. Open a follow-up PR (`claude/phase-5.8-wiring`):
    - `pnpm add posthog-js -F @biteworthy/web`
    - `pnpm add posthog-react-native -F @biteworthy/mobile`
