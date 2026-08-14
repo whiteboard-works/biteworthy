@@ -170,6 +170,24 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   it. Candidate fixes: bump that test's timeout to 15s, or
   jest.setTimeout for the file. One-line change; fold into the next
   mobile PR.
+- **`chat.render.test.tsx › turn analytics › reports what actually
+  happened` is flaky, and the cause is app-side** — reproduces locally
+  at roughly 3-in-6 on a full-suite run (never on a single-file run),
+  on master as well as on any branch. Two alternating failures,
+  `tool_count: 0` and `outcome: "error"`, which is the signature of
+  something *else* consuming this test's queued
+  `mockResolvedValueOnce` values: whichever of the two gets stolen
+  decides which assertion breaks. The consumer is a `watch` loop from
+  an earlier test that was mid-`setTimeout(POLL_MS)` when the test
+  ended — `watch` (`apps/mobile/app/chat.tsx`) polls until the server
+  says `running: false` or `MAX_POLL_MS` elapses and has **no
+  unmount cancellation**, so it outlives the screen. `jest.clearAllMocks()`
+  does not drain a once-queue, but draining would not fix this anyway
+  while a live consumer exists. The real fix is aborting the poll when
+  the screen goes away, which is worth having in its own right (a
+  backgrounded chat should stop polling), and is an app change rather
+  than a test tweak.
+
 - **Phase 6.5/6.6 codex P2 followups (web+mobile verify UX)** — from
   #304's review, all reasonable, none blocking: (1) logged-out users
   hit the create step before any 401 redirect — picker should redirect
