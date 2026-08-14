@@ -3445,7 +3445,7 @@ export interface paths {
         };
         /**
          * List the caller's active MCP tokens
-         * @description Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary.
+         * @description Never carries a secret — only the digest is stored, so there is nothing an endpoint could return. `scopes` lists every grantable scope so a client need not hardcode the vocabulary, and `full_access_scope` names the one that grants everything.
          */
         get: {
             parameters: {
@@ -3467,6 +3467,8 @@ export interface paths {
                         "application/json": {
                             tokens: components["schemas"]["McpToken"][];
                             scopes: string[];
+                            /** @description Grants everything the account can do. Not included in `scopes`, because it is a different kind of choice. */
+                            full_access_scope: string;
                         };
                     };
                 };
@@ -3475,7 +3477,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a scoped MCP token
-         * @description The only response that ever carries the secret. Omit `scopes` for a credential with the same access as the account.
+         * @description The only response that ever carries the secret. `scopes` is required and must name at least one grant; send the `full_access_scope` from GET to grant everything the account can do.
          */
         post: {
             parameters: {
@@ -3490,8 +3492,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         name: string;
-                        /** @description e.g. discovery:read */
-                        scopes?: string[];
+                        /** @description e.g. discovery:read. An empty list is refused rather than read as full access — see full_access_scope. */
+                        scopes: string[];
                     };
                 };
             };

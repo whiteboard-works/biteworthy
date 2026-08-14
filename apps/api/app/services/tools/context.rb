@@ -20,10 +20,20 @@ module Tools
       @user_id     = raw[:user_id]
       @public_host = raw[:public_host]
       @request_id  = raw[:request_id]
-      # What this caller's credential is allowed to touch. Empty means
-      # unrestricted, which is what a session or a plain JWT is — the
-      # scope check only narrows, it never grants.
-      @scopes      = Array(raw[:scopes])
+      # What this caller's credential is allowed to touch.
+      #
+      # **Not saying and saying nothing are different answers**, and the
+      # fail-open this replaced could not tell them apart. Omitting the
+      # key means no credential is narrowing this call at all — an
+      # in-process caller, a session — so it is unrestricted. Passing the
+      # key with an empty list means a credential was consulted and
+      # granted nothing, which is a refusal.
+      #
+      # That distinction is the whole fix: `granted_scopes` and an
+      # `McpToken` always *state* their grant, so a grant that comes out
+      # empty now fails closed instead of quietly reaching the taxonomy
+      # and the moderation queue. See `Scopes::ALL`.
+      @scopes      = raw.key?(:scopes) ? Array(raw[:scopes]) : [ Scopes::ALL ]
     end
 
     def user

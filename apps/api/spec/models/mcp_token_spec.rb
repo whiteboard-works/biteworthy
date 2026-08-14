@@ -21,24 +21,41 @@ RSpec.describe McpToken do
       expect { described_class.issue!(user: user, name: "x", scopes: ["menus:teleport"]) }
         .to raise_error(ActiveRecord::RecordInvalid, /unknown/)
     end
+
+    # The credential that used to be the most powerful one available. An
+    # empty grant satisfied every scope check, so the least deliberate way
+    # to fill the form minted a token that could reach the taxonomy, the
+    # moderation queue, and every user's role.
+    it "refuses to mint a token whose authority nobody chose" do
+      expect { described_class.issue!(user: user, name: "x", scopes: []) }
+        .to raise_error(ActiveRecord::RecordInvalid, /Scopes can't be blank/)
+      expect { described_class.issue!(user: user, name: "x") }
+        .to raise_error(ArgumentError)
+    end
+
+    it "mints full authority when it is asked for by name" do
+      token, = described_class.issue!(user: user, name: "ops", scopes: [Tools::Scopes::ALL])
+
+      expect(Tools::Scopes.satisfied?(token.scopes, "users:write")).to be(true)
+    end
   end
 
   describe ".authenticate" do
     it "resolves a live token" do
-      token, secret = described_class.issue!(user: user, name: "Claude Code")
+      token, secret = described_class.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"])
 
       expect(described_class.authenticate(secret)).to eq(token)
     end
 
     it "refuses a revoked one" do
-      token, secret = described_class.issue!(user: user, name: "Claude Code")
+      token, secret = described_class.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"])
       token.revoke!
 
       expect(described_class.authenticate(secret)).to be_nil
     end
 
     it "refuses an expired one" do
-      _, secret = described_class.issue!(user: user, name: "Claude Code", expires_at: 1.hour.ago)
+      _, secret = described_class.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"], expires_at: 1.hour.ago)
 
       expect(described_class.authenticate(secret)).to be_nil
     end
@@ -57,7 +74,7 @@ RSpec.describe McpToken do
     # writing a row on every tool call would put a write in front of every
     # read.
     it "records first use and then stops writing" do
-      token, = described_class.issue!(user: user, name: "Claude Code")
+      token, = described_class.issue!(user: user, name: "Claude Code", scopes: ["discovery:read"])
 
       token.note_use!
       first = token.reload.last_used_at

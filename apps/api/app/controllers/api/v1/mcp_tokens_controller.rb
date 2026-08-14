@@ -13,7 +13,11 @@ module Api
       def index
         render json: {
           tokens: current_user.mcp_tokens.active.order(:created_at).map { |t| serialize(t) },
-          scopes: Tools::Scopes.available
+          scopes: Tools::Scopes.available,
+          # Named here so the UI can offer full access as a chip like any
+          # other rather than hardcoding the wildcard — the same reason
+          # `scopes` is returned at all.
+          full_access_scope: Tools::Scopes::ALL
         }
       end
 
@@ -22,6 +26,16 @@ module Api
         return render_error("Give the token a name so you can tell them apart.") if name.blank?
 
         scopes = Array(params[:scopes]).map(&:to_s).compact_blank
+        # `compact_blank` is why this cannot be left to the model alone:
+        # `scopes: ["", "  "]` is a client asking for a narrow grant and
+        # arriving here as `[]`, which used to mean full access to all
+        # thirteen gated domains. Refusing it names the choice instead.
+        if scopes.empty?
+          return render_error(
+            "Pick at least one scope, or send \"#{Tools::Scopes::ALL}\" to grant full access."
+          )
+        end
+
         unknown = scopes.reject { |s| Tools::Scopes.valid?(s) }
         return render_error("Unknown scope(s): #{unknown.join(', ')}.") if unknown.any?
 

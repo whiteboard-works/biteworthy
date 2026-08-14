@@ -79,6 +79,21 @@ RSpec.describe Chat::AgentLoop do
       expect(tool_result.content.first["content"].first["text"]).to include("Ninis Taqueria")
     end
 
+    # A first-party turn is the signed-in person acting through their own
+    # session, so it carries the whole account — and now says so rather
+    # than relying on an absent `scopes` key that `Scopes.satisfied?` read
+    # as unrestricted. Asserted on the context because the failure is
+    # silent otherwise: the catalogue would simply come back empty and the
+    # model would answer that it has no tools, which reads as a bad reply
+    # rather than an authorization regression.
+    it "gives a first-party turn the whole account, deliberately" do
+      loop_for_turn = described_class.new(conversation, client: ScriptedClient.new(say("hi")))
+      context = loop_for_turn.send(:context)
+
+      expect(context.scopes).to eq([Tools::Scopes::ALL])
+      expect(Tools::Registry.for(context).map(&:name_value)).to include("get_restaurant")
+    end
+
     # The Messages API rejects a transcript where a tool_use has no
     # answer, so a failing tool still has to produce a result block.
     it "answers a tool that errored rather than leaving the call dangling" do

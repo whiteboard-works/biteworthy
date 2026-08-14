@@ -22,13 +22,22 @@ class McpToken < ApplicationRecord
   belongs_to :user
 
   validates :name, presence: true, length: { maximum: 60 }
+  # A token has to name what it may touch. Saying nothing used to mean
+  # everything (see `Tools::Scopes::ALL`), so the least deliberate way to
+  # fill this form produced the most powerful credential. Full authority
+  # is still available — it is spelled `*` — but it has to be asked for.
+  validates :scopes, presence: true
   validate  :scopes_are_known
 
   scope :active, -> { where(revoked_at: nil).where("expires_at IS NULL OR expires_at > ?", Time.current) }
 
   # Returns the record and the one-time secret together, because this is
   # the only moment the secret exists.
-  def self.issue!(user:, name:, scopes: [], expires_at: nil)
+  #
+  # `scopes` has no default: the caller states what it is granting, and
+  # `create!` raises rather than minting a credential whose authority
+  # nobody chose.
+  def self.issue!(user:, name:, scopes:, expires_at: nil)
     secret = "#{PREFIX}#{SecureRandom.urlsafe_base64(BYTES)}"
     token  = create!(
       user: user, name: name, scopes: Array(scopes).map(&:to_s).uniq,

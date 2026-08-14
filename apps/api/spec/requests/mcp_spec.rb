@@ -276,7 +276,11 @@ RSpec.describe "POST /mcp", type: :request do
     # of how many workflows happened to qualify the day it was written.
     it "offers an anonymous caller only what is public" do
       names = prompts_for({}).map { |p| p[:name] }
-      public_flows = Tools::Topology.for(Tools::Context.new({}))[:workflows]
+      # The context an anonymous *request* actually gets: no user, but the
+      # wildcard, because no credential is narrowing it — see
+      # `McpController#granted_scopes`. Audience is what trims this list.
+      anonymous = Tools::Context.new({ scopes: [Tools::Scopes::ALL] })
+      public_flows = Tools::Topology.for(anonymous)[:workflows]
 
       expect(names).to match_array(public_flows.map { |f| f[:name].parameterize.underscore })
       expect(names).to include("find_something_this_person_can_eat")
@@ -390,6 +394,24 @@ RSpec.describe "POST /mcp", type: :request do
       expect(other.reload.is_admin).to be(true)
     end
 
+    # The other half of making an empty grant mean nothing: a plain JWT
+    # carries no scopes of its own, and used to be unrestricted *because*
+    # empty satisfied every check. Now `granted_scopes` says so, and this
+    # is what catches it if that ever silently reverts to `[]` — the whole
+    # first-party surface would lose its tools at once.
+    it "still gives a plain JWT everything the account can do" do
+      admin = create(:user, is_admin: true)
+      other = create(:user)
+
+      post "/mcp",
+           params: { jsonrpc: "2.0", id: 1, method: "tools/call",
+                     params: { name: "set_user_role",
+                               arguments: { user_id: other.id, is_admin: true } } }.to_json,
+           headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(other.reload.is_admin).to be(true)
+    end
+
     # The tool half of the same boundary the REST endpoint holds: the
     # super tier is shell-managed, so a fully-scoped admin token still
     # cannot take it away. The refusal names the rake task rather than
@@ -410,7 +432,7 @@ RSpec.describe "POST /mcp", type: :request do
     # session the person has.
     it "rejects a revoked token as unauthorized" do
       user = create(:user)
-      token, secret = McpToken.issue!(user: user, name: "old laptop")
+      token, secret = McpToken.issue!(user: user, name: "old laptop", scopes: ["discovery:read"])
       token.revoke!
 
       post "/mcp",

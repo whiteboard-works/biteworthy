@@ -24,6 +24,14 @@ export interface McpTokenList {
   tokens: McpTokenSummary[];
   /** Every grantable scope, so the UI need not hardcode the vocabulary. */
   scopes: string[];
+  /**
+   * The one scope that grants everything. Sent by the server for the same
+   * reason `scopes` is — the wildcard is the API's vocabulary, not this
+   * file's. A token used to get full access by naming nothing at all,
+   * which made the least deliberate action produce the most powerful
+   * credential; it is now a chip someone has to pick.
+   */
+  full_access_scope: string;
 }
 
 export function listTokens(): Promise<McpTokenList> {

@@ -206,6 +206,15 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   (the call has shipped and works), but it is an inconsistency in how
   the two model calls in the chat are covered.
 
+- **MCP token scopes fail open** — `Tools::Scopes.satisfied?` treats an
+  empty grant as unrestricted, so "granted nothing" and "granted
+  everything" are the same value: `scopes: ["", "  "]` survives
+  `compact_blank` as `[]` and mints a credential reaching all thirteen
+  gated domains. **Fixed in #604** — full access is the named scope `*`,
+  `McpToken` requires at least one, and `Tools::Context` separates an
+  omitted `scopes` key (nothing is narrowing this call) from a stated
+  `[]` (a credential was consulted and granted nothing).
+
 - **Onboarding-chip flake recurred (3rd occurrence)** — the test fixed
   in #199 ("renders a chip per preset once the fetch resolves") timed
   out again on #304's CI runner (suite took 16.5s; 5s per-test cap).
