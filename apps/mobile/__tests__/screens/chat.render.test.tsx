@@ -120,6 +120,47 @@ it('creates a conversation on the first message and shows the reply', async () =
   expect(await screen.findByText('Ninis has 12 dishes you can eat.')).toBeOnTheScreen();
 });
 
+// Mobile never renders the answer as it arrives — `describe` turns
+// events into narration lines and drops `text_delta` — so the refetch at
+// the end of a turn is the *only* thing that puts the answer on screen.
+// A failed one therefore lost the whole turn: the person was left looking
+// at their own question with an error under it, for a turn that had in
+// fact succeeded and been stored. `done` carries the settled text.
+describe('when the post-turn refetch fails', () => {
+  it('still shows the answer the turn produced', async () => {
+    mockEvents.mockResolvedValue({
+      events: [{ type: 'done', text: 'The queso is out — it has dairy.', position: 1 }],
+      running: false,
+    });
+    mockGet.mockRejectedValue(new Error('Network request failed'));
+
+    render(<ChatScreen />);
+    await type('what can I eat');
+
+    expect(await screen.findByText('The queso is out — it has dairy.')).toBeOnTheScreen();
+  });
+
+  // It is a stand-in, not a second source of truth: the next successful
+  // refresh replaces `messages` wholesale, so the local copy cannot
+  // linger beside the stored one it was standing in for.
+  it('gives way to the stored message on the next refresh', async () => {
+    mockEvents.mockResolvedValue({
+      events: [{ type: 'done', text: 'Only one of these.', position: 1 }],
+      running: false,
+    });
+    mockGet.mockRejectedValueOnce(new Error('Network request failed'));
+
+    render(<ChatScreen />);
+    await type('what can I eat');
+    await screen.findByText('Only one of these.');
+
+    mockGet.mockResolvedValue(answered('Only one of these.'));
+    await type('and again');
+
+    await waitFor(() => expect(screen.getAllByText('Only one of these.')).toHaveLength(1));
+  });
+});
+
 // Mobile polls where web streams — React Native's fetch exposes no
 // readable body. `running` is what stops it asking forever.
 it('polls the narration until the server says nothing is in flight', async () => {
