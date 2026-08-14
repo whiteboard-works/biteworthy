@@ -38,7 +38,7 @@ module Restaurants
         end
 
         restaurant = Restaurant.create!(
-          name: clean, slug: unique_slug_for(clean), city: city,
+          name: clean, slug: unique_slug_for(clean, city), city: city,
           status: "draft", created_by_user_id: creator.id
         )
         attach_address!(restaurant, city, street, postal_code)
@@ -61,12 +61,46 @@ module Restaurants
 
       private
 
-      # parameterize + numeric suffix on collision ("ninis", "ninis-2").
-      def unique_slug_for(name)
+      # `parameterize`, then the city on collision, then a number:
+      # "ninis", "taco-bell-durango", "taco-bell-durango-2".
+      #
+      # The collision that matters is a chain, not a name: every city has
+      # a Taco Bell, so the second one used to become `taco-bell-2` — a
+      # slug that says nothing about which one it is, in a URL people see
+      # and share. Reaching for the city first makes the disambiguator
+      # mean something, and it is the disambiguator a person would have
+      # picked.
+      #
+      # **`restaurants.slug` stays globally unique, deliberately.** The
+      # obvious reading of "city-scope the slug" is a `[city_id, slug]`
+      # index, and that breaks lookup: `find_by_id_or_slug!` and the web
+      # route `/restaurants/[slug]` carry no city, so a per-city-unique
+      # slug makes `find_by!(slug:)` ambiguous — it would return whichever
+      # row Postgres reached first, silently, which for a filtered menu is
+      # the wrong restaurant's dietary data. Making generation
+      # city-aware solves the collision the roadmap actually named
+      # (city #2 is blocked) without moving the uniqueness the routes
+      # depend on, and every URL already issued keeps working.
+      #
+      # The numeric tail survives for the case the city cannot settle:
+      # two Taco Bells in one city. The city is only reached for when the
+      # collision is genuinely across cities — appending "durango" to tell
+      # two Durango restaurants apart names the thing they have in common,
+      # which is a worse label than a number and a misleading one besides.
+      def unique_slug_for(name, city)
         base = name.parameterize
         base = "restaurant" if base.blank?
         return base unless Restaurant.exists?(slug: base)
 
+        unless Restaurant.exists?(slug: base, city_id: city.id)
+          with_city = [ base, city.slug.parameterize ].join("-")
+          return with_city unless Restaurant.exists?(slug: with_city)
+        end
+
+        numbered(with_city || base)
+      end
+
+      def numbered(base)
         n = 2
         n += 1 while Restaurant.exists?(slug: "#{base}-#{n}")
         "#{base}-#{n}"
