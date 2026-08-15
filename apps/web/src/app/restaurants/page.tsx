@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { fetchRestaurants, type RestaurantSummary } from '../../lib/restaurants';
-import { RestaurantCards } from '../_RestaurantCards';
+import { RestaurantSearch } from './_RestaurantSearch';
 
 // ISR: the browse list refreshes every 5 minutes as menus are published.
 export const revalidate = 300;
@@ -39,21 +39,7 @@ export default async function RestaurantsPage(): Promise<ReactElement> {
         </Link>
       </p>
 
-      {restaurants.length === 0 ? (
-        <div
-          className="mt-bw-8 rounded-bw-lg border border-zinc-200 bg-zinc-50 p-bw-6 text-bw-base text-zinc-600"
-          data-testid="restaurants-empty"
-        >
-          No published menus yet.{' '}
-          <Link href="/chat" data-testid="restaurants-empty-chat" className="font-bold text-bite underline hover:text-bite-dark">
-            Add one from a photo →
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-bw-8" data-testid="restaurants-list">
-          <RestaurantCards restaurants={restaurants} />
-        </div>
-      )}
+      <RestaurantSearch restaurants={restaurants} />
     </main>
   );
 }
