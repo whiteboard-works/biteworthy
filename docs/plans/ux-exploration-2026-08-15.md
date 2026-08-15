@@ -141,8 +141,10 @@ connected) — worth repeating with one for layout/interaction issues.
 
 PRs in flight are noted; tick items as they merge.
 
-- [ ] `FilterBadge` + rswag enum + `FilterSummary` type: handle
-      `profile_token` ("Shared filter" label) — finding 7. (#614)
+- [x] `FilterBadge` + rswag enum + `FilterSummary` type: handle
+      `profile_token` ("Shared filter" label) — finding 7. (#614, merged —
+      review extended it to mobile's identical latent copy via a shared
+      `filterSourceLabel` in filter-engine.)
 - [ ] Restaurant page: accept `?profile=<preset>` and pass through SSR fetch +
       client refetches; link `/durango/<diet>` cards with it — findings 5, 6.
       (#618)

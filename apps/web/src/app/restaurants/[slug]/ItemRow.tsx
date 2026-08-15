@@ -20,6 +20,8 @@ import { HiddenReasonChip } from './RestaurantClient';
 export interface ItemRowProps {
   item: RestaurantItem;
   restaurantSlug: string;
+  /** Carried onto the item link so the diet survives the hop + back. */
+  presetSlug?: string | null;
   hidden?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
@@ -81,6 +83,7 @@ function ItemPhoto({ item }: { item: RestaurantItem }): ReactElement {
 export function ItemRow({
   item,
   restaurantSlug,
+  presetSlug = null,
   hidden = false,
   overridden,
   onToggleOverride,
@@ -107,7 +110,7 @@ export function ItemRow({
         </p>
         {item.description && <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>}
         <a
-          href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}`}
+          href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
           data-testid={`open-item-${item.id}`}
           className="mt-1 inline-block text-bw-xs font-semibold text-bite hover:text-bite-dark"
         >

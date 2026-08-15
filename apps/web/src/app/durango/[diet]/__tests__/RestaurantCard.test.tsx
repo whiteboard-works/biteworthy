@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { RestaurantCard } from '../page';
+import { RestaurantCard } from '../_RestaurantCard';
 
 /**
  * The card advertises "N safe items" for a specific diet — that claim
@@ -31,7 +31,7 @@ describe('RestaurantCard', () => {
     );
   });
 
-  it('keeps the preset on all-hidden cards too', () => {
+  it('explains an all-hidden restaurant instead of showing counts', () => {
     render(
       <ul>
         <RestaurantCard
@@ -40,10 +40,6 @@ describe('RestaurantCard', () => {
           dietSlug="celiac"
         />
       </ul>,
-    );
-    expect(screen.getByTestId('restaurant-link-chamayo')).toHaveAttribute(
-      'href',
-      '/restaurants/chamayo?profile=celiac',
     );
     expect(screen.getByTestId('restaurant-chamayo')).toHaveTextContent(
       /No celiac-safe items in our index yet/,

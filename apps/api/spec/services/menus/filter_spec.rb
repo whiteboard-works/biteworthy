@@ -139,5 +139,28 @@ RSpec.describe Menus::Filter do
       expect(filter.source).to eq("profile_token")
       expect(filter.avoid_ingredient_ids).to eq([cheddar.id])
     end
+
+    it "keeps a signed-in caller's saved strictness when a preset link replaces their avoid lists" do
+      # A /durango/<diet> click swaps WHAT is avoided — it must not also
+      # quietly relax HOW CAUTIOUS a strict-mode user asked to be.
+      create(:dietary_profile, slug: "vegan")
+      user = create(:user)
+      user.profile.update!(strictness: "strict")
+
+      filter = described_class.build(user: user, preset_slug: "vegan")
+
+      expect(filter.source).to eq("preset")
+      expect(filter.strictness).to eq("strict")
+    end
+
+    it "still lets an explicit strictness param override the saved one on a preset" do
+      create(:dietary_profile, slug: "vegan")
+      user = create(:user)
+      user.profile.update!(strictness: "strict")
+
+      filter = described_class.build(user: user, preset_slug: "vegan", strictness: "relaxed")
+
+      expect(filter.strictness).to eq("relaxed")
+    end
   end
 end

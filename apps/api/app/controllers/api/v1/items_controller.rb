@@ -32,8 +32,13 @@ module Api
 
         # Phase 4.8 — record an authenticated user's visit to this
         # restaurant for the History tab. Best-effort, async, never
-        # blocks the response.
-        record_visit_for_history(restaurant, payload[:items]) if current_user
+        # blocks the response. Only when the menu was filtered as *them*:
+        # a ?profile= / ?profile_token= view would overwrite the day's
+        # row (last-write-wins upsert) with counts their own filter never
+        # produced.
+        if current_user && params[:profile].blank? && params[:profile_token].blank?
+          record_visit_for_history(restaurant, payload[:items])
+        end
 
         render json: payload
       end

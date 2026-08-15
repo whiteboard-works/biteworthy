@@ -37,7 +37,11 @@ module Menus
           if profile_token.present?
             from_token(profile_token, strictness: override)
           elsif preset_slug.present?
-            from_preset(preset_slug, strictness: override)
+            # A preset link replaces the avoid lists by design (that is
+            # what clicking "celiac restaurants" means), but it must not
+            # quietly relax a signed-in user's caution level — their
+            # saved strictness rides along unless explicitly overridden.
+            from_preset(preset_slug, strictness: override || user&.profile&.strictness)
           elsif user&.profile
             from_user_profile(user.profile, strictness: override)
           else
