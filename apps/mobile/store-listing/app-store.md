@@ -20,7 +20,7 @@ App Store Connect → My Apps → BiteWorthy → App Store tab.
 BiteWorthy is a pocket food filter for celiac, allergies, vegan, and every other dietary need. Snap a photo of a menu — or paste a link — and BiteWorthy hides the dishes that aren't safe for you. With *why*, every time.
 
 How it works:
-1. Pick a filter — Celiac, Tree Nut, Vegan, Diabetes-friendly, or build your own avoid list.
+1. Pick a filter — Celiac, Tree Nut, Vegan, Halal, or build your own avoid list.
 2. Scan a menu — camera, photo library, or paste a link to a PDF / online menu.
 3. See only safe dishes — hidden items each say *why*. Tap "show anyway" to override one for this meal.
 
