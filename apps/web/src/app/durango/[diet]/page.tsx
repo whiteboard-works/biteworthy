@@ -99,6 +99,7 @@ export default async function DurangoDietPage({ params }: PageProps): Promise<Re
         <RestaurantGrid
           ranked={ranking.restaurants}
           dietName={ranking.profile.name}
+          dietSlug={ranking.profile.slug}
           visibleSlugs={visibleSlugs}
           allHiddenSlugs={allHiddenSlugs}
         />
@@ -136,11 +137,13 @@ function Hero({
 function RestaurantGrid({
   ranked,
   dietName,
+  dietSlug,
   visibleSlugs,
   allHiddenSlugs,
 }: {
   ranked: CityRanked['restaurants'];
   dietName: string;
+  dietSlug: string;
   visibleSlugs: CityRanked['restaurants'];
   allHiddenSlugs: CityRanked['restaurants'];
 }): ReactElement {
@@ -151,7 +154,7 @@ function RestaurantGrid({
       {visibleSlugs.length > 0 && (
         <ul className="mt-bw-4 grid gap-bw-3 md:grid-cols-2">
           {visibleSlugs.map((r) => (
-            <RestaurantCard key={r.id} r={r} dietName={dietName} />
+            <RestaurantCard key={r.id} r={r} dietName={dietName} dietSlug={dietSlug} />
           ))}
         </ul>
       )}
@@ -165,7 +168,7 @@ function RestaurantGrid({
           </summary>
           <ul className="mt-bw-3 grid gap-bw-3 md:grid-cols-2">
             {allHiddenSlugs.map((r) => (
-              <RestaurantCard key={r.id} r={r} dietName={dietName} />
+              <RestaurantCard key={r.id} r={r} dietName={dietName} dietSlug={dietSlug} />
             ))}
           </ul>
         </details>
@@ -174,12 +177,14 @@ function RestaurantGrid({
   );
 }
 
-function RestaurantCard({
+export function RestaurantCard({
   r,
   dietName,
+  dietSlug,
 }: {
   r: CityRanked['restaurants'][number];
   dietName: string;
+  dietSlug: string;
 }): ReactElement {
   const allHidden = r.visible_count === 0;
   return (
@@ -190,8 +195,10 @@ function RestaurantCard({
         allHidden ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-200 bg-white shadow-sm',
       ].join(' ')}
     >
+      {/* Carry the diet onto the menu page — the card's "N safe items" claim
+          only holds if the click-through applies the same preset. */}
       <a
-        href={`/restaurants/${encodeURIComponent(r.slug)}`}
+        href={`/restaurants/${encodeURIComponent(r.slug)}?profile=${encodeURIComponent(dietSlug)}`}
         className="block"
         data-testid={`restaurant-link-${r.slug}`}
       >

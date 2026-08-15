@@ -23,7 +23,7 @@ import { RestaurantClient } from './RestaurantClient';
  * passing the JWT does not hijack a shared link.
  */
 type Params = { slug: string };
-type Search = { p?: string };
+type Search = { p?: string; profile?: string };
 
 export default async function RestaurantPage({
   params,
@@ -33,14 +33,19 @@ export default async function RestaurantPage({
   searchParams: Promise<Search>;
 }) {
   const { slug } = await params;
-  const { p: profileToken } = await searchParams;
+  // `profile` carries a preset slug from the /durango/<diet> cards so the
+  // diet survives the click-through. Both params are forwarded as-is;
+  // Rails owns precedence (token > preset > the caller's saved profile).
+  const { p: profileToken, profile: presetSlug } = await searchParams;
 
   // The JWT lets fetchRestaurant populate `favorited` for the save button;
   // its presence also gates the button (the endpoint is authed).
   const jwt = await getServerJwt();
   const [restaurant, initialItems] = await Promise.all([
     fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null),
-    fetchRestaurantItems(slug, { profileToken, jwt: jwt ?? undefined }).catch(() => null),
+    fetchRestaurantItems(slug, { profileToken, presetSlug, jwt: jwt ?? undefined }).catch(
+      () => null,
+    ),
   ]);
 
   if (!restaurant || !initialItems) notFound();
@@ -51,6 +56,7 @@ export default async function RestaurantPage({
       restaurant={restaurant}
       initialItems={initialItems}
       profileToken={profileToken ?? null}
+      presetSlug={presetSlug ?? null}
       signedIn={Boolean(jwt)}
     />
   );

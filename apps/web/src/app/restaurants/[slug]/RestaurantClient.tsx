@@ -45,6 +45,7 @@ export function RestaurantClient({
   restaurant,
   initialItems,
   profileToken = null,
+  presetSlug = null,
   signedIn = false,
 }: {
   slug: string;
@@ -52,6 +53,8 @@ export function RestaurantClient({
   initialItems: RestaurantItemsResponse;
   /** Phase 3.9 — passed from SSR when the URL had ?p=<token>. */
   profileToken?: string | null;
+  /** Passed from SSR when the URL had ?profile=<preset> (diet-page links). */
+  presetSlug?: string | null;
   /** Gates the save button — the favorite endpoint is authed. */
   signedIn?: boolean;
 }) {
@@ -100,12 +103,13 @@ export function RestaurantClient({
       // or get the anonymous menu back. Anonymous readers go direct —
       // see fetchRestaurantItemsClient for why that matters.
       //
-      // Keep the share-link token in play across refetches so the
-      // strictness override doesn't silently drop the encoded profile.
+      // Keep the share-link token and the diet-page preset in play across
+      // refetches so the strictness override doesn't silently drop them.
       fetchRestaurantItemsClient(slug, {
         signedIn,
         strictness: strictnessOverride ?? undefined,
         profileToken: profileToken ?? undefined,
+        presetSlug: presetSlug ?? undefined,
       })
         .then((res) => {
           if (cancelled) return;
@@ -128,7 +132,7 @@ export function RestaurantClient({
     return () => {
       cancelled = true;
     };
-  }, [slug, strictnessOverride, isInitialRender, profileToken]);
+  }, [slug, strictnessOverride, isInitialRender, profileToken, presetSlug]);
 
   const overriddenSections = useMemo(
     () => applyOverrides(sections, shownAnyway),
