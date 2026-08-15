@@ -101,28 +101,28 @@ Fired when a Suggestion is submitted (Phase 4.10). The follow-up `decideSuggesti
 
 ## Auth events
 
-Auxiliary to the core funnel (they fire after `app_open`, before `profile_set`) — they measure the sign-in / sign-up flow so we can see conversion and *where* it breaks. **No PII**: never the email or password, only a coarse `method` / `reason` / `status`. Currently instrumented on **web** (`login/page.tsx`, `signup/page.tsx`); mobile can adopt the same events.
+Auxiliary to the core funnel (they fire after `app_open`, before `profile_set`) — they measure the sign-in / sign-up flow so we can see conversion and *where* it breaks. **No PII**: never the email or password, only a coarse `method` / `reason` / `status`. Currently instrumented on **web** (`login/page.tsx`, `signup/page.tsx`, `forgot-password/page.tsx`, `reset-password/page.tsx`); mobile can adopt the same events.
 
 ### `auth_started`
 Fired on every submit of the login or signup form (before validation), so it counts intent.
 
 | Field | Type | Notes |
 |---|---|---|
-| `method` | `"login" \| "signup"` | Which form was submitted. |
+| `method` | `"login" \| "signup" \| "password_forgot" \| "password_reset"` | Which form was submitted. |
 
 ### `auth_completed`
 Fired once the account is signed in (before the post-auth redirect). `auth_started → auth_completed` is the conversion funnel.
 
 | Field | Type | Notes |
 |---|---|---|
-| `method` | `"login" \| "signup"` | |
+| `method` | `"login" \| "signup" \| "password_forgot" \| "password_reset"` | |
 
 ### `auth_failed`
 Fired on any failure — both client-side gates and API errors — so drop-off is attributable.
 
 | Field | Type | Notes |
 |---|---|---|
-| `method` | `"login" \| "signup"` | |
+| `method` | `"login" \| "signup" \| "password_forgot" \| "password_reset"` | |
 | `reason` | `string` | Coarse category, never the raw error. Login: `missing_fields`, `wrong_credentials`, `server`, `network`, `unknown`. Signup adds the client gates (`weak_password`, `age_unconfirmed`, `terms_unaccepted`) and `rejected` for a server-side 422 (Rails returns 422 for any registration validation failure — duplicate email, invalid email, etc. — so it isn't labelled as specifically email-taken). |
 | `status` | `number?` | Upstream HTTP status when the failure came from the API (401 / 422 / 5xx); absent for client-side gates and network errors. |
 

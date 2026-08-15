@@ -4,6 +4,10 @@
 
 Devise.setup do |config|
   config.mailer_sender = ENV.fetch("DEVISE_MAILER_FROM", "no-reply@mail.bite-worthy.com")
+  # Inherit ApplicationMailer so Devise mail gets the shared "mailer"
+  # layout (doctype/charset/brand styles) every other transactional
+  # email ships with.
+  config.parent_mailer = "ApplicationMailer"
 
   require "devise/orm/active_record"
 

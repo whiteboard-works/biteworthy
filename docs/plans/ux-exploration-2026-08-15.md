@@ -168,7 +168,8 @@ PRs in flight are noted; tick items as they merge.
       SSR-search version would burn the shared rack-attack bucket and blow
       up the Data Cache key space. `?q=` stays for API/MCP callers.)
 - [ ] Web pages for the existing Devise `:recoverable` password reset —
-      finding 8.
+      finding 8. (#619 — which found the API half was also broken in place:
+      stock controller needed HTML views, stock mailer linked an API 404.)
 - [ ] Account deletion UI — tracked as F2 in
       `legal-remediation-followups.md`; tick there, not here — finding 9.
 
