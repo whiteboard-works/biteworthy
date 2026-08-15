@@ -9,6 +9,7 @@
 import type {
   FilterableItem,
   FilteredItem,
+  FilterSource,
   HideReason,
   ItemSection,
   Strictness,
@@ -93,7 +94,7 @@ export interface RestaurantItem extends FilterableItem {
 }
 
 export interface FilterSummary {
-  source: 'preset' | 'user_profile' | 'profile_token' | 'none';
+  source: FilterSource;
   preset_slug: string | null;
   strictness: Strictness;
   avoid_ingredient_ids: string[];

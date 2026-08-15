@@ -6,6 +6,7 @@ import { ClaimError, requestClaim } from '../../../lib/restaurant-claim';
 import {
   applyOverrides,
   encodeProfileToken,
+  filterSourceLabel,
   groupItemsBySection,
   hiddenReasonLabel,
   type HideReason,
@@ -264,14 +265,7 @@ export function AllergenNotice() {
 }
 
 export function FilterBadge({ filter }: { filter: FilterSummary }) {
-  const label =
-    filter.source === 'preset'
-      ? `Preset · ${filter.preset_slug ?? 'unknown'}`
-      : filter.source === 'user_profile'
-        ? 'Your saved profile'
-        : filter.source === 'profile_token'
-          ? 'Shared filter'
-          : 'No filter';
+  const label = filterSourceLabel(filter);
   return (
     <span
       data-testid="filter-badge"
