@@ -139,35 +139,37 @@ connected) — worth repeating with one for layout/interaction issues.
 
 ## Suggested small fixes (checklist)
 
-PRs in flight are noted; tick items as they merge.
+All shipped 2026-08-15 (#614–#622) except the F2-tracked deletion UI —
+the checklist is history now; what remains lives in the roadmap's Open
+follow-ups (the four bigger findings) and `legal-remediation-followups.md`.
 
 - [x] `FilterBadge` + rswag enum + `FilterSummary` type: handle
       `profile_token` ("Shared filter" label) — finding 7. (#614, merged —
       review extended it to mobile's identical latent copy via a shared
       `filterSourceLabel` in filter-engine.)
-- [ ] Restaurant page: accept `?profile=<preset>` and pass through SSR fetch +
+- [x] Restaurant page: accept `?profile=<preset>` and pass through SSR fetch +
       client refetches; link `/durango/<diet>` cards with it — findings 5, 6.
       (#618)
-- [ ] Distinguish invalid/expired share token from 404 with a friendly
+- [x] Distinguish invalid/expired share token from 404 with a friendly
       explainer — finding 7. (#621)
-- [ ] Pin the compose stack's `DATABASE_URL` (anchor-level, so the worker
+- [x] Pin the compose stack's `DATABASE_URL` (anchor-level, so the worker
       inherits it too), check in `.env.development` for the native path, and
       correct the in-container spec command — finding 13. (#615)
-- [ ] Render `phone` + `website` on the restaurant page (already in the
+- [x] Render `phone` + `website` on the restaurant page (already in the
       `#show` payload) — finding 10's quick win. Street needs the serializer
       change first. (#622)
-- [ ] Add a `/durango` index page listing the diet pages; link the diet pages
+- [x] Add a `/durango` index page listing the diet pages; link the diet pages
       from somewhere real — finding 11. (#617)
-- [ ] Fix the homepage preset example ("Diabetes-friendly" doesn't exist) —
+- [x] Fix the homepage preset example ("Diabetes-friendly" doesn't exist) —
       finding 12. (#616, which also caught the same copy in the App Store
       listing.) The "30 restaurants" line is NOT a copy fix: seeding 30 is
       an open launch gate (`launch-readiness.md` §6), so either the content
       lands or a human decides to soften the claim — flagging, not editing.
-- [ ] Search box on `/restaurants` — finding 11. (#620 — shipped as local
+- [x] Search box on `/restaurants` — finding 11. (#620 — shipped as local
       filtering of the SSR list rather than the API `?q=`: review showed the
       SSR-search version would burn the shared rack-attack bucket and blow
       up the Data Cache key space. `?q=` stays for API/MCP callers.)
-- [ ] Web pages for the existing Devise `:recoverable` password reset —
+- [x] Web pages for the existing Devise `:recoverable` password reset —
       finding 8. (#619 — which found the API half was also broken in place:
       stock controller needed HTML views, stock mailer linked an API 404.)
 - [ ] Account deletion UI — tracked as F2 in
