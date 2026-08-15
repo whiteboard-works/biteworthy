@@ -3,6 +3,7 @@ import {
   CityRankingError,
   DURANGO_DIET_SLUGS,
   fetchCityRanking,
+  humanizeDietSlug,
   type CityRanked,
 } from '../durango';
 
@@ -59,6 +60,20 @@ describe('fetchCityRanking', () => {
     await expect(fetchCityRanking('durango', 'vegan', { fetchImpl })).rejects.toBeInstanceOf(
       CityRankingError,
     );
+  });
+});
+
+describe('humanizeDietSlug', () => {
+  // Every /durango page title, H1, and SERP snippet rides on this.
+  it('title-cases each hyphen-separated word', () => {
+    expect(humanizeDietSlug('celiac')).toBe('Celiac');
+    expect(humanizeDietSlug('gluten-free')).toBe('Gluten Free');
+    expect(humanizeDietSlug('tree-nut-allergy')).toBe('Tree Nut Allergy');
+  });
+
+  it('passes empty segments through instead of crashing', () => {
+    expect(humanizeDietSlug('dairy--free')).toBe('Dairy  Free');
+    expect(humanizeDietSlug('')).toBe('');
   });
 });
 

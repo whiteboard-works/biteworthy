@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import Link from 'next/link';
 import { DURANGO_DIET_SLUGS, humanizeDietSlug } from '../../lib/durango';
 
 /**
@@ -14,12 +15,20 @@ const title = 'Dietary guides for Durango — BiteWorthy';
 const description =
   'Durango restaurants ranked for celiac, vegan, allergies, and more — pick your diet and see who has the most dishes you can actually eat.';
 
+// metadataBase pins the canonical to the real origin — without it Next
+// resolves relative URLs against its inferred host (the *.vercel.app
+// preview domain in the worst case), which is exactly wrong for a page
+// built for SEO. Card is 'summary': there is no OG image asset to back
+// a large-image card.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bite-worthy.com';
+
 export const metadata: Metadata = {
   title,
   description,
+  metadataBase: new URL(SITE_URL.replace(/\/+$/, '')),
   alternates: { canonical: '/durango' },
-  openGraph: { title, description, type: 'website', url: '/durango' },
-  twitter: { card: 'summary_large_image', title, description },
+  openGraph: { title, description, type: 'website', url: '/durango', siteName: 'BiteWorthy' },
+  twitter: { card: 'summary', title, description },
 };
 
 export default function DurangoIndexPage(): ReactElement {
@@ -40,7 +49,7 @@ export default function DurangoIndexPage(): ReactElement {
         <ul className="mt-bw-8 grid gap-bw-3 sm:grid-cols-2" data-testid="diet-index">
           {DURANGO_DIET_SLUGS.map((slug) => (
             <li key={slug}>
-              <a
+              <Link
                 href={`/durango/${slug}`}
                 data-testid={`diet-link-${slug}`}
                 className="block rounded-bw-lg border border-zinc-200 bg-white p-bw-4 shadow-sm hover:border-bite"
@@ -51,7 +60,7 @@ export default function DurangoIndexPage(): ReactElement {
                 <span className="mt-bw-1 block text-bw-sm text-zinc-600">
                   {humanizeDietSlug(slug)} restaurants in Durango →
                 </span>
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
