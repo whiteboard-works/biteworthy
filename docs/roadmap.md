@@ -128,15 +128,23 @@ Invariants: join `confidence` never directly editable (admin chip edits
 write `confirmed`/`human`, removals row-by-row so the denormalized
 arrays stay honest); matched re-scan cards stay append-only.
 
-Other than that workstream, **no remaining loop-shippable work.** Every
-loop-shippable launch piece is on master; the remaining queue is
-entirely human-credential-gated.
+Other than that workstream and the exploration follow-ups below, **no
+remaining loop-shippable work.** Every loop-shippable launch piece is on
+master; the rest of the queue is human-credential-gated.
 
 ## Open follow-ups
 
 Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
+
+- **User-exploration findings (2026-08-15)** — a live-product walkthrough
+  left a severity-ordered findings brief with a small-fixes checklist in
+  [`plans/ux-exploration-2026-08-15.md`](plans/ux-exploration-2026-08-15.md).
+  The checklist items are loop-shippable (several PRs already in flight,
+  tracked in the doc); the four bigger findings (ingestion `gap?` widening,
+  confirmation backlog, item-page ingredients panel, anonymous scan entry)
+  need human triage into a phase before any loop picks them up.
 
 - **Schema-review leftovers (2026-07-31)** — the review that produced
   #493 and #496 left three items the loop can't finish alone. (Two
