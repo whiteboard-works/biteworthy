@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AllergenNotice, HiddenReasonChip, StrictnessToggle } from '../RestaurantClient';
+import { AllergenNotice, FilterBadge, HiddenReasonChip, StrictnessToggle } from '../RestaurantClient';
+import type { FilterSummary } from '../../../../lib/restaurants';
 
 /**
  * Phase post-5 — first JSX render tests for the web app.
@@ -52,6 +53,28 @@ describe('HiddenReasonChip', () => {
       />,
     );
     expect(screen.getByTestId('chip-unconfirmed_strict')).toHaveTextContent('inferred');
+  });
+});
+
+describe('FilterBadge', () => {
+  const summary = (source: FilterSummary['source']): FilterSummary => ({
+    source,
+    preset_slug: source === 'preset' ? 'vegan' : null,
+    strictness: 'balanced',
+    avoid_ingredient_ids: [],
+    avoid_tag_ids: [],
+  });
+
+  it.each([
+    ['preset', 'Preset · vegan'],
+    ['user_profile', 'Your saved profile'],
+    // A share-link recipient has the sender's filter applied — the badge
+    // must never present that menu as unfiltered.
+    ['profile_token', 'Shared filter'],
+    ['none', 'No filter'],
+  ] as const)('labels source %s as "%s"', (source, label) => {
+    render(<FilterBadge filter={summary(source)} />);
+    expect(screen.getByTestId('filter-badge')).toHaveTextContent(`${label} · balanced`);
   });
 });
 

@@ -12,6 +12,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
+  filterSourceLabel,
   groupItemsBySection,
   hiddenReasonLabel,
   type HideReason,
@@ -275,12 +276,7 @@ function AllergenNotice() {
 }
 
 function FilterBadge({ filter }: { filter: FilterSummary }) {
-  const label =
-    filter.source === 'preset'
-      ? `Preset · ${filter.preset_slug ?? 'unknown'}`
-      : filter.source === 'user_profile'
-      ? 'Your saved profile'
-      : 'No filter';
+  const label = filterSourceLabel(filter);
   return (
     <View style={styles.filterBadge} testID="filter-badge">
       <Text style={styles.filterText}>

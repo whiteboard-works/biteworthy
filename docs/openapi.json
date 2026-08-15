@@ -6451,7 +6451,8 @@
                           "enum": [
                             "none",
                             "preset",
-                            "user_profile"
+                            "user_profile",
+                            "profile_token"
                           ]
                         },
                         "preset_slug": {

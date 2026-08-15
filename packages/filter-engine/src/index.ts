@@ -111,6 +111,28 @@ export function hiddenReasonLabel(reason: HideReason): string {
   }
 }
 
+/** Where the applied menu filter came from — mirrors `Menus::Filter#source`. */
+export type FilterSource = 'none' | 'preset' | 'user_profile' | 'profile_token';
+
+/**
+ * Badge label for the applied filter. An exhaustive Record on purpose:
+ * when the API grows a new source, this stops compiling instead of
+ * silently falling through to "No filter" over a filtered menu — which
+ * is exactly how `profile_token` shipped unlabelled.
+ */
+export function filterSourceLabel(filter: {
+  source: FilterSource;
+  preset_slug: string | null;
+}): string {
+  const labels: Record<FilterSource, string> = {
+    none: 'No filter',
+    preset: `Preset · ${filter.preset_slug ?? 'unknown'}`,
+    user_profile: 'Your saved profile',
+    profile_token: 'Shared filter',
+  };
+  return labels[filter.source];
+}
+
 // ─── Section grouping (shared by web + mobile screens) ─────────────
 
 export interface ItemSection<T extends FilteredItem = FilteredItem> {

@@ -6,6 +6,7 @@ import { ClaimError, requestClaim } from '../../../lib/restaurant-claim';
 import {
   applyOverrides,
   encodeProfileToken,
+  filterSourceLabel,
   groupItemsBySection,
   hiddenReasonLabel,
   type HideReason,
@@ -263,13 +264,8 @@ export function AllergenNotice() {
   );
 }
 
-function FilterBadge({ filter }: { filter: FilterSummary }) {
-  const label =
-    filter.source === 'preset'
-      ? `Preset · ${filter.preset_slug ?? 'unknown'}`
-      : filter.source === 'user_profile'
-        ? 'Your saved profile'
-        : 'No filter';
+export function FilterBadge({ filter }: { filter: FilterSummary }) {
+  const label = filterSourceLabel(filter);
   return (
     <span
       data-testid="filter-badge"

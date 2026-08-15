@@ -9,9 +9,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyOverrides,
+  filterSourceLabel,
   groupItemsBySection,
   hiddenReasonLabel,
   type FilteredItem,
+  type FilterSource,
   type HideReason,
   type ItemSection,
 } from './index';
@@ -60,6 +62,26 @@ describe('hiddenReasonLabel', () => {
       ingredient_family: null,
     };
     expect(hiddenReasonLabel(r)).toBe('Contains restricted (Mystery)');
+  });
+});
+
+describe('filterSourceLabel', () => {
+  const filter = (source: FilterSource, preset_slug: string | null = null) => ({
+    source,
+    preset_slug,
+  });
+
+  it('labels every source the API can emit', () => {
+    expect(filterSourceLabel(filter('none'))).toBe('No filter');
+    expect(filterSourceLabel(filter('preset', 'vegan'))).toBe('Preset \u00b7 vegan');
+    expect(filterSourceLabel(filter('user_profile'))).toBe('Your saved profile');
+    // A share-link recipient has the sender's filter applied — this must
+    // never read as unfiltered (the profile_token badge bug).
+    expect(filterSourceLabel(filter('profile_token'))).toBe('Shared filter');
+  });
+
+  it('falls back when a preset filter arrives without its slug', () => {
+    expect(filterSourceLabel(filter('preset'))).toBe('Preset \u00b7 unknown');
   });
 });
 
