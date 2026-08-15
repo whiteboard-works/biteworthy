@@ -3783,7 +3783,7 @@ export interface paths {
                             restaurant_id: string;
                             filter: {
                                 /** @enum {string} */
-                                source?: "none" | "preset" | "user_profile";
+                                source?: "none" | "preset" | "user_profile" | "profile_token";
                                 preset_slug?: string | null;
                                 /** @enum {string} */
                                 strictness?: "relaxed" | "balanced" | "strict";

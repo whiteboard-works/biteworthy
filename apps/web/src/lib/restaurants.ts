@@ -93,7 +93,7 @@ export interface RestaurantItem extends FilterableItem {
 }
 
 export interface FilterSummary {
-  source: 'preset' | 'user_profile' | 'none';
+  source: 'preset' | 'user_profile' | 'profile_token' | 'none';
   preset_slug: string | null;
   strictness: Strictness;
   avoid_ingredient_ids: string[];

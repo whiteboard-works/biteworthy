@@ -32,7 +32,7 @@ RSpec.describe "restaurants/items", type: :request do
                  filter: {
                    type: :object,
                    properties: {
-                     source:               { type: :string, enum: %w[none preset user_profile] },
+                     source:               { type: :string, enum: %w[none preset user_profile profile_token] },
                      preset_slug:          { type: :string, nullable: true },
                      strictness:           { type: :string, enum: %w[relaxed balanced strict] },
                      avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },

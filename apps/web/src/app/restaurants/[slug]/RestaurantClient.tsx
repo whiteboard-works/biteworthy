@@ -263,13 +263,15 @@ export function AllergenNotice() {
   );
 }
 
-function FilterBadge({ filter }: { filter: FilterSummary }) {
+export function FilterBadge({ filter }: { filter: FilterSummary }) {
   const label =
     filter.source === 'preset'
       ? `Preset · ${filter.preset_slug ?? 'unknown'}`
       : filter.source === 'user_profile'
         ? 'Your saved profile'
-        : 'No filter';
+        : filter.source === 'profile_token'
+          ? 'Shared filter'
+          : 'No filter';
   return (
     <span
       data-testid="filter-badge"
