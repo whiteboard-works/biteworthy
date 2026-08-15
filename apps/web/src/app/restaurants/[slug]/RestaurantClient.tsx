@@ -45,6 +45,8 @@ export function RestaurantClient({
   restaurant,
   initialItems,
   profileToken = null,
+  presetSlug = null,
+  presetInvalid = false,
   signedIn = false,
 }: {
   slug: string;
@@ -52,6 +54,10 @@ export function RestaurantClient({
   initialItems: RestaurantItemsResponse;
   /** Phase 3.9 — passed from SSR when the URL had ?p=<token>. */
   profileToken?: string | null;
+  /** Passed from SSR when the URL had ?profile=<preset> (diet-page links). */
+  presetSlug?: string | null;
+  /** The URL carried a preset slug the API didn't recognize. */
+  presetInvalid?: boolean;
   /** Gates the save button — the favorite endpoint is authed. */
   signedIn?: boolean;
 }) {
@@ -83,7 +89,9 @@ export function RestaurantClient({
     });
     tracker.track('restaurant_tap', {
       restaurant_slug: slug,
-      from: 'direct',
+      // The analytics taxonomy documents 'durango_diet' for the SEO-page
+      // funnel — a preset in the URL is that click-through.
+      from: presetSlug ? 'durango_diet' : 'direct',
     });
     // Mount-only — slug + initialItems are stable across the
     // RestaurantClient's lifetime (a new restaurant remounts the
@@ -100,12 +108,13 @@ export function RestaurantClient({
       // or get the anonymous menu back. Anonymous readers go direct —
       // see fetchRestaurantItemsClient for why that matters.
       //
-      // Keep the share-link token in play across refetches so the
-      // strictness override doesn't silently drop the encoded profile.
+      // Keep the share-link token and the diet-page preset in play across
+      // refetches so the strictness override doesn't silently drop them.
       fetchRestaurantItemsClient(slug, {
         signedIn,
         strictness: strictnessOverride ?? undefined,
         profileToken: profileToken ?? undefined,
+        presetSlug: presetSlug ?? undefined,
       })
         .then((res) => {
           if (cancelled) return;
@@ -128,7 +137,7 @@ export function RestaurantClient({
     return () => {
       cancelled = true;
     };
-  }, [slug, strictnessOverride, isInitialRender, profileToken]);
+  }, [slug, strictnessOverride, isInitialRender, profileToken, presetSlug]);
 
   const overriddenSections = useMemo(
     () => applyOverrides(sections, shownAnyway),
@@ -212,6 +221,17 @@ export function RestaurantClient({
 
       <ClaimSection slug={slug} restaurant={restaurant} />
 
+      {presetInvalid && (
+        <p
+          role="note"
+          data-testid="preset-invalid-notice"
+          className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+        >
+          That diet link isn&rsquo;t recognized, so the menu below is{' '}
+          <strong>unfiltered</strong>.
+        </p>
+      )}
+
       {error && (
         <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
           Could not refresh items — {error}
@@ -233,6 +253,7 @@ export function RestaurantClient({
           key={section.id ?? '__none__'}
           section={section}
           restaurantSlug={slug}
+          presetSlug={presetSlug}
           shownAnyway={shownAnyway}
           onToggleOverride={toggleOverride}
           onSetPersistentOverride={setPersistentOverride}
@@ -318,12 +339,14 @@ export function StrictnessToggle({
 function SectionBlock({
   section,
   restaurantSlug,
+  presetSlug,
   shownAnyway,
   onToggleOverride,
   onSetPersistentOverride,
 }: {
   section: ItemSection<RestaurantItem>;
   restaurantSlug: string;
+  presetSlug: string | null;
   shownAnyway: Set<string>;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
@@ -338,6 +361,7 @@ function SectionBlock({
             key={item.id}
             item={item}
             restaurantSlug={restaurantSlug}
+            presetSlug={presetSlug}
             overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
             onToggleOverride={onToggleOverride}
             onSetPersistentOverride={onSetPersistentOverride}
@@ -372,6 +396,7 @@ function SectionBlock({
               key={item.id}
               item={item}
               restaurantSlug={restaurantSlug}
+              presetSlug={presetSlug}
               hidden
               overridden={false}
               onToggleOverride={onToggleOverride}
@@ -473,7 +498,10 @@ function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaura
       });
     } catch (e) {
       if (e instanceof ClaimError && e.status === 401) {
-        router.replace(`/login?next=${encodeURIComponent(`/restaurants/${slug}`)}`);
+        // Keep ?profile= / ?p= across the login round-trip — a bare slug
+        // would silently drop the applied filter.
+        const next = `${window.location.pathname}${window.location.search}`;
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
       setError((e as Error).message);
@@ -545,13 +573,18 @@ export function ShareLinkButton({
   const [copied, setCopied] = useState(false);
 
   const handleClick = async () => {
-    const token = encodeProfileToken({
-      avoid_ingredient_ids: filter.avoid_ingredient_ids,
-      avoid_tag_ids: filter.avoid_tag_ids,
-      strictness: filter.strictness,
-    });
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const url = `${origin}/r/${encodeURIComponent(slug)}?p=${token}`;
+    // A preset filter shares as its slug, not as a token: the token would
+    // carry the preset's pre-expanded avoid lists (hundreds of UUIDs —
+    // ~14KB encoded, past Puma's 10KB query-string cap), arriving dead.
+    const url =
+      filter.source === 'preset' && filter.preset_slug
+        ? `${origin}/r/${encodeURIComponent(slug)}?profile=${encodeURIComponent(filter.preset_slug)}`
+        : `${origin}/r/${encodeURIComponent(slug)}?p=${encodeProfileToken({
+            avoid_ingredient_ids: filter.avoid_ingredient_ids,
+            avoid_tag_ids: filter.avoid_tag_ids,
+            strictness: filter.strictness,
+          })}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

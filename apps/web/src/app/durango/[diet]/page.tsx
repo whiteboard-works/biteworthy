@@ -24,6 +24,7 @@ import {
   humanizeDietSlug,
   type CityRanked,
 } from '../../../lib/durango';
+import { RestaurantCard } from './_RestaurantCard';
 
 interface Params {
   diet: string;
@@ -99,6 +100,7 @@ export default async function DurangoDietPage({ params }: PageProps): Promise<Re
         <RestaurantGrid
           ranked={ranking.restaurants}
           dietName={ranking.profile.name}
+          dietSlug={ranking.profile.slug}
           visibleSlugs={visibleSlugs}
           allHiddenSlugs={allHiddenSlugs}
         />
@@ -136,11 +138,13 @@ function Hero({
 function RestaurantGrid({
   ranked,
   dietName,
+  dietSlug,
   visibleSlugs,
   allHiddenSlugs,
 }: {
   ranked: CityRanked['restaurants'];
   dietName: string;
+  dietSlug: string;
   visibleSlugs: CityRanked['restaurants'];
   allHiddenSlugs: CityRanked['restaurants'];
 }): ReactElement {
@@ -151,7 +155,7 @@ function RestaurantGrid({
       {visibleSlugs.length > 0 && (
         <ul className="mt-bw-4 grid gap-bw-3 md:grid-cols-2">
           {visibleSlugs.map((r) => (
-            <RestaurantCard key={r.id} r={r} dietName={dietName} />
+            <RestaurantCard key={r.id} r={r} dietName={dietName} dietSlug={dietSlug} />
           ))}
         </ul>
       )}
@@ -165,7 +169,7 @@ function RestaurantGrid({
           </summary>
           <ul className="mt-bw-3 grid gap-bw-3 md:grid-cols-2">
             {allHiddenSlugs.map((r) => (
-              <RestaurantCard key={r.id} r={r} dietName={dietName} />
+              <RestaurantCard key={r.id} r={r} dietName={dietName} dietSlug={dietSlug} />
             ))}
           </ul>
         </details>
@@ -174,48 +178,6 @@ function RestaurantGrid({
   );
 }
 
-function RestaurantCard({
-  r,
-  dietName,
-}: {
-  r: CityRanked['restaurants'][number];
-  dietName: string;
-}): ReactElement {
-  const allHidden = r.visible_count === 0;
-  return (
-    <li
-      data-testid={`restaurant-${r.slug}`}
-      className={[
-        'rounded-bw-lg border p-bw-4',
-        allHidden ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-200 bg-white shadow-sm',
-      ].join(' ')}
-    >
-      <a
-        href={`/restaurants/${encodeURIComponent(r.slug)}`}
-        className="block"
-        data-testid={`restaurant-link-${r.slug}`}
-      >
-        <h2 className={['text-bw-lg font-bold', allHidden ? 'text-zinc-500' : 'text-zinc-900'].join(' ')}>
-          {r.name}
-        </h2>
-        <p className="mt-bw-1 text-bw-sm text-zinc-600">
-          {allHidden ? (
-            <>No {dietName.toLowerCase()}-safe items in our index yet.</>
-          ) : (
-            <>
-              <span className="font-semibold text-zinc-900">{r.visible_count}</span> safe item
-              {r.visible_count === 1 ? '' : 's'}
-              {' '}
-              <span className="text-zinc-500">
-                · {r.hidden_count} hidden by your filter
-              </span>
-            </>
-          )}
-        </p>
-      </a>
-    </li>
-  );
-}
 
 function EmptyState(): ReactElement {
   return (

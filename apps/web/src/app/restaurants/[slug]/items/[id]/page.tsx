@@ -23,13 +23,20 @@ import { SuggestFixClient } from './SuggestFixClient';
  * static parts.
  */
 type Params = { slug: string; id: string };
+type Search = { profile?: string | string[] };
 
 export default async function ItemDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<Search>;
 }) {
   const { slug, id } = await params;
+  // Carried from the menu page's item links so the back-link can return
+  // to the same filtered view instead of silently unfiltering.
+  const { profile } = await searchParams;
+  const presetSlug = (Array.isArray(profile) ? profile[0] : profile) ?? null;
 
   // The JWT lets fetchItem populate `favorited` for the save button;
   // anonymous callers still render (favorited defaults false, button hidden).
@@ -49,6 +56,7 @@ export default async function ItemDetailPage({
       item={item}
       initialReviews={initialReviews ?? emptyReviews(id)}
       currentUserId={currentUserId}
+      presetSlug={presetSlug}
     />
   );
 }
@@ -58,16 +66,21 @@ function Page({
   item,
   initialReviews,
   currentUserId,
+  presetSlug,
 }: {
   restaurant: Restaurant;
   item: RestaurantItem;
   initialReviews: ReviewsResponse;
   currentUserId: string | null;
+  presetSlug: string | null;
 }) {
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
-        <Link href={`/restaurants/${restaurant.slug}`} className="hover:underline">
+        <Link
+          href={`/restaurants/${restaurant.slug}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
+          className="hover:underline"
+        >
           ← {restaurant.name}
         </Link>
       </p>

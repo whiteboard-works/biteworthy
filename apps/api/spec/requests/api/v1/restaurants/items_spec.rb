@@ -373,6 +373,18 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       get "/api/v1/restaurants/#{restaurant.id}/items"
     end
 
+    it "does NOT enqueue when a preset filtered the menu instead of the caller's own profile" do
+      # The history row is a last-write-wins upsert per (user, restaurant,
+      # day) — a /durango/<diet> click must not overwrite the counts the
+      # user actually saw under their own filter.
+      create(:dietary_profile, slug: "vegan")
+      expect(RecordRestaurantVisitJob).not_to receive(:perform_later)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items",
+          params: { profile: "vegan" }, headers: visitor_headers
+      expect(response).to have_http_status(:ok)
+    end
+
     it "swallows enqueue failures so the response still 200s" do
       allow(RecordRestaurantVisitJob).to receive(:perform_later)
         .and_raise(RuntimeError, "queue down")
