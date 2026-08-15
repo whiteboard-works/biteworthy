@@ -116,6 +116,16 @@ You only need a value to exercise the feature it gates:
 In the container, `DATABASE_HOST` is set to the `postgres` service name by
 `compose.yaml`, so you don't set it in `.env`.
 
+**Never put a production `DATABASE_URL` in `.env` expecting it to be
+ignored locally.** Rails lets `DATABASE_URL` override `database.yml` for
+whatever environment is running, and dotenv loads `.env` for every local
+`rails`/`rspec` command — so a prod URL there silently points dev *and
+test* at production. `compose.yaml` pins the containers to the local
+`postgres` service (`environment` beats `env_file`), but native commands
+have no such guard: if `.env` must carry a prod URL for some workflow,
+prefix every local command with
+`DATABASE_URL=postgresql://localhost/biteworthy_dev` (or `_test`).
+
 ## How the apps connect
 
 - **Web → API**: the web app calls `NEXT_PUBLIC_API_BASE` (default

@@ -29,6 +29,14 @@ x-api-base: &api-base
   environment:
     DATABASE_HOST: postgres
     RAILS_ENV: development
+    # apps/api/.env (loaded below) can carry the PRODUCTION DATABASE_URL, and
+    # Rails lets DATABASE_URL override database.yml for the running env — so
+    # without this pin, `docker compose up` would boot dev (and db:prepare!)
+    # straight at the production database. Host/user only, no database path:
+    # database.yml keeps naming biteworthy_dev / biteworthy_test per env, so
+    # in-container rspec still hits the test database. `environment` beats
+    # `env_file` for the same key, which is what makes the pin stick.
+    DATABASE_URL: postgresql://postgres@postgres:5432
   env_file:
     # Optional: holds ANTHROPIC_API_KEY etc. The stack boots without it;
     # only the ingestion pipeline needs the key. `cp .env.example .env`.
