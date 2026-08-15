@@ -40,6 +40,14 @@ export const DURANGO_DIET_SLUGS = [
 
 export type DurangoDietSlug = (typeof DURANGO_DIET_SLUGS)[number];
 
+/** 'tree-nut-allergy' → 'Tree Nut Allergy' — display names for the curated slugs. */
+export function humanizeDietSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((p) => (p.length > 0 ? p[0]!.toUpperCase() + p.slice(1) : p))
+    .join(' ');
+}
+
 export interface CityRanked {
   city: { id: string; slug: string; name: string; region: string };
   profile: { id: string; slug: string; name: string; description: string | null };

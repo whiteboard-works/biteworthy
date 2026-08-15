@@ -29,6 +29,15 @@ export default async function RestaurantsPage(): Promise<ReactElement> {
         Pick a place — BiteWorthy shows only the dishes that fit your dietary filter, with{' '}
         <span className="font-bold">why</span>, every time.
       </p>
+      <p className="mt-bw-2 text-bw-sm">
+        <Link
+          href="/durango"
+          data-testid="browse-by-diet"
+          className="font-bold text-bite hover:text-bite-dark"
+        >
+          Or browse Durango by diet — celiac, vegan, allergies, and more →
+        </Link>
+      </p>
 
       {restaurants.length === 0 ? (
         <div
