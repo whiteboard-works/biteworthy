@@ -116,7 +116,9 @@ bin/openapi-export                      # regenerate docs/openapi.json from the 
 ```
 
 Inside the containerized stack the same commands run via
-`docker compose exec api …` (e.g. `docker compose exec api bundle exec rspec`).
+`docker compose exec api …` — but test-env commands need the env override
+(`docker compose exec -e RAILS_ENV=test api bundle exec rspec`), because the
+container bakes `RAILS_ENV=development`.
 
 Per-app test runners (use these for narrow runs instead of `pnpm test`):
 

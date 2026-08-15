@@ -65,7 +65,11 @@ docker compose ps                    # what's running + health
 
 docker compose exec api bash                         # shell in the API container
 docker compose exec api bin/rails console            # Rails console
-docker compose exec api bundle exec rspec            # run the test suite
+docker compose exec -e RAILS_ENV=test api bundle exec rspec   # run the test suite
+# ^ RAILS_ENV=test matters: the container bakes RAILS_ENV=development, and
+#   rails_helper's `||=` can't override an env var that's already set.
+#   First run: `docker compose exec -e RAILS_ENV=test api bin/rails db:prepare`
+#   (boot's db:prepare no longer auto-creates the test DB — see compose.yaml).
 docker compose exec api bin/rails db:migrate         # run a new migration
 docker compose exec api bin/openapi-export           # regenerate docs/openapi.json
 
@@ -116,6 +120,19 @@ You only need a value to exercise the feature it gates:
 In the container, `DATABASE_HOST` is set to the `postgres` service name by
 `compose.yaml`, so you don't set it in `.env`.
 
+**A production `DATABASE_URL` in `.env` is a loaded gun, and three
+guards point away from it.** Rails lets `DATABASE_URL` override
+`database.yml` for whatever environment is running, and dotenv loads
+`.env` for every native `rails`/`rspec` command. The guards: the
+checked-in `.env.test` and `.env.development` pin the test and dev
+environments to localhost (dotenv loads `.env.<env>` before `.env` and
+never overwrites, so they win), and `compose.yaml` pins the containers
+to the `postgres` service with a real environment variable (which beats
+every dotenv file). What's still exposed: any *explicitly prod-env*
+native command (`RAILS_ENV=production bin/rails console` with the prod
+URL in `.env`) — which is exactly the one case that should reach prod,
+and only deliberately.
+
 ## How the apps connect
 
 - **Web → API**: the web app calls `NEXT_PUBLIC_API_BASE` (default
@@ -152,5 +169,7 @@ In the container, `DATABASE_HOST` is set to the `postgres` service name by
   bin/rails db:migrate` (or just restart `api`; `db:prepare` runs pending
   migrations on boot).
 - **Tests** — run inside the container so they hit the right Postgres:
-  `docker compose exec api bundle exec rspec`. CI runs the same suite
-  against its own Postgres service (`.github/workflows/ci-api.yml`).
+  `docker compose exec -e RAILS_ENV=test api bundle exec rspec` (the
+  container bakes `RAILS_ENV=development`, so it must be overridden per
+  command). CI runs the same suite against its own Postgres service
+  (`.github/workflows/ci-api.yml`).
