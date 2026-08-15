@@ -104,6 +104,9 @@ export interface EventPropsMap {
     hidden_count: number;
     /** preset | user_profile | profile_token | none */
     filter_source: string;
+    /** Set when the URL carried a share token the API refused — a failed
+     * share open would otherwise be indistinguishable from a direct visit. */
+    share_token_invalid?: boolean;
   };
   restaurant_tap: {
     restaurant_slug: string;

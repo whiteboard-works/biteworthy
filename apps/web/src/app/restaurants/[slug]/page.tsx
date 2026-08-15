@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { ApiError } from '../../../lib/api';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../lib/restaurants';
 import { getServerJwt } from '../../../lib/server-auth';
+import { resolveMenuItems } from './_resolve-items';
 import { RestaurantClient } from './RestaurantClient';
 
 /**
@@ -59,28 +59,13 @@ export default async function RestaurantPage({
     fetchRestaurantItems(slug, { profileToken: token, presetSlug: preset, jwt: jwt ?? undefined });
 
   const restaurantPromise = fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null);
-  // A bad filter param must not 404 a live restaurant page. Rails 422s a
-  // malformed/expired share token and 404s an unknown preset slug; both
-  // used to fall into the same catch-all and render "page not found" —
-  // for share links, on exactly the URLs people paste around. Fall back
-  // to the menu without the offending param, with a notice.
-  let shareTokenInvalid = false;
-  let presetInvalid = false;
-  let initialItems = await fetchItems(profileToken, presetSlug).catch((e: unknown) => {
-    if (profileToken && e instanceof ApiError && e.status === 422) {
-      shareTokenInvalid = true;
-    }
-    return null;
-  });
-  if (!initialItems && shareTokenInvalid) {
-    initialItems = await fetchItems(undefined, presetSlug).catch(() => null);
-  }
-  if (!initialItems && presetSlug) {
-    presetInvalid = true;
-    initialItems = await fetchItems(shareTokenInvalid ? undefined : profileToken, undefined).catch(
-      () => null,
-    );
-  }
+  // Bad filter params fall back instead of 404ing a live page — the
+  // chain (and why only 422/404 classify) lives in _resolve-items.ts.
+  const {
+    items: initialItems,
+    shareTokenInvalid,
+    presetInvalid,
+  } = await resolveMenuItems(fetchItems, profileToken, presetSlug);
   const restaurant = await restaurantPromise;
 
   if (!restaurant || !initialItems) notFound();

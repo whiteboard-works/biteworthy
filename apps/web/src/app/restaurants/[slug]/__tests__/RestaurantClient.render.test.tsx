@@ -4,9 +4,14 @@ import {
   AllergenNotice,
   FilterBadge,
   HiddenReasonChip,
+  ShareLinkButton,
   ShareTokenNotice,
   StrictnessToggle,
 } from '../RestaurantClient';
+
+vi.mock('../../../_PostHogProvider', () => ({
+  useTracker: () => ({ track: vi.fn() }),
+}));
 import type { FilterSummary } from '../../../../lib/restaurants';
 
 /**
@@ -162,5 +167,41 @@ describe('StrictnessToggle', () => {
     screen.getByText('Balanced').click();
     // Active button doesn't re-fire — the handler short-circuits.
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ShareLinkButton', () => {
+  const summary = (source: FilterSummary['source']): FilterSummary => ({
+    source,
+    preset_slug: source === 'preset' ? 'celiac' : null,
+    strictness: 'balanced',
+    avoid_ingredient_ids: [],
+    avoid_tag_ids: [],
+  });
+
+  function clickAndGetCopiedUrl(source: FilterSummary['source']): Promise<string> {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<ShareLinkButton slug="chamayo" filter={summary(source)} />);
+    screen.getByTestId('share-link').click();
+    return vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalled();
+      return writeText.mock.calls[0]![0] as string;
+    });
+  }
+
+  it('shares the bare URL when no filter applies — an empty-list token is VALID to the API and would label an unfiltered menu "Shared filter"', async () => {
+    const url = await clickAndGetCopiedUrl('none');
+    expect(url).toBe(`${window.location.origin}/r/chamayo`);
+  });
+
+  it('shares a preset as its slug, not a pre-expanded token', async () => {
+    const url = await clickAndGetCopiedUrl('preset');
+    expect(url).toBe(`${window.location.origin}/r/chamayo?profile=celiac`);
+  });
+
+  it('shares a saved profile as an encoded token', async () => {
+    const url = await clickAndGetCopiedUrl('user_profile');
+    expect(url).toContain('/r/chamayo?p=');
   });
 });
