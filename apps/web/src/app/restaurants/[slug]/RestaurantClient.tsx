@@ -202,6 +202,7 @@ export function RestaurantClient({
         {restaurant.city.name}, {restaurant.city.region}
       </p>
       <h1 className="mt-bw-2 text-bw-3xl font-bold">{restaurant.name}</h1>
+      <RestaurantContactLine restaurant={restaurant} />
       {signedIn && (
         <div className="mt-bw-3">
           <FavoriteButton
@@ -298,6 +299,41 @@ export function ShareTokenNotice({ filter }: { filter: FilterSummary }) {
         the menu below shows <strong>{filterSourceLabel(filter)}</strong> instead
       </>
     );
+ * Phone + website, already in the `#show` payload but never rendered —
+ * the "confirm with the restaurant" disclaimer ends in a phone call, so
+ * the page should hand over the number. Renders nothing when the data
+ * is absent (most community-scanned restaurants at first).
+ */
+export function RestaurantContactLine({ restaurant }: { restaurant: Restaurant }) {
+  if (!restaurant.phone && !restaurant.website) return null;
+  return (
+    <p className="mt-bw-2 flex flex-wrap gap-bw-4 text-bw-sm" data-testid="restaurant-contact">
+      {restaurant.phone && (
+        <a
+          href={`tel:${restaurant.phone.replace(/[^+\d]/g, '')}`}
+          data-testid="restaurant-phone"
+          className="font-semibold text-zinc-700 hover:text-bite-dark"
+        >
+          ☎ {restaurant.phone}
+        </a>
+      )}
+      {restaurant.website && (
+        <a
+          href={restaurant.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="restaurant-website"
+          className="font-semibold text-zinc-700 hover:text-bite-dark"
+        >
+          Website ↗
+        </a>
+      )}
+    </p>
+  );
+}
+
+/** Shown when the URL's share token was refused — the menu below is unfiltered. */
+export function ShareTokenNotice() {
   return (
     <p
       role="note"
