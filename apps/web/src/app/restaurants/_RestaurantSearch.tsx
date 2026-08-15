@@ -15,7 +15,10 @@ import { RestaurantCards } from '../_RestaurantCards';
  * distinct query. The page already ships the full published list (a
  * couple dozen restaurants at most during the Durango beta), so a local
  * substring match is instant, uncacheable-problem-free, and equivalent
- * to the server's name ILIKE. Revisit if the list ever paginates.
+ * to the server's name ILIKE. The API's index cap (INDEX_LIMIT, 100)
+ * is what makes "full list" true — if the index ever paginates or the
+ * restaurant count approaches the cap, this must switch to server
+ * search or the filter will confidently deny restaurants it never saw.
  */
 export function RestaurantSearch({
   restaurants,
