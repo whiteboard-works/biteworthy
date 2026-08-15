@@ -4,6 +4,7 @@ import {
   AllergenNotice,
   FilterBadge,
   HiddenReasonChip,
+  RestaurantContactLine,
   ShareLinkButton,
   ShareTokenNotice,
   StrictnessToggle,
@@ -12,7 +13,7 @@ import {
 vi.mock('../../../_PostHogProvider', () => ({
   useTracker: () => ({ track: vi.fn() }),
 }));
-import type { FilterSummary } from '../../../../lib/restaurants';
+import type { FilterSummary, Restaurant } from '../../../../lib/restaurants';
 
 /**
  * Phase post-5 — first JSX render tests for the web app.
@@ -86,6 +87,56 @@ describe('FilterBadge', () => {
   ] as const)('labels source %s as "%s"', (source, label) => {
     render(<FilterBadge filter={summary(source)} />);
     expect(screen.getByTestId('filter-badge')).toHaveTextContent(`${label} · balanced`);
+  });
+});
+
+describe('RestaurantContactLine', () => {
+  const restaurant = (over: Partial<Restaurant>): Restaurant => ({
+    id: 'r-1',
+    slug: 'chamayo',
+    name: 'Chamayo',
+    about: null,
+    phone: null,
+    website: null,
+    status: 'published',
+    claimed_at: null,
+    claimed_by_user_id: null,
+    city: { id: 'c-1', slug: 'durango', name: 'Durango', region: 'Colorado' },
+    ...over,
+  });
+
+  // "Confirm with the restaurant" is the disclaimer's ask — the page
+  // should hand over the number instead of sending the user to Google.
+  it('renders a dialable phone link and an external website link', () => {
+    render(
+      <RestaurantContactLine
+        restaurant={restaurant({ phone: '(970) 555-0142', website: 'https://chamayo.example' })}
+      />,
+    );
+    expect(screen.getByTestId('restaurant-phone')).toHaveAttribute('href', 'tel:9705550142');
+    const site = screen.getByTestId('restaurant-website');
+    expect(site).toHaveAttribute('href', 'https://chamayo.example');
+    expect(site).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('drops extensions from the dial string — "ext 2" digits would misdial', () => {
+    render(
+      <RestaurantContactLine restaurant={restaurant({ phone: '(970) 555-0142 ext 2' })} />,
+    );
+    expect(screen.getByTestId('restaurant-phone')).toHaveAttribute('href', 'tel:9705550142');
+  });
+
+  it('prefixes https:// on scheme-less websites so they cannot resolve as relative URLs', () => {
+    render(<RestaurantContactLine restaurant={restaurant({ website: 'www.chamayo.example' })} />);
+    expect(screen.getByTestId('restaurant-website')).toHaveAttribute(
+      'href',
+      'https://www.chamayo.example',
+    );
+  });
+
+  it('renders nothing when the restaurant has neither', () => {
+    render(<RestaurantContactLine restaurant={restaurant({})} />);
+    expect(screen.queryByTestId('restaurant-contact')).toBeNull();
   });
 });
 
