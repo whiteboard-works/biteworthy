@@ -21,6 +21,7 @@ import {
   type DurangoDietSlug,
   CityRankingError,
   fetchCityRanking,
+  humanizeDietSlug,
   type CityRanked,
 } from '../../../lib/durango';
 
@@ -236,9 +237,3 @@ function isCuratedDiet(diet: string): diet is DurangoDietSlug {
   return (DURANGO_DIET_SLUGS as readonly string[]).includes(diet);
 }
 
-function humanizeDietSlug(slug: string): string {
-  return slug
-    .split('-')
-    .map((p) => (p.length > 0 ? p[0]!.toUpperCase() + p.slice(1) : p))
-    .join(' ');
-}

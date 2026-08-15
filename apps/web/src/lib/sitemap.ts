@@ -46,6 +46,8 @@ const STATIC_ROUTES: ReadonlyArray<{
   changeFrequency: ChangeFreq;
 }> = [
   { path: '/', priority: 1.0, changeFrequency: 'weekly' },
+  { path: '/restaurants', priority: 0.9, changeFrequency: 'weekly' },
+  { path: '/durango', priority: 0.7, changeFrequency: 'weekly' },
   { path: '/story', priority: 0.6, changeFrequency: 'monthly' },
   { path: '/login', priority: 0.3, changeFrequency: 'monthly' },
   { path: '/signup', priority: 0.3, changeFrequency: 'monthly' },

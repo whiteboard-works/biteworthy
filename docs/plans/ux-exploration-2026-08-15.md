@@ -153,14 +153,16 @@ PRs in flight are noted; tick items as they merge.
       (#615)
 - [ ] Render `phone` + `website` on the restaurant page (already in the
       `#show` payload) — finding 10's quick win. Street needs the serializer
-      change first.
+      change first. (branch `feature/restaurant-contact`)
 - [ ] Add a `/durango` index page listing the diet pages; link the diet pages
-      from somewhere real — finding 11.
+      from somewhere real — finding 11. (#617)
 - [ ] Fix the homepage preset example ("Diabetes-friendly" doesn't exist) —
-      finding 12. The "30 restaurants" line is NOT a copy fix: seeding 30 is
+      finding 12. (#616, which also caught the same copy in the App Store
+      listing.) The "30 restaurants" line is NOT a copy fix: seeding 30 is
       an open launch gate (`launch-readiness.md` §6), so either the content
       lands or a human decides to soften the claim — flagging, not editing.
 - [ ] Search box on `/restaurants` wired to the existing `?q=` — finding 11.
+      (branch `feature/restaurant-search`, opens after #617)
 - [ ] Web pages for the existing Devise `:recoverable` password reset —
       finding 8.
 - [ ] Account deletion UI — tracked as F2 in
