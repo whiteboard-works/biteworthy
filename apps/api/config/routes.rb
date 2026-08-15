@@ -22,13 +22,26 @@ Rails.application.routes.draw do
              # devise_for would mount omniauth at /api/v1/auth/auth/:provider,
              # which doubles up the /auth segment. We skip it and define our
              # own clean routes below so the public URL is /api/v1/auth/:provider.
-             skip: [:omniauth_callbacks],
+             # Passwords are skipped too: the stock module also mounts GET
+             # new/edit, which render HTML views an API-only app doesn't have —
+             # the JSON create/update pair is defined in the devise_scope below.
+             skip: [:omniauth_callbacks, :passwords],
              defaults: { format: :json }
 
   # Custom Devise route — needs the devise_scope wrapper so the
   # SessionsController inherits the right Devise mapping.
   devise_scope :user do
     post "/api/v1/auth/refresh", to: "api/v1/auth/sessions#refresh", as: :api_v1_auth_refresh
+
+    # Password reset (Devise :recoverable, JSON only). POST requests the
+    # email; PUT/PATCH consumes the token. The emailed link lands on the
+    # web app's /reset-password page, not these endpoints.
+    post  "/api/v1/auth/password", to: "api/v1/auth/passwords#create",
+          as: :user_password, defaults: { format: :json }
+    put   "/api/v1/auth/password", to: "api/v1/auth/passwords#update",
+          defaults: { format: :json }
+    patch "/api/v1/auth/password", to: "api/v1/auth/passwords#update",
+          defaults: { format: :json }
 
     # OmniAuth start + callback. Routes match what OmniAuth.config.path_prefix
     # tells the OmniAuth middleware to intercept; the start path passes through

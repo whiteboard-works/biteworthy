@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthError, login, logout, signup } from '../auth';
+import { AuthError, login, logout, requestPasswordReset, resetPassword, signup } from '../auth';
 
 type FetchArgs = Parameters<typeof fetch>;
 
@@ -72,5 +72,38 @@ describe('logout', () => {
   it('throws AuthError on non-2xx', async () => {
     const fetchImpl = fakeFetch(500, { error: 'logout failed' });
     await expect(logout({ fetchImpl })).rejects.toBeInstanceOf(AuthError);
+  });
+});
+
+describe('requestPasswordReset', () => {
+  it('POSTs the email to /api/auth/forgot and resolves on 202', async () => {
+    const fetchImpl = fakeFetch(202, {});
+    await requestPasswordReset('a@b.com', { fetchImpl });
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe('/api/auth/forgot');
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'a@b.com' });
+  });
+});
+
+describe('resetPassword', () => {
+  it('POSTs token + new password to /api/auth/reset', async () => {
+    const fetchImpl = fakeFetch(200, { status: 'password_updated' });
+    await resetPassword('tok123', 'newpass12', 'newpass12', { fetchImpl });
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe('/api/auth/reset');
+    expect(JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string)).toEqual({
+      reset_password_token: 'tok123',
+      password: 'newpass12',
+      password_confirmation: 'newpass12',
+    });
+  });
+
+  it('surfaces the proxy-flattened Devise error on 422', async () => {
+    // An expired/used token must not fail silently — the page relays this.
+    const fetchImpl = fakeFetch(422, { error: 'Reset password token is invalid' });
+    await expect(resetPassword('stale', 'newpass12', 'newpass12', { fetchImpl })).rejects.toMatchObject({
+      name: 'AuthError',
+      status: 422,
+      message: 'Reset password token is invalid',
+    });
   });
 });

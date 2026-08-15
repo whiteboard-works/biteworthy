@@ -104,6 +104,29 @@ export function signup(
   );
 }
 
+/**
+ * Ask for a reset email. Resolves on 202 whether or not the email has an
+ * account — the proxy (and Rails behind it) answer identically so nobody
+ * can probe which addresses exist.
+ */
+export async function requestPasswordReset(email: string, opts: FetchOptions = {}): Promise<void> {
+  await authPost<unknown>('/api/auth/forgot', { email }, opts);
+}
+
+/** Consume the emailed token and set a new password. 422 → AuthError. */
+export async function resetPassword(
+  token: string,
+  password: string,
+  passwordConfirmation: string,
+  opts: FetchOptions = {},
+): Promise<void> {
+  await authPost<unknown>(
+    '/api/auth/reset',
+    { reset_password_token: token, password, password_confirmation: passwordConfirmation },
+    opts,
+  );
+}
+
 export async function logout(opts: FetchOptions = {}): Promise<void> {
   const { fetchImpl = fetch } = opts;
   const res = await fetchImpl('/api/auth/logout', {

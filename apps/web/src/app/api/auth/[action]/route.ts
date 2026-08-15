@@ -20,7 +20,7 @@ import { buildAuthCookieOptions } from '../../../../lib/cookie-options';
 import { API_BASE } from '../../../../lib/api-base';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
-const ACTIONS = new Set(['login', 'signup', 'logout']);
+const ACTIONS = new Set(['login', 'signup', 'logout', 'forgot', 'reset']);
 
 interface CredentialsBody {
   email?: string;
@@ -29,6 +29,9 @@ interface CredentialsBody {
   age_confirmation?: boolean;
   // Clickwrap — present on signup only; agreement to Terms + Privacy.
   terms_acceptance?: boolean;
+  // Password reset only.
+  reset_password_token?: string;
+  password_confirmation?: string;
 }
 
 export async function POST(
@@ -45,7 +48,55 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => ({}))) as CredentialsBody;
+  if (action === 'forgot' || action === 'reset') {
+    return await handlePasswordReset(action, body);
+  }
   return await handleLoginOrSignup(action, body);
+}
+
+/**
+ * forgot → POST /api/v1/auth/password (202 whether or not the email has
+ * an account — no enumeration). reset → PUT with the emailed token.
+ * Neither touches the session cookie: the user signs in afterwards.
+ */
+async function handlePasswordReset(action: 'forgot' | 'reset', body: CredentialsBody) {
+  const user =
+    action === 'forgot'
+      ? { email: body.email }
+      : {
+          reset_password_token: body.reset_password_token,
+          password: body.password,
+          password_confirmation: body.password_confirmation,
+        };
+  if (action === 'forgot' && !body.email) {
+    return NextResponse.json({ error: 'Email required' }, { status: 400 });
+  }
+  if (action === 'reset' && (!body.reset_password_token || !body.password)) {
+    return NextResponse.json({ error: 'Token and new password required' }, { status: 400 });
+  }
+
+  const upstream = await fetch(`${API_BASE}/api/v1/auth/password`, {
+    method: action === 'forgot' ? 'POST' : 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ user }),
+  });
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    // Rails answers 422 with { errors: [...] }; the client's AuthError
+    // reads a single `error` string, so flatten it here.
+    let error = `Password reset failed (${upstream.status})`;
+    try {
+      const parsed = JSON.parse(text) as { errors?: string[]; error?: string };
+      error = parsed.error ?? parsed.errors?.join(', ') ?? error;
+    } catch {
+      // Non-JSON upstream body — keep the generic message.
+    }
+    return NextResponse.json({ error }, { status: upstream.status });
+  }
+  return new NextResponse(text || '{}', {
+    status: upstream.status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 async function handleLoginOrSignup(action: string, body: CredentialsBody) {

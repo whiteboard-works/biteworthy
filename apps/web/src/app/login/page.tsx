@@ -38,6 +38,8 @@ function LoginForm() {
   // the cross-link to /signup is the safe one too — otherwise a hostile
   // `next` just rides one hop further before it is used.
   const next = safeNext(params.get('next'), '/');
+  // Set by /reset-password on success — confirm before they retype.
+  const justReset = params.get('reset') === '1';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -79,6 +81,15 @@ function LoginForm() {
       <p className="mt-bw-2 text-bw-sm text-zinc-500">
         Use your BiteWorthy email + password.
       </p>
+
+      {justReset && (
+        <p
+          className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+          data-testid="password-reset-done"
+        >
+          Password updated — sign in with your new password.
+        </p>
+      )}
 
       <form onSubmit={onSubmit} className="mt-bw-6 flex flex-col gap-bw-3">
         <label className="flex flex-col gap-1">
@@ -124,6 +135,16 @@ function LoginForm() {
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+
+      <p className="mt-bw-3 text-bw-sm text-zinc-500">
+        <Link
+          href="/forgot-password"
+          data-testid="forgot-password-link"
+          className="font-semibold text-bite hover:text-bite-dark"
+        >
+          Forgot your password?
+        </Link>
+      </p>
 
       <p className="mt-bw-6 text-bw-sm text-zinc-500">
         Don&rsquo;t have an account?{' '}
