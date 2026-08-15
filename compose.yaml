@@ -34,8 +34,18 @@ x-api-base: &api-base
     # without this pin, `docker compose up` would boot dev (and db:prepare!)
     # straight at the production database. Host/user only, no database path:
     # database.yml keeps naming biteworthy_dev / biteworthy_test per env, so
-    # in-container rspec still hits the test database. `environment` beats
-    # `env_file` for the same key, which is what makes the pin stick.
+    # a test-env command in the container hits the test database. `environment`
+    # beats `env_file` for the same key, which is what makes the pin stick.
+    # (Native commands are guarded separately by the checked-in
+    # apps/api/.env.development / .env.test, which dotenv loads before .env.)
+    #
+    # Two consequences of any DATABASE_URL being set: boot's db:prepare no
+    # longer auto-creates biteworthy_test (Rails skips the test sibling when
+    # the var is present — run `docker compose exec -e RAILS_ENV=test api
+    # bin/rails db:prepare` once before in-container specs), and a
+    # RAILS_ENV=production command in the container now resolves to this
+    # local postgres (with no database name) instead of reaching Neon —
+    # deliberate: a laptop container should never quietly talk to prod.
     DATABASE_URL: postgresql://postgres@postgres:5432
   env_file:
     # Optional: holds ANTHROPIC_API_KEY etc. The stack boots without it;
