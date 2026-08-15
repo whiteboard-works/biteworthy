@@ -85,14 +85,29 @@ describe('FilterBadge', () => {
 });
 
 describe('ShareTokenNotice', () => {
-  // A refused share token used to render a bare 404. The fallback shows
-  // the unfiltered menu — the notice must say so, because the recipient
-  // believes they're looking at the sender's filtered view.
-  it('tells the recipient the menu is unfiltered', () => {
-    render(<ShareTokenNotice />);
+  const summary = (source: FilterSummary['source']): FilterSummary => ({
+    source,
+    preset_slug: source === 'preset' ? 'celiac' : null,
+    strictness: 'balanced',
+    avoid_ingredient_ids: [],
+    avoid_tag_ids: [],
+  });
+
+  // A refused share token used to render a bare 404. The recipient
+  // believes they're looking at the sender's filtered view — the notice
+  // must say what the menu actually shows now.
+  it('says unfiltered when nothing else applies', () => {
+    render(<ShareTokenNotice filter={summary('none')} />);
     const notice = screen.getByTestId('share-token-notice');
     expect(notice).toHaveTextContent(/invalid or has expired/i);
     expect(notice).toHaveTextContent(/unfiltered/i);
+  });
+
+  it('names the fallback filter instead of falsely claiming unfiltered', () => {
+    render(<ShareTokenNotice filter={summary('user_profile')} />);
+    const notice = screen.getByTestId('share-token-notice');
+    expect(notice).toHaveTextContent(/Your saved profile/);
+    expect(notice).not.toHaveTextContent(/unfiltered/i);
   });
 });
 

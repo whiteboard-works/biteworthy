@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { ApiError } from '../../../lib/api';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../lib/restaurants';
 import { getServerJwt } from '../../../lib/server-auth';
 import { RestaurantClient } from './RestaurantClient';
@@ -66,7 +67,7 @@ export default async function RestaurantPage({
   let shareTokenInvalid = false;
   let presetInvalid = false;
   let initialItems = await fetchItems(profileToken, presetSlug).catch((e: unknown) => {
-    if (profileToken && e instanceof Error && e.message.startsWith('422')) {
+    if (profileToken && e instanceof ApiError && e.status === 422) {
       shareTokenInvalid = true;
     }
     return null;

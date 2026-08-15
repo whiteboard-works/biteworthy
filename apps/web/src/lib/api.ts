@@ -12,6 +12,17 @@ export interface ApiOptions extends RequestInit {
   fetchImpl?: typeof fetch;
 }
 
+/** Non-2xx from Rails. `status` is the contract — never parse the message. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { fetchImpl = fetch, ...init } = options;
   const res = await fetchImpl(`${API_BASE}/api/v1${path}`, {
@@ -22,6 +33,6 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
       ...(init.headers ?? {}),
     },
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
   return (await res.json()) as T;
 }

@@ -224,7 +224,7 @@ export function RestaurantClient({
 
       <ClaimSection slug={slug} restaurant={restaurant} />
 
-      {shareTokenInvalid && <ShareTokenNotice />}
+      {shareTokenInvalid && <ShareTokenNotice filter={filter} />}
 
       {presetInvalid && (
         <p
@@ -268,16 +268,30 @@ export function RestaurantClient({
   );
 }
 
-/** Shown when the URL's share token was refused — the menu below is unfiltered. */
-export function ShareTokenNotice() {
+/**
+ * Shown when the URL's share token was refused. The fallback fetch may
+ * still apply a filter (the caller's saved profile, or a riding preset)
+ * — say what IS applied rather than claiming "unfiltered" when it isn't.
+ */
+export function ShareTokenNotice({ filter }: { filter: FilterSummary }) {
+  const applied =
+    filter.source === 'none' ? (
+      <>
+        the menu below is <strong>unfiltered</strong>
+      </>
+    ) : (
+      <>
+        the menu below shows <strong>{filterSourceLabel(filter)}</strong> instead
+      </>
+    );
   return (
     <p
       role="note"
       data-testid="share-token-notice"
       className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
     >
-      This share link is invalid or has expired, so the menu below is <strong>unfiltered</strong>.
-      Ask whoever sent it for a fresh link.
+      This share link is invalid or has expired, so {applied}. Ask whoever sent it for a fresh
+      link.
     </p>
   );
 }
