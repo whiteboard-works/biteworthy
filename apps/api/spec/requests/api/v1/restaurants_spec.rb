@@ -113,11 +113,19 @@ RSpec.describe "Restaurants index API", type: :request do
     expect(names).to eq(["100% Tacos"])
   end
 
-  it "caps the list at 25 rows" do
-    30.times { |i| create(:restaurant, :published, name: "Cafe #{i.to_s.rjust(2, '0')}", city: city) }
+  it "caps the list at INDEX_LIMIT rows, which must clear the 30-restaurant launch seed" do
+    # The web browse page (and its local name search) treats this response
+    # as the complete published list — a cap under the real count turns
+    # into silent truncation there and false "no matches" in search.
+    expect(Api::V1::RestaurantsController::INDEX_LIMIT).to be >= 30
+
+    (Api::V1::RestaurantsController::INDEX_LIMIT + 5).times do |i|
+      create(:restaurant, :published, name: "Cafe #{i.to_s.rjust(3, '0')}", city: city)
+    end
 
     get "/api/v1/restaurants"
 
-    expect(response.parsed_body["restaurants"].length).to eq(25)
+    expect(response.parsed_body["restaurants"].length)
+      .to eq(Api::V1::RestaurantsController::INDEX_LIMIT)
   end
 end
