@@ -63,9 +63,15 @@ RSpec.describe "auth/passwords", type: :request do
       end
 
       response(422, "token invalid/expired, or the new password fails validation") do
+        # Field-keyed, matching the registrations 422 envelope.
         schema type: :object,
                required: %w[errors],
-               properties: { errors: { type: :array, items: { type: :string } } }
+               properties: {
+                 errors: {
+                   type: :object,
+                   additionalProperties: { type: :array, items: { type: :string } }
+                 }
+               }
         let(:user) do
           { user: { reset_password_token: "bogus",
                     password: "new-pass-123", password_confirmation: "new-pass-123" } }

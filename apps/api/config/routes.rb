@@ -40,8 +40,6 @@ Rails.application.routes.draw do
           as: :user_password, defaults: { format: :json }
     put   "/api/v1/auth/password", to: "api/v1/auth/passwords#update",
           defaults: { format: :json }
-    patch "/api/v1/auth/password", to: "api/v1/auth/passwords#update",
-          defaults: { format: :json }
 
     # OmniAuth start + callback. Routes match what OmniAuth.config.path_prefix
     # tells the OmniAuth middleware to intercept; the start path passes through

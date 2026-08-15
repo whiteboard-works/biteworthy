@@ -2922,7 +2922,9 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            errors: string[];
+                            errors: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };

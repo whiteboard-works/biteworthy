@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AuthError, resetPassword } from '../../lib/auth';
+import { AuthError, authFailureReason, resetPassword } from '../../lib/auth';
+import { useTracker } from '../_PostHogProvider';
 
 /**
  * Landing page for the emailed reset link
@@ -23,7 +24,17 @@ export default function ResetPasswordPage() {
 function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const token = params.get('reset_password_token') ?? '';
+  const tracker = useTracker();
+  // The token is live account-takeover material for 6 hours. Capture it
+  // into state once, then scrub it from the URL before anything else can
+  // read location.href — PostHog attaches $current_url to every event,
+  // and the address bar/history shouldn't hold it either.
+  const [token] = useState(() => params.get('reset_password_token') ?? '');
+  useEffect(() => {
+    if (window.location.search.includes('reset_password_token')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -49,17 +60,21 @@ function ResetPasswordForm() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    tracker.track('auth_started', { method: 'password_reset' });
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
+      tracker.track('auth_failed', { method: 'password_reset', reason: 'weak_password' });
       return;
     }
     if (password !== confirmation) {
       setError('Passwords do not match.');
+      tracker.track('auth_failed', { method: 'password_reset', reason: 'confirmation_mismatch' });
       return;
     }
     try {
       setSubmitting(true);
       await resetPassword(token, password, confirmation);
+      tracker.track('auth_completed', { method: 'password_reset' });
       router.replace('/login?reset=1');
     } catch (err) {
       // 422 = Devise refused the token (expired/used) or the password.
@@ -70,6 +85,11 @@ function ResetPasswordForm() {
           ? `${(err as Error).message}. If the link is old, request a new one below.`
           : (err as Error).message,
       );
+      tracker.track('auth_failed', {
+        method: 'password_reset',
+        reason: authFailureReason(status, { 422: 'token_rejected' }),
+        ...(status > 0 ? { status } : {}),
+      });
     } finally {
       setSubmitting(false);
     }

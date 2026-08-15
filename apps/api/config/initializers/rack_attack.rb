@@ -60,10 +60,32 @@ class Rack::Attack
     req.ip if req.path.start_with?("/api/")
   end
 
-  # Tighter ceiling on the auth endpoints (login + signup) to blunt
-  # credential-stuffing / account-enumeration bursts.
+  # Tighter ceiling on the auth endpoints (login + signup + password
+  # reset) to blunt credential-stuffing / account-enumeration bursts.
+  # PUT/PATCH included: the token-consuming reset endpoint is a PUT, and
+  # a POST-only predicate would leave token guessing on the loose
+  # api/ip ceiling.
   throttle("auth/ip", limit: 10, period: 20.seconds) do |req|
-    req.ip if req.post? && req.path.start_with?("/api/v1/auth/")
+    if %w[POST PUT PATCH].include?(req.request_method) && req.path.start_with?("/api/v1/auth/")
+      req.ip
+    end
+  end
+
+  # Reset-email requests, keyed on the target address: per-IP limits
+  # can't stop one victim's inbox being bombed from many IPs (or from
+  # the web proxy's single egress IP, which all browser traffic shares).
+  throttle("password_reset/email", limit: 5, period: 1.hour) do |req|
+    next unless req.post? && req.path == "/api/v1/auth/password"
+
+    begin
+      body  = req.body.read
+      email = JSON.parse(body).dig("user", "email").to_s.strip.downcase
+      email.presence
+    rescue JSON::ParserError
+      nil
+    ensure
+      req.body.rewind
+    end
   end
 
   # Dynamic client registration (RFC 7591) is unauthenticated by design,

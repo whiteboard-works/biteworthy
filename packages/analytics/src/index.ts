@@ -168,13 +168,13 @@ export interface EventPropsMap {
   // email, password, or any PII (docs/analytics.md privacy rule).
   auth_started: {
     /** Which auth form the user submitted. */
-    method: 'login' | 'signup';
+    method: 'login' | 'signup' | 'password_forgot' | 'password_reset';
   };
   auth_completed: {
-    method: 'login' | 'signup';
+    method: 'login' | 'signup' | 'password_forgot' | 'password_reset';
   };
   auth_failed: {
-    method: 'login' | 'signup';
+    method: 'login' | 'signup' | 'password_forgot' | 'password_reset';
     /**
      * Coarse failure category — never the raw error text. Login:
      * `missing_fields | wrong_credentials | server | network | unknown`.

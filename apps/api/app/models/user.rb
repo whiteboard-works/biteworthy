@@ -123,6 +123,14 @@ class User < ApplicationRecord
     errors.add(:is_super_admin, "requires is_admin")
   end
 
+  # Devise mails (reset instructions) ride the queue like every other
+  # mailer: a synchronous SMTP call would leak account existence through
+  # response latency on the uniform-202 endpoint, park a Puma thread on
+  # an external service, and lose the mail on a transient failure.
+  def send_devise_notification(notification, *args)
+    devise_mailer.send(notification, self, *args).deliver_later
+  end
+
   def ensure_jti
     self.jti ||= SecureRandom.uuid
   end

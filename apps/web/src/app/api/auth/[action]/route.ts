@@ -60,6 +60,20 @@ export async function POST(
  * Neither touches the session cookie: the user signs in afterwards.
  */
 async function handlePasswordReset(action: 'forgot' | 'reset', body: CredentialsBody) {
+  if (action === 'forgot' && !body.email) {
+    return NextResponse.json({ error: 'Email required' }, { status: 400 });
+  }
+  if (action === 'reset') {
+    if (!body.reset_password_token || !body.password || !body.password_confirmation) {
+      return NextResponse.json(
+        { error: 'Token, new password, and confirmation required' },
+        { status: 400 },
+      );
+    }
+    if (body.password !== body.password_confirmation) {
+      return NextResponse.json({ error: 'Passwords do not match' }, { status: 422 });
+    }
+  }
   const user =
     action === 'forgot'
       ? { email: body.email }
@@ -68,35 +82,63 @@ async function handlePasswordReset(action: 'forgot' | 'reset', body: Credentials
           password: body.password,
           password_confirmation: body.password_confirmation,
         };
-  if (action === 'forgot' && !body.email) {
-    return NextResponse.json({ error: 'Email required' }, { status: 400 });
-  }
-  if (action === 'reset' && (!body.reset_password_token || !body.password)) {
-    return NextResponse.json({ error: 'Token and new password required' }, { status: 400 });
-  }
 
   const upstream = await fetch(`${API_BASE}/api/v1/auth/password`, {
     method: action === 'forgot' ? 'POST' : 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ user }),
   });
+
+  // The forgot endpoint is documented to always succeed — relaying an
+  // upstream 429/500 would only be visible for addresses that reached the
+  // mail step, i.e. real accounts. Clamp it: defence-in-depth for the
+  // enumeration guard (the failure still shows in server logs).
+  if (action === 'forgot') {
+    if (!upstream.ok) console.error(`forgot-password upstream ${upstream.status}`);
+    return new NextResponse('{}', {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const text = await upstream.text();
   if (!upstream.ok) {
-    // Rails answers 422 with { errors: [...] }; the client's AuthError
-    // reads a single `error` string, so flatten it here.
-    let error = `Password reset failed (${upstream.status})`;
-    try {
-      const parsed = JSON.parse(text) as { errors?: string[]; error?: string };
-      error = parsed.error ?? parsed.errors?.join(', ') ?? error;
-    } catch {
-      // Non-JSON upstream body — keep the generic message.
-    }
-    return NextResponse.json({ error }, { status: upstream.status });
+    return NextResponse.json(
+      { error: flattenResetError(text, upstream.status) },
+      { status: upstream.status },
+    );
   }
   return new NextResponse(text || '{}', {
     status: upstream.status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * Rails 422s with the field-keyed Devise envelope
+ * ({ errors: { password: ["is too short…"] } }); the client's AuthError
+ * carries one string. "field message" per entry, generic when the body
+ * is empty or not that shape.
+ */
+function flattenResetError(text: string, status: number): string {
+  const generic = `Password reset failed (${status})`;
+  try {
+    const parsed = JSON.parse(text) as {
+      errors?: Record<string, string[]> | string[];
+      error?: string;
+    };
+    if (Array.isArray(parsed.errors) && parsed.errors.length > 0) return parsed.errors.join(', ');
+    if (parsed.errors && !Array.isArray(parsed.errors)) {
+      const lines = Object.entries(parsed.errors).flatMap(([field, msgs]) =>
+        (msgs ?? []).map((m) => `${field.replace(/_/g, ' ')} ${m}`),
+      );
+      if (lines.length > 0) return lines.join(', ');
+    }
+    if (parsed.error) return parsed.error;
+  } catch {
+    // Non-JSON upstream body — fall through.
+  }
+  return generic;
 }
 
 async function handleLoginOrSignup(action: string, body: CredentialsBody) {

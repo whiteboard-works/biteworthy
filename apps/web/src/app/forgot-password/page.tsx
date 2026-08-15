@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { requestPasswordReset } from '../../lib/auth';
+import { AuthError, authFailureReason, requestPasswordReset } from '../../lib/auth';
+import { useTracker } from '../_PostHogProvider';
 
 /**
  * Request a password-reset email. The confirmation copy is identical
@@ -10,6 +11,7 @@ import { requestPasswordReset } from '../../lib/auth';
  * either way, and this page must not narrow that.
  */
 export default function ForgotPasswordPage() {
+  const tracker = useTracker();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -18,16 +20,25 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    tracker.track('auth_started', { method: 'password_forgot' });
     if (!email) {
       setError('Enter your email.');
+      tracker.track('auth_failed', { method: 'password_forgot', reason: 'missing_fields' });
       return;
     }
     try {
       setSubmitting(true);
       await requestPasswordReset(email);
       setSent(true);
+      tracker.track('auth_completed', { method: 'password_forgot' });
     } catch (err) {
       setError((err as Error).message);
+      const status = err instanceof AuthError ? err.status : 0;
+      tracker.track('auth_failed', {
+        method: 'password_forgot',
+        reason: authFailureReason(status),
+        ...(status > 0 ? { status } : {}),
+      });
     } finally {
       setSubmitting(false);
     }
@@ -39,7 +50,7 @@ export default function ForgotPasswordPage() {
         <h1 className="text-bw-2xl font-bold">Check your email</h1>
         <p className="mt-bw-3 text-bw-base text-zinc-700" data-testid="forgot-sent">
           If <span className="font-semibold">{email}</span> has a BiteWorthy account, a reset
-          link is on its way. It expires in 6 hours.
+          link is on its way. It expires after a few hours.
         </p>
         <p className="mt-bw-6 text-bw-sm text-zinc-500">
           <Link href="/login" className="font-semibold text-bite hover:text-bite-dark">
