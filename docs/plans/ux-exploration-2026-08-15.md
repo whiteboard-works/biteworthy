@@ -149,8 +149,8 @@ PRs in flight are noted; tick items as they merge.
 - [ ] Distinguish invalid/expired share token from 404 with a friendly
       explainer — finding 7. (branch `fix/share-token-fallback`)
 - [ ] Pin the compose stack's `DATABASE_URL` (anchor-level, so the worker
-      inherits it too) and document the native-command trap — finding 13.
-      (#615)
+      inherits it too), check in `.env.development` for the native path, and
+      correct the in-container spec command — finding 13. (#615)
 - [ ] Render `phone` + `website` on the restaurant page (already in the
       `#show` payload) — finding 10's quick win. Street needs the serializer
       change first. (branch `feature/restaurant-contact`)
