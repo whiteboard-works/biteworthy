@@ -299,6 +299,29 @@ export function ShareTokenNotice({ filter }: { filter: FilterSummary }) {
         the menu below shows <strong>{filterSourceLabel(filter)}</strong> instead
       </>
     );
+  return (
+    <p
+      role="note"
+      data-testid="share-token-notice"
+      className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+    >
+      This share link is invalid or has expired, so {applied}. Ask whoever sent it for a fresh
+      link.
+    </p>
+  );
+}
+
+/** Digits to dial: extensions ("ext 2", "x2", "#2") can't ride a tel: URI. */
+function dialable(phone: string): string {
+  return phone.split(/(?:ext|x|#)/i)[0]!.replace(/[^+\d]/g, '');
+}
+
+/** Scheme-less stored values ("www.x.com") must not resolve as relative URLs. */
+function externalHref(website: string): string {
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
+}
+
+/**
  * Phone + website, already in the `#show` payload but never rendered —
  * the "confirm with the restaurant" disclaimer ends in a phone call, so
  * the page should hand over the number. Renders nothing when the data
@@ -310,7 +333,7 @@ export function RestaurantContactLine({ restaurant }: { restaurant: Restaurant }
     <p className="mt-bw-2 flex flex-wrap gap-bw-4 text-bw-sm" data-testid="restaurant-contact">
       {restaurant.phone && (
         <a
-          href={`tel:${restaurant.phone.replace(/[^+\d]/g, '')}`}
+          href={`tel:${dialable(restaurant.phone)}`}
           data-testid="restaurant-phone"
           className="font-semibold text-zinc-700 hover:text-bite-dark"
         >
@@ -319,7 +342,7 @@ export function RestaurantContactLine({ restaurant }: { restaurant: Restaurant }
       )}
       {restaurant.website && (
         <a
-          href={restaurant.website}
+          href={externalHref(restaurant.website)}
           target="_blank"
           rel="noopener noreferrer"
           data-testid="restaurant-website"
@@ -328,20 +351,6 @@ export function RestaurantContactLine({ restaurant }: { restaurant: Restaurant }
           Website ↗
         </a>
       )}
-    </p>
-  );
-}
-
-/** Shown when the URL's share token was refused — the menu below is unfiltered. */
-export function ShareTokenNotice() {
-  return (
-    <p
-      role="note"
-      data-testid="share-token-notice"
-      className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
-    >
-      This share link is invalid or has expired, so {applied}. Ask whoever sent it for a fresh
-      link.
     </p>
   );
 }

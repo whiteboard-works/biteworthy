@@ -155,7 +155,7 @@ PRs in flight are noted; tick items as they merge.
       correct the in-container spec command — finding 13. (#615)
 - [ ] Render `phone` + `website` on the restaurant page (already in the
       `#show` payload) — finding 10's quick win. Street needs the serializer
-      change first. (branch `feature/restaurant-contact`)
+      change first. (#622)
 - [ ] Add a `/durango` index page listing the diet pages; link the diet pages
       from somewhere real — finding 11. (#617)
 - [ ] Fix the homepage preset example ("Diabetes-friendly" doesn't exist) —
