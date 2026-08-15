@@ -149,7 +149,7 @@ PRs in flight are noted; tick items as they merge.
       client refetches; link `/durango/<diet>` cards with it — findings 5, 6.
       (#618)
 - [ ] Distinguish invalid/expired share token from 404 with a friendly
-      explainer — finding 7. (branch `fix/share-token-fallback`)
+      explainer — finding 7. (#621)
 - [ ] Pin the compose stack's `DATABASE_URL` (anchor-level, so the worker
       inherits it too), check in `.env.development` for the native path, and
       correct the in-container spec command — finding 13. (#615)

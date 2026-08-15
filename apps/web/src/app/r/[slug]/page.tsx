@@ -4,4 +4,6 @@
  * Phase 3.6 ships at `/restaurants/<slug>` so both paths render
  * identically. Keeps the share URL short for SMS / clipboard.
  */
-export { default } from '../../restaurants/[slug]/page';
+// generateMetadata rides along so every /r/<slug>?p=… variant (now a 200
+// even when the token is dead) collapses onto the bare menu's canonical.
+export { default, generateMetadata } from '../../restaurants/[slug]/page';

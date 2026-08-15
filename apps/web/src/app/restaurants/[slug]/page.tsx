@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../lib/restaurants';
 import { getServerJwt } from '../../../lib/server-auth';
+import { resolveMenuItems } from './_resolve-items';
 import { RestaurantClient } from './RestaurantClient';
 
 /**
@@ -54,19 +55,17 @@ export default async function RestaurantPage({
   // The JWT lets fetchRestaurant populate `favorited` for the save button;
   // its presence also gates the button (the endpoint is authed).
   const jwt = await getServerJwt();
-  const fetchItems = (preset: string | undefined) =>
-    fetchRestaurantItems(slug, { profileToken, presetSlug: preset, jwt: jwt ?? undefined });
+  const fetchItems = (token: string | undefined, preset: string | undefined) =>
+    fetchRestaurantItems(slug, { profileToken: token, presetSlug: preset, jwt: jwt ?? undefined });
 
   const restaurantPromise = fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null);
-  // An unknown/stale preset slug 404s on the API side. That must not
-  // 404 a live restaurant page (diet links are sprayed across indexable
-  // SEO pages) — fall back to the menu without the preset, with a notice.
-  let presetInvalid = false;
-  let initialItems = await fetchItems(presetSlug).catch(() => null);
-  if (!initialItems && presetSlug) {
-    presetInvalid = true;
-    initialItems = await fetchItems(undefined).catch(() => null);
-  }
+  // Bad filter params fall back instead of 404ing a live page — the
+  // chain (and why only 422/404 classify) lives in _resolve-items.ts.
+  const {
+    items: initialItems,
+    shareTokenInvalid,
+    presetInvalid,
+  } = await resolveMenuItems(fetchItems, profileToken, presetSlug);
   const restaurant = await restaurantPromise;
 
   if (!restaurant || !initialItems) notFound();
@@ -76,9 +75,10 @@ export default async function RestaurantPage({
       slug={slug}
       restaurant={restaurant}
       initialItems={initialItems}
-      profileToken={profileToken ?? null}
+      profileToken={shareTokenInvalid ? null : (profileToken ?? null)}
       presetSlug={presetInvalid ? null : (presetSlug ?? null)}
       presetInvalid={presetInvalid}
+      shareTokenInvalid={shareTokenInvalid}
       signedIn={Boolean(jwt)}
     />
   );

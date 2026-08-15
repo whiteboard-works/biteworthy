@@ -47,6 +47,7 @@ export function RestaurantClient({
   profileToken = null,
   presetSlug = null,
   presetInvalid = false,
+  shareTokenInvalid = false,
   signedIn = false,
 }: {
   slug: string;
@@ -58,6 +59,8 @@ export function RestaurantClient({
   presetSlug?: string | null;
   /** The URL carried a preset slug the API didn't recognize. */
   presetInvalid?: boolean;
+  /** The URL carried a share token Rails refused (malformed/expired). */
+  shareTokenInvalid?: boolean;
   /** Gates the save button — the favorite endpoint is authed. */
   signedIn?: boolean;
 }) {
@@ -75,6 +78,18 @@ export function RestaurantClient({
   const [isPending, startTransition] = useTransition();
   const isInitialRender = strictnessOverride === null;
 
+  // A refused token shouldn't survive in the address bar: reloads re-pay
+  // the failed fetch, and anyone re-sharing from the URL propagates a
+  // dead link.
+  useEffect(() => {
+    if (!shareTokenInvalid) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('p')) {
+      url.searchParams.delete('p');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+    }
+  }, [shareTokenInvalid]);
+
   // Phase 5.8 — fire menu_filtered + restaurant_tap once on first
   // paint with the SSR-delivered items, then again whenever the
   // strictness override triggers a refetch (handled below).
@@ -86,6 +101,8 @@ export function RestaurantClient({
       visible_count: totalVisible,
       hidden_count: totalHidden,
       filter_source: initialItems.filter.source,
+      // Lets the dashboards separate failed share opens from direct visits.
+      ...(shareTokenInvalid ? { share_token_invalid: true } : {}),
     });
     tracker.track('restaurant_tap', {
       restaurant_slug: slug,
@@ -221,6 +238,8 @@ export function RestaurantClient({
 
       <ClaimSection slug={slug} restaurant={restaurant} />
 
+      {shareTokenInvalid && <ShareTokenNotice filter={filter} />}
+
       {presetInvalid && (
         <p
           role="note"
@@ -260,6 +279,34 @@ export function RestaurantClient({
         />
       ))}
     </main>
+  );
+}
+
+/**
+ * Shown when the URL's share token was refused. The fallback fetch may
+ * still apply a filter (the caller's saved profile, or a riding preset)
+ * — say what IS applied rather than claiming "unfiltered" when it isn't.
+ */
+export function ShareTokenNotice({ filter }: { filter: FilterSummary }) {
+  const applied =
+    filter.source === 'none' && filter.strictness !== 'strict' ? (
+      <>
+        the menu below is <strong>unfiltered</strong>
+      </>
+    ) : (
+      <>
+        the menu below shows <strong>{filterSourceLabel(filter)}</strong> instead
+      </>
+    );
+  return (
+    <p
+      role="note"
+      data-testid="share-token-notice"
+      className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+    >
+      This share link is invalid or has expired, so {applied}. Ask whoever sent it for a fresh
+      link.
+    </p>
   );
 }
 
@@ -577,14 +624,19 @@ export function ShareLinkButton({
     // A preset filter shares as its slug, not as a token: the token would
     // carry the preset's pre-expanded avoid lists (hundreds of UUIDs —
     // ~14KB encoded, past Puma's 10KB query-string cap), arriving dead.
+    // No filter shares the bare URL: an empty-list token is VALID to the
+    // API, and the recipient would see "Shared filter" over a menu
+    // nothing was filtered out of.
     const url =
       filter.source === 'preset' && filter.preset_slug
         ? `${origin}/r/${encodeURIComponent(slug)}?profile=${encodeURIComponent(filter.preset_slug)}`
-        : `${origin}/r/${encodeURIComponent(slug)}?p=${encodeProfileToken({
-            avoid_ingredient_ids: filter.avoid_ingredient_ids,
-            avoid_tag_ids: filter.avoid_tag_ids,
-            strictness: filter.strictness,
-          })}`;
+        : filter.source === 'none'
+          ? `${origin}/r/${encodeURIComponent(slug)}`
+          : `${origin}/r/${encodeURIComponent(slug)}?p=${encodeProfileToken({
+              avoid_ingredient_ids: filter.avoid_ingredient_ids,
+              avoid_tag_ids: filter.avoid_tag_ids,
+              strictness: filter.strictness,
+            })}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
