@@ -145,7 +145,7 @@ PRs in flight are noted; tick items as they merge.
       `profile_token` ("Shared filter" label) — finding 7. (#614)
 - [ ] Restaurant page: accept `?profile=<preset>` and pass through SSR fetch +
       client refetches; link `/durango/<diet>` cards with it — findings 5, 6.
-      (branch `feature/preset-links`, opens after #614)
+      (#618)
 - [ ] Distinguish invalid/expired share token from 404 with a friendly
       explainer — finding 7. (branch `fix/share-token-fallback`)
 - [ ] Pin the compose stack's `DATABASE_URL` (anchor-level, so the worker
