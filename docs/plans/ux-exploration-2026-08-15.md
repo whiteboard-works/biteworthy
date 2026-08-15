@@ -163,8 +163,10 @@ PRs in flight are noted; tick items as they merge.
       listing.) The "30 restaurants" line is NOT a copy fix: seeding 30 is
       an open launch gate (`launch-readiness.md` §6), so either the content
       lands or a human decides to soften the claim — flagging, not editing.
-- [ ] Search box on `/restaurants` wired to the existing `?q=` — finding 11.
-      (branch `feature/restaurant-search`, opens after #617)
+- [ ] Search box on `/restaurants` — finding 11. (#620 — shipped as local
+      filtering of the SSR list rather than the API `?q=`: review showed the
+      SSR-search version would burn the shared rack-attack bucket and blow
+      up the Data Cache key space. `?q=` stays for API/MCP callers.)
 - [ ] Web pages for the existing Devise `:recoverable` password reset —
       finding 8.
 - [ ] Account deletion UI — tracked as F2 in

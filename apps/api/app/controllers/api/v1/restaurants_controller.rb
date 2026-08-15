@@ -19,11 +19,15 @@ module Api
     # GET /api/v1/restaurants (Phase 7.2) — public list/search backing
     # the mobile home screen. `?q=` is a case-insensitive substring
     # match on name. The route existed since Phase 0 but the action
-    # never did — hitting it 500'd. Capped at 25 rows, name-ordered.
+    # never did — hitting it 500'd. Capped at 100 rows, name-ordered:
+    # the launch gate seeds 30 restaurants and the web browse page (and
+    # its local name search) treats this response as the complete
+    # published list, so the cap must stay comfortably above the real
+    # count until pagination exists.
     class RestaurantsController < BaseController
       skip_before_action :authenticate_user!, only: [:show, :index]
 
-      INDEX_LIMIT = 25
+      INDEX_LIMIT = 100
 
       def index
         scope = Restaurant.published.includes(:city, :addresses)
