@@ -54,18 +54,31 @@ export default async function RestaurantPage({
   // The JWT lets fetchRestaurant populate `favorited` for the save button;
   // its presence also gates the button (the endpoint is authed).
   const jwt = await getServerJwt();
-  const fetchItems = (preset: string | undefined) =>
-    fetchRestaurantItems(slug, { profileToken, presetSlug: preset, jwt: jwt ?? undefined });
+  const fetchItems = (token: string | undefined, preset: string | undefined) =>
+    fetchRestaurantItems(slug, { profileToken: token, presetSlug: preset, jwt: jwt ?? undefined });
 
   const restaurantPromise = fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null);
-  // An unknown/stale preset slug 404s on the API side. That must not
-  // 404 a live restaurant page (diet links are sprayed across indexable
-  // SEO pages) — fall back to the menu without the preset, with a notice.
+  // A bad filter param must not 404 a live restaurant page. Rails 422s a
+  // malformed/expired share token and 404s an unknown preset slug; both
+  // used to fall into the same catch-all and render "page not found" —
+  // for share links, on exactly the URLs people paste around. Fall back
+  // to the menu without the offending param, with a notice.
+  let shareTokenInvalid = false;
   let presetInvalid = false;
-  let initialItems = await fetchItems(presetSlug).catch(() => null);
+  let initialItems = await fetchItems(profileToken, presetSlug).catch((e: unknown) => {
+    if (profileToken && e instanceof Error && e.message.startsWith('422')) {
+      shareTokenInvalid = true;
+    }
+    return null;
+  });
+  if (!initialItems && shareTokenInvalid) {
+    initialItems = await fetchItems(undefined, presetSlug).catch(() => null);
+  }
   if (!initialItems && presetSlug) {
     presetInvalid = true;
-    initialItems = await fetchItems(undefined).catch(() => null);
+    initialItems = await fetchItems(shareTokenInvalid ? undefined : profileToken, undefined).catch(
+      () => null,
+    );
   }
   const restaurant = await restaurantPromise;
 
@@ -76,9 +89,10 @@ export default async function RestaurantPage({
       slug={slug}
       restaurant={restaurant}
       initialItems={initialItems}
-      profileToken={profileToken ?? null}
+      profileToken={shareTokenInvalid ? null : (profileToken ?? null)}
       presetSlug={presetInvalid ? null : (presetSlug ?? null)}
       presetInvalid={presetInvalid}
+      shareTokenInvalid={shareTokenInvalid}
       signedIn={Boolean(jwt)}
     />
   );

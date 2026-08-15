@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AllergenNotice, FilterBadge, HiddenReasonChip, StrictnessToggle } from '../RestaurantClient';
+import {
+  AllergenNotice,
+  FilterBadge,
+  HiddenReasonChip,
+  ShareTokenNotice,
+  StrictnessToggle,
+} from '../RestaurantClient';
 import type { FilterSummary } from '../../../../lib/restaurants';
 
 /**
@@ -75,6 +81,18 @@ describe('FilterBadge', () => {
   ] as const)('labels source %s as "%s"', (source, label) => {
     render(<FilterBadge filter={summary(source)} />);
     expect(screen.getByTestId('filter-badge')).toHaveTextContent(`${label} · balanced`);
+  });
+});
+
+describe('ShareTokenNotice', () => {
+  // A refused share token used to render a bare 404. The fallback shows
+  // the unfiltered menu — the notice must say so, because the recipient
+  // believes they're looking at the sender's filtered view.
+  it('tells the recipient the menu is unfiltered', () => {
+    render(<ShareTokenNotice />);
+    const notice = screen.getByTestId('share-token-notice');
+    expect(notice).toHaveTextContent(/invalid or has expired/i);
+    expect(notice).toHaveTextContent(/unfiltered/i);
   });
 });
 

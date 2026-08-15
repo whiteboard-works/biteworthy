@@ -47,6 +47,7 @@ export function RestaurantClient({
   profileToken = null,
   presetSlug = null,
   presetInvalid = false,
+  shareTokenInvalid = false,
   signedIn = false,
 }: {
   slug: string;
@@ -58,6 +59,8 @@ export function RestaurantClient({
   presetSlug?: string | null;
   /** The URL carried a preset slug the API didn't recognize. */
   presetInvalid?: boolean;
+  /** The URL carried a share token Rails refused (malformed/expired). */
+  shareTokenInvalid?: boolean;
   /** Gates the save button — the favorite endpoint is authed. */
   signedIn?: boolean;
 }) {
@@ -221,6 +224,8 @@ export function RestaurantClient({
 
       <ClaimSection slug={slug} restaurant={restaurant} />
 
+      {shareTokenInvalid && <ShareTokenNotice />}
+
       {presetInvalid && (
         <p
           role="note"
@@ -260,6 +265,20 @@ export function RestaurantClient({
         />
       ))}
     </main>
+  );
+}
+
+/** Shown when the URL's share token was refused — the menu below is unfiltered. */
+export function ShareTokenNotice() {
+  return (
+    <p
+      role="note"
+      data-testid="share-token-notice"
+      className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+    >
+      This share link is invalid or has expired, so the menu below is <strong>unfiltered</strong>.
+      Ask whoever sent it for a fresh link.
+    </p>
   );
 }
 
