@@ -140,7 +140,7 @@ function FeatureRow(): ReactElement {
     {
       emoji: '🥗',
       title: 'Pick your filter',
-      body: 'Six taps to a working profile. Pick a preset (Celiac, Tree Nut, Vegan, Diabetes-friendly, …) or build your own avoid list.',
+      body: 'Six taps to a working profile. Pick a preset (Celiac, Tree Nut, Vegan, Halal, …) or build your own avoid list.',
     },
     {
       emoji: '✓',
