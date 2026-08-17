@@ -21,7 +21,7 @@
     "bump": "pnpm --filter @biteworthy/version-history bump"
   },
   "devDependencies": {
-    "turbo": "^2.10.8",
+    "turbo": "^2.10.10",
     "typescript": "^6.0.3",
     "prettier": "^3.9.6"
   },
