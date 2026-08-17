@@ -4006,9 +4006,17 @@ export interface paths {
                             confidence: "confirmed" | "suggested" | "inferred";
                             ingredient_ids?: string[];
                             tag_ids?: string[];
+                            /** Format: uuid */
+                            menu_section_id?: string | null;
+                            menu_section_name?: string | null;
                             /** @enum {string} */
                             status: "visible" | "hidden";
                             reasons: Record<string, never>[];
+                            overridden_by_user?: boolean;
+                            reviews_count?: number;
+                            photo_url?: string | null;
+                            taste_score?: number | null;
+                            taste_reasons?: Record<string, never>[];
                             favorited: boolean;
                             detected_ingredients: {
                                 slug: string | null;

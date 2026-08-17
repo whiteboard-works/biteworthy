@@ -6883,6 +6883,15 @@
                         "format": "uuid"
                       }
                     },
+                    "menu_section_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "menu_section_name": {
+                      "type": "string",
+                      "nullable": true
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -6891,6 +6900,26 @@
                       ]
                     },
                     "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "overridden_by_user": {
+                      "type": "boolean"
+                    },
+                    "reviews_count": {
+                      "type": "integer"
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "taste_score": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "taste_reasons": {
                       "type": "array",
                       "items": {
                         "type": "object"

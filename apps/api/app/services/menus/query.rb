@@ -53,10 +53,13 @@ module Menus
         override_ids:  override_item_ids([item]),
         review_counts: review_counts_for([item])
       ).merge(
+        # Allergens first, then A–Z — a stable order across requests, and
+        # the rows a strict-mode user cares about lead the panel.
         detected_ingredients: item.item_ingredients.map do |ii|
           association_row(ii, ii.ingredient).merge(allergen: ii.ingredient&.allergen || false)
-        end,
+        end.sort_by { |row| [row[:allergen] ? 0 : 1, row[:name].to_s] },
         detected_tags: item.item_tags.map { |it| association_row(it, it.tag) }
+                           .sort_by { |row| row[:name].to_s }
       )
     end
 
