@@ -7,6 +7,7 @@
  */
 
 import type {
+  Confidence,
   FilterableItem,
   FilteredItem,
   FilterSource,
@@ -91,6 +92,31 @@ export interface RestaurantItem extends FilterableItem {
   taste_reasons?: TasteReason[];
   /** Set by GET show when the caller is authed; false anonymously. */
   favorited?: boolean;
+  /**
+   * Detail (`#show`) payload only — every ingredient/tag association
+   * with its provenance, same rows as the `explain_item` MCP tool.
+   * `confidence` + `source` are the honest-disclosure columns; the
+   * dish page renders them verbatim and never summarizes them away.
+   */
+  detected_ingredients?: DetectedIngredient[];
+  detected_tags?: DetectedAssociation[];
+}
+
+/**
+ * One ingredient/tag association with the columns strict mode rests on.
+ * `confidence` is the canonical filter-engine enum — a third hand-written
+ * copy of that union is exactly the drift CLAUDE.md warns codegen can't
+ * catch. `source` has no canonical TS home yet, so it lives here.
+ */
+export interface DetectedAssociation {
+  slug: string | null;
+  name: string | null;
+  confidence: Confidence;
+  source: 'human' | 'ai' | 'owner';
+}
+
+export interface DetectedIngredient extends DetectedAssociation {
+  allergen: boolean;
 }
 
 export interface FilterSummary {
@@ -142,8 +168,7 @@ export async function fetchRestaurants(
   opts: FetchOptions & { q?: string; revalidate?: number } = {},
 ): Promise<RestaurantSummary[]> {
   const qs = opts.q ? `?q=${encodeURIComponent(opts.q)}` : '';
-  const init =
-    opts.revalidate !== undefined ? { next: { revalidate: opts.revalidate } } : {};
+  const init = opts.revalidate !== undefined ? { next: { revalidate: opts.revalidate } } : {};
   const body = await api<{ restaurants: RestaurantSummary[] }>(`/restaurants${qs}`, {
     fetchImpl: opts.fetchImpl,
     ...init,
@@ -155,12 +180,15 @@ export async function fetchRestaurants(
 export async function fetchItem(
   restaurantSlugOrId: string,
   itemId: string,
-  opts: FetchOptions = {},
+  opts: FetchOptions & { presetSlug?: string | null } = {},
 ): Promise<RestaurantItem> {
   const headers: Record<string, string> = {};
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
+  // ?profile= keeps the show payload's status/reasons consistent with the
+  // filtered menu the user clicked through from.
+  const qs = opts.presetSlug ? `?profile=${encodeURIComponent(opts.presetSlug)}` : '';
   return api<RestaurantItem>(
-    `/restaurants/${encodeURIComponent(restaurantSlugOrId)}/items/${encodeURIComponent(itemId)}`,
+    `/restaurants/${encodeURIComponent(restaurantSlugOrId)}/items/${encodeURIComponent(itemId)}${qs}`,
     { headers, fetchImpl: opts.fetchImpl },
   );
 }

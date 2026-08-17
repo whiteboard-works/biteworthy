@@ -164,7 +164,13 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   anonymous scan entry (finding 4), addressed 2026-08-17 via login-bounce
   linking (scan tile + always-visible Chat nav → `/chat`, which now bounces
   signed-out visitors to `/login?next=%2Fchat` server-side).
-
+  **2026-08-17 demo-readiness push:** the item-page ingredients panel
+  shipped; the live gluten false negatives were hand-patched via admin
+  edit; `gap?` widening and the anonymous scan entry are in flight as
+  PRs. Remaining from this set: the confirmation backlog (one armed
+  "Confirm community menu" click per restaurant at
+  `/admin/restaurants/<id>` — deliberately left to a human because it
+  loosens what strict mode shows).
 - **Schema-review leftovers (2026-07-31)** — the review that produced
   #493 and #496 left three items the loop can't finish alone. (Two
   others — promoting the CHECK constraints to VALID, and the

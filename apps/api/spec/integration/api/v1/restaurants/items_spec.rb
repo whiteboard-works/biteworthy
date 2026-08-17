@@ -1,6 +1,20 @@
 require "swagger_helper"
 
 RSpec.describe "restaurants/items", type: :request do
+  # One ingredient/tag association with its provenance — the same row the
+  # `explain_item` MCP tool emits. `confidence` + `source` are the
+  # honest-disclosure columns; the dish page renders them verbatim.
+  # Scoped to the example group rather than a bare ::Object constant.
+  association_row_schema = {
+    type: :object,
+    required: %w[slug name confidence source],
+    properties: {
+      slug:       { type: :string, nullable: true },
+      name:       { type: :string, nullable: true },
+      confidence: { type: :string, enum: %w[confirmed suggested inferred] },
+      source:     { type: :string, enum: %w[human ai owner] }
+    }
+  }.freeze
   path "/api/v1/restaurants/{restaurant_id}/items" do
     parameter name: :restaurant_id, in: :path, type: :string, format: :uuid,
               description: "Published restaurant id"
@@ -120,6 +134,81 @@ RSpec.describe "restaurants/items", type: :request do
           ProfileToken.encode(avoid_ingredient_ids: [ SecureRandom.uuid ],
                               avoid_tag_ids: [], strictness: "balanced")
         end
+        run_test!
+      end
+    end
+  end
+
+  path "/api/v1/restaurants/{restaurant_id}/items/{id}" do
+    parameter name: :restaurant_id, in: :path, type: :string,
+              description: "Published restaurant id or slug"
+    parameter name: :id, in: :path, type: :string, format: :uuid,
+              description: "Published item id"
+    parameter name: :profile, in: :query, type: :string, required: false,
+              description: "DietaryProfile slug whose avoid lists to apply"
+
+    get("Show one published dish with detected ingredients/tags + provenance") do
+      tags "Restaurants"
+      produces "application/json"
+      security [{}, { bearerAuth: [] }]
+
+      response(200, "the dish, its filter verdict, and every association with confidence + source") do
+        schema type: :object,
+               required: %w[id restaurant_id name confidence ingredient_ids tag_ids
+                            status reasons detected_ingredients detected_tags favorited],
+               properties: {
+                 id:             { type: :string, format: :uuid },
+                 restaurant_id:  { type: :string, format: :uuid },
+                 name:           { type: :string },
+                 description:    { type: :string, nullable: true },
+                 confidence:     { type: :string, enum: %w[confirmed suggested inferred] },
+                 ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
+                 tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
+                 menu_section_id:   { type: :string, format: :uuid, nullable: true },
+                 menu_section_name: { type: :string, nullable: true },
+                 status:         { type: :string, enum: %w[visible hidden] },
+                 # Full per-kind reason shape documented on the index
+                 # endpoint above; kept generic here to avoid a drifting
+                 # second copy.
+                 reasons:        { type: :array, items: { type: :object } },
+                 overridden_by_user: { type: :boolean },
+                 reviews_count:  { type: :integer },
+                 photo_url:      { type: :string, nullable: true },
+                 taste_score:    { type: :number, nullable: true },
+                 taste_reasons:  { type: :array, items: { type: :object } },
+                 favorited:      { type: :boolean },
+                 detected_ingredients: {
+                   type: :array,
+                   items: association_row_schema.merge(
+                     required: association_row_schema[:required] + %w[allergen],
+                     properties: association_row_schema[:properties].merge(
+                       allergen: { type: :boolean }
+                     )
+                   )
+                 },
+                 detected_tags: { type: :array, items: association_row_schema }
+               }
+
+        let(:restaurant) { create(:restaurant, :published) }
+        let(:restaurant_id) { restaurant.id }
+        # The item carries real join rows — an empty detected_* array
+        # would validate the row schema vacuously (Rule 7).
+        let(:id) do
+          item = create(:item, :published, restaurant: restaurant)
+          ItemIngredient.create!(item: item, ingredient: create(:ingredient),
+                                 confidence: "inferred", source: "ai")
+          ItemTag.create!(item: item, tag: create(:tag),
+                          confidence: "confirmed", source: "human")
+          item.id
+        end
+        let(:profile) { nil }
+        run_test!
+      end
+
+      response(404, "restaurant or item not found / not published") do
+        let(:restaurant_id) { "00000000-0000-0000-0000-000000000000" }
+        let(:id)            { "00000000-0000-0000-0000-000000000000" }
+        let(:profile)       { nil }
         run_test!
       end
     end
