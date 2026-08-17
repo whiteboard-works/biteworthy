@@ -91,6 +91,26 @@ export interface RestaurantItem extends FilterableItem {
   taste_reasons?: TasteReason[];
   /** Set by GET show when the caller is authed; false anonymously. */
   favorited?: boolean;
+  /**
+   * Detail (`#show`) payload only — every ingredient/tag association
+   * with its provenance, same rows as the `explain_item` MCP tool.
+   * `confidence` + `source` are the honest-disclosure columns; the
+   * dish page renders them verbatim and never summarizes them away.
+   */
+  detected_ingredients?: DetectedIngredient[];
+  detected_tags?: DetectedAssociation[];
+}
+
+/** One ingredient/tag association with the columns strict mode rests on. */
+export interface DetectedAssociation {
+  slug: string | null;
+  name: string | null;
+  confidence: 'confirmed' | 'suggested' | 'inferred';
+  source: 'human' | 'ai' | 'owner';
+}
+
+export interface DetectedIngredient extends DetectedAssociation {
+  allergen: boolean;
 }
 
 export interface FilterSummary {

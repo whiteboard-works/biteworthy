@@ -6784,6 +6784,211 @@
           }
         }
       }
+    },
+    "/api/v1/restaurants/{restaurant_id}/items/{id}": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "description": "Published restaurant id or slug",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "description": "Published item id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "profile",
+          "in": "query",
+          "required": false,
+          "description": "DietaryProfile slug whose avoid lists to apply",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Show one published dish with detected ingredients/tags + provenance",
+        "tags": [
+          "Restaurants"
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the dish, its filter verdict, and every association with confidence + source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "restaurant_id",
+                    "name",
+                    "confidence",
+                    "status",
+                    "reasons",
+                    "detected_ingredients",
+                    "detected_tags",
+                    "favorited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "confirmed",
+                        "suggested",
+                        "inferred"
+                      ]
+                    },
+                    "ingredient_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    },
+                    "tag_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "visible",
+                        "hidden"
+                      ]
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "favorited": {
+                      "type": "boolean"
+                    },
+                    "detected_ingredients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slug",
+                          "name",
+                          "confidence",
+                          "source",
+                          "allergen"
+                        ],
+                        "properties": {
+                          "slug": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": [
+                              "confirmed",
+                              "suggested",
+                              "inferred"
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "human",
+                              "ai",
+                              "owner"
+                            ]
+                          },
+                          "allergen": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "detected_tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slug",
+                          "name",
+                          "confidence",
+                          "source"
+                        ],
+                        "properties": {
+                          "slug": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": [
+                              "confirmed",
+                              "suggested",
+                              "inferred"
+                            ]
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "human",
+                              "ai",
+                              "owner"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "restaurant or item not found / not published"
+          }
+        }
+      }
     }
   },
   "servers": [

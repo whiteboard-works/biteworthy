@@ -45,7 +45,10 @@ module Api
 
       def show
         restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
-        item       = restaurant.items.published.includes(photo_attachment: :blob).find(params[:id])
+        item       = restaurant.items.published
+                               .includes(photo_attachment: :blob,
+                                         item_ingredients: :ingredient, item_tags: :tag)
+                               .find(params[:id])
         payload    = query_for(restaurant).serialize_one(item)
 
         # `favorited` seeds the detail page's save button. Anonymous → false.

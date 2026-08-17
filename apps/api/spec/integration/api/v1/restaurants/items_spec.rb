@@ -1,5 +1,19 @@
 require "swagger_helper"
 
+# One ingredient/tag association with its provenance — the same row the
+# `explain_item` MCP tool emits. `confidence` + `source` are the
+# honest-disclosure columns; the dish page renders them verbatim.
+ASSOCIATION_ROW_SCHEMA = {
+  type: :object,
+  required: %w[slug name confidence source],
+  properties: {
+    slug:       { type: :string, nullable: true },
+    name:       { type: :string, nullable: true },
+    confidence: { type: :string, enum: %w[confirmed suggested inferred] },
+    source:     { type: :string, enum: %w[human ai owner] }
+  }
+}.freeze
+
 RSpec.describe "restaurants/items", type: :request do
   path "/api/v1/restaurants/{restaurant_id}/items" do
     parameter name: :restaurant_id, in: :path, type: :string, format: :uuid,
@@ -120,6 +134,62 @@ RSpec.describe "restaurants/items", type: :request do
           ProfileToken.encode(avoid_ingredient_ids: [ SecureRandom.uuid ],
                               avoid_tag_ids: [], strictness: "balanced")
         end
+        run_test!
+      end
+    end
+  end
+
+  path "/api/v1/restaurants/{restaurant_id}/items/{id}" do
+    parameter name: :restaurant_id, in: :path, type: :string,
+              description: "Published restaurant id or slug"
+    parameter name: :id, in: :path, type: :string, format: :uuid,
+              description: "Published item id"
+    parameter name: :profile, in: :query, type: :string, required: false,
+              description: "DietaryProfile slug whose avoid lists to apply"
+
+    get("Show one published dish with detected ingredients/tags + provenance") do
+      tags "Restaurants"
+      produces "application/json"
+      security [{}, { bearerAuth: [] }]
+
+      response(200, "the dish, its filter verdict, and every association with confidence + source") do
+        schema type: :object,
+               required: %w[id restaurant_id name confidence status reasons
+                            detected_ingredients detected_tags favorited],
+               properties: {
+                 id:             { type: :string, format: :uuid },
+                 restaurant_id:  { type: :string, format: :uuid },
+                 name:           { type: :string },
+                 description:    { type: :string, nullable: true },
+                 confidence:     { type: :string, enum: %w[confirmed suggested inferred] },
+                 ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
+                 tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
+                 status:         { type: :string, enum: %w[visible hidden] },
+                 reasons:        { type: :array, items: { type: :object } },
+                 favorited:      { type: :boolean },
+                 detected_ingredients: {
+                   type: :array,
+                   items: ASSOCIATION_ROW_SCHEMA.merge(
+                     required: ASSOCIATION_ROW_SCHEMA[:required] + %w[allergen],
+                     properties: ASSOCIATION_ROW_SCHEMA[:properties].merge(
+                       allergen: { type: :boolean }
+                     )
+                   )
+                 },
+                 detected_tags: { type: :array, items: ASSOCIATION_ROW_SCHEMA }
+               }
+
+        let(:restaurant) { create(:restaurant, :published) }
+        let(:restaurant_id) { restaurant.id }
+        let(:id) { create(:item, :published, restaurant: restaurant).id }
+        let(:profile) { nil }
+        run_test!
+      end
+
+      response(404, "restaurant or item not found / not published") do
+        let(:restaurant_id) { "00000000-0000-0000-0000-000000000000" }
+        let(:id)            { "00000000-0000-0000-0000-000000000000" }
+        let(:profile)       { nil }
         run_test!
       end
     end

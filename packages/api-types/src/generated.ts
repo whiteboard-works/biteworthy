@@ -3950,6 +3950,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/restaurants/{restaurant_id}/items/{id}": {
+        parameters: {
+            query?: {
+                /** @description DietaryProfile slug whose avoid lists to apply */
+                profile?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Published restaurant id or slug */
+                restaurant_id: string;
+                /**
+                 * Format: uuid
+                 * @description Published item id
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Show one published dish with detected ingredients/tags + provenance */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description DietaryProfile slug whose avoid lists to apply */
+                    profile?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description Published restaurant id or slug */
+                    restaurant_id: string;
+                    /**
+                     * Format: uuid
+                     * @description Published item id
+                     */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the dish, its filter verdict, and every association with confidence + source */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            name: string;
+                            description?: string | null;
+                            /** @enum {string} */
+                            confidence: "confirmed" | "suggested" | "inferred";
+                            ingredient_ids?: string[];
+                            tag_ids?: string[];
+                            /** @enum {string} */
+                            status: "visible" | "hidden";
+                            reasons: Record<string, never>[];
+                            favorited: boolean;
+                            detected_ingredients: {
+                                slug: string | null;
+                                name: string | null;
+                                /** @enum {string} */
+                                confidence: "confirmed" | "suggested" | "inferred";
+                                /** @enum {string} */
+                                source: "human" | "ai" | "owner";
+                                allergen: boolean;
+                            }[];
+                            detected_tags: {
+                                slug: string | null;
+                                name: string | null;
+                                /** @enum {string} */
+                                confidence: "confirmed" | "suggested" | "inferred";
+                                /** @enum {string} */
+                                source: "human" | "ai" | "owner";
+                            }[];
+                        };
+                    };
+                };
+                /** @description restaurant or item not found / not published */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

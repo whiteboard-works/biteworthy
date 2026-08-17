@@ -183,4 +183,9 @@ Bigger items (1–4) need product/content work — widening the ingestion
 `gap?` trigger so cleanly-resolved items still get implied-base inference,
 a confirmation push for Chamayo/RGP's, an ingredients panel on the item
 page, and an anonymous entry point to chat/scan — and are left for roadmap
-planning rather than this checklist.
+planning rather than this checklist. **Update 2026-08-17:** finding 3
+shipped (detected-ingredients panel on the dish page, provenance rows in
+the `#show` payload); finding 1's live false negatives were hand-patched
+via admin edit (wheat added to the five Chamayo pizzas, the Hamburger,
+and the skillet cornbread — Chimayo House still pending), with the
+ingestion-side fix in flight.

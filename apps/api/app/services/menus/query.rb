@@ -40,12 +40,23 @@ module Menus
     # Single-item payload for the dish detail route. No taste scoring —
     # the detail page never reorders, so paying for the scoring query
     # would buy nothing.
+    #
+    # Unlike the menu payload (bare denormalized UUID arrays), the detail
+    # payload carries the join rows themselves — name plus the
+    # honest-disclosure columns (`confidence`, `source`) the strict-mode
+    # promise rests on, same shape as the `explain_item` tool. Only here:
+    # the 36-item menu path must never join per item.
     def serialize_one(item)
       serialize(
         item,
         labels:        Labels.for_filter([item], @filter),
         override_ids:  override_item_ids([item]),
         review_counts: review_counts_for([item])
+      ).merge(
+        detected_ingredients: item.item_ingredients.map do |ii|
+          association_row(ii, ii.ingredient).merge(allergen: ii.ingredient&.allergen || false)
+        end,
+        detected_tags: item.item_tags.map { |it| association_row(it, it.tag) }
       )
     end
 
@@ -101,6 +112,17 @@ module Menus
         # null / [] whenever the caller has no taste signals.
         taste_score:        score_row&.fetch(:score),
         taste_reasons:      taste_reasons_for(score_row, taste_labels)
+      }
+    end
+
+    # Same row shape as Tools::Discovery::ExplainItem#association_row —
+    # the web panel and the MCP tool must tell the same provenance story.
+    def association_row(join, record)
+      {
+        slug:       record&.slug,
+        name:       record&.name,
+        confidence: join.confidence,
+        source:     join.source
       }
     end
 

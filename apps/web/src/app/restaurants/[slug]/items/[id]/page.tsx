@@ -9,6 +9,7 @@ import {
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
 import FavoriteDishButton from './_FavoriteDishButton';
+import DetectedIngredients from './_DetectedIngredients';
 import { ReviewsClient } from './ReviewsClient';
 import { SuggestFixClient } from './SuggestFixClient';
 
@@ -93,6 +94,11 @@ function Page({
           <FavoriteDishButton itemId={item.id} initialFavorited={item.favorited ?? false} />
         </div>
       )}
+
+      <DetectedIngredients
+        ingredients={item.detected_ingredients ?? []}
+        tags={item.detected_tags ?? []}
+      />
 
       <ReviewsClient
         itemId={item.id}
