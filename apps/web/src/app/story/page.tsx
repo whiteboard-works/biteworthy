@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
+import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { buildLegalMetadata } from '../../lib/legal-meta';
 
 /**
@@ -228,7 +229,12 @@ function Footer(): ReactElement {
   return (
     <footer className="border-t border-zinc-200 bg-zinc-50 px-bw-6 py-bw-12">
       <div className="mx-auto flex max-w-3xl flex-col gap-bw-3 text-bw-sm text-zinc-500 md:flex-row md:items-center md:justify-between">
-        <p>© {new Date().getFullYear()} BiteWorthy · Made in Durango, CO.</p>
+        <p>
+          © {new Date().getFullYear()} BiteWorthy · Made in Durango, CO. ·{' '}
+          <a href="/updates" data-testid="footer-version" className="hover:text-zinc-700">
+            v{CURRENT_VERSION}
+          </a>
+        </p>
         <nav className="flex flex-wrap gap-bw-4">
           <a href="/" className="hover:text-zinc-700">
             Home

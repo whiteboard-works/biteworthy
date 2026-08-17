@@ -22,6 +22,7 @@ jest.mock('../../lib/api/restaurants', () => ({
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import Home from '../../app/index';
+import { CURRENT_VERSION } from '@biteworthy/version-history';
 
 const ninis = {
   id: 'rest-1',
@@ -69,6 +70,18 @@ describe('Home (Phase 7.2)', () => {
     expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1?from=search');
   });
 
+  // The calver from @biteworthy/version-history is the app's only
+  // user-visible version (app.json's store version is decoupled). Exact
+  // assertion on purpose: a hardcoded/stale string must fail, and the
+  // format's shape is already the package contract test's job.
+  it('shows the current version on the home screen', async () => {
+    mockSearch.mockResolvedValue([]);
+    render(<Home />);
+
+    const version = await screen.findByTestId('app-version');
+    expect(version).toHaveTextContent(`BiteWorthy v${CURRENT_VERSION}`);
+  });
+
   it('profile link routes to onboarding', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
@@ -109,16 +122,4 @@ it('offers the chat from the home screen', async () => {
   fireEvent.press(await screen.findByLabelText('chat-link'));
 
   expect(mockPush).toHaveBeenCalledWith('/chat');
-});
-
-
-// The calver from @biteworthy/version-history is the app's only
-// user-visible version (app.json's store version is decoupled).
-it('shows the current version on the home screen', async () => {
-  mockSearch.mockResolvedValue({ restaurants: [ninis], total: 1 });
-
-  render(<Home />);
-
-  const version = await screen.findByLabelText('app-version');
-  expect(version).toHaveTextContent(/^BiteWorthy v\d{4}\.\d{1,2}\.\d{1,2}(\.\d+)?$/);
 });

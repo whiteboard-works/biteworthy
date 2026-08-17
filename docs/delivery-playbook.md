@@ -108,6 +108,12 @@ applicable branch.
 - Request `@codex review` immediately.
 - Subscribe to PR activity for webhook events.
 - Append to `docs/status.md`.
+- **When a unit of user-visible work has fully landed, cut a release:**
+  `pnpm bump --note "…"` (one note per user-facing change, plain
+  language — the notes render verbatim on `/updates`) and ship the
+  resulting `packages/version-history/src/history.json` change as the
+  version-bump PR. Without this the footer/mobile version and the
+  public changelog silently freeze while `status.md` advances.
 
 ### 7. End the tick
 

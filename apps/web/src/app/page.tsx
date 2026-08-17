@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
+import { Footer } from './_Footer';
 import { HeroCta } from './_HeroCta';
 import { RestaurantCards } from './_RestaurantCards';
 import WaitlistForm from './_waitlist-form';
@@ -179,45 +179,6 @@ function DurangoNote(): ReactElement {
         Other towns next, once Durango proves the model.
       </p>
     </section>
-  );
-}
-
-function Footer(): ReactElement {
-  return (
-    <footer className="border-t border-zinc-200 bg-zinc-50 px-bw-6 py-bw-12">
-      <div className="mx-auto flex max-w-5xl flex-col gap-bw-3 text-bw-sm text-zinc-500 md:flex-row md:items-center md:justify-between">
-        <p>
-          &copy; {new Date().getFullYear()} BiteWorthy &middot; Made in Durango, CO. &middot;{' '}
-          <a href="/updates" data-testid="footer-version" className="hover:text-zinc-700">
-            v{CURRENT_VERSION}
-          </a>
-        </p>
-        <nav className="flex flex-wrap gap-bw-4">
-          <a href="/restaurants" className="hover:text-zinc-700" data-testid="footer-restaurants">
-            Restaurants
-          </a>
-          <a href="/story" className="hover:text-zinc-700" data-testid="footer-story">
-            Our story
-          </a>
-          <a href="/privacy" className="hover:text-zinc-700" data-testid="footer-privacy">
-            Privacy
-          </a>
-          <a href="/terms" className="hover:text-zinc-700" data-testid="footer-terms">
-            Terms
-          </a>
-          <a href="/press" className="hover:text-zinc-700" data-testid="footer-press">
-            Press
-          </a>
-          <a
-            href="https://github.com/whiteboard-works/biteworthy"
-            className="hover:text-zinc-700"
-            data-testid="footer-github"
-          >
-            GitHub
-          </a>
-        </nav>
-      </div>
-    </footer>
   );
 }
 

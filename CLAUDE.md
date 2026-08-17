@@ -61,7 +61,7 @@ soften or flag it rather than leaving it stale.
 
 ## Stack at a glance
 
-Pnpm + Turborepo monorepo. Three apps + five shared packages:
+Pnpm + Turborepo monorepo. Three apps + six shared packages:
 
 - `apps/api` — Rails 8 (Ruby 3.3.6) JSON API on Postgres 16. **Not** part of the pnpm workspace; lives as its own Bundler tree.
 - `apps/web` — Next.js 15 App Router + Tailwind. Dev port `:3001`.
@@ -71,6 +71,7 @@ Pnpm + Turborepo monorepo. Three apps + five shared packages:
 - `packages/analytics` — the funnel-event taxonomy (`EVENTS` map + `EventPropsMap`; 9 core funnel/engagement events + 3 auth events). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add new events + optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
 - `packages/ui-tokens` — design tokens consumed by Tailwind (web) and `StyleSheet.create` (mobile).
 - `packages/eslint-config` — minimal flat config; framework rules live per-app.
+- `packages/version-history` — the calver release log (`YYYY.M.D[.X]`): `src/history.json` is the source of truth, `pnpm bump --note "…"` prepends a release, a contract test rejects malformed edits, and web (`/updates` + footer) and mobile (home screen) render its exports.
 
 `pnpm-workspace.yaml` covers `apps/web`, `apps/mobile`, `packages/*`. `apps/api` is intentionally excluded.
 

@@ -20,8 +20,12 @@ export interface VersionEntry {
   notes: string[];
 }
 
-export const VERSION_HISTORY = history satisfies VersionEntry[];
+// Explicitly `readonly VersionEntry[]` (not `satisfies`): the array is
+// a process-wide singleton — a consumer calling .sort()/.reverse() must
+// not compile, and a stray key in the JSON must not silently widen the
+// type.
+export const VERSION_HISTORY: readonly VersionEntry[] = history;
 
 // The history is seeded non-empty and the contract test keeps it that
 // way, so the newest entry always exists.
-export const CURRENT_VERSION: string = VERSION_HISTORY[0]!.version;
+export const CURRENT_VERSION = VERSION_HISTORY[0]!.version;
