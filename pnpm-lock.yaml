@@ -49,6 +49,9 @@ importers:
       '@biteworthy/ui-tokens':
         specifier: workspace:*
         version: link:../../packages/ui-tokens
+      '@biteworthy/version-history':
+        specifier: workspace:*
+        version: link:../../packages/version-history
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.3)
@@ -149,6 +152,9 @@ importers:
       '@biteworthy/ui-tokens':
         specifier: workspace:*
         version: link:../../packages/ui-tokens
+      '@biteworthy/version-history':
+        specifier: workspace:*
+        version: link:../../packages/version-history
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.6)
@@ -268,6 +274,15 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/version-history:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(jsdom@29.1.1)(vite@8.2.1(@types/node@26.1.2)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.48.0)(yaml@2.9.0))
 
 packages:
 
@@ -10239,7 +10254,7 @@ snapshots:
       eslint: 10.8.0(jiti@1.21.7)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@10.8.0(jiti@1.21.7))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@10.8.0(jiti@1.21.7))
       eslint-plugin-react: 7.37.5(eslint@10.8.0(jiti@1.21.7))
       eslint-plugin-react-hooks: 7.1.1(eslint@10.8.0(jiti@1.21.7))
@@ -10272,7 +10287,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@10.8.0(jiti@1.21.7))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7))
     transitivePeerDependencies:
       - supports-color
 
@@ -10287,7 +10302,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@10.8.0(jiti@1.21.7)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.66.0(eslint@10.8.0(jiti@1.21.7))(typescript@6.0.3))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7)))(eslint@10.8.0(jiti@1.21.7)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9

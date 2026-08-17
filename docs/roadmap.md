@@ -138,6 +138,13 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Mobile `/settings/analytics` is an orphan route (2026-08-16)** — the
+  screen exists (`apps/mobile/app/settings/analytics.tsx`, the analytics
+  opt-in switch) but nothing in the app navigates to it; the only
+  references are prose comments. Surfaced while placing the version line
+  for #624. Needs either a settings/about hub linked from home, or a
+  direct entry point — a privacy-relevant control shouldn't be reachable
+  only by deep link.
 - **User-exploration findings (2026-08-15)** — a live-product walkthrough
   left a severity-ordered findings brief with a small-fixes checklist in
   [`plans/ux-exploration-2026-08-15.md`](plans/ux-exploration-2026-08-15.md).

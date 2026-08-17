@@ -1,0 +1,21 @@
+[
+  {
+    "version": "2026.8.16",
+    "date": "2026-08-16",
+    "notes": [
+      "Version history begins: BiteWorthy now carries a date-based version (year.month.day), shown in the site footer and in the app, with this page listing what changed in each drop."
+    ]
+  },
+  {
+    "version": "2026.8.15",
+    "date": "2026-08-15",
+    "notes": [
+      "Share links now label themselves honestly — a menu filtered by a friend's shared profile says \"Shared filter\" instead of \"No filter\".",
+      "Expired or invalid share links show the menu with an explanation instead of a \"page not found\" error.",
+      "Clicking a restaurant from a diet guide (like \"Celiac restaurants in Durango\") now keeps that diet applied on the menu — and it stays applied while you browse dishes.",
+      "Password reset works end to end: a \"Forgot your password?\" link on sign-in, reset emails that land on a working page, and old sessions signed out after a reset.",
+      "The restaurants page gained a search box, and restaurant pages now show phone numbers and website links.",
+      "New dietary guides index at /durango, so every diet page is one tap from browse."
+    ]
+  }
+]

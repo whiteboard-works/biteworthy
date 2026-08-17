@@ -19,6 +19,7 @@ biteworthy/
 │   ├── filter-engine/   Menu wire types + shared display helpers (web + mobile)
 │   ├── analytics/       Funnel-event taxonomy (web + mobile + api)
 │   ├── ui-tokens/       Shared design tokens
+│   ├── version-history/ Calver release log (YYYY.M.D[.X]) + pnpm bump
 │   └── eslint-config/
 ├── _legacy/         Frozen 2020 Rails 4.2 codebase (read-only)
 └── docs/

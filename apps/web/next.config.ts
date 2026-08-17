@@ -6,6 +6,7 @@ const config: NextConfig = {
     '@biteworthy/api-types',
     '@biteworthy/filter-engine',
     '@biteworthy/ui-tokens',
+    '@biteworthy/version-history',
   ],
   experimental: {
     typedRoutes: true,
