@@ -115,9 +115,13 @@ connected) — worth repeating with one for layout/interaction issues.
     - 3 restaurants live vs. "seeding the launch with 30" on the homepage.
     - Zero dish photos anywhere → menus render as walls of 160px monogram
       tiles (the placeholder design assumed partial coverage, not 0%).
+      *(Web fixed 2026-08-17: the monogram tile is gone — photo-less
+      cards render compact. Photos themselves are still content work.)*
     - Menu sections populated at only 1 of 3 restaurants (RGP's Wraps);
       Chamayo and Zia render as one flat A–Z list with no course structure.
     - Zero reviews; "Be the first to review" repeats 36× on a menu page.
+      *(Web fixed 2026-08-17 — quiet count only when reviews exist;
+      mobile still carries the per-card CTA, tracked in the roadmap.)*
     - The homepage advertises a "Diabetes-friendly" preset that doesn't exist
       (live presets: celiac, dairy-free, gluten-free, halal, kosher,
       peanut-allergy, pescatarian, tree-nut-allergy, vegan, vegetarian).

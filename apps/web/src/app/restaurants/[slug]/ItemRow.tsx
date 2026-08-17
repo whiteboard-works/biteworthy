@@ -15,10 +15,7 @@ import { HiddenReasonChip } from './RestaurantClient';
  *
  * Renders as a card. The dish name links to the detail page; a photo,
  * when one exists, sits above the text. Photo-less items render as
- * compact text cards — no placeholder tile. The monogram placeholder
- * this shipped with assumed partial photo coverage; at 0% coverage it
- * became the dominant visual (a wall of pastel initials), so a photo
- * slot now has to be earned by an actual photo.
+ * compact text cards — a media block has to be earned by a real photo.
  */
 export interface ItemRowProps {
   item: RestaurantItem;
@@ -29,28 +26,6 @@ export interface ItemRowProps {
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
-}
-
-/**
- * The dish photo, when the item has one. Real photos keep the
- * `item-photo-<id>` testid + `<img>` contract from Phase 4.11.4;
- * photo-less items get no media block at all.
- */
-function ItemPhoto({ item }: { item: RestaurantItem }): ReactElement | null {
-  if (!item.photo_url) return null;
-
-  // Cropped dish photo from the source menu page. Plain <img> (not
-  // next/image) since the URL is a Rails signed blob URL whose host
-  // varies per env; loader config would have to learn each one.
-  return (
-    <img
-      src={item.photo_url}
-      alt={item.name}
-      loading="lazy"
-      data-testid={`item-photo-${item.id}`}
-      className="h-40 w-full object-cover"
-    />
-  );
 }
 
 export function ItemRow({
@@ -68,6 +43,7 @@ export function ItemRow({
   const showChips = hidden || overridden;
   const persistent = item.overridden_by_user === true;
   const reviewsCount = item.reviews_count ?? 0;
+  const itemHref = `/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`;
   return (
     <li
       data-testid={`item-${item.id}`}
@@ -76,27 +52,37 @@ export function ItemRow({
         hidden ? 'opacity-60' : '',
       ].join(' ')}
     >
-      <ItemPhoto item={item} />
+      {item.photo_url && (
+        // Cropped dish photo from the source menu page. Plain <img> (not
+        // next/image) since the URL is a Rails signed blob URL whose host
+        // varies per env; loader config would have to learn each one.
+        <img
+          src={item.photo_url}
+          alt={item.name}
+          loading="lazy"
+          data-testid={`item-photo-${item.id}`}
+          className="h-40 w-full object-cover"
+        />
+      )}
       <div className="flex flex-1 flex-col p-bw-3">
         <p className="font-semibold">
-          {/* The name is the way into the dish page — provenance panel,
-              reviews, suggest-a-fix. It used to hide behind the review
-              CTA, the card's only link. */}
+          {/* The name is the card's way into the dish page. The underline
+              is always on: hover styling alone leaves no visible link
+              affordance on touch screens or under keyboard focus. */}
           <a
-            href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
+            href={itemHref}
             data-testid={`open-item-${item.id}`}
-            className={[
-              'hover:underline',
-              hidden ? 'text-hide' : 'text-zinc-900 hover:text-bite-dark',
-            ].join(' ')}
+            className={`underline decoration-zinc-300 underline-offset-2 hover:decoration-bite ${hidden ? 'text-hide' : 'text-zinc-900 hover:text-bite-dark'}`}
           >
             {item.name}
           </a>
         </p>
         {item.description && <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>}
         {reviewsCount > 0 && (
-          <p className="mt-1 text-bw-xs text-zinc-500">
-            {reviewsCount} review{reviewsCount === 1 ? '' : 's'}
+          <p className="mt-1 text-bw-xs">
+            <a href={itemHref} className="text-zinc-500 hover:text-bite-dark hover:underline">
+              {reviewsCount} review{reviewsCount === 1 ? '' : 's'}
+            </a>
           </p>
         )}
 

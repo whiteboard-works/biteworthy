@@ -196,6 +196,13 @@ export function RestaurantClient({
   const totalHidden = overriddenSections.reduce((acc, s) => acc + s.hidden.length, 0);
   const totalVisible = overriddenSections.reduce((acc, s) => acc + s.visible.length, 0);
 
+  // A lone group wearing the grouping fallback label means the menu has
+  // no course structure — an "Other" heading over everything would be
+  // labeling noise. Keyed on the name, not the id: groupItemsBySection
+  // mints 'Other' from a missing menu_section_name whatever the id is.
+  const loneFallbackSection =
+    overriddenSections.length === 1 && overriddenSections[0]?.name === 'Other';
+
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
@@ -260,7 +267,7 @@ export function RestaurantClient({
 
       <AllergenNotice />
 
-      <TopPicksRow items={rawItems} restaurantSlug={slug} />
+      <TopPicksRow items={rawItems} restaurantSlug={slug} presetSlug={presetSlug} />
 
       {overriddenSections.length === 0 && (
         <p className="mt-bw-6 text-center text-bw-base text-zinc-500">
@@ -272,9 +279,7 @@ export function RestaurantClient({
         <SectionBlock
           key={section.id ?? '__none__'}
           section={section}
-          // A lone unnamed group means the menu has no course structure —
-          // an "Other" heading over everything would be labeling noise.
-          showHeading={!(overriddenSections.length === 1 && section.id === null)}
+          showHeading={!loneFallbackSection}
           restaurantSlug={slug}
           presetSlug={presetSlug}
           shownAnyway={shownAnyway}
@@ -431,7 +436,8 @@ export function StrictnessToggle({
   );
 }
 
-function SectionBlock({
+// Exported for render tests, like the other section-level helpers.
+export function SectionBlock({
   section,
   showHeading = true,
   restaurantSlug,
@@ -450,9 +456,13 @@ function SectionBlock({
 }) {
   const [hiddenOpen, setHiddenOpen] = useState(false);
   return (
-    <section className="mt-bw-6">
+    // When the heading is suppressed the aria-label keeps the region
+    // reachable by landmark for screen-reader users.
+    <section className="mt-bw-6" aria-label={showHeading ? undefined : 'Menu'}>
       {showHeading && <h2 className="text-bw-lg font-bold">{section.name}</h2>}
-      <ul className="mt-bw-2 grid grid-cols-1 gap-bw-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* items-start: a photo card must not stretch its photo-less row
+          siblings into 160px of empty card once real photos land. */}
+      <ul className="mt-bw-2 grid grid-cols-1 items-start gap-bw-4 sm:grid-cols-2 lg:grid-cols-3">
         {section.visible.map((item) => (
           <ItemRow
             key={item.id}
@@ -466,7 +476,8 @@ function SectionBlock({
         ))}
         {section.visible.length === 0 && section.hidden.length > 0 && (
           <li className="col-span-full py-bw-2 text-bw-sm text-zinc-500">
-            Every item in this section is hidden by your filter.
+            {/* "here", not "in this section" — the heading may be suppressed. */}
+            Every item here is hidden by your filter.
           </li>
         )}
       </ul>
