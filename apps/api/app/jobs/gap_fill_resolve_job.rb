@@ -28,6 +28,13 @@ class GapFillResolveJob < ApplicationJob
   # "nothing matched".
   GAP_BATCH_SIZE = 25
 
+  # One slice's API call soft-failed (timed_anthropic_call already
+  # logged it and recorded any billed usage). Raised so the rescue below
+  # records the degradation and retry_on drives a re-run — replays are
+  # safe because the retry recomputes the gap set and merge! dedupes by
+  # slug, skipping rows already landed.
+  SliceFailedError = Class.new(StandardError)
+
   def resolve_model = ENV.fetch("INGESTION_RESOLVE_MODEL", DEFAULT_RESOLVE_MODEL)
 
   def perform(ingestion_run_id)
@@ -41,10 +48,12 @@ class GapFillResolveJob < ApplicationJob
       return
     end
 
-    # One call per slice; each slice merges before the next call, so a
-    # later failure keeps the enrichment already landed (the retry
-    # recomputes the gap set and merge! dedupes by slug). The usage
-    # accounting stays per-call: timed_anthropic_call records each
+    ingredient_paths = Ingredient.pluck(:slug, :path).to_h
+    cuisine_slugs    = Tag.where(family: "cuisine").pluck(:slug).to_set
+
+    # One call per slice; each slice merges before the next call, so the
+    # enrichment already landed survives a later slice's failure. The
+    # usage accounting stays per-call: timed_anthropic_call records each
     # client's billed tokens itself.
     gaps.each_slice(GAP_BATCH_SIZE) do |slice|
       out = timed_anthropic_call(
@@ -60,20 +69,18 @@ class GapFillResolveJob < ApplicationJob
           response_schema: Ingestion::GapFillSchema
         )
       end
-      if out.nil?
-        run.update!(enrichment_status: "failed")
-        return
-      end
-      result, = out
+      raise SliceFailedError, "gap-fill slice failed (see log for the cause)" if out.nil?
 
-      merge!(run, slice, result)
+      result, = out
+      merge!(run, slice, result, ingredient_paths, cuisine_slugs)
     end
     run.update!(enrichment_status: "completed")
   rescue StandardError
-    # Anything the soft-fail path didn't catch (transport errors bypass
-    # ApiError, DB hiccups, bugs): record the degradation so clients
-    # stop polling, then re-raise so retry_on gets its attempts — a
-    # successful retry flips this back to completed.
+    # Everything that should reach retry_on (a slice's SliceFailedError,
+    # transport errors that bypass ApiError, DB hiccups, bugs): record
+    # the degradation so clients stop polling, then re-raise so retry_on
+    # gets its attempts — a successful retry flips this back to
+    # completed.
     run&.update_columns(enrichment_status: "failed", updated_at: Time.current) if run&.persisted?
     raise
   end
@@ -101,10 +108,8 @@ class GapFillResolveJob < ApplicationJob
     end
   end
 
-  def merge!(run, gaps, result)
+  def merge!(run, gaps, result, ingredient_paths, cuisine_slugs)
     response_by_index = Array(result["items"]).each_with_object({}) { |row, h| h[row["index"]] ||= row }
-    ingredient_paths  = Ingredient.pluck(:slug, :path).to_h
-    cuisine_slugs     = Tag.where(family: "cuisine").pluck(:slug).to_set
 
     run.transaction do
       # order(:id) keeps lock acquisition in PK order, matching

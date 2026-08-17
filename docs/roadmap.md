@@ -147,6 +147,16 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   unreachable. Candidate for a shared filter-engine heading/label helper
   so the two clients can't drift (`groupItemsBySection` mints the
   "Other" fallback both render).
+- **`needing_attention`'s empty-payload proxy degraded by implied bases
+  (2026-08-17)** — the scope (`ingestion_item.rb`) treats
+  `ingredients_payload = []` as "nothing resolved, the filter would be
+  empty or wrong for this dish". #638's implied-base pass can now leave a
+  composed dish whose explicit matching found *nothing* with a single
+  `source: "derived"` row (the inferred wheat), so it no longer trips the
+  proxy and skips the attention queue even though a human should still
+  look. The honest check is probably "no row with `source: match`"
+  (jsonb containment), but that widens a scope several tools read —
+  deliberately not folded into #638.
 - **Mobile `/settings/analytics` is an orphan route (2026-08-16)** — the
   screen exists (`apps/mobile/app/settings/analytics.tsx`, the analytics
   opt-in switch) but nothing in the app navigates to it; the only

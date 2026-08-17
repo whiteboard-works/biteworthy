@@ -15,6 +15,7 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["fruit-lemon",      "Lemon",           "fruit.lemon",             []],
       ["grain-wheat",      "Wheat",           "grain.wheat",             []],
       ["grain-wheat-flour-tortilla", "Flour Tortilla", "grain.wheat.flour_tortilla", []],
+      ["grain-corn-tortilla", "Corn Tortilla", "grain.corn.tortilla",    []],
     ])
   end
 
@@ -50,6 +51,12 @@ RSpec.describe Ingestion::DeterministicResolver do
     expect(result.gap_phrases).to contain_exactly("chimichurri")
   end
 
+  it "ignores dish-name leftovers when the description carried matches" do
+    result = resolve(StubItem.new("id-1", "Taco", "steak, cilantro, lime", nil)).first
+    expect(result.gap?).to be(false)
+    expect(result.gap_phrases).to be_empty
+  end
+
   # The pizza bug (ux-exploration finding 1): a composed dish whose
   # description resolves cleanly used to skip inference entirely, so the
   # wheat crust never existed and gluten-free passed the pizzas.
@@ -69,7 +76,7 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.gap_phrases).to be_empty
     end
 
-    it "does not invent bases for a plain dish (and still ignores its name leftovers)" do
+    it "does not invent bases for a plain dish" do
       result = resolve(StubItem.new("id-1", "Grilled Chicken", "chicken, lemon", nil)).first
 
       expect(result.ingredients.map { |r| r["slug"] })
@@ -84,6 +91,37 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.ingredients.map { |r| r["slug"] })
         .to contain_exactly("grain-wheat-flour-tortilla", "poultry-chicken")
       expect(result.gap?).to be(true)
+    end
+
+    it "yields to an explicit alternative base (a corn-tortilla quesadilla gets no wheat)" do
+      result = resolve(StubItem.new("id-1", "Quesadilla", "corn tortilla, chicken", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] })
+        .to contain_exactly("grain-corn-tortilla", "poultry-chicken")
+      expect(result.gap?).to be(true)
+    end
+
+    it "reads the section name too (a Pizzas section implies crust for every item in it)" do
+      result = resolve(StubItem.new("id-1", "Margherita", "mozzarella, basil", "Pizzas")).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      expect(result.gap?).to be(true)
+    end
+
+    it "suppresses the base when the dish's own name claims the diet it would contradict" do
+      result = resolve(StubItem.new("id-1", "Gluten-Free Pizza", "mozzarella, basil", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).not_to include("grain-wheat")
+      # The explicit claim must survive — unioning wheat here would veto
+      # it and hide the dish from exactly the users it exists for.
+      expect(result.tags.map { |t| t["slug"] }).to include("gluten-free")
+      expect(result.gap?).to be(true)
+    end
+
+    it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
+      result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
     end
 
     it "matches plural and multi-word dish-name keywords" do

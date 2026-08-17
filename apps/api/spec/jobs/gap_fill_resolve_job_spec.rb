@@ -189,7 +189,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
 
-    it "a failing later slice marks enrichment failed but keeps the slices already merged" do
+    it "a failing later slice keeps the merges already landed, marks enrichment failed, and retries" do
       calls = 0
       allow_any_instance_of(AnthropicClient).to receive(:messages_create) do
         calls += 1
@@ -199,7 +199,11 @@ RSpec.describe GapFillResolveJob, type: :job do
       end
       allow(Rails.logger).to receive(:error)
 
-      described_class.perform_now(run.id)
+      # .new.perform bypasses retry_on so the raise is observable — the
+      # soft slice failure must reach retry_on, not silently abandon the
+      # remaining slices.
+      expect { described_class.new.perform(run.id) }
+        .to raise_error(GapFillResolveJob::SliceFailedError)
 
       expect(gap_item.reload.ingredients_payload)
         .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
