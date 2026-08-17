@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
+import { FeatureRow } from './_FeatureRow';
 import { Footer } from './_Footer';
 import { HeroCta } from './_HeroCta';
 import { RestaurantCards } from './_RestaurantCards';
@@ -126,41 +127,6 @@ function Hero(): ReactElement {
           One email, 48 hours before public release. Nothing else.
         </p>
         <WaitlistForm />
-      </div>
-    </section>
-  );
-}
-
-function FeatureRow(): ReactElement {
-  const features: { title: string; body: string; emoji: string }[] = [
-    {
-      emoji: '📸',
-      title: 'Scan the menu',
-      body: 'Camera, photo library, or paste a link to a PDF / online menu. Multi-page menus are fine — the AI reads each page in seconds.',
-    },
-    {
-      emoji: '🥗',
-      title: 'Pick your filter',
-      body: 'Six taps to a working profile. Pick a preset (Celiac, Tree Nut, Vegan, Halal, …) or build your own avoid list.',
-    },
-    {
-      emoji: '✓',
-      title: 'See only safe dishes',
-      body: 'Hidden items each say why — "Contains dairy (cheese)" — so you never wonder. Tap "show anyway" to override one for this meal.',
-    },
-  ];
-  return (
-    <section className="bg-bite-light/30 px-bw-6 py-bw-16">
-      <div className="mx-auto grid max-w-5xl gap-bw-8 md:grid-cols-3">
-        {features.map((f) => (
-          <article key={f.title} className="rounded-bw-lg bg-white p-bw-6 shadow-sm">
-            <p aria-hidden className="text-bw-2xl">
-              {f.emoji}
-            </p>
-            <h2 className="mt-bw-3 text-bw-xl font-bold text-zinc-900">{f.title}</h2>
-            <p className="mt-bw-2 text-bw-base text-zinc-700">{f.body}</p>
-          </article>
-        ))}
       </div>
     </section>
   );

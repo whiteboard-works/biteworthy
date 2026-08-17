@@ -195,17 +195,19 @@ export function SiteHeader() {
           >
             Restaurants
           </Link>
+          {/* Scanning a menu is a conversation now — this is where the
+              old "Scan a menu" link pointed before the pivot. Visible
+              signed-out too: the headline feature must be discoverable,
+              and /chat bounces anonymous visitors through /login. */}
+          <Link
+            href="/chat"
+            data-testid="nav-chat"
+            className="font-semibold text-zinc-700 hover:text-bite-dark"
+          >
+            Chat
+          </Link>
           {signedIn === true && (
             <>
-              {/* Scanning a menu is a conversation now — this is where
-                  the old "Scan a menu" link pointed before the pivot. */}
-              <Link
-                href="/chat"
-                data-testid="nav-chat"
-                className="font-semibold text-zinc-700 hover:text-bite-dark"
-              >
-                Chat
-              </Link>
               {needsProfile && (
                 <Link
                   href="/onboarding"
