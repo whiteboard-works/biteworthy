@@ -376,7 +376,7 @@ RSpec.describe "admin/management", type: :request do
   path "/api/v1/admin/users/{id}" do
     parameter name: :id, in: :path, type: :string, format: :uuid
 
-    patch("Toggle is_admin (self-demotion refused)") do
+    patch("Partial update: is_admin toggle and/or handle edit") do
       tags "Admin"
       consumes "application/json"
       produces "application/json"
@@ -384,19 +384,26 @@ RSpec.describe "admin/management", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
       parameter name: :body, in: :body, required: true, schema: {
         type: :object,
-        required: %w[is_admin],
-        properties: { is_admin: { type: :boolean } }
+        # Each field applies only when present; a body with neither is
+        # refused (no_supported_fields). Handles accept any case and
+        # are stored lowercase.
+        properties: {
+          is_admin: { type: :boolean },
+          handle:   { type: :string, pattern: "^[A-Za-z0-9_]{3,30}$" }
+        }
       }
 
       response(200, "the updated user") do
         schema admin_user_row_schema
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id)   { create(:user).id }
-        let(:body) { { is_admin: true } }
-        run_test!
+        let(:body) { { is_admin: true, handle: "renamed_by_admin" } }
+        run_test! do
+          expect(User.find(id).handle).to eq("renamed_by_admin")
+        end
       end
 
-      response(422, "self-demotion refused — the system keeps >= 1 admin") do
+      response(422, "self-demotion refused, invalid/taken handle, or empty body") do
         schema "$ref" => "#/components/schemas/Error"
         let(:account) { create(:user, :admin) }
         let(:Authorization) { bearer_for(account) }

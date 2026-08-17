@@ -55,6 +55,23 @@ vi.mock('../../../../lib/mcp-tokens', () => ({
   revokeToken: (...a: unknown[]) => mockRevokeToken(...a),
 }));
 
+const mockFetchMe = vi.fn();
+const mockUpdateMyHandle = vi.fn();
+vi.mock('../../../../lib/me', () => {
+  class HandleValidationError extends Error {
+    constructor(public readonly messages: string[]) {
+      super(messages.join(', '));
+      this.name = 'HandleValidationError';
+    }
+  }
+  return {
+    fetchMe: (...a: unknown[]) => mockFetchMe(...a),
+    updateMyHandle: (...a: unknown[]) => mockUpdateMyHandle(...a),
+    HandleValidationError,
+  };
+});
+import { HandleValidationError } from '../../../../lib/me';
+
 import ProfileSettingsPage from '../page';
 
 const PROFILE: ProfilePayload = {
@@ -79,6 +96,15 @@ const PROFILE: ProfilePayload = {
   disclaimer_acknowledged_at: '2026-07-01T00:00:00Z',
 };
 
+const ME = {
+  id: 'u-1',
+  email: 'sky@example.com',
+  handle: 'diner_ab12cd34',
+  display_name: 'Sky',
+  is_admin: false,
+  is_super_admin: false,
+};
+
 beforeEach(() => {
   localStorage.clear();
   mockReplace.mockReset();
@@ -101,6 +127,8 @@ beforeEach(() => {
     created_at: '2026-08-14T00:00:00Z', last_used_at: null,
   });
   mockRevokeToken.mockReset().mockResolvedValue(undefined);
+  mockFetchMe.mockReset().mockResolvedValue(structuredClone(ME));
+  mockUpdateMyHandle.mockReset().mockResolvedValue({ ...structuredClone(ME), handle: 'chosen_name' });
 });
 
 afterEach(() => localStorage.clear());
@@ -467,5 +495,55 @@ describe('ProfileSettingsPage — access tokens', () => {
 
     expect(await screen.findByText(/full access ·/)).toBeInTheDocument();
     expect(screen.getByText(/discovery:read ·/)).toBeInTheDocument();
+  });
+});
+
+describe('ProfileSettingsPage — public profile (username)', () => {
+  it('shows the current handle and only enables Save once it changes', async () => {
+    render(<ProfileSettingsPage />);
+
+    const input = await screen.findByLabelText('Username');
+    expect(input).toHaveValue('diner_ab12cd34');
+    expect(screen.getByTestId('handle-save')).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: 'chosen_name' } });
+    expect(screen.getByTestId('handle-save')).toBeEnabled();
+  });
+
+  // A same-handle "change" differing only in case would be a no-op the
+  // server downcases away — the button staying disabled says so upfront.
+  it('treats a case-only edit as unchanged', async () => {
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: 'Diner_AB12cd34' },
+    });
+    expect(screen.getByTestId('handle-save')).toBeDisabled();
+  });
+
+  it('saves the trimmed handle and confirms with the new public URL', async () => {
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: '  chosen_name ' },
+    });
+    fireEvent.click(screen.getByTestId('handle-save'));
+
+    await waitFor(() => expect(mockUpdateMyHandle).toHaveBeenCalledWith('chosen_name'));
+    expect(await screen.findByTestId('handle-saved')).toHaveTextContent('/u/chosen_name');
+  });
+
+  it('renders a taken handle as an inline field error, not a crash', async () => {
+    mockUpdateMyHandle.mockRejectedValue(new HandleValidationError(['has already been taken']));
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: 'somebody_else' },
+    });
+    fireEvent.click(screen.getByTestId('handle-save'));
+
+    expect(await screen.findByTestId('handle-error')).toHaveTextContent(
+      'Username has already been taken.',
+    );
   });
 });

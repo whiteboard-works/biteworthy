@@ -154,3 +154,12 @@ export function setUserAdmin(
     fetchImpl,
   );
 }
+
+/** Support-fixing a squatted or offensive handle; stored lowercase. */
+export function setUserHandle(
+  id: string,
+  handle: string,
+  fetchImpl?: typeof fetch,
+): Promise<AdminUserRow> {
+  return patchAdminJson(`/api/admin/users/${encodeURIComponent(id)}`, { handle }, fetchImpl);
+}

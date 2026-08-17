@@ -53,7 +53,15 @@ class User < ApplicationRecord
   has_many :resolved_suggestions, class_name: "Suggestion", foreign_key: :resolved_by_user_id,
            inverse_of: :resolved_by_user, dependent: :nullify
 
-  validates :handle, presence: true, uniqueness: true,
+  # Handles are stored lowercase: they're public identity (/u/:handle,
+  # review bylines), so "Alice" and "alice" coexisting would be an
+  # impersonation surface. `normalizes` downcases on assignment AND in
+  # finders (find_by(handle:)), which is what makes /users/:handle
+  # lookups case-insensitive without touching the query. The
+  # case-insensitive uniqueness check is belt-and-braces for any write
+  # path that predates normalization.
+  normalizes :handle, with: ->(handle) { handle.downcase }
+  validates :handle, presence: true, uniqueness: { case_sensitive: false },
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
 
   # Mirrors the `super_admin_implies_admin` CHECK constraint so the

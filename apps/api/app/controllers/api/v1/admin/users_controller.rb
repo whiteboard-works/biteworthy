@@ -2,11 +2,11 @@ module Api
   module V1
     module Admin
       # User management for the web admin — deliberately minimal:
-      # list/search plus the is_admin toggle. No destroy (account
-      # deletion has its own legal-remediation path), no email/handle
-      # editing. The self-demotion guard guarantees the acting admin
-      # survives, so the system can never reach zero admins through
-      # this API.
+      # list/search, the is_admin toggle, handle edits (support-fixing a
+      # squatted or offensive handle), and the super-admin-gated hard
+      # delete. No email editing. The self-demotion guard guarantees the
+      # acting admin survives, so the system can never reach zero admins
+      # through this API.
       class UsersController < BaseController
         include Deletable
         DEFAULT_LIMIT = 25
@@ -42,27 +42,54 @@ module Api
           }
         end
 
+        # Partial PATCH: `is_admin` and/or `handle`, each applied only
+        # when present. Handle validation failures (taken, bad format)
+        # surface through the base controller's RecordInvalid rescue.
         def update
-          user = User.find(params[:id])
-          is_admin = ActiveModel::Type::Boolean.new.cast(params.require(:is_admin))
+          user  = User.find(params[:id])
+          attrs = {}
 
-          if user.id == current_user.id && is_admin == false
-            render json: { error: "cannot_demote_self" }, status: :unprocessable_entity
+          if params.key?(:is_admin)
+            is_admin = ActiveModel::Type::Boolean.new.cast(params[:is_admin])
+
+            # Boolean.cast turns null/"" into nil, which would sail past
+            # the `== false` guards below and still write false — a
+            # silent demotion (params.require used to 422 these).
+            if is_admin.nil?
+              render json: { error: "invalid_is_admin" }, status: :unprocessable_entity
+              return
+            end
+
+            if user.id == current_user.id && is_admin == false
+              render json: { error: "cannot_demote_self" }, status: :unprocessable_entity
+              return
+            end
+
+            # The super tier is granted from a shell and revoked from a
+            # shell — that is the property that keeps "no spend ceiling"
+            # off the list of things one admin can hand another. Demoting a
+            # super admin here would also violate the
+            # `super_admin_implies_admin` CHECK constraint, so without this
+            # the honest refusal below would arrive as a 500.
+            if user.is_super_admin? && is_admin == false
+              render json: { error: "cannot_demote_super_admin" }, status: :unprocessable_entity
+              return
+            end
+
+            attrs[:is_admin] = is_admin == true
+          end
+
+          # Through permit so a non-scalar (array/hash) drops to nil and
+          # fails presence validation as a 422 rather than reaching the
+          # downcase normalizer as a NoMethodError 500.
+          attrs[:handle] = params.permit(:handle)[:handle] if params.key?(:handle)
+
+          if attrs.empty?
+            render json: { error: "no_supported_fields" }, status: :unprocessable_entity
             return
           end
 
-          # The super tier is granted from a shell and revoked from a
-          # shell — that is the property that keeps "no spend ceiling"
-          # off the list of things one admin can hand another. Demoting a
-          # super admin here would also violate the
-          # `super_admin_implies_admin` CHECK constraint, so without this
-          # the honest refusal below would arrive as a 500.
-          if user.is_super_admin? && is_admin == false
-            render json: { error: "cannot_demote_super_admin" }, status: :unprocessable_entity
-            return
-          end
-
-          user.update!(is_admin: is_admin == true)
+          user.update!(attrs)
           render json: serialize_user(user)
         end
 

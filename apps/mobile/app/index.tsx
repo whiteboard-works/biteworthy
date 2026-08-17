@@ -116,6 +116,9 @@ export default function Home() {
       <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>
+      <Pressable accessibilityLabel="account-link" onPress={() => router.push('/settings/account')}>
+        <Text style={styles.profileLink}>Account</Text>
+      </Pressable>
       <Text style={styles.version} testID="app-version">
         BiteWorthy v{CURRENT_VERSION}
       </Text>

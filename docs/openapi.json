@@ -1499,7 +1499,7 @@
         }
       },
       "patch": {
-        "summary": "Toggle is_admin (self-demotion refused)",
+        "summary": "Partial update: is_admin toggle and/or handle edit",
         "tags": [
           "Admin"
         ],
@@ -1573,7 +1573,7 @@
             }
           },
           "422": {
-            "description": "self-demotion refused — the system keeps >= 1 admin",
+            "description": "self-demotion refused, invalid/taken handle, or empty body",
             "content": {
               "application/json": {
                 "schema": {
@@ -1588,12 +1588,13 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "is_admin"
-                ],
                 "properties": {
                   "is_admin": {
                     "type": "boolean"
+                  },
+                  "handle": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_]{3,30}$"
                   }
                 }
               }
@@ -6298,6 +6299,69 @@
           "401": {
             "description": "missing or invalid bearer token"
           }
+        }
+      },
+      "patch": {
+        "summary": "Update the caller's own account (handle)",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt>",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated user payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "handle taken (case-insensitively) or bad format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_]{3,30}$"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
         }
       }
     },

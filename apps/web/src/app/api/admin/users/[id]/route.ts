@@ -1,6 +1,6 @@
 /**
- * `PATCH /api/admin/users/:id` — the is_admin toggle (self-demotion
- * 422s relay verbatim).
+ * `PATCH /api/admin/users/:id` — the is_admin toggle and handle edits
+ * (self-demotion and validation 422s relay verbatim).
  */
 import { type NextRequest } from 'next/server';
 import { adminProxy } from '../../../../../lib/api-proxy';
