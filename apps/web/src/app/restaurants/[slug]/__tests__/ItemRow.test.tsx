@@ -62,25 +62,14 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
   });
 });
 
-describe('ItemRow — placeholder photo', () => {
-  // Every card fills its photo slot: a real photo when we have one,
-  // otherwise a monogram placeholder so the grid never shows empty
-  // gaps. The two are mutually exclusive.
-  it('renders a monogram placeholder when photo_url is null', () => {
-    renderRow({ photo_url: null });
-    const placeholder = screen.getByTestId('item-photo-placeholder-item-1');
-    expect(placeholder).toBeInTheDocument();
-    // Monogram is the dish name's first letter, uppercased.
-    expect(placeholder).toHaveTextContent('P');
-    // Labelled for assistive tech, since it stands in for the photo.
-    expect(placeholder).toHaveAttribute('role', 'img');
-    expect(placeholder).toHaveAttribute('aria-label', expect.stringContaining('Pad Thai'));
-  });
-
-  it('renders the real photo and no placeholder when photo_url is set', () => {
-    renderRow({ photo_url: 'https://example.test/dish.jpg' });
-    expect(screen.getByTestId('item-photo-item-1')).toBeInTheDocument();
+describe('ItemRow — no placeholder tile', () => {
+  // The monogram placeholder assumed partial photo coverage; at 0%
+  // coverage it dominated the page (a wall of pastel initials), so a
+  // media block now has to be earned by an actual photo.
+  it('renders no media block at all when photo_url is null', () => {
+    const { container } = renderRow({ photo_url: null });
     expect(screen.queryByTestId('item-photo-placeholder-item-1')).not.toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
   });
 });
 
@@ -96,22 +85,24 @@ describe('ItemRow — name + description + open link', () => {
     expect(screen.queryByText('Rice noodles, peanut, lime.')).not.toBeInTheDocument();
   });
 
-  it('encodes the slug + id in the open-item link', () => {
+  it('makes the dish name the link into the detail page, slug + id encoded', () => {
     renderRow({});
     const link = screen.getByTestId('open-item-item-1');
     expect(link).toHaveAttribute('href', '/restaurants/cream-bean-berry/items/item-1');
+    expect(link).toHaveTextContent('Pad Thai');
   });
 
-  it('shows "Be the first to review" when reviews_count is 0 / undefined', () => {
+  it('stays quiet at zero reviews instead of repeating a review CTA per card', () => {
     renderRow({});
-    expect(screen.getByTestId('open-item-item-1')).toHaveTextContent('Be the first to review');
+    expect(screen.queryByText(/be the first to review/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/review/)).not.toBeInTheDocument();
   });
 
-  it('pluralizes the reviews badge correctly', () => {
+  it('shows a quiet review count when reviews exist, pluralized', () => {
     renderRow({ reviews_count: 1 });
-    expect(screen.getByTestId('open-item-item-1')).toHaveTextContent('1 review →');
+    expect(screen.getByText('1 review')).toBeInTheDocument();
 
     renderRow({ id: 'item-2', reviews_count: 3 });
-    expect(screen.getByTestId('open-item-item-2')).toHaveTextContent('3 reviews →');
+    expect(screen.getByText('3 reviews')).toBeInTheDocument();
   });
 });

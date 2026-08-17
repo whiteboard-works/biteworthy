@@ -13,9 +13,12 @@ import { HiddenReasonChip } from './RestaurantClient';
  * yet. PR #189 wired `@testing-library/react` + jsdom; this PR
  * extracts ItemRow + ships the deferred snapshot.
  *
- * Now renders as a card (photo on top, content below) so the menu
- * lays out as a grid. Items with no `photo_url` get a deterministic
- * monogram placeholder so the grid never has empty photo slots.
+ * Renders as a card. The dish name links to the detail page; a photo,
+ * when one exists, sits above the text. Photo-less items render as
+ * compact text cards — no placeholder tile. The monogram placeholder
+ * this shipped with assumed partial photo coverage; at 0% coverage it
+ * became the dominant visual (a wall of pastel initials), so a photo
+ * slot now has to be earned by an actual photo.
  */
 export interface ItemRowProps {
   item: RestaurantItem;
@@ -29,54 +32,24 @@ export interface ItemRowProps {
 }
 
 /**
- * Deterministic hue (0–359) from a stable string (the item id), so a
- * given dish always gets the same placeholder tint and the grid reads
- * as varied rather than a wall of identical gray boxes.
+ * The dish photo, when the item has one. Real photos keep the
+ * `item-photo-<id>` testid + `<img>` contract from Phase 4.11.4;
+ * photo-less items get no media block at all.
  */
-function placeholderHue(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) % 360;
-  }
-  return hash;
-}
+function ItemPhoto({ item }: { item: RestaurantItem }): ReactElement | null {
+  if (!item.photo_url) return null;
 
-/**
- * The dish photo, or a monogram placeholder when the item has none.
- * Real photos keep the `item-photo-<id>` testid + `<img>` contract
- * from Phase 4.11.4; the placeholder uses a distinct testid so the
- * "no <img> when photo_url is null" contract still holds.
- */
-function ItemPhoto({ item }: { item: RestaurantItem }): ReactElement {
-  if (item.photo_url) {
-    // Cropped dish photo from the source menu page. Plain <img> (not
-    // next/image) since the URL is a Rails signed blob URL whose host
-    // varies per env; loader config would have to learn each one.
-    return (
-      <img
-        src={item.photo_url}
-        alt={item.name}
-        loading="lazy"
-        data-testid={`item-photo-${item.id}`}
-        className="h-40 w-full object-cover"
-      />
-    );
-  }
-
-  const hue = placeholderHue(item.id);
-  const initial = (item.name.trim()[0] ?? '·').toUpperCase();
+  // Cropped dish photo from the source menu page. Plain <img> (not
+  // next/image) since the URL is a Rails signed blob URL whose host
+  // varies per env; loader config would have to learn each one.
   return (
-    <div
-      role="img"
-      aria-label={`${item.name} — no photo yet`}
-      data-testid={`item-photo-placeholder-${item.id}`}
-      className="flex h-40 w-full select-none items-center justify-center"
-      style={{ backgroundColor: `hsl(${hue} 40% 90%)` }}
-    >
-      <span className="text-bw-4xl font-bold" style={{ color: `hsl(${hue} 32% 45%)` }}>
-        {initial}
-      </span>
-    </div>
+    <img
+      src={item.photo_url}
+      alt={item.name}
+      loading="lazy"
+      data-testid={`item-photo-${item.id}`}
+      className="h-40 w-full object-cover"
+    />
   );
 }
 
@@ -105,19 +78,27 @@ export function ItemRow({
     >
       <ItemPhoto item={item} />
       <div className="flex flex-1 flex-col p-bw-3">
-        <p className={['font-semibold', hidden ? 'text-hide' : 'text-zinc-900'].join(' ')}>
-          {item.name}
+        <p className="font-semibold">
+          {/* The name is the way into the dish page — provenance panel,
+              reviews, suggest-a-fix. It used to hide behind the review
+              CTA, the card's only link. */}
+          <a
+            href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
+            data-testid={`open-item-${item.id}`}
+            className={[
+              'hover:underline',
+              hidden ? 'text-hide' : 'text-zinc-900 hover:text-bite-dark',
+            ].join(' ')}
+          >
+            {item.name}
+          </a>
         </p>
         {item.description && <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>}
-        <a
-          href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
-          data-testid={`open-item-${item.id}`}
-          className="mt-1 inline-block text-bw-xs font-semibold text-bite hover:text-bite-dark"
-        >
-          {reviewsCount === 0
-            ? 'Be the first to review'
-            : `${reviewsCount} review${reviewsCount === 1 ? '' : 's'} →`}
-        </a>
+        {reviewsCount > 0 && (
+          <p className="mt-1 text-bw-xs text-zinc-500">
+            {reviewsCount} review{reviewsCount === 1 ? '' : 's'}
+          </p>
+        )}
 
         {showChips && item.reasons.length > 0 && (
           <div className="mt-bw-2 flex flex-wrap gap-bw-1">

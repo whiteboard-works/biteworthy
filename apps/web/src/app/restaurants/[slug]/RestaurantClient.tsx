@@ -272,6 +272,9 @@ export function RestaurantClient({
         <SectionBlock
           key={section.id ?? '__none__'}
           section={section}
+          // A lone unnamed group means the menu has no course structure —
+          // an "Other" heading over everything would be labeling noise.
+          showHeading={!(overriddenSections.length === 1 && section.id === null)}
           restaurantSlug={slug}
           presetSlug={presetSlug}
           shownAnyway={shownAnyway}
@@ -430,6 +433,7 @@ export function StrictnessToggle({
 
 function SectionBlock({
   section,
+  showHeading = true,
   restaurantSlug,
   presetSlug,
   shownAnyway,
@@ -437,6 +441,7 @@ function SectionBlock({
   onSetPersistentOverride,
 }: {
   section: ItemSection<RestaurantItem>;
+  showHeading?: boolean;
   restaurantSlug: string;
   presetSlug: string | null;
   shownAnyway: Set<string>;
@@ -446,7 +451,7 @@ function SectionBlock({
   const [hiddenOpen, setHiddenOpen] = useState(false);
   return (
     <section className="mt-bw-6">
-      <h2 className="text-bw-lg font-bold">{section.name}</h2>
+      {showHeading && <h2 className="text-bw-lg font-bold">{section.name}</h2>}
       <ul className="mt-bw-2 grid grid-cols-1 gap-bw-4 sm:grid-cols-2 lg:grid-cols-3">
         {section.visible.map((item) => (
           <ItemRow
