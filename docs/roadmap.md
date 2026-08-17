@@ -158,19 +158,20 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   left a severity-ordered findings brief with a small-fixes checklist in
   [`plans/ux-exploration-2026-08-15.md`](plans/ux-exploration-2026-08-15.md).
   The checklist items are loop-shippable (several PRs already in flight,
-  tracked in the doc); the four bigger findings (ingestion `gap?` widening,
-  confirmation backlog, item-page ingredients panel, anonymous scan entry)
-  need human triage into a phase before any loop picks them up — except the
-  anonymous scan entry (finding 4), addressed 2026-08-17 via login-bounce
-  linking (scan tile + always-visible Chat nav → `/chat`, which now bounces
-  signed-out visitors to `/login?next=%2Fchat` server-side).
-  **2026-08-17 demo-readiness push:** the item-page ingredients panel
-  shipped; the live gluten false negatives were hand-patched via admin
-  edit; `gap?` widening and the anonymous scan entry are in flight as
-  PRs. Remaining from this set: the confirmation backlog (one armed
-  "Confirm community menu" click per restaurant at
+  tracked in the doc). **2026-08-17 demo-readiness push:** of the four
+  bigger findings, three shipped — finding 1 (ingestion `gap?` widening,
+  #638: a name-keyword implied-bases pass in `DeterministicResolver`
+  plus composed-dish routing to a now-sliced gap-fill, gated by the one
+  `Ingestion::DietClaims` rule; the live gluten false negatives were
+  separately hand-patched via admin edit), finding 3 (the item-page
+  ingredients panel), and finding 4 (anonymous scan entry via
+  login-bounce linking: scan tile + always-visible Chat nav → `/chat`,
+  which bounces signed-out visitors to `/login?next=%2Fchat`
+  server-side). Remaining from this set: the confirmation backlog (one
+  armed "Confirm community menu" click per restaurant at
   `/admin/restaurants/<id>` — deliberately left to a human because it
   loosens what strict mode shows).
+
 - **Schema-review leftovers (2026-07-31)** — the review that produced
   #493 and #496 left three items the loop can't finish alone. (Two
   others — promoting the CHECK constraints to VALID, and the

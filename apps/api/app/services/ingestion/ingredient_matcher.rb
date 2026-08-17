@@ -39,7 +39,9 @@ module Ingestion
 
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))
       @index = {}
+      @paths_by_slug = {}
       ingredients.each do |slug, name, path, aliases|
+        @paths_by_slug[slug] = path.to_s
         add_term(name, slug:, path: path.to_s, kind: :name)
         Array(aliases).each { |a| add_term(a, slug:, path: path.to_s, kind: :alias) }
       end
@@ -62,6 +64,11 @@ module Ingestion
       [matches.values.map { |m| { slug: m.slug, path: m.path, confidence: m.confidence, source: "match" } },
        leftovers]
     end
+
+    # Catalog lookup by slug (nil when absent) — lets the resolver's
+    # implied-bases pass place a known slug in the tree without a second
+    # SELECT or a hand-rolled catalog.
+    def path_for(slug) = @paths_by_slug[slug]
 
     private
 

@@ -50,6 +50,28 @@ RSpec.describe ResolveItemsJob, type: :job do
     end
   end
 
+  describe "a composed dish that resolves cleanly (implied bases)" do
+    before { create(:ingredient, slug: "grain-wheat", name: "Wheat", path: "grain.wheat", aliases: []) }
+
+    let!(:item) { make_item(run, position: 0, name: "Chicken Wrap", description: "cilantro, lime") }
+
+    it "unions the wheat base, leaves enrichment pending, and enqueues the gap-fill" do
+      expect { described_class.perform_now(run.id) }
+        .to have_enqueued_job(GapFillResolveJob).with(run.id)
+
+      expect(run.reload.status).to eq("staged")
+      expect(run.enrichment_status).to eq("pending")
+
+      item.reload
+      expect(item.ingredients_payload).to include(
+        { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "derived" }
+      )
+      expect(item.tags_payload).to include(
+        { "slug" => "contains-gluten", "confidence" => 0.8, "source" => "derived" }
+      )
+    end
+  end
+
   describe "items accepted while the run was still resolving" do
     let!(:pre_accepted) do
       make_item(run, position: 0, name: "Taco", description: "steak, cilantro",

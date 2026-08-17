@@ -1,7 +1,8 @@
 # Background LLM enrichment pass, enqueued by ResolveItemsJob after the
-# run is already :staged and usable. One Haiku call covering only the
-# items the deterministic resolver flagged as gaps, asking only for what
-# code can't derive: implied ingredients + cuisine tags.
+# run is already :staged and usable. Haiku calls covering only the items
+# the deterministic resolver flagged as gaps (one call per slice of 25 —
+# the composed-dish trigger can flag most of a menu), asking only for
+# what code can't derive: implied ingredients + cuisine tags.
 #
 # Contract:
 #   * Append-only for ingredients — never removes or rewrites a
@@ -22,6 +23,11 @@ class GapFillResolveJob < ApplicationJob
   # Same cheap-model override knob the old resolve stages had.
   DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
 
+  # Items per API call. Keeps each response inside the output-token
+  # budget now that composed-dish names widen the gap set well past
+  # "nothing matched".
+  GAP_BATCH_SIZE = 25
+
   def resolve_model = ENV.fetch("INGESTION_RESOLVE_MODEL", DEFAULT_RESOLVE_MODEL)
 
   def perform(ingestion_run_id)
@@ -35,26 +41,33 @@ class GapFillResolveJob < ApplicationJob
       return
     end
 
-    out = timed_anthropic_call(
-      run,
-      api_error:        "gap_fill_api_error",
-      validation_error: "gap_fill_validation_failed",
-      model:            resolve_model,
-      fail_run:         false
-    ) do |client|
-      client.messages_create(
-        system:          Ingestion::GapFillPrompt.system(client),
-        messages:        Ingestion::GapFillPrompt.user_messages(gaps.map { |g| g[:prompt_row] }),
-        response_schema: Ingestion::GapFillSchema
-      )
-    end
-    if out.nil?
-      run.update!(enrichment_status: "failed")
-      return
-    end
-    result, = out
+    # One call per slice; each slice merges before the next call, so a
+    # later failure keeps the enrichment already landed (the retry
+    # recomputes the gap set and merge! dedupes by slug). The usage
+    # accounting stays per-call: timed_anthropic_call records each
+    # client's billed tokens itself.
+    gaps.each_slice(GAP_BATCH_SIZE) do |slice|
+      out = timed_anthropic_call(
+        run,
+        api_error:        "gap_fill_api_error",
+        validation_error: "gap_fill_validation_failed",
+        model:            resolve_model,
+        fail_run:         false
+      ) do |client|
+        client.messages_create(
+          system:          Ingestion::GapFillPrompt.system(client),
+          messages:        Ingestion::GapFillPrompt.user_messages(slice.map { |g| g[:prompt_row] }),
+          response_schema: Ingestion::GapFillSchema
+        )
+      end
+      if out.nil?
+        run.update!(enrichment_status: "failed")
+        return
+      end
+      result, = out
 
-    merge!(run, gaps, result)
+      merge!(run, slice, result)
+    end
     run.update!(enrichment_status: "completed")
   rescue StandardError
     # Anything the soft-fail path didn't catch (transport errors bypass

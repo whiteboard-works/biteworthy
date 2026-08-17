@@ -145,6 +145,70 @@ RSpec.describe GapFillResolveJob, type: :job do
     end
   end
 
+  describe "chunking" do
+    let!(:mysteries) do
+      Array.new(26) do |i|
+        create(:ingestion_item, ingestion_run: run, position: 2 + i,
+               name: format("Mystery Dish %02d", i), description: nil, decision: "pending",
+               ingredients_payload: [], tags_payload: [])
+      end
+    end
+
+    let(:slice_responses) do
+      [
+        { "items" => [{ "index" => 0,
+                        "ingredients" => { "resolved" => [{ "slug" => "fish-anchovy", "confidence" => 0.85 }],
+                                           "unresolved" => [] },
+                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+        { "items" => [{ "index" => 0,
+                        "ingredients" => { "resolved" => [{ "slug" => "meat-beef", "confidence" => 0.7 }],
+                                           "unresolved" => [] },
+                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+      ]
+    end
+
+    it "makes one call per 25 gap items and merges each slice at its own indexes" do
+      prompts = []
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create) do |_, **kwargs|
+        prompts << kwargs[:messages].first[:content].first[:text]
+        slice_responses[prompts.length - 1]
+      end
+
+      described_class.perform_now(run.id)
+
+      expect(prompts.length).to eq(2)
+      expect(prompts.first).to include("[0] Caesar Salad", "[24] Mystery Dish 23")
+      expect(prompts.first).not_to include("Mystery Dish 24")
+      expect(prompts.last).to include("[0] Mystery Dish 24", "[1] Mystery Dish 25")
+
+      # index 0 of each response lands on that slice's first item, not the run's.
+      expect(gap_item.reload.ingredients_payload)
+        .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
+      expect(mysteries[24].reload.ingredients_payload)
+        .to include({ "slug" => "meat-beef", "confidence" => 0.7, "source" => "ai" })
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
+    it "a failing later slice marks enrichment failed but keeps the slices already merged" do
+      calls = 0
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create) do
+        calls += 1
+        raise AnthropicClient::ApiError.new(status: 500, body: "boom") if calls > 1
+
+        slice_responses.first
+      end
+      allow(Rails.logger).to receive(:error)
+
+      described_class.perform_now(run.id)
+
+      expect(gap_item.reload.ingredients_payload)
+        .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
+      run.reload
+      expect(run.enrichment_status).to eq("failed")
+      expect(run.status).to eq("staged")
+    end
+  end
+
   describe "soft failure" do
     it "ApiError marks enrichment failed but the run stays staged" do
       allow_any_instance_of(AnthropicClient).to receive(:messages_create)

@@ -140,6 +140,15 @@ the taxonomy already in Postgres:
   hit = confidence 1.0, alias hit = 0.95, `source: "match"`. The
   description is the ingredient authority; dish-name leftovers only
   count when the name is all the evidence there is.
+- **Implied bases** (`DeterministicResolver::IMPLIED_BASE_KEYWORDS`):
+  composed-dish name keywords (pizza, burger, wrap, pasta, ramen, ...)
+  union a base ingredient the description never states — today all map
+  to `grain-wheat`, so a cleanly-resolved Margherita still carries its
+  crust and `contains-gluten`. Unioned at confidence 0.8,
+  `source: "derived"` (inferred, never presented as menu-stated), and
+  skipped when an explicit match already covers the base's subtree. A
+  keyword hit also routes the item to gap-fill regardless — the map
+  catches the base, the model catches the rest (sauces, batters).
 - **Existing-item match** (`Ingestion::ExistingItemMatcher`): staged
   items are linked (`matched_item_id` + `match_score`) to the
   restaurant's existing Items so a re-scan stages updates instead of
@@ -165,12 +174,14 @@ the taxonomy already in Postgres:
 The run transitions to `staged` right here — the verify UI gets
 populated dishes seconds after extraction.
 
-### 2b. Gap-fill (one background LLM call)
+### 2b. Gap-fill (background LLM calls)
 
 Items the resolver flags as gaps (nothing matched, unknown leftover
-phrases, or a composite condiment like "caesar dressing") get ONE
-Haiku call after staging — `GapFillResolveJob`, tracked by
-`ingestion_runs.enrichment_status` (`pending | completed | failed`).
+phrases, a composite condiment like "caesar dressing", or a
+composed-dish name keyword) get Haiku calls after staging — one per
+slice of 25 gap items, merged slice-by-slice — via `GapFillResolveJob`,
+tracked by `ingestion_runs.enrichment_status`
+(`pending | completed | failed`).
 The prompt carries the **prompt-cached** ingredient catalog plus the
 cuisine-family tag catalog only, and asks solely for what code can't
 do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine
@@ -271,5 +282,6 @@ makes the disclaimer truthful.
 ## Cost target
 
 Under $0.25 per 50-item menu, end-to-end. Resolve is free (pure code);
-the only per-run LLM spend is extraction plus at most one gap-fill call
-whose prompt-cached catalog prefix costs cents to read.
+the only per-run LLM spend is extraction plus the gap-fill calls (one
+per 25 gap items) whose prompt-cached catalog prefix costs cents to
+read.
