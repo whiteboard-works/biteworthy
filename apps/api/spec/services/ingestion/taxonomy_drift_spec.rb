@@ -74,6 +74,11 @@ RSpec.describe "deterministic-resolve taxonomy drift" do
     expect(prefix_exists?(ingredient_paths, "condiment")).to be(true)
   end
 
+  it "the resolver's implied-base map points at live ingredient slugs" do
+    expect(Ingestion::DeterministicResolver::IMPLIED_BASE_KEYWORDS.keys.to_set)
+      .to be_subset(ingredient_slugs)
+  end
+
   # Every catalog name and alias must survive normalization + segmentation
   # as ONE matchable phrase — a term the scanner can never see (e.g. one
   # destroyed by connective-word splitting) is a silent allergen miss.

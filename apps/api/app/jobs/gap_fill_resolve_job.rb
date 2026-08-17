@@ -1,7 +1,8 @@
 # Background LLM enrichment pass, enqueued by ResolveItemsJob after the
-# run is already :staged and usable. One Haiku call covering only the
-# items the deterministic resolver flagged as gaps, asking only for what
-# code can't derive: implied ingredients + cuisine tags.
+# run is already :staged and usable. Haiku calls covering only the items
+# the deterministic resolver flagged as gaps (one call per slice of 25 —
+# the composed-dish trigger can flag most of a menu), asking only for
+# what code can't derive: implied ingredients + cuisine tags.
 #
 # Contract:
 #   * Append-only for ingredients — never removes or rewrites a
@@ -22,6 +23,18 @@ class GapFillResolveJob < ApplicationJob
   # Same cheap-model override knob the old resolve stages had.
   DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
 
+  # Items per API call. Keeps each response inside the output-token
+  # budget now that composed-dish names widen the gap set well past
+  # "nothing matched".
+  GAP_BATCH_SIZE = 25
+
+  # One slice's API call soft-failed (timed_anthropic_call already
+  # logged it and recorded any billed usage). Raised so the rescue below
+  # records the degradation and retry_on drives a re-run — replays are
+  # safe because the retry recomputes the gap set and merge! dedupes by
+  # slug, skipping rows already landed.
+  SliceFailedError = Class.new(StandardError)
+
   def resolve_model = ENV.fetch("INGESTION_RESOLVE_MODEL", DEFAULT_RESOLVE_MODEL)
 
   def perform(ingestion_run_id)
@@ -31,37 +44,57 @@ class GapFillResolveJob < ApplicationJob
 
     gaps = gap_rows(run)
     if gaps.empty?
-      run.update!(enrichment_status: "completed")
+      # Only a first pass (still pending) may conclude "fully enriched".
+      # On a retry after a failure an empty gap set just means the gap
+      # items got decided in the meantime — don't launder "failed" into
+      # "completed".
+      run.update!(enrichment_status: "completed") if run.enrichment_status == "pending"
       return
     end
 
-    out = timed_anthropic_call(
-      run,
-      api_error:        "gap_fill_api_error",
-      validation_error: "gap_fill_validation_failed",
-      model:            resolve_model,
-      fail_run:         false
-    ) do |client|
-      client.messages_create(
-        system:          Ingestion::GapFillPrompt.system(client),
-        messages:        Ingestion::GapFillPrompt.user_messages(gaps.map { |g| g[:prompt_row] }),
-        response_schema: Ingestion::GapFillSchema
-      )
-    end
-    if out.nil?
-      run.update!(enrichment_status: "failed")
-      return
-    end
-    result, = out
+    ingredient_paths = Ingredient.pluck(:slug, :path).to_h
+    cuisine_slugs    = Tag.where(family: "cuisine").pluck(:slug).to_set
 
-    merge!(run, gaps, result)
+    # One call per slice; each slice merges before the next call, so the
+    # enrichment already landed survives a later slice's failure. The
+    # usage accounting stays per-call: timed_anthropic_call records each
+    # client's billed tokens itself.
+    gaps.each_slice(GAP_BATCH_SIZE) do |slice|
+      # Retry cheaply: a slice whose every item already carries an AI
+      # row was merged by a previous attempt — re-sending it would
+      # re-bill for rows merge! deduplicates anyway.
+      next if slice.all? { |g| g[:enriched] }
+
+      out = timed_anthropic_call(
+        run,
+        api_error:        "gap_fill_api_error",
+        validation_error: "gap_fill_validation_failed",
+        model:            resolve_model,
+        fail_run:         false
+      ) do |client|
+        client.messages_create(
+          system:          Ingestion::GapFillPrompt.system(client),
+          messages:        Ingestion::GapFillPrompt.user_messages(slice.map { |g| g[:prompt_row] }),
+          response_schema: Ingestion::GapFillSchema
+        )
+      end
+      raise SliceFailedError, "gap-fill slice failed (see log for the cause)" if out.nil?
+
+      result, = out
+      merge!(run, slice, result, ingredient_paths, cuisine_slugs)
+    end
     run.update!(enrichment_status: "completed")
   rescue StandardError
-    # Anything the soft-fail path didn't catch (transport errors bypass
-    # ApiError, DB hiccups, bugs): record the degradation so clients
-    # stop polling, then re-raise so retry_on gets its attempts — a
-    # successful retry flips this back to completed.
-    run&.update_columns(enrichment_status: "failed", updated_at: Time.current) if run&.persisted?
+    # Everything that should reach retry_on (a slice's SliceFailedError,
+    # transport errors that bypass ApiError, DB hiccups, bugs): record
+    # the degradation so clients stop polling, then re-raise so retry_on
+    # gets its attempts — a successful retry flips this back to
+    # completed. The stamp is conditional on still-pending so a stale
+    # attempt can never demote an enrichment already completed.
+    if run&.persisted?
+      IngestionRun.where(id: run.id, enrichment_status: "pending")
+                  .update_all(enrichment_status: "failed", updated_at: Time.current)
+    end
     raise
   end
 
@@ -78,6 +111,7 @@ class GapFillResolveJob < ApplicationJob
       next unless res.gap?
 
       { item_id: item.id,
+        enriched: Array(item.ingredients_payload).any? { |r| r["source"] == "ai" },
         prompt_row: {
           name:        item.name,
           description: item.description,
@@ -88,10 +122,8 @@ class GapFillResolveJob < ApplicationJob
     end
   end
 
-  def merge!(run, gaps, result)
+  def merge!(run, gaps, result, ingredient_paths, cuisine_slugs)
     response_by_index = Array(result["items"]).each_with_object({}) { |row, h| h[row["index"]] ||= row }
-    ingredient_paths  = Ingredient.pluck(:slug, :path).to_h
-    cuisine_slugs     = Tag.where(family: "cuisine").pluck(:slug).to_set
 
     run.transaction do
       # order(:id) keeps lock acquisition in PK order, matching
@@ -130,6 +162,7 @@ class GapFillResolveJob < ApplicationJob
   def merge_ingredients(item, ai_rows, ingredient_paths)
     merged = Array(item.ingredients_payload).dup
     known  = merged.map { |r| r["slug"] }.to_set
+    claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
 
     Array(ai_rows).each do |row|
       slug = row["slug"]
@@ -137,6 +170,16 @@ class GapFillResolveJob < ApplicationJob
 
       unless ingredient_paths.key?(slug)
         Rails.logger.warn("GapFillResolveJob: dropping unknown ingredient slug #{slug.inspect}")
+        next
+      end
+
+      # Same gate as the resolver's implied bases (Ingestion::DietClaims):
+      # the model is asked for implied ingredients, so without it a
+      # "Gluten-Free Pizza" gets its suppressed crust right back.
+      if Ingestion::DietClaims.contradicted?(claims, slug: slug, path: ingredient_paths[slug].to_s)
+        Rails.logger.info(
+          "GapFillResolveJob: dropping #{slug} — contradicts a diet claim in #{item.name.inspect}"
+        )
         next
       end
 

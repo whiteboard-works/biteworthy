@@ -185,8 +185,10 @@ a confirmation push for Chamayo/RGP's, an ingredients panel on the item
 page, and an anonymous entry point to chat/scan — and are left for roadmap
 planning rather than this checklist. **Update 2026-08-17:** finding 3
 shipped (detected-ingredients panel on the dish page, provenance rows in
-the `#show` payload); finding 1's live false negatives were hand-patched
-via admin edit (wheat added to the five Chamayo pizzas, the Hamburger,
-and the skillet cornbread — one Chamayo dish, the "Chimayo House" salad
-with its cornbread crumble, still pending), with the ingestion-side fix
-in flight.
+the `#show` payload); finding 1 shipped (#638 — a name-keyword
+implied-bases pass in `DeterministicResolver` plus composed-dish routing
+to a now-sliced gap-fill, gated by the `Ingestion::DietClaims` rule); its
+live false negatives were hand-patched via admin edit (wheat added to the
+five Chamayo pizzas, the Hamburger, and the skillet cornbread — one
+Chamayo dish, the "Chimayo House" salad with its cornbread crumble, still
+pending); finding 4 shipped via the login-bounce scan entry.
