@@ -13,6 +13,7 @@ describe('buildSitemapEntries', () => {
       'https://bite-worthy.com/restaurants',
       'https://bite-worthy.com/durango',
       'https://bite-worthy.com/story',
+      'https://bite-worthy.com/updates',
       'https://bite-worthy.com/login',
       'https://bite-worthy.com/signup',
     ]);
@@ -63,6 +64,7 @@ describe('buildSitemapEntries', () => {
       'https://bite-worthy.com/restaurants',
       'https://bite-worthy.com/durango',
       'https://bite-worthy.com/story',
+      'https://bite-worthy.com/updates',
       'https://bite-worthy.com/login',
       'https://bite-worthy.com/signup',
       'https://bite-worthy.com/durango/vegan',

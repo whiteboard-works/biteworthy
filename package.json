@@ -17,7 +17,8 @@
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "api": "pnpm --filter @biteworthy/api",
     "web": "pnpm --filter @biteworthy/web",
-    "mobile": "pnpm --filter @biteworthy/mobile"
+    "mobile": "pnpm --filter @biteworthy/mobile",
+    "bump": "pnpm --filter @biteworthy/version-history bump"
   },
   "devDependencies": {
     "turbo": "^2.10.8",

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
 import { HeroCta } from './_HeroCta';
@@ -186,7 +187,10 @@ function Footer(): ReactElement {
     <footer className="border-t border-zinc-200 bg-zinc-50 px-bw-6 py-bw-12">
       <div className="mx-auto flex max-w-5xl flex-col gap-bw-3 text-bw-sm text-zinc-500 md:flex-row md:items-center md:justify-between">
         <p>
-          &copy; {new Date().getFullYear()} BiteWorthy &middot; Made in Durango, CO.
+          &copy; {new Date().getFullYear()} BiteWorthy &middot; Made in Durango, CO. &middot;{' '}
+          <a href="/updates" data-testid="footer-version" className="hover:text-zinc-700">
+            v{CURRENT_VERSION}
+          </a>
         </p>
         <nav className="flex flex-wrap gap-bw-4">
           <a href="/restaurants" className="hover:text-zinc-700" data-testid="footer-restaurants">

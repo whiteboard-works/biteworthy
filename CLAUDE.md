@@ -91,6 +91,8 @@ pnpm test                  # turbo test (Vitest for packages/web, Jest for mobil
 pnpm api <script>          # alias for: pnpm --filter @biteworthy/api ... (no JS scripts yet — use bin/rails)
 pnpm web <script>          # alias for: pnpm --filter @biteworthy/web ...
 pnpm mobile <script>       # alias for: pnpm --filter @biteworthy/mobile ...
+
+pnpm bump [--note "…"]     # prepend a calver release (YYYY.M.D[.X]) to packages/version-history
 ```
 
 The fastest path is the containerized stack — `docker compose up` (from the

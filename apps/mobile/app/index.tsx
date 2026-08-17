@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { searchRestaurants, type RestaurantSummary } from '../lib/api/restaurants';
 
 /**
@@ -115,6 +116,9 @@ export default function Home() {
       <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>
+      <Text style={styles.version} accessibilityLabel="app-version">
+        BiteWorthy v{CURRENT_VERSION}
+      </Text>
     </View>
   );
 }
@@ -201,5 +205,11 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     fontSize: fontSize.sm,
     textAlign: 'center',
+  },
+  version: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    textAlign: 'center',
+    marginTop: space['2'],
   },
 });

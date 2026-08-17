@@ -111,3 +111,14 @@ it('offers the chat from the home screen', async () => {
   expect(mockPush).toHaveBeenCalledWith('/chat');
 });
 
+
+// The calver from @biteworthy/version-history is the app's only
+// user-visible version (app.json's store version is decoupled).
+it('shows the current version on the home screen', async () => {
+  mockSearch.mockResolvedValue({ restaurants: [ninis], total: 1 });
+
+  render(<Home />);
+
+  const version = await screen.findByLabelText('app-version');
+  expect(version).toHaveTextContent(/^BiteWorthy v\d{4}\.\d{1,2}\.\d{1,2}(\.\d+)?$/);
+});
