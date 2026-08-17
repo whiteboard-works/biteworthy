@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.8.17.1",
+    "date": "2026-08-17",
+    "notes": [
+      "You can now change your username — in Account settings on web and in the new Settings → Account screen on mobile. Usernames are case-insensitive: pick Alice and alice is yours too."
+    ]
+  },
+  {
     "version": "2026.8.17",
     "date": "2026-08-17",
     "notes": [
