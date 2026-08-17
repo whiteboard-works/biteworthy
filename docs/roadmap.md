@@ -151,7 +151,10 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   The checklist items are loop-shippable (several PRs already in flight,
   tracked in the doc); the four bigger findings (ingestion `gap?` widening,
   confirmation backlog, item-page ingredients panel, anonymous scan entry)
-  need human triage into a phase before any loop picks them up.
+  need human triage into a phase before any loop picks them up — except the
+  anonymous scan entry (finding 4), addressed 2026-08-17 via login-bounce
+  linking (scan tile + always-visible Chat nav → `/chat`, which now bounces
+  signed-out visitors to `/login?next=%2Fchat` server-side).
 
 - **Schema-review leftovers (2026-07-31)** — the review that produced
   #493 and #496 left three items the loop can't finish alone. (Two

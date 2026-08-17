@@ -64,16 +64,19 @@ afterEach(() => {
 });
 
 describe('SiteHeader', () => {
-  it('shows Sign in + Sign up when signed out and never the account/chat controls', async () => {
+  it('shows Sign in + Sign up when signed out and never the account controls', async () => {
     stubAuth({ signedIn: false });
     render(<SiteHeader />);
     expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
     expect(screen.getByTestId('nav-signup')).toBeInTheDocument();
-    // Discovery link is always present, signed in or out.
+    // Discovery links are always present, signed in or out. Chat is the
+    // headline scan feature's entry point, so hiding it from signed-out
+    // visitors would make the feature undiscoverable — /chat itself
+    // bounces anonymous visitors to /login.
     expect(screen.getByTestId('nav-restaurants')).toHaveAttribute('href', '/restaurants');
+    expect(screen.getByTestId('nav-chat')).toHaveAttribute('href', '/chat');
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-chat')).not.toBeInTheDocument();
   });
 
   it('shows Account + Log out when signed in, and logging out returns home', async () => {
