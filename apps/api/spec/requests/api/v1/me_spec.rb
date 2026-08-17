@@ -53,6 +53,13 @@ RSpec.describe "Me endpoint", type: :request do
       expect(user.handle).to eq("still_fine")
     end
 
+    it "422s an empty body rather than 200ing a silent no-op" do
+      patch "/api/v1/me", headers: auth_headers_for(user)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["errors"]).to have_key("base")
+    end
+
     it "401s without a token" do
       patch "/api/v1/me", params: { handle: "whoever" }
 

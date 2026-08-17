@@ -52,6 +52,14 @@ module Api
           if params.key?(:is_admin)
             is_admin = ActiveModel::Type::Boolean.new.cast(params[:is_admin])
 
+            # Boolean.cast turns null/"" into nil, which would sail past
+            # the `== false` guards below and still write false — a
+            # silent demotion (params.require used to 422 these).
+            if is_admin.nil?
+              render json: { error: "invalid_is_admin" }, status: :unprocessable_entity
+              return
+            end
+
             if user.id == current_user.id && is_admin == false
               render json: { error: "cannot_demote_self" }, status: :unprocessable_entity
               return
@@ -71,7 +79,10 @@ module Api
             attrs[:is_admin] = is_admin == true
           end
 
-          attrs[:handle] = params[:handle] if params.key?(:handle)
+          # Through permit so a non-scalar (array/hash) drops to nil and
+          # fails presence validation as a 422 rather than reaching the
+          # downcase normalizer as a NoMethodError 500.
+          attrs[:handle] = params.permit(:handle)[:handle] if params.key?(:handle)
 
           if attrs.empty?
             render json: { error: "no_supported_fields" }, status: :unprocessable_entity

@@ -32,13 +32,22 @@ jest.mock('../../lib/api/me', () => {
       this.messages = mockMessages;
     }
   }
+  class MeError extends Error {
+    readonly status: number;
+    constructor(mockStatus: number, message: string) {
+      super(message);
+      this.name = 'MeError';
+      this.status = mockStatus;
+    }
+  }
   return {
     fetchMe: (...args: unknown[]) => mockFetchMe(...args),
     updateMyHandle: (...args: unknown[]) => mockUpdateMyHandle(...args),
+    MeError,
     MeValidationError,
   };
 });
-import { MeValidationError } from '../../lib/api/me';
+import { MeError, MeValidationError } from '../../lib/api/me';
 
 import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
 import AccountSettingsScreen from '../../app/settings/account';
@@ -77,6 +86,15 @@ describe('AccountSettingsScreen', () => {
     await act(async () => {});
     expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fsettings%2Faccount');
     expect(mockFetchMe).not.toHaveBeenCalled();
+  });
+
+  it('treats a stored-but-stale token as signed out, not a dead-end error', async () => {
+    mockFetchMe.mockRejectedValue(new MeError(401, 'fetchMe failed: 401'));
+    render(<AccountSettingsScreen />);
+
+    await act(async () => {});
+    expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fsettings%2Faccount');
+    expect(screen.queryByTestId('account-load-error')).toBeNull();
   });
 
   it('loads and shows the current handle', async () => {

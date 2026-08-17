@@ -20,7 +20,19 @@ module Api
       end
 
       def update
-        if current_user.update(params.permit(:handle))
+        attrs = params.permit(:handle)
+
+        # An empty body (or one whose only fields permit filtered out)
+        # would otherwise 200 as a silent no-op that reads as a saved
+        # change. Mirrors the admin endpoint's empty-attrs refusal, in
+        # this endpoint's per-field error shape.
+        unless attrs.key?(:handle)
+          render json: { errors: { base: [ "no supported fields" ] } },
+                 status: :unprocessable_entity
+          return
+        end
+
+        if current_user.update(attrs)
           render json: { user: user_payload(current_user) }
         else
           render json: { errors: current_user.errors.as_json }, status: :unprocessable_entity

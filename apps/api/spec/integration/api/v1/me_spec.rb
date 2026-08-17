@@ -35,9 +35,10 @@ RSpec.describe "me", type: :request do
       parameter name: :body, in: :body, required: true, schema: {
         type: :object,
         properties: {
-          # Stored lowercase; the old handle frees up immediately and
-          # /u/<old> stops resolving.
-          handle: { type: :string, pattern: "^[a-z0-9_]{3,30}$" }
+          # Any case in, stored lowercase (the response carries the
+          # canonical spelling). The old handle frees up immediately
+          # and /u/<old> stops resolving.
+          handle: { type: :string, pattern: "^[A-Za-z0-9_]{3,30}$" }
         }
       }
 

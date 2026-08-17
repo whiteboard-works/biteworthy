@@ -1594,7 +1594,7 @@
                   },
                   "handle": {
                     "type": "string",
-                    "pattern": "^[a-z0-9_]{3,30}$"
+                    "pattern": "^[A-Za-z0-9_]{3,30}$"
                   }
                 }
               }
@@ -6355,7 +6355,7 @@
                 "properties": {
                   "handle": {
                     "type": "string",
-                    "pattern": "^[a-z0-9_]{3,30}$"
+                    "pattern": "^[A-Za-z0-9_]{3,30}$"
                   }
                 }
               }

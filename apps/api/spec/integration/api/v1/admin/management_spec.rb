@@ -385,10 +385,11 @@ RSpec.describe "admin/management", type: :request do
       parameter name: :body, in: :body, required: true, schema: {
         type: :object,
         # Each field applies only when present; a body with neither is
-        # refused (no_supported_fields).
+        # refused (no_supported_fields). Handles accept any case and
+        # are stored lowercase.
         properties: {
           is_admin: { type: :boolean },
-          handle:   { type: :string, pattern: "^[a-z0-9_]{3,30}$" }
+          handle:   { type: :string, pattern: "^[A-Za-z0-9_]{3,30}$" }
         }
       }
 

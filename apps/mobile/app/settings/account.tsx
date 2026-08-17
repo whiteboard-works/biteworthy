@@ -11,7 +11,9 @@ import { router } from 'expo-router';
 import type { UserPayload } from '@biteworthy/api-types';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import { getJwt } from '../../lib/auth';
-import { fetchMe, MeValidationError, updateMyHandle } from '../../lib/api/me';
+import { fetchMe, MeError, MeValidationError, updateMyHandle } from '../../lib/api/me';
+
+const LOGIN_BOUNCE = '/login?next=%2Fsettings%2Faccount' as const;
 
 /**
  * Settings → Account — the username (handle) editor. The handle is
@@ -33,23 +35,36 @@ export default function AccountSettingsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getJwt().then((token) => {
-      if (cancelled) return;
-      if (!token) {
-        router.replace('/login?next=%2Fsettings%2Faccount');
-        return;
-      }
-      setJwt(token);
-      fetchMe(token)
-        .then((u) => {
-          if (cancelled) return;
-          setUser(u);
-          setHandle(u.handle);
-        })
-        .catch((e) => {
-          if (!cancelled) setLoadError((e as Error).message);
-        });
-    });
+    getJwt()
+      .then((token) => {
+        if (cancelled) return;
+        if (!token) {
+          router.replace(LOGIN_BOUNCE);
+          return;
+        }
+        setJwt(token);
+        fetchMe(token)
+          .then((u) => {
+            if (cancelled) return;
+            setUser(u);
+            setHandle(u.handle);
+          })
+          .catch((e) => {
+            if (cancelled) return;
+            // A stored-but-stale token (server-side jti rotation) is
+            // the signed-out case, not an error to dead-end on.
+            if (e instanceof MeError && e.status === 401) {
+              router.replace(LOGIN_BOUNCE);
+              return;
+            }
+            setLoadError((e as Error).message);
+          });
+      })
+      .catch((e) => {
+        // SecureStore itself failed — without this the screen spins
+        // forever on an unhandled rejection.
+        if (!cancelled) setLoadError((e as Error).message);
+      });
     return () => {
       cancelled = true;
     };
@@ -68,6 +83,10 @@ export default function AccountSettingsScreen() {
       setHandle(updated.handle);
       setSaved(true);
     } catch (err) {
+      if (err instanceof MeError && err.status === 401) {
+        router.replace(LOGIN_BOUNCE);
+        return;
+      }
       setSaveError(
         err instanceof MeValidationError
           ? `Username ${err.messages[0] ?? 'is not available'}.`

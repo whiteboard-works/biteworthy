@@ -169,6 +169,29 @@ RSpec.describe "Admin management endpoints", type: :request do
       expect(response.parsed_body).to eq("error" => "no_supported_fields")
     end
 
+    # Boolean.cast(nil) is nil, which would slip past the `== false`
+    # demotion guards and still write false — self-demotion (or a
+    # super-admin CHECK violation 500) through a null nobody typed.
+    it "refuses is_admin: null instead of treating it as a demotion" do
+      patch "/api/v1/admin/users/#{admin.id}", params: { is_admin: nil },
+                                               headers: auth_headers_for(admin),
+                                               as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("error" => "invalid_is_admin")
+      expect(admin.reload.is_admin).to be true
+    end
+
+    it "422s a non-scalar handle instead of 500ing in the normalizer" do
+      other = create(:user)
+
+      patch "/api/v1/admin/users/#{other.id}", params: { handle: ["evil"] },
+                                               headers: auth_headers_for(admin),
+                                               as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     # The super tier is granted and revoked from a shell, never over
     # HTTP. That boundary is the reason it can lift the spend ceilings at
     # all: if one admin could hand it to another, "no ceiling" would be a
