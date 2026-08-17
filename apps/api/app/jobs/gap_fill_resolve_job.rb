@@ -44,7 +44,11 @@ class GapFillResolveJob < ApplicationJob
 
     gaps = gap_rows(run)
     if gaps.empty?
-      run.update!(enrichment_status: "completed")
+      # Only a first pass (still pending) may conclude "fully enriched".
+      # On a retry after a failure an empty gap set just means the gap
+      # items got decided in the meantime — don't launder "failed" into
+      # "completed".
+      run.update!(enrichment_status: "completed") if run.enrichment_status == "pending"
       return
     end
 
@@ -56,6 +60,11 @@ class GapFillResolveJob < ApplicationJob
     # usage accounting stays per-call: timed_anthropic_call records each
     # client's billed tokens itself.
     gaps.each_slice(GAP_BATCH_SIZE) do |slice|
+      # Retry cheaply: a slice whose every item already carries an AI
+      # row was merged by a previous attempt — re-sending it would
+      # re-bill for rows merge! deduplicates anyway.
+      next if slice.all? { |g| g[:enriched] }
+
       out = timed_anthropic_call(
         run,
         api_error:        "gap_fill_api_error",
@@ -80,8 +89,12 @@ class GapFillResolveJob < ApplicationJob
     # transport errors that bypass ApiError, DB hiccups, bugs): record
     # the degradation so clients stop polling, then re-raise so retry_on
     # gets its attempts — a successful retry flips this back to
-    # completed.
-    run&.update_columns(enrichment_status: "failed", updated_at: Time.current) if run&.persisted?
+    # completed. The stamp is conditional on still-pending so a stale
+    # attempt can never demote an enrichment already completed.
+    if run&.persisted?
+      IngestionRun.where(id: run.id, enrichment_status: "pending")
+                  .update_all(enrichment_status: "failed", updated_at: Time.current)
+    end
     raise
   end
 
@@ -98,6 +111,7 @@ class GapFillResolveJob < ApplicationJob
       next unless res.gap?
 
       { item_id: item.id,
+        enriched: Array(item.ingredients_payload).any? { |r| r["source"] == "ai" },
         prompt_row: {
           name:        item.name,
           description: item.description,
@@ -148,6 +162,7 @@ class GapFillResolveJob < ApplicationJob
   def merge_ingredients(item, ai_rows, ingredient_paths)
     merged = Array(item.ingredients_payload).dup
     known  = merged.map { |r| r["slug"] }.to_set
+    claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
 
     Array(ai_rows).each do |row|
       slug = row["slug"]
@@ -155,6 +170,16 @@ class GapFillResolveJob < ApplicationJob
 
       unless ingredient_paths.key?(slug)
         Rails.logger.warn("GapFillResolveJob: dropping unknown ingredient slug #{slug.inspect}")
+        next
+      end
+
+      # Same gate as the resolver's implied bases (Ingestion::DietClaims):
+      # the model is asked for implied ingredients, so without it a
+      # "Gluten-Free Pizza" gets its suppressed crust right back.
+      if Ingestion::DietClaims.contradicted?(claims, slug: slug, path: ingredient_paths[slug].to_s)
+        Rails.logger.info(
+          "GapFillResolveJob: dropping #{slug} — contradicts a diet claim in #{item.name.inspect}"
+        )
         next
       end
 

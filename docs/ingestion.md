@@ -141,14 +141,22 @@ the taxonomy already in Postgres:
   description is the ingredient authority; dish-name leftovers only
   count when the name is all the evidence there is.
 - **Implied bases** (`DeterministicResolver::IMPLIED_BASE_KEYWORDS`):
-  composed-dish name keywords (pizza, burger, wrap, pasta, ramen, ...)
-  union a base ingredient the description never states — today all map
-  to `grain-wheat`, so a cleanly-resolved Margherita still carries its
-  crust and `contains-gluten`. Unioned at confidence 0.8,
-  `source: "derived"` (inferred, never presented as menu-stated), and
-  skipped when an explicit match already covers the base's subtree. A
-  keyword hit also routes the item to gap-fill regardless — the map
-  catches the base, the model catches the rest (sauces, batters).
+  composed-dish keywords in the item NAME (pizza, burger, wrap, pasta,
+  ramen, ...) union a base ingredient the description never states —
+  today all map to `grain-wheat`, so a cleanly-resolved Margherita
+  still carries its crust and `contains-gluten`. Unioned at confidence
+  0.8, `source: "derived"` (inferred, never presented as menu-stated),
+  skipped when an explicit match already covers the base's subtree, and
+  gated by the one claim rule (`Ingestion::DietClaims`, enforced here
+  AND on gap-fill's model rows): a name-level diet claim ("Gluten-Free
+  Pizza") never receives a contradicting base from inference or from
+  its own name's catalog matches — explicit description evidence still
+  wins. Deliberately name-only and suppressor-free: dish semantics are
+  ambiguous, so a corn-tortilla quesadilla knowingly gains a wrong
+  (recoverable, hidden-with-reason) wheat row, and section names only
+  ROUTE items to gap-fill rather than asserting bases. Every keyword
+  hit routes to gap-fill — the map catches the base, the model catches
+  the rest (sauces, batters).
 - **Existing-item match** (`Ingestion::ExistingItemMatcher`): staged
   items are linked (`matched_item_id` + `match_score`) to the
   restaurant's existing Items so a re-scan stages updates instead of
@@ -178,7 +186,8 @@ populated dishes seconds after extraction.
 
 Items the resolver flags as gaps (nothing matched, unknown leftover
 phrases, a composite condiment like "caesar dressing", or a
-composed-dish name keyword) get Haiku calls after staging — one per
+composed-dish keyword in the name or section) get Haiku calls after
+staging — one per
 slice of 25 gap items, merged slice-by-slice — via `GapFillResolveJob`,
 tracked by `ingestion_runs.enrichment_status`
 (`pending | completed | failed`).
@@ -186,7 +195,9 @@ The prompt carries the **prompt-cached** ingredient catalog plus the
 cuisine-family tag catalog only, and asks solely for what code can't
 do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine
 tags. Merge rules: append-only (`source: "ai"`), unknown slugs
-dropped, only items still `pending`, and allergen/diet tags re-derived
+dropped, rows contradicting a name-level diet claim dropped
+(`Ingestion::DietClaims` — the same gate the resolver's implied bases
+use), only items still `pending`, and allergen/diet tags re-derived
 in code over the merged ingredient set. A gap-fill failure never fails
 the run — it's already staged and usable on deterministic data.
 

@@ -145,6 +145,44 @@ RSpec.describe GapFillResolveJob, type: :job do
     end
   end
 
+  describe "the diet-claim gate on model rows" do
+    before do
+      create(:ingredient, slug: "grain-wheat", name: "Wheat", path: "grain.wheat", aliases: [])
+    end
+
+    # Gap via the composed-dish keyword; the name carries the claim.
+    let!(:gf_item) do
+      create(:ingestion_item, ingestion_run: run, position: 2, name: "Gluten-Free Pizza",
+             description: nil, decision: "pending",
+             ingredients_payload: [], tags_payload: [])
+    end
+
+    it "drops a returned base that contradicts the name's claim (the prompt asks for 'pizza implies crust')" do
+      response = { "items" => [
+        { "index" => 1,
+          "ingredients" => {
+            "resolved" => [
+              { "slug" => "grain-wheat", "confidence" => 0.9 },
+              { "slug" => "fish-anchovy", "confidence" => 0.85 },
+            ],
+            "unresolved" => [] },
+          "cuisine_tags" => { "resolved" => [], "unresolved" => [] } },
+      ] }
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(response)
+      allow(Rails.logger).to receive(:info)
+
+      described_class.perform_now(run.id)
+
+      payload = gf_item.reload.ingredients_payload
+      expect(payload.map { |r| r["slug"] }).to contain_exactly("fish-anchovy")
+      # The claim stays viable end to end: no contains-gluten, so the
+      # gluten-free tag survives the rebuild.
+      tags = gf_item.tags_payload.map { |t| t["slug"] }
+      expect(tags).to include("gluten-free")
+      expect(tags).not_to include("contains-gluten")
+    end
+  end
+
   describe "chunking" do
     let!(:mysteries) do
       Array.new(26) do |i|
@@ -271,6 +309,30 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       expect { described_class.perform_now(run.id) }
         .not_to change { gap_item.reload.attributes }
+    end
+
+    it "a no-op retry after a failure does not launder failed into completed" do
+      run.update!(enrichment_status: "failed")
+      gap_item.update!(decision: "rejected")
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.enrichment_status).to eq("failed")
+    end
+
+    it "a retry skips slices already fully enriched instead of re-billing them" do
+      run.update!(enrichment_status: "failed")
+      gap_item.update!(ingredients_payload: [
+        { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" },
+      ])
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      # Every slice accounted for (merged by the previous attempt), so
+      # the retry may conclude completed.
+      expect(run.reload.enrichment_status).to eq("completed")
     end
   end
 end

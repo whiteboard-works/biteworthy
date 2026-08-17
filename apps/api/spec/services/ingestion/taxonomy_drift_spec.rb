@@ -74,14 +74,9 @@ RSpec.describe "deterministic-resolve taxonomy drift" do
     expect(prefix_exists?(ingredient_paths, "condiment")).to be(true)
   end
 
-  it "the resolver's implied-base rules point at live slugs and suppressor prefixes" do
-    Ingestion::DeterministicResolver::IMPLIED_BASE_RULES.each do |rule|
-      expect(ingredient_slugs).to include(rule[:slug])
-      rule[:suppressed_by].each do |prefix|
-        expect(prefix_exists?(ingredient_paths, prefix))
-          .to be(true), "no ingredient under path prefix #{prefix.inspect}"
-      end
-    end
+  it "the resolver's implied-base map points at live ingredient slugs" do
+    expect(Ingestion::DeterministicResolver::IMPLIED_BASE_KEYWORDS.keys.to_set)
+      .to be_subset(ingredient_slugs)
   end
 
   # Every catalog name and alias must survive normalization + segmentation

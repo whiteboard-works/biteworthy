@@ -15,6 +15,7 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["fruit-lemon",      "Lemon",           "fruit.lemon",             []],
       ["grain-wheat",      "Wheat",           "grain.wheat",             []],
       ["grain-wheat-flour-tortilla", "Flour Tortilla", "grain.wheat.flour_tortilla", []],
+      ["grain-wheat-pasta", "Pasta",          "grain.wheat.pasta",       []],
       ["grain-corn-tortilla", "Corn Tortilla", "grain.corn.tortilla",    []],
     ])
   end
@@ -93,18 +94,24 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.gap?).to be(true)
     end
 
-    it "yields to an explicit alternative base (a corn-tortilla quesadilla gets no wheat)" do
+    # Knowingly the false-positive direction: no suppressor for the
+    # explicit corn base. Hidden-with-reason + show-anyway + the model
+    # pass (which sees "corn tortilla") + human verify make a wrong
+    # derived wheat recoverable; a silent pass on a real crust is not.
+    it "still derives wheat for a corn-tortilla quesadilla, and routes it to gap-fill" do
       result = resolve(StubItem.new("id-1", "Quesadilla", "corn tortilla, chicken", nil)).first
 
-      expect(result.ingredients.map { |r| r["slug"] })
-        .to contain_exactly("grain-corn-tortilla", "poultry-chicken")
+      expect(result.ingredients).to include(
+        { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "derived" }
+      )
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-corn-tortilla")
       expect(result.gap?).to be(true)
     end
 
-    it "reads the section name too (a Pizzas section implies crust for every item in it)" do
+    it "routes on a section keyword but never unions from it (sections go to the model)" do
       result = resolve(StubItem.new("id-1", "Margherita", "mozzarella, basil", "Pizzas")).first
 
-      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      expect(result.ingredients.map { |r| r["slug"] }).not_to include("grain-wheat")
       expect(result.gap?).to be(true)
     end
 
@@ -118,20 +125,45 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.gap?).to be(true)
     end
 
+    # The claim also beats the name's own catalog evidence ("pasta"
+    # matches the catalog inside the name). Whether THIS dish's penne is
+    # a wheat or GF shape is exactly the ambiguity the model pass gets
+    # to judge — the deterministic layer keeps the claim viable.
+    it "keeps a gluten-free claim viable over name-derived evidence (Gluten-Free Pasta)" do
+      result = resolve(StubItem.new("id-1", "Gluten-Free Pasta", "penne, marinara", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] })
+        .not_to include("grain-wheat", "grain-wheat-pasta")
+      expect(result.tags.map { |t| t["slug"] }).to include("gluten-free")
+      expect(result.gap?).to be(true)
+    end
+
+    it "lets explicit description evidence beat the claim (a listed flour tortilla is not GF)" do
+      result = resolve(StubItem.new("id-1", "Gluten-Free Wrap", "flour tortilla", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-flour-tortilla")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
       expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
     end
 
-    it "matches plural and multi-word dish-name keywords" do
-      pizzas, lo_mein = resolve(
+    it "matches plural, identity-plural, and multi-word dish-name keywords" do
+      pizzas, lo_mein, focaccias = resolve(
         StubItem.new("a", "Margherita Pizzas", "mozzarella, basil", nil),
-        StubItem.new("b", "Chicken Lo Mein", "chicken", nil)
+        StubItem.new("b", "Chicken Lo Mein", "chicken", nil),
+        StubItem.new("c", "House Focaccias", "basil", nil)
       )
 
       expect(pizzas.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
       expect(lo_mein.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      # "focaccia".pluralize is identity (the -ia Latin-plural rule), so
+      # the plural is listed explicitly in the keyword table.
+      expect(focaccias.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
     end
   end
 
