@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchAdminUsers,
   setUserAdmin,
+  setUserHandle,
   type AdminUserRow,
   type AdminUsersResponse,
 } from '../../../lib/admin/management';
@@ -16,10 +17,10 @@ import { StatusBadge } from '../_StatusBadge';
 import { TypeToConfirm } from '../_TypeToConfirm';
 
 /**
- * /admin/users — search, the is_admin toggle, and account deletion.
- * Promote/demote sit behind the two-step confirm; the server's
- * self-demotion refusal surfaces as instructions (the system never
- * reaches zero admins).
+ * /admin/users — search, the is_admin toggle, handle renames, and
+ * account deletion. Promote/demote sit behind the two-step confirm;
+ * the server's self-demotion refusal surfaces as instructions (the
+ * system never reaches zero admins).
  *
  * Delete is super-admin only and asks for the handle to be typed. There
  * is no archive: the app has no deactivated-account state, so this
@@ -39,6 +40,8 @@ export default function AdminUsersPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const isSuperAdmin = useIsSuperAdmin();
 
   useEffect(() => {
@@ -77,6 +80,34 @@ export default function AdminUsersPage() {
         // friendlyAdminError's generic "Something went wrong loading
         // admin data", which reads as a bug rather than a rule.
         setError('Super admins are managed on the server — run admin:revoke_super first.');
+      } else {
+        setError(friendlyAdminError(e));
+      }
+    } finally {
+      setBusyId((cur) => (cur === user.id ? null : cur));
+    }
+  };
+
+  const rename = async (user: AdminUserRow) => {
+    setBusyId(user.id);
+    setError(null);
+    try {
+      const updated = await setUserHandle(user.id, renameValue.trim());
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              users: prev.users.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)),
+            }
+          : prev,
+      );
+      setRenamingId(null);
+    } catch (e) {
+      if (e instanceof AdminError && e.status === 422) {
+        // The model's message ("Validation failed: Handle has already
+        // been taken") is admin-readable — relay it over the generic
+        // "went wrong loading" copy, which reads as a bug.
+        setError(e.code ?? 'The server rejected that handle.');
       } else {
         setError(friendlyAdminError(e));
       }
@@ -184,6 +215,17 @@ export default function AdminUsersPage() {
                     control does not render at all — a button that always
                     fails is worse than no button. */}
                 <div className="flex items-center gap-bw-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenamingId(user.id);
+                      setRenameValue(user.handle);
+                    }}
+                    data-testid={`user-rename-${user.handle}`}
+                    className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Rename
+                  </button>
                   {user.is_super_admin ? (
                     <span className="text-bw-xs text-zinc-500">Managed on the server</span>
                   ) : (
@@ -212,6 +254,37 @@ export default function AdminUsersPage() {
                     </>
                   )}
                 </div>
+                {renamingId === user.id && (
+                  <div className="flex w-full items-center gap-bw-2">
+                    <input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      aria-label="New handle"
+                      data-testid={`user-rename-input-${user.handle}`}
+                      className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void rename(user)}
+                      disabled={
+                        busyId === user.id ||
+                        renameValue.trim() === '' ||
+                        renameValue.trim().toLowerCase() === user.handle
+                      }
+                      data-testid={`user-rename-save-${user.handle}`}
+                      className="rounded-bw-md bg-bite px-bw-3 py-bw-1 text-bw-sm font-bold text-white disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenamingId(null)}
+                      className="text-bw-sm text-zinc-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 {deletingId === user.id && (
                   <div className="w-full">
                     <TypeToConfirm

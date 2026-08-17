@@ -36,6 +36,26 @@ RSpec.describe User do
   # before this, a provider returning `Foo@x.com` for someone who
   # signed up as `foo@x.com` created a SECOND account, silently
   # splitting their saved dishes and dietary profile across two logins.
+  describe "handle normalization" do
+    it "downcases on write so /u/<handle> has one canonical spelling" do
+      user = create(:user, handle: "MixedCase_Name")
+      expect(user.reload.handle).to eq("mixedcase_name")
+    end
+
+    it "refuses a second handle differing only in case" do
+      create(:user, handle: "somebody")
+      dupe = build(:user, handle: "SomeBody")
+
+      expect(dupe).not_to be_valid
+      expect(dupe.errors[:handle]).to be_present
+    end
+
+    it "finds the account regardless of the case queried" do
+      user = create(:user, handle: "findable_name")
+      expect(User.find_by(handle: "Findable_Name")).to eq(user)
+    end
+  end
+
   describe "email case-insensitivity" do
     let!(:existing) do
       User.create!(email: "Diner@Example.com", password: "password123",

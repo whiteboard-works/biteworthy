@@ -859,7 +859,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Toggle is_admin (self-demotion refused) */
+        /** Partial update: is_admin toggle and/or handle edit */
         patch: {
             parameters: {
                 query?: never;
@@ -875,7 +875,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        is_admin: boolean;
+                        is_admin?: boolean;
+                        handle?: string;
                     };
                 };
             };
@@ -902,7 +903,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description self-demotion refused — the system keeps >= 1 admin */
+                /** @description self-demotion refused, invalid/taken handle, or empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -3710,7 +3711,52 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update the caller's own account (handle) */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        handle?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated user payload */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description handle taken (case-insensitively) or bad format */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrors"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/profile": {

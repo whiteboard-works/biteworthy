@@ -162,9 +162,11 @@ Rails.application.routes.draw do
       # session this API does not have.
       resources :connected_apps, only: [:index, :destroy]
       # The caller's own identity incl. `is_admin` — the web /admin
-      # guard's probe. Read-only on purpose: auth/refresh also returns
-      # the user payload but rotates the jti, killing other sessions.
+      # guard's probe. GET stays a pure read on purpose: auth/refresh
+      # also returns the user payload but rotates the jti, killing other
+      # sessions. PATCH is self-service account editing (handle).
       get "/me", to: "me#show"
+      patch "/me", to: "me#update"
       # Web-admin backoffice JSON namespace. Admin-only; non-admins get
       # 404 (see Api::V1::Admin::BaseController). Replaces Avo + the
       # ERB /admin/dashboard capability by capability.

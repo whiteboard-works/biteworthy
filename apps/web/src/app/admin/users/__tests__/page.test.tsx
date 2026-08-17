@@ -10,6 +10,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 
 const mockFetchUsers = vi.fn();
 const mockSetAdmin = vi.fn();
+const mockSetHandle = vi.fn();
 const mockDestroyUser = vi.fn();
 vi.mock('../../../../lib/admin/deletes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/admin/deletes')>()),
@@ -19,6 +20,7 @@ vi.mock('../../../../lib/admin/management', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/admin/management')>()),
   fetchAdminUsers: (q: unknown) => mockFetchUsers(q),
   setUserAdmin: (id: string, v: boolean) => mockSetAdmin(id, v),
+  setUserHandle: (id: string, h: string) => mockSetHandle(id, h),
 }));
 
 import AdminUsersPage from '../page';
@@ -56,6 +58,7 @@ function payload(users: unknown[]) {
 beforeEach(() => {
   mockFetchUsers.mockReset();
   mockSetAdmin.mockReset();
+  mockSetHandle.mockReset();
   mockDestroyUser.mockReset();
 });
 
@@ -202,5 +205,67 @@ describe('AdminUsersPage', () => {
       expect(await screen.findByTestId('users-error')).toHaveTextContent(/already be gone/i);
       expect(screen.getByTestId('user-row-diner_1')).toBeInTheDocument();
     });
+  });
+});
+
+describe('AdminUsersPage — renaming a handle', () => {
+  it('renames inline, trims the input, and swaps to the server-returned row', async () => {
+    mockFetchUsers.mockResolvedValue(payload([user()]));
+    // Like the is_admin PATCH, the response omits contribution counts —
+    // the merge must keep them rather than zeroing the row.
+    const { reviews_count: _r, ingestion_runs_count: _i, ...patched } = user({
+      handle: 'fixed_name',
+    });
+    mockSetHandle.mockResolvedValue(patched);
+    render(<AdminUsersPage />);
+    const row = await screen.findByTestId('user-row-diner_1');
+
+    fireEvent.click(within(row).getByTestId('user-rename-diner_1'));
+    fireEvent.change(within(row).getByTestId('user-rename-input-diner_1'), {
+      target: { value: ' Fixed_Name ' },
+    });
+    fireEvent.click(within(row).getByTestId('user-rename-save-diner_1'));
+
+    await vi.waitFor(() => expect(mockSetHandle).toHaveBeenCalledWith('u1', 'Fixed_Name'));
+    const renamed = await screen.findByTestId('user-row-fixed_name');
+    expect(renamed).toHaveTextContent('fixed_name');
+    expect(renamed).toHaveTextContent('2 reviews');
+  });
+
+  it('keeps Save disabled while the handle is unchanged (case-insensitively)', async () => {
+    mockFetchUsers.mockResolvedValue(payload([user()]));
+    render(<AdminUsersPage />);
+    const row = await screen.findByTestId('user-row-diner_1');
+
+    fireEvent.click(within(row).getByTestId('user-rename-diner_1'));
+    expect(within(row).getByTestId('user-rename-save-diner_1')).toBeDisabled();
+
+    fireEvent.change(within(row).getByTestId('user-rename-input-diner_1'), {
+      target: { value: 'Diner_1' },
+    });
+    expect(within(row).getByTestId('user-rename-save-diner_1')).toBeDisabled();
+  });
+
+  it('relays the validation refusal instead of the generic admin-data copy', async () => {
+    mockFetchUsers.mockResolvedValue(payload([user()]));
+    mockSetHandle.mockRejectedValue(
+      new AdminError(
+        'Admin request failed (422)',
+        422,
+        'Validation failed: Handle has already been taken',
+      ),
+    );
+    render(<AdminUsersPage />);
+    const row = await screen.findByTestId('user-row-diner_1');
+
+    fireEvent.click(within(row).getByTestId('user-rename-diner_1'));
+    fireEvent.change(within(row).getByTestId('user-rename-input-diner_1'), {
+      target: { value: 'taken_name' },
+    });
+    fireEvent.click(within(row).getByTestId('user-rename-save-diner_1'));
+
+    expect(await screen.findByTestId('users-error')).toHaveTextContent(
+      'Handle has already been taken',
+    );
   });
 });

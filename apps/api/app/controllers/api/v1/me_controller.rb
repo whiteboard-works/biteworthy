@@ -6,11 +6,25 @@ module Api
     # gates the web /admin shell) without POST /api/v1/auth/refresh —
     # refresh rotates the jti and would invalidate the user's other
     # sessions if used as a read probe.
+    #
+    # PATCH /api/v1/me — self-service account edits. Only `handle` for
+    # now: it was previously settable at signup and then frozen forever,
+    # which stranded every auto-generated `diner_<hex>` account. Errors
+    # come back per-field ({ errors: { handle: [...] } }) like the auth
+    # endpoints, so clients can render "already taken" inline.
     class MeController < BaseController
       include AuthTokenResponse
 
       def show
         render json: { user: user_payload(current_user) }
+      end
+
+      def update
+        if current_user.update(params.permit(:handle))
+          render json: { user: user_payload(current_user) }
+        else
+          render json: { errors: current_user.errors.as_json }, status: :unprocessable_entity
+        end
       end
     end
   end

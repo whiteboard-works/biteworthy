@@ -24,6 +24,8 @@ import {
   type McpTokenWithSecret,
 } from '../../../lib/mcp-tokens';
 import { listConnectedApps, disconnectApp, type ConnectedApp } from '../../../lib/connected-apps';
+import { fetchMe, updateMyHandle, HandleValidationError } from '../../../lib/me';
+import type { UserPayload } from '@biteworthy/api-types';
 import {
   fetchDietaryProfiles,
   searchIngredients,
@@ -46,6 +48,7 @@ export default function ProfileSettingsPage() {
   return (
     <main className="mx-auto max-w-2xl px-bw-6 pt-bw-12 pb-bw-16">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Account</h1>
+      <PublicProfileSection />
       <PreferencesSection />
       <FavoritesSection />
       <MyReviewsSection />
@@ -53,6 +56,128 @@ export default function ProfileSettingsPage() {
       <McpTokensSection />
       <AnalyticsSection />
     </main>
+  );
+}
+
+/**
+ * The username (handle) editor. The handle is public identity — review
+ * bylines and /u/<handle> — so the copy spells out the consequence: the
+ * old address frees up immediately, no redirect. The server stores it
+ * lowercase; we adopt whatever it returns rather than pre-normalizing.
+ */
+function PublicProfileSection() {
+  const router = useRouter();
+  const [user, setUser] = useState<UserPayload | null>(null);
+  const [handle, setHandle] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchMe()
+      .then((u) => {
+        setUser(u);
+        setHandle(u.handle);
+      })
+      .catch((e) => {
+        if (e instanceof NotSignedInError) {
+          router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+          return;
+        }
+        setLoadError((e as Error).message);
+      });
+  }, [router]);
+
+  const dirty = user !== null && handle.trim().toLowerCase() !== user.handle;
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setSaved(false);
+      const updated = await updateMyHandle(handle.trim());
+      setUser(updated);
+      setHandle(updated.handle);
+      setSaved(true);
+    } catch (e) {
+      if (e instanceof NotSignedInError) {
+        router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+        return;
+      }
+      setSaveError(
+        e instanceof HandleValidationError
+          ? `Username ${e.messages[0] ?? 'is not available'}.`
+          : (e as Error).message,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="mt-bw-8" data-testid="public-profile">
+      <h2 className="text-bw-lg font-bold text-zinc-900">Public profile</h2>
+      <p className="mt-bw-1 text-bw-sm text-zinc-600">
+        Your username appears on your reviews and your public profile page. Changing it frees the
+        old one for anyone else, and links to the old address stop working.
+      </p>
+
+      {loadError ? (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          Could not load your account — {loadError}
+        </p>
+      ) : !user ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500" data-testid="public-profile-loading">
+          Loading…
+        </p>
+      ) : (
+        <>
+          <div className="mt-bw-3 flex items-center gap-bw-2">
+            <span className="text-bw-sm text-zinc-500">/u/</span>
+            <input
+              value={handle}
+              onChange={(e) => {
+                setHandle(e.target.value);
+                setSaved(false);
+              }}
+              placeholder="letters, numbers, underscores"
+              aria-label="Username"
+              className="w-full max-w-xs rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
+            />
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving || !dirty || handle.trim() === ''}
+              data-testid="handle-save"
+              className="rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+          {saveError ? (
+            <p role="alert" className="mt-bw-2 text-bw-sm text-danger" data-testid="handle-error">
+              {saveError}
+            </p>
+          ) : null}
+          {saved ? (
+            <p className="mt-bw-2 text-bw-sm text-ok" data-testid="handle-saved">
+              Saved — your public profile is now{' '}
+              <a href={`/u/${user.handle}`} className="underline">
+                /u/{user.handle}
+              </a>
+              .
+            </p>
+          ) : (
+            <p className="mt-bw-2 text-bw-sm text-zinc-500">
+              <a href={`/u/${user.handle}`} className="underline" data-testid="handle-profile-link">
+                View your public profile
+              </a>
+            </p>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
