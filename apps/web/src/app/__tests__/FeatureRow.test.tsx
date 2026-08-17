@@ -9,12 +9,14 @@ import { FeatureRow } from '../_FeatureRow';
  * login-bounces signed-out visitors); the other tiles stay plain cards.
  */
 describe('FeatureRow', () => {
-  it('links the scan tile to /chat with the beta sign-in hint', () => {
+  it('links the scan tile to /chat with the beta hint', () => {
     render(<FeatureRow />);
     const link = screen.getByTestId('feature-scan-link');
     expect(link).toHaveAttribute('href', '/chat');
     expect(link).toHaveTextContent('Scan the menu');
-    expect(link).toHaveTextContent(/sign in to start a scan/i);
+    // Copy must read correctly in BOTH auth states — signed-in visitors
+    // land straight in /chat, so no "sign in to …" phrasing.
+    expect(link).toHaveTextContent(/free during the beta — start a scan/i);
   });
 
   it('keeps the other two tiles as plain cards, not links', () => {

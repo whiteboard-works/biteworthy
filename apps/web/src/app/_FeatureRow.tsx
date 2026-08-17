@@ -50,8 +50,11 @@ export function FeatureRow(): ReactElement {
               className="rounded-bw-lg bg-white p-bw-6 shadow-sm transition-shadow hover:shadow-md"
             >
               {inner}
+              {/* Reads correctly in both auth states — signed-out
+                  visitors get the login bounce, signed-in ones land
+                  straight in chat. */}
               <p className="mt-bw-3 text-bw-xs text-zinc-500">
-                Free during the beta — sign in to start a scan →
+                Free during the beta — start a scan →
               </p>
             </Link>
           ) : (
