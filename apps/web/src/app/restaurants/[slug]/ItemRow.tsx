@@ -13,9 +13,9 @@ import { HiddenReasonChip } from './RestaurantClient';
  * yet. PR #189 wired `@testing-library/react` + jsdom; this PR
  * extracts ItemRow + ships the deferred snapshot.
  *
- * Now renders as a card (photo on top, content below) so the menu
- * lays out as a grid. Items with no `photo_url` get a deterministic
- * monogram placeholder so the grid never has empty photo slots.
+ * Renders as a card. The dish name links to the detail page; a photo,
+ * when one exists, sits above the text. Photo-less items render as
+ * compact text cards — a media block has to be earned by a real photo.
  */
 export interface ItemRowProps {
   item: RestaurantItem;
@@ -26,58 +26,6 @@ export interface ItemRowProps {
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
-}
-
-/**
- * Deterministic hue (0–359) from a stable string (the item id), so a
- * given dish always gets the same placeholder tint and the grid reads
- * as varied rather than a wall of identical gray boxes.
- */
-function placeholderHue(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) % 360;
-  }
-  return hash;
-}
-
-/**
- * The dish photo, or a monogram placeholder when the item has none.
- * Real photos keep the `item-photo-<id>` testid + `<img>` contract
- * from Phase 4.11.4; the placeholder uses a distinct testid so the
- * "no <img> when photo_url is null" contract still holds.
- */
-function ItemPhoto({ item }: { item: RestaurantItem }): ReactElement {
-  if (item.photo_url) {
-    // Cropped dish photo from the source menu page. Plain <img> (not
-    // next/image) since the URL is a Rails signed blob URL whose host
-    // varies per env; loader config would have to learn each one.
-    return (
-      <img
-        src={item.photo_url}
-        alt={item.name}
-        loading="lazy"
-        data-testid={`item-photo-${item.id}`}
-        className="h-40 w-full object-cover"
-      />
-    );
-  }
-
-  const hue = placeholderHue(item.id);
-  const initial = (item.name.trim()[0] ?? '·').toUpperCase();
-  return (
-    <div
-      role="img"
-      aria-label={`${item.name} — no photo yet`}
-      data-testid={`item-photo-placeholder-${item.id}`}
-      className="flex h-40 w-full select-none items-center justify-center"
-      style={{ backgroundColor: `hsl(${hue} 40% 90%)` }}
-    >
-      <span className="text-bw-4xl font-bold" style={{ color: `hsl(${hue} 32% 45%)` }}>
-        {initial}
-      </span>
-    </div>
-  );
 }
 
 export function ItemRow({
@@ -95,6 +43,7 @@ export function ItemRow({
   const showChips = hidden || overridden;
   const persistent = item.overridden_by_user === true;
   const reviewsCount = item.reviews_count ?? 0;
+  const itemHref = `/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`;
   return (
     <li
       data-testid={`item-${item.id}`}
@@ -103,21 +52,39 @@ export function ItemRow({
         hidden ? 'opacity-60' : '',
       ].join(' ')}
     >
-      <ItemPhoto item={item} />
+      {item.photo_url && (
+        // Cropped dish photo from the source menu page. Plain <img> (not
+        // next/image) since the URL is a Rails signed blob URL whose host
+        // varies per env; loader config would have to learn each one.
+        <img
+          src={item.photo_url}
+          alt={item.name}
+          loading="lazy"
+          data-testid={`item-photo-${item.id}`}
+          className="h-40 w-full object-cover"
+        />
+      )}
       <div className="flex flex-1 flex-col p-bw-3">
-        <p className={['font-semibold', hidden ? 'text-hide' : 'text-zinc-900'].join(' ')}>
-          {item.name}
+        <p className="font-semibold">
+          {/* The name is the card's way into the dish page. The underline
+              is always on: hover styling alone leaves no visible link
+              affordance on touch screens or under keyboard focus. */}
+          <a
+            href={itemHref}
+            data-testid={`open-item-${item.id}`}
+            className={`underline decoration-zinc-300 underline-offset-2 hover:decoration-bite ${hidden ? 'text-hide' : 'text-zinc-900 hover:text-bite-dark'}`}
+          >
+            {item.name}
+          </a>
         </p>
         {item.description && <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>}
-        <a
-          href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
-          data-testid={`open-item-${item.id}`}
-          className="mt-1 inline-block text-bw-xs font-semibold text-bite hover:text-bite-dark"
-        >
-          {reviewsCount === 0
-            ? 'Be the first to review'
-            : `${reviewsCount} review${reviewsCount === 1 ? '' : 's'} →`}
-        </a>
+        {reviewsCount > 0 && (
+          <p className="mt-1 text-bw-xs">
+            <a href={itemHref} className="text-zinc-500 hover:text-bite-dark hover:underline">
+              {reviewsCount} review{reviewsCount === 1 ? '' : 's'}
+            </a>
+          </p>
+        )}
 
         {showChips && item.reasons.length > 0 && (
           <div className="mt-bw-2 flex flex-wrap gap-bw-1">

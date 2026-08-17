@@ -25,9 +25,12 @@ export { tasteReasonLine, topPicksFromScores };
 export function TopPicksRow({
   items,
   restaurantSlug,
+  presetSlug = null,
 }: {
   items: RestaurantItem[];
   restaurantSlug: string;
+  /** Carried onto pick links so the diet survives the hop, like the grid's. */
+  presetSlug?: string | null;
 }) {
   const [whyOpen, setWhyOpen] = useState(false);
   const picks = topPicksFromScores(items);
@@ -71,7 +74,7 @@ export function TopPicksRow({
               className="w-44 shrink-0 rounded-bw-md border border-zinc-200 p-bw-2"
             >
               <a
-                href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}`}
+                href={`/restaurants/${encodeURIComponent(restaurantSlug)}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
                 className="block"
               >
                 {item.photo_url && (

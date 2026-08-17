@@ -138,6 +138,15 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Mobile menu-card parity (2026-08-17)** — the web compact-cards pass
+  (kill the review-CTA wall, name links to the dish page, suppress the
+  lone "Other" heading) deliberately did not touch mobile. Mobile's
+  `_ItemRow` still shows "Be the first to review" per card and that CTA
+  is the *only* tap target into the dish page — so any mirroring of the
+  web change must also make the dish name pressable, or items become
+  unreachable. Candidate for a shared filter-engine heading/label helper
+  so the two clients can't drift (`groupItemsBySection` mints the
+  "Other" fallback both render).
 - **Mobile `/settings/analytics` is an orphan route (2026-08-16)** — the
   screen exists (`apps/mobile/app/settings/analytics.tsx`, the analytics
   opt-in switch) but nothing in the app navigates to it; the only
