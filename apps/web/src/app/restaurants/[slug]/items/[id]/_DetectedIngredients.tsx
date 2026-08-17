@@ -35,8 +35,8 @@ export default function DetectedIngredients({
         What we detected
       </h2>
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
-        Every ingredient call carries a confidence level and a source. Spot something wrong?
-        Use &ldquo;Suggest a fix&rdquo; below.
+        Every ingredient call carries a confidence level and a source. Spot something wrong? Use
+        &ldquo;Suggest a fix&rdquo; below.
       </p>
 
       {ingredients.length === 0 && tags.length === 0 ? (
@@ -65,7 +65,8 @@ export default function DetectedIngredients({
           )}
           <p className="mt-bw-3 text-bw-xs text-zinc-500">
             ✓ confirmed — a human verified it · ~ suggested — extracted, awaiting review · ≈
-            inferred — derived from other data
+            inferred — derived from other data. Chips marked AI came from the menu reader, not a
+            person.
           </p>
         </>
       )}
@@ -73,11 +74,22 @@ export default function DetectedIngredients({
   );
 }
 
-function AssociationChip({ row, allergen = false }: { row: DetectedAssociation; allergen?: boolean }) {
+function AssociationChip({
+  row,
+  allergen = false,
+}: {
+  row: DetectedAssociation;
+  allergen?: boolean;
+}) {
   const label = row.name ?? row.slug ?? 'Unknown';
+  // `source` must be perceivable without hover — touch screens and
+  // screen readers never see a title tooltip. Non-human sources get a
+  // visible word; the aria-label always carries the full provenance.
+  const sourceWord = row.source === 'human' ? null : row.source === 'ai' ? 'AI' : 'owner';
+  const provenance = `${row.confidence} — ${CONFIDENCE_GLOSS[row.confidence]} · source: ${row.source}`;
   return (
     <span
-      title={`${CONFIDENCE_GLOSS[row.confidence]} · source: ${row.source}`}
+      title={provenance}
       className={[
         'inline-flex items-center gap-bw-1 rounded-bw-pill border px-bw-2 py-bw-0_5 text-bw-xs font-semibold',
         allergen
@@ -86,8 +98,9 @@ function AssociationChip({ row, allergen = false }: { row: DetectedAssociation; 
       ].join(' ')}
     >
       {label}
-      <span aria-label={`${row.confidence} — ${CONFIDENCE_GLOSS[row.confidence]}`} className="font-normal opacity-70">
+      <span aria-label={provenance} className="font-normal opacity-70">
         {CONFIDENCE_MARK[row.confidence]}
+        {sourceWord && ` ${sourceWord}`}
       </span>
     </span>
   );

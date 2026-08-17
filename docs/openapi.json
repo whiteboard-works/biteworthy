@@ -6839,6 +6839,8 @@
                     "restaurant_id",
                     "name",
                     "confidence",
+                    "ingredient_ids",
+                    "tag_ids",
                     "status",
                     "reasons",
                     "detected_ingredients",

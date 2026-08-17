@@ -31,18 +31,22 @@ describe('DetectedIngredients', () => {
   it('renders each association with its confidence gloss and source', () => {
     render(<DetectedIngredients ingredients={[wheat, basil]} tags={[glutenTag]} />);
 
-    const wheatChip = screen.getByTitle('derived from other data · source: ai');
+    const wheatChip = screen.getByTitle('inferred — derived from other data · source: ai');
     expect(wheatChip).toHaveTextContent('Wheat');
-    const basilChip = screen.getByTitle('a human verified it · source: human');
+    // Source must be perceivable without hover: AI-sourced chips carry a
+    // visible marker, and the aria-label repeats the full provenance.
+    expect(wheatChip).toHaveTextContent('AI');
+    const basilChip = screen.getByTitle('confirmed — a human verified it · source: human');
     expect(basilChip).toHaveTextContent('Basil');
+    expect(basilChip).not.toHaveTextContent('AI');
     expect(screen.getByTestId('detected-tags')).toHaveTextContent('Contains gluten');
   });
 
   it('emphasizes allergen ingredients over non-allergens', () => {
     render(<DetectedIngredients ingredients={[wheat, basil]} tags={[]} />);
 
-    const wheatChip = screen.getByTitle('derived from other data · source: ai');
-    const basilChip = screen.getByTitle('a human verified it · source: human');
+    const wheatChip = screen.getByTitle('inferred — derived from other data · source: ai');
+    const basilChip = screen.getByTitle('confirmed — a human verified it · source: human');
     expect(wheatChip.className).toContain('border-bite');
     expect(basilChip.className).not.toContain('border-bite');
   });

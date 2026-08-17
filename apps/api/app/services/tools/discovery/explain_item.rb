@@ -60,14 +60,19 @@ module Tools
           item_confidence: item.confidence,
           status:      reasons.empty? ? "visible" : "hidden",
           reasons:     reasons,
-          ingredients: item.item_ingredients.map { |ii| association_row(ii, ii.ingredient) },
+          ingredients: item.item_ingredients.map do |ii|
+            association_row(ii, ii.ingredient).merge(allergen: ii.ingredient&.allergen || false)
+          end,
           tags:        item.item_tags.map { |it| association_row(it, it.tag) }
         )
       end
 
       # `confidence` and `source` are the honest-disclosure columns — the
       # whole strict-mode promise rests on them, so they ship with every
-      # association rather than being summarized away.
+      # association rather than being summarized away. Same row shape as
+      # Menus::Query#serialize_one (the web dish page's panel), including
+      # `allergen` on ingredient rows — the two surfaces must tell the
+      # same provenance story.
       def self.association_row(join, record)
         {
           slug:       record&.slug,

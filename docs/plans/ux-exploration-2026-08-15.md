@@ -187,5 +187,6 @@ planning rather than this checklist. **Update 2026-08-17:** finding 3
 shipped (detected-ingredients panel on the dish page, provenance rows in
 the `#show` payload); finding 1's live false negatives were hand-patched
 via admin edit (wheat added to the five Chamayo pizzas, the Hamburger,
-and the skillet cornbread — Chimayo House still pending), with the
-ingestion-side fix in flight.
+and the skillet cornbread — one Chamayo dish, the "Chimayo House" salad
+with its cornbread crumble, still pending), with the ingestion-side fix
+in flight.

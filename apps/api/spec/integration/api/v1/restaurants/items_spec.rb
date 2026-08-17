@@ -1,20 +1,20 @@
 require "swagger_helper"
 
-# One ingredient/tag association with its provenance — the same row the
-# `explain_item` MCP tool emits. `confidence` + `source` are the
-# honest-disclosure columns; the dish page renders them verbatim.
-ASSOCIATION_ROW_SCHEMA = {
-  type: :object,
-  required: %w[slug name confidence source],
-  properties: {
-    slug:       { type: :string, nullable: true },
-    name:       { type: :string, nullable: true },
-    confidence: { type: :string, enum: %w[confirmed suggested inferred] },
-    source:     { type: :string, enum: %w[human ai owner] }
-  }
-}.freeze
-
 RSpec.describe "restaurants/items", type: :request do
+  # One ingredient/tag association with its provenance — the same row the
+  # `explain_item` MCP tool emits. `confidence` + `source` are the
+  # honest-disclosure columns; the dish page renders them verbatim.
+  # Scoped to the example group rather than a bare ::Object constant.
+  association_row_schema = {
+    type: :object,
+    required: %w[slug name confidence source],
+    properties: {
+      slug:       { type: :string, nullable: true },
+      name:       { type: :string, nullable: true },
+      confidence: { type: :string, enum: %w[confirmed suggested inferred] },
+      source:     { type: :string, enum: %w[human ai owner] }
+    }
+  }.freeze
   path "/api/v1/restaurants/{restaurant_id}/items" do
     parameter name: :restaurant_id, in: :path, type: :string, format: :uuid,
               description: "Published restaurant id"
@@ -154,8 +154,8 @@ RSpec.describe "restaurants/items", type: :request do
 
       response(200, "the dish, its filter verdict, and every association with confidence + source") do
         schema type: :object,
-               required: %w[id restaurant_id name confidence status reasons
-                            detected_ingredients detected_tags favorited],
+               required: %w[id restaurant_id name confidence ingredient_ids tag_ids
+                            status reasons detected_ingredients detected_tags favorited],
                properties: {
                  id:             { type: :string, format: :uuid },
                  restaurant_id:  { type: :string, format: :uuid },
@@ -167,6 +167,9 @@ RSpec.describe "restaurants/items", type: :request do
                  menu_section_id:   { type: :string, format: :uuid, nullable: true },
                  menu_section_name: { type: :string, nullable: true },
                  status:         { type: :string, enum: %w[visible hidden] },
+                 # Full per-kind reason shape documented on the index
+                 # endpoint above; kept generic here to avoid a drifting
+                 # second copy.
                  reasons:        { type: :array, items: { type: :object } },
                  overridden_by_user: { type: :boolean },
                  reviews_count:  { type: :integer },
@@ -176,19 +179,28 @@ RSpec.describe "restaurants/items", type: :request do
                  favorited:      { type: :boolean },
                  detected_ingredients: {
                    type: :array,
-                   items: ASSOCIATION_ROW_SCHEMA.merge(
-                     required: ASSOCIATION_ROW_SCHEMA[:required] + %w[allergen],
-                     properties: ASSOCIATION_ROW_SCHEMA[:properties].merge(
+                   items: association_row_schema.merge(
+                     required: association_row_schema[:required] + %w[allergen],
+                     properties: association_row_schema[:properties].merge(
                        allergen: { type: :boolean }
                      )
                    )
                  },
-                 detected_tags: { type: :array, items: ASSOCIATION_ROW_SCHEMA }
+                 detected_tags: { type: :array, items: association_row_schema }
                }
 
         let(:restaurant) { create(:restaurant, :published) }
         let(:restaurant_id) { restaurant.id }
-        let(:id) { create(:item, :published, restaurant: restaurant).id }
+        # The item carries real join rows — an empty detected_* array
+        # would validate the row schema vacuously (Rule 7).
+        let(:id) do
+          item = create(:item, :published, restaurant: restaurant)
+          ItemIngredient.create!(item: item, ingredient: create(:ingredient),
+                                 confidence: "inferred", source: "ai")
+          ItemTag.create!(item: item, tag: create(:tag),
+                          confidence: "confirmed", source: "human")
+          item.id
+        end
         let(:profile) { nil }
         run_test!
       end

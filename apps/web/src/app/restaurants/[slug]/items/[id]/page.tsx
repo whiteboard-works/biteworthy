@@ -43,7 +43,7 @@ export default async function ItemDetailPage({
   const jwt = await getServerJwt();
   const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
     fetchRestaurant(slug).catch(() => null),
-    fetchItem(slug, id, { jwt: jwt ?? undefined }).catch(() => null),
+    fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug }).catch(() => null),
     fetchReviewsServer(id).catch(() => null),
     getServerUserId(),
   ]);
@@ -85,9 +85,7 @@ function Page({
         </Link>
       </p>
       <h1 className="mt-bw-2 text-bw-3xl font-bold">{item.name}</h1>
-      {item.description && (
-        <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>
-      )}
+      {item.description && <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>}
 
       {currentUserId && (
         <div className="mt-bw-4">
