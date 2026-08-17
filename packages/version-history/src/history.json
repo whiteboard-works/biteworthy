@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.8.17",
+    "date": "2026-08-17",
+    "notes": [
+      "Dish pages now show every detected ingredient with its confidence and source — allergens highlighted, AI-inferred calls marked. Menus read cleaner: dish names link to details, and photo placeholders are gone. The menu scan is one tap from the homepage, and gluten checks got sharper at our live restaurants."
+    ]
+  },
+  {
     "version": "2026.8.16",
     "date": "2026-08-16",
     "notes": [
