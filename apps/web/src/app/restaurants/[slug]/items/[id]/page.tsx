@@ -3,13 +3,12 @@ import Link from 'next/link';
 import {
   fetchItem,
   fetchRestaurant,
-  setItemFavorite,
   type Restaurant,
   type RestaurantItem,
 } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
-import FavoriteButton from '../../_FavoriteButton';
+import FavoriteDishButton from './_FavoriteDishButton';
 import { ReviewsClient } from './ReviewsClient';
 import { SuggestFixClient } from './SuggestFixClient';
 
@@ -91,13 +90,7 @@ function Page({
 
       {currentUserId && (
         <div className="mt-bw-4">
-          <FavoriteButton
-            initialFavorited={item.favorited ?? false}
-            onToggle={(next) => setItemFavorite(item.id, next)}
-            savedLabel="Saved"
-            unsavedLabel="Save this dish"
-            testId="favorite-dish"
-          />
+          <FavoriteDishButton itemId={item.id} initialFavorited={item.favorited ?? false} />
         </div>
       )}
 
