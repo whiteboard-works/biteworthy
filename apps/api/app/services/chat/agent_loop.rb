@@ -289,9 +289,34 @@ module Chat
       # one needs a new chat, and one is not the reader's to fix at all.
       # A single sentence for all three is what made the chat look like
       # it randomly stops working.
-      Rails.logger.error("[chat] conversation #{@conversation.id} upstream failure: #{e.class}: #{e.message}")
+      log_upstream_failure(e)
       halt(UpstreamError.message_for(e),
            orphan_reason: "The assistant became unavailable before this ran. Nothing happened.")
+    end
+
+    # One line carrying everything needed to tell these apart after the
+    # fact: which conversation and run, how far into the turn it got,
+    # which kind of failure it was, and upstream's own id for the
+    # request. `kind` is the same judgement the user's sentence is built
+    # from, so a spike in the logs and a spike in complaints line up
+    # instead of having to be correlated by hand.
+    #
+    # `rounds` is read straight off the run because `record_round!`
+    # reloads after its update — the counter in memory is the committed
+    # one, not a stale copy.
+    def log_upstream_failure(error)
+      Rails.logger.error(
+        "[chat] upstream failure (#{UpstreamError.kind_for(error)}) on conversation " \
+        "#{@conversation.id} run #{@run&.id || 'none'} after #{@run&.rounds || 0} round(s), " \
+        "mode #{@mode}, request_id=#{client_request_id || 'none'}: #{error.class}: #{error.message}"
+      )
+    end
+
+    # Nil for a client that does not keep one — the scripted doubles in
+    # the specs, and any future non-Anthropic client. A log line is not
+    # worth a NoMethodError.
+    def client_request_id
+      @client.last_request_id if @client.respond_to?(:last_request_id)
     end
 
     def resume(confirm, fingerprint = nil)

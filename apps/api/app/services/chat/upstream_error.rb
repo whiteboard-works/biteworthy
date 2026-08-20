@@ -47,44 +47,61 @@ module Chat
     REJECTED = "The assistant rejected this conversation, which is a bug on our side rather than " \
                "anything you did. Starting a new chat should get you moving again."
 
-    # The sentence for `error`, or GENERIC when its shape is unfamiliar.
+    # What kind of failure this is, as one greppable symbol. Separate
+    # from the sentence because a log line and a person need the same
+    # judgement in different words — and because "how much of this is
+    # overload?" is the question the retry policy in `AnthropicClient`
+    # gets tuned against.
     #
     # The two Faraday errors are named individually rather than caught as
     # their common `Faraday::Error` parent, which also covers middleware
     # failures like `ParsingError` — those are our bug, not upstream
     # weather, and they belong in the crash path where someone will look
     # at them.
-    def self.message_for(error)
+    def self.kind_for(error)
       case error
-      when AnthropicClient::Stream::IncompleteError then DROPPED
-      when AnthropicClient::ApiError                then for_api_error(error)
-      when Faraday::TimeoutError                    then TIMED_OUT
-      when Faraday::ConnectionFailed                then GENERIC
+      when AnthropicClient::Stream::IncompleteError then :dropped
+      when AnthropicClient::ApiError                then api_kind(error)
+      when Faraday::TimeoutError                    then :timed_out
+      when Faraday::ConnectionFailed                then :unreachable
+      else :unknown
+      end
+    end
+
+    # The sentence for `error`, or GENERIC when its shape is unfamiliar.
+    def self.message_for(error)
+      case kind_for(error)
+      when :dropped       then DROPPED
+      when :timed_out     then TIMED_OUT
+      when :overloaded    then OVERLOADED
+      when :too_long      then TOO_LONG
+      when :misconfigured then MISCONFIGURED
+      when :rejected      then REJECTED
+      when :rate_limited  then rate_limited(error)
+      # :unreachable and :unknown both. "We could not reach it, try again
+      # in a moment" is exactly what the generic sentence already says.
       else GENERIC
       end
     end
 
-    def self.for_api_error(error)
-      body = detail(error.body)
-      type = body["type"].to_s
-      text = body["message"].to_s
-
+    def self.api_kind(error)
       case error.status
-      when 401, 403 then MISCONFIGURED
-      when 429      then rate_limited(error)
-      when 529      then OVERLOADED
-      when 400      then context_window?(text) ? TOO_LONG : REJECTED
+      when 401, 403 then :misconfigured
+      when 429      then :rate_limited
+      when 529      then :overloaded
+      when 400      then context_window?(error.detail_message) ? :too_long : :rejected
       else
         # A stream that carries its failure as an SSE `error` event
         # arrives here as status 200 — see `Stream#raise_stream_error` —
         # so the type is the only signal there is.
-        return OVERLOADED if type == "overloaded_error"
-        return TOO_LONG if type == "invalid_request_error" && context_window?(text)
+        return :overloaded if error.error_type == "overloaded_error"
+        return :too_long if error.error_type == "invalid_request_error" &&
+                            context_window?(error.detail_message)
 
-        GENERIC
+        :unknown
       end
     end
-    private_class_method :for_api_error
+    private_class_method :api_kind
 
     # "Try again in about 40 seconds" beats "in a moment" when upstream
     # has told us the actual number, and beats it most when the number is
@@ -125,26 +142,5 @@ module Chat
       text.match?(/too long|context window|maximum.*tokens|exceeds?.*token/i)
     end
     private_class_method :context_window?
-
-    # The error envelope, whichever of the three shapes it arrived in:
-    # a parsed `{"type" => "error", "error" => {...}}` from the JSON
-    # middleware, that same JSON still as a String (the streaming
-    # connection has no JSON middleware), or the bare error object an SSE
-    # `error` event carries.
-    def self.detail(body)
-      parsed = body.is_a?(String) ? safe_json(body) : body
-      return {} unless parsed.is_a?(Hash)
-
-      inner = parsed["error"]
-      inner.is_a?(Hash) ? inner : parsed
-    end
-    private_class_method :detail
-
-    def self.safe_json(text)
-      JSON.parse(text)
-    rescue JSON::ParserError
-      nil
-    end
-    private_class_method :safe_json
   end
 end

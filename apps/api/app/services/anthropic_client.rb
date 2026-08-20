@@ -54,6 +54,25 @@ class AnthropicClient
   DEFAULT_MODEL     = "claude-sonnet-4-6"
   DEFAULT_MAX_TOKENS = 8_000
 
+  # Retry policy for the STREAMING path only — `messages_create` gets its
+  # three attempts from faraday-retry, which a stream cannot use (see
+  # `stream_connection`). Three attempts, 0.5s then 1s, matching the
+  # middleware's shape so the two doors fail over alike.
+  #
+  # `retry-after` is deliberately not honoured here. Upstream's number is
+  # for a client that can wait; this one has a person watching a spinner
+  # and a turn deadline above it. The chat quotes the header in the
+  # sentence it shows when these attempts run out, which is the right
+  # place for a number that may be a minute long.
+  STREAM_MAX_ATTEMPTS        = 3
+  STREAM_RETRY_BASE_INTERVAL = 0.5
+  STREAM_RETRY_STATUSES      = [ 429, 500, 502, 503, 504, 529 ].freeze
+  # Overload inside a stream arrives as an SSE `error` event, which
+  # `Stream#raise_stream_error` reports with status 200 — so the status
+  # list alone would miss the single most common transient failure there
+  # is.
+  STREAM_RETRY_ERROR_TYPES   = %w[overloaded_error api_error rate_limit_error].freeze
+
   # Raised whenever the upstream API returns a non-2xx status. The
   # `status` and `body` fields let callers decide whether to surface
   # the error to the user or retry on the next tick.
@@ -66,6 +85,31 @@ class AnthropicClient
       @response_headers = response_headers
       super(message || "Anthropic API returned #{status}: #{body.is_a?(String) ? body[0, 200] : body.inspect}")
     end
+
+    # The error envelope upstream sent, whichever of the three shapes it
+    # arrived in: a parsed `{"type" => "error", "error" => {...}}` from
+    # the JSON middleware, that same JSON still as a String (the
+    # streaming connection has no JSON middleware), or the bare error
+    # object an SSE `error` event carries.
+    #
+    # It lives on the error rather than in each reader because there are
+    # now three of them — the stream's retry decision, the chat's
+    # user-facing sentence, and the log line — and a body this
+    # inconsistently shaped is exactly the kind of thing three separate
+    # parsers drift on.
+    def detail
+      parsed = body.is_a?(String) ? JSON.parse(body) : body
+      return {} unless parsed.is_a?(Hash)
+
+      inner = parsed["error"]
+      inner.is_a?(Hash) ? inner : parsed
+    rescue JSON::ParserError
+      {}
+    end
+
+    # e.g. "overloaded_error", "rate_limit_error", "invalid_request_error".
+    def error_type    = detail["type"].to_s
+    def detail_message = detail["message"].to_s
   end
 
   # Raised when the response body parses as JSON but doesn't satisfy
@@ -109,6 +153,11 @@ class AnthropicClient
   # onto IngestionRun.api_cost_cents. Nil until a call succeeds.
   attr_reader :last_usage
 
+  # Anthropic's own handle on the most recent request. Nil until a call
+  # gets a response back. Logged on every failure, because it is the only
+  # thing that lets someone match what we saw against what upstream saw.
+  attr_reader :last_request_id
+
   # `timeout` and `retries` exist for callers whose work is optional.
   # The defaults are sized for the vision call that legitimately runs
   # minutes, and a caller on a user's critical path inherits that budget
@@ -137,6 +186,7 @@ class AnthropicClient
     }.merge(extra)
 
     response = connection.post(MESSAGES_PATH, body.to_json)
+    @last_request_id = header_value(response.headers, "request-id")
 
     unless (200..299).cover?(response.status)
       raise ApiError.new(
@@ -169,51 +219,67 @@ class AnthropicClient
   # and yields `(:text | :thinking, fragment)` as the model writes so a
   # caller can put words on screen instead of a spinner.
   #
-  # **Not retried.** The retry middleware replays the whole request, and
-  # by the time a mid-stream failure happens the caller has already shown
-  # the user half an answer — a silent second attempt would duplicate it.
-  # A failure here surfaces to the caller, which for the chat means one
-  # honest error rather than two conflicting replies.
+  # **Retried only while the caller has seen nothing.** This was "not
+  # retried", full stop, and the reason given was sound: the retry
+  # middleware replays the whole request, and by the time a mid-stream
+  # failure happens the caller has already shown the user half an answer,
+  # so a silent second attempt would duplicate it.
+  #
+  # That argument holds from the first fragment onward and not one moment
+  # before it. A 429 or a 529 arriving as the response status has
+  # streamed nothing at all, and an `overloaded_error` — which is how
+  # overload is reported *inside* a stream — usually arrives before the
+  # first delta too. Those were ending a turn on the first attempt where
+  # the non-streaming path would have made three, and overload is both
+  # the most common upstream failure and transient by definition. It is
+  # the likeliest single reason the chat appeared to stop working at
+  # random.
+  #
+  # So the gate is not "which error was it" but "has the reader seen
+  # anything yet". `emitted` latches on the first fragment handed to
+  # `on_delta` and never unlatches; once it is true every failure
+  # surfaces to the caller exactly as it did before — one honest error
+  # rather than two conflicting replies.
   def messages_stream(system:, messages:, max_tokens: DEFAULT_MAX_TOKENS, model: nil, **extra, &on_delta)
-    stream = Stream.new(&on_delta)
-    body   = { model: model || @model, max_tokens: max_tokens, system: system, messages: messages, stream: true }
-             .merge(extra)
-    failure = +""
+    body = { model: model || @model, max_tokens: max_tokens, system: system, messages: messages, stream: true }
+           .merge(extra)
 
-    response = stream_connection.post(MESSAGES_PATH) do |req|
-      req.body = body.to_json
-      # on_data fires for error responses too, and those bodies are plain
-      # JSON rather than SSE — buffer them so the raise below can report
-      # what upstream actually said.
-      req.options.on_data = proc do |chunk, _overall, env|
-        (200..299).cover?(env&.status.to_i) ? stream << chunk : failure << chunk
-      end
+    # The latch, and the whole safety argument for retrying here. It
+    # wraps the caller's block rather than asking `Stream` to report what
+    # it sent, so it is true for anything the caller was actually handed
+    # — not merely for the delta kinds we remembered to count.
+    emitted = false
+    relay   = lambda do |kind, fragment|
+      emitted = true
+      on_delta&.call(kind, fragment)
     end
 
-    unless (200..299).cover?(response.status)
-      raise ApiError.new(status: response.status, body: failure.presence || response.body,
-                         response_headers: response.headers)
+    # An abandoned attempt still spent whatever it had read before it
+    # died, and Anthropic billed it. `raise_lost_lease!` already settles
+    # this question for the other place a call's attribution is thrown
+    # away — "the attribution is dropped; the money is not" — and the
+    # conversation ceiling is only honest while `last_usage` reports what
+    # the turn actually cost rather than what its last attempt cost.
+    # Usually zero: a 429 or 529 arriving as the response status never
+    # reaches `message_start`, so there is nothing to carry.
+    @abandoned_usage = {}
+
+    attempt = 0
+    begin
+      attempt += 1
+      message = stream_once(body, max_tokens, &relay)
+      @last_usage = accrue(@last_usage, @abandoned_usage)
+      Rails.logger.info("[anthropic] stream recovered on attempt #{attempt}/#{STREAM_MAX_ATTEMPTS}") if attempt > 1
+      message
+    rescue ApiError, Stream::IncompleteError, Faraday::TimeoutError, Faraday::ConnectionFailed => e
+      raise if give_up_on_stream?(e, attempt: attempt, emitted: emitted)
+
+      delay = STREAM_RETRY_BASE_INTERVAL * (2**(attempt - 1))
+      Rails.logger.warn("[anthropic] stream attempt #{attempt}/#{STREAM_MAX_ATTEMPTS} failed " \
+                        "(#{failure_summary(e)}); retrying in #{delay}s")
+      sleep(delay)
+      retry
     end
-
-    @last_usage = stream.usage
-    message = stream.message
-
-    # Logged, not raised — unlike the non-streaming path.
-    #
-    # The caller has already put this answer on someone's screen word by
-    # word. Turning a visible, mostly-complete reply into an error would
-    # replace something useful with nothing; the honest handling is that
-    # the operator can find out it happened. The chat is the only
-    # streaming caller and its `MAX_TOKENS` covers thinking *and* text on
-    # Opus 5, so a long think followed by a clipped answer is the shape
-    # to watch for.
-    if message.is_a?(Hash) && message["stop_reason"] == "max_tokens"
-      Rails.logger.warn(
-        "[anthropic] streamed response hit the #{max_tokens}-token output limit; answer is incomplete"
-      )
-    end
-
-    message
   end
 
   # Build a `system` array of content blocks. Each input is a Hash like
@@ -277,6 +343,148 @@ class AnthropicClient
   end
 
   private
+
+  # One attempt at a streamed request. Everything that decides whether
+  # there will be another lives in `messages_stream`; this only reports
+  # what happened.
+  def stream_once(body, max_tokens, &relay)
+    stream  = Stream.new(&relay)
+    failure = +""
+    # Cleared per attempt so a failure that never reached upstream cannot
+    # be logged against the previous call's id.
+    @last_request_id = nil
+
+    response = stream_connection.post(MESSAGES_PATH) do |req|
+      req.body = body.to_json
+      # on_data fires for error responses too, and those bodies are plain
+      # JSON rather than SSE — buffer them so the raise below can report
+      # what upstream actually said.
+      req.options.on_data = proc do |chunk, _overall, env|
+        (200..299).cover?(env&.status.to_i) ? stream << chunk : failure << chunk
+      end
+    end
+
+    @last_request_id = header_value(response.headers, "request-id")
+
+    unless (200..299).cover?(response.status)
+      raise ApiError.new(status: response.status, body: failure.presence || response.body,
+                         response_headers: response.headers)
+    end
+
+    @last_usage = stream.usage
+    message = stream.message
+
+    # Logged, not raised — unlike the non-streaming path.
+    #
+    # The caller has already put this answer on someone's screen word by
+    # word. Turning a visible, mostly-complete reply into an error would
+    # replace something useful with nothing; the honest handling is that
+    # the operator can find out it happened. The chat is the only
+    # streaming caller and its `MAX_TOKENS` covers thinking *and* text on
+    # Opus 5, so a long think followed by a clipped answer is the shape
+    # to watch for.
+    if message.is_a?(Hash) && message["stop_reason"] == "max_tokens"
+      Rails.logger.warn(
+        "[anthropic] streamed response hit the #{max_tokens}-token output limit; answer is incomplete " \
+        "(request_id=#{@last_request_id || 'none'})"
+      )
+    end
+
+    message
+  rescue StandardError
+    # Whatever this attempt had read by the time it died. Held rather
+    # than added to `@last_usage` directly, because that ivar still holds
+    # the *previous* call's usage on a failure that never reached a 2xx,
+    # and adding to it there would bill this conversation twice for a
+    # call it already paid for.
+    @abandoned_usage = accrue(@abandoned_usage, stream.usage)
+    raise
+  end
+
+  # Sums two `usage` hashes. Anthropic's counters add; anything that is
+  # not a pair of integers (`service_tier` and friends) takes the newer
+  # value rather than being silently zeroed by a `to_i`.
+  def accrue(base, extra)
+    return base if extra.blank?
+
+    (base || {}).merge(extra) do |_key, current, addition|
+      current.is_a?(Integer) && addition.is_a?(Integer) ? current + addition : addition
+    end
+  end
+
+  # True when this failure ends the call. Each way out logs its own
+  # reason, because "the chat stopped" and "the chat stopped after two
+  # retries against an overloaded API" are different operational facts
+  # and only one of them means something is wrong with us.
+  def give_up_on_stream?(error, attempt:, emitted:)
+    if emitted
+      Rails.logger.warn("[anthropic] stream failed after the answer had started " \
+                        "(#{failure_summary(error)}); not retrying — a replay would duplicate " \
+                        "what the reader has already seen")
+      return true
+    end
+
+    unless retryable_stream_failure?(error)
+      Rails.logger.error("[anthropic] stream failed on attempt #{attempt} with nothing retryable " \
+                         "about it (#{failure_summary(error)})")
+      return true
+    end
+
+    if attempt >= STREAM_MAX_ATTEMPTS
+      Rails.logger.error("[anthropic] stream failed on all #{STREAM_MAX_ATTEMPTS} attempts " \
+                         "(#{failure_summary(error)})")
+      return true
+    end
+
+    false
+  end
+
+  # Retryable *given that nothing has been shown yet* — the caller checks
+  # that first and it is the real guard; this only asks whether a second
+  # attempt has any reason to go differently.
+  #
+  # `TimeoutError` is deliberately excluded. A read timeout has already
+  # spent the whole `ANTHROPIC_READ_TIMEOUT` (240s by default) getting
+  # nowhere, and a retry would spend it again — underneath a chat turn
+  # the loop bounds at 600 seconds. That trades a turn that fails in four
+  # minutes for one that fails in eight, which is worse for the person
+  # waiting and buys nothing they can use. `ConnectionFailed` is the
+  # opposite case: refused, reset, or never opened, and a round trip is
+  # all it costs to find out.
+  def retryable_stream_failure?(error)
+    case error
+    when Faraday::TimeoutError     then false
+    when Faraday::ConnectionFailed then true
+    # A stream that ended without `message_stop` and without handing over
+    # a single fragment is a connection that died, not an answer we would
+    # be replacing.
+    when Stream::IncompleteError   then true
+    when ApiError
+      STREAM_RETRY_STATUSES.include?(error.status) ||
+        STREAM_RETRY_ERROR_TYPES.include?(error.error_type)
+    else false
+    end
+  end
+
+  # Everything an operator needs to tell one of these apart from another
+  # in a log, on one line.
+  def failure_summary(error)
+    parts = [ error.class.name ]
+    if error.is_a?(ApiError)
+      parts << "status=#{error.status}"
+      parts << "type=#{error.error_type}" if error.error_type.present?
+    end
+    parts << "request_id=#{@last_request_id || 'none'}"
+    parts.join(" ")
+  end
+
+  # Faraday's own headers are case-insensitive; a stubbed connection's
+  # plain Hash is not.
+  def header_value(headers, name)
+    return nil unless headers.respond_to?(:find)
+
+    headers.find { |key, _| key.to_s.casecmp?(name) }&.last
+  end
 
   def connection
     @conn ||= Faraday.new(url: @base_url) do |f|

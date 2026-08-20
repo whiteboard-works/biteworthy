@@ -13,6 +13,31 @@ RSpec.describe Chat::UpstreamError do
     AnthropicClient::ApiError.new(status: status, body: body, response_headers: headers)
   end
 
+  # The symbol the log line carries. Same judgement as the sentence, in
+  # the words an operator greps for — so a spike in the logs and a spike
+  # in complaints are the same spike.
+  describe ".kind_for" do
+    it "names each failure the sentence distinguishes" do
+      expect(described_class.kind_for(api_error(status: 529, body: "overloaded"))).to eq(:overloaded)
+      expect(described_class.kind_for(api_error(status: 429, body: "slow down"))).to eq(:rate_limited)
+      expect(described_class.kind_for(api_error(status: 401, body: "nope"))).to eq(:misconfigured)
+      expect(described_class.kind_for(Faraday::TimeoutError.new("expired"))).to eq(:timed_out)
+      expect(described_class.kind_for(Faraday::ConnectionFailed.new("refused"))).to eq(:unreachable)
+      expect(described_class.kind_for(AnthropicClient::Stream::IncompleteError.new("cut"))).to eq(:dropped)
+    end
+
+    # :unreachable and :unknown share the generic sentence, and that is
+    # the point of keeping the kinds apart: the log can tell them apart
+    # even though the reader does not need to.
+    it "keeps kinds apart that the copy deliberately merges" do
+      unreachable = Faraday::ConnectionFailed.new("refused")
+      unknown     = api_error(status: 500, body: "boom")
+
+      expect(described_class.message_for(unreachable)).to eq(described_class.message_for(unknown))
+      expect(described_class.kind_for(unreachable)).not_to eq(described_class.kind_for(unknown))
+    end
+  end
+
   describe "failures the user can wait out" do
     it "names overload as capacity, so waiting is the right move" do
       expect(described_class.message_for(api_error(status: 529, body: "overloaded")))
