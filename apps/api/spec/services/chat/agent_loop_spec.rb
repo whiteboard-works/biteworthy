@@ -1155,7 +1155,40 @@ RSpec.describe Chat::AgentLoop do
                               .run(text: "hello")
 
       expect(result).not_to be_ok
-      expect(seen.last).to eq(type: "error", message: "The assistant is unavailable right now. Try again in a moment.")
+      expect(seen.last).to eq(type: "error", message: Chat::UpstreamError::OVERLOADED)
+      expect(conversation.reload.state).to eq("active")
+    end
+
+    # The point of `UpstreamError`: a failure the reader cannot wait out
+    # must not be dressed as one they can. A turn refused for a
+    # transcript that no longer fits told them to "try again in a
+    # moment", which is advice that can only fail — every retry sends the
+    # same too-long transcript.
+    it "tells the user to start a new chat when the transcript no longer fits" do
+      client = StreamingScriptedClient.new(
+        AnthropicClient::ApiError.new(
+          status: 400,
+          body: { "type" => "error",
+                  "error" => { "type" => "invalid_request_error",
+                               "message" => "prompt is too long: 214000 tokens > 200000 maximum" } }
+        )
+      )
+      result = described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(result.error).to eq(Chat::UpstreamError::TOO_LONG)
+      # And it survives a reload — the sentence is a message, not just an
+      # SSE event, so the person who comes back to the tab still sees it.
+      expect(conversation.messages.reload.last.content.first["text"]).to eq(Chat::UpstreamError::TOO_LONG)
+    end
+
+    # A read timeout used to fall through to `crashed`, which apologises
+    # for a bug on our side and suggests starting a new chat. It is
+    # neither our bug nor worth the conversation.
+    it "reads a timeout as upstream slowness, not as a crash" do
+      client = StreamingScriptedClient.new(Faraday::TimeoutError.new("timeout"))
+      result = described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(result.error).to eq(Chat::UpstreamError::TIMED_OUT)
       expect(conversation.reload.state).to eq("active")
     end
   end
@@ -1189,7 +1222,7 @@ RSpec.describe Chat::AgentLoop do
 
       described_class.new(conversation, client: client).run(text: "hello")
 
-      expect(last_assistant_text).to include("unavailable right now")
+      expect(last_assistant_text).to eq(Chat::UpstreamError::OVERLOADED)
     end
 
     # The floor, for an exception nobody named. Since #583 the client's

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTracker } from '../_PostHogProvider';
+import { DisclaimerNote } from '../_SiteDisclaimer';
 import {
   NotSignedInError,
   createConversation,
@@ -619,6 +620,11 @@ function Welcome(): ReactElement {
         <li>“Add cilantro to my avoid list.”</li>
         <li>Attach a photo of a menu and I&apos;ll read it.</li>
       </ul>
+      {/* The chat's only showing of the site-wide disclaimer: here, on an
+          empty conversation, rather than standing under the composer for
+          the whole of every chat. Read before the first question is
+          asked, which is where it does its work. */}
+      <DisclaimerNote className="mt-bw-4 border-t border-zinc-200 pt-bw-3" />
     </div>
   );
 }

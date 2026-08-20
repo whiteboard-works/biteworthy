@@ -272,11 +272,25 @@ module Chat
       # appended here would be wrong for the second, so the message rides
       # through untouched. What changes is that it gets written down.
       halt(e.message, orphan_reason: "The conversation hit its spend limit before this ran. Nothing happened.")
-    rescue AnthropicClient::ApiError, AnthropicClient::Stream::IncompleteError => e
+    rescue AnthropicClient::ApiError, AnthropicClient::Stream::IncompleteError,
+           Faraday::TimeoutError, Faraday::ConnectionFailed => e
       # Upstream trouble, not a bug in us — say so plainly and leave the
       # conversation usable so the user can just try again.
+      #
+      # The two Faraday errors are new here and were the loudest wrong
+      # answer of the lot: a read timeout or a refused connection fell
+      # through to `crashed`, which apologises for "something going wrong
+      # on my end" and tells the person to start a new chat. Neither is
+      # true of a slow upstream, and the advice actively costs them the
+      # conversation they were mid-way through.
+      #
+      # `UpstreamError` decides *what* plainly means here, because these
+      # failures do not all have the same answer: one clears on its own,
+      # one needs a new chat, and one is not the reader's to fix at all.
+      # A single sentence for all three is what made the chat look like
+      # it randomly stops working.
       Rails.logger.error("[chat] conversation #{@conversation.id} upstream failure: #{e.class}: #{e.message}")
-      halt("The assistant is unavailable right now. Try again in a moment.",
+      halt(UpstreamError.message_for(e),
            orphan_reason: "The assistant became unavailable before this ran. Nothing happened.")
     end
 
