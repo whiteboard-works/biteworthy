@@ -10,7 +10,10 @@ import type { ChatEvent, Conversation } from '../../../lib/chat';
  */
 
 const mockReplace = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => '/chat',
+}));
 
 const listConversations = vi.fn();
 const createConversation = vi.fn();
@@ -96,6 +99,25 @@ describe('ChatClient', () => {
     render(<ChatClient />);
 
     expect(await screen.findByTestId('chat-welcome')).toBeInTheDocument();
+  });
+
+  // The disclaimer earns its place on an empty chat, where someone is
+  // about to decide how much to trust the answers, and stops earning it
+  // once they are reading one — the chat sizes itself to the viewport,
+  // so a permanent copy of it is four lines of a phone screen spent on
+  // something already read.
+  it('shows the safety disclaimer on a new chat and drops it once the chat has content', async () => {
+    watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+      onEvent({ type: 'done', text: 'Ninis has 12 dishes you can eat.' });
+    });
+    getConversation.mockResolvedValue(answered('Ninis has 12 dishes you can eat.'));
+
+    render(<ChatClient />);
+    expect(await screen.findByTestId('site-disclaimer')).toHaveTextContent(/always confirm with/i);
+
+    await type('hi');
+
+    await waitFor(() => expect(screen.queryByTestId('site-disclaimer')).not.toBeInTheDocument());
   });
 
   it('creates a conversation on the first message and streams the reply', async () => {

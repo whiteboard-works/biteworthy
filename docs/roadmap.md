@@ -138,6 +138,20 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
+  while making the chat's upstream failures explain themselves
+  (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
+  skips the faraday-retry middleware, and its header gives the reason:
+  the retry replays the whole request, and a mid-stream failure has
+  already put half an answer on someone's screen. That argument holds
+  only *after* the first byte. A 429 or 529 that arrives as the response
+  status has streamed nothing, and today it ends the turn on the first
+  try where `messages_create` would have made three — which is the most
+  likely reason a person sees the chat "stop working" at all, since
+  overload is the common upstream failure and it is transient by
+  definition. The shape is a retry gated on `stream.complete? == false &&
+  nothing emitted yet`, not the blanket middleware. Better error copy
+  ships in the meantime; it explains the failure rather than avoiding it.
 - **Mobile menu-card parity (2026-08-17)** — the web compact-cards pass
   (kill the review-CTA wall, name links to the dish page, suppress the
   lone "Other" heading) deliberately did not touch mobile. Mobile's
