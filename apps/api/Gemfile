@@ -58,7 +58,7 @@ gem "json-schema", "~> 6.2"
 # endpoint, which exposes app/tools/* to Claude Desktop / Claude Code. The
 # same tool classes back the first-party chat, so domain logic and
 # authorization live in one place. See docs/mcp.md.
-gem "mcp", "~> 1.1"
+gem "mcp", "~> 1.2"
 
 # --- Misc utilities ----------------------------------------------------------
 gem "bcrypt", "~> 3.1"
