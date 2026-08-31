@@ -220,7 +220,7 @@ GEM
       net-pop
       net-smtp
     marcel (1.1.0)
-    mcp (1.2.0)
+    mcp (1.4.0)
       json_schemer (>= 2.4)
     mini_magick (5.3.3)
       logger
@@ -510,7 +510,7 @@ DEPENDENCIES
   image_processing (~> 2.0)
   jbuilder
   json-schema (~> 6.2)
-  mcp (~> 1.2)
+  mcp (~> 1.4)
   mini_magick (~> 5.3)
   omniauth (~> 2.1)
   omniauth-apple
@@ -612,7 +612,7 @@ CHECKSUMS
   loofah (2.25.2) sha256=2007f746959ac65552456e04b433e83deb22759ab38c838b4445c70e43425918
   mail (2.9.0) sha256=6fa6673ecd71c60c2d996260f9ee3dd387d4673b8169b502134659ece6d34941
   marcel (1.1.0) sha256=fdcfcfa33cc52e93c4308d40e4090a5d4ea279e160a7f6af988260fa970e0bee
-  mcp (1.2.0) sha256=af75a270fbcbff5db74992e1d0664cfe7e2aa7f89fa9b31592bba40e9f554ba6
+  mcp (1.4.0) sha256=4048ad5ec2fb6e225fdf4888e25871a93b67da4b0233913dcbf70f780460ee5b
   mini_magick (5.3.3) sha256=b3beed8a8cef36bd03666365f14b89cd344da0ecd373af53e617c71bfd426aab
   mini_mime (1.1.5) sha256=8681b7e2e4215f2a159f9400b5816d85e9d8c6c6b491e96a12797e798f8bccef
   minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1
