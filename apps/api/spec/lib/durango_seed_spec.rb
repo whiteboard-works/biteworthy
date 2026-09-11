@@ -75,6 +75,24 @@ RSpec.describe Biteworthy::DurangoSeed do
       expect(logger.string).to include("[ok  ]")
     end
 
+    it "enqueues ExtractMenuJob for each created run" do
+      csv = write_csv([
+        "Tacos,tacos,1 Main,,,https://tacos.example/menu,Downtown"
+      ])
+      fetcher = FakeFetcher.new("https://tacos.example/menu" => fake_blob_result)
+
+      expect {
+        described_class.new(
+          csv_path:     csv,
+          wait_seconds: 0,
+          url_fetcher:  fetcher,
+          logger:       StringIO.new
+        ).run
+      }.to have_enqueued_job(ExtractMenuJob).with { |run_id|
+        expect(IngestionRun.find(run_id)).to be_present
+      }.on_queue("ingestion")
+    end
+
     it "is idempotent — re-running skips restaurants that already have a non-failed run" do
       csv = write_csv([
         "Tacos,tacos,1 Main,,,https://tacos.example/menu,Downtown"

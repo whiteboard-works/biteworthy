@@ -156,6 +156,7 @@ module Biteworthy
       )
       attach_input!(run, menu_source)
       run.transition_to!(:extracting)
+      ExtractMenuJob.perform_later(run.id)
       run
     end
 
