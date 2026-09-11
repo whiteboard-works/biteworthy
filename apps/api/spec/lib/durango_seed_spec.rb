@@ -90,7 +90,7 @@ RSpec.describe Biteworthy::DurangoSeed do
         ).run
       }.to have_enqueued_job(ExtractMenuJob).with { |run_id|
         expect(IngestionRun.find(run_id)).to be_present
-      }.on_queue("default")
+      }.on_queue("ingestion")
     end
 
     it "is idempotent — re-running skips restaurants that already have a non-failed run" do
