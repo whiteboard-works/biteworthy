@@ -34,7 +34,7 @@ gem "doorkeeper", "~> 5.9"
 gem "omniauth-apple"
 
 # --- Storage / files ---------------------------------------------------------
-gem "image_processing", "~> 2.0"
+gem "image_processing", "~> 2.1"
 # image_processing 2.0 dropped mini_magick as a hard dependency, but
 # Ingestion::DishPhotoCropper requires it directly — keep it explicit.
 gem "mini_magick", "~> 5.4"
