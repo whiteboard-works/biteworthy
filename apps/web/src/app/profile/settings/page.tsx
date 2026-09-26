@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DietaryPreset, Strictness } from '@biteworthy/filter-engine';
+import posthog from 'posthog-js';
 import { OPT_OUT_KEY } from '../../../lib/track';
 import {
   fetchProfile,
@@ -1210,6 +1211,9 @@ function AnalyticsSection() {
     } catch {
       // localStorage unavailable (private mode) — nothing to persist.
     }
+    // posthog-js captures page views on its own once loaded; stop it now
+    // rather than on the next page load.
+    if (next && posthog.__loaded) posthog.opt_out_capturing();
     setOptedOut(next);
   };
 

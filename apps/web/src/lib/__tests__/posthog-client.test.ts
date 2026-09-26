@@ -144,3 +144,9 @@ describe('scrubEvent', () => {
     expect(out.$set_once).toMatchObject({ $initial_current_url: `${origin}/r/ninis` });
   });
 });
+
+describe('scrubUrl fallback', () => {
+  it('still hides the diet when a relative value will not parse as a URL', () => {
+    expect(scrubUrl('/durango/celiac?x=[')).toBe('/durango/:diet');
+  });
+});

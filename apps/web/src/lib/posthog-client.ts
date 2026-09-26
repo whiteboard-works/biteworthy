@@ -109,15 +109,18 @@ export function scrubUrl(value: string): string {
   try {
     url = new URL(value, 'https://placeholder.invalid');
   } catch {
-    return value.split(/[?#]/)[0] ?? '';
+    // Unparseable: keep nothing that could carry a path or a query.
+    return relative ? maskPath(value.split(/[?#]/)[0] ?? '') : '';
   }
-  const path = url.pathname
-    .replace(/^\/durango\/[^/]+/, '/durango/:diet')
-    .replace(/^\/u\/[^/]+/, '/u/:handle');
+  const path = maskPath(url.pathname);
   if (relative) return path;
   // A third-party referrer keeps only its origin.
   if (url.hostname !== window.location.hostname) return url.origin;
   return `${url.origin}${path}`;
+}
+
+function maskPath(path: string): string {
+  return path.replace(/^\/durango\/[^/]+/, '/durango/:diet').replace(/^\/u\/[^/]+/, '/u/:handle');
 }
 
 function scrubProps(props: Record<string, unknown> | undefined): void {
