@@ -24,9 +24,9 @@ Make the core loop — scan a menu, see what you can eat, see your best
 picks — fast and obvious. Working todo: [`docs/plans/mvp-speed-ui.md`](plans/mvp-speed-ui.md).
 
 - [x] 2.1 REST scan door (`/api/v1/scans`) over the ingestion tools — status polling without a model round
-- [ ] 2.2 Retry transient extraction failures
-- [ ] 2.3 Menu read path: dead preload, anonymous-menu cache, ETag
-- [ ] 2.4 Mobile fixes (frozen app): double fetch, image caching, list virtualization
+- [~] 2.2 Retry transient extraction failures — dropped: the client already retries (see plan)
+- [ ] 2.3 Menu read path: dead preload + query budget (cache/ETag dropped, see plan)
+- [ ] 2.4 Mobile fixes (frozen app): double fetch, image caching
 - [ ] 3.1 Web scan screen
 - [ ] 3.2 Value before signup
 - [ ] 3.3 Menu page hierarchy + picks/strict-mode empty states

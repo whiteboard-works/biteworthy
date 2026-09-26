@@ -77,6 +77,18 @@ RSpec.describe "Api::V1::Scans", type: :request do
   end
 
   describe "POST /api/v1/scans" do
+    # Someone else's unpublished draft is not a menu this caller may spend
+    # a scan on; a 403 lets the screen say so instead of "check your input".
+    it "refuses a draft restaurant the caller did not create with 403" do
+      draft = create(:restaurant, status: "draft")
+
+      post "/api/v1/scans", params: { restaurant: draft.slug, source_text: "Taco" },
+                            headers: auth_headers_for(owner)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(json["code"]).to eq("forbidden_restaurant")
+    end
+
     # The quota lives in the tool; this door must not be a way around it.
     it "reports a spent quota as 429 with a sentence to show" do
       allow(Ingestion::StartRun).to receive(:call)

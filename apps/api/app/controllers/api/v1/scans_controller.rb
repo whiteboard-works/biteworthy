@@ -14,6 +14,7 @@ module Api
       ERROR_STATUS = {
         "unauthorized"         => :unauthorized,
         "forbidden"            => :forbidden,
+        "forbidden_restaurant" => :forbidden,
         "not_found"            => :not_found,
         "quota_exceeded"       => :too_many_requests,
         "cost_ceiling_reached" => :too_many_requests,
