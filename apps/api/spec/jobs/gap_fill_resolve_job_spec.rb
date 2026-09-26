@@ -1,6 +1,15 @@
 require "rails_helper"
 
 RSpec.describe GapFillResolveJob, type: :job do
+  # The attempt retry_on gives up after — the only one that may stamp
+  # `failed`, because clients stop waiting on it. retry_on swallows the
+  # error once attempts are exhausted, so this returns normally.
+  def final_attempt(run_id)
+    job = described_class.new(run_id)
+    job.executions = ApplicationJob::RETRY_ATTEMPTS - 1
+    job.perform_now
+  end
+
   let(:restaurant) { create(:restaurant, :published) }
   let(:run) do
     create(:ingestion_run, :staged, restaurant: restaurant, enrichment_status: "pending")
@@ -227,7 +236,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
 
-    it "a failing later slice keeps the merges already landed, marks enrichment failed, and retries" do
+    it "a failing later slice keeps the merges already landed and retries without giving up yet" do
       calls = 0
       allow_any_instance_of(AnthropicClient).to receive(:messages_create) do
         calls += 1
@@ -246,18 +255,29 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(gap_item.reload.ingredients_payload)
         .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
       run.reload
-      expect(run.enrichment_status).to eq("failed")
+      # Still pending: a retry is coming, so clients must keep waiting.
+      expect(run.enrichment_status).to eq("pending")
       expect(run.status).to eq("staged")
     end
   end
 
   describe "soft failure" do
-    it "ApiError marks enrichment failed but the run stays staged" do
+    it "an early ApiError leaves enrichment pending for the retry" do
       allow_any_instance_of(AnthropicClient).to receive(:messages_create)
         .and_raise(AnthropicClient::ApiError.new(status: 500, body: "boom"))
       allow(Rails.logger).to receive(:error)
 
       described_class.perform_now(run.id)
+
+      expect(run.reload.enrichment_status).to eq("pending")
+    end
+
+    it "ApiError on the last attempt marks enrichment failed but the run stays staged" do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create)
+        .and_raise(AnthropicClient::ApiError.new(status: 500, body: "boom"))
+      allow(Rails.logger).to receive(:error)
+
+      final_attempt(run.id)
 
       run.reload
       expect(run.status).to eq("staged")
@@ -266,12 +286,11 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(Rails.logger).to have_received(:error).with(/gap_fill_api_error/)
     end
 
-    it "an unexpected error (transport, bug) marks enrichment failed and re-raises for retry_on" do
+    it "an unexpected error (transport, bug) on the last attempt marks enrichment failed" do
       allow_any_instance_of(AnthropicClient).to receive(:messages_create)
         .and_raise(Faraday::TimeoutError)
 
-      # .new.perform bypasses retry_on so the raise is observable.
-      expect { described_class.new.perform(run.id) }.to raise_error(Faraday::TimeoutError)
+      final_attempt(run.id)
 
       run.reload
       expect(run.status).to eq("staged")
@@ -288,8 +307,6 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       expect { described_class.perform_now(run.id) }
         .to change { run.reload.uncached_input_tokens }.by(10_000)
-
-      expect(run.enrichment_status).to eq("failed")
     end
   end
 

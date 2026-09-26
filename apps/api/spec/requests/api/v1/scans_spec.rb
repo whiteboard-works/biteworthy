@@ -22,6 +22,12 @@ RSpec.describe "Api::V1::Scans", type: :request do
       expect(json).to include("ready" => true, "dish_count" => 1)
     end
 
+    it "names the scan's restaurant so the screen can check it matches the page" do
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["restaurant_slug"]).to eq(restaurant.slug)
+    end
+
     it "shows people the plain dish text, not the model's fenced copy" do
       create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco")
 
@@ -40,6 +46,39 @@ RSpec.describe "Api::V1::Scans", type: :request do
       get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
 
       expect(json["dishes"].first["needs_attention"]).to be(true)
+    end
+
+    it "flags a dish whose only ingredients were inferred from its name" do
+      create(:ingestion_item, ingestion_run: run, name: "Margherita Pizza",
+                              ingredients_payload: [ { "slug" => "meat-beef", "confidence" => 0.8, "source" => "derived" } ])
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["dishes"].first["needs_attention"]).to be(true)
+    end
+
+    it "flags a dish whose ingredients all came from inference, name or model" do
+      create(:ingestion_item, ingestion_run: run, name: "Mystery Wrap",
+                              ingredients_payload: [
+                                { "slug" => "meat-beef", "confidence" => 0.8, "source" => "derived" },
+                                { "slug" => "meat-beef", "confidence" => 0.7, "source" => "ai" }
+                              ])
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["dishes"].first["needs_attention"]).to be(true)
+    end
+
+    it "does not flag a dish with at least one ingredient the menu stated" do
+      create(:ingestion_item, ingestion_run: run,
+                              ingredients_payload: [
+                                { "slug" => "meat-beef", "confidence" => 0.97, "source" => "match" },
+                                { "slug" => "meat-beef", "confidence" => 0.7, "source" => "ai" }
+                              ])
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["dishes"].first["needs_attention"]).to be(false)
     end
 
     it "leaves dishes out until the scan is ready" do

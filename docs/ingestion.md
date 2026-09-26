@@ -193,7 +193,9 @@ composed-dish keyword in the name or section) get Haiku calls after
 staging — one per
 slice of 25 gap items, merged slice-by-slice — via `GapFillResolveJob`,
 tracked by `ingestion_runs.enrichment_status`
-(`pending | completed | failed`).
+(`pending | completed | failed`). `pending` holds through the job's
+`retry_on` attempts; only the last failed attempt stamps `failed`, so
+clients can treat it as final.
 The prompt carries the **prompt-cached** ingredient catalog plus the
 cuisine-family tag catalog only, and asks solely for what code can't
 do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine

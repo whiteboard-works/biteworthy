@@ -41,6 +41,9 @@ module Api
         return render_tool_error(result) if result[:isError]
 
         scan = result[:structuredContent]
+        # The screen compares this with its route, so a scan id pasted into
+        # another restaurant's URL can't be reviewed under the wrong name.
+        scan = scan.merge(restaurant_slug: Restaurant.where(id: scan[:restaurant_id]).pick(:slug))
         scan = scan.merge(dishes: dishes_for(params[:id])) if scan[:ready]
         render json: scan
       end
@@ -117,8 +120,8 @@ module Api
             tags:        ::Ingestion::AssociationPayload.load_all(item.tags_payload)
                                                         .map { |row| names[:tags][row.slug] || row.slug },
             unresolved:  unresolved,
-            # Same rule as IngestionItem.needing_attention.
-            needs_attention: unresolved.values.any?(&:any?) || ingredients.empty?,
+            # The same rule the chat's list_staged_items filters on.
+            needs_attention: item.needs_attention?,
             updates_existing_item: existing_item_row(item)
           }
         end

@@ -206,4 +206,29 @@ RSpec.describe IngestionItem, type: :model do
       end
     end
   end
+
+  # The chat filters on the scope and the scan screen reads the method; a
+  # dish one calls safe and the other calls unvouched would send people to
+  # "fix it in chat" and have chat report nothing to fix.
+  describe "needing attention" do
+    let(:run) { create(:ingestion_run, :staged) }
+
+    def dish(payload, **attrs)
+      create(:ingestion_item, ingestion_run: run, ingredients_payload: payload, **attrs)
+    end
+
+    it "agrees between the scope and the method for every kind of dish" do
+      stated   = dish([ { "slug" => "a", "source" => "match" } ])
+      mixed    = dish([ { "slug" => "a", "source" => "match" }, { "slug" => "b", "source" => "ai" } ])
+      inferred = dish([ { "slug" => "a", "source" => "derived" }, { "slug" => "b", "source" => "ai" } ])
+      empty    = dish([])
+      unmatched = dish([ { "slug" => "a", "source" => "match" } ], unresolved_ingredients: [ "mole" ])
+
+      flagged = described_class.needing_attention.where(ingestion_run: run).to_a
+      expect(flagged).to contain_exactly(inferred, empty, unmatched)
+      [ stated, mixed, inferred, empty, unmatched ].each do |item|
+        expect(item.needs_attention?).to eq(flagged.include?(item)), "disagreement on #{item.ingredients_payload}"
+      end
+    end
+  end
 end

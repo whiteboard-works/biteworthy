@@ -14,17 +14,34 @@ class IngestionItem < ApplicationRecord
     define_method("#{d}?") { decision == d }
   end
 
-  # "Worth a human look": text we could not match to the taxonomy, or nothing
-  # resolved at all — either way the dietary filter would be wrong or empty
-  # for this dish. In SQL rather than Ruby so a caller asking for these gets
-  # them from the whole scan, not from whichever page a limit happened to cut.
+  # Payload sources that are guesses rather than something the menu said:
+  # inferred from the dish name, or suggested by the model pass.
+  INFERRED_SOURCES = %w[derived ai].freeze
+
+  # "Worth a human look": text we could not match to the taxonomy, nothing
+  # resolved at all, or only inferred ingredients (a pizza's wheat, a model
+  # guess) and nothing the menu stated — in each case the dietary filter
+  # would be wrong or empty for this dish. In SQL rather than Ruby so a
+  # caller asking for these gets them from the whole scan, not from
+  # whichever page a limit happened to cut. `needs_attention?` is the
+  # same rule for one loaded row; keep the two in step.
   scope :needing_attention, -> {
-    where(<<~SQL.squish)
+    where(<<~SQL.squish, INFERRED_SOURCES)
       jsonb_array_length(COALESCE(unresolved_ingredients, '[]'::jsonb)) > 0
       OR jsonb_array_length(COALESCE(unresolved_tags, '[]'::jsonb)) > 0
       OR jsonb_array_length(COALESCE(ingredients_payload, '[]'::jsonb)) = 0
+      OR NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(COALESCE(ingredients_payload, '[]'::jsonb)) AS row
+        WHERE COALESCE(row->>'source', '') NOT IN (?)
+      )
     SQL
   }
+
+  def needs_attention?
+    rows = ::Ingestion::AssociationPayload.load_all(ingredients_payload)
+    Array(unresolved_ingredients).any? || Array(unresolved_tags).any? || rows.empty? ||
+      rows.all? { |row| INFERRED_SOURCES.include?(row.source) }
+  end
 
   # Materialize a staged ingestion item into a real Item +
   # ItemIngredient + ItemTag join rows. Called from the swipe-verify

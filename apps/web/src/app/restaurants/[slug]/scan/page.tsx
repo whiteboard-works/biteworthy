@@ -14,16 +14,23 @@ type Params = { slug: string };
 
 export default async function ScanPage({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<{ scan?: string | string[] }>;
 }): Promise<ReactElement> {
   const { slug } = await params;
+  const { scan } = await searchParams;
+  const resumeScanId = (Array.isArray(scan) ? scan[0] : scan) ?? null;
   const jwt = await getServerJwt();
-  if (!jwt) redirect(`/login?next=${encodeURIComponent(`/restaurants/${slug}/scan`)}`);
+  const here = `/restaurants/${slug}/scan${resumeScanId ? `?scan=${encodeURIComponent(resumeScanId)}` : ''}`;
+  if (!jwt) redirect(`/login?next=${encodeURIComponent(here)}`);
 
   // A draft restaurant (just created, nothing published yet) is not on the
   // public endpoint, but its creator can still scan it — the scan door
   // decides who may, so a missing header only costs the display name.
   const restaurant = await fetchRestaurant(slug, { jwt }).catch(() => null);
-  return <ScanClient slug={slug} restaurantName={restaurant?.name ?? slug} />;
+  return (
+    <ScanClient slug={slug} restaurantName={restaurant?.name ?? slug} resumeScanId={resumeScanId} />
+  );
 }
