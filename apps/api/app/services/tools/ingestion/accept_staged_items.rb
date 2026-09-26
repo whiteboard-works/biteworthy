@@ -80,7 +80,7 @@ module Tools
         ok(
           accepted:  accepted,
           failed:    failed.presence,
-          restaurant_published: run.restaurant&.status == "published",
+          restaurant_published: Restaurant.published.exists?(id: run.restaurant_id),
           remaining_pending: run.ingestion_items.where(decision: "pending").count
         )
       end
