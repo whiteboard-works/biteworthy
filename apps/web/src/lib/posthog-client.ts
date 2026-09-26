@@ -115,8 +115,34 @@ const URL_KEY = /(url|pathname|referrer)$/i;
 // words: the page title (a diet page's title names the diet), search
 // keywords PostHog derives from a referrer, and campaign/ad-click params.
 // Also matched on the $initial_ / $session_entry_ copies.
-const DROP_KEY =
-  /(^|[_$])(title|ph_keyword|keyword|utm_[a-z_]+|gclid|gbraid|wbraid|fbclid|msclkid|dclid|li_fat_id|ttclid|twclid|igshid|mc_cid)$/i;
+// posthog-js's own campaign/ad-click parameter list (1.434), plus the
+// page title and derived search keyword.
+const DROPPED_PARAMS = [
+  'title',
+  'ph_keyword',
+  'keyword',
+  'utm_[a-z_]+',
+  'gad_source',
+  'mc_cid',
+  'gclid',
+  'gclsrc',
+  'dclid',
+  'gbraid',
+  'wbraid',
+  'fbclid',
+  'msclkid',
+  'twclid',
+  'li_fat_id',
+  'igshid',
+  'ttclid',
+  'rdt_cid',
+  'epik',
+  'qclid',
+  'sccid',
+  'irclid',
+  '_kx',
+];
+const DROP_KEY = new RegExp(`(^|[_$])(${DROPPED_PARAMS.join('|')})$`, 'i');
 
 /**
  * Reduce a URL to what the dashboards need and nothing health-adjacent:
