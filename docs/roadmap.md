@@ -31,7 +31,7 @@ picks — fast and obvious. Working todo: [`docs/plans/mvp-speed-ui.md`](plans/m
 - [x] 3.1 Web scan screen (`/restaurants/[slug]/scan`)
 - [ ] 3.2 Value before signup
 - [ ] 3.3 Menu page hierarchy + picks/strict-mode empty states
-- [ ] 3.4 Favorites + ratings feed picks
+- [x] 3.4 Favorites + ratings feed picks
 
 ## MCP pivot (active, 2026-08-07)
 
