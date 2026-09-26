@@ -63,6 +63,10 @@ export const EVENTS = {
   chat_started:         'chat_started',
   chat_turn_completed:  'chat_turn_completed',
   chat_confirmed:       'chat_confirmed',
+  // Scan screen — the core loop's front door (photo or link → menu).
+  scan_started:         'scan_started',
+  scan_ready:           'scan_ready',
+  scan_published:       'scan_published',
 } as const;
 
 export type EventName = keyof typeof EVENTS;
@@ -164,6 +168,32 @@ export interface EventPropsMap {
   /** Whether a person approved a call the gate parked. Never which call. */
   chat_confirmed: {
     approved: boolean;
+  };
+  // Scan events carry counts and outcomes only — never dish names, menu
+  // text or ingredients (a restaurant's menu is public, but which dishes a
+  // person kept or discarded is theirs).
+  scan_started: {
+    restaurant_slug: string;
+    /** photo covers PDFs too. */
+    source: 'photo' | 'url';
+    file_count: number;
+  };
+  scan_ready: {
+    restaurant_slug: string;
+    dish_count: number;
+    /** Dishes in "Needs a look" — unmatched or inferred-only ingredients. */
+    flagged_count: number;
+    /** Start to reviewable, including the ingredient pass. */
+    duration_ms: number;
+    /** The ingredient pass ran out of retries. */
+    enrichment_failed: boolean;
+  };
+  scan_published: {
+    restaurant_slug: string;
+    accepted_count: number;
+    discarded_count: number;
+    /** Whether the restaurant is public after this accept. */
+    restaurant_published: boolean;
   };
   filter_changed: {
     /** What changed: strictness | preset | manual_avoid | manual_unavoid. */

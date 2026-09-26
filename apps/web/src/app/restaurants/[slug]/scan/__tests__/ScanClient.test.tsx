@@ -15,6 +15,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace, refresh: vi.fn() }),
 }));
 
+const track = vi.fn();
+vi.mock('../../../../_PostHogProvider', () => ({ useTracker: () => ({ track }) }));
+
 const uploadAttachment = vi.fn();
 const startScan = vi.fn();
 const getScan = vi.fn();
@@ -114,6 +117,49 @@ describe('ScanClient', () => {
       acceptScan.mock.invocationCallOrder[0]!,
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith('/restaurants/ninis'));
+  });
+
+  // Counts only: which dishes someone kept or discarded is theirs.
+  it('reports the scan funnel with counts and never dish names', async () => {
+    getScan.mockResolvedValue(
+      readyScan([
+        dish({ id: 'd1' }),
+        dish({ id: 'd2', name: 'Junk' }),
+        dish({ id: 'd3', name: 'Stew', ingredients: [], needs_attention: true }),
+      ]),
+    );
+    acceptScan.mockResolvedValue({
+      accepted: [],
+      restaurant_published: true,
+      remaining_pending: 1,
+    });
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Junk'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add 1 dish to the menu' }));
+    await waitFor(() => expect(push).toHaveBeenCalled());
+
+    expect(track).toHaveBeenCalledWith('scan_started', {
+      restaurant_slug: 'ninis',
+      source: 'photo',
+      file_count: 1,
+    });
+    expect(track).toHaveBeenCalledWith(
+      'scan_ready',
+      expect.objectContaining({
+        restaurant_slug: 'ninis',
+        dish_count: 3,
+        flagged_count: 1,
+        enrichment_failed: false,
+      }),
+    );
+    expect(track).toHaveBeenCalledWith('scan_published', {
+      restaurant_slug: 'ninis',
+      accepted_count: 1,
+      discarded_count: 1,
+      restaurant_published: true,
+    });
+    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Junk|Carne|Stew/);
   });
 
   // Unmatched text means the filter can miss an allergen on that dish.

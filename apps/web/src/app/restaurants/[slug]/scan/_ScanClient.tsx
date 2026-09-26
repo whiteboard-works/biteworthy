@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
+import { useTracker } from '../../../_PostHogProvider';
 import {
   acceptScan,
   getScan,
@@ -61,6 +62,7 @@ export function ScanClient({
   resumeScanId?: string | null;
 }) {
   const router = useRouter();
+  const tracker = useTracker();
   const scanPath = `/restaurants/${encodeURIComponent(slug)}/scan` as Route;
   // A finished scan leaves the URL, so a refresh starts fresh instead of
   // reopening a scan with nothing left to decide.
@@ -92,6 +94,11 @@ export function ScanClient({
       const source =
         files.length > 0 ? { attachmentIds: await uploadInOrder(files) } : { sourceUrl: url };
       const started = await startScan(slug, source);
+      tracker.track('scan_started', {
+        restaurant_slug: slug,
+        source: files.length > 0 ? 'photo' : 'url',
+        file_count: files.length,
+      });
       // In the URL so a refresh, a backgrounded tab or a login bounce comes
       // back to this scan instead of a fresh (and re-billed) one.
       router.replace(
@@ -117,6 +124,12 @@ export function ScanClient({
       // accept lands, and it should count what the person turned down.
       if (reject.length > 0) await rejectScan(scanId, reject);
       if (accept.length === 0) {
+        tracker.track('scan_published', {
+          restaurant_slug: slug,
+          accepted_count: 0,
+          discarded_count: reject.length,
+          restaurant_published: false,
+        });
         finish(
           `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
         );
@@ -126,6 +139,12 @@ export function ScanClient({
       // Each dish publishes independently, so a 200 can still carry
       // failures. Keep those on screen, still ticked, for another try.
       const failedIds = new Set((result.failed ?? []).map((f) => f.id));
+      tracker.track('scan_published', {
+        restaurant_slug: slug,
+        accepted_count: accept.length - failedIds.size,
+        discarded_count: reject.length,
+        restaurant_published: result.restaurant_published,
+      });
       if (failedIds.size > 0) {
         const failed = dishes.filter((d) => failedIds.has(d.id));
         setPhase({ kind: 'review', scanId, dishes: failed, enrichmentFailed });
@@ -191,9 +210,16 @@ export function ScanClient({
           scanId={phase.scanId}
           startedAt={phase.startedAt}
           slug={slug}
-          onReady={(dishes, enrichmentFailed) =>
-            setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed })
-          }
+          onReady={(dishes, enrichmentFailed) => {
+            tracker.track('scan_ready', {
+              restaurant_slug: slug,
+              dish_count: dishes.length,
+              flagged_count: dishes.filter((d) => enrichmentFailed || d.needs_attention).length,
+              duration_ms: Date.now() - phase.startedAt,
+              enrichment_failed: enrichmentFailed,
+            });
+            setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed });
+          }}
           onFail={(message) => {
             router.replace(scanPath);
             setPhase({ kind: 'pick' });

@@ -25,6 +25,9 @@ describe('EVENTS taxonomy', () => {
         'chat_started',
         'chat_turn_completed',
         'chat_confirmed',
+        'scan_started',
+        'scan_ready',
+        'scan_published',
       ].sort(),
     );
   });
