@@ -25,6 +25,9 @@ describe('EVENTS taxonomy', () => {
         'chat_started',
         'chat_turn_completed',
         'chat_confirmed',
+        'scan_started',
+        'scan_ready',
+        'scan_published',
       ].sort(),
     );
   });
@@ -119,5 +122,28 @@ describe('createTracker', () => {
       tracker.identify('u');
       tracker.reset();
     }).not.toThrow();
+  });
+});
+
+// Tracking runs inside real flows (a paid scan, a publish); an SDK that
+// throws must drop the event, not the flow.
+describe('createTracker failure isolation', () => {
+  it('swallows a throwing client instead of breaking the caller', () => {
+    const tracker = createTracker({
+      client: {
+        capture: () => {
+          throw new Error('posthog down');
+        },
+        identify: () => {
+          throw new Error('posthog down');
+        },
+        reset: () => {
+          throw new Error('posthog down');
+        },
+      },
+    });
+    expect(() => tracker.track('app_open', { surface: 'web' })).not.toThrow();
+    expect(() => tracker.identify('u', {})).not.toThrow();
+    expect(() => tracker.reset()).not.toThrow();
   });
 });

@@ -26,6 +26,16 @@ RSpec.describe "Api::V1::Scans", type: :request do
       get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
 
       expect(json["restaurant_slug"]).to eq(restaurant.slug)
+      expect(json["restaurant_published"]).to be(true)
+    end
+
+    # Archived restaurants keep status "published" but aren't public.
+    it "does not call an archived restaurant public" do
+      restaurant.update!(archived_at: Time.current)
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["restaurant_published"]).to be(false)
     end
 
     it "shows people the plain dish text, not the model's fenced copy" do
@@ -120,6 +130,15 @@ RSpec.describe "Api::V1::Scans", type: :request do
   end
 
   describe "POST /api/v1/scans/:id/accept" do
+    it "does not report an archived restaurant as published after accepting" do
+      create(:ingestion_item, ingestion_run: run)
+      restaurant.update!(archived_at: Time.current)
+
+      post "/api/v1/scans/#{run.id}/accept", params: { all: true }, headers: auth_headers_for(owner)
+
+      expect(json["restaurant_published"]).to be(false)
+    end
+
     # The tool reads both as "all", which would publish dishes the person
     # deliberately left unticked.
     it "refuses all and item_ids together rather than publishing everything" do

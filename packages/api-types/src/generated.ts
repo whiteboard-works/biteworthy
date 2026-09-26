@@ -4660,6 +4660,8 @@ export interface components {
             /** Format: uuid */
             restaurant_id: string;
             restaurant_slug?: string | null;
+            /** @description The restaurant's live status, not this scan's. */
+            restaurant_published: boolean;
             dish_count: number;
             pending_count: number;
             accepted_count: number;

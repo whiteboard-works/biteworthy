@@ -15,6 +15,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace, refresh: vi.fn() }),
 }));
 
+const track = vi.fn();
+vi.mock('../../../../_PostHogProvider', () => ({ useTracker: () => ({ track }) }));
+
 const uploadAttachment = vi.fn();
 const startScan = vi.fn();
 const getScan = vi.fn();
@@ -62,6 +65,7 @@ const readyScan = (dishes: ScanDish[]) => ({
   failed: false,
   restaurant_id: 'r1',
   restaurant_slug: 'ninis',
+  restaurant_published: true,
   dish_count: dishes.length,
   pending_count: dishes.length,
   accepted_count: 0,
@@ -80,6 +84,7 @@ async function scanAPhoto() {
 describe('ScanClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     uploadAttachment.mockResolvedValue({ id: 'blob-1' });
     startScan.mockResolvedValue({ scan_id: 'scan-1', status: 'extracting', restaurant: {} });
     rejectScan.mockResolvedValue({ rejected: [], remaining_pending: 0 });
@@ -114,6 +119,179 @@ describe('ScanClient', () => {
       acceptScan.mock.invocationCallOrder[0]!,
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith('/restaurants/ninis'));
+  });
+
+  // Counts only: which dishes someone kept or discarded is theirs.
+  it('reports the scan funnel with counts and never dish names', async () => {
+    getScan.mockResolvedValue(
+      readyScan([
+        dish({ id: 'd1' }),
+        dish({ id: 'd2', name: 'Junk' }),
+        dish({ id: 'd3', name: 'Stew', ingredients: [], needs_attention: true }),
+        dish({
+          id: 'd4',
+          name: 'Taco Update',
+          updates_existing_item: { item_id: 'i1', name: 'Taco', no_changes: false, diff: {} },
+        }),
+      ]),
+    );
+    acceptScan.mockResolvedValue({
+      accepted: [],
+      restaurant_published: true,
+      remaining_pending: 1,
+    });
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Junk'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add 1 dish to the menu' }));
+    await waitFor(() => expect(push).toHaveBeenCalled());
+
+    expect(track).toHaveBeenCalledWith('scan_started', {
+      restaurant_slug: 'ninis',
+      source: 'photo',
+      file_count: 1,
+    });
+    expect(track).toHaveBeenCalledWith(
+      'scan_ready',
+      expect.objectContaining({
+        restaurant_slug: 'ninis',
+        dish_count: 4,
+        flagged_count: 2,
+        enrichment_failed: false,
+      }),
+    );
+    expect(track).toHaveBeenCalledWith('scan_published', {
+      restaurant_slug: 'ninis',
+      accepted_count: 1,
+      discarded_count: 1,
+      restaurant_published: true,
+    });
+    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Junk|Carne|Stew|Taco/);
+  });
+
+  // Discarding a page of a live restaurant's menu doesn't make it private.
+  it('reports an all-discarded scan of a public restaurant as still public', async () => {
+    getScan.mockResolvedValue({
+      ...readyScan([dish({ id: 'd1', name: 'Page Header' })]),
+      restaurant_published: true,
+    });
+
+    render(<ScanClient slug="ninis" restaurantName="Nini's" />);
+    const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
+    fireEvent.click(await screen.findByLabelText('Page Header'));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard 1 dish' }));
+
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith(
+        'scan_published',
+        expect.objectContaining({ accepted_count: 0, restaurant_published: true }),
+      ),
+    );
+  });
+
+  // The run can say "published" for an archived restaurant; the live
+  // state decides where to send them.
+  it('stays put after a recovered accept on a restaurant that is not public', async () => {
+    getScan.mockResolvedValueOnce(readyScan([dish({ id: 'd1' })])).mockResolvedValueOnce({
+      ...readyScan([dish({ id: 'd1', decision: 'accepted' })]),
+      status: 'published',
+      restaurant_published: false,
+    });
+    acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a dish rejected elsewhere as a recovered accept', async () => {
+    getScan
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1' })]))
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1', decision: 'rejected' })]));
+    acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch');
+    expect(track).not.toHaveBeenCalledWith('scan_published', expect.anything());
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('does not call it done when the discard failed, even if the accept landed elsewhere', async () => {
+    getScan
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1' }), dish({ id: 'd2', name: 'Junk' })]))
+      .mockResolvedValueOnce(
+        readyScan([dish({ id: 'd1', decision: 'accepted' }), dish({ id: 'd2', name: 'Junk' })]),
+      );
+    rejectScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Junk'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch');
+    expect(track).not.toHaveBeenCalledWith('scan_published', expect.anything());
+  });
+
+  it('reports nothing for a discard when the live status cannot be read', async () => {
+    getScan
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1', name: 'Page Header' })]))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Page Header'));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard 1 dish' }));
+
+    expect(await screen.findByText(/Nothing was added/)).toBeInTheDocument();
+    expect(track).not.toHaveBeenCalledWith('scan_published', expect.anything());
+  });
+
+  // A public restaurant's new run can stay "staged"; the restaurant is still public.
+  it('reports a recovered accept on a public restaurant as public', async () => {
+    getScan.mockResolvedValueOnce(readyScan([dish({ id: 'd1' })])).mockResolvedValueOnce({
+      ...readyScan([dish({ id: 'd1', decision: 'accepted' })]),
+      status: 'staged',
+      restaurant_published: true,
+    });
+    acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    render(<ScanClient slug="ninis" restaurantName="Nini's" />);
+    const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith(
+        'scan_published',
+        expect.objectContaining({ accepted_count: 1, restaurant_published: true }),
+      ),
+    );
+  });
+
+  it('does not report a resumed scan as ready again after a refresh', async () => {
+    getScan.mockResolvedValue(readyScan([dish({})]));
+    sessionStorage.setItem(
+      'bw_scan_scan-9',
+      JSON.stringify({ startedAt: Date.now(), ready: true }),
+    );
+
+    render(
+      <ScanClient
+        slug="ninis"
+        restaurantName="Nini's"
+
+        resumeScanId="scan-9"
+      />,
+    );
+    expect(await screen.findByText('Carne Asada Taco')).toBeInTheDocument();
+
+    expect(track).not.toHaveBeenCalledWith('scan_ready', expect.anything());
   });
 
   // Unmatched text means the filter can miss an allergen on that dish.
@@ -243,6 +421,11 @@ describe('ScanClient', () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/restaurants/ninis'));
     expect(screen.queryByRole('alert')).toBeNull();
+    // It did publish, so the funnel must count it.
+    expect(track).toHaveBeenCalledWith(
+      'scan_published',
+      expect.objectContaining({ accepted_count: 1, restaurant_published: true }),
+    );
   });
 
   it('discards an all-junk scan without adding anything', async () => {
@@ -421,7 +604,14 @@ describe('ScanClient', () => {
   it('resumes polling a scan named in the URL without starting a new one', async () => {
     getScan.mockResolvedValue(readyScan([dish({})]));
 
-    render(<ScanClient slug="ninis" restaurantName="Nini's" resumeScanId="scan-9" />);
+    render(
+      <ScanClient
+        slug="ninis"
+        restaurantName="Nini's"
+
+        resumeScanId="scan-9"
+      />,
+    );
 
     expect(await screen.findByText('Carne Asada Taco')).toBeInTheDocument();
     expect(getScan).toHaveBeenCalledWith('scan-9');
@@ -451,7 +641,14 @@ describe('ScanClient', () => {
       restaurant_slug: 'someone-else',
     });
 
-    render(<ScanClient slug="ninis" restaurantName="ninis" resumeScanId="scan-9" />);
+    render(
+      <ScanClient
+        slug="ninis"
+        restaurantName="ninis"
+
+        resumeScanId="scan-9"
+      />,
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('different restaurant');
     expect(screen.queryByText('Carne Asada Taco')).toBeNull();
@@ -471,7 +668,14 @@ describe('ScanClient', () => {
   it('offers a fresh scan when a resumed scan has nothing left to decide', async () => {
     getScan.mockResolvedValue(readyScan([dish({ decision: 'accepted' })]));
 
-    render(<ScanClient slug="ninis" restaurantName="Nini's" resumeScanId="scan-9" />);
+    render(
+      <ScanClient
+        slug="ninis"
+        restaurantName="Nini's"
+
+        resumeScanId="scan-9"
+      />,
+    );
     fireEvent.click(await screen.findByRole('button', { name: 'Scan another page' }));
 
     expect(screen.getByRole('button', { name: 'Scan the menu' })).toBeInTheDocument();

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
+import { useTracker } from '../../../_PostHogProvider';
 import {
   acceptScan,
   getScan,
@@ -61,6 +62,7 @@ export function ScanClient({
   resumeScanId?: string | null;
 }) {
   const router = useRouter();
+  const tracker = useTracker();
   const scanPath = `/restaurants/${encodeURIComponent(slug)}/scan` as Route;
   // A finished scan leaves the URL, so a refresh starts fresh instead of
   // reopening a scan with nothing left to decide.
@@ -92,6 +94,12 @@ export function ScanClient({
       const source =
         files.length > 0 ? { attachmentIds: await uploadInOrder(files) } : { sourceUrl: url };
       const started = await startScan(slug, source);
+      setScanMark(started.scan_id, { startedAt: Date.now(), ready: false });
+      tracker.track('scan_started', {
+        restaurant_slug: slug,
+        source: files.length > 0 ? 'photo' : 'url',
+        file_count: files.length,
+      });
       // In the URL so a refresh, a backgrounded tab or a login bounce comes
       // back to this scan instead of a fresh (and re-billed) one.
       router.replace(
@@ -117,6 +125,18 @@ export function ScanClient({
       // accept lands, and it should count what the person turned down.
       if (reject.length > 0) await rejectScan(scanId, reject);
       if (accept.length === 0) {
+        // Read live: discarding never unpublishes, and another scan may have
+        // published the restaurant since this page loaded. If the read
+        // fails, report nothing rather than a guess.
+        const live = await getScan(scanId).catch(() => null);
+        if (live && typeof live.restaurant_published === 'boolean') {
+          tracker.track('scan_published', {
+            restaurant_slug: slug,
+            accepted_count: 0,
+            discarded_count: reject.length,
+            restaurant_published: live.restaurant_published,
+          });
+        }
         finish(
           `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
         );
@@ -126,6 +146,12 @@ export function ScanClient({
       // Each dish publishes independently, so a 200 can still carry
       // failures. Keep those on screen, still ticked, for another try.
       const failedIds = new Set((result.failed ?? []).map((f) => f.id));
+      tracker.track('scan_published', {
+        restaurant_slug: slug,
+        accepted_count: accept.length - failedIds.size,
+        discarded_count: reject.length,
+        restaurant_published: result.restaurant_published,
+      });
       if (failedIds.size > 0) {
         const failed = dishes.filter((d) => failedIds.has(d.id));
         setPhase({ kind: 'review', scanId, dishes: failed, enrichmentFailed });
@@ -152,11 +178,24 @@ export function ScanClient({
       const fresh = await getScan(scanId).catch(() => null);
       // A dropped response can hide an accept that committed. If none of
       // the requested dishes is still pending, it landed — finish.
-      const stillPending = new Set(
-        (fresh?.dishes ?? []).filter((d) => d.decision === 'pending').map((d) => d.id),
-      );
-      if (fresh?.dishes && accept.length > 0 && accept.every((id) => !stillPending.has(id))) {
-        if (fresh.status === 'published') {
+      // It landed only if every decision did: each requested accept is
+      // accepted and each requested discard is rejected — "not pending"
+      // also covers a dish another tab decided the other way.
+      const decisionOf = new Map((fresh?.dishes ?? []).map((d) => [d.id, d.decision]));
+      const landed =
+        accept.every((id) => decisionOf.get(id) === 'accepted') &&
+        reject.every((id) => decisionOf.get(id) === 'rejected');
+      if (fresh?.dishes && accept.length > 0 && landed) {
+        // The restaurant's live state, not this scan's: another scan may have
+        // published it, or it may be archived. One value for both uses.
+        const isPublic = fresh.restaurant_published;
+        tracker.track('scan_published', {
+          restaurant_slug: slug,
+          accepted_count: accept.length,
+          discarded_count: reject.length,
+          restaurant_published: isPublic,
+        });
+        if (isPublic) {
           router.push(`/restaurants/${encodeURIComponent(slug)}`);
           router.refresh();
         } else {
@@ -191,9 +230,20 @@ export function ScanClient({
           scanId={phase.scanId}
           startedAt={phase.startedAt}
           slug={slug}
-          onReady={(dishes, enrichmentFailed) =>
-            setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed })
-          }
+          onReady={(dishes, enrichmentFailed) => {
+            const mark = scanMark(phase.scanId);
+            if (mark && !mark.ready) {
+              tracker.track('scan_ready', {
+                restaurant_slug: slug,
+                dish_count: dishes.length,
+                flagged_count: dishes.filter((d) => needsALook(d, enrichmentFailed)).length,
+                duration_ms: Date.now() - mark.startedAt,
+                enrichment_failed: enrichmentFailed,
+              });
+              setScanMark(phase.scanId, { ...mark, ready: true });
+            }
+            setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed });
+          }}
           onFail={(message) => {
             router.replace(scanPath);
             setPhase({ kind: 'pick' });
@@ -447,7 +497,7 @@ function Review({
   // as an explicit opt-in.
   const unsafe = (d: ScanDish) => enrichmentFailed || d.needs_attention;
   const [regular, flagged] = useMemo(() => {
-    const needsLook = (d: ScanDish) => enrichmentFailed || d.needs_attention || editsLiveDish(d);
+    const needsLook = (d: ScanDish) => needsALook(d, enrichmentFailed);
     return [pending.filter((d) => !needsLook(d)), pending.filter(needsLook)];
   }, [pending, enrichmentFailed]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(regular.map((d) => d.id)));
@@ -602,6 +652,33 @@ function DishRow({
 
 // Accepting a matched dish rewrites the live one, so it is opt-in and
 // shows exactly what it would change.
+// The "Needs a look" group — shared by the review screen and the
+// `scan_ready` flagged count so the two can't disagree.
+function needsALook(dish: ScanDish, enrichmentFailed: boolean): boolean {
+  return enrichmentFailed || dish.needs_attention || editsLiveDish(dish);
+}
+
+// Start time + whether `scan_ready` was already reported, per scan, for
+// this tab: a refresh resumes the scan without resetting its duration or
+// reporting it ready twice. A scan resumed from elsewhere has no entry and
+// reports nothing.
+function scanMark(scanId: string): { startedAt: number; ready: boolean } | null {
+  try {
+    const raw = sessionStorage.getItem(`bw_scan_${scanId}`);
+    return raw ? (JSON.parse(raw) as { startedAt: number; ready: boolean }) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setScanMark(scanId: string, mark: { startedAt: number; ready: boolean }): void {
+  try {
+    sessionStorage.setItem(`bw_scan_${scanId}`, JSON.stringify(mark));
+  } catch {
+    // Private mode: resumed scans just won't report scan_ready.
+  }
+}
+
 function editsLiveDish(dish: ScanDish): boolean {
   return Boolean(dish.updates_existing_item && !dish.updates_existing_item.no_changes);
 }

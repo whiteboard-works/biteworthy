@@ -43,7 +43,13 @@ module Api
         scan = result[:structuredContent]
         # The screen compares this with its route, so a scan id pasted into
         # another restaurant's URL can't be reviewed under the wrong name.
-        scan = scan.merge(restaurant_slug: Restaurant.where(id: scan[:restaurant_id]).pick(:slug))
+        # Live, not the run's status: a scan can add dishes to a restaurant
+        # another scan already published. "Public" is the `published` scope
+        # (published and not archived), the same one the menu pages read.
+        scan = scan.merge(
+          restaurant_slug:      Restaurant.where(id: scan[:restaurant_id]).pick(:slug),
+          restaurant_published: Restaurant.published.exists?(id: scan[:restaurant_id])
+        )
         scan = scan.merge(dishes: dishes_for(params[:id])) if scan[:ready]
         render json: scan
       end

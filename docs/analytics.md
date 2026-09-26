@@ -170,3 +170,13 @@ is easier to miss here: a tool name like `update_avoid_lists` on an
 identified event says this account edited a dietary profile, which is
 health-adjacent even without the contents. Counts and outcome give the
 funnel what it needs — did the turn work, how long, how much did it do.
+
+### Scan events (the scan screen, `/restaurants/[slug]/scan`)
+
+| Event | Props | Notes |
+|---|---|---|
+| `scan_started` | `restaurant_slug`, `source` (`photo` \| `url`), `file_count` | A scan was accepted by the API. |
+| `scan_ready` | `restaurant_slug`, `dish_count`, `flagged_count`, `duration_ms`, `enrichment_failed` | Dishes are reviewable, ingredient pass finished. |
+| `scan_published` | `restaurant_slug`, `accepted_count`, `discarded_count`, `restaurant_published` | The person submitted their review. |
+
+Counts and outcomes only — never dish names, menu text or ingredients.

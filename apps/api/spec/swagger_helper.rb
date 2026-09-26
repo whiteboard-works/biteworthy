@@ -411,7 +411,7 @@ RSpec.configure do |config|
           },
           ScanStatus: {
             type: :object,
-            required: %w[scan_id status ready failed restaurant_id dish_count pending_count accepted_count rejected_count],
+            required: %w[scan_id status ready failed restaurant_id restaurant_published dish_count pending_count accepted_count rejected_count],
             properties: {
               scan_id:           { type: :string, format: :uuid },
               status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
@@ -421,6 +421,7 @@ RSpec.configure do |config|
               enrichment_status: { type: :string, nullable: true },
               restaurant_id:     { type: :string, format: :uuid },
               restaurant_slug:   { type: :string, nullable: true },
+              restaurant_published: { type: :boolean, description: "The restaurant's live status, not this scan's." },
               dish_count:        { type: :integer },
               pending_count:     { type: :integer },
               accepted_count:    { type: :integer },

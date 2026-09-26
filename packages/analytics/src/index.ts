@@ -63,6 +63,10 @@ export const EVENTS = {
   chat_started:         'chat_started',
   chat_turn_completed:  'chat_turn_completed',
   chat_confirmed:       'chat_confirmed',
+  // Scan screen — the core loop's front door (photo or link → menu).
+  scan_started:         'scan_started',
+  scan_ready:           'scan_ready',
+  scan_published:       'scan_published',
 } as const;
 
 export type EventName = keyof typeof EVENTS;
@@ -164,6 +168,34 @@ export interface EventPropsMap {
   /** Whether a person approved a call the gate parked. Never which call. */
   chat_confirmed: {
     approved: boolean;
+  };
+  // Scan events carry counts and outcomes only — never dish names, menu
+  // text or ingredients (a restaurant's menu is public, but which dishes a
+  // person kept or discarded is theirs).
+  scan_started: {
+    restaurant_slug: string;
+    /** photo covers PDFs too. */
+    source: 'photo' | 'url';
+    file_count: number;
+  };
+  scan_ready: {
+    restaurant_slug: string;
+    dish_count: number;
+    /** Dishes in "Needs a look" — unmatched or inferred-only ingredients,
+     *  an edit to a live dish, or everything if the ingredient pass failed. */
+    flagged_count: number;
+    /** Start to reviewable, including the ingredient pass. Reported once
+     *  per scan, and only in the tab that started it. */
+    duration_ms: number;
+    /** The ingredient pass ran out of retries. */
+    enrichment_failed: boolean;
+  };
+  scan_published: {
+    restaurant_slug: string;
+    accepted_count: number;
+    discarded_count: number;
+    /** Whether the restaurant is public after this accept. */
+    restaurant_published: boolean;
   };
   filter_changed: {
     /** What changed: strictness | preset | manual_avoid | manual_unavoid. */
@@ -271,16 +303,31 @@ interface CreateTrackerOptions {
  */
 export function createTracker({ client }: CreateTrackerOptions): Tracker {
   return {
+    // Analytics must never break the product: callers track from inside
+    // real flows (a paid scan, a publish), so an SDK failure is swallowed
+    // here, once, for every caller.
     track(name, props) {
-      // Cast to the SDK's loose Record signature — the type narrowing
-      // happens at the call site via EventPropsMap.
-      client.capture(name, props as Record<string, unknown>);
+      try {
+        // Cast to the SDK's loose Record signature — the type narrowing
+        // happens at the call site via EventPropsMap.
+        client.capture(name, props as Record<string, unknown>);
+      } catch {
+        // Dropped event; the flow goes on.
+      }
     },
     identify(distinctId, props) {
-      client.identify?.(distinctId, props);
+      try {
+        client.identify?.(distinctId, props);
+      } catch {
+        // As above.
+      }
     },
     reset() {
-      client.reset?.();
+      try {
+        client.reset?.();
+      } catch {
+        // As above.
+      }
     },
   };
 }
