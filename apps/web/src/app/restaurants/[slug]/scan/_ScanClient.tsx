@@ -178,12 +178,14 @@ export function ScanClient({
       const fresh = await getScan(scanId).catch(() => null);
       // A dropped response can hide an accept that committed. If none of
       // the requested dishes is still pending, it landed — finish.
-      // Only dishes that actually ended up accepted count — one another tab
-      // rejected meanwhile is "not pending" too.
-      const accepted = new Set(
-        (fresh?.dishes ?? []).filter((d) => d.decision === 'accepted').map((d) => d.id),
-      );
-      if (fresh?.dishes && accept.length > 0 && accept.every((id) => accepted.has(id))) {
+      // It landed only if every decision did: each requested accept is
+      // accepted and each requested discard is rejected — "not pending"
+      // also covers a dish another tab decided the other way.
+      const decisionOf = new Map((fresh?.dishes ?? []).map((d) => [d.id, d.decision]));
+      const landed =
+        accept.every((id) => decisionOf.get(id) === 'accepted') &&
+        reject.every((id) => decisionOf.get(id) === 'rejected');
+      if (fresh?.dishes && accept.length > 0 && landed) {
         // The restaurant's live state, not this scan's: another scan may have
         // published it, or it may be archived. One value for both uses.
         const isPublic = fresh.restaurant_published;

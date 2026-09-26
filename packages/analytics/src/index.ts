@@ -303,16 +303,31 @@ interface CreateTrackerOptions {
  */
 export function createTracker({ client }: CreateTrackerOptions): Tracker {
   return {
+    // Analytics must never break the product: callers track from inside
+    // real flows (a paid scan, a publish), so an SDK failure is swallowed
+    // here, once, for every caller.
     track(name, props) {
-      // Cast to the SDK's loose Record signature — the type narrowing
-      // happens at the call site via EventPropsMap.
-      client.capture(name, props as Record<string, unknown>);
+      try {
+        // Cast to the SDK's loose Record signature — the type narrowing
+        // happens at the call site via EventPropsMap.
+        client.capture(name, props as Record<string, unknown>);
+      } catch {
+        // Dropped event; the flow goes on.
+      }
     },
     identify(distinctId, props) {
-      client.identify?.(distinctId, props);
+      try {
+        client.identify?.(distinctId, props);
+      } catch {
+        // As above.
+      }
     },
     reset() {
-      client.reset?.();
+      try {
+        client.reset?.();
+      } catch {
+        // As above.
+      }
     },
   };
 }
