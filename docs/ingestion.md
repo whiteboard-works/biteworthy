@@ -10,8 +10,11 @@ do the verifying.
 
 **Verification is a conversation, not a swipe deck.** The pipeline below is
 driven by the ingestion tools in `app/services/tools/ingestion/` — over MCP,
-or from the first-party chat. There is no `/ingest` UI and no REST ingestion
-endpoint; both were removed when the tool layer landed. See `docs/mcp.md`.
+or from the first-party chat. `Api::V1::ScansController` (`/api/v1/scans`,
+added 2026-09-26) is a thin REST adapter over three of them — start, status,
+accept — so a scan screen can poll a row instead of paying a model round per
+status check. Editing, rejecting and undoing staged dishes stay tool-only.
+See `docs/mcp.md`.
 
 ## Inputs
 

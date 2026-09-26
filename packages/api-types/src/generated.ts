@@ -4101,6 +4101,177 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a menu scan from a URL, pasted text, or uploaded attachments */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Restaurant UUID or slug. */
+                        restaurant: string;
+                        source_url?: string;
+                        source_text?: string;
+                        /** @description Ids from POST /api/v1/attachments. */
+                        attachment_ids?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description scan queued; poll GET /api/v1/scans/{id} */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanStarted"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description no source, or a source the extractor cannot take */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where a scan has got to; includes the dishes once ready */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description scan status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanStatus"];
+                    };
+                };
+                /** @description no such scan, or someone else's */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish staged dishes to the live menu */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Accept every still-pending dish. */
+                        all?: boolean;
+                        item_ids?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description what was published */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanAccepted"];
+                    };
+                };
+                /** @description nothing to accept */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4311,6 +4482,62 @@ export interface components {
             filename: string;
             content_type: string;
             byte_size: number;
+        };
+        ScanDish: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description?: string | null;
+            section?: string | null;
+            /** @enum {string} */
+            decision: "pending" | "accepted" | "rejected" | "edited";
+            price_cents?: number | null;
+            /** @description Ingredient names we matched. */
+            ingredients: string[];
+            /** @description Unmatched text, or no ingredients at all — worth a human look before accepting. */
+            needs_attention: boolean;
+        };
+        ScanStatus: {
+            /** Format: uuid */
+            scan_id: string;
+            /** @enum {string} */
+            status: "queued" | "extracting" | "resolving" | "staged" | "published" | "failed";
+            /** @description Dishes are staged and reviewable. */
+            ready: boolean;
+            failed: boolean;
+            failure_message?: string | null;
+            enrichment_status?: string | null;
+            /** Format: uuid */
+            restaurant_id: string;
+            dish_count: number;
+            pending_count: number;
+            accepted_count: number;
+            rejected_count: number;
+            /** @description Present once ready. */
+            dishes?: components["schemas"]["ScanDish"][];
+        };
+        ScanStarted: {
+            /** Format: uuid */
+            scan_id: string;
+            status: string;
+            restaurant: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+            };
+        };
+        ScanAccepted: {
+            accepted: Record<string, never>[];
+            failed?: Record<string, never>[] | null;
+            restaurant_published: boolean;
+            remaining_pending: number;
+        };
+        ScanError: {
+            /** @description A sentence to show the person. */
+            error: string;
+            /** @description Machine code, e.g. quota_exceeded, not_found. */
+            code?: string;
         };
         /** @description A least-privilege credential for an MCP client. The secret is returned only by create — nothing stored can reproduce it. */
         McpToken: {

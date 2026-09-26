@@ -357,6 +357,70 @@ RSpec.configure do |config|
               byte_size:    { type: :integer }
             }
           },
+          ScanDish: {
+            type: :object,
+            required: %w[id name decision ingredients needs_attention],
+            properties: {
+              id:              { type: :string, format: :uuid },
+              name:            { type: :string },
+              description:     { type: :string, nullable: true },
+              section:         { type: :string, nullable: true },
+              decision:        { type: :string, enum: %w[pending accepted rejected edited] },
+              price_cents:     { type: :integer, nullable: true },
+              ingredients:     { type: :array, items: { type: :string }, description: "Ingredient names we matched." },
+              needs_attention: { type: :boolean, description: "Unmatched text, or no ingredients at all — worth a human look before accepting." }
+            }
+          },
+          ScanStatus: {
+            type: :object,
+            required: %w[scan_id status ready failed restaurant_id dish_count pending_count accepted_count rejected_count],
+            properties: {
+              scan_id:           { type: :string, format: :uuid },
+              status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
+              ready:             { type: :boolean, description: "Dishes are staged and reviewable." },
+              failed:            { type: :boolean },
+              failure_message:   { type: :string, nullable: true },
+              enrichment_status: { type: :string, nullable: true },
+              restaurant_id:     { type: :string, format: :uuid },
+              dish_count:        { type: :integer },
+              pending_count:     { type: :integer },
+              accepted_count:    { type: :integer },
+              rejected_count:    { type: :integer },
+              dishes:            { type: :array, items: { "$ref" => "#/components/schemas/ScanDish" },
+                                   description: "Present once ready." }
+            }
+          },
+          ScanStarted: {
+            type: :object,
+            required: %w[scan_id status restaurant],
+            properties: {
+              scan_id:    { type: :string, format: :uuid },
+              status:     { type: :string },
+              restaurant: {
+                type: :object,
+                required: %w[id slug name],
+                properties: { id: { type: :string, format: :uuid }, slug: { type: :string }, name: { type: :string } }
+              }
+            }
+          },
+          ScanAccepted: {
+            type: :object,
+            required: %w[accepted restaurant_published remaining_pending],
+            properties: {
+              accepted:             { type: :array, items: { type: :object } },
+              failed:               { type: :array, items: { type: :object }, nullable: true },
+              restaurant_published: { type: :boolean },
+              remaining_pending:    { type: :integer }
+            }
+          },
+          ScanError: {
+            type: :object,
+            required: %w[error],
+            properties: {
+              error: { type: :string, description: "A sentence to show the person." },
+              code:  { type: :string, description: "Machine code, e.g. quota_exceeded, not_found." }
+            }
+          },
           McpToken: {
             type: :object,
             description: "A least-privilege credential for an MCP client. The secret is " \

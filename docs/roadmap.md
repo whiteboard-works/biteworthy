@@ -18,6 +18,20 @@ the per-task acceptance criteria are in `docs/plans/archive/`.
 Everything remaining is human-credential-gated launch work — see
 **Next up** and `docs/launch-readiness.md`.
 
+## MVP speed + UI pass (active, 2026-09-26)
+
+Make the core loop — scan a menu, see what you can eat, see your best
+picks — fast and obvious. Working todo: [`docs/plans/mvp-speed-ui.md`](plans/mvp-speed-ui.md).
+
+- [x] 2.1 REST scan door (`/api/v1/scans`) over the ingestion tools — status polling without a model round
+- [ ] 2.2 Retry transient extraction failures
+- [ ] 2.3 Menu read path: dead preload, anonymous-menu cache, ETag
+- [ ] 2.4 Mobile fixes (frozen app): double fetch, image caching, list virtualization
+- [ ] 3.1 Web scan screen
+- [ ] 3.2 Value before signup
+- [ ] 3.3 Menu page hierarchy + picks/strict-mode empty states
+- [ ] 3.4 Favorites + ratings feed picks
+
 ## MCP pivot (active, 2026-08-07)
 
 Ingestion is being rebuilt around a conversation instead of a swipe-verify
