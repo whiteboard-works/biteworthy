@@ -4315,6 +4315,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/scans/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark staged dishes as not on the menu */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        item_ids: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description what was rejected */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanRejected"];
+                    };
+                };
+                /** @description no such scan, or someone else's */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+                /** @description no item ids */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4625,6 +4689,14 @@ export interface components {
                 error: string;
             }[] | null;
             restaurant_published: boolean;
+            remaining_pending: number;
+        };
+        ScanRejected: {
+            rejected: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            }[];
             remaining_pending: number;
         };
         ScanError: {

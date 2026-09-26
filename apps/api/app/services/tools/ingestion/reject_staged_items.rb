@@ -36,20 +36,24 @@ module Tools
         ids = Array(item_ids).map(&:to_s).reject(&:blank?)
         raise Errors::InvalidArgument, "Pass at least one item_id." if ids.empty?
 
-        items = run.ingestion_items.where(id: ids).to_a
-        missing = ids - items.map(&:id)
-        raise Errors::NotFound, "No staged dish(es) with id(s): #{missing.join(', ')}." if missing.any?
+        # Locked, so an accept of the same dish can't promote it between the
+        # check below and the write — promote! takes the same row lock.
+        items = run.transaction do
+          locked = run.ingestion_items.where(id: ids).order(:id).lock.to_a
+          missing = ids - locked.map(&:id)
+          raise Errors::NotFound, "No staged dish(es) with id(s): #{missing.join(', ')}." if missing.any?
 
-        # An already-promoted dish is on the live menu; rejecting the staged
-        # row would leave the Item behind and the record lying about it.
-        promoted = items.select { |i| i.item_id.present? }
-        if promoted.any?
-          raise Errors::InvalidArgument,
-                "#{promoted.size} of those are already on the live menu. " \
-                "Use undo_staged_item to take them back off first."
+          # An already-promoted dish is on the live menu; rejecting the staged
+          # row would leave the Item behind and the record lying about it.
+          promoted = locked.select { |i| i.item_id.present? }
+          if promoted.any?
+            raise Errors::InvalidArgument,
+                  "#{promoted.size} of those are already on the live menu. " \
+                  "Use undo_staged_item to take them back off first."
+          end
+
+          locked.each { |item| item.update!(decision: "rejected", decided_at: Time.current) }
         end
-
-        items.each { |item| item.update!(decision: "rejected", decided_at: Time.current) }
 
         ok(
           rejected: items.map { |i| { id: i.id, name: untrusted(i.name) } },

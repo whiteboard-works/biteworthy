@@ -58,6 +58,13 @@ module Api
         respond_with_tool(Tools::Ingestion::AcceptStagedItems, { scan_id: params[:id], **args })
       end
 
+      # "Not on the menu" from the review screen. Rejected dishes stay in the
+      # scan for the audit trail and count toward the publish threshold.
+      def reject
+        item_ids = Array(params[:item_ids]).map(&:to_s).reject(&:blank?)
+        respond_with_tool(Tools::Ingestion::RejectStagedItems, { scan_id: params[:id], item_ids: item_ids })
+      end
+
       private
 
       def respond_with_tool(tool, args, status: :ok)

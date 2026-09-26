@@ -111,6 +111,41 @@ RSpec.describe "Api::V1::Scans", type: :request do
     end
   end
 
+  describe "POST /api/v1/scans/:id/reject" do
+    # Rejections are the review's "not on the menu" — they count toward the
+    # draft's publish threshold, so a draft doesn't go live off one dish.
+    it "records unticked dishes as rejected so a draft publishes on a truthful ratio" do
+      draft = create(:restaurant, status: "draft", created_by_user_id: owner.id)
+      draft_run = create(:ingestion_run, :staged, user: owner, restaurant: draft)
+      keep = create(:ingestion_item, ingestion_run: draft_run)
+      junk = create_list(:ingestion_item, 2, ingestion_run: draft_run)
+
+      post "/api/v1/scans/#{draft_run.id}/reject", params: { item_ids: junk.map(&:id) },
+                                                   headers: auth_headers_for(owner)
+      expect(response).to have_http_status(:ok)
+      post "/api/v1/scans/#{draft_run.id}/accept", params: { item_ids: [ keep.id ] },
+                                                   headers: auth_headers_for(owner)
+
+      expect(json["restaurant_published"]).to be(false)
+      expect(draft.reload.status).to eq("draft")
+    end
+  end
+
+  describe "accept racing reject" do
+    # promote! re-reads under the row lock the reject also takes; a dish
+    # rejected after its record was loaded must not reach the live menu.
+    it "refuses to publish a dish that was rejected after it was loaded" do
+      staged = create(:ingestion_item, ingestion_run: run)
+      stale  = IngestionItem.find(staged.id)
+
+      post "/api/v1/scans/#{run.id}/reject", params: { item_ids: [ staged.id ] }, headers: auth_headers_for(owner)
+
+      expect { stale.promote!(decided_by: owner) }.to raise_error(/rejected/)
+      expect(Item.where(restaurant: restaurant).count).to eq(0)
+      expect(staged.reload.decision).to eq("rejected")
+    end
+  end
+
   describe "POST /api/v1/scans" do
     it "refuses more than one source instead of silently scanning one of them" do
       expect do
