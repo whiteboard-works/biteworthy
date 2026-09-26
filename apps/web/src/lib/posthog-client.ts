@@ -51,6 +51,10 @@ export function initPostHog(
     capture_dead_clicks: false,
     capture_heatmaps: false,
     disable_session_recording: true,
+    // Also on at the shared project level; exceptions carry messages and
+    // stack data, and neither is something /privacy discloses.
+    capture_exceptions: false,
+    capture_performance: false,
     disable_surveys: true,
     before_send: scrubEvent,
   });

@@ -98,6 +98,8 @@ describe('initPostHog privacy settings', () => {
       expect.objectContaining({
         autocapture: false,
         disable_session_recording: true,
+        capture_exceptions: false,
+        capture_performance: false,
         before_send: scrubEvent,
       }),
     );

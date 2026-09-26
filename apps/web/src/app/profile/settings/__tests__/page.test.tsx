@@ -72,6 +72,13 @@ vi.mock('../../../../lib/me', () => {
 });
 import { HandleValidationError } from '../../../../lib/me';
 
+const posthogMock = vi.hoisted(() => ({
+  __loaded: false,
+  opt_out_capturing: vi.fn(),
+  opt_in_capturing: vi.fn(),
+}));
+vi.mock('posthog-js', () => ({ default: posthogMock }));
+
 import ProfileSettingsPage from '../page';
 
 const PROFILE: ProfilePayload = {
@@ -545,5 +552,46 @@ describe('ProfileSettingsPage — public profile (username)', () => {
     expect(await screen.findByTestId('handle-error')).toHaveTextContent(
       'Username has already been taken.',
     );
+  });
+});
+
+// posthog-js captures page views on its own, so the toggle has to reach the
+// SDK itself — a flag read on the next load would keep sending until then.
+describe('ProfileSettingsPage — analytics toggle', () => {
+  const reload = vi.fn();
+  beforeEach(() => {
+    posthogMock.__loaded = false;
+    posthogMock.opt_out_capturing.mockReset();
+    posthogMock.opt_in_capturing.mockReset();
+    reload.mockReset();
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, reload },
+      configurable: true,
+    });
+  });
+
+  it('stops a running PostHog the moment analytics are turned off', async () => {
+    posthogMock.__loaded = true;
+    render(<ProfileSettingsPage />);
+
+    const toggle = await screen.findByLabelText('analytics-opt-in');
+    await waitFor(() => expect(toggle).not.toBeDisabled());
+    fireEvent.click(toggle);
+
+    expect(posthogMock.opt_out_capturing).toHaveBeenCalled();
+    expect(localStorage.getItem('bw_analytics_opt_out')).toBe('1');
+  });
+
+  it('turns analytics back on for a visitor who loaded the page opted out', async () => {
+    localStorage.setItem('bw_analytics_opt_out', '1');
+    render(<ProfileSettingsPage />);
+
+    const toggle = await screen.findByLabelText('analytics-opt-in');
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    fireEvent.click(toggle);
+
+    expect(localStorage.getItem('bw_analytics_opt_out')).toBeNull();
+    // PostHog never started on this load, so a reload starts it.
+    expect(reload).toHaveBeenCalled();
   });
 });
