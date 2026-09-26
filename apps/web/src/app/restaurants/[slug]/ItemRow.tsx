@@ -2,7 +2,7 @@
 
 import type { ReactElement } from 'react';
 import type { RestaurantItem } from '../../../lib/restaurants';
-import { HiddenReasonChip } from './RestaurantClient';
+import { HiddenReasonChip } from './SectionList';
 
 /**
  * Phase 4.11.4 / post-5 — single menu-item card, extracted from
