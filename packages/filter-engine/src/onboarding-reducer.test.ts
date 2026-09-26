@@ -35,6 +35,16 @@ const dairyFree: DietaryPreset = {
   avoid_tag_ids: ['tag-contains-dairy'],
 };
 
+describe('initialDraft', () => {
+  // Strict mode hides anything the AI hasn't fully confirmed — a new
+  // user who hasn't seen that tradeoff explained yet shouldn't land on
+  // the strictest setting by default and get a near-empty first menu.
+  // 'balanced' stays the preselection; strict is still one tap away.
+  it('preselects balanced strictness, not strict', () => {
+    expect(initialDraft.strictness).toBe('balanced');
+  });
+});
+
 describe('onboardingReducer', () => {
   describe('TOGGLE_PRESET', () => {
     it('adds a preset slug when not selected', () => {
@@ -112,7 +122,10 @@ describe('onboardingReducer', () => {
 
   describe('SET_STRICTNESS', () => {
     it('updates strictness', () => {
-      const next = onboardingReducer(initialDraft, { type: 'SET_STRICTNESS', strictness: 'strict' });
+      const next = onboardingReducer(initialDraft, {
+        type: 'SET_STRICTNESS',
+        strictness: 'strict',
+      });
       expect(next.strictness).toBe('strict');
     });
   });
