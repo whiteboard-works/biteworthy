@@ -192,20 +192,32 @@ module Menus
       reasons
     end
 
-    # Taste signals come ONLY from the signed-in user's saved profile —
-    # presets and share tokens carry no taste. Ids that also sit in an
-    # avoid list are subtracted here: filter wins, and an avoided id never
-    # scores (Phase 8.1 contract).
+    # Taste signals come from the signed-in user's saved profile, topped
+    # up with implicit signals (favorited dishes, and dishes they rated)
+    # so Top Picks show before anyone has taken the taste quiz — presets
+    # and share tokens still carry no taste at all. Ids that also sit in
+    # an avoid list are subtracted here: filter wins, and an avoided id
+    # never scores (Phase 8.1 contract).
     def taste_signals_for(user)
       return nil unless source == "user_profile"
       return nil unless user&.profile
 
-      p = user.profile
+      p        = user.profile
+      implicit = ImplicitTasteSignals.for_user(user)
+
+      # Explicit wins per id: an id the profile calls out, in either
+      # direction, overrides whatever the implicit signal said. Only an
+      # id the profile is silent on falls back to the implicit read.
+      liked_ingredient_ids    = p.liked_ingredient_ids | (implicit.liked_ingredient_ids - p.disliked_ingredient_ids)
+      liked_tag_ids           = p.liked_tag_ids           | (implicit.liked_tag_ids - p.disliked_tag_ids)
+      disliked_ingredient_ids = p.disliked_ingredient_ids | (implicit.disliked_ingredient_ids - p.liked_ingredient_ids)
+      disliked_tag_ids        = p.disliked_tag_ids        | (implicit.disliked_tag_ids - p.liked_tag_ids)
+
       TasteScoring::Signals.new(
-        liked_ingredient_ids:    p.liked_ingredient_ids    - avoid_ingredient_ids,
-        liked_tag_ids:           p.liked_tag_ids           - avoid_tag_ids,
-        disliked_ingredient_ids: p.disliked_ingredient_ids - avoid_ingredient_ids,
-        disliked_tag_ids:        p.disliked_tag_ids        - avoid_tag_ids
+        liked_ingredient_ids:    liked_ingredient_ids    - avoid_ingredient_ids,
+        liked_tag_ids:           liked_tag_ids           - avoid_tag_ids,
+        disliked_ingredient_ids: disliked_ingredient_ids - avoid_ingredient_ids,
+        disliked_tag_ids:        disliked_tag_ids        - avoid_tag_ids
       )
     end
 
