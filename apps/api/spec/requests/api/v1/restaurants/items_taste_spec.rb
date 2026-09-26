@@ -110,4 +110,61 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
       expect(body["items"].pluck("taste_score").uniq).to eq([nil])
     end
   end
+
+  # Phase 8.x — favorites and a user's own ratings feed TasteScoring, so
+  # Top Picks show without anyone taking the taste quiz.
+  describe "signed-in user with only implicit taste signals (no taste quiz)" do
+    it "ranks up a dish whose tags/ingredients they favorited elsewhere" do
+      other_restaurant = create(:restaurant, :published)
+      favorited = create(:item, :published, :confirmed,
+                          restaurant: other_restaurant, ingredients: [basil], tag_list: [spicy_tag])
+      create(:favorite_item, user: user, item: favorited)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: headers
+
+      body  = response.parsed_body
+      curry = body["items"].find { |i| i["name"] == "Spicy Basil Curry" }
+      expect(curry["taste_score"]).to be_within(0.00005).of(3.0)
+      expect(body["items"].pluck("name")).to eq(["Spicy Basil Curry", "Plain Noodles"])
+    end
+
+    it "ranks up a dish tagged like one they rated highly, and down one like a dish they rated poorly" do
+      liked_elsewhere = create(:item, :published, :confirmed, restaurant: restaurant, tag_list: [spicy_tag])
+      create(:review, user: user, item: liked_elsewhere, rating: 5)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: headers
+
+      curry = response.parsed_body["items"].find { |i| i["name"] == "Spicy Basil Curry" }
+      expect(curry["taste_score"]).to be > 0
+    end
+
+    # Explicit wins per id: a deliberate "I dislike spicy" in the quiz
+    # is not overridden by having once favorited a spicy dish.
+    it "lets an explicit dislike beat an implicit like from a favorite" do
+      # Spicy only, no basil — isolates the tag from spicy_curry's own
+      # ingredient so this pins the tag conflict alone.
+      spicy_only = create(:item, :published, :confirmed, restaurant: restaurant, tag_list: [spicy_tag])
+      create(:favorite_item, user: user, item: spicy_only)
+      user.profile.update!(disliked_tag_ids: [spicy_tag.id])
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: headers
+
+      curry = response.parsed_body["items"].find { |i| i["name"] == "Spicy Basil Curry" }
+      expect(curry["taste_reasons"].pluck("kind")).to eq([])
+      expect(curry["taste_score"]).to be < 0
+    end
+
+    # Safety filters, taste ranks: an implicit like never un-hides an
+    # item the caller's own avoid list filters out.
+    it "never turns a hidden item into a pick, even when the caller favorited it" do
+      user.profile.update!(avoid_tag_ids: [spicy_tag.id])
+      create(:favorite_item, user: user, item: spicy_curry)
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", headers: headers
+
+      curry = response.parsed_body["items"].find { |i| i["name"] == "Spicy Basil Curry" }
+      expect(curry["status"]).to eq("hidden")
+      expect(curry["reasons"].pluck("kind")).to eq(["avoid_tag"])
+    end
+  end
 end

@@ -114,6 +114,67 @@ RSpec.describe Menus::Filter do
     end
   end
 
+  describe "#taste_signals_for" do
+    let(:spicy) { create(:tag, slug: "flavor-spicy", name: "Spicy") }
+
+    def filter_for_user(user, strictness: "balanced")
+      described_class.build(user: user, strictness: strictness)
+    end
+
+    # The whole point of Phase 8.x's implicit signals: a user who never
+    # touched the taste quiz still gets ranked picks, driven by what
+    # they favorited.
+    it "falls back to a favorited dish's tags when the profile has no explicit taste signals" do
+      dish = create(:item, :published, restaurant: restaurant, tag_list: [spicy])
+      user = create(:user)
+      create(:favorite_item, user: user, item: dish)
+
+      signals = filter_for_user(user).taste_signals_for(user)
+
+      expect(signals.liked_tag_ids).to eq([spicy.id])
+    end
+
+    # Explicit beats implicit per id — a user who deliberately said "I
+    # dislike spicy" in the quiz is not overridden by having once
+    # favorited a spicy dish.
+    it "lets an explicit dislike beat an implicit like for the same tag" do
+      dish = create(:item, :published, restaurant: restaurant, tag_list: [spicy])
+      user = create(:user)
+      create(:favorite_item, user: user, item: dish)
+      user.profile.update!(disliked_tag_ids: [spicy.id])
+
+      signals = filter_for_user(user).taste_signals_for(user)
+
+      expect(signals.disliked_tag_ids).to eq([spicy.id])
+      expect(signals.liked_tag_ids).to be_empty
+    end
+
+    # An id on the caller's own avoid list never scores, whether the
+    # like came from the quiz or from favoriting — filter always wins.
+    it "still subtracts the caller's own avoid list from an implicit-derived id" do
+      dish = create(:item, :published, restaurant: restaurant, tag_list: [spicy])
+      user = create(:user)
+      create(:favorite_item, user: user, item: dish)
+      user.profile.update!(avoid_tag_ids: [spicy.id])
+
+      signals = filter_for_user(user).taste_signals_for(user)
+
+      expect(signals.liked_tag_ids).to be_empty
+      expect(signals.disliked_tag_ids).to be_empty
+    end
+
+    it "returns nil for a preset filter — taste never rides along on a preset link" do
+      create(:dietary_profile, slug: "vegan")
+      dish = create(:item, :published, restaurant: restaurant, tag_list: [spicy])
+      user = create(:user)
+      create(:favorite_item, user: user, item: dish)
+
+      filter = described_class.build(user: user, preset_slug: "vegan")
+
+      expect(filter.taste_signals_for(user)).to be_nil
+    end
+  end
+
   # The expansion lives in `build`, not in `reasons_for`, so that the rule
   # itself stays comparable across implementations. This pins the seam.
   describe ".build" do
