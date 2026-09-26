@@ -55,6 +55,9 @@ export function initPostHog(
     // stack data, and neither is something /privacy discloses.
     capture_exceptions: false,
     capture_performance: false,
+    // utm_term and friends can carry a search like "celiac tacos"; the
+    // scrubber drops them too, this just stops the SDK storing them.
+    save_campaign_params: false,
     disable_surveys: true,
     before_send: scrubEvent,
   });
@@ -99,6 +102,13 @@ export function createPostHogClient(client: PostHogJsInstance): AnalyticsClient 
 // scrubbed by default rather than leaking until someone lists it.
 const URL_KEY = /(url|pathname|referrer)$/i;
 
+// Properties that repeat what someone searched or which page they read in
+// words: the page title (a diet page's title names the diet), search
+// keywords PostHog derives from a referrer, and campaign/ad-click params.
+// Also matched on the $initial_ / $session_entry_ copies.
+const DROP_KEY =
+  /(^|[_$])(title|ph_keyword|keyword|utm_[a-z_]+|gclid|gbraid|wbraid|fbclid|msclkid|dclid|li_fat_id|ttclid|twclid|igshid|mc_cid)$/i;
+
 /**
  * Reduce a URL to what the dashboards need and nothing health-adjacent:
  * no query string or hash (share links carry an encoded avoid list,
@@ -128,7 +138,9 @@ function maskPath(path: string): string {
 function scrubProps(props: Record<string, unknown> | undefined): void {
   if (!props) return;
   for (const [key, v] of Object.entries(props)) {
-    if (URL_KEY.test(key) && typeof v === 'string' && v !== '$direct') props[key] = scrubUrl(v);
+    if (DROP_KEY.test(key)) delete props[key];
+    else if (URL_KEY.test(key) && typeof v === 'string' && v !== '$direct')
+      props[key] = scrubUrl(v);
   }
 }
 

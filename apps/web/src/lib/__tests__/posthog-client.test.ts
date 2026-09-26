@@ -199,3 +199,32 @@ describe('scrubEvent session-entry properties', () => {
     });
   });
 });
+
+// A diet page's title names the diet, and a search referrer or campaign
+// tag can repeat what someone searched for.
+describe('scrubEvent words that give the page away', () => {
+  it('drops titles, search keywords and campaign params, prefixed copies included', () => {
+    const event = {
+      event: '$pageview',
+      uuid: 'u',
+      properties: {
+        title: 'Celiac-safe menus in Durango',
+        $title: 'Celiac-safe menus in Durango',
+        ph_keyword: 'celiac tacos',
+        utm_term: 'celiac',
+        utm_source: 'newsletter',
+        $initial_utm_term: 'celiac',
+        $session_entry_ph_keyword: 'celiac tacos',
+        gclid: 'abc',
+        $browser: 'Chrome',
+        extension: 'biteworthy',
+      },
+      $set_once: { $initial_utm_campaign: 'gluten-free', $initial_gclid: 'abc' },
+    } as unknown as Parameters<typeof scrubEvent>[0];
+
+    const out = scrubEvent(event)!;
+
+    expect(out.properties).toEqual({ $browser: 'Chrome', extension: 'biteworthy' });
+    expect(out.$set_once).toEqual({});
+  });
+});
