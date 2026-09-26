@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../../lib/server-auth';
 
 import { API_BASE } from '../../../../../lib/api-base';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 
 export async function POST(
   request: NextRequest,
@@ -20,6 +21,7 @@ export async function POST(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
+    ...(await edgeHeaders()),
   };
   if (jwt) headers.Authorization = `Bearer ${jwt}`;
 

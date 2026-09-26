@@ -18,6 +18,7 @@ import { getServerJwt } from '../../../../lib/server-auth';
 import { buildAuthCookieOptions } from '../../../../lib/cookie-options';
 
 import { API_BASE } from '../../../../lib/api-base';
+import { edgeHeaders } from '../../../../lib/edge-headers';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 const ACTIONS = new Set(['login', 'signup', 'logout', 'forgot', 'reset']);
@@ -85,7 +86,11 @@ async function handlePasswordReset(action: 'forgot' | 'reset', body: Credentials
 
   const upstream = await fetch(`${API_BASE}/api/v1/auth/password`, {
     method: action === 'forgot' ? 'POST' : 'PUT',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(await edgeHeaders()),
+    },
     body: JSON.stringify({ user }),
   });
 
@@ -160,7 +165,11 @@ async function handleLoginOrSignup(action: string, body: CredentialsBody) {
       : { email: body.email, password: body.password };
   const upstream = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(await edgeHeaders()),
+    },
     body: JSON.stringify({ user }),
   });
 

@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { API_BASE } from '../../../lib/api-base';
+import { edgeHeaders } from '../../../lib/edge-headers';
 
 interface DmcaBody {
   complainant_name?: string;
@@ -24,7 +25,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const upstream = await fetch(`${API_BASE}/api/v1/dmca_notices`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(await edgeHeaders()),
+    },
     body: JSON.stringify({ dmca_notice: body }),
   });
 

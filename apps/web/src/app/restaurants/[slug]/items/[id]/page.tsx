@@ -8,6 +8,7 @@ import {
 } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 import FavoriteDishButton from './_FavoriteDishButton';
 import DetectedIngredients from './_DetectedIngredients';
 import { ReviewsClient } from './ReviewsClient';
@@ -41,9 +42,10 @@ export default async function ItemDetailPage({
   // The JWT lets fetchItem populate `favorited` for the save button;
   // anonymous callers still render (favorited defaults false, button hidden).
   const jwt = await getServerJwt();
+  const edge = await edgeHeaders();
   const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
-    fetchRestaurant(slug).catch(() => null),
-    fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug }).catch(() => null),
+    fetchRestaurant(slug, { edgeHeaders: edge }).catch(() => null),
+    fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug, edgeHeaders: edge }).catch(() => null),
     fetchReviewsServer(id).catch(() => null),
     getServerUserId(),
   ]);

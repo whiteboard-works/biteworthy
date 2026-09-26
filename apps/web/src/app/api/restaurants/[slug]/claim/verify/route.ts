@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { API_BASE } from '../../../../../../lib/api-base';
+import { edgeHeaders } from '../../../../../../lib/edge-headers';
 
 export async function GET(
   request: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
   const search = request.nextUrl.search ?? '';
   const upstream = await fetch(
     `${API_BASE}/api/v1/restaurants/${encodeURIComponent(slug)}/claim/verify${search}`,
-    { headers: { Accept: 'application/json' } },
+    { headers: { Accept: 'application/json', ...(await edgeHeaders()) } },
   );
   const body = await upstream.text();
   return new NextResponse(body, {

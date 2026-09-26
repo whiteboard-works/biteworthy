@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../lib/restaurants';
 import { getServerJwt } from '../../../lib/server-auth';
+import { edgeHeaders } from '../../../lib/edge-headers';
 import { resolveMenuItems } from './_resolve-items';
 import { RestaurantClient } from './RestaurantClient';
 
@@ -55,10 +56,19 @@ export default async function RestaurantPage({
   // The JWT lets fetchRestaurant populate `favorited` for the save button;
   // its presence also gates the button (the endpoint is authed).
   const jwt = await getServerJwt();
+  const edge = await edgeHeaders();
   const fetchItems = (token: string | undefined, preset: string | undefined) =>
-    fetchRestaurantItems(slug, { profileToken: token, presetSlug: preset, jwt: jwt ?? undefined });
+    fetchRestaurantItems(slug, {
+      profileToken: token,
+      presetSlug: preset,
+      jwt: jwt ?? undefined,
+      edgeHeaders: edge,
+    });
 
-  const restaurantPromise = fetchRestaurant(slug, { jwt: jwt ?? undefined }).catch(() => null);
+  const restaurantPromise = fetchRestaurant(slug, {
+    jwt: jwt ?? undefined,
+    edgeHeaders: edge,
+  }).catch(() => null);
   // Bad filter params fall back instead of 404ing a live page — the
   // chain (and why only 422/404 classify) lives in _resolve-items.ts.
   const {

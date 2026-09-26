@@ -16,6 +16,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { API_BASE } from '../../../../../lib/api-base';
 import { getServerJwt } from '../../../../../lib/server-auth';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 
 /** The only params Rails reads; anything else is dropped rather than relayed. */
 const FORWARDED_PARAMS = ['profile_token', 'profile', 'strictness'] as const;
@@ -33,7 +34,10 @@ export async function GET(
   }
   const qs = params.toString();
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(await edgeHeaders()),
+  };
   const jwt = await getServerJwt();
   if (jwt) headers.Authorization = `Bearer ${jwt}`;
 

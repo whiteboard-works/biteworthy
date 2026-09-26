@@ -137,6 +137,12 @@ export interface FetchOptions {
   fetchImpl?: typeof fetch;
   /** Bearer token — pass on the server so `favorited` reflects the caller. */
   jwt?: string;
+  /**
+   * Server-rendered calls pass `await edgeHeaders()` so Rails throttles by
+   * the visitor, not by this server (see lib/edge-headers). Never set it
+   * from the browser.
+   */
+  edgeHeaders?: Record<string, string>;
 }
 
 export interface FetchItemsOptions extends FetchOptions {
@@ -151,7 +157,7 @@ export async function fetchRestaurant(
   slugOrId: string,
   opts: FetchOptions = {},
 ): Promise<Restaurant> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.edgeHeaders };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<Restaurant>(`/restaurants/${encodeURIComponent(slugOrId)}`, {
     headers,
@@ -182,7 +188,7 @@ export async function fetchItem(
   itemId: string,
   opts: FetchOptions & { presetSlug?: string | null } = {},
 ): Promise<RestaurantItem> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.edgeHeaders };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   // ?profile= keeps the show payload's status/reasons consistent with the
   // filtered menu the user clicked through from.
@@ -212,7 +218,7 @@ export async function fetchRestaurantItems(
   opts: FetchItemsOptions = {},
 ): Promise<RestaurantItemsResponse> {
   const path = `/restaurants/${encodeURIComponent(slugOrId)}/items${itemsQuery(opts)}`;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.edgeHeaders };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
   return api<RestaurantItemsResponse>(path, { headers, fetchImpl: opts.fetchImpl });
 }

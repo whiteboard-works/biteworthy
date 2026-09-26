@@ -9,30 +9,16 @@
 # many requests from 127.0.0.1) don't trip a throttle — the dedicated
 # throttle spec flips `Rack::Attack.enabled` on with its own cache.
 #
-# OPERATIONAL CAVEAT (per-IP attribution): throttling keys on `req.ip`,
-# which is the real client only for traffic that reaches Rails directly
-# (mobile, and the browser's own calls) or through a proxy that sets
-# `X-Forwarded-For` and that Rails trusts. The web app proxies some calls
-# server-side (auth, profile, dmca, review mutations, and a signed-in
-# reader's menu refetch), so those arrive from the Next server's IP —
-# meaning web users share one bucket and could trip a throttle together.
-# Before relying on per-client throttling in production, forward the
-# client IP from the Next proxy (X-Forwarded-For) and trust it in Rails;
-# otherwise treat these limits as a per-edge guard, not per-user.
-#
-# What keeps that bucket survivable today is that the proxy is used only
-# where a credential has to travel. Menu reads are the highest-volume
-# path in the product, and an anonymous one goes browser-to-Rails
-# directly and lands in its own bucket
-# (`fetchRestaurantItemsClient` in apps/web). If that ever changes —
-# if the web app starts proxying reads it does not need a cookie for —
-# this ceiling becomes a shared budget for the entire web tier and the
-# X-Forwarded-For work above stops being optional.
-#
-# Note that trusting X-Forwarded-For is not free: Rails is publicly
-# reachable, so the header has to be accepted only from the known edge
-# (config.action_dispatch.trusted_proxies), or anyone can forge it and
-# opt out of every throttle here.
+# ATTRIBUTION. Signed-in /api traffic is throttled per user (verified
+# Devise JWT), everything else per client IP. The web app calls Rails from
+# its server for credentialed and server-rendered requests, so `req.ip` is
+# the Next server there; it forwards the visitor's IP in `X-BW-Client-IP`
+# with a shared secret in `X-BW-Proxy-Secret`, and `client_ip` trusts the
+# forwarded address only when the secret matches `WEB_PROXY_SECRET`. Rails
+# is publicly reachable, so a forwarding header nobody authenticates would
+# let any caller choose their own bucket. Until the secret is set on both
+# sides, anonymous web-server traffic still shares the Next server's
+# bucket — signed-in traffic is per user either way.
 class Rack::Attack
   # In-memory counter store. Single-process is fine for the launch
   # footprint; swap to a shared store (Solid Cache / Redis) when the API
@@ -54,10 +40,21 @@ class Rack::Attack
     Biteworthy::SuperAdminCredential.exempt?(req)
   end
 
-  # General per-IP ceiling across the whole API surface. Generous enough
-  # that a normal session never notices; low enough that a scraper does.
+  # General ceiling across the whole API surface. Generous enough that a
+  # normal session never notices; low enough that a scraper does.
+  #
+  # Keyed per signed-in user when the request carries a valid Devise JWT,
+  # and per client IP otherwise. Web requests reach Rails from the Next
+  # server, so an IP key alone made every web user share one bucket — a
+  # few scan screens polling could 429 the whole web tier. The JWT is
+  # signature-checked (pure CPU, no query): an unverified `sub` would let
+  # anyone mint a fresh bucket per request.
+  throttle("api/user", limit: 300, period: 5.minutes) do |req|
+    api_user_key(req) if req.path.start_with?("/api/")
+  end
+
   throttle("api/ip", limit: 300, period: 5.minutes) do |req|
-    req.ip if req.path.start_with?("/api/")
+    client_ip(req) if req.path.start_with?("/api/") && api_user_key(req).nil?
   end
 
   # Tighter ceiling on the auth endpoints (login + signup + password
@@ -67,7 +64,7 @@ class Rack::Attack
   # api/ip ceiling.
   throttle("auth/ip", limit: 10, period: 20.seconds) do |req|
     if %w[POST PUT PATCH].include?(req.request_method) && req.path.start_with?("/api/v1/auth/")
-      req.ip
+      client_ip(req)
     end
   end
 
@@ -126,6 +123,39 @@ class Rack::Attack
   # same CPU-and-rows problem registration is already guarded against.
   throttle("oauth_flow/ip", limit: 30, period: 1.minute) do |req|
     req.ip if %w[/oauth/authorize /oauth/token].include?(req.path)
+  end
+
+  # The real client for a request the Next server forwarded on someone's
+  # behalf: it sends the visitor's IP plus a shared secret, and only a
+  # matching secret makes Rails believe the IP — Rails is publicly
+  # reachable, so an unauthenticated forwarding header would let anyone
+  # pick their own bucket. Without the secret (or before it is set) this
+  # is `req.ip`, exactly the old behavior.
+  def self.client_ip(req)
+    secret    = ENV["WEB_PROXY_SECRET"].presence
+    forwarded = req.get_header("HTTP_X_BW_CLIENT_IP").to_s.strip
+    return req.ip if secret.nil? || forwarded.empty?
+    return req.ip unless ActiveSupport::SecurityUtils.secure_compare(
+      req.get_header("HTTP_X_BW_PROXY_SECRET").to_s, secret
+    )
+
+    IPAddr.new(forwarded).to_s
+  rescue IPAddr::InvalidAddressError
+    req.ip
+  end
+
+  # "user:<id>" for a request carrying a valid, unexpired Devise JWT; nil
+  # otherwise. Memoized on the env because both /api throttles ask.
+  def self.api_user_key(req)
+    return req.env["bw.throttle_user"] if req.env.key?("bw.throttle_user")
+
+    req.env["bw.throttle_user"] =
+      begin
+        bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
+        bearer.present? ? "user:#{Warden::JWTAuth::TokenDecoder.new.call(bearer)['sub']}" : nil
+      rescue JWT::DecodeError
+        nil
+      end
   end
 
   # Nil for an anonymous caller, so the two MCP throttles above partition
