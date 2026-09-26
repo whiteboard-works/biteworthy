@@ -208,6 +208,20 @@ describe('ScanClient', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it('does not treat a dish rejected elsewhere as a recovered accept', async () => {
+    getScan
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1' })]))
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1', decision: 'rejected' })]));
+    acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch');
+    expect(track).not.toHaveBeenCalledWith('scan_published', expect.anything());
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('reports nothing for a discard when the live status cannot be read', async () => {
     getScan
       .mockResolvedValueOnce(readyScan([dish({ id: 'd1', name: 'Page Header' })]))
