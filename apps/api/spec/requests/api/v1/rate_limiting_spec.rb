@@ -12,7 +12,6 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     # The safelist memoizes its verdict per credential for 60s in-process,
     # so a tier flipped between examples would otherwise be invisible.
     Biteworthy::SuperAdminCredential.reset!
-    Rack::Attack::JTI_CACHE.clear
     # rack-attack counts into FIXED wall-clock windows, so a burst that
     # straddles a boundary splits across two counters and never trips the
     # limit — an intermittent CI failure. Freezing time keeps all the
@@ -71,6 +70,7 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     it "throttles a revoked token by IP, apart from the owner's current session" do
       user = create(:user)
       old_headers = auth_headers_for(user)
+      get path, headers: old_headers # counted as the user while still current
       user.update!(jti: SecureRandom.uuid)
 
       burst(300, old_headers)

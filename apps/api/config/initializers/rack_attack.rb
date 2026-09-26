@@ -151,13 +151,11 @@ class Rack::Attack
     req.ip
   end
 
-  # A user's current jti, cached briefly: revocation is checked without a
-  # query on every request, at the cost of a signed-out token counting as
-  # its user for up to a minute.
-  JTI_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 4.megabytes)
-
+  # A user's current jti. One primary-key lookup — the same one Devise runs
+  # to authenticate this request moments later — and uncached, so a token
+  # revoked by sign-out stops counting as its user immediately.
   def self.current_jti(user_id)
-    JTI_CACHE.fetch("jti:#{user_id}", expires_in: 60.seconds) { User.where(id: user_id).pick(:jti) }
+    User.where(id: user_id).pick(:jti)
   end
 
   # "user:<id>" for a request carrying a valid, unexpired, unrevoked Devise
