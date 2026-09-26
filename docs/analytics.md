@@ -131,6 +131,8 @@ Fired on any failure — both client-side gates and API errors — so drop-off i
 - **Web**: respects `navigator.doNotTrack === '1'`. Local opt-out via `localStorage.bw_analytics_opt_out = '1'` (set by /profile/settings).
 - **Mobile**: opt-IN by default-off. App Store privacy screens get the truth — the app doesn't track until the user explicitly accepts in /settings/analytics.
 - **No PII in props**: never put email, full name, address, or device IDs in the payload. Slugs + counts only. PostHog's standard anonymous-id model handles cross-session continuity.
+- **Named events + page views only (web, 2026-09-26)**: `initPostHog` turns off autocapture, rageclicks, dead clicks, heatmaps, surveys and session replay. Autocapture had been sending clicked element text — onboarding presets like "Strict gluten-free for celiac disease" and chat messages — which contradicts `/privacy`. Replay is on at the project level (the project is shared with other Whiteboard Works sites), so the web client must refuse it explicitly rather than rely on project settings.
+- **Page views are scrubbed** (`scrubEvent` as `before_send`): `$pageview` fires on history changes so client-side navigation is visible, but every URL property (and its `$initial_*` person copies) loses its query string and hash, `/durango/<diet>` becomes `/durango/:diet`, `/u/<handle>` becomes `/u/:handle`, and an outside referrer keeps only its origin.
 
 ## What ships in Phase 5.8 vs Phase 5.8-wiring
 

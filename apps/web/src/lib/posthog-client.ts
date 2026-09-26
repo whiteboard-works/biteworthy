@@ -13,6 +13,7 @@
  */
 
 import type posthog from 'posthog-js';
+import type { CaptureResult } from 'posthog-js';
 import type { AnalyticsClient } from '@biteworthy/analytics';
 
 export const EXTENSION_NAME = 'biteworthy';
@@ -35,9 +36,23 @@ export function initPostHog(
   client.init(apiKey, {
     api_host: options.apiHost ?? 'https://us.i.posthog.com',
     person_profiles: 'identified_only',
-    capture_pageview: false,
+    // Page views are how traffic shows up at all; client-side navigation
+    // never re-fires `app_open`. Their URLs go through `scrubEvent`.
+    capture_pageview: 'history_change',
     capture_pageleave: false,
     persistence: 'localStorage+cookie',
+    // Only the named funnel events and page views. Autocapture sent the
+    // text of whatever was clicked — a celiac preset, a chat message —
+    // which /privacy promises we never send. Session replay is switched
+    // on at the project level (shared with other sites), so it has to be
+    // refused here explicitly.
+    autocapture: false,
+    rageclick: false,
+    capture_dead_clicks: false,
+    capture_heatmaps: false,
+    disable_session_recording: true,
+    disable_surveys: true,
+    before_send: scrubEvent,
   });
   client.register({ extension: EXTENSION_NAME });
 }
@@ -67,4 +82,57 @@ export function createPostHogClient(client: PostHogJsInstance): AnalyticsClient 
       client.reset();
     },
   };
+}
+
+// Properties that carry a URL. Person-property copies ($initial_*) ride
+// in $set / $set_once and are scrubbed the same way.
+const URL_KEYS = [
+  '$current_url',
+  '$pathname',
+  '$referrer',
+  '$prev_pageview_pathname',
+  '$prev_pageview_url',
+  '$initial_current_url',
+  '$initial_pathname',
+  '$initial_referrer',
+] as const;
+
+/**
+ * Reduce a URL to what the dashboards need and nothing health-adjacent:
+ * no query string or hash (share links carry an encoded avoid list,
+ * `?profile=` names a diet), the diet out of `/durango/<diet>`, and the
+ * person out of `/u/<handle>`.
+ */
+export function scrubUrl(value: string): string {
+  let url: URL;
+  const relative = value.startsWith('/');
+  try {
+    url = new URL(value, 'https://placeholder.invalid');
+  } catch {
+    return value.split(/[?#]/)[0] ?? '';
+  }
+  const path = url.pathname
+    .replace(/^\/durango\/[^/]+/, '/durango/:diet')
+    .replace(/^\/u\/[^/]+/, '/u/:handle');
+  if (relative) return path;
+  // A third-party referrer keeps only its origin.
+  if (url.hostname !== window.location.hostname) return url.origin;
+  return `${url.origin}${path}`;
+}
+
+function scrubProps(props: Record<string, unknown> | undefined): void {
+  if (!props) return;
+  for (const key of URL_KEYS) {
+    const v = props[key];
+    if (typeof v === 'string' && v !== '$direct') props[key] = scrubUrl(v);
+  }
+}
+
+/** `before_send` hook: every event leaves the browser with scrubbed URLs. */
+export function scrubEvent(event: CaptureResult | null): CaptureResult | null {
+  if (!event) return event;
+  scrubProps(event.properties);
+  scrubProps(event.$set as Record<string, unknown> | undefined);
+  scrubProps(event.$set_once as Record<string, unknown> | undefined);
+  return event;
 }
