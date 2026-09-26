@@ -60,6 +60,16 @@ export function buildWebTracker(opts: BuildOptions = {}): Tracker {
   return createTracker({ client: opts.client });
 }
 
+/**
+ * Whether this browser may send analytics at all: not Do-Not-Track, not
+ * opted out. `_PostHogProvider` checks it before initializing posthog-js,
+ * because the SDK's own page-view capture doesn't go through the Tracker —
+ * gating only the Tracker would still leak page views.
+ */
+export function analyticsAllowed(): boolean {
+  return !detectDoNotTrack() && !detectOptOut();
+}
+
 function detectDoNotTrack(): boolean {
   if (typeof navigator === 'undefined') return false;
   const dnt =

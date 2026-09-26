@@ -11,7 +11,7 @@ import {
 } from 'react';
 import posthog from 'posthog-js';
 import { noopTracker, type Tracker } from '@biteworthy/analytics';
-import { buildWebTracker } from '../lib/track';
+import { analyticsAllowed, buildWebTracker } from '../lib/track';
 import { createPostHogClient, initPostHog } from '../lib/posthog-client';
 
 /**
@@ -40,7 +40,9 @@ export function PostHogProvider({ children }: { children: ReactNode }): ReactEle
 
   if (trackerRef.current === null) {
     const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    if (apiKey && typeof window !== 'undefined') {
+    // Checked before init, not only in the Tracker: posthog-js captures
+    // page views itself once initialized.
+    if (apiKey && typeof window !== 'undefined' && analyticsAllowed()) {
       initPostHog(posthog, apiKey);
       trackerRef.current = buildWebTracker({
         apiKey,

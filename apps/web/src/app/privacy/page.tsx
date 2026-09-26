@@ -38,7 +38,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-08-14';
+const LAST_UPDATED = '2026-09-26';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -195,6 +195,11 @@ export default function PrivacyPage(): ReactElement {
               Saving your dietary profile sends only that it happened, never the preset, the
               strictness, or how much you avoid — that association is the one we most want to
               avoid making. We never send review text, your email, or your specific avoid-lists.
+              Page views send the page’s address with the part after the “?” removed, and without
+              which diet page you opened or whose profile you viewed. Like every event, they also
+              carry that random analytics ID and basic browser and device details (browser, OS,
+              screen size, approximate location from your IP), and the domain of the site that
+              sent you. We don’t record what you click or type, and we don’t record your session.
             </li>
             <li>
               <strong>We do not sell or share</strong> your personal information, and we will not

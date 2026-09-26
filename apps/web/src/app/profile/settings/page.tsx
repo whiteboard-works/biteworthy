@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DietaryPreset, Strictness } from '@biteworthy/filter-engine';
+import posthog from 'posthog-js';
 import { OPT_OUT_KEY } from '../../../lib/track';
 import {
   fetchProfile,
@@ -1210,6 +1211,16 @@ function AnalyticsSection() {
     } catch {
       // localStorage unavailable (private mode) — nothing to persist.
     }
+    // posthog-js captures page views on its own once loaded; stop it now
+    // rather than on the next page load.
+    if (posthog.__loaded) {
+      if (next) posthog.opt_out_capturing();
+      else posthog.opt_in_capturing({ captureEventName: false });
+    } else if (!next) {
+      // Opted out at page load, so posthog-js was never started and the
+      // page holds a no-op tracker. A reload starts both, consent-checked.
+      window.location.reload();
+    }
     setOptedOut(next);
   };
 
@@ -1243,7 +1254,7 @@ function AnalyticsSection() {
         {optedOut === null
           ? 'Loading…'
           : analyticsOn
-            ? 'Analytics are on. Turning this off takes effect on your next page load.'
+            ? 'Analytics are on. Turning this off stops them right away.'
             : 'Analytics are off. You’ve opted out on this device.'}
       </p>
     </section>
