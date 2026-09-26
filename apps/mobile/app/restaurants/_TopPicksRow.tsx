@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import { tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
