@@ -131,6 +131,21 @@ RSpec.describe "Api::V1::Scans", type: :request do
     end
   end
 
+  describe "accept racing reject" do
+    # promote! re-reads under the row lock the reject also takes; a dish
+    # rejected after its record was loaded must not reach the live menu.
+    it "refuses to publish a dish that was rejected after it was loaded" do
+      staged = create(:ingestion_item, ingestion_run: run)
+      stale  = IngestionItem.find(staged.id)
+
+      post "/api/v1/scans/#{run.id}/reject", params: { item_ids: [ staged.id ] }, headers: auth_headers_for(owner)
+
+      expect { stale.promote!(decided_by: owner) }.to raise_error(/rejected/)
+      expect(Item.where(restaurant: restaurant).count).to eq(0)
+      expect(staged.reload.decision).to eq("rejected")
+    end
+  end
+
   describe "POST /api/v1/scans" do
     it "refuses more than one source instead of silently scanning one of them" do
       expect do

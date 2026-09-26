@@ -67,6 +67,10 @@ class IngestionItem < ApplicationRecord
       # since this record was loaded, and its row lock serializes us.
       lock!
       return item if item.present?
+      # A reject may have landed between this record's load and the lock;
+      # publishing it now would put a dish the person turned down on the
+      # live menu while the audit row says rejected.
+      raise "Staged dish was rejected; undo it before accepting" if rejected?
 
       target = locked_update_target
       target ? apply_update!(target, confidence) : create_item!(confidence)
