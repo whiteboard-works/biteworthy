@@ -100,6 +100,7 @@ describe('initPostHog privacy settings', () => {
         disable_session_recording: true,
         capture_exceptions: false,
         capture_performance: false,
+        advanced_disable_flags: true,
         before_send: scrubEvent,
       }),
     );

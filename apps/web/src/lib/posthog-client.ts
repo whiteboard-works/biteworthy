@@ -58,6 +58,9 @@ export function initPostHog(
     // utm_term and friends can carry a search like "celiac tacos"; the
     // scrubber drops them too, this just stops the SDK storing them.
     save_campaign_params: false,
+    // The /flags request carries the persisted initial URL and never passes
+    // through before_send; nothing here uses feature flags.
+    advanced_disable_flags: true,
     disable_surveys: true,
     before_send: scrubEvent,
   });
