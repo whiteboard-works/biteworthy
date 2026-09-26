@@ -63,4 +63,48 @@ RSpec.describe "GET /api/v1/restaurants/:id/items query budget", type: :request 
 
     expect(menu_queries(headers)).to eq(short)
   end
+
+  # Phase 8.x — implicit taste signals (favorites + the caller's own
+  # reviews) add exactly two bounded, capped queries (see
+  # Menus::ImplicitTasteSignals) regardless of how many dishes the
+  # requested menu has, or how many favorites/reviews the caller has
+  # elsewhere. This is the property this whole spec exists to fence.
+  it "costs the same for a long menu as a short one, signed in with only implicit taste signals" do
+    implicit_user     = create(:user)
+    other_restaurant  = create(:restaurant, :published)
+    favorited         = create(:item, :published, restaurant: other_restaurant, ingredients: [ cheddar ])
+    reviewed          = create(:item, :published, restaurant: other_restaurant, tag_list: [ spicy ])
+    create(:favorite_item, user: implicit_user, item: favorited)
+    create(:review, user: implicit_user, item: reviewed, rating: 5)
+
+    headers = auth_headers_for(implicit_user)
+    add_dishes(3)
+    short = menu_queries(headers)
+    add_dishes(27)
+
+    expect(menu_queries(headers)).to eq(short)
+  end
+
+  # The favorites/review lookup queries are bounded by LIMIT, not by how
+  # much activity the caller has — favoriting/reviewing MORE dishes
+  # elsewhere must not add more queries to this menu's cost.
+  it "costs the same number of implicit-signal queries for 2 favorites/reviews as for 20" do
+    other_restaurant = create(:restaurant, :published)
+    add_dishes(3)
+
+    light_user = create(:user)
+    create_list(:item, 2, :published, restaurant: other_restaurant, ingredients: [ cheddar ]).each do |item|
+      create(:favorite_item, user: light_user, item: item)
+      create(:review, user: light_user, item: item, rating: 5)
+    end
+    light = menu_queries(auth_headers_for(light_user))
+
+    heavy_user = create(:user)
+    create_list(:item, 20, :published, restaurant: other_restaurant, ingredients: [ cheddar ]).each do |item|
+      create(:favorite_item, user: heavy_user, item: item)
+      create(:review, user: heavy_user, item: item, rating: 5)
+    end
+
+    expect(menu_queries(auth_headers_for(heavy_user))).to eq(light)
+  end
 end
