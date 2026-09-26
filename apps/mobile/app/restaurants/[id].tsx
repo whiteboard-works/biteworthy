@@ -61,12 +61,14 @@ export default function RestaurantScreen() {
   const tapFiredRef = useRef(false);
   // Phase 4.1: pull the JWT from the keychain on mount; if absent
   // the page still loads (anonymous browse), but personalized filter
-  // results require a sign-in.
-  const [jwt, setJwt] = useState<string | undefined>(undefined);
+  // results require a sign-in. `undefined` = not read yet, `null` =
+  // signed out — the items fetch waits for the read, or a signed-in
+  // user briefly sees the unfiltered menu and pays for two requests.
+  const [jwt, setJwt] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
     getJwt().then((t) => {
-      if (!cancelled) setJwt(t ?? undefined);
+      if (!cancelled) setJwt(t ?? null);
     });
     return () => {
       cancelled = true;
@@ -113,12 +115,12 @@ export default function RestaurantScreen() {
   // overrides too (otherwise a swapped-out item id could still appear
   // visible when the new payload says it isn't there).
   useEffect(() => {
-    if (!id) return;
+    if (!id || jwt === undefined) return;
     let cancelled = false;
     setLoadingItems(true);
     setShownAnyway(new Set());
 
-    fetchRestaurantItems(id, { jwt, strictness: strictnessOverride ?? undefined })
+    fetchRestaurantItems(id, { jwt: jwt ?? undefined, strictness: strictnessOverride ?? undefined })
       .then((res) => {
         if (cancelled) return;
         setFilter(res.filter);

@@ -151,6 +151,21 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     expect(screen.queryByLabelText('rescan-menu')).toBeNull();
   });
 
+  // The keychain read is async. Fetching before it resolves showed a
+  // signed-in user the anonymous, unfiltered menu for a moment — dishes
+  // they avoid included — then swapped it out, and paid for two requests.
+  it('loads a signed-in menu once, already filtered as them', async () => {
+    const { getJwt } = jest.requireMock('../../lib/auth') as { getJwt: jest.Mock };
+    getJwt.mockImplementationOnce(() => Promise.resolve('jwt-abc'));
+
+    render(<RestaurantScreen />);
+    await waitFor(() => expect(mockFetchItems).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
+
+    expect(mockFetchItems).toHaveBeenCalledTimes(1);
+    expect(mockFetchItems).toHaveBeenCalledWith('rest-1', expect.objectContaining({ jwt: 'jwt-abc' }));
+  });
+
   it('fires restaurant_tap with the from param carried by the navigation link', async () => {
     mockParams = { id: 'rest-1', from: 'scan' };
     const track = jest.fn();
