@@ -357,6 +357,129 @@ RSpec.configure do |config|
               byte_size:    { type: :integer }
             }
           },
+          ScanDish: {
+            type: :object,
+            required: %w[id name decision prices ingredients tags unresolved needs_attention],
+            properties: {
+              id:              { type: :string, format: :uuid },
+              name:            { type: :string },
+              description:     { type: :string, nullable: true },
+              section:         { type: :string, nullable: true },
+              decision:        { type: :string, enum: %w[pending accepted rejected edited] },
+              prices:          { type: :array, items: { "$ref" => "#/components/schemas/ScanPrice" } },
+              ingredients:     { type: :array, items: { type: :string }, description: "Ingredient names we matched." },
+              tags:            { type: :array, items: { type: :string }, description: "Tag names we matched." },
+              unresolved:      {
+                type: :object,
+                required: %w[ingredients tags],
+                description: "Menu text we could not match — missing from the filter until fixed.",
+                properties: {
+                  ingredients: { type: :array, items: { type: :string } },
+                  tags:        { type: :array, items: { type: :string } }
+                }
+              },
+              needs_attention: { type: :boolean, description: "Unmatched text, or no ingredients at all — worth a human look before accepting." },
+              updates_existing_item: {
+                type: :object,
+                nullable: true,
+                description: "Set when accepting EDITS a dish already on the menu instead of adding one.",
+                required: %w[item_id name no_changes diff],
+                properties: {
+                  item_id:    { type: :string, format: :uuid },
+                  name:       { type: :string },
+                  no_changes: { type: :boolean },
+                  diff:       {
+                    type: :object,
+                    properties: {
+                      description:       { type: :object, nullable: true,
+                                           properties: { from: { type: :string, nullable: true }, to: { type: :string } } },
+                      prices:            { type: :object, nullable: true,
+                                           properties: { from: { type: :array, items: { "$ref" => "#/components/schemas/ScanPrice" } },
+                                                         to:   { type: :array, items: { "$ref" => "#/components/schemas/ScanPrice" } } } },
+                      added_ingredients: { type: :array, items: { type: :string } },
+                      added_tags:        { type: :array, items: { type: :string } }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          ScanPrice: {
+            type: :object,
+            required: %w[price_cents],
+            properties: { size: { type: :string, nullable: true }, price_cents: { type: :integer } }
+          },
+          ScanStatus: {
+            type: :object,
+            required: %w[scan_id status ready failed restaurant_id dish_count pending_count accepted_count rejected_count],
+            properties: {
+              scan_id:           { type: :string, format: :uuid },
+              status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
+              ready:             { type: :boolean, description: "Dishes are staged and reviewable." },
+              failed:            { type: :boolean },
+              failure_message:   { type: :string, nullable: true },
+              enrichment_status: { type: :string, nullable: true },
+              restaurant_id:     { type: :string, format: :uuid },
+              dish_count:        { type: :integer },
+              pending_count:     { type: :integer },
+              accepted_count:    { type: :integer },
+              rejected_count:    { type: :integer },
+              dishes:            { type: :array, items: { "$ref" => "#/components/schemas/ScanDish" },
+                                   description: "Present once ready." }
+            }
+          },
+          ScanStarted: {
+            type: :object,
+            required: %w[scan_id status restaurant],
+            properties: {
+              scan_id:    { type: :string, format: :uuid },
+              status:     { type: :string },
+              restaurant: {
+                type: :object,
+                required: %w[id slug name],
+                properties: { id: { type: :string, format: :uuid }, slug: { type: :string }, name: { type: :string } }
+              }
+            }
+          },
+          ScanAccepted: {
+            type: :object,
+            required: %w[accepted restaurant_published remaining_pending],
+            properties: {
+              accepted: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[id name],
+                  properties: {
+                    id:               { type: :string, format: :uuid, description: "The staged dish." },
+                    name:             { type: :string, description: "Fenced in <untrusted-content> tags (the tool's model-facing copy); show the review payload's plain name instead." },
+                    item_id:          { type: :string, format: :uuid, nullable: true, description: "The live dish, once promoted." },
+                    updated_existing: { type: :boolean },
+                    deferred:         { type: :boolean, description: "Accepted, promoted once enrichment finishes." }
+                  }
+                }
+              },
+              failed: {
+                type: :array,
+                nullable: true,
+                items: {
+                  type: :object,
+                  required: %w[id name error],
+                  properties: { id: { type: :string, format: :uuid }, name: { type: :string }, error: { type: :string } }
+                }
+              },
+              restaurant_published: { type: :boolean },
+              remaining_pending:    { type: :integer }
+            }
+          },
+          ScanError: {
+            type: :object,
+            required: %w[error],
+            properties: {
+              error: { type: :string, description: "A sentence to show the person." },
+              code:  { type: :string, description: "Machine code, e.g. quota_exceeded, not_found." }
+            }
+          },
           McpToken: {
             type: :object,
             description: "A least-privilege credential for an MCP client. The secret is " \

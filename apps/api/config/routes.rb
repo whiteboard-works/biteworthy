@@ -151,6 +151,11 @@ Rails.application.routes.draw do
       # Menu photos/PDFs the chat refers to by id, so bytes never enter
       # the agent's context.
       resources :attachments, only: [:create]
+      # The same scan tools the chat drives, for a scan screen that polls
+      # a row instead of paying a model round per status check.
+      resources :scans, only: [:create, :show] do
+        post :accept, on: :member
+      end
       # Least-privilege credentials for MCP clients, so connecting Claude
       # Code does not require a shell on the box.
       resources :mcp_tokens, only: [:index, :create, :destroy]

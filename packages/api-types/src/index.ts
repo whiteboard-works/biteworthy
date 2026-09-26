@@ -44,6 +44,10 @@ export type ChatEventsPage = components['schemas']['ChatEventsPage'];
 export type Attachment     = components['schemas']['Attachment'];
 export type McpToken       = components['schemas']['McpToken'];
 export type TagRef         = components['schemas']['TagRef'];
+export type ScanStarted    = components['schemas']['ScanStarted'];
+export type ScanStatus     = components['schemas']['ScanStatus'];
+export type ScanDish       = components['schemas']['ScanDish'];
+export type ScanAccepted   = components['schemas']['ScanAccepted'];
 
 // ---- Canonical filter enums (hand-written; not yet codegen'd) ----
 //
