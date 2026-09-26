@@ -1,5 +1,15 @@
 [
   {
+    "version": "2026.9.26",
+    "date": "2026-09-26",
+    "notes": [
+      "Add a menu from a photo or a link: open any restaurant, tap Scan this menu, and review the dishes before they go live — anything we can't vouch for is set aside instead of published.",
+      "Top Picks now work without the taste quiz — dishes you save or rate highly shape them — and the menu leads with your best bets.",
+      "Try a filtered menu before signing up: pick a diet on the homepage. If you're signed in, a diet link or a friend's share link now adds to your own allergies instead of replacing them.",
+      "Analytics no longer record what you click or type, never record your session, and respect Do-Not-Track and the opt-out right away."
+    ]
+  },
+  {
     "version": "2026.8.17.1",
     "date": "2026-08-17",
     "notes": [
