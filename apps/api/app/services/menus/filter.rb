@@ -14,6 +14,11 @@ module Menus
   # which beats the signed-in user's saved profile, which beats no filter
   # at all. `strictness` is separately overridable at every level so the
   # strict-mode toggle still works on a shared link.
+  #
+  # A token or preset never *drops* a signed-in user's own avoids: they are
+  # added on top. "Celiac restaurants" still means celiac-safe, but someone
+  # with a peanut allergy who follows that link — or a friend's share link —
+  # must not be shown a menu that forgot their peanuts.
   Filter = Struct.new(
     :avoid_ingredient_ids,
     :avoid_tag_ids,
@@ -37,10 +42,10 @@ module Menus
           if profile_token.present?
             from_token(profile_token, strictness: override)
           elsif preset_slug.present?
-            # A preset link replaces the avoid lists by design (that is
-            # what clicking "celiac restaurants" means), but it must not
-            # quietly relax a signed-in user's caution level — their
-            # saved strictness rides along unless explicitly overridden.
+            # A preset link sets the avoid lists (that is what clicking
+            # "celiac restaurants" means) — plus the user's own, below — and
+            # must not quietly relax a signed-in user's caution level
+            # either: their saved strictness rides along unless overridden.
             from_preset(preset_slug, strictness: override || user&.profile&.strictness)
           elsif user&.profile
             from_user_profile(user.profile, strictness: override)
@@ -48,8 +53,18 @@ module Menus
             none(strictness: override)
           end
 
+        filter = with_own_avoids(filter, user&.profile) if filter.source.in?(%w[profile_token preset])
         resolve_subtrees(filter)
       end
+
+      def with_own_avoids(filter, profile)
+        return filter if profile.nil?
+
+        filter.avoid_ingredient_ids = (Array(filter.avoid_ingredient_ids) | Array(profile.avoid_ingredient_ids))
+        filter.avoid_tag_ids        = (Array(filter.avoid_tag_ids) | Array(profile.avoid_tag_ids))
+        filter
+      end
+      private :with_own_avoids
 
       # Avoiding a node means avoiding everything under it — "I avoid
       # dairy" has to hide the dish tagged `dairy-cheddar`. Applied once

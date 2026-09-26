@@ -190,18 +190,38 @@ RSpec.describe Menus::Filter do
       expect(reasons(item, filter).map { |r| r[:kind] }).to eq(["avoid_ingredient"])
     end
 
-    it "prefers a share token over the signed-in caller's own profile" do
+    # A friend's share link or a diet page adds its avoids; it never makes
+    # a signed-in user's own allergy disappear from the menu they're shown.
+    it "applies a share token on top of the signed-in caller's own avoids" do
       user = create(:user)
-      user.profile.update!(avoid_ingredient_ids: [peanut.id])
-      token = ProfileToken.encode(avoid_ingredient_ids: [cheddar.id], avoid_tag_ids: [], strictness: "balanced")
+      user.profile.update!(avoid_ingredient_ids: [ peanut.id ])
+      token = ProfileToken.encode(avoid_ingredient_ids: [ cheddar.id ], avoid_tag_ids: [], strictness: "balanced")
 
       filter = described_class.build(user: user, profile_token: token)
 
       expect(filter.source).to eq("profile_token")
-      expect(filter.avoid_ingredient_ids).to eq([cheddar.id])
+      expect(filter.avoid_ingredient_ids).to include(cheddar.id, peanut.id)
     end
 
-    it "keeps a signed-in caller's saved strictness when a preset link replaces their avoid lists" do
+    it "applies a diet preset on top of the signed-in caller's own avoids" do
+      create(:dietary_profile, slug: "vegan")
+      user = create(:user)
+      user.profile.update!(avoid_ingredient_ids: [ peanut.id ])
+      item = create(:item, :published, restaurant: restaurant, ingredients: [ peanut ])
+
+      filter = described_class.build(user: user, preset_slug: "vegan")
+
+      expect(filter.source).to eq("preset")
+      expect(reasons(item, filter).map { |r| r[:kind] }).to include("avoid_ingredient")
+    end
+
+    it "leaves an anonymous preset exactly as the preset defines it" do
+      create(:dietary_profile, slug: "vegan")
+
+      expect(described_class.build(preset_slug: "vegan").avoid_ingredient_ids).not_to include(peanut.id)
+    end
+
+    it "keeps a signed-in caller's saved strictness when a preset link sets the avoid lists" do
       # A /durango/<diet> click swaps WHAT is avoided — it must not also
       # quietly relax HOW CAUTIOUS a strict-mode user asked to be.
       create(:dietary_profile, slug: "vegan")

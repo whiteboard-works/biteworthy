@@ -43,6 +43,10 @@ export function SiteHeader() {
   // null = not yet known; render a neutral bar to avoid a Sign-in →
   // Account flash and the layout shift that comes with it.
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // Stricter than `signedIn === false`, which a failed check also produces:
+  // only a successful check saying "signed out" counts, for links whose
+  // diet preset would override a signed-in user's saved profile.
+  const [confirmedSignedOut, setConfirmedSignedOut] = useState(false);
   // null = unknown (nudge stays hidden); only a confirmed `false` nudges.
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -72,13 +76,20 @@ export function SiteHeader() {
   // re-fetching, so there's no flash between routes.
   useEffect(() => {
     let active = true;
+    // A confirmation belongs to the check that produced it; after a sign-in
+    // the old "signed out" must not linger while this one is in flight.
+    setConfirmedSignedOut(false);
     fetch('/api/auth/session', { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : { signedIn: false }))
-      .then((d: { signedIn?: boolean }) => {
-        if (active) setSignedIn(Boolean(d.signedIn));
+      .then((r) => (r.ok ? r.json() : { signedIn: false, unknown: true }))
+      .then((d: { signedIn?: boolean; unknown?: boolean }) => {
+        if (!active) return;
+        setSignedIn(Boolean(d.signedIn));
+        setConfirmedSignedOut(!d.unknown && d.signedIn === false);
       })
       .catch(() => {
-        if (active) setSignedIn(false);
+        if (!active) return;
+        setSignedIn(false);
+        setConfirmedSignedOut(false);
       });
     return () => {
       active = false;
@@ -195,6 +206,19 @@ export function SiteHeader() {
           >
             Restaurants
           </Link>
+          {/* "Value before signup" — the zero-signup filtered-menu pages at
+              /durango/[diet]. Only for a confirmed signed-out visitor: their
+              `?profile=` preset outranks a saved profile, so a signed-in user
+              with allergies must not be steered there. */}
+          {confirmedSignedOut && (
+            <Link
+              href="/durango"
+              data-testid="nav-durango"
+              className="font-semibold text-zinc-700 hover:text-bite-dark"
+            >
+              Explore Durango
+            </Link>
+          )}
           {/* Scanning a menu is a conversation now — this is where the
               old "Scan a menu" link pointed before the pivot. Visible
               signed-out too: the headline feature must be discoverable,
