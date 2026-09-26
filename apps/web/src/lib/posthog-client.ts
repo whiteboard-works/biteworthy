@@ -205,13 +205,15 @@ export function resetPageviewDedupe(): void {
 /** `before_send` hook: every event leaves the browser with scrubbed URLs. */
 export function scrubEvent(event: CaptureResult | null): CaptureResult | null {
   if (!event) return event;
+  // The raw path, before masking, is the dedupe key (kept in memory, never
+  // sent): /durango/celiac → /durango/vegan both mask to /durango/:diet.
+  const rawPath = String(event.properties?.$pathname ?? '');
   scrubProps(event.properties);
   scrubProps(event.$set as Record<string, unknown> | undefined);
   scrubProps(event.$set_once as Record<string, unknown> | undefined);
   if (event.event === '$pageview') {
-    const path = String(event.properties?.$pathname ?? '');
-    if (path === lastPageviewPath) return null;
-    lastPageviewPath = path;
+    if (rawPath === lastPageviewPath) return null;
+    lastPageviewPath = rawPath;
   }
   return event;
 }

@@ -276,4 +276,11 @@ describe('scrubEvent page-view dedupe', () => {
     expect(scrubEvent(pageview('/'))).not.toBeNull();
     expect(scrubEvent(pageview('/reset-password'))).not.toBeNull();
   });
+
+  it('keeps distinct pages that mask to the same path', () => {
+    expect(scrubEvent(pageview('/durango/celiac'))).not.toBeNull();
+    expect(scrubEvent(pageview('/durango/vegan'))).not.toBeNull();
+    expect(scrubEvent(pageview('/u/alice'))).not.toBeNull();
+    expect(scrubEvent(pageview('/u/bob'))).not.toBeNull();
+  });
 });
