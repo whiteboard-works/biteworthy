@@ -190,6 +190,19 @@ describe('ScanClient', () => {
     );
   });
 
+  it('reports nothing for a discard when the live status cannot be read', async () => {
+    getScan
+      .mockResolvedValueOnce(readyScan([dish({ id: 'd1', name: 'Page Header' })]))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Page Header'));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard 1 dish' }));
+
+    expect(await screen.findByText(/Nothing was added/)).toBeInTheDocument();
+    expect(track).not.toHaveBeenCalledWith('scan_published', expect.anything());
+  });
+
   // A public restaurant's new run can stay "staged"; the restaurant is still public.
   it('reports a recovered accept on a public restaurant as public', async () => {
     getScan.mockResolvedValueOnce(readyScan([dish({ id: 'd1' })])).mockResolvedValueOnce({

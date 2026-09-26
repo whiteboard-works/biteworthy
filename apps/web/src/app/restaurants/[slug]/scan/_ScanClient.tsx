@@ -125,15 +125,18 @@ export function ScanClient({
       // accept lands, and it should count what the person turned down.
       if (reject.length > 0) await rejectScan(scanId, reject);
       if (accept.length === 0) {
-        tracker.track('scan_published', {
-          restaurant_slug: slug,
-          accepted_count: 0,
-          discarded_count: reject.length,
-          // Read live: discarding never unpublishes, and another scan may
-          // have published the restaurant since this page loaded.
-          restaurant_published:
-            (await getScan(scanId).catch(() => null))?.restaurant_published ?? false,
-        });
+        // Read live: discarding never unpublishes, and another scan may have
+        // published the restaurant since this page loaded. If the read
+        // fails, report nothing rather than a guess.
+        const live = await getScan(scanId).catch(() => null);
+        if (live && typeof live.restaurant_published === 'boolean') {
+          tracker.track('scan_published', {
+            restaurant_slug: slug,
+            accepted_count: 0,
+            discarded_count: reject.length,
+            restaurant_published: live.restaurant_published,
+          });
+        }
         finish(
           `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
         );
