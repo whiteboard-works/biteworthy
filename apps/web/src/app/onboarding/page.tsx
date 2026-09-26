@@ -26,23 +26,27 @@ import {
 import { useTracker } from '../_PostHogProvider';
 
 /**
- * Phase 3.8 + 4.1 — web mirror of the mobile 4-step onboarding flow.
+ * Phase 3.8 + 4.1 — web mirror of the mobile onboarding flow.
  *
  *   1. Pick presets ("What can't you eat?")
  *   2. Add specific ingredients ("Anything else?")
  *   3. Set strictness ("How strict?")
- *   4. Taste ("What do you love?") — Phase 8.5, skippable
- *   5. Done → PATCH /api/profile (Next proxy reads the bw_session
+ *   4. Done → PATCH /api/profile (Next proxy reads the bw_session
  *      cookie + forwards to Rails), navigate home.
  *
  * Phase 4.1 dropped the paste-the-JWT input; if the request comes
  * back 401, the user is bounced to /login?next=/onboarding so they
  * can sign in and resume.
  *
- * Phase 8.5 — `?step=taste` enters the taste step standalone ("Improve
- * my picks"). That mode saves ONLY the taste arrays (toTastePayload),
- * so refining picks can never wipe the avoid lists. Taste is soft:
- * safety filters, taste ranks.
+ * "Value before signup" — the taste step ("What do you love?") no
+ * longer sits in the first-run sequence above; it's optional ranking,
+ * not safety, and made a new user do a 5th tap before reaching a
+ * filtered menu. It's still reachable standalone via `?step=taste`
+ * ("Improve my picks" on the profile/menu pages), which is now the
+ * ONLY entry point — `step` never becomes `'taste'` outside that mode.
+ * That mode saves ONLY the taste arrays (toTastePayload), so refining
+ * picks can never wipe the avoid lists. Taste is soft: safety filters,
+ * taste ranks.
  */
 type Step = 'presets' | 'ingredients' | 'strictness' | 'taste' | 'done';
 
@@ -304,7 +308,7 @@ function OnboardingFlow() {
         <StrictnessStep
           active={draft.strictness}
           onPick={(s) => dispatch({ type: 'SET_STRICTNESS', strictness: s })}
-          onNext={() => setStep('taste')}
+          onNext={() => setStep('done')}
         />
       )}
 
@@ -360,7 +364,7 @@ function StepHeader({
   return (
     <>
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
-        Step {step} of 5
+        Step {step} of 4
       </p>
       <h1 className="mt-bw-2 text-bw-2xl font-bold">{title}</h1>
       <p className="mt-bw-2 text-bw-base text-zinc-700">{body}</p>
@@ -577,12 +581,14 @@ function StrictnessStep({
           );
         })}
       </div>
-      <NextButton label="Next →" onClick={onNext} testId="next-to-taste" />
+      <NextButton label="Next →" onClick={onNext} testId="next-to-review" />
     </>
   );
 }
 
-// ─── Phase 8.5 — taste step ("What do you love?") ─────────────────
+// ─── Phase 8.5 — taste step ("What do you love?"), standalone-only ─
+// since "Value before signup": no longer part of the first-run
+// sequence above, only reachable via `?step=taste`.
 
 function TasteChip({
   label,
@@ -787,7 +793,7 @@ function ReviewStep({
   const [acknowledged, setAcknowledged] = useState(false);
   return (
     <form onSubmit={onSubmit}>
-      <StepHeader step={5} title="Ready?" body="Saving will replace any existing avoid lists on your profile." />
+      <StepHeader step={4} title="Ready?" body="Saving will replace any existing avoid lists on your profile." />
 
       <p className="mt-bw-4 text-bw-base text-zinc-700">
         Avoiding{' '}

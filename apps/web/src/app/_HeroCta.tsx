@@ -2,6 +2,7 @@
 
 import { useEffect, useState, ReactElement } from 'react';
 import Link from 'next/link';
+import { DURANGO_DIET_SLUGS, humanizeDietSlug } from '../lib/durango';
 
 /**
  * The landing hero's primary CTA, adapted to auth state: a signed-in user
@@ -96,5 +97,59 @@ export function MarketingExtras(): ReactElement | null {
       <ComingSoonBadge label="iOS app" />
       <ComingSoonBadge label="Android app" />
     </>
+  );
+}
+
+/**
+ * "Value before signup" — the zero-commitment path for a signed-out
+ * visitor: pick a diet and land straight on the already-filtered
+ * `/durango/<diet>` page, no account required. The signup CTA
+ * (`HeroCta` + `MarketingExtras`) stays as the secondary path below
+ * this row. Shown ONLY once the session check confirms a signed-out
+ * visitor: a `?profile=` preset outranks a saved profile, so a signed-in
+ * user with allergies who followed one would see a menu that ignores
+ * them. Pending and failed checks fail closed.
+ */
+export function TryADiet(): ReactElement | null {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { signedIn?: boolean } | null) => {
+        if (active && d && d.signedIn === false) setSignedIn(false);
+      })
+      .catch(() => {
+        // Unknown — stay hidden.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (signedIn !== false) {
+    return null;
+  }
+
+  return (
+    <div data-testid="try-a-diet">
+      <p className="text-bw-sm font-bold text-zinc-900">Try it — pick a diet</p>
+      <div className="mt-bw-2 flex flex-wrap gap-bw-2">
+        {DURANGO_DIET_SLUGS.map((slug) => (
+          <Link
+            key={slug}
+            href={`/durango/${slug}`}
+            data-testid={`try-diet-${slug}`}
+            className="rounded-bw-pill border border-zinc-200 bg-white px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-700 hover:border-bite hover:text-bite-dark"
+          >
+            {humanizeDietSlug(slug)}
+          </Link>
+        ))}
+      </div>
+      <p className="mt-bw-2 text-bw-xs text-zinc-500">
+        No signup — see real Durango menus, filtered instantly.
+      </p>
+    </div>
   );
 }

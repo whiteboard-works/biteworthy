@@ -7,9 +7,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
  * The pure cycle (neutral → liked → disliked → neutral) is covered in
  * the filter-engine reducer spec, and the saveTaste/fetchTags wire
  * shapes in `lib/__tests__/onboarding.test.ts`. This file targets the
- * React page: that the taste chips render + cycle, that standalone
+ * React page: that the taste chips render + cycle, and that standalone
  * `?step=taste` saves ONLY the taste arrays (toTastePayload, can't
- * wipe avoid lists), and that the full flow's taste step is skippable.
+ * wipe avoid lists).
+ *
+ * "Value before signup" — the taste step no longer sits in the
+ * first-run sequence (a new user reaches a filtered menu after
+ * presets → ingredients → strictness → review, without the taste
+ * quiz); it's reachable only standalone via `?step=taste`.
  */
 
 const mockReplace = vi.fn();
@@ -61,8 +66,8 @@ describe('OnboardingPage — taste step (standalone "Improve my picks")', () => 
     render(<OnboardingPage />);
     expect(await screen.findByText('What do you love?')).toBeInTheDocument();
     expect(screen.getByText('Improve your picks')).toBeInTheDocument();
-    // No "Step X of 5" eyebrow in standalone mode.
-    expect(screen.queryByText(/Step \d of 5/)).not.toBeInTheDocument();
+    // No "Step X of 4" eyebrow in standalone mode.
+    expect(screen.queryByText(/Step \d of 4/)).not.toBeInTheDocument();
     expect(screen.getByTestId('save-taste')).toBeInTheDocument();
   });
 
@@ -126,20 +131,22 @@ describe('OnboardingPage — taste step in the full flow', () => {
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
-  it('sits at step 4 of 5 between strictness and review, and is skippable', async () => {
+  // "Value before signup" — a new user reaches a filtered menu without
+  // the taste quiz: strictness is the last first-run step, and it goes
+  // straight to review. Taste stays reachable only via `?step=taste`
+  // (covered by the standalone describe block above).
+  it('a new user reaches review straight after strictness — no taste quiz in first-run', async () => {
     render(<OnboardingPage />);
-    // presets (1) → ingredients (2) → strictness (3) → taste (4)
+    // presets (1) → ingredients (2) → strictness (3) → review (4)
     fireEvent.click(await screen.findByTestId('next-to-ingredients'));
     fireEvent.click(screen.getByTestId('next-to-strictness'));
-    fireEvent.click(screen.getByTestId('next-to-taste'));
+    expect(screen.getByText('Step 3 of 4')).toBeInTheDocument();
 
-    expect(screen.getByText('Step 4 of 5')).toBeInTheDocument();
-    expect(screen.getByText('What do you love?')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('next-to-review'));
 
-    // Skip for now → review step (taste arrays stay empty).
-    fireEvent.click(screen.getByTestId('skip-taste'));
-    expect(screen.getByText('Step 5 of 5')).toBeInTheDocument();
+    expect(screen.getByText('Step 4 of 4')).toBeInTheDocument();
     expect(screen.getByText('Ready?')).toBeInTheDocument();
+    expect(screen.queryByText('What do you love?')).not.toBeInTheDocument();
   });
 });
 
@@ -150,8 +157,7 @@ describe('OnboardingPage — allergen acknowledgment (legal E1)', () => {
     render(<OnboardingPage />);
     fireEvent.click(await screen.findByTestId('next-to-ingredients'));
     fireEvent.click(screen.getByTestId('next-to-strictness'));
-    fireEvent.click(screen.getByTestId('next-to-taste'));
-    fireEvent.click(screen.getByTestId('skip-taste'));
+    fireEvent.click(screen.getByTestId('next-to-review'));
   };
 
   it('blocks the save until the disclaimer is acknowledged, then records it', async () => {

@@ -58,6 +58,21 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
       preset
     end
 
+    # A diet link must never make a signed-in user's own avoid disappear:
+    # someone avoiding beef who opens the vegan page still sees beef hidden.
+    it "adds a signed-in caller's own avoids on top of the preset" do
+      user = create(:user)
+      user.profile.update!(avoid_ingredient_ids: [ beef.id ])
+
+      get "/api/v1/restaurants/#{restaurant.id}/items?profile=vegan", headers: auth_headers_for(user)
+
+      items = response.parsed_body["items"].index_by { |i| i["name"] }
+      expect(items["Carne Asada Taco"]["status"]).to eq("hidden")
+      expect(items["Cheese Quesadilla"]["status"]).to eq("hidden")
+      expect(items["Salmon Bowl"]["status"]).to eq("visible")
+      expect(response.parsed_body["filter"]["source"]).to eq("preset")
+    end
+
     it "hides dairy items with avoid_ingredient + avoid_tag reasons" do
       get "/api/v1/restaurants/#{restaurant.id}/items?profile=vegan"
 

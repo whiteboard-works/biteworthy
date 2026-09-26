@@ -708,6 +708,10 @@ export function ShareLinkButton({
     // A preset filter shares as its slug, not as a token: the token would
     // carry the preset's pre-expanded avoid lists (hundreds of UUIDs —
     // ~14KB encoded, past Puma's 10KB query-string cap), arriving dead.
+    // A signed-in viewer's own avoids ride on top of a preset for them
+    // (Menus::Filter.build) but aren't put in the link: a diet link shares
+    // the diet, not the sharer's allergies, and a signed-in recipient gets
+    // their own avoids added the same way.
     // No filter shares the bare URL: an empty-list token is VALID to the
     // API, and the recipient would see "Shared filter" over a menu
     // nothing was filtered out of.

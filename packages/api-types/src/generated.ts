@@ -3870,11 +3870,11 @@ export interface paths {
     "/api/v1/restaurants/{restaurant_id}/items": {
         parameters: {
             query?: {
-                /** @description DietaryProfile slug whose avoid lists to apply */
+                /** @description DietaryProfile slug whose avoid lists to apply — on top of a signed-in caller's own avoids, never instead of them */
                 profile?: string;
                 /** @description Override the strictness from profile/user */
                 strictness?: "relaxed" | "balanced" | "strict";
-                /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile` and over the signed-in user's own profile. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
+                /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile`; a signed-in caller's own avoids are added on top, never dropped. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
                 profile_token?: string;
             };
             header?: never;
@@ -3891,11 +3891,11 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description DietaryProfile slug whose avoid lists to apply */
+                    /** @description DietaryProfile slug whose avoid lists to apply — on top of a signed-in caller's own avoids, never instead of them */
                     profile?: string;
                     /** @description Override the strictness from profile/user */
                     strictness?: "relaxed" | "balanced" | "strict";
-                    /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile` and over the signed-in user's own profile. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
+                    /** @description A share token minted by `encodeProfileToken`, carrying the sharer's avoid lists and strictness. Takes precedence over `profile`; a signed-in caller's own avoids are added on top, never dropped. Refused with 422 when it is malformed, expired, or refers to an ingredient or tag that no longer exists — the last because the response would otherwise be labelled `source: "profile_token"` over a menu nothing was filtered out of. */
                     profile_token?: string;
                 };
                 header?: never;

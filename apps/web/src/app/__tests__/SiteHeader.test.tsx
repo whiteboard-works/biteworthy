@@ -13,9 +13,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const mockReplace = vi.fn();
 const mockRefresh = vi.fn();
+let mockPathname = '/';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, refresh: mockRefresh }),
-  usePathname: () => '/',
+  usePathname: () => mockPathname,
 }));
 
 const mockLogout = vi.fn();
@@ -75,8 +76,46 @@ describe('SiteHeader', () => {
     // bounces anonymous visitors to /login.
     expect(screen.getByTestId('nav-restaurants')).toHaveAttribute('href', '/restaurants');
     expect(screen.getByTestId('nav-chat')).toHaveAttribute('href', '/chat');
+    // "Value before signup" — the zero-signup /durango/[diet] filtered
+    // menus need a nav entry point too.
+    expect(await screen.findByTestId('nav-durango')).toHaveAttribute('href', '/durango');
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
+  });
+
+  // A diet page's preset outranks a saved profile, so a signed-in user with
+  // allergies must not be steered there — and an unknown session isn't
+  // "signed out".
+  it('hides the diet-page link from a signed-in user', async () => {
+    stubAuth({ signedIn: true });
+    render(<SiteHeader />);
+    expect(await screen.findByTestId('nav-logout')).toBeInTheDocument();
+    expect(screen.queryByTestId('nav-durango')).not.toBeInTheDocument();
+  });
+
+  // The header stays mounted across a sign-in's soft navigation; the old
+  // "signed out" must not keep the preset link up while the new check runs.
+  it('drops the diet-page link as soon as the route changes, before the new check answers', async () => {
+    mockPathname = '/login';
+    stubAuth({ signedIn: false });
+    const { rerender } = render(<SiteHeader />);
+    expect(await screen.findByTestId('nav-durango')).toBeInTheDocument();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    );
+    mockPathname = '/';
+    rerender(<SiteHeader />);
+
+    await waitFor(() => expect(screen.queryByTestId('nav-durango')).not.toBeInTheDocument());
+  });
+
+  it('hides the diet-page link when the session check fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+    render(<SiteHeader />);
+    expect(await screen.findByTestId('nav-signin')).toBeInTheDocument();
+    expect(screen.queryByTestId('nav-durango')).not.toBeInTheDocument();
   });
 
   it('shows Account + Log out when signed in, and logging out returns home', async () => {

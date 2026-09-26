@@ -29,7 +29,7 @@ picks — fast and obvious. Working todo: [`docs/plans/mvp-speed-ui.md`](plans/m
 - [x] 2.4 Mobile fixes (frozen app): double fetch, image caching
 - [ ] 2.5 Throttle keyed per user / real client IP, not the Next proxy's
 - [x] 3.1 Web scan screen (`/restaurants/[slug]/scan`)
-- [ ] 3.2 Value before signup
+- [x] 3.2 Value before signup
 - [ ] 3.3 Menu page hierarchy + picks/strict-mode empty states
 - [x] 3.4 Favorites + ratings feed picks
 
