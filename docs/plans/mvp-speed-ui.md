@@ -29,7 +29,7 @@ same tools.
 
 - [x] 3.1 Web scan screen: photo/URL → progress → review grouped by section → Accept all → land on the filtered menu. Entry from the restaurant page only; creating a brand-new restaurant still goes through chat (the search's not-found state already links there)
 - [x] 3.2 Value before signup: homepage diet chips → `/durango/<diet>`, whose restaurant cards open pre-filtered menus (one hop, no signup) — shown only to confirmed signed-out visitors; onboarding shrinks to preset + avoids, taste step after the first menu
-- [ ] 3.3 Menu page: split `RestaurantClient.tsx`; Top Picks as the visual payoff with an explained empty state; strict mode says how many dishes are hidden as unconfirmed; new users default to balanced
+- [x] 3.3 Menu page: split `RestaurantClient.tsx`; Top Picks as the visual payoff with an explained empty state; strict mode says how many dishes are hidden as unconfirmed; new users default to balanced
 - [x] 3.4 Community → picks: favorites and the user's own ratings feed `TasteScoring`, so picks show without the taste quiz
 
 ## Out of scope

@@ -1,15 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import { ClaimError, requestClaim } from '../../../lib/restaurant-claim';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   applyOverrides,
-  encodeProfileToken,
-  filterSourceLabel,
   groupItemsBySection,
-  hiddenReasonLabel,
-  type HideReason,
   type ItemSection,
   type Strictness,
 } from '@biteworthy/filter-engine';
@@ -23,8 +17,10 @@ import {
   type RestaurantItem,
   type RestaurantItemsResponse,
 } from '../../../lib/restaurants';
-import FavoriteButton from './_FavoriteButton';
-import { ItemRow } from './ItemRow';
+import { ClaimSection } from './ClaimSection';
+import { FilterControls, ShareTokenNotice } from './FilterControls';
+import { PageHeader } from './PageHeader';
+import { SectionList } from './SectionList';
 import { TopPicksRow } from './TopPicksRow';
 import { useTracker } from '../../_PostHogProvider';
 
@@ -36,9 +32,14 @@ import { useTracker } from '../../_PostHogProvider';
  * and translated <HiddenReasonChip> per reason. SSR renders the
  * initial items with the server's default filter; the client takes
  * over for re-filtering and overrides without a full page navigation.
+ *
+ * Menu-page hierarchy pass — this file now composes PageHeader,
+ * FilterControls, ClaimSection, TopPicksRow and SectionList rather
+ * than rendering all of it inline. Each piece kept its own
+ * data-testids and behavior; nothing here changed except the split
+ * and the two additions called out below (the strict-mode
+ * unconfirmed-count line and passing `signedIn` into TopPicksRow).
  */
-
-const STRICTNESSES: Strictness[] = ['relaxed', 'balanced', 'strict'];
 
 export function RestaurantClient({
   slug,
@@ -195,32 +196,15 @@ export function RestaurantClient({
 
   const totalHidden = overriddenSections.reduce((acc, s) => acc + s.hidden.length, 0);
   const totalVisible = overriddenSections.reduce((acc, s) => acc + s.visible.length, 0);
-
-  // A lone group wearing the grouping fallback label means the menu has
-  // no course structure — an "Other" heading over everything would be
-  // labeling noise. Keyed on the name, not the id: groupItemsBySection
-  // mints 'Other' from a missing menu_section_name whatever the id is.
-  const loneFallbackSection =
-    overriddenSections.length === 1 && overriddenSections[0]?.name === 'Other';
+  const unconfirmedStrictCount = countUnconfirmedStrictHidden(overriddenSections);
 
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
-      <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
-        {restaurant.city.name}, {restaurant.city.region}
-      </p>
-      <h1 className="mt-bw-2 text-bw-3xl font-bold">{restaurant.name}</h1>
-      <RestaurantContactLine restaurant={restaurant} />
-      {signedIn && (
-        <div className="mt-bw-3">
-          <FavoriteButton
-            initialFavorited={restaurant.favorited ?? false}
-            onToggle={(next) => setRestaurantFavorite(slug, next)}
-            savedLabel="Saved"
-            unsavedLabel="Save restaurant"
-            testId="favorite-restaurant"
-          />
-        </div>
-      )}
+      <PageHeader
+        restaurant={restaurant}
+        signedIn={signedIn}
+        onToggleFavorite={(next) => setRestaurantFavorite(slug, next)}
+      />
       <p className="mt-bw-2 text-bw-base text-zinc-700">
         {filter.source === 'none' && filter.strictness !== 'strict' ? (
           <>
@@ -236,29 +220,21 @@ export function RestaurantClient({
         )}
       </p>
 
-      <div className="mt-bw-3 flex flex-wrap items-center gap-bw-2">
-        <FilterBadge filter={filter} />
-        <StrictnessToggle
-          active={strictnessOverride ?? filter.strictness}
-          loading={isPending}
-          onChange={(next) => {
-            tracker.track('filter_changed', {
-              kind: 'strictness',
-              from: strictnessOverride ?? filter.strictness,
-              to: next,
-            });
-            setStrictnessOverride(next);
-          }}
-        />
-        <ShareLinkButton slug={slug} filter={filter} tracker={tracker} />
-        <a
-          href={`/restaurants/${encodeURIComponent(slug)}/scan`}
-          data-testid="scan-menu-link"
-          className="rounded-bw-pill border border-bite px-bw-3 py-bw-1 text-bw-sm font-semibold text-bite hover:bg-bite-light"
-        >
-          Scan this menu
-        </a>
-      </div>
+      <FilterControls
+        filter={filter}
+        strictnessOverride={strictnessOverride}
+        isPending={isPending}
+        slug={slug}
+        unconfirmedStrictCount={unconfirmedStrictCount}
+        onStrictnessChange={(next) => {
+          tracker.track('filter_changed', {
+            kind: 'strictness',
+            from: strictnessOverride ?? filter.strictness,
+            to: next,
+          });
+          setStrictnessOverride(next);
+        }}
+      />
 
       <ClaimSection slug={slug} restaurant={restaurant} />
 
@@ -270,8 +246,7 @@ export function RestaurantClient({
           data-testid="preset-invalid-notice"
           className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
         >
-          That diet link isn&rsquo;t recognized, so the menu below is{' '}
-          <strong>unfiltered</strong>.
+          That diet link isn&rsquo;t recognized, so the menu below is <strong>unfiltered</strong>.
         </p>
       )}
 
@@ -283,106 +258,42 @@ export function RestaurantClient({
 
       <AllergenNotice />
 
-      <TopPicksRow items={rawItems} restaurantSlug={slug} presetSlug={presetSlug} />
+      <TopPicksRow
+        items={rawItems}
+        restaurantSlug={slug}
+        presetSlug={presetSlug}
+        profileToken={profileToken}
+        signedIn={signedIn}
+      />
 
-      {overriddenSections.length === 0 && (
-        <p className="mt-bw-6 text-center text-bw-base text-zinc-500">
-          No published items at this restaurant yet.{' '}
-          <a
-            href={`/restaurants/${encodeURIComponent(slug)}/scan`}
-            className="font-semibold text-bite hover:text-bite-dark"
-          >
-            Scan the menu
-          </a>{' '}
-          to add them.
-        </p>
-      )}
-
-      {overriddenSections.map((section) => (
-        <SectionBlock
-          key={section.id ?? '__none__'}
-          section={section}
-          showHeading={!loneFallbackSection}
-          restaurantSlug={slug}
-          presetSlug={presetSlug}
-          shownAnyway={shownAnyway}
-          onToggleOverride={toggleOverride}
-          onSetPersistentOverride={setPersistentOverride}
-        />
-      ))}
+      <SectionList
+        sections={overriddenSections}
+        restaurantSlug={slug}
+        presetSlug={presetSlug}
+        shownAnyway={shownAnyway}
+        onToggleOverride={toggleOverride}
+        onSetPersistentOverride={setPersistentOverride}
+      />
     </main>
   );
 }
 
 /**
- * Shown when the URL's share token was refused. The fallback fetch may
- * still apply a filter (the caller's saved profile, or a riding preset)
- * — say what IS applied rather than claiming "unfiltered" when it isn't.
+ * Menu-page hierarchy pass — strict mode hides an item either because
+ * an avoid list matched it or because its ingredients/tags aren't
+ * confirmed yet. Only the second case is counted here: an item also
+ * caught by an avoid-list reason is hidden for a real reason too, so
+ * naming it under "unconfirmed" would overstate what confirming
+ * ingredients would actually unlock.
  */
-export function ShareTokenNotice({ filter }: { filter: FilterSummary }) {
-  const applied =
-    filter.source === 'none' && filter.strictness !== 'strict' ? (
-      <>
-        the menu below is <strong>unfiltered</strong>
-      </>
-    ) : (
-      <>
-        the menu below shows <strong>{filterSourceLabel(filter)}</strong> instead
-      </>
-    );
-  return (
-    <p
-      role="note"
-      data-testid="share-token-notice"
-      className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
-    >
-      This share link is invalid or has expired, so {applied}. Ask whoever sent it for a fresh
-      link.
-    </p>
-  );
-}
-
-/** Digits to dial: extensions ("ext 2", "x2", "#2") can't ride a tel: URI. */
-function dialable(phone: string): string {
-  return phone.split(/(?:ext|x|#)/i)[0]!.replace(/[^+\d]/g, '');
-}
-
-/** Scheme-less stored values ("www.x.com") must not resolve as relative URLs. */
-function externalHref(website: string): string {
-  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
-}
-
-/**
- * Phone + website, already in the `#show` payload but never rendered —
- * the "confirm with the restaurant" disclaimer ends in a phone call, so
- * the page should hand over the number. Renders nothing when the data
- * is absent (most community-scanned restaurants at first).
- */
-export function RestaurantContactLine({ restaurant }: { restaurant: Restaurant }) {
-  if (!restaurant.phone && !restaurant.website) return null;
-  return (
-    <p className="mt-bw-2 flex flex-wrap gap-bw-4 text-bw-sm" data-testid="restaurant-contact">
-      {restaurant.phone && (
-        <a
-          href={`tel:${dialable(restaurant.phone)}`}
-          data-testid="restaurant-phone"
-          className="font-semibold text-zinc-700 hover:text-bite-dark"
-        >
-          ☎ {restaurant.phone}
-        </a>
-      )}
-      {restaurant.website && (
-        <a
-          href={externalHref(restaurant.website)}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="restaurant-website"
-          className="font-semibold text-zinc-700 hover:text-bite-dark"
-        >
-          Website ↗
-        </a>
-      )}
-    </p>
+export function countUnconfirmedStrictHidden(sections: ItemSection<RestaurantItem>[]): number {
+  return sections.reduce(
+    (acc, s) =>
+      acc +
+      s.hidden.filter(
+        (it) => it.reasons.length > 0 && it.reasons.every((r) => r.kind === 'unconfirmed_strict'),
+      ).length,
+    0,
   );
 }
 
@@ -408,348 +319,8 @@ export function AllergenNotice() {
   );
 }
 
-export function FilterBadge({ filter }: { filter: FilterSummary }) {
-  const label = filterSourceLabel(filter);
-  return (
-    <span
-      data-testid="filter-badge"
-      className="rounded-bw-pill bg-bite-light px-bw-3 py-bw-1 text-bw-sm font-semibold text-bite-dark"
-    >
-      {label} · {filter.strictness}
-    </span>
-  );
-}
-
-export function StrictnessToggle({
-  active,
-  loading,
-  onChange,
-}: {
-  active: Strictness;
-  loading: boolean;
-  onChange: (next: Strictness) => void;
-}) {
-  return (
-    <div data-testid="strictness-toggle" className="flex items-center gap-bw-2">
-      {STRICTNESSES.map((s) => {
-        const selected = s === active;
-        return (
-          <button
-            key={s}
-            type="button"
-            aria-pressed={selected}
-            disabled={loading}
-            onClick={() => {
-              if (!loading && !selected) onChange(s);
-            }}
-            className={[
-              'rounded-bw-pill border px-bw-3 py-bw-1 text-bw-sm font-semibold transition',
-              selected
-                ? 'border-bite bg-bite-light text-bite-dark'
-                : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-zinc-300',
-              loading ? 'opacity-60' : '',
-            ].join(' ')}
-          >
-            {capitalize(s)}
-          </button>
-        );
-      })}
-      {loading && <span className="text-bw-xs text-zinc-400">refreshing…</span>}
-    </div>
-  );
-}
-
-// Exported for render tests, like the other section-level helpers.
-export function SectionBlock({
-  section,
-  showHeading = true,
-  restaurantSlug,
-  presetSlug,
-  shownAnyway,
-  onToggleOverride,
-  onSetPersistentOverride,
-}: {
-  section: ItemSection<RestaurantItem>;
-  showHeading?: boolean;
-  restaurantSlug: string;
-  presetSlug: string | null;
-  shownAnyway: Set<string>;
-  onToggleOverride: (itemId: string) => void;
-  onSetPersistentOverride: (itemId: string, next: boolean) => void;
-}) {
-  const [hiddenOpen, setHiddenOpen] = useState(false);
-  return (
-    // When the heading is suppressed the aria-label keeps the region
-    // reachable by landmark for screen-reader users.
-    <section className="mt-bw-6" aria-label={showHeading ? undefined : 'Menu'}>
-      {showHeading && <h2 className="text-bw-lg font-bold">{section.name}</h2>}
-      {/* items-start: a photo card must not stretch its photo-less row
-          siblings into 160px of empty card once real photos land. */}
-      <ul className="mt-bw-2 grid grid-cols-1 items-start gap-bw-4 sm:grid-cols-2 lg:grid-cols-3">
-        {section.visible.map((item) => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            restaurantSlug={restaurantSlug}
-            presetSlug={presetSlug}
-            overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
-            onToggleOverride={onToggleOverride}
-            onSetPersistentOverride={onSetPersistentOverride}
-          />
-        ))}
-        {section.visible.length === 0 && section.hidden.length > 0 && (
-          <li className="col-span-full py-bw-2 text-bw-sm text-zinc-500">
-            {/* "here", not "in this section" — the heading may be suppressed. */}
-            Every item here is hidden by your filter.
-          </li>
-        )}
-      </ul>
-
-      {section.hidden.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setHiddenOpen((v) => !v)}
-          aria-expanded={hiddenOpen}
-          aria-controls={`hidden-${section.id ?? 'none'}`}
-          className="mt-bw-2 text-bw-sm font-semibold text-bite hover:text-bite-dark"
-        >
-          {hiddenOpen ? '▾ Hide' : '▸ Show'} items hidden by your filter ({section.hidden.length})
-        </button>
-      )}
-
-      {hiddenOpen && (
-        <ul
-          id={`hidden-${section.id ?? 'none'}`}
-          className="mt-bw-2 grid grid-cols-1 gap-bw-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {section.hidden.map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              restaurantSlug={restaurantSlug}
-              presetSlug={presetSlug}
-              hidden
-              overridden={false}
-              onToggleOverride={onToggleOverride}
-              onSetPersistentOverride={onSetPersistentOverride}
-            />
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-export function HiddenReasonChip({ reason }: { reason: HideReason }) {
-  return (
-    <span
-      data-testid={`chip-${reason.kind}`}
-      className="rounded-bw-pill border border-zinc-200 bg-zinc-50 px-bw-2 py-bw-0_5 text-bw-xs font-semibold text-hide"
-    >
-      {hiddenReasonLabel(reason)}
-    </span>
-  );
-}
-
-/**
- * Phase 3.9 — share the current filter as a `/r/<slug>?p=<token>` URL.
- *
- * The token encodes the filter currently applied on the server (as
- * reported by `filter` in the items response) — preset, manual avoid
- * lists, strictness. A friend opening the link sees the same hidden/
- * visible split without needing to sign in or know the encoder's
- * profile.
- */
-/**
- * Phase 4.9 — claim flow entry point on the restaurant page.
- *
- * Hidden once the restaurant is already claimed. Shows a tiny inline
- * form ("@<your-domain> email"); on submit, POSTs to the claim
- * endpoint and shows a confirmation. 401 from the proxy bounces to
- * /login because the POST requires auth.
- */
-function ClaimSection({ slug, restaurant }: { slug: string; restaurant: Restaurant }) {
-  const router = useRouter();
-  const tracker = useTracker();
-  const [email, setEmail] = useState('');
-  const [open, setOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<{ email: string; auto: boolean } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  if (restaurant.claimed_by_user_id) {
-    return (
-      <p className="mt-bw-3 text-bw-xs text-zinc-500" data-testid="claimed-notice">
-        ✓ This restaurant is owner-claimed.
-      </p>
-    );
-  }
-
-  if (done) {
-    return (
-      <p className="mt-bw-3 text-bw-sm text-zinc-700" data-testid="claim-sent">
-        Verification email sent to <strong>{done.email}</strong>. Click the link to confirm your
-        claim.
-        {!done.auto && (
-          <span className="ml-1 text-bw-xs text-zinc-500">
-            (Domain didn&rsquo;t match this restaurant&rsquo;s website — admin review may follow.)
-          </span>
-        )}
-      </p>
-    );
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        data-testid="open-claim"
-        className="mt-bw-3 text-bw-sm font-semibold text-bite hover:text-bite-dark"
-      >
-        Claim this restaurant
-      </button>
-    );
-  }
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!email.includes('@')) {
-      setError('Enter a valid email.');
-      return;
-    }
-    try {
-      setSubmitting(true);
-      const result = await requestClaim(slug, email);
-      setDone({ email: result.email, auto: result.auto_acceptable });
-      tracker.track('restaurant_claimed', {
-        restaurant_slug: slug,
-        decision: result.auto_acceptable ? 'auto_acceptable' : 'admin_review',
-      });
-    } catch (e) {
-      if (e instanceof ClaimError && e.status === 401) {
-        // Keep ?profile= / ?p= across the login round-trip — a bare slug
-        // would silently drop the applied filter.
-        const next = `${window.location.pathname}${window.location.search}`;
-        router.replace(`/login?next=${encodeURIComponent(next)}`);
-        return;
-      }
-      setError((e as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={submit}
-      className="mt-bw-3 rounded-bw-md border border-zinc-200 p-bw-3"
-      data-testid="claim-form"
-    >
-      <p className="text-bw-sm font-semibold text-zinc-700">Claim this restaurant</p>
-      <p className="mt-1 text-bw-xs text-zinc-500">
-        Use an email at the restaurant&rsquo;s own domain — we&rsquo;ll send a one-time verification
-        link.
-      </p>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@yourrestaurant.com"
-        aria-label="claim-email"
-        required
-        className="mt-bw-2 w-full rounded-bw-md border border-zinc-300 px-bw-2 py-bw-2 text-bw-sm"
-      />
-      {error && (
-        <p className="mt-bw-2 rounded-bw-md bg-bite-light px-bw-2 py-bw-1 text-bw-xs text-bite-dark">
-          {error}
-        </p>
-      )}
-      <div className="mt-bw-2 flex items-center gap-bw-2 justify-end">
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-bw-sm font-semibold text-zinc-500 hover:text-zinc-700"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          data-testid="submit-claim"
-          className={[
-            'rounded-bw-md bg-bite px-bw-3 py-bw-2 text-bw-sm font-bold text-white',
-            submitting ? 'opacity-60' : 'hover:bg-bite-dark',
-          ].join(' ')}
-        >
-          {submitting ? 'Sending…' : 'Send verification'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export function ShareLinkButton({
-  slug,
-  filter,
-  tracker,
-}: {
-  slug: string;
-  filter: FilterSummary;
-  tracker?: ReturnType<typeof useTracker>;
-}) {
-  const ctxTracker = useTracker();
-  const t = tracker ?? ctxTracker;
-  const [copied, setCopied] = useState(false);
-
-  const handleClick = async () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    // A preset filter shares as its slug, not as a token: the token would
-    // carry the preset's pre-expanded avoid lists (hundreds of UUIDs —
-    // ~14KB encoded, past Puma's 10KB query-string cap), arriving dead.
-    // A signed-in viewer's own avoids ride on top of a preset for them
-    // (Menus::Filter.build) but aren't put in the link: a diet link shares
-    // the diet, not the sharer's allergies, and a signed-in recipient gets
-    // their own avoids added the same way.
-    // No filter shares the bare URL: an empty-list token is VALID to the
-    // API, and the recipient would see "Shared filter" over a menu
-    // nothing was filtered out of.
-    const url =
-      filter.source === 'preset' && filter.preset_slug
-        ? `${origin}/r/${encodeURIComponent(slug)}?profile=${encodeURIComponent(filter.preset_slug)}`
-        : filter.source === 'none'
-          ? `${origin}/r/${encodeURIComponent(slug)}`
-          : `${origin}/r/${encodeURIComponent(slug)}?p=${encodeProfileToken({
-              avoid_ingredient_ids: filter.avoid_ingredient_ids,
-              avoid_tag_ids: filter.avoid_tag_ids,
-              strictness: filter.strictness,
-            })}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2_000);
-      t.track('share_link_copied', { restaurant_slug: slug, via: 'clipboard' });
-    } catch {
-      // Clipboard blocked (rare in modern browsers, common in iframes).
-      // Fall back to a prompt so the user can copy manually.
-      window.prompt('Copy this share link', url);
-      t.track('share_link_copied', { restaurant_slug: slug, via: 'prompt_fallback' });
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      data-testid="share-link"
-      className="rounded-bw-pill border border-zinc-200 bg-zinc-50 px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-700 hover:border-zinc-300"
-    >
-      {copied ? '✓ Copied' : '🔗 Share filter'}
-    </button>
-  );
-}
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+// Re-exported so existing tests (and any other importers) that reach
+// these through '../RestaurantClient' keep working after the split.
+export { RestaurantContactLine } from './PageHeader';
+export { FilterBadge, ShareTokenNotice, StrictnessToggle, ShareLinkButton } from './FilterControls';
+export { HiddenReasonChip, SectionBlock } from './SectionList';

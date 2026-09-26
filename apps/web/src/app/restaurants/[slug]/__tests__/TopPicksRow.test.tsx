@@ -100,31 +100,17 @@ describe('TopPicksRow', () => {
   ];
 
   it('renders the row with a reason line per pick at ≥3 positive scores', () => {
-    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" />);
+    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" signedIn />);
 
     expect(screen.getByTestId('top-picks')).toBeInTheDocument();
-    expect(screen.getByText('Top picks for you')).toBeInTheDocument();
+    expect(screen.getByText('Your best bets here')).toBeInTheDocument();
     expect(screen.getByTestId('pick-reason-curry')).toHaveTextContent(
       'Because you like Spicy & Basil',
     );
   });
 
-  it('renders nothing below the 3-pick threshold', () => {
-    render(<TopPicksRow items={threePicks.slice(0, 2)} restaurantSlug="ninis" />);
-    expect(screen.queryByTestId('top-picks')).not.toBeInTheDocument();
-  });
-
-  it('renders nothing for an anonymous payload (all scores null)', () => {
-    const anonymous = threePicks.map(({ taste_score: _score, taste_reasons: _r, ...rest }) => ({
-      ...rest,
-      taste_score: null,
-    }));
-    render(<TopPicksRow items={anonymous} restaurantSlug="ninis" />);
-    expect(screen.queryByTestId('top-picks')).not.toBeInTheDocument();
-  });
-
   it('"Why these?" toggles the explainer (taste ≠ safety copy)', () => {
-    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" />);
+    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" signedIn />);
 
     expect(screen.queryByTestId('why-these-explainer')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('why-these'));
@@ -134,13 +120,82 @@ describe('TopPicksRow', () => {
   });
 
   it('links each pick to its item page', () => {
-    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" />);
+    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" signedIn />);
     const link = screen.getByTestId('top-pick-curry').querySelector('a');
     expect(link).toHaveAttribute('href', '/restaurants/ninis/items/curry');
   });
 
   it('offers an "Improve my picks" link into the standalone taste step', () => {
-    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" />);
+    render(<TopPicksRow items={threePicks} restaurantSlug="ninis" signedIn />);
     expect(screen.getByTestId('improve-picks')).toHaveAttribute('href', '/onboarding?step=taste');
+  });
+
+  // Below the MIN_POSITIVE_PICKS threshold the row used to render nothing
+  // at all — a near-empty strict menu or a brand-new signed-out visitor
+  // saw no explanation for the missing section. Each empty case now
+  // says why, tailored to what would actually unlock it.
+  describe('empty state explains why, instead of silently rendering nothing', () => {
+    it('signed-out visitor is told how to unlock best bets', () => {
+      // Real anonymous payloads carry null scores on every item (the
+      // server never scores an unauthenticated request) — this is that
+      // shape, not a hypothetical "signed out with picks" state.
+      const anonymous = threePicks.map(({ taste_score: _score, taste_reasons: _r, ...rest }) => ({
+        ...rest,
+        taste_score: null,
+      }));
+      render(<TopPicksRow items={anonymous} restaurantSlug="ninis" />);
+      expect(screen.queryByTestId('top-picks')).not.toBeInTheDocument();
+      const notice = screen.getByTestId('top-picks-signed-out');
+      expect(notice).toHaveTextContent(
+        'Sign in and save a few dishes you like to see your best bets here.',
+      );
+      expect(screen.getByTestId('top-picks-sign-in-link')).toHaveAttribute(
+        'href',
+        '/login?next=%2Frestaurants%2Fninis',
+      );
+    });
+
+    // Coming back from sign-in without the filter would show dishes it hid.
+    it('keeps the diet preset on the sign-in round trip', () => {
+      const anonymous = threePicks.map(({ taste_score: _s, taste_reasons: _r, ...rest }) => ({
+        ...rest,
+        taste_score: null,
+      }));
+      render(<TopPicksRow items={anonymous} restaurantSlug="ninis" presetSlug="celiac" />);
+      expect(screen.getByTestId('top-picks-sign-in-link')).toHaveAttribute(
+        'href',
+        `/login?next=${encodeURIComponent('/restaurants/ninis?profile=celiac')}`,
+      );
+    });
+
+    it('keeps a share link token on the sign-in round trip', () => {
+      const anonymous = threePicks.map(({ taste_score: _s, taste_reasons: _r, ...rest }) => ({
+        ...rest,
+        taste_score: null,
+      }));
+      render(<TopPicksRow items={anonymous} restaurantSlug="ninis" profileToken="tok123" />);
+      expect(screen.getByTestId('top-picks-sign-in-link')).toHaveAttribute(
+        'href',
+        `/login?next=${encodeURIComponent('/restaurants/ninis?p=tok123')}`,
+      );
+    });
+
+    it('signed-in visitor with no taste signals anywhere is nudged to rate dishes', () => {
+      const noScores = threePicks.map(
+        ({ taste_score: _score, taste_reasons: _r, ...rest }) => rest,
+      );
+      render(<TopPicksRow items={noScores} restaurantSlug="ninis" signedIn />);
+      expect(screen.queryByTestId('top-picks')).not.toBeInTheDocument();
+      expect(screen.getByTestId('top-picks-no-signals')).toHaveTextContent(
+        'Save or rate dishes you like and we’ll pick your best bets.',
+      );
+    });
+
+    it('signed-in visitor already partway there gets a quiet nudge, not a full banner', () => {
+      render(<TopPicksRow items={threePicks.slice(0, 2)} restaurantSlug="ninis" signedIn />);
+      expect(screen.queryByTestId('top-picks')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('top-picks-no-signals')).not.toBeInTheDocument();
+      expect(screen.getByTestId('top-picks-almost')).toBeInTheDocument();
+    });
   });
 });
