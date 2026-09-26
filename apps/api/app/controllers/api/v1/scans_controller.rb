@@ -22,12 +22,16 @@ module Api
       }.freeze
 
       def create
+        sources = { source_url:     params[:source_url].presence,
+                    source_text:    params[:source_text].presence,
+                    attachment_ids: params[:attachment_ids].presence&.then { |ids| Array(ids).map(&:to_s) } }.compact
+        # StartRun would quietly pick one and drop the rest, scanning
+        # something other than what the person thinks they sent.
+        return render_bad_request("Send one source: a URL, pasted text, or attachments.") if sources.size > 1
+
         respond_with_tool(
           Tools::Ingestion::StartMenuScan,
-          { restaurant:     params.require(:restaurant),
-            source_url:     params[:source_url].presence,
-            source_text:    params[:source_text].presence,
-            attachment_ids: params[:attachment_ids].presence&.then { |ids| Array(ids).map(&:to_s) } }.compact,
+          { restaurant: params.require(:restaurant), **sources },
           status: :created
         )
       end
@@ -44,13 +48,14 @@ module Api
       # A person pressing "Accept" on the review screen is the confirmation
       # the tool's description asks the chat to obtain first.
       def accept
-        args = { scan_id: params[:id] }
-        if params[:all].to_s == "true"
-          args[:all] = true
-        else
-          args[:item_ids] = Array(params[:item_ids]).map(&:to_s)
-        end
-        respond_with_tool(Tools::Ingestion::AcceptStagedItems, args)
+        all      = params[:all].to_s == "true"
+        item_ids = Array(params[:item_ids]).map(&:to_s).reject(&:blank?)
+        # Both at once is ambiguous, and the tool would read it as "all" —
+        # publishing dishes the person had deliberately left unticked.
+        return render_bad_request("Send either all: true or item_ids, not both.") if all && item_ids.any?
+
+        args = all ? { all: true } : { item_ids: item_ids }
+        respond_with_tool(Tools::Ingestion::AcceptStagedItems, { scan_id: params[:id], **args })
       end
 
       private
@@ -69,6 +74,10 @@ module Api
         ).to_h
       end
 
+      def render_bad_request(message)
+        render json: { error: message, code: "invalid_argument" }, status: :unprocessable_entity
+      end
+
       def render_tool_error(result)
         payload = result[:structuredContent] || {}
         render json: { error: payload[:message], code: payload[:error] },
@@ -78,25 +87,50 @@ module Api
       # Not `list_staged_items`: that fences every name in
       # <untrusted-content> tags for a model to read, and a person reading a
       # review screen needs the plain text. React escapes it on render.
+      # Same facts otherwise — above all `updates_existing_item`, because
+      # accepting that dish EDITS a live one rather than adding it.
       # The run was already authorized by the status call above.
       def dishes_for(scan_id)
-        items = IngestionItem.where(ingestion_run_id: scan_id).order(:position, :created_at).to_a
-        slugs = items.flat_map { |i| ::Ingestion::AssociationPayload.load_all(i.ingredients_payload).map(&:slug) }
-        names = Ingredient.where(slug: slugs.uniq).pluck(:slug, :name).to_h
+        items = IngestionItem.where(ingestion_run_id: scan_id)
+                             .includes(matched_item: %i[item_variants ingredients tags])
+                             .order(:position, :created_at).to_a
+        names = taxonomy_names(items)
 
         items.map do |item|
           ingredients = ::Ingestion::AssociationPayload.load_all(item.ingredients_payload)
+          unresolved  = { ingredients: Array(item.unresolved_ingredients), tags: Array(item.unresolved_tags) }
           {
             id:          item.id,
             name:        item.name,
             description: item.description,
             section:     item.section_name,
             decision:    item.decision,
-            price_cents: Array(item.prices_payload).first&.dig("price_cents"),
-            ingredients: ingredients.map { |row| names[row.slug] || row.slug },
-            needs_attention: Array(item.unresolved_ingredients).any? || ingredients.empty?
+            prices:      ::Ingestion::ItemUpdateDiff.normalize_prices(item.prices_payload),
+            ingredients: ingredients.map { |row| names[:ingredients][row.slug] || row.slug },
+            tags:        ::Ingestion::AssociationPayload.load_all(item.tags_payload)
+                                                        .map { |row| names[:tags][row.slug] || row.slug },
+            unresolved:  unresolved,
+            # Same rule as IngestionItem.needing_attention.
+            needs_attention: unresolved.values.any?(&:any?) || ingredients.empty?,
+            updates_existing_item: existing_item_row(item)
           }
         end
+      end
+
+      def taxonomy_names(items)
+        slugs = ->(attr) { items.flat_map { |i| ::Ingestion::AssociationPayload.load_all(i.public_send(attr)).map(&:slug) }.uniq }
+        {
+          ingredients: Ingredient.where(slug: slugs.call(:ingredients_payload)).pluck(:slug, :name).to_h,
+          tags:        Tag.where(slug: slugs.call(:tags_payload)).pluck(:slug, :name).to_h
+        }
+      end
+
+      def existing_item_row(item)
+        target = item.matched_item
+        return nil if target.nil?
+
+        diff = ::Ingestion::ItemUpdateDiff.call(item, target)
+        { item_id: target.id, name: target.name, no_changes: diff[:no_changes], diff: diff.except(:no_changes) }
       end
     end
   end

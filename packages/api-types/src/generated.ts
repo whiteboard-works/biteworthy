@@ -4149,8 +4149,35 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description no source, or a source the extractor cannot take */
+                /** @description a draft restaurant the caller did not create */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+                /** @description no such restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+                /** @description no source, more than one, or one the extractor cannot take */
                 422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+                /** @description daily scan quota or the global spend ceiling reached */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4255,7 +4282,23 @@ export interface paths {
                         "application/json": components["schemas"]["ScanAccepted"];
                     };
                 };
-                /** @description nothing to accept */
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description no such scan, or someone else's */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScanError"];
+                    };
+                };
+                /** @description nothing to accept, or both all and item_ids */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -4491,11 +4534,41 @@ export interface components {
             section?: string | null;
             /** @enum {string} */
             decision: "pending" | "accepted" | "rejected" | "edited";
-            price_cents?: number | null;
+            prices: components["schemas"]["ScanPrice"][];
             /** @description Ingredient names we matched. */
             ingredients: string[];
+            /** @description Tag names we matched. */
+            tags: string[];
+            /** @description Menu text we could not match — missing from the filter until fixed. */
+            unresolved: {
+                ingredients: string[];
+                tags: string[];
+            };
             /** @description Unmatched text, or no ingredients at all — worth a human look before accepting. */
             needs_attention: boolean;
+            /** @description Set when accepting EDITS a dish already on the menu instead of adding one. */
+            updates_existing_item?: {
+                /** Format: uuid */
+                item_id: string;
+                name: string;
+                no_changes: boolean;
+                diff: {
+                    description?: {
+                        from?: string | null;
+                        to?: string;
+                    } | null;
+                    prices?: {
+                        from?: components["schemas"]["ScanPrice"][];
+                        to?: components["schemas"]["ScanPrice"][];
+                    } | null;
+                    added_ingredients?: string[];
+                    added_tags?: string[];
+                };
+            } | null;
+        };
+        ScanPrice: {
+            size?: string | null;
+            price_cents: number;
         };
         ScanStatus: {
             /** Format: uuid */
@@ -4528,8 +4601,29 @@ export interface components {
             };
         };
         ScanAccepted: {
-            accepted: Record<string, never>[];
-            failed?: Record<string, never>[] | null;
+            accepted: {
+                /**
+                 * Format: uuid
+                 * @description The staged dish.
+                 */
+                id: string;
+                /** @description Fenced in <untrusted-content> tags (the tool's model-facing copy); show the review payload's plain name instead. */
+                name: string;
+                /**
+                 * Format: uuid
+                 * @description The live dish, once promoted.
+                 */
+                item_id?: string | null;
+                updated_existing?: boolean;
+                /** @description Accepted, promoted once enrichment finishes. */
+                deferred?: boolean;
+            }[];
+            failed?: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                error: string;
+            }[] | null;
             restaurant_published: boolean;
             remaining_pending: number;
         };

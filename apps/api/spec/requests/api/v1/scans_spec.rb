@@ -56,9 +56,44 @@ RSpec.describe "Api::V1::Scans", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "flags an unmatched tag as needing attention, same as the model's list" do
+      create(:ingestion_item, ingestion_run: run, unresolved_tags: [ "house-special" ])
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["dishes"].first).to include("needs_attention" => true,
+                                               "unresolved" => { "ingredients" => [], "tags" => [ "house-special" ] })
+    end
+
+    # Accepting a matched dish edits the live one. The person has to see
+    # that before pressing Accept, or they think they are adding.
+    it "says when accepting would edit a dish already on the menu" do
+      live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco", description: "Old words")
+      create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", matched_item: live, match_score: 0.95)
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      existing = json["dishes"].first["updates_existing_item"]
+      expect(existing).to include("item_id" => live.id, "name" => "Carne Asada Taco", "no_changes" => false)
+      expect(existing.dig("diff", "description")).to eq("from" => "Old words", "to" => "Grilled steak, cilantro, onion, lime.")
+    end
   end
 
   describe "POST /api/v1/scans/:id/accept" do
+    # The tool reads both as "all", which would publish dishes the person
+    # deliberately left unticked.
+    it "refuses all and item_ids together rather than publishing everything" do
+      picked = create(:ingestion_item, ingestion_run: run)
+      create(:ingestion_item, ingestion_run: run)
+
+      expect do
+        post "/api/v1/scans/#{run.id}/accept", params: { all: true, item_ids: [ picked.id ] },
+                                               headers: auth_headers_for(owner)
+      end.not_to change(Item, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it "puts every pending dish on the live menu" do
       create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco")
 
@@ -77,6 +112,14 @@ RSpec.describe "Api::V1::Scans", type: :request do
   end
 
   describe "POST /api/v1/scans" do
+    it "refuses more than one source instead of silently scanning one of them" do
+      expect do
+        post "/api/v1/scans", params: { restaurant: restaurant.slug, source_text: "Taco", source_url: "https://example.com/menu" },
+                              headers: auth_headers_for(owner)
+      end.not_to change(IngestionRun, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     # Someone else's unpublished draft is not a menu this caller may spend
     # a scan on; a 403 lets the screen say so instead of "check your input".
     it "refuses a draft restaurant the caller did not create with 403" do

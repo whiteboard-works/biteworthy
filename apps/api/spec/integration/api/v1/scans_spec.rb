@@ -33,9 +33,30 @@ RSpec.describe "scans", type: :request do
         run_test!
       end
 
-      response(422, "no source, or a source the extractor cannot take") do
+      response(422, "no source, more than one, or one the extractor cannot take") do
         schema "$ref" => "#/components/schemas/ScanError"
         let(:body) { { restaurant: restaurant.slug } }
+        run_test!
+      end
+
+      response(403, "a draft restaurant the caller did not create") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        let(:body) { { restaurant: create(:restaurant, status: "draft").slug, source_text: "Taco" } }
+        run_test!
+      end
+
+      response(404, "no such restaurant") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        let(:body) { { restaurant: "nowhere", source_text: "Taco" } }
+        run_test!
+      end
+
+      response(429, "daily scan quota or the global spend ceiling reached") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        before do
+          allow(Ingestion::StartRun).to receive(:call).and_return(Ingestion::StartRun::Result.new(error: :quota_exceeded))
+        end
+        let(:body) { { restaurant: restaurant.slug, source_text: "Taco" } }
         run_test!
       end
 
@@ -100,10 +121,24 @@ RSpec.describe "scans", type: :request do
         run_test!
       end
 
-      response(422, "nothing to accept") do
+      response(422, "nothing to accept, or both all and item_ids") do
         schema "$ref" => "#/components/schemas/ScanError"
         let(:id) { create(:ingestion_run, :staged, user: account, restaurant: restaurant).id }
         let(:body) { { item_ids: [] } }
+        run_test!
+      end
+
+      response(404, "no such scan, or someone else's") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        let(:id) { create(:ingestion_run, :staged, user: create(:user), restaurant: restaurant).id }
+        let(:body) { { all: true } }
+        run_test!
+      end
+
+      response(401, "missing or invalid bearer token") do
+        let(:Authorization) { "" }
+        let(:id) { "anything" }
+        let(:body) { { all: true } }
         run_test!
       end
     end

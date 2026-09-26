@@ -7118,7 +7118,37 @@
             }
           },
           "422": {
-            "description": "no source, or a source the extractor cannot take",
+            "description": "no source, more than one, or one the extractor cannot take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "a draft restaurant the caller did not create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "daily scan quota or the global spend ceiling reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -7259,7 +7289,7 @@
             }
           },
           "422": {
-            "description": "nothing to accept",
+            "description": "nothing to accept, or both all and item_ids",
             "content": {
               "application/json": {
                 "schema": {
@@ -7267,6 +7297,19 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "no such scan, or someone else's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
           }
         },
         "requestBody": {
@@ -8014,7 +8057,10 @@
           "id",
           "name",
           "decision",
+          "prices",
           "ingredients",
+          "tags",
+          "unresolved",
           "needs_attention"
         ],
         "properties": {
@@ -8042,9 +8088,11 @@
               "edited"
             ]
           },
-          "price_cents": {
-            "type": "integer",
-            "nullable": true
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanPrice"
+            }
           },
           "ingredients": {
             "type": "array",
@@ -8053,9 +8101,124 @@
             },
             "description": "Ingredient names we matched."
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tag names we matched."
+          },
+          "unresolved": {
+            "type": "object",
+            "required": [
+              "ingredients",
+              "tags"
+            ],
+            "description": "Menu text we could not match — missing from the filter until fixed.",
+            "properties": {
+              "ingredients": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "needs_attention": {
             "type": "boolean",
             "description": "Unmatched text, or no ingredients at all — worth a human look before accepting."
+          },
+          "updates_existing_item": {
+            "type": "object",
+            "nullable": true,
+            "description": "Set when accepting EDITS a dish already on the menu instead of adding one.",
+            "required": [
+              "item_id",
+              "name",
+              "no_changes",
+              "diff"
+            ],
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "no_changes": {
+                "type": "boolean"
+              },
+              "diff": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "prices": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "from": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ScanPrice"
+                        }
+                      },
+                      "to": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ScanPrice"
+                        }
+                      }
+                    }
+                  },
+                  "added_ingredients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "added_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ScanPrice": {
+        "type": "object",
+        "required": [
+          "price_cents"
+        ],
+        "properties": {
+          "size": {
+            "type": "string",
+            "nullable": true
+          },
+          "price_cents": {
+            "type": "integer"
           }
         }
       },
@@ -8176,15 +8339,60 @@
           "accepted": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "required": [
+                "id",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The staged dish."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Fenced in <untrusted-content> tags (the tool's model-facing copy); show the review payload's plain name instead."
+                },
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "nullable": true,
+                  "description": "The live dish, once promoted."
+                },
+                "updated_existing": {
+                  "type": "boolean"
+                },
+                "deferred": {
+                  "type": "boolean",
+                  "description": "Accepted, promoted once enrichment finishes."
+                }
+              }
             }
           },
           "failed": {
             "type": "array",
+            "nullable": true,
             "items": {
-              "type": "object"
-            },
-            "nullable": true
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "error"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "restaurant_published": {
             "type": "boolean"
