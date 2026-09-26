@@ -397,13 +397,54 @@ describe('ScanClient', () => {
     vi.useRealTimers();
   });
 
-  it('ticks nothing when the ingredient pass failed', async () => {
+  it('ticks nothing once the ingredient pass has stayed failed past its retries', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     getScan.mockResolvedValue({ ...readyScan([dish({})]), enrichment_status: 'failed' });
 
     await scanAPhoto();
+    expect(await screen.findByText('Checking ingredients…')).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000 + 8000);
+    vi.useRealTimers();
 
     expect(await screen.findByText(/couldn.t finish checking ingredients/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add 0 dishes to the menu' })).toBeDisabled();
+  });
+
+  // A refresh or an evicted phone tab must not strand a paid scan.
+  it('puts the running scan in the URL and resumes it from there', async () => {
+    getScan.mockResolvedValue(readyScan([dish({})]));
+
+    await scanAPhoto();
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith('/restaurants/ninis/scan?scan=scan-1'),
+    );
+  });
+
+  it('resumes polling a scan named in the URL without starting a new one', async () => {
+    getScan.mockResolvedValue(readyScan([dish({})]));
+
+    render(<ScanClient slug="ninis" restaurantName="Nini's" resumeScanId="scan-9" />);
+
+    expect(await screen.findByText('Carne Asada Taco')).toBeInTheDocument();
+    expect(getScan).toHaveBeenCalledWith('scan-9');
+    expect(startScan).not.toHaveBeenCalled();
+  });
+
+  // The job marks the pass failed before its own retry can still finish it.
+  it('keeps waiting when the ingredient pass fails and then recovers on retry', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    getScan
+      .mockResolvedValueOnce({ ...readyScan([dish({})]), enrichment_status: 'failed' })
+      .mockResolvedValueOnce(readyScan([dish({})]));
+
+    await scanAPhoto();
+    expect(await screen.findByText('Checking ingredients…')).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(
+      await screen.findByRole('button', { name: 'Add 1 dish to the menu' }),
+    ).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it('sends a failed scan back to the start with a next step', async () => {

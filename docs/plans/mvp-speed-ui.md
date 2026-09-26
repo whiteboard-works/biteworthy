@@ -23,6 +23,7 @@ same tools.
 - [~] 2.2 ~~Retry transient extraction failures~~ — **dropped, premise was wrong.** `AnthropicClient` already retries 429/5xx and timeouts 3× in faraday-retry (`anthropic_client.rb:288-292`), and an exhausted timeout escapes `TimedAnthropicCall` into the job's `retry_on`. What still fails the run first time — truncation and schema-invalid output — would mostly fail the same way on a re-billed retry.
 - [x] 2.3 Menu read path: drop the unused `menu_section: :menu` preload (`Menus::Query#load_items`) + a query-budget spec. **Cache/ETag dropped**: measured 6 indexed statements anonymous, 12 signed in, constant in menu length — too cheap to be worth a cache that could serve a stale allergen correction.
 - [x] 2.4 Mobile (frozen, fixes only): no anonymous-then-authed double fetch on the restaurant screen; `expo-image` everywhere. **List virtualization skipped** — a restructure of a frozen screen for menus that render fine at their real size.
+- [ ] 2.5 Throttle attribution: every web request reaches Rails from the Next proxy's IP, so all web users share one `api/ip` Rack::Attack bucket (300 / 5 min) and the scan screen's polling can 429 everyone (Codex P1 on #698). Key authenticated traffic per user; have the proxy forward the client IP behind a shared secret for anonymous traffic. Skylar asked for this 2026-09-26.
 
 ## UI
 

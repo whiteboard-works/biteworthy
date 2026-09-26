@@ -117,8 +117,12 @@ module Api
             tags:        ::Ingestion::AssociationPayload.load_all(item.tags_payload)
                                                         .map { |row| names[:tags][row.slug] || row.slug },
             unresolved:  unresolved,
-            # Same rule as IngestionItem.needing_attention.
-            needs_attention: unresolved.values.any?(&:any?) || ingredients.empty?,
+            # IngestionItem.needing_attention's rule, plus one it misses: a
+            # dish whose only ingredients were inferred from its name (a
+            # pizza's wheat) has nothing the menu actually stated, so it
+            # can't be vouched for either.
+            needs_attention: unresolved.values.any?(&:any?) || ingredients.empty? ||
+                             ingredients.all? { |row| row.source == "derived" },
             updates_existing_item: existing_item_row(item)
           }
         end

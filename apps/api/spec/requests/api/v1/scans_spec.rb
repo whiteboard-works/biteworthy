@@ -42,6 +42,15 @@ RSpec.describe "Api::V1::Scans", type: :request do
       expect(json["dishes"].first["needs_attention"]).to be(true)
     end
 
+    it "flags a dish whose only ingredients were inferred from its name" do
+      create(:ingestion_item, ingestion_run: run, name: "Margherita Pizza",
+                              ingredients_payload: [ { "slug" => "meat-beef", "confidence" => 0.8, "source" => "derived" } ])
+
+      get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
+
+      expect(json["dishes"].first["needs_attention"]).to be(true)
+    end
+
     it "leaves dishes out until the scan is ready" do
       extracting = create(:ingestion_run, :extracting, user: owner, restaurant: restaurant)
 

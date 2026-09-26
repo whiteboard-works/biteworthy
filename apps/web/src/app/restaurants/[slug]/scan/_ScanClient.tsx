@@ -28,6 +28,9 @@ const POLL_MS = 4000;
 // Well past the client's own 240 s read timeout and its retries; a scan
 // still "extracting" after this is stuck, not slow.
 const GIVE_UP_MS = 5 * 60 * 1000;
+// The ingredient pass marks itself failed *before* its job retries, and a
+// retry can still complete it — keep watching this long before believing it.
+const ENRICHMENT_RETRY_MS = 2 * 60 * 1000;
 // A dropped poll on a phone at a table is normal. After this many in a
 // row, stop polling — but keep the scan: it is paid for and still running.
 const MAX_POLL_MISSES = 4;
@@ -46,14 +49,29 @@ type Phase =
   | { kind: 'accepting'; scanId: string; dishes: ScanDish[]; enrichmentFailed: boolean }
   | { kind: 'done'; message: string };
 
-export function ScanClient({ slug, restaurantName }: { slug: string; restaurantName: string }) {
+export function ScanClient({
+  slug,
+  restaurantName,
+  resumeScanId = null,
+}: {
+  slug: string;
+  restaurantName: string;
+  /** From `?scan=` — a paid scan survives a refresh or an evicted tab. */
+  resumeScanId?: string | null;
+}) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>({ kind: 'pick' });
+  const [phase, setPhase] = useState<Phase>(() =>
+    resumeScanId
+      ? { kind: 'scanning', scanId: resumeScanId, startedAt: Date.now() }
+      : { kind: 'pick' },
+  );
   const [error, setError] = useState<string | null>(null);
 
   const fail = (e: unknown) => {
     if (e instanceof NotSignedInError) {
-      router.replace(`/login?next=${encodeURIComponent(`/restaurants/${slug}/scan`)}`);
+      const scanId = 'scanId' in phase ? phase.scanId : null;
+      const here = `/restaurants/${slug}/scan${scanId ? `?scan=${encodeURIComponent(scanId)}` : ''}`;
+      router.replace(`/login?next=${encodeURIComponent(here)}`);
       return;
     }
     setError(e instanceof Error ? e.message : 'Something went wrong.');
@@ -66,6 +84,11 @@ export function ScanClient({ slug, restaurantName }: { slug: string; restaurantN
       const source =
         files.length > 0 ? { attachmentIds: await uploadInOrder(files) } : { sourceUrl: url };
       const started = await startScan(slug, source);
+      // In the URL so a refresh, a backgrounded tab or a login bounce comes
+      // back to this scan instead of a fresh (and re-billed) one.
+      router.replace(
+        `/restaurants/${encodeURIComponent(slug)}/scan?scan=${encodeURIComponent(started.scan_id)}`,
+      );
       setPhase({ kind: 'scanning', scanId: started.scan_id, startedAt: Date.now() });
     } catch (e) {
       setPhase({ kind: 'pick' });
@@ -304,6 +327,7 @@ function Progress({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     let misses = 0;
+    let enrichmentFailedAt: number | null = null;
 
     const poll = async () => {
       try {
@@ -320,9 +344,16 @@ function Progress({
         // ingredients a name implies (a pizza's crust). That pass only
         // touches dishes still pending, so accepting early would publish
         // them without it — wait for it to finish.
-        if (scan.ready && scan.enrichment_status !== 'pending') {
-          handlers.current.onReady(scan.dishes ?? [], scan.enrichment_status === 'failed');
+        if (scan.ready && scan.enrichment_status === 'completed') {
+          handlers.current.onReady(scan.dishes ?? [], false);
           return;
+        }
+        if (scan.ready && scan.enrichment_status === 'failed') {
+          enrichmentFailedAt ??= Date.now();
+          if (Date.now() - enrichmentFailedAt > ENRICHMENT_RETRY_MS) {
+            handlers.current.onReady(scan.dishes ?? [], true);
+            return;
+          }
         }
         if (scan.ready) setChecking(true);
       } catch (e) {
