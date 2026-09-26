@@ -68,6 +68,33 @@ export const EVENTS = {
 export type EventName = keyof typeof EVENTS;
 
 /**
+ * Events the PostHog SDK captures on its own rather than through
+ * `Tracker.track` — listed here so they're part of the contract the
+ * dashboards read, not an undocumented side effect of an SDK option.
+ * Web only (`capture_pageview: 'history_change'` in apps/web's
+ * posthog-client); mobile sends none.
+ */
+export const SDK_EVENTS = {
+  pageview: '$pageview',
+} as const;
+
+/**
+ * What a `$pageview` carries after apps/web's `scrubEvent`: the page's URL
+ * and path with no query or hash (diet and profile segments masked as
+ * `/durango/:diet`, `/u/:handle`), the referring origin only, plus the
+ * SDK's standard browser/device properties and the `extension` super
+ * property. No title, search keyword or campaign parameter survives.
+ * Consecutive views of the same path (a `replaceState` URL cleanup) are
+ * dropped, so one visit is one page view.
+ */
+export interface PageviewProps {
+  $current_url: string;
+  $pathname: string;
+  $referrer?: string;
+  extension: 'biteworthy';
+}
+
+/**
  * Per-event payload schemas. Keep these stable — the dashboard funnel
  * + retention queries depend on field names. New optional fields are
  * fine; renames break dashboards.

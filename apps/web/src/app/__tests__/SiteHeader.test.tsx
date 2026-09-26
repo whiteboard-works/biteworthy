@@ -111,6 +111,16 @@ describe('SiteHeader', () => {
     await waitFor(() => expect(screen.queryByTestId('nav-durango')).not.toBeInTheDocument());
   });
 
+  it('keeps the diet-page link hidden when logout fails', async () => {
+    stubAuth({ signedIn: true });
+    mockLogout.mockRejectedValue(new Error('upstream 500'));
+    render(<SiteHeader />);
+    fireEvent.click(await screen.findByTestId('nav-logout'));
+    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('nav-durango')).not.toBeInTheDocument();
+  });
+
   it('hides the diet-page link when the session check fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
     render(<SiteHeader />);
@@ -132,6 +142,8 @@ describe('SiteHeader', () => {
 
     await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
     expect(mockReplace).toHaveBeenCalledWith('/');
+    // Signed out for certain now, and on '/' no route change re-checks.
+    expect(await screen.findByTestId('nav-durango')).toBeInTheDocument();
   });
 
   it('does not nudge a signed-in user who has already onboarded', async () => {

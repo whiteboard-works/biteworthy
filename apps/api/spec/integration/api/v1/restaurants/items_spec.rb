@@ -147,7 +147,11 @@ RSpec.describe "restaurants/items", type: :request do
     parameter name: :id, in: :path, type: :string, format: :uuid,
               description: "Published item id"
     parameter name: :profile, in: :query, type: :string, required: false,
-              description: "DietaryProfile slug whose avoid lists to apply"
+              description: "DietaryProfile slug whose avoid lists to apply — on top of a " \
+                           "signed-in caller's own avoids, never instead of them"
+    parameter name: :profile_token, in: :query, type: :string, required: false,
+              description: "A share token (see the list endpoint). A signed-in caller's " \
+                           "own avoids are added on top, never dropped."
 
     get("Show one published dish with detected ingredients/tags + provenance") do
       tags "Restaurants"
@@ -204,6 +208,20 @@ RSpec.describe "restaurants/items", type: :request do
           item.id
         end
         let(:profile) { nil }
+        let(:profile_token) { nil }
+        run_test!
+      end
+
+      response(422, "profile_token malformed, expired, or naming ids that no longer exist") do
+        schema "$ref" => "#/components/schemas/Error"
+        let(:restaurant)    { create(:restaurant, :published) }
+        let(:restaurant_id) { restaurant.id }
+        let(:id)            { create(:item, :published, restaurant: restaurant).id }
+        let(:profile)       { nil }
+        let(:profile_token) do
+          ProfileToken.encode(avoid_ingredient_ids: [ SecureRandom.uuid ],
+                              avoid_tag_ids: [], strictness: "balanced")
+        end
         run_test!
       end
 
@@ -211,6 +229,7 @@ RSpec.describe "restaurants/items", type: :request do
         let(:restaurant_id) { "00000000-0000-0000-0000-000000000000" }
         let(:id)            { "00000000-0000-0000-0000-000000000000" }
         let(:profile)       { nil }
+        let(:profile_token) { nil }
         run_test!
       end
     end

@@ -99,7 +99,10 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
       expect(curry["taste_score"]).to be_within(0.00005).of(1.0)
     end
 
-    it "turns taste off when the caller picks a preset (?profile=)" do
+    # The diet pages are the main way in, and a signed-in reader told to
+    # "save or rate dishes" there could never get picks. The preset brings
+    # no taste of its own; the reader's does.
+    it "keeps the signed-in reader's own picks on a preset view (?profile=)" do
       preset = create(:dietary_profile, slug: "vegan")
 
       get "/api/v1/restaurants/#{restaurant.id}/items",
@@ -107,7 +110,15 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
 
       body = response.parsed_body
       expect(body["filter"]["source"]).to eq("preset")
-      expect(body["items"].pluck("taste_score").uniq).to eq([nil])
+      expect(body["items"].pluck("taste_score").compact).not_to be_empty
+    end
+
+    it "gives an anonymous preset view no taste scores" do
+      preset = create(:dietary_profile, slug: "vegan")
+
+      get "/api/v1/restaurants/#{restaurant.id}/items", params: { profile: preset.slug }
+
+      expect(response.parsed_body["items"].pluck("taste_score").uniq).to eq([ nil ])
     end
   end
 

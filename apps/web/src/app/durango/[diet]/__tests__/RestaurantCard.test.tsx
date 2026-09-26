@@ -19,6 +19,19 @@ const ranked = {
 };
 
 describe('RestaurantCard', () => {
+  // The page is cached and shared; a signed-in reader's own avoids are added
+  // on the menu, so the count must read as the diet's, not "safe for you".
+  it("labels the count as the diet's, not as safe for the reader", () => {
+    render(
+      <ul>
+        <RestaurantCard r={ranked} dietName="Celiac" dietSlug="celiac" />
+      </ul>,
+    );
+    expect(screen.getByTestId('restaurant-link-chamayo')).toHaveTextContent(
+      '28 celiac-friendly items',
+    );
+  });
+
   it('links to the restaurant with the diet preset applied', () => {
     render(
       <ul>

@@ -3999,8 +3999,10 @@ export interface paths {
     "/api/v1/restaurants/{restaurant_id}/items/{id}": {
         parameters: {
             query?: {
-                /** @description DietaryProfile slug whose avoid lists to apply */
+                /** @description DietaryProfile slug whose avoid lists to apply — on top of a signed-in caller's own avoids, never instead of them */
                 profile?: string;
+                /** @description A share token (see the list endpoint). A signed-in caller's own avoids are added on top, never dropped. */
+                profile_token?: string;
             };
             header?: never;
             path: {
@@ -4018,8 +4020,10 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description DietaryProfile slug whose avoid lists to apply */
+                    /** @description DietaryProfile slug whose avoid lists to apply — on top of a signed-in caller's own avoids, never instead of them */
                     profile?: string;
+                    /** @description A share token (see the list endpoint). A signed-in caller's own avoids are added on top, never dropped. */
+                    profile_token?: string;
                 };
                 header?: never;
                 path: {
@@ -4090,6 +4094,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description profile_token malformed, expired, or naming ids that no longer exist */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };

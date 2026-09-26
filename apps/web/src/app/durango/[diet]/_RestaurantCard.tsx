@@ -19,8 +19,11 @@ export function RestaurantCard({
         allHidden ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-200 bg-white shadow-sm',
       ].join(' ')}
     >
-      {/* Carry the diet onto the menu page — the card's "N safe items" claim
-          only holds if the click-through applies the same preset. */}
+      {/* Carry the diet onto the menu page — the card's count only holds if
+          the click-through applies the same preset. The count is for the
+          diet alone (this page is cached, the same for everyone); a signed-in
+          reader's own avoids are added on the menu, so it's labelled as the
+          diet's count, not as "safe for you". */}
       <a
         href={`/restaurants/${encodeURIComponent(r.slug)}?profile=${encodeURIComponent(dietSlug)}`}
         className="block"
@@ -34,12 +37,10 @@ export function RestaurantCard({
             <>No {dietName.toLowerCase()}-safe items in our index yet.</>
           ) : (
             <>
-              <span className="font-semibold text-zinc-900">{r.visible_count}</span> safe item
-              {r.visible_count === 1 ? '' : 's'}
-              {' '}
-              <span className="text-zinc-500">
-                · {r.hidden_count} hidden by your filter
-              </span>
+              <span className="font-semibold text-zinc-900">{r.visible_count}</span>{' '}
+              {dietName.toLowerCase()}-friendly item
+              {r.visible_count === 1 ? '' : 's'}{' '}
+              <span className="text-zinc-500">· {r.hidden_count} hidden by your filter</span>
             </>
           )}
         </p>

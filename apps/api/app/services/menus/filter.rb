@@ -209,12 +209,13 @@ module Menus
 
     # Taste signals come from the signed-in user's saved profile, topped
     # up with implicit signals (favorited dishes, and dishes they rated)
-    # so Top Picks show before anyone has taken the taste quiz — presets
-    # and share tokens still carry no taste at all. Ids that also sit in
-    # an avoid list are subtracted here: filter wins, and an avoided id
-    # never scores (Phase 8.1 contract).
+    # so Top Picks show before anyone has taken the taste quiz. Presets
+    # and share tokens carry no taste of their own, but a signed-in viewer
+    # on one still gets picks from *their* taste — the same way their own
+    # avoids ride along (`build`). Ids that also sit in an avoid list are
+    # subtracted here: filter wins, and an avoided id never scores (Phase
+    # 8.1 contract).
     def taste_signals_for(user)
-      return nil unless source == "user_profile"
       return nil unless user&.profile
 
       p        = user.profile
