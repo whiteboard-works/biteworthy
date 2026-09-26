@@ -19,14 +19,16 @@ RSpec.describe "restaurants/items", type: :request do
     parameter name: :restaurant_id, in: :path, type: :string, format: :uuid,
               description: "Published restaurant id"
     parameter name: :profile, in: :query, type: :string, required: false,
-              description: "DietaryProfile slug whose avoid lists to apply"
+              description: "DietaryProfile slug whose avoid lists to apply — on top of a " \
+                           "signed-in caller's own avoids, never instead of them"
     parameter name: :strictness, in: :query, type: :string, required: false,
               schema: { type: :string, enum: %w[relaxed balanced strict] },
               description: "Override the strictness from profile/user"
     parameter name: :profile_token, in: :query, type: :string, required: false,
               description: "A share token minted by `encodeProfileToken`, carrying " \
                            "the sharer's avoid lists and strictness. Takes precedence " \
-                           "over `profile` and over the signed-in user's own profile. " \
+                           "over `profile`; a signed-in caller's own avoids are added on " \
+                           "top, never dropped. " \
                            "Refused with 422 when it is malformed, expired, or refers " \
                            "to an ingredient or tag that no longer exists — the last " \
                            "because the response would otherwise be labelled " \
