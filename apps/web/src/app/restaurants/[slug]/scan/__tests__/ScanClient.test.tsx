@@ -65,6 +65,7 @@ const readyScan = (dishes: ScanDish[]) => ({
   failed: false,
   restaurant_id: 'r1',
   restaurant_slug: 'ninis',
+  restaurant_published: true,
   dish_count: dishes.length,
   pending_count: dishes.length,
   accepted_count: 0,
@@ -188,6 +189,23 @@ describe('ScanClient', () => {
         expect.objectContaining({ accepted_count: 0, restaurant_published: true }),
       ),
     );
+  });
+
+  // The run can say "published" for an archived restaurant; the live
+  // state decides where to send them.
+  it('stays put after a recovered accept on a restaurant that is not public', async () => {
+    getScan.mockResolvedValueOnce(readyScan([dish({ id: 'd1' })])).mockResolvedValueOnce({
+      ...readyScan([dish({ id: 'd1', decision: 'accepted' })]),
+      status: 'published',
+      restaurant_published: false,
+    });
+    acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('reports nothing for a discard when the live status cannot be read', async () => {

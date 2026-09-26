@@ -182,13 +182,16 @@ export function ScanClient({
         (fresh?.dishes ?? []).filter((d) => d.decision === 'pending').map((d) => d.id),
       );
       if (fresh?.dishes && accept.length > 0 && accept.every((id) => !stillPending.has(id))) {
+        // The restaurant's live state, not this scan's: another scan may have
+        // published it, or it may be archived. One value for both uses.
+        const isPublic = fresh.restaurant_published;
         tracker.track('scan_published', {
           restaurant_slug: slug,
           accepted_count: accept.length,
           discarded_count: reject.length,
-          restaurant_published: fresh.restaurant_published ?? fresh.status === 'published',
+          restaurant_published: isPublic,
         });
-        if (fresh.status === 'published') {
+        if (isPublic) {
           router.push(`/restaurants/${encodeURIComponent(slug)}`);
           router.refresh();
         } else {
