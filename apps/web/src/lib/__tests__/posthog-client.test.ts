@@ -24,6 +24,8 @@ describe('initPostHog', () => {
     const client = {
       init: vi.fn(),
       register: vi.fn(),
+      has_opted_out_capturing: vi.fn(() => false),
+      opt_in_capturing: vi.fn(),
     } as unknown as Parameters<typeof initPostHog>[0];
 
     initPostHog(client, 'phc_test_token');
@@ -44,6 +46,8 @@ describe('initPostHog', () => {
     const client = {
       init: vi.fn(),
       register: vi.fn(),
+      has_opted_out_capturing: vi.fn(() => false),
+      opt_in_capturing: vi.fn(),
     } as unknown as Parameters<typeof initPostHog>[0];
 
     initPostHog(client, 'phc_x', { apiHost: 'https://eu.i.posthog.com' });
@@ -80,9 +84,12 @@ describe('createPostHogClient', () => {
 // must be refused by this client, not left to project defaults.
 describe('initPostHog privacy settings', () => {
   it('captures no clicked text, no replays, and scrubs every event', () => {
-    const client = { init: vi.fn(), register: vi.fn() } as unknown as Parameters<
-      typeof initPostHog
-    >[0];
+    const client = {
+      init: vi.fn(),
+      register: vi.fn(),
+      has_opted_out_capturing: vi.fn(() => false),
+      opt_in_capturing: vi.fn(),
+    } as unknown as Parameters<typeof initPostHog>[0];
 
     initPostHog(client, 'phc_test_token');
 
@@ -148,5 +155,45 @@ describe('scrubEvent', () => {
 describe('scrubUrl fallback', () => {
   it('still hides the diet when a relative value will not parse as a URL', () => {
     expect(scrubUrl('/durango/celiac?x=[')).toBe('/durango/:diet');
+  });
+});
+
+// Turning analytics back on in settings must actually turn them back on:
+// the earlier opt-out also persisted posthog-js's own denial.
+describe('initPostHog after a re-enable', () => {
+  it("clears posthog-js's persisted opt-out without sending an opt-in event", () => {
+    const client = {
+      init: vi.fn(),
+      register: vi.fn(),
+      has_opted_out_capturing: vi.fn(() => true),
+      opt_in_capturing: vi.fn(),
+    } as unknown as Parameters<typeof initPostHog>[0];
+
+    initPostHog(client, 'phc_test_token');
+
+    expect(client.opt_in_capturing).toHaveBeenCalledWith({ captureEventName: false });
+  });
+});
+
+describe('scrubEvent session-entry properties', () => {
+  it('scrubs URL properties the SDK adds by name, not just a fixed list', () => {
+    const origin = window.location.origin;
+    const event = {
+      event: '$pageview',
+      uuid: 'u',
+      properties: {
+        $session_entry_url: `${origin}/r/ninis?p=encoded-avoid-list`,
+        $session_entry_pathname: '/durango/celiac',
+        $session_entry_referrer: 'https://www.google.com/search?q=celiac',
+        $referring_domain: 'www.google.com',
+      },
+    } as unknown as Parameters<typeof scrubEvent>[0];
+
+    expect(scrubEvent(event)!.properties).toMatchObject({
+      $session_entry_url: `${origin}/r/ninis`,
+      $session_entry_pathname: '/durango/:diet',
+      $session_entry_referrer: 'https://www.google.com',
+      $referring_domain: 'www.google.com',
+    });
   });
 });

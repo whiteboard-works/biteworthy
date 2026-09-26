@@ -1213,7 +1213,10 @@ function AnalyticsSection() {
     }
     // posthog-js captures page views on its own once loaded; stop it now
     // rather than on the next page load.
-    if (next && posthog.__loaded) posthog.opt_out_capturing();
+    if (posthog.__loaded) {
+      if (next) posthog.opt_out_capturing();
+      else posthog.opt_in_capturing({ captureEventName: false });
+    }
     setOptedOut(next);
   };
 

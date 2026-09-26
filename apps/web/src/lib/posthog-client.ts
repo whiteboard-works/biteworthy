@@ -55,6 +55,11 @@ export function initPostHog(
     before_send: scrubEvent,
   });
   client.register({ extension: EXTENSION_NAME });
+  // Only called once our own consent check passed (_PostHogProvider), and
+  // our flag is the source of truth: an earlier opt-out in /profile/settings
+  // also persisted posthog-js's own denial, which would otherwise outlive
+  // the visitor turning analytics back on.
+  if (client.has_opted_out_capturing()) client.opt_in_capturing({ captureEventName: false });
 }
 
 /**
@@ -84,18 +89,11 @@ export function createPostHogClient(client: PostHogJsInstance): AnalyticsClient 
   };
 }
 
-// Properties that carry a URL. Person-property copies ($initial_*) ride
-// in $set / $set_once and are scrubbed the same way.
-const URL_KEYS = [
-  '$current_url',
-  '$pathname',
-  '$referrer',
-  '$prev_pageview_pathname',
-  '$prev_pageview_url',
-  '$initial_current_url',
-  '$initial_pathname',
-  '$initial_referrer',
-] as const;
+// Any property whose name ends in url / pathname / referrer carries a URL:
+// $current_url, $referrer, the $session_entry_* and $initial_* copies the
+// SDK adds, and whatever it adds next. Matched by name so a new one is
+// scrubbed by default rather than leaking until someone lists it.
+const URL_KEY = /(url|pathname|referrer)$/i;
 
 /**
  * Reduce a URL to what the dashboards need and nothing health-adjacent:
@@ -125,9 +123,8 @@ function maskPath(path: string): string {
 
 function scrubProps(props: Record<string, unknown> | undefined): void {
   if (!props) return;
-  for (const key of URL_KEYS) {
-    const v = props[key];
-    if (typeof v === 'string' && v !== '$direct') props[key] = scrubUrl(v);
+  for (const [key, v] of Object.entries(props)) {
+    if (URL_KEY.test(key) && typeof v === 'string' && v !== '$direct') props[key] = scrubUrl(v);
   }
 }
 

@@ -10,7 +10,13 @@ import { render } from '@testing-library/react';
 
 const init = vi.fn();
 vi.mock('posthog-js', () => ({
-  default: { init: (...a: unknown[]) => init(...a), register: vi.fn(), capture: vi.fn() },
+  default: {
+    init: (...a: unknown[]) => init(...a),
+    register: vi.fn(),
+    capture: vi.fn(),
+    has_opted_out_capturing: () => false,
+    opt_in_capturing: vi.fn(),
+  },
 }));
 
 const { PostHogProvider } = await import('../_PostHogProvider');
