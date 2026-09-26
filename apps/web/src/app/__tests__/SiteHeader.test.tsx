@@ -132,6 +132,8 @@ describe('SiteHeader', () => {
 
     await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
     expect(mockReplace).toHaveBeenCalledWith('/');
+    // Signed out for certain now, and on '/' no route change re-checks.
+    expect(await screen.findByTestId('nav-durango')).toBeInTheDocument();
   });
 
   it('does not nudge a signed-in user who has already onboarded', async () => {

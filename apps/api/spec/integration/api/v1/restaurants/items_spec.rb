@@ -147,7 +147,11 @@ RSpec.describe "restaurants/items", type: :request do
     parameter name: :id, in: :path, type: :string, format: :uuid,
               description: "Published item id"
     parameter name: :profile, in: :query, type: :string, required: false,
-              description: "DietaryProfile slug whose avoid lists to apply"
+              description: "DietaryProfile slug whose avoid lists to apply — on top of a " \
+                           "signed-in caller's own avoids, never instead of them"
+    parameter name: :profile_token, in: :query, type: :string, required: false,
+              description: "A share token (see the list endpoint). A signed-in caller's " \
+                           "own avoids are added on top, never dropped."
 
     get("Show one published dish with detected ingredients/tags + provenance") do
       tags "Restaurants"

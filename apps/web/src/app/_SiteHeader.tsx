@@ -158,6 +158,9 @@ export function SiteHeader() {
       // jti-rotation still leaves the browser signed out.
     }
     setSignedIn(false);
+    // The cookie is gone either way, so this is a confirmed signed-out
+    // state; on `/` no route change re-runs the session check.
+    setConfirmedSignedOut(true);
     // Reset the nudge lifecycle so a different account signing in on this
     // browser is evaluated from scratch — neither the "confirmed
     // onboarded" latch nor the dismissal may carry across users.
