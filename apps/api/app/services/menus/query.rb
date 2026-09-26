@@ -67,7 +67,7 @@ module Menus
 
     def load_items
       @restaurant.items.published
-                 .includes(menu_section: :menu, photo_attachment: :blob)
+                 .includes(:menu_section, photo_attachment: :blob)
                  .order(name: :asc)
                  .to_a
     end

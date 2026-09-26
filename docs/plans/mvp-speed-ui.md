@@ -21,7 +21,7 @@ same tools.
 
 - [x] 2.1 `POST /api/v1/scans`, `GET /api/v1/scans/:id`, `POST /api/v1/scans/:id/accept` — thin adapters over `start_menu_scan` / `get_scan_status` / `accept_staged_items`; status is a row read, never a model call
 - [~] 2.2 ~~Retry transient extraction failures~~ — **dropped, premise was wrong.** `AnthropicClient` already retries 429/5xx and timeouts 3× in faraday-retry (`anthropic_client.rb:288-292`), and an exhausted timeout escapes `TimedAnthropicCall` into the job's `retry_on`. What still fails the run first time — truncation and schema-invalid output — would mostly fail the same way on a re-billed retry.
-- [ ] 2.3 Menu read path: drop the unused `menu_section: :menu` preload (`Menus::Query#load_items`) + a query-budget spec. **Cache/ETag dropped**: measured 6 indexed statements anonymous, 12 signed in, constant in menu length — too cheap to be worth a cache that could serve a stale allergen correction.
+- [x] 2.3 Menu read path: drop the unused `menu_section: :menu` preload (`Menus::Query#load_items`) + a query-budget spec. **Cache/ETag dropped**: measured 6 indexed statements anonymous, 12 signed in, constant in menu length — too cheap to be worth a cache that could serve a stale allergen correction.
 - [ ] 2.4 Mobile (frozen, fixes only): no anonymous-then-authed double fetch on the restaurant screen; `expo-image` everywhere. **List virtualization skipped** — a restructure of a frozen screen for menus that render fine at their real size.
 
 ## UI
