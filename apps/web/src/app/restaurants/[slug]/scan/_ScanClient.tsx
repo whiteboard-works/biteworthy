@@ -94,6 +94,7 @@ export function ScanClient({
       const source =
         files.length > 0 ? { attachmentIds: await uploadInOrder(files) } : { sourceUrl: url };
       const started = await startScan(slug, source);
+      setScanMark(started.scan_id, { startedAt: Date.now(), ready: false });
       tracker.track('scan_started', {
         restaurant_slug: slug,
         source: files.length > 0 ? 'photo' : 'url',
@@ -175,6 +176,12 @@ export function ScanClient({
         (fresh?.dishes ?? []).filter((d) => d.decision === 'pending').map((d) => d.id),
       );
       if (fresh?.dishes && accept.length > 0 && accept.every((id) => !stillPending.has(id))) {
+        tracker.track('scan_published', {
+          restaurant_slug: slug,
+          accepted_count: accept.length,
+          discarded_count: reject.length,
+          restaurant_published: fresh.status === 'published',
+        });
         if (fresh.status === 'published') {
           router.push(`/restaurants/${encodeURIComponent(slug)}`);
           router.refresh();
@@ -211,13 +218,17 @@ export function ScanClient({
           startedAt={phase.startedAt}
           slug={slug}
           onReady={(dishes, enrichmentFailed) => {
-            tracker.track('scan_ready', {
-              restaurant_slug: slug,
-              dish_count: dishes.length,
-              flagged_count: dishes.filter((d) => enrichmentFailed || d.needs_attention).length,
-              duration_ms: Date.now() - phase.startedAt,
-              enrichment_failed: enrichmentFailed,
-            });
+            const mark = scanMark(phase.scanId);
+            if (mark && !mark.ready) {
+              tracker.track('scan_ready', {
+                restaurant_slug: slug,
+                dish_count: dishes.length,
+                flagged_count: dishes.filter((d) => needsALook(d, enrichmentFailed)).length,
+                duration_ms: Date.now() - mark.startedAt,
+                enrichment_failed: enrichmentFailed,
+              });
+              setScanMark(phase.scanId, { ...mark, ready: true });
+            }
             setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed });
           }}
           onFail={(message) => {
@@ -473,7 +484,7 @@ function Review({
   // as an explicit opt-in.
   const unsafe = (d: ScanDish) => enrichmentFailed || d.needs_attention;
   const [regular, flagged] = useMemo(() => {
-    const needsLook = (d: ScanDish) => enrichmentFailed || d.needs_attention || editsLiveDish(d);
+    const needsLook = (d: ScanDish) => needsALook(d, enrichmentFailed);
     return [pending.filter((d) => !needsLook(d)), pending.filter(needsLook)];
   }, [pending, enrichmentFailed]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(regular.map((d) => d.id)));
@@ -628,6 +639,33 @@ function DishRow({
 
 // Accepting a matched dish rewrites the live one, so it is opt-in and
 // shows exactly what it would change.
+// The "Needs a look" group — shared by the review screen and the
+// `scan_ready` flagged count so the two can't disagree.
+function needsALook(dish: ScanDish, enrichmentFailed: boolean): boolean {
+  return enrichmentFailed || dish.needs_attention || editsLiveDish(dish);
+}
+
+// Start time + whether `scan_ready` was already reported, per scan, for
+// this tab: a refresh resumes the scan without resetting its duration or
+// reporting it ready twice. A scan resumed from elsewhere has no entry and
+// reports nothing.
+function scanMark(scanId: string): { startedAt: number; ready: boolean } | null {
+  try {
+    const raw = sessionStorage.getItem(`bw_scan_${scanId}`);
+    return raw ? (JSON.parse(raw) as { startedAt: number; ready: boolean }) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setScanMark(scanId: string, mark: { startedAt: number; ready: boolean }): void {
+  try {
+    sessionStorage.setItem(`bw_scan_${scanId}`, JSON.stringify(mark));
+  } catch {
+    // Private mode: resumed scans just won't report scan_ready.
+  }
+}
+
 function editsLiveDish(dish: ScanDish): boolean {
   return Boolean(dish.updates_existing_item && !dish.updates_existing_item.no_changes);
 }

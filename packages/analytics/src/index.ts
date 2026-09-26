@@ -181,9 +181,11 @@ export interface EventPropsMap {
   scan_ready: {
     restaurant_slug: string;
     dish_count: number;
-    /** Dishes in "Needs a look" — unmatched or inferred-only ingredients. */
+    /** Dishes in "Needs a look" — unmatched or inferred-only ingredients,
+     *  an edit to a live dish, or everything if the ingredient pass failed. */
     flagged_count: number;
-    /** Start to reviewable, including the ingredient pass. */
+    /** Start to reviewable, including the ingredient pass. Reported once
+     *  per scan, and only in the tab that started it. */
     duration_ms: number;
     /** The ingredient pass ran out of retries. */
     enrichment_failed: boolean;

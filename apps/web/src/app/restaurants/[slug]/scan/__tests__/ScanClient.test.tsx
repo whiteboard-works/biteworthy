@@ -83,6 +83,7 @@ async function scanAPhoto() {
 describe('ScanClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     uploadAttachment.mockResolvedValue({ id: 'blob-1' });
     startScan.mockResolvedValue({ scan_id: 'scan-1', status: 'extracting', restaurant: {} });
     rejectScan.mockResolvedValue({ rejected: [], remaining_pending: 0 });
@@ -126,6 +127,11 @@ describe('ScanClient', () => {
         dish({ id: 'd1' }),
         dish({ id: 'd2', name: 'Junk' }),
         dish({ id: 'd3', name: 'Stew', ingredients: [], needs_attention: true }),
+        dish({
+          id: 'd4',
+          name: 'Taco Update',
+          updates_existing_item: { item_id: 'i1', name: 'Taco', no_changes: false, diff: {} },
+        }),
       ]),
     );
     acceptScan.mockResolvedValue({
@@ -148,8 +154,8 @@ describe('ScanClient', () => {
       'scan_ready',
       expect.objectContaining({
         restaurant_slug: 'ninis',
-        dish_count: 3,
-        flagged_count: 1,
+        dish_count: 4,
+        flagged_count: 2,
         enrichment_failed: false,
       }),
     );
@@ -159,7 +165,20 @@ describe('ScanClient', () => {
       discarded_count: 1,
       restaurant_published: true,
     });
-    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Junk|Carne|Stew/);
+    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Junk|Carne|Stew|Taco/);
+  });
+
+  it('does not report a resumed scan as ready again after a refresh', async () => {
+    getScan.mockResolvedValue(readyScan([dish({})]));
+    sessionStorage.setItem(
+      'bw_scan_scan-9',
+      JSON.stringify({ startedAt: Date.now(), ready: true }),
+    );
+
+    render(<ScanClient slug="ninis" restaurantName="Nini's" resumeScanId="scan-9" />);
+    expect(await screen.findByText('Carne Asada Taco')).toBeInTheDocument();
+
+    expect(track).not.toHaveBeenCalledWith('scan_ready', expect.anything());
   });
 
   // Unmatched text means the filter can miss an allergen on that dish.
@@ -289,6 +308,11 @@ describe('ScanClient', () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/restaurants/ninis'));
     expect(screen.queryByRole('alert')).toBeNull();
+    // It did publish, so the funnel must count it.
+    expect(track).toHaveBeenCalledWith(
+      'scan_published',
+      expect.objectContaining({ accepted_count: 1, restaurant_published: true }),
+    );
   });
 
   it('discards an all-junk scan without adding anything', async () => {
