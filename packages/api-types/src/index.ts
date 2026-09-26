@@ -48,6 +48,7 @@ export type ScanStarted    = components['schemas']['ScanStarted'];
 export type ScanStatus     = components['schemas']['ScanStatus'];
 export type ScanDish       = components['schemas']['ScanDish'];
 export type ScanAccepted   = components['schemas']['ScanAccepted'];
+export type ScanRejected   = components['schemas']['ScanRejected'];
 
 // ---- Canonical filter enums (hand-written; not yet codegen'd) ----
 //

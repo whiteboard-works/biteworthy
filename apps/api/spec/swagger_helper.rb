@@ -472,6 +472,21 @@ RSpec.configure do |config|
               remaining_pending:    { type: :integer }
             }
           },
+          ScanRejected: {
+            type: :object,
+            required: %w[rejected remaining_pending],
+            properties: {
+              rejected: {
+                type: :array,
+                items: {
+                  type: :object,
+                  required: %w[id name],
+                  properties: { id: { type: :string, format: :uuid }, name: { type: :string } }
+                }
+              },
+              remaining_pending: { type: :integer }
+            }
+          },
           ScanError: {
             type: :object,
             required: %w[error],

@@ -155,6 +155,7 @@ Rails.application.routes.draw do
       # a row instead of paying a model round per status check.
       resources :scans, only: [:create, :show] do
         post :accept, on: :member
+        post :reject, on: :member
       end
       # Least-privilege credentials for MCP clients, so connecting Claude
       # Code does not require a shell on the box.

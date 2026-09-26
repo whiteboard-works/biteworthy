@@ -251,6 +251,13 @@ export function RestaurantClient({
           }}
         />
         <ShareLinkButton slug={slug} filter={filter} tracker={tracker} />
+        <a
+          href={`/restaurants/${encodeURIComponent(slug)}/scan`}
+          data-testid="scan-menu-link"
+          className="rounded-bw-pill border border-bite px-bw-3 py-bw-1 text-bw-sm font-semibold text-bite hover:bg-bite-light"
+        >
+          Scan this menu
+        </a>
       </div>
 
       <ClaimSection slug={slug} restaurant={restaurant} />
@@ -280,7 +287,14 @@ export function RestaurantClient({
 
       {overriddenSections.length === 0 && (
         <p className="mt-bw-6 text-center text-bw-base text-zinc-500">
-          No published items at this restaurant yet.
+          No published items at this restaurant yet.{' '}
+          <a
+            href={`/restaurants/${encodeURIComponent(slug)}/scan`}
+            className="font-semibold text-bite hover:text-bite-dark"
+          >
+            Scan the menu
+          </a>{' '}
+          to add them.
         </p>
       )}
 

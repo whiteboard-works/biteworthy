@@ -143,4 +143,42 @@ RSpec.describe "scans", type: :request do
       end
     end
   end
+
+  path "/api/v1/scans/{id}/reject" do
+    post("Mark staged dishes as not on the menu") do
+      tags "Scans"
+      consumes "application/json"
+      produces "application/json"
+      security [ bearerAuth: [] ]
+      parameter name: :Authorization, in: :header, type: :string, required: true
+      parameter name: :id, in: :path, type: :string, required: true
+      parameter name: :body, in: :body, required: true, schema: {
+        type: :object,
+        required: %w[item_ids],
+        properties: { item_ids: { type: :array, items: { type: :string } } }
+      }
+
+      response(200, "what was rejected") do
+        schema "$ref" => "#/components/schemas/ScanRejected"
+        let(:run)  { create(:ingestion_run, :staged, user: account, restaurant: restaurant) }
+        let(:id)   { run.id }
+        let(:body) { { item_ids: [ create(:ingestion_item, ingestion_run: run).id ] } }
+        run_test!
+      end
+
+      response(422, "no item ids") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        let(:id)   { create(:ingestion_run, :staged, user: account, restaurant: restaurant).id }
+        let(:body) { { item_ids: [] } }
+        run_test!
+      end
+
+      response(404, "no such scan, or someone else's") do
+        schema "$ref" => "#/components/schemas/ScanError"
+        let(:id)   { create(:ingestion_run, :staged, user: create(:user), restaurant: restaurant).id }
+        let(:body) { { item_ids: [ "x" ] } }
+        run_test!
+      end
+    end
+  end
 end

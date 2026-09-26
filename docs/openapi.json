@@ -7335,6 +7335,90 @@
           "required": true
         }
       }
+    },
+    "/api/v1/scans/{id}/reject": {
+      "post": {
+        "summary": "Mark staged dishes as not on the menu",
+        "tags": [
+          "Scans"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "what was rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRejected"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "no item ids",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such scan, or someone else's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_ids"
+                ],
+                "properties": {
+                  "item_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
     }
   },
   "servers": [
@@ -8396,6 +8480,37 @@
           },
           "restaurant_published": {
             "type": "boolean"
+          },
+          "remaining_pending": {
+            "type": "integer"
+          }
+        }
+      },
+      "ScanRejected": {
+        "type": "object",
+        "required": [
+          "rejected",
+          "remaining_pending"
+        ],
+        "properties": {
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "remaining_pending": {
             "type": "integer"
