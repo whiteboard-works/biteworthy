@@ -55,11 +55,14 @@ export function ScanClient({
   slug,
   restaurantName,
   resumeScanId = null,
+  restaurantIsPublic = false,
 }: {
   slug: string;
   restaurantName: string;
   /** From `?scan=` — a paid scan survives a refresh or an evicted tab. */
   resumeScanId?: string | null;
+  /** From the page's public lookup; only drafts are missing from it. */
+  restaurantIsPublic?: boolean;
 }) {
   const router = useRouter();
   const tracker = useTracker();
@@ -129,7 +132,8 @@ export function ScanClient({
           restaurant_slug: slug,
           accepted_count: 0,
           discarded_count: reject.length,
-          restaurant_published: false,
+          // Discarding never unpublishes; nothing was accepted to publish it.
+          restaurant_published: restaurantIsPublic,
         });
         finish(
           `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
