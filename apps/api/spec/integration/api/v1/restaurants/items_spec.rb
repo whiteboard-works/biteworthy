@@ -208,6 +208,20 @@ RSpec.describe "restaurants/items", type: :request do
           item.id
         end
         let(:profile) { nil }
+        let(:profile_token) { nil }
+        run_test!
+      end
+
+      response(422, "profile_token malformed, expired, or naming ids that no longer exist") do
+        schema "$ref" => "#/components/schemas/Error"
+        let(:restaurant)    { create(:restaurant, :published) }
+        let(:restaurant_id) { restaurant.id }
+        let(:id)            { create(:item, :published, restaurant: restaurant).id }
+        let(:profile)       { nil }
+        let(:profile_token) do
+          ProfileToken.encode(avoid_ingredient_ids: [ SecureRandom.uuid ],
+                              avoid_tag_ids: [], strictness: "balanced")
+        end
         run_test!
       end
 
@@ -215,6 +229,7 @@ RSpec.describe "restaurants/items", type: :request do
         let(:restaurant_id) { "00000000-0000-0000-0000-000000000000" }
         let(:id)            { "00000000-0000-0000-0000-000000000000" }
         let(:profile)       { nil }
+        let(:profile_token) { nil }
         run_test!
       end
     end

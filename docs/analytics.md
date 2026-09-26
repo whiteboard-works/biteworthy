@@ -99,6 +99,10 @@ Fired when a Suggestion is submitted (Phase 4.10). The follow-up `decideSuggesti
 | `restaurant_slug` | `string` | |
 | `kind` | `string` | `"add_ingredient"`, `"rename"`, etc. — see Phase 4.10. |
 
+### `$pageview` (SDK-captured, web)
+
+Captured by posthog-js itself (`capture_pageview: 'history_change'`), not through the Tracker; listed as `SDK_EVENTS.pageview` / `PageviewProps` in `packages/analytics`. After `scrubEvent`: URL and path with no query or hash, `/durango/<diet>` → `/durango/:diet`, `/u/<handle>` → `/u/:handle`, referrer reduced to its origin, no title / search keyword / campaign params. A `replaceState` that only cleans the URL (reset-password token, a dead share token) does not count as a second view.
+
 ## Auth events
 
 Auxiliary to the core funnel (they fire after `app_open`, before `profile_set`) — they measure the sign-in / sign-up flow so we can see conversion and *where* it breaks. **No PII**: never the email or password, only a coarse `method` / `reason` / `status`. Currently instrumented on **web** (`login/page.tsx`, `signup/page.tsx`, `forgot-password/page.tsx`, `reset-password/page.tsx`); mobile can adopt the same events.

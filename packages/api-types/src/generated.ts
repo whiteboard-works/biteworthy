@@ -4095,6 +4095,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description profile_token malformed, expired, or naming ids that no longer exist */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;

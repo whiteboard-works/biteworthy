@@ -7088,6 +7088,16 @@
               }
             }
           },
+          "422": {
+            "description": "profile_token malformed, expired, or naming ids that no longer exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "restaurant or item not found / not published"
           }

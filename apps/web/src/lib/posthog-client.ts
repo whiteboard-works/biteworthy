@@ -174,9 +174,32 @@ function scrubProps(props: Record<string, unknown> | undefined): void {
   if (!props) return;
   for (const [key, v] of Object.entries(props)) {
     if (DROP_KEY.test(key)) delete props[key];
-    else if (URL_KEY.test(key) && typeof v === 'string' && v !== '$direct')
-      props[key] = scrubUrl(v);
+    else if (typeof v !== 'string' || v === '$direct') continue;
+    // /privacy promises only "the domain of the site that sent you" — for
+    // same-site referrers too, where a path like /profile/settings would
+    // otherwise go along.
+    else if (/referrer$/i.test(key)) props[key] = originOf(v);
+    else if (URL_KEY.test(key)) props[key] = scrubUrl(v);
   }
+}
+
+function originOf(value: string): string {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return '';
+  }
+}
+
+// `history_change` also fires on `replaceState`, which the app uses to tidy
+// a URL in place (dropping a reset token or a dead share token). Once the
+// query is scrubbed that is the same page again; counting it would make one
+// visit two page views.
+let lastPageviewPath: string | null = null;
+
+/** Test seam: forget the last page view (one page load = one module). */
+export function resetPageviewDedupe(): void {
+  lastPageviewPath = null;
 }
 
 /** `before_send` hook: every event leaves the browser with scrubbed URLs. */
@@ -185,5 +208,10 @@ export function scrubEvent(event: CaptureResult | null): CaptureResult | null {
   scrubProps(event.properties);
   scrubProps(event.$set as Record<string, unknown> | undefined);
   scrubProps(event.$set_once as Record<string, unknown> | undefined);
+  if (event.event === '$pageview') {
+    const path = String(event.properties?.$pathname ?? '');
+    if (path === lastPageviewPath) return null;
+    lastPageviewPath = path;
+  }
   return event;
 }

@@ -163,15 +163,23 @@ RSpec.describe Menus::Filter do
       expect(signals.disliked_tag_ids).to be_empty
     end
 
-    it "returns nil for a preset filter — taste never rides along on a preset link" do
+    # A preset carries no taste of its own; the signed-in reader's does,
+    # or picks could never appear on the diet pages people arrive through.
+    it "uses the signed-in reader's own taste on a preset view" do
       create(:dietary_profile, slug: "vegan")
-      dish = create(:item, :published, restaurant: restaurant, tag_list: [spicy])
+      dish = create(:item, :published, restaurant: restaurant, tag_list: [ spicy ])
       user = create(:user)
       create(:favorite_item, user: user, item: dish)
 
       filter = described_class.build(user: user, preset_slug: "vegan")
 
-      expect(filter.taste_signals_for(user)).to be_nil
+      expect(filter.taste_signals_for(user).liked_tag_ids).to include(spicy.id)
+    end
+
+    it "gives an anonymous preset view no taste" do
+      create(:dietary_profile, slug: "vegan")
+
+      expect(described_class.build(preset_slug: "vegan").taste_signals_for(nil)).to be_nil
     end
   end
 

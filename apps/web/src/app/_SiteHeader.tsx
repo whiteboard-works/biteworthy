@@ -151,16 +151,20 @@ export function SiteHeader() {
 
   const onLogout = async () => {
     setLoggingOut(true);
+    let loggedOut = true;
     try {
       await logout();
     } catch {
       // The cookie is cleared client-side regardless; a failed upstream
       // jti-rotation still leaves the browser signed out.
+      loggedOut = false;
     }
     setSignedIn(false);
-    // The cookie is gone either way, so this is a confirmed signed-out
-    // state; on `/` no route change re-runs the session check.
-    setConfirmedSignedOut(true);
+    // Only a logout that succeeded confirms signed-out (on `/` no route
+    // change re-runs the session check). After a failure the cookie may
+    // still be live, and this flag unlocks a link whose diet preset a
+    // signed-in user shouldn't be steered to.
+    setConfirmedSignedOut(loggedOut);
     // Reset the nudge lifecycle so a different account signing in on this
     // browser is evaluated from scratch — neither the "confirmed
     // onboarded" latch nor the dismissal may carry across users.

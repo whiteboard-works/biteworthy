@@ -1,11 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createPostHogClient,
   EXTENSION_NAME,
   initPostHog,
+  resetPageviewDedupe,
   scrubEvent,
   scrubUrl,
 } from '../posthog-client';
+
+beforeEach(() => resetPageviewDedupe());
 
 /**
  * Phase 5.8-wiring — posthog-js adapter contract.
@@ -241,5 +244,36 @@ describe('scrubEvent words that give the page away', () => {
 
     expect(out.properties).toEqual({ $browser: 'Chrome', extension: 'biteworthy' });
     expect(out.$set_once).toEqual({});
+  });
+});
+
+// /privacy discloses only the referring site's domain, same-site included.
+describe('scrubEvent referrers', () => {
+  it('keeps only the origin of a same-site referrer', () => {
+    const origin = window.location.origin;
+    const event = {
+      event: 'menu_filtered',
+      uuid: 'u',
+      properties: { $referrer: `${origin}/profile/settings` },
+    } as unknown as Parameters<typeof scrubEvent>[0];
+    expect(scrubEvent(event)!.properties).toMatchObject({ $referrer: origin });
+  });
+});
+
+// A replaceState URL cleanup is the same page once scrubbed; counting it
+// would turn one visit into two page views.
+describe('scrubEvent page-view dedupe', () => {
+  const pageview = (path: string) =>
+    ({
+      event: '$pageview',
+      uuid: path,
+      properties: { $pathname: path, $current_url: `${window.location.origin}${path}` },
+    }) as unknown as Parameters<typeof scrubEvent>[0];
+
+  it('drops a repeat view of the same path but keeps real navigation', () => {
+    expect(scrubEvent(pageview('/reset-password'))).not.toBeNull();
+    expect(scrubEvent(pageview('/reset-password'))).toBeNull();
+    expect(scrubEvent(pageview('/'))).not.toBeNull();
+    expect(scrubEvent(pageview('/reset-password'))).not.toBeNull();
   });
 });
