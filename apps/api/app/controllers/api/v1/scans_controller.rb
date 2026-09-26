@@ -41,6 +41,9 @@ module Api
         return render_tool_error(result) if result[:isError]
 
         scan = result[:structuredContent]
+        # The screen compares this with its route, so a scan id pasted into
+        # another restaurant's URL can't be reviewed under the wrong name.
+        scan = scan.merge(restaurant_slug: Restaurant.where(id: scan[:restaurant_id]).pick(:slug))
         scan = scan.merge(dishes: dishes_for(params[:id])) if scan[:ready]
         render json: scan
       end

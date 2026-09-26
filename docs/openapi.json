@@ -8354,6 +8354,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "restaurant_slug": {
+            "type": "string",
+            "nullable": true
+          },
           "dish_count": {
             "type": "integer"
           },

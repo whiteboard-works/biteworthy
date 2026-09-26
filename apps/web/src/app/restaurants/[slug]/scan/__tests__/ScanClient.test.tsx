@@ -61,6 +61,7 @@ const readyScan = (dishes: ScanDish[]) => ({
   ready: true,
   failed: false,
   restaurant_id: 'r1',
+  restaurant_slug: 'ninis',
   dish_count: dishes.length,
   pending_count: dishes.length,
   accepted_count: 0,
@@ -442,12 +443,15 @@ describe('ScanClient', () => {
     vi.useRealTimers();
   });
 
+  // Holds for drafts too, whose public lookup fails and gives no id.
   it('refuses to resume a scan that belongs to a different restaurant', async () => {
-    getScan.mockResolvedValue({ ...readyScan([dish({})]), restaurant_id: 'other' });
+    getScan.mockResolvedValue({
+      ...readyScan([dish({})]),
+      restaurant_id: 'other',
+      restaurant_slug: 'someone-else',
+    });
 
-    render(
-      <ScanClient slug="ninis" restaurantName="Nini's" restaurantId="r1" resumeScanId="scan-9" />,
-    );
+    render(<ScanClient slug="ninis" restaurantName="ninis" resumeScanId="scan-9" />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('different restaurant');
     expect(screen.queryByText('Carne Asada Taco')).toBeNull();

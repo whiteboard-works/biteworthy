@@ -4646,6 +4646,7 @@ export interface components {
             enrichment_status?: string | null;
             /** Format: uuid */
             restaurant_id: string;
+            restaurant_slug?: string | null;
             dish_count: number;
             pending_count: number;
             accepted_count: number;

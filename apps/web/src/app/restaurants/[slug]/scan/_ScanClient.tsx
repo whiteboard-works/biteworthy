@@ -53,15 +53,12 @@ type Phase =
 export function ScanClient({
   slug,
   restaurantName,
-  restaurantId = null,
   resumeScanId = null,
 }: {
   slug: string;
   restaurantName: string;
   /** From `?scan=` — a paid scan survives a refresh or an evicted tab. */
   resumeScanId?: string | null;
-  /** When known, a resumed scan must belong to this restaurant. */
-  restaurantId?: string | null;
 }) {
   const router = useRouter();
   const scanPath = `/restaurants/${encodeURIComponent(slug)}/scan` as Route;
@@ -193,7 +190,7 @@ export function ScanClient({
         <Progress
           scanId={phase.scanId}
           startedAt={phase.startedAt}
-          restaurantId={restaurantId}
+          slug={slug}
           onReady={(dishes, enrichmentFailed) =>
             setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed })
           }
@@ -319,7 +316,7 @@ function PickSource({
 function Progress({
   scanId,
   startedAt,
-  restaurantId,
+  slug,
   onReady,
   onFail,
   onLost,
@@ -327,7 +324,7 @@ function Progress({
 }: {
   scanId: string;
   startedAt: number;
-  restaurantId: string | null;
+  slug: string;
   onReady: (dishes: ScanDish[], enrichmentFailed: boolean) => void;
   onFail: (message: string) => void;
   onLost: (message: string) => void;
@@ -350,8 +347,9 @@ function Progress({
         const scan = await getScan(scanId);
         if (stopped) return;
         misses = 0;
-        // A scan id from the URL can name any of this person's scans.
-        if (restaurantId && scan.restaurant_id !== restaurantId) {
+        // A scan id from the URL can name any of this person's scans —
+        // including a draft restaurant's, which the public lookup can't see.
+        if (scan.restaurant_slug !== slug && scan.restaurant_id !== slug) {
           handlers.current.onFail('That scan is for a different restaurant.');
           return;
         }
@@ -401,7 +399,7 @@ function Progress({
       if (timer) clearTimeout(timer);
       clearInterval(tick);
     };
-  }, [scanId, startedAt, restaurantId]);
+  }, [scanId, startedAt, slug]);
 
   return (
     <div className="mt-bw-6 rounded-bw-lg bg-bite-light p-bw-6 text-center" aria-live="polite">

@@ -420,6 +420,7 @@ RSpec.configure do |config|
               failure_message:   { type: :string, nullable: true },
               enrichment_status: { type: :string, nullable: true },
               restaurant_id:     { type: :string, format: :uuid },
+              restaurant_slug:   { type: :string, nullable: true },
               dish_count:        { type: :integer },
               pending_count:     { type: :integer },
               accepted_count:    { type: :integer },
