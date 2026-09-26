@@ -421,6 +421,7 @@ RSpec.configure do |config|
               enrichment_status: { type: :string, nullable: true },
               restaurant_id:     { type: :string, format: :uuid },
               restaurant_slug:   { type: :string, nullable: true },
+              restaurant_published: { type: :boolean, description: "The restaurant's live status, not this scan's." },
               dish_count:        { type: :integer },
               pending_count:     { type: :integer },
               accepted_count:    { type: :integer },

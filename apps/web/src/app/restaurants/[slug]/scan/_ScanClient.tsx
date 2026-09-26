@@ -55,14 +55,11 @@ export function ScanClient({
   slug,
   restaurantName,
   resumeScanId = null,
-  restaurantIsPublic,
 }: {
   slug: string;
   restaurantName: string;
   /** From `?scan=` — a paid scan survives a refresh or an evicted tab. */
   resumeScanId?: string | null;
-  /** Whether the restaurant was already public when the page loaded. */
-  restaurantIsPublic: boolean;
 }) {
   const router = useRouter();
   const tracker = useTracker();
@@ -132,8 +129,10 @@ export function ScanClient({
           restaurant_slug: slug,
           accepted_count: 0,
           discarded_count: reject.length,
-          // Discarding never unpublishes; nothing was accepted to publish it.
-          restaurant_published: restaurantIsPublic,
+          // Read live: discarding never unpublishes, and another scan may
+          // have published the restaurant since this page loaded.
+          restaurant_published:
+            (await getScan(scanId).catch(() => null))?.restaurant_published ?? false,
         });
         finish(
           `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
@@ -184,9 +183,7 @@ export function ScanClient({
           restaurant_slug: slug,
           accepted_count: accept.length,
           discarded_count: reject.length,
-          // The run's status says whether *this* scan published it; an
-          // already-public restaurant stays public either way.
-          restaurant_published: restaurantIsPublic || fresh.status === 'published',
+          restaurant_published: fresh.restaurant_published ?? fresh.status === 'published',
         });
         if (fresh.status === 'published') {
           router.push(`/restaurants/${encodeURIComponent(slug)}`);

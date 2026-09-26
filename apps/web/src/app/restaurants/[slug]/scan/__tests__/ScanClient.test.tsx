@@ -74,7 +74,7 @@ const readyScan = (dishes: ScanDish[]) => ({
 });
 
 async function scanAPhoto() {
-  render(<ScanClient slug="ninis" restaurantName="Nini's" restaurantIsPublic={false} />);
+  render(<ScanClient slug="ninis" restaurantName="Nini's" />);
   const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
   fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
   fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
@@ -170,9 +170,12 @@ describe('ScanClient', () => {
 
   // Discarding a page of a live restaurant's menu doesn't make it private.
   it('reports an all-discarded scan of a public restaurant as still public', async () => {
-    getScan.mockResolvedValue(readyScan([dish({ id: 'd1', name: 'Page Header' })]));
+    getScan.mockResolvedValue({
+      ...readyScan([dish({ id: 'd1', name: 'Page Header' })]),
+      restaurant_published: true,
+    });
 
-    render(<ScanClient slug="ninis" restaurantName="Nini's" restaurantIsPublic />);
+    render(<ScanClient slug="ninis" restaurantName="Nini's" />);
     const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
     fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
@@ -189,15 +192,14 @@ describe('ScanClient', () => {
 
   // A public restaurant's new run can stay "staged"; the restaurant is still public.
   it('reports a recovered accept on a public restaurant as public', async () => {
-    getScan
-      .mockResolvedValueOnce(readyScan([dish({ id: 'd1' })]))
-      .mockResolvedValueOnce({
-        ...readyScan([dish({ id: 'd1', decision: 'accepted' })]),
-        status: 'staged',
-      });
+    getScan.mockResolvedValueOnce(readyScan([dish({ id: 'd1' })])).mockResolvedValueOnce({
+      ...readyScan([dish({ id: 'd1', decision: 'accepted' })]),
+      status: 'staged',
+      restaurant_published: true,
+    });
     acceptScan.mockRejectedValueOnce(new TypeError('Failed to fetch'));
 
-    render(<ScanClient slug="ninis" restaurantName="Nini's" restaurantIsPublic />);
+    render(<ScanClient slug="ninis" restaurantName="Nini's" />);
     const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
     fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
@@ -222,7 +224,7 @@ describe('ScanClient', () => {
       <ScanClient
         slug="ninis"
         restaurantName="Nini's"
-        restaurantIsPublic={false}
+
         resumeScanId="scan-9"
       />,
     );
@@ -312,7 +314,7 @@ describe('ScanClient', () => {
   });
 
   it('stops an over-limit batch before uploading anything', async () => {
-    render(<ScanClient slug="ninis" restaurantName="Nini's" restaurantIsPublic={false} />);
+    render(<ScanClient slug="ninis" restaurantName="Nini's" />);
     const files = Array.from(
       { length: 11 },
       (_, i) => new File(['x'], `p${i}.jpg`, { type: 'image/jpeg' }),
@@ -545,7 +547,7 @@ describe('ScanClient', () => {
       <ScanClient
         slug="ninis"
         restaurantName="Nini's"
-        restaurantIsPublic={false}
+
         resumeScanId="scan-9"
       />,
     );
@@ -582,7 +584,7 @@ describe('ScanClient', () => {
       <ScanClient
         slug="ninis"
         restaurantName="ninis"
-        restaurantIsPublic={false}
+
         resumeScanId="scan-9"
       />,
     );
@@ -609,7 +611,7 @@ describe('ScanClient', () => {
       <ScanClient
         slug="ninis"
         restaurantName="Nini's"
-        restaurantIsPublic={false}
+
         resumeScanId="scan-9"
       />,
     );

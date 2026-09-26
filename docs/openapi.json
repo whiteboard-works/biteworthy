@@ -8377,6 +8377,10 @@
             "type": "string",
             "nullable": true
           },
+          "restaurant_published": {
+            "type": "boolean",
+            "description": "The restaurant's live status, not this scan's."
+          },
           "dish_count": {
             "type": "integer"
           },

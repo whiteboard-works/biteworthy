@@ -26,6 +26,7 @@ RSpec.describe "Api::V1::Scans", type: :request do
       get "/api/v1/scans/#{run.id}", headers: auth_headers_for(owner)
 
       expect(json["restaurant_slug"]).to eq(restaurant.slug)
+      expect(json["restaurant_published"]).to be(true)
     end
 
     it "shows people the plain dish text, not the model's fenced copy" do
