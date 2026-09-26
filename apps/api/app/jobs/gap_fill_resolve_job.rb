@@ -86,12 +86,13 @@ class GapFillResolveJob < ApplicationJob
     run.update!(enrichment_status: "completed")
   rescue StandardError
     # Everything that should reach retry_on (a slice's SliceFailedError,
-    # transport errors that bypass ApiError, DB hiccups, bugs): record
-    # the degradation so clients stop polling, then re-raise so retry_on
-    # gets its attempts — a successful retry flips this back to
-    # completed. The stamp is conditional on still-pending so a stale
-    # attempt can never demote an enrichment already completed.
-    if run&.persisted?
+    # transport errors that bypass ApiError, DB hiccups, bugs) re-raises so
+    # retry_on gets its attempts. Only the LAST attempt records the
+    # degradation: `failed` is what tells clients to stop waiting, and an
+    # earlier stamp told them to give up on a pass a retry then finished.
+    # The stamp is conditional on still-pending so a stale attempt can
+    # never demote an enrichment already completed.
+    if run&.persisted? && executions >= RETRY_ATTEMPTS
       IngestionRun.where(id: run.id, enrichment_status: "pending")
                   .update_all(enrichment_status: "failed", updated_at: Time.current)
     end

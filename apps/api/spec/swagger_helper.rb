@@ -378,7 +378,7 @@ RSpec.configure do |config|
                   tags:        { type: :array, items: { type: :string } }
                 }
               },
-              needs_attention: { type: :boolean, description: "Unmatched text, or no ingredients at all — worth a human look before accepting." },
+              needs_attention: { type: :boolean, description: "Unmatched text, no ingredients, or only inferred ones (from the name or the model) — nothing the menu stated. Worth a human look before accepting; the scan screen will not publish these." },
               updates_existing_item: {
                 type: :object,
                 nullable: true,

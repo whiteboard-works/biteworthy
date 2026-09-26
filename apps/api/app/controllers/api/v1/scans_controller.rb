@@ -21,9 +21,6 @@ module Api
         "tool_failed"          => :internal_server_error
       }.freeze
 
-      # Payload sources that are guesses rather than something the menu said.
-      INFERRED_SOURCES = %w[derived ai].freeze
-
       def create
         sources = { source_url:     params[:source_url].presence,
                     source_text:    params[:source_text].presence,
@@ -120,12 +117,8 @@ module Api
             tags:        ::Ingestion::AssociationPayload.load_all(item.tags_payload)
                                                         .map { |row| names[:tags][row.slug] || row.slug },
             unresolved:  unresolved,
-            # IngestionItem.needing_attention's rule, plus one it misses: a
-            # dish whose every ingredient was inferred — from its name (a
-            # pizza's wheat) or by the model pass — has nothing the menu
-            # actually stated, so it can't be vouched for either.
-            needs_attention: unresolved.values.any?(&:any?) || ingredients.empty? ||
-                             ingredients.all? { |row| INFERRED_SOURCES.include?(row.source) },
+            # The same rule the chat's list_staged_items filters on.
+            needs_attention: item.needs_attention?,
             updates_existing_item: existing_item_row(item)
           }
         end

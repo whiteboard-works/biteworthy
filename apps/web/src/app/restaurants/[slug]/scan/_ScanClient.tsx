@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import {
   acceptScan,
@@ -28,9 +29,9 @@ const POLL_MS = 4000;
 // Well past the client's own 240 s read timeout and its retries; a scan
 // still "extracting" after this is stuck, not slow.
 const GIVE_UP_MS = 5 * 60 * 1000;
-// The ingredient pass marks itself failed *before* its job retries, and a
-// retry can still complete it — keep watching this long before believing it.
-const ENRICHMENT_RETRY_MS = 2 * 60 * 1000;
+// The ingredient pass stays `pending` through its job's retries (each call
+// can run minutes), and only says `failed` once they're spent.
+const ENRICHMENT_GIVE_UP_MS = 20 * 60 * 1000;
 // A dropped poll on a phone at a table is normal. After this many in a
 // row, stop polling — but keep the scan: it is paid for and still running.
 const MAX_POLL_MISSES = 4;
@@ -52,14 +53,24 @@ type Phase =
 export function ScanClient({
   slug,
   restaurantName,
+  restaurantId = null,
   resumeScanId = null,
 }: {
   slug: string;
   restaurantName: string;
   /** From `?scan=` — a paid scan survives a refresh or an evicted tab. */
   resumeScanId?: string | null;
+  /** When known, a resumed scan must belong to this restaurant. */
+  restaurantId?: string | null;
 }) {
   const router = useRouter();
+  const scanPath = `/restaurants/${encodeURIComponent(slug)}/scan` as Route;
+  // A finished scan leaves the URL, so a refresh starts fresh instead of
+  // reopening a scan with nothing left to decide.
+  const finish = (message: string) => {
+    router.replace(scanPath);
+    setPhase({ kind: 'done', message });
+  };
   const [phase, setPhase] = useState<Phase>(() =>
     resumeScanId
       ? { kind: 'scanning', scanId: resumeScanId, startedAt: Date.now() }
@@ -109,10 +120,9 @@ export function ScanClient({
       // accept lands, and it should count what the person turned down.
       if (reject.length > 0) await rejectScan(scanId, reject);
       if (accept.length === 0) {
-        setPhase({
-          kind: 'done',
-          message: `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
-        });
+        finish(
+          `Discarded ${reject.length} dish${reject.length === 1 ? '' : 'es'}. Nothing was added to the menu.`,
+        );
         return;
       }
       const result = await acceptScan(scanId, accept);
@@ -131,11 +141,9 @@ export function ScanClient({
       // accepted (IngestionRun#maybe_publish!). Below that its page 404s, so
       // don't send them there.
       if (!result.restaurant_published) {
-        setPhase({
-          kind: 'done',
-          message:
-            "Saved. This restaurant isn't public yet — too many of its dishes have been turned down so far. Its menu goes live once most of the reviewed dishes are accepted.",
-        });
+        finish(
+          "Saved. This restaurant isn't public yet — too many of its dishes have been turned down so far. Its menu goes live once most of the reviewed dishes are accepted.",
+        );
         return;
       }
       router.push(`/restaurants/${encodeURIComponent(slug)}`);
@@ -155,7 +163,7 @@ export function ScanClient({
           router.push(`/restaurants/${encodeURIComponent(slug)}`);
           router.refresh();
         } else {
-          setPhase({ kind: 'done', message: 'Saved.' });
+          finish('Saved.');
         }
         return;
       }
@@ -185,10 +193,12 @@ export function ScanClient({
         <Progress
           scanId={phase.scanId}
           startedAt={phase.startedAt}
+          restaurantId={restaurantId}
           onReady={(dishes, enrichmentFailed) =>
             setPhase({ kind: 'review', scanId: phase.scanId, dishes, enrichmentFailed })
           }
           onFail={(message) => {
+            router.replace(scanPath);
             setPhase({ kind: 'pick' });
             setError(message);
           }}
@@ -226,6 +236,10 @@ export function ScanClient({
           onSubmit={(decisions) =>
             publish(phase.scanId, phase.dishes, phase.enrichmentFailed, decisions)
           }
+          onScanAnother={() => {
+            router.replace(scanPath);
+            setPhase({ kind: 'pick' });
+          }}
         />
       )}
     </main>
@@ -305,6 +319,7 @@ function PickSource({
 function Progress({
   scanId,
   startedAt,
+  restaurantId,
   onReady,
   onFail,
   onLost,
@@ -312,6 +327,7 @@ function Progress({
 }: {
   scanId: string;
   startedAt: number;
+  restaurantId: string | null;
   onReady: (dishes: ScanDish[], enrichmentFailed: boolean) => void;
   onFail: (message: string) => void;
   onLost: (message: string) => void;
@@ -327,13 +343,18 @@ function Progress({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     let misses = 0;
-    let enrichmentFailedAt: number | null = null;
+    let ready = false;
 
     const poll = async () => {
       try {
         const scan = await getScan(scanId);
         if (stopped) return;
         misses = 0;
+        // A scan id from the URL can name any of this person's scans.
+        if (restaurantId && scan.restaurant_id !== restaurantId) {
+          handlers.current.onFail('That scan is for a different restaurant.');
+          return;
+        }
         if (scan.failed) {
           handlers.current.onFail(
             "We couldn't read that menu. Try a sharper photo, or one page at a time.",
@@ -344,17 +365,11 @@ function Progress({
         // ingredients a name implies (a pizza's crust). That pass only
         // touches dishes still pending, so accepting early would publish
         // them without it — wait for it to finish.
-        if (scan.ready && scan.enrichment_status === 'completed') {
-          handlers.current.onReady(scan.dishes ?? [], false);
+        if (scan.ready && scan.enrichment_status !== 'pending') {
+          handlers.current.onReady(scan.dishes ?? [], scan.enrichment_status === 'failed');
           return;
         }
-        if (scan.ready && scan.enrichment_status === 'failed') {
-          enrichmentFailedAt ??= Date.now();
-          if (Date.now() - enrichmentFailedAt > ENRICHMENT_RETRY_MS) {
-            handlers.current.onReady(scan.dishes ?? [], true);
-            return;
-          }
-        }
+        ready = scan.ready;
         if (scan.ready) setChecking(true);
       } catch (e) {
         if (stopped) return;
@@ -372,7 +387,7 @@ function Progress({
           return;
         }
       }
-      if (Date.now() - startedAt > GIVE_UP_MS) {
+      if (Date.now() - startedAt > (ready ? ENRICHMENT_GIVE_UP_MS : GIVE_UP_MS)) {
         handlers.current.onLost('This scan is taking longer than it should.');
         return;
       }
@@ -386,7 +401,7 @@ function Progress({
       if (timer) clearTimeout(timer);
       clearInterval(tick);
     };
-  }, [scanId, startedAt]);
+  }, [scanId, startedAt, restaurantId]);
 
   return (
     <div className="mt-bw-6 rounded-bw-lg bg-bite-light p-bw-6 text-center" aria-live="polite">
@@ -417,11 +432,13 @@ function Review({
   enrichmentFailed,
   busy,
   onSubmit,
+  onScanAnother,
 }: {
   dishes: ScanDish[];
   enrichmentFailed: boolean;
   busy: boolean;
   onSubmit: (decisions: Decisions) => void;
+  onScanAnother: () => void;
 }) {
   const pending = useMemo(() => dishes.filter((d) => d.decision === 'pending'), [dishes]);
   // The filter can only hide what it can match: unmatched text or an empty
@@ -448,9 +465,18 @@ function Review({
 
   if (pending.length === 0) {
     return (
-      <p className="mt-bw-6 text-bw-base text-zinc-600">
-        No new dishes found on that menu. Try a clearer photo or a different page.
-      </p>
+      <div className="mt-bw-6">
+        <p className="text-bw-base text-zinc-600">
+          Nothing left to review on this scan. Try a clearer photo or a different page.
+        </p>
+        <button
+          type="button"
+          onClick={onScanAnother}
+          className="mt-bw-3 rounded-bw-md bg-bite px-bw-6 py-bw-2 text-bw-base font-bold text-white hover:bg-bite-dark"
+        >
+          Scan another page
+        </button>
+      </div>
     );
   }
 

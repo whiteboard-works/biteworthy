@@ -31,6 +31,11 @@ export default async function ScanPage({
   // decides who may, so a missing header only costs the display name.
   const restaurant = await fetchRestaurant(slug, { jwt }).catch(() => null);
   return (
-    <ScanClient slug={slug} restaurantName={restaurant?.name ?? slug} resumeScanId={resumeScanId} />
+    <ScanClient
+      slug={slug}
+      restaurantName={restaurant?.name ?? slug}
+      restaurantId={restaurant?.id ?? null}
+      resumeScanId={resumeScanId}
+    />
   );
 }

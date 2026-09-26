@@ -4608,7 +4608,7 @@ export interface components {
                 ingredients: string[];
                 tags: string[];
             };
-            /** @description Unmatched text, or no ingredients at all — worth a human look before accepting. */
+            /** @description Unmatched text, no ingredients, or only inferred ones (from the name or the model) — nothing the menu stated. Worth a human look before accepting; the scan screen will not publish these. */
             needs_attention: boolean;
             /** @description Set when accepting EDITS a dish already on the menu instead of adding one. */
             updates_existing_item?: {

@@ -397,14 +397,11 @@ describe('ScanClient', () => {
     vi.useRealTimers();
   });
 
-  it('ticks nothing once the ingredient pass has stayed failed past its retries', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+  // `failed` is final: the server only says it once the retries are spent.
+  it('ticks nothing when the ingredient pass has failed for good', async () => {
     getScan.mockResolvedValue({ ...readyScan([dish({})]), enrichment_status: 'failed' });
 
     await scanAPhoto();
-    expect(await screen.findByText('Checking ingredients…')).toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(2 * 60 * 1000 + 8000);
-    vi.useRealTimers();
 
     expect(await screen.findByText(/couldn.t finish checking ingredients/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add 0 dishes to the menu' })).toBeDisabled();
@@ -430,21 +427,51 @@ describe('ScanClient', () => {
     expect(startScan).not.toHaveBeenCalled();
   });
 
-  // The job marks the pass failed before its own retry can still finish it.
-  it('keeps waiting when the ingredient pass fails and then recovers on retry', async () => {
+  // The server keeps the pass `pending` through its retries, which can run
+  // well past the five minutes allowed for reading the menu.
+  it('keeps waiting on a slow ingredient pass after the menu is read', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    getScan
-      .mockResolvedValueOnce({ ...readyScan([dish({})]), enrichment_status: 'failed' })
-      .mockResolvedValueOnce(readyScan([dish({})]));
+    getScan.mockResolvedValue({ ...readyScan([dish({})]), enrichment_status: 'pending' });
 
     await scanAPhoto();
     expect(await screen.findByText('Checking ingredients…')).toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
 
-    expect(
-      await screen.findByRole('button', { name: 'Add 1 dish to the menu' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Checking ingredients…')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
     vi.useRealTimers();
+  });
+
+  it('refuses to resume a scan that belongs to a different restaurant', async () => {
+    getScan.mockResolvedValue({ ...readyScan([dish({})]), restaurant_id: 'other' });
+
+    render(
+      <ScanClient slug="ninis" restaurantName="Nini's" restaurantId="r1" resumeScanId="scan-9" />,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('different restaurant');
+    expect(screen.queryByText('Carne Asada Taco')).toBeNull();
+  });
+
+  it('clears the finished scan from the URL so a refresh starts fresh', async () => {
+    getScan.mockResolvedValue(readyScan([dish({ id: 'd1', name: 'Page Header' })]));
+
+    await scanAPhoto();
+    fireEvent.click(await screen.findByLabelText('Page Header'));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard 1 dish' }));
+
+    expect(await screen.findByText(/Nothing was added/)).toBeInTheDocument();
+    expect(replace).toHaveBeenLastCalledWith('/restaurants/ninis/scan');
+  });
+
+  it('offers a fresh scan when a resumed scan has nothing left to decide', async () => {
+    getScan.mockResolvedValue(readyScan([dish({ decision: 'accepted' })]));
+
+    render(<ScanClient slug="ninis" restaurantName="Nini's" resumeScanId="scan-9" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Scan another page' }));
+
+    expect(screen.getByRole('button', { name: 'Scan the menu' })).toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith('/restaurants/ninis/scan');
   });
 
   it('sends a failed scan back to the start with a next step', async () => {
