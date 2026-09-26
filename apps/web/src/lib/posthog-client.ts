@@ -66,7 +66,13 @@ export function initPostHog(
   // our flag is the source of truth: an earlier opt-out in /profile/settings
   // also persisted posthog-js's own denial, which would otherwise outlive
   // the visitor turning analytics back on.
-  if (client.has_opted_out_capturing()) client.opt_in_capturing({ captureEventName: false });
+  if (client.has_opted_out_capturing()) {
+    // init() has already scheduled this load's page view; opting in with
+    // page views on would capture a second one immediately.
+    client.set_config({ capture_pageview: false });
+    client.opt_in_capturing({ captureEventName: false });
+    client.set_config({ capture_pageview: 'history_change' });
+  }
 }
 
 /**

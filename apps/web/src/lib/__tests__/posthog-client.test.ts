@@ -169,11 +169,21 @@ describe('initPostHog after a re-enable', () => {
       register: vi.fn(),
       has_opted_out_capturing: vi.fn(() => true),
       opt_in_capturing: vi.fn(),
+      set_config: vi.fn(),
     } as unknown as Parameters<typeof initPostHog>[0];
 
     initPostHog(client, 'phc_test_token');
 
     expect(client.opt_in_capturing).toHaveBeenCalledWith({ captureEventName: false });
+    // Page views paused around the opt-in, so init's own scheduled page
+    // view is the only one this load sends.
+    const calls = (client.set_config as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+    expect(calls).toEqual([{ capture_pageview: false }, { capture_pageview: 'history_change' }]);
+    const optIn = (client.opt_in_capturing as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0]!;
+    const [pause, resume] = (client.set_config as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder;
+    expect(pause! < optIn && optIn < resume!).toBe(true);
   });
 });
 
