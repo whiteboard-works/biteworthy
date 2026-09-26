@@ -18,7 +18,14 @@
 # is publicly reachable, so a forwarding header nobody authenticates would
 # let any caller choose their own bucket. Until the secret is set on both
 # sides, anonymous web-server traffic still shares the Next server's
-# bucket — signed-in traffic is per user either way.
+# bucket — signed-in traffic is per user either way. Server-rendered pages
+# that are ISR-cached (home, /restaurants, /durango/*) hit Rails at most
+# once per revalidate window, so they don't forward a client IP.
+#
+# Production needs WEB_PROXY_SECRET in three places at once: Vercel's env,
+# `.kamal/secrets`, and `env.secret` in config/deploy.yml (then
+# bin/kamal-secrets-push). Listing it in deploy.yml before the value exists
+# fails the deploy, so that line lands with the provisioning, not before.
 class Rack::Attack
   # In-memory counter store. Single-process is fine for the launch
   # footprint; swap to a shared store (Solid Cache / Redis) when the API
@@ -144,12 +151,19 @@ class Rack::Attack
     req.ip
   end
 
-  # "user:<id>:<jti>" for a request carrying a valid, unexpired Devise JWT;
-  # nil otherwise. Memoized on the env because both /api throttles ask.
-  # The jti is part of the key so a token revoked by sign-out (a new jti)
-  # lands in its own bucket: someone holding an old token can't exhaust the
-  # owner's current session, and checking revocation here would cost a
-  # query on every request.
+  # A user's current jti, cached briefly: revocation is checked without a
+  # query on every request, at the cost of a signed-out token counting as
+  # its user for up to a minute.
+  JTI_CACHE = ActiveSupport::Cache::MemoryStore.new(size: 4.megabytes)
+
+  def self.current_jti(user_id)
+    JTI_CACHE.fetch("jti:#{user_id}", expires_in: 60.seconds) { User.where(id: user_id).pick(:jti) }
+  end
+
+  # "user:<id>" for a request carrying a valid, unexpired, unrevoked Devise
+  # JWT; nil otherwise, which sends it to the IP bucket. Memoized on the env
+  # because both /api throttles ask. A revoked token must not get a bucket
+  # of its own — logging out repeatedly would mint fresh ones.
   def self.api_user_key(req)
     return req.env["bw.throttle_user"] if req.env.key?("bw.throttle_user")
 
@@ -158,7 +172,8 @@ class Rack::Attack
         bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
         if bearer.present?
           payload = Warden::JWTAuth::TokenDecoder.new.call(bearer)
-          "user:#{payload['sub']}:#{payload['jti']}"
+          jti     = payload["jti"].presence
+          "user:#{payload['sub']}" if jti && jti == current_jti(payload["sub"])
         end
       rescue JWT::DecodeError
         nil

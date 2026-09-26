@@ -12,6 +12,7 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     # The safelist memoizes its verdict per credential for 60s in-process,
     # so a tier flipped between examples would otherwise be invisible.
     Biteworthy::SuperAdminCredential.reset!
+    Rack::Attack::JTI_CACHE.clear
     # rack-attack counts into FIXED wall-clock windows, so a burst that
     # straddles a boundary splits across two counters and never trips the
     # limit — an intermittent CI failure. Freezing time keeps all the
@@ -63,17 +64,21 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).not_to have_http_status(:too_many_requests)
     end
 
-    # A token revoked by sign-out keeps its signature until it expires; it
-    # must not be able to spend the owner's current session's budget.
-    it "keeps a revoked token's requests out of the owner's current bucket" do
+    # A token revoked by sign-out keeps its signature until it expires. It
+    # must neither spend the owner's current budget nor earn a bucket of its
+    # own (logging out repeatedly would mint fresh ones): it counts as
+    # anonymous traffic from its IP.
+    it "throttles a revoked token by IP, apart from the owner's current session" do
       user = create(:user)
       old_headers = auth_headers_for(user)
       user.update!(jti: SecureRandom.uuid)
 
       burst(300, old_headers)
-      get path, headers: auth_headers_for(user.reload)
 
+      get path, headers: auth_headers_for(user.reload)
       expect(response).not_to have_http_status(:too_many_requests)
+      get path
+      expect(response).to have_http_status(:too_many_requests)
     end
 
     # Keyed on a verified token, so inventing bearer strings can't mint
