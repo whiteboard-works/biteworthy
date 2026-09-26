@@ -46,7 +46,7 @@ export default async function ItemDetailPage({
   const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
     fetchRestaurant(slug, { edgeHeaders: edge }).catch(() => null),
     fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug, edgeHeaders: edge }).catch(() => null),
-    fetchReviewsServer(id).catch(() => null),
+    fetchReviewsServer(id, edge).catch(() => null),
     getServerUserId(),
   ]);
 

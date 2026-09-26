@@ -63,6 +63,19 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).not_to have_http_status(:too_many_requests)
     end
 
+    # A token revoked by sign-out keeps its signature until it expires; it
+    # must not be able to spend the owner's current session's budget.
+    it "keeps a revoked token's requests out of the owner's current bucket" do
+      user = create(:user)
+      old_headers = auth_headers_for(user)
+      user.update!(jti: SecureRandom.uuid)
+
+      burst(300, old_headers)
+      get path, headers: auth_headers_for(user.reload)
+
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
     # Keyed on a verified token, so inventing bearer strings can't mint
     # a fresh bucket per request.
     it "puts forged bearer tokens in the IP bucket, not one bucket each" do

@@ -3,6 +3,7 @@ import {
   createReview,
   deleteReview,
   fetchReviews,
+  fetchReviewsServer,
   reportReview,
   ReviewError,
   updateReview,
@@ -156,5 +157,28 @@ describe('reportReview (legal E8)', () => {
   it('throws a 401 ReviewError so the UI can prompt sign-in', async () => {
     const fetchImpl = fakeFetch(401, { error: 'Not signed in' });
     await expect(reportReview('rev-1', { fetchImpl })).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+// The dish page renders reviews on the server; without the visitor's IP,
+// every dish-page render lands in the Next server's one throttle bucket.
+describe('fetchReviewsServer', () => {
+  it('forwards the edge headers it is given', async () => {
+    const fetchMock = vi.fn(
+      async (..._args: FetchArgs) => new Response(JSON.stringify(sampleResponse)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchReviewsServer('item-1', {
+      'X-BW-Client-IP': '203.0.113.7',
+      'X-BW-Proxy-Secret': 's',
+    });
+
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      'X-BW-Client-IP': '203.0.113.7',
+      'X-BW-Proxy-Secret': 's',
+    });
+    vi.unstubAllGlobals();
   });
 });
