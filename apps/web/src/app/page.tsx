@@ -4,7 +4,7 @@ import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
 import { FeatureRow } from './_FeatureRow';
 import { Footer } from './_Footer';
-import { HeroCta, MarketingExtras } from './_HeroCta';
+import { HeroCta, MarketingExtras, TryADiet } from './_HeroCta';
 import { RestaurantCards } from './_RestaurantCards';
 import { WaitlistSection } from './_waitlist-form';
 
@@ -31,6 +31,12 @@ export const revalidate = 300;
  * straight to /onboarding so a curious visitor lands in the
  * profile-creation flow — the existing 6-tap path from Phase 3.2 +
  * 3.8 takes over from there.
+ *
+ * "Value before signup" — that onboarding CTA is now secondary. The
+ * primary hero action is `TryADiet`: diet chips linking straight to
+ * the zero-signup, already-filtered `/durango/<diet>` pages, so a
+ * signed-out visitor sees a real filtered menu before ever making an
+ * account.
  */
 
 const SITE_URL =
@@ -101,7 +107,14 @@ function Hero(): ReactElement {
         aren&rsquo;t safe for you. With <span className="font-bold">why</span>, every time.
       </p>
 
-      <div className="mt-bw-8 flex flex-wrap gap-bw-3">
+      {/* "Value before signup" — the zero-commitment path comes first, the
+          signup CTA is secondary. A signed-out visitor can see a real,
+          filtered Durango menu before ever making an account. */}
+      <div className="mt-bw-8">
+        <TryADiet />
+      </div>
+
+      <div className="mt-bw-6 flex flex-wrap items-center gap-bw-3">
         <HeroCta />
         <MarketingExtras />
       </div>

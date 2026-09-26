@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { HeroCta } from '../_HeroCta';
+import { HeroCta, TryADiet } from '../_HeroCta';
+import { DURANGO_DIET_SLUGS } from '../../lib/durango';
 
 function stubSession(signedIn: boolean) {
   vi.stubGlobal(
@@ -31,5 +32,36 @@ describe('HeroCta', () => {
 
     expect(screen.getByTestId('cta-web')).toHaveAttribute('href', '/onboarding');
     await waitFor(() => expect(screen.queryByTestId('cta-scan')).not.toBeInTheDocument());
+  });
+});
+
+/**
+ * "Value before signup" — the zero-commitment path for a signed-out
+ * visitor: a diet chip links straight to the already-filtered
+ * `/durango/<diet>` page, no account required. Hidden once a
+ * signed-in user (who already has a real profile) is confirmed.
+ */
+describe('TryADiet', () => {
+  it('links every curated diet slug to its /durango/<diet> page when signed out', async () => {
+    stubSession(false);
+    render(<TryADiet />);
+
+    const row = await screen.findByTestId('try-a-diet');
+    expect(row).toBeInTheDocument();
+    for (const slug of DURANGO_DIET_SLUGS) {
+      expect(screen.getByTestId(`try-diet-${slug}`)).toHaveAttribute('href', `/durango/${slug}`);
+    }
+  });
+
+  it('renders by default before auth resolves (most visitors are signed out)', () => {
+    stubSession(false);
+    render(<TryADiet />);
+    expect(screen.getByTestId('try-a-diet')).toBeInTheDocument();
+  });
+
+  it('hides once a signed-in user is confirmed', async () => {
+    stubSession(true);
+    render(<TryADiet />);
+    await waitFor(() => expect(screen.queryByTestId('try-a-diet')).not.toBeInTheDocument());
   });
 });

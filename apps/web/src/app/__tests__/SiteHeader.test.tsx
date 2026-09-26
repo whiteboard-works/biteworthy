@@ -75,6 +75,9 @@ describe('SiteHeader', () => {
     // bounces anonymous visitors to /login.
     expect(screen.getByTestId('nav-restaurants')).toHaveAttribute('href', '/restaurants');
     expect(screen.getByTestId('nav-chat')).toHaveAttribute('href', '/chat');
+    // "Value before signup" — the zero-signup /durango/[diet] filtered
+    // menus need a nav entry point too.
+    expect(screen.getByTestId('nav-durango')).toHaveAttribute('href', '/durango');
     expect(screen.queryByTestId('nav-account')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
   });

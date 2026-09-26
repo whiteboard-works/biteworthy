@@ -195,6 +195,15 @@ export function SiteHeader() {
           >
             Restaurants
           </Link>
+          {/* "Value before signup" — the zero-signup filtered-menu pages at
+              /durango/[diet] had no nav entry point at all. */}
+          <Link
+            href="/durango"
+            data-testid="nav-durango"
+            className="font-semibold text-zinc-700 hover:text-bite-dark"
+          >
+            Explore Durango
+          </Link>
           {/* Scanning a menu is a conversation now — this is where the
               old "Scan a menu" link pointed before the pivot. Visible
               signed-out too: the headline feature must be discoverable,

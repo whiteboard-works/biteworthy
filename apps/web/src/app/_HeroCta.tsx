@@ -2,6 +2,7 @@
 
 import { useEffect, useState, ReactElement } from 'react';
 import Link from 'next/link';
+import { DURANGO_DIET_SLUGS, humanizeDietSlug } from '../lib/durango';
 
 /**
  * The landing hero's primary CTA, adapted to auth state: a signed-in user
@@ -96,5 +97,57 @@ export function MarketingExtras(): ReactElement | null {
       <ComingSoonBadge label="iOS app" />
       <ComingSoonBadge label="Android app" />
     </>
+  );
+}
+
+/**
+ * "Value before signup" — the zero-commitment path for a signed-out
+ * visitor: pick a diet and land straight on the already-filtered
+ * `/durango/<diet>` page, no account required. The signup CTA
+ * (`HeroCta` + `MarketingExtras`) stays as the secondary path below
+ * this row. Hidden once a signed-in user is confirmed — they already
+ * have a real profile, so a preset chip is a downgrade for them.
+ */
+export function TryADiet(): ReactElement | null {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { signedIn: false }))
+      .then((d: { signedIn?: boolean }) => {
+        if (active) setSignedIn(Boolean(d.signedIn));
+      })
+      .catch(() => {
+        if (active) setSignedIn(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (signedIn === true) {
+    return null;
+  }
+
+  return (
+    <div data-testid="try-a-diet">
+      <p className="text-bw-sm font-bold text-zinc-900">Try it — pick a diet</p>
+      <div className="mt-bw-2 flex flex-wrap gap-bw-2">
+        {DURANGO_DIET_SLUGS.map((slug) => (
+          <Link
+            key={slug}
+            href={`/durango/${slug}`}
+            data-testid={`try-diet-${slug}`}
+            className="rounded-bw-pill border border-zinc-200 bg-white px-bw-3 py-bw-1 text-bw-sm font-semibold text-zinc-700 hover:border-bite hover:text-bite-dark"
+          >
+            {humanizeDietSlug(slug)}
+          </Link>
+        ))}
+      </div>
+      <p className="mt-bw-2 text-bw-xs text-zinc-500">
+        No signup — see real Durango menus, filtered instantly.
+      </p>
+    </div>
   );
 }
