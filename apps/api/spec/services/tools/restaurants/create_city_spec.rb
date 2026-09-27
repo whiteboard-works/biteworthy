@@ -117,6 +117,16 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(payload(response)[:city][:id]).to eq(existing.id)
   end
 
+  [ "O'Fallon", "O’Fallon" ].each do |spelling|
+    it "ignores the apostrophe in #{spelling}" do
+      existing = create(:city, slug: "ofallon", name: "OFallon", region: "Missouri")
+
+      response = call(admin, name: spelling, region: "MO")
+
+      expect(payload(response)[:city][:id]).to eq(existing.id)
+    end
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")

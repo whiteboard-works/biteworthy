@@ -32,13 +32,13 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     response = call(name: "Maria's Tacos", city_slug: "durango")
 
     expect(payload(response)[:created]).to be(false)
-    expect(payload(response)[:possible_duplicates].map { |c| c[:slug] }).to include("marias-taco")
+    expect(payload(response)[:possible_duplicates].map { |c| c[:name] }).to include("Marias Taco")
     expect(Restaurant.where(name: "Maria's Tacos")).to be_empty
   end
 
   # Only your own draft (or a published place) is scannable, so the
   # client needs to know before it offers a scan.
-  it "marks which duplicate candidates the caller could scan" do
+  it "marks what the caller could scan, hides others' drafts, and drops archived places" do
     create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city, created_by_user_id: user.id)
     create(:restaurant, name: "Marias Tacos", slug: "marias-tacos", city: city, created_by_user_id: create(:user).id)
     create(:restaurant, name: "Maria Tacos", slug: "maria-tacos", city: city, created_by_user_id: user.id,
@@ -46,8 +46,11 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
 
     response = call(name: "Maria's Tacos", city_slug: "durango")
 
-    scannable = payload(response)[:possible_duplicates].to_h { |c| [ c[:slug], c[:scannable] ] }
-    expect(scannable).to eq("marias-taco" => true, "marias-tacos" => false, "maria-tacos" => false)
+    candidates = payload(response)[:possible_duplicates].index_by { |c| c[:name] }
+    expect(candidates.keys).to contain_exactly("Marias Taco", "Marias Tacos")
+    expect(candidates["Marias Taco"]).to include(slug: "marias-taco", scannable: true)
+    # Someone else's draft blocks the duplicate but stays unpublished: name only.
+    expect(candidates["Marias Tacos"]).to include(id: nil, slug: nil, street: nil, scannable: false)
   end
 
   it "creates anyway once the user has looked at the candidates" do

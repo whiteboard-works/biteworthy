@@ -93,9 +93,10 @@ module Cities
       # civic abbreviations people actually type, expanded before comparing.
       WORD_ABBREVIATIONS = { "ft" => "fort", "st" => "saint", "mt" => "mount", "pt" => "point" }.freeze
 
-      # Runs of single letters are one initialism: "D.C." and "DC" match.
+      # Apostrophes vanish ("O'Fallon" = "OFallon") and runs of single
+      # letters are one initialism ("D.C." = "DC").
       def name_key(name)
-        words = name.parameterize.split("-").map { |w| WORD_ABBREVIATIONS.fetch(w, w) }
+        words = name.delete("'’").parameterize.split("-").map { |w| WORD_ABBREVIATIONS.fetch(w, w) }
         words.chunk_while { |a, b| a.size == 1 && b.size == 1 }.map(&:join).join("-")
       end
 

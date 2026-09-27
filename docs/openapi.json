@@ -6903,10 +6903,13 @@
                         "properties": {
                           "id": {
                             "type": "string",
-                            "format": "uuid"
+                            "format": "uuid",
+                            "nullable": true,
+                            "description": "null for someone else's draft"
                           },
                           "slug": {
-                            "type": "string"
+                            "type": "string",
+                            "nullable": true
                           },
                           "name": {
                             "type": "string"

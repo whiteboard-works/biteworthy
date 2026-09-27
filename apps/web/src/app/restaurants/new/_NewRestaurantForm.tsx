@@ -137,9 +137,9 @@ export function NewRestaurantForm({
         >
           <p className="text-bw-sm font-semibold text-zinc-900">Is it one of these?</p>
           <ul className="mt-bw-2 space-y-bw-1 text-bw-sm">
-            {candidates.map((c) => (
-              <li key={c.id} data-testid="new-restaurant-candidate">
-                {c.scannable ? (
+            {candidates.map((c, i) => (
+              <li key={c.id ?? `hidden-${i}`} data-testid="new-restaurant-candidate">
+                {c.scannable && c.slug ? (
                   <a
                     href={
                       c.status === 'published'
