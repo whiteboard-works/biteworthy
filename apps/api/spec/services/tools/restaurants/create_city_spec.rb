@@ -26,6 +26,18 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  # Older rows can have no region; the same name must still count as the
+  # same city rather than slipping past the check as a second one.
+  it "treats a same-named city with no region as the existing city" do
+    existing = create(:city, slug: "durango", name: "Durango", region: nil)
+
+    response = call(admin, name: "Durango", region: "CO")
+
+    expect(payload(response)).to include(created: false, reason: "already_exists")
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+    expect(City.count).to eq(1)
+  end
+
   it "keeps a same-named city in another state apart instead of calling it a duplicate" do
     create(:city, slug: "springfield", name: "Springfield", region: "IL")
 
