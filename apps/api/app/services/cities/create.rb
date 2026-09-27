@@ -43,7 +43,10 @@ module Cities
         state = state_name(region)
         raise ArgumentError, "region must be a US state, e.g. 'Utah' or 'UT'" if state.nil?
 
-        existing = City.where("lower(name) = ?", clean_name.downcase).find_by(region: state)
+        # Older rows (the Durango seed task) may hold the code, not the name.
+        code = US_STATES.key(state)
+        existing = City.where("lower(name) = ?", clean_name.downcase)
+                       .find_by("upper(region) IN (?)", [ state.upcase, code ])
         raise Duplicate, existing if existing
 
         # Springfield, IL and Springfield, MO are different cities; the

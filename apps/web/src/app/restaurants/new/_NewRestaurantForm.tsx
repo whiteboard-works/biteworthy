@@ -120,7 +120,7 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
           <ul className="mt-bw-2 space-y-bw-1 text-bw-sm">
             {candidates.map((c) => (
               <li key={c.id} data-testid="new-restaurant-candidate">
-                {c.status === 'published' || c.yours ? (
+                {c.scannable ? (
                   <a
                     href={
                       c.status === 'published'
@@ -135,7 +135,7 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
                   <span className="font-semibold text-zinc-900">{c.name}</span>
                 )}
                 {c.street && <span className="text-zinc-500"> · {c.street}</span>}
-                {c.status !== 'published' && !c.yours && (
+                {!c.scannable && (
                   <span className="text-zinc-500"> · someone is already adding this one</span>
                 )}
               </li>

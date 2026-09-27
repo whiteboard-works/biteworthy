@@ -45,8 +45,8 @@ module Restaurants
         Result.new(restaurant: restaurant, candidates: [])
       end
 
-      # `yours` lets the client offer the caller's own draft for scanning;
-      # someone else's draft is off limits to them (Ingestion::StartRun).
+      # `scannable` lets the client offer a scan only where the scan door
+      # would accept one — someone else's draft is off limits.
       def duplicate_candidates(name, city, creator)
         Restaurant
           .where(city: city)
@@ -59,7 +59,8 @@ module Restaurants
           .map do |r|
             {
               id: r.id, slug: r.slug, name: r.name, status: r.status,
-              street: r.addresses.first&.street, yours: r.created_by_user_id == creator.id
+              street: r.addresses.first&.street,
+              scannable: r.archived_at.nil? && Ingestion::StartRun.can_target?(r, creator)
             }
           end
       end

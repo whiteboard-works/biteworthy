@@ -86,7 +86,7 @@ describe('NewRestaurantForm', () => {
           name: 'Red Iguana',
           status: 'draft',
           street: null,
-          yours: false,
+          scannable: false,
         },
         {
           id: 'r2',
@@ -94,7 +94,7 @@ describe('NewRestaurantForm', () => {
           name: 'Red Iguana 2',
           status: 'draft',
           street: null,
-          yours: true,
+          scannable: true,
         },
       ],
     });

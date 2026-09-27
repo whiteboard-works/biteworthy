@@ -3988,6 +3988,99 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/restaurants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a restaurant we don't have yet
+         * @description Creates a DRAFT restaurant attributed to the caller. A likely duplicate in the same city answers 409 with candidates; `scannable` says whether the caller could scan each one. Send `force: true` once they have ruled the candidates out.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        city_slug: string;
+                        street?: string;
+                        postal_code?: string;
+                        force?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description created as a draft */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            status: string;
+                            city: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                region?: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description unknown city */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description likely duplicate; nothing created */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            candidates: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                status: string;
+                                street?: string | null;
+                                scannable: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/restaurants/{restaurant_id}/items": {
         parameters: {
             query?: {

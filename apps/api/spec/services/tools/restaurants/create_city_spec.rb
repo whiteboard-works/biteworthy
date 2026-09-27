@@ -35,6 +35,15 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  it "recognizes a city stored with its state code as the same city" do
+    existing = create(:city, slug: "durango", name: "Durango", region: "CO")
+
+    response = call(admin, name: "Durango", region: "Colorado")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+    expect(City.count).to eq(1)
+  end
+
   it "keeps a same-named city in another state apart instead of calling it a duplicate" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
 
