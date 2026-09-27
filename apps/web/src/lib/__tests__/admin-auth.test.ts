@@ -11,6 +11,10 @@ import { describe, expect, it, vi } from 'vitest';
  */
 import { adminStatus, jwtIsAdmin } from '../admin-auth';
 
+vi.mock('../edge-headers', () => ({
+  edgeHeaders: async () => ({ 'X-BW-Client-IP': '203.0.113.7', 'X-BW-Proxy-Secret': 's' }),
+}));
+
 function fetchResolving(body: unknown, ok = true) {
   return vi.fn().mockResolvedValue({ ok, json: async () => body });
 }
@@ -24,7 +28,10 @@ describe('jwtIsAdmin', () => {
 
   it('is true only for a 200 payload with user.is_admin === true', async () => {
     expect(
-      await jwtIsAdmin('jwt', fetchResolving({ user: { is_admin: true } }) as unknown as typeof fetch),
+      await jwtIsAdmin(
+        'jwt',
+        fetchResolving({ user: { is_admin: true } }) as unknown as typeof fetch,
+      ),
     ).toBe(true);
     expect(
       await jwtIsAdmin(
@@ -73,5 +80,16 @@ describe('jwtIsAdmin', () => {
     expect(String(call[0])).toContain('/api/v1/me');
     expect(call[1].headers.Authorization).toBe('Bearer jwt-1');
     expect(call[1].cache).toBe('no-store');
+  });
+});
+
+// A forged cookie reaches Rails, fails JWT validation and is throttled by
+// IP — which must be the visitor's, not the Next server's shared one.
+describe('adminStatus edge headers', () => {
+  it("forwards the visitor's IP with the check", async () => {
+    const impl = fetchResolving({ user: { is_admin: false } });
+    await adminStatus('jwt', impl as unknown as typeof fetch);
+    const init = impl.mock.calls[0]![1] as RequestInit;
+    expect(init.headers).toMatchObject({ 'X-BW-Client-IP': '203.0.113.7' });
   });
 });
