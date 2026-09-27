@@ -93,15 +93,16 @@ module Cities
       # civic abbreviations people actually type, expanded before comparing.
       WORD_ABBREVIATIONS = { "ft" => "fort", "st" => "saint", "mt" => "mount", "pt" => "point" }.freeze
 
-      # Apostrophes vanish ("O'Fallon" = "OFallon") and runs of single
-      # letters are one initialism ("D.C." = "DC").
+      # Separators are ignored entirely, so spacing and punctuation can't
+      # split a city: "Coeur d'Alene" = "Coeur d Alene", "D.C." = "DC",
+      # "Cañon City" = "Canon City".
       def name_key(name)
-        words = name.delete("'’").parameterize.split("-").map { |w| WORD_ABBREVIATIONS.fetch(w, w) }
-        words.chunk_while { |a, b| a.size == 1 && b.size == 1 }.map(&:join).join("-")
+        ActiveSupport::Inflector.transliterate(name).downcase.split(/[^[:alnum:]]+/).reject(&:empty?)
+            .map { |w| WORD_ABBREVIATIONS.fetch(w, w) }.join
       end
 
-      def initials(name) = name.split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
-      def compact(name) = name.gsub(/[^[:alnum:]]/, "").downcase
+      def initials(name) = ActiveSupport::Inflector.transliterate(name).split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
+      def compact(name) = ActiveSupport::Inflector.transliterate(name).gsub(/[^[:alnum:]]/, "").downcase
 
       def state_name(region)
         value = region.to_s.strip

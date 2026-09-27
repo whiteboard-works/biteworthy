@@ -127,6 +127,22 @@ RSpec.describe Tools::Restaurants::CreateCity do
     end
   end
 
+  it "ignores spacing around an elided apostrophe" do
+    existing = create(:city, slug: "coeur-d-alene", name: "Coeur d Alene", region: "Idaho")
+
+    response = call(admin, name: "Coeur d'Alene", region: "ID")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
+  it "ignores accents" do
+    existing = create(:city, slug: "canon-city", name: "Canon City", region: "Colorado")
+
+    response = call(admin, name: "Cañon City", region: "CO")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")
