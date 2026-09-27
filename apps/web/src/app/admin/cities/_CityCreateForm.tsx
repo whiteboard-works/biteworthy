@@ -45,11 +45,10 @@ export function CityCreateForm() {
       <input
         value={form.region}
         onChange={(e) => setForm({ ...form, region: e.target.value })}
-        placeholder="State (UT)"
+        placeholder="State (Utah or UT)"
         required
-        maxLength={2}
         data-testid="city-new-region"
-        className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1 uppercase"
+        className="rounded-bw-md border border-zinc-300 px-bw-2 py-bw-1"
       />
       <button
         type="submit"

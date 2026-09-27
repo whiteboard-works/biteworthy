@@ -36,6 +36,18 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(Restaurant.where(name: "Maria's Tacos")).to be_empty
   end
 
+  # Only your own draft is scannable, so the client needs to know which
+  # candidates are yours before it offers one.
+  it "marks which duplicate candidates are the caller's own drafts" do
+    create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city, created_by_user_id: user.id)
+    create(:restaurant, name: "Marias Tacos", slug: "marias-tacos", city: city, created_by_user_id: create(:user).id)
+
+    response = call(name: "Maria's Tacos", city_slug: "durango")
+
+    yours = payload(response)[:possible_duplicates].to_h { |c| [ c[:slug], c[:yours] ] }
+    expect(yours).to eq("marias-taco" => true, "marias-tacos" => false)
+  end
+
   it "creates anyway once the user has looked at the candidates" do
     create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city)
 

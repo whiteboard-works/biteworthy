@@ -119,18 +119,25 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
           <p className="text-bw-sm font-semibold text-zinc-900">Is it one of these?</p>
           <ul className="mt-bw-2 space-y-bw-1 text-bw-sm">
             {candidates.map((c) => (
-              <li key={c.id}>
-                <a
-                  href={
-                    c.status === 'published'
-                      ? `/restaurants/${c.slug}`
-                      : `/restaurants/${c.slug}/scan`
-                  }
-                  className="font-semibold text-bite hover:text-bite-dark"
-                >
-                  {c.name}
-                </a>
+              <li key={c.id} data-testid="new-restaurant-candidate">
+                {c.status === 'published' || c.yours ? (
+                  <a
+                    href={
+                      c.status === 'published'
+                        ? `/restaurants/${c.slug}`
+                        : `/restaurants/${c.slug}/scan`
+                    }
+                    className="font-semibold text-bite hover:text-bite-dark"
+                  >
+                    {c.name}
+                  </a>
+                ) : (
+                  <span className="font-semibold text-zinc-900">{c.name}</span>
+                )}
                 {c.street && <span className="text-zinc-500"> · {c.street}</span>}
+                {c.status !== 'published' && !c.yours && (
+                  <span className="text-zinc-500"> · someone is already adding this one</span>
+                )}
               </li>
             ))}
           </ul>

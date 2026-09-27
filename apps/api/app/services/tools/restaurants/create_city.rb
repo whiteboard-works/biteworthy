@@ -11,9 +11,9 @@ module Tools
         "Salt Lake City") splits its restaurants across two pages.
 
         Use the city's full name as people write it ("Salt Lake City", not
-        "SLC") and the two-letter state code as `region` ("UT"). The slug is
-        derived from the name and is permanent: it is part of every
-        restaurant URL in the city.
+        "SLC") and its US state as `region` ("Utah" or "UT"; stored as the
+        full name). The slug is derived from the name and is permanent: it
+        is part of every restaurant URL in the city.
 
         Adding a city publishes nothing on its own. Follow up with
         `create_restaurant` and a menu scan.
@@ -21,11 +21,8 @@ module Tools
 
       input_schema(
         properties: {
-          name:      { type: "string", description: "City name, e.g. 'Salt Lake City'." },
-          region:    { type: "string", description: "Two-letter state code, e.g. 'UT'." },
-          country:   { type: "string", description: "Two-letter country code. Defaults to 'US'." },
-          latitude:  { type: "number", description: "City-centre latitude, if known." },
-          longitude: { type: "number", description: "City-centre longitude, if known." }
+          name:   { type: "string", description: "City name, e.g. 'Salt Lake City'." },
+          region: { type: "string", description: "US state, e.g. 'Utah' or 'UT'." }
         },
         required: %w[name region],
         additionalProperties: false
@@ -33,11 +30,9 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
-      def self.perform(context:, name:, region:, country: "US", latitude: nil, longitude: nil)
+      def self.perform(context:, name:, region:)
         context.admin!
-        city = ::Cities::Create.call(
-          name: name, region: region, country: country, latitude: latitude, longitude: longitude
-        )
+        city = ::Cities::Create.call(name: name, region: region)
         ok(
           created: true,
           city: city.summary,

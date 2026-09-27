@@ -34,6 +34,8 @@ export interface DuplicateCandidate {
   name: string;
   status: string;
   street: string | null;
+  /** The caller's own draft — the only kind of draft they may scan. */
+  yours: boolean;
 }
 
 export type CreateRestaurantResult =

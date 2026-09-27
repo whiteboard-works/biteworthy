@@ -20,11 +20,8 @@ RSpec.describe "admin/cities", type: :request do
         type: :object,
         required: %w[name region],
         properties: {
-          name:      { type: :string },
-          region:    { type: :string, description: "Two-letter state code" },
-          country:   { type: :string },
-          latitude:  { type: :number },
-          longitude: { type: :number }
+          name:   { type: :string },
+          region: { type: :string, description: "US state name or two-letter code; stored as the name" }
         }
       }
 
@@ -34,7 +31,7 @@ RSpec.describe "admin/cities", type: :request do
         let(:body) { { name: "Salt Lake City", region: "ut" } }
 
         run_test! do |response|
-          expect(JSON.parse(response.body)).to include("slug" => "salt-lake-city", "region" => "UT")
+          expect(JSON.parse(response.body)).to include("slug" => "salt-lake-city", "region" => "Utah")
         end
       end
 
@@ -44,14 +41,14 @@ RSpec.describe "admin/cities", type: :request do
                properties: { error: { type: :string }, city: { "$ref" => "#/components/schemas/City" } }
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:body) { { name: "Salt Lake City", region: "UT" } }
-        before { create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "UT") }
+        before { create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "Utah") }
         run_test!
       end
 
-      response(422, "missing or malformed region") do
+      response(422, "region is not a US state") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(create(:user, :admin)) }
-        let(:body) { { name: "Salt Lake City", region: "Utah" } }
+        let(:body) { { name: "Salt Lake City", region: "Utha" } }
         run_test!
       end
 

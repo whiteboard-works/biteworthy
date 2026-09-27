@@ -94,11 +94,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         name: string;
-                        /** @description Two-letter state code */
+                        /** @description US state name or two-letter code; stored as the name */
                         region: string;
-                        country?: string;
-                        latitude?: number;
-                        longitude?: number;
                     };
                 };
             };
@@ -133,7 +130,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description missing or malformed region */
+                /** @description region is not a US state */
                 422: {
                     headers: {
                         [name: string]: unknown;

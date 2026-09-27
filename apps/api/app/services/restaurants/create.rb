@@ -33,7 +33,7 @@ module Restaurants
         raise UnknownCity, "no city with slug '#{city_slug}'" if city.nil?
 
         unless force
-          candidates = duplicate_candidates(clean, city)
+          candidates = duplicate_candidates(clean, city, creator)
           return Result.new(candidates: candidates) if candidates.any?
         end
 
@@ -45,7 +45,9 @@ module Restaurants
         Result.new(restaurant: restaurant, candidates: [])
       end
 
-      def duplicate_candidates(name, city)
+      # `yours` lets the client offer the caller's own draft for scanning;
+      # someone else's draft is off limits to them (Ingestion::StartRun).
+      def duplicate_candidates(name, city, creator)
         Restaurant
           .where(city: city)
           .where("similarity(restaurants.name, ?) > ?", name, DUPLICATE_SIMILARITY_THRESHOLD)
@@ -55,7 +57,10 @@ module Restaurants
           .limit(MAX_DUPLICATE_CANDIDATES)
           .includes(:addresses)
           .map do |r|
-            { id: r.id, slug: r.slug, name: r.name, status: r.status, street: r.addresses.first&.street }
+            {
+              id: r.id, slug: r.slug, name: r.name, status: r.status,
+              street: r.addresses.first&.street, yours: r.created_by_user_id == creator.id
+            }
           end
       end
 

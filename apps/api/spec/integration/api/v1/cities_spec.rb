@@ -14,8 +14,8 @@ RSpec.describe "cities", type: :request do
                properties: { cities: { type: :array, items: { "$ref" => "#/components/schemas/City" } } }
 
         before do
-          create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "UT")
-          create(:city, slug: "durango", name: "Durango", region: "CO")
+          create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "Utah")
+          create(:city, slug: "durango", name: "Durango", region: "Colorado")
         end
 
         run_test! do |response|

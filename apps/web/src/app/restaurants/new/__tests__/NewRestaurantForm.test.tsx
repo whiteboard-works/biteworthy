@@ -22,10 +22,10 @@ const SLC = {
   id: 'c1',
   slug: 'salt-lake-city',
   name: 'Salt Lake City',
-  region: 'UT',
+  region: 'Utah',
   country: 'US',
 };
-const DURANGO = { id: 'c2', slug: 'durango', name: 'Durango', region: 'CO', country: 'US' };
+const DURANGO = { id: 'c2', slug: 'durango', name: 'Durango', region: 'Colorado', country: 'US' };
 
 function fill(name: string) {
   fireEvent.change(screen.getByTestId('new-restaurant-city'), {
@@ -72,6 +72,40 @@ describe('NewRestaurantForm', () => {
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/restaurants/red-iguana-2/scan'));
     expect(mockCreate).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }));
+  });
+
+  // Another user's draft can't be scanned by this user, so linking to its
+  // scan would dead-end; it is named, not linked.
+  it("names someone else's draft without linking to a scan they can't run", async () => {
+    mockCreate.mockResolvedValueOnce({
+      kind: 'duplicate',
+      candidates: [
+        {
+          id: 'r1',
+          slug: 'red-iguana',
+          name: 'Red Iguana',
+          status: 'draft',
+          street: null,
+          yours: false,
+        },
+        {
+          id: 'r2',
+          slug: 'red-iguana-2',
+          name: 'Red Iguana 2',
+          status: 'draft',
+          street: null,
+          yours: true,
+        },
+      ],
+    });
+    render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
+
+    fill('Red Iguana');
+
+    const [theirs, mine] = await screen.findAllByTestId('new-restaurant-candidate');
+    expect(theirs!.querySelector('a')).toBeNull();
+    expect(theirs).toHaveTextContent('someone is already adding this one');
+    expect(mine!.querySelector('a')).toHaveAttribute('href', '/restaurants/red-iguana-2/scan');
   });
 
   it('preselects the only city when there is just one', () => {

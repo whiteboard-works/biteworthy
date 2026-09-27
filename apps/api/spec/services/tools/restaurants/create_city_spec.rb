@@ -1,8 +1,9 @@
 require "rails_helper"
 
-# A city's slug goes into every restaurant URL in it, and a second
-# spelling of a city we already cover splits its restaurants across two
-# pages. The duplicate check and the admin gate are what this protects.
+# A city's slug and state go into every restaurant URL in it, and a
+# second spelling of a city we already cover splits its restaurants
+# across two pages. The duplicate check, the state normalization, and the
+# admin gate are what this protects.
 RSpec.describe Tools::Restaurants::CreateCity do
   let(:admin) { create(:user, :admin) }
 
@@ -13,11 +14,19 @@ RSpec.describe Tools::Restaurants::CreateCity do
     response = call(admin, name: "Salt Lake City", region: "ut")
 
     expect(payload(response)[:created]).to be(true)
-    expect(City.find_by!(slug: "salt-lake-city")).to have_attributes(name: "Salt Lake City", region: "UT", country: "US")
+    expect(City.find_by!(slug: "salt-lake-city")).to have_attributes(name: "Salt Lake City", region: "Utah", country: "US")
+  end
+
+  # Production stores full names (Durango is "Colorado"); a code must
+  # land the same way or the same state would render two ways in URLs.
+  it "stores a state name however it was typed" do
+    call(admin, name: "Park City", region: "utah")
+
+    expect(City.find_by!(slug: "park-city").region).to eq("Utah")
   end
 
   it "returns the existing city instead of creating a second one" do
-    existing = create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "UT")
+    existing = create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "Utah")
 
     response = call(admin, name: "salt lake city", region: "UT")
 
@@ -26,28 +35,16 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
-  # Older rows can have no region; the same name must still count as the
-  # same city rather than slipping past the check as a second one.
-  it "treats a same-named city with no region as the existing city" do
-    existing = create(:city, slug: "durango", name: "Durango", region: nil)
-
-    response = call(admin, name: "Durango", region: "CO")
-
-    expect(payload(response)).to include(created: false, reason: "already_exists")
-    expect(payload(response)[:city][:id]).to eq(existing.id)
-    expect(City.count).to eq(1)
-  end
-
   it "keeps a same-named city in another state apart instead of calling it a duplicate" do
-    create(:city, slug: "springfield", name: "Springfield", region: "IL")
+    create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
 
     response = call(admin, name: "Springfield", region: "MO")
 
-    expect(payload(response)[:city][:slug]).to eq("springfield-mo")
+    expect(payload(response)[:city][:slug]).to eq("springfield-missouri")
   end
 
-  it "rejects a region that is not a two-letter state code" do
-    response = call(admin, name: "Salt Lake City", region: "Utah")
+  it "rejects a region that is not a US state" do
+    response = call(admin, name: "Salt Lake City", region: "Utha")
 
     expect(response.to_h[:isError]).to be(true)
     expect(City.count).to eq(0)

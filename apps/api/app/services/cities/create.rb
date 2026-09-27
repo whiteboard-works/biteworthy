@@ -15,26 +15,48 @@ module Cities
       end
     end
 
-    class << self
-      def call(name:, region:, country: "US", latitude: nil, longitude: nil)
-        clean_name   = name.to_s.strip
-        clean_region = region.to_s.strip.upcase
-        raise ArgumentError, "name required" if clean_name.blank?
-        raise ArgumentError, "region required (two-letter state code, e.g. 'UT')" unless clean_region.match?(/\A[A-Z]{2}\z/)
+    # Full names are what `cities.region` holds (Durango's is "Colorado")
+    # and what the location URLs are built from, so a typo here would be
+    # permanent in every restaurant URL in the city. Codes are accepted as
+    # input and stored as the name.
+    US_STATES = {
+      "AL" => "Alabama", "AK" => "Alaska", "AZ" => "Arizona", "AR" => "Arkansas",
+      "CA" => "California", "CO" => "Colorado", "CT" => "Connecticut", "DE" => "Delaware",
+      "DC" => "District of Columbia", "FL" => "Florida", "GA" => "Georgia", "HI" => "Hawaii",
+      "ID" => "Idaho", "IL" => "Illinois", "IN" => "Indiana", "IA" => "Iowa",
+      "KS" => "Kansas", "KY" => "Kentucky", "LA" => "Louisiana", "ME" => "Maine",
+      "MD" => "Maryland", "MA" => "Massachusetts", "MI" => "Michigan", "MN" => "Minnesota",
+      "MS" => "Mississippi", "MO" => "Missouri", "MT" => "Montana", "NE" => "Nebraska",
+      "NV" => "Nevada", "NH" => "New Hampshire", "NJ" => "New Jersey", "NM" => "New Mexico",
+      "NY" => "New York", "NC" => "North Carolina", "ND" => "North Dakota", "OH" => "Ohio",
+      "OK" => "Oklahoma", "OR" => "Oregon", "PA" => "Pennsylvania", "RI" => "Rhode Island",
+      "SC" => "South Carolina", "SD" => "South Dakota", "TN" => "Tennessee", "TX" => "Texas",
+      "UT" => "Utah", "VT" => "Vermont", "VA" => "Virginia", "WA" => "Washington",
+      "WV" => "West Virginia", "WI" => "Wisconsin", "WY" => "Wyoming"
+    }.freeze
 
-        existing = City.where("lower(name) = ?", clean_name.downcase).find_by(region: [ clean_region, nil ])
+    class << self
+      def call(name:, region:)
+        clean_name = name.to_s.strip
+        raise ArgumentError, "name required" if clean_name.blank?
+
+        state = state_name(region)
+        raise ArgumentError, "region must be a US state, e.g. 'Utah' or 'UT'" if state.nil?
+
+        existing = City.where("lower(name) = ?", clean_name.downcase).find_by(region: state)
         raise Duplicate, existing if existing
 
         # Springfield, IL and Springfield, MO are different cities; the
         # second one to arrive gets its state in the slug.
         slug = clean_name.parameterize
-        slug = "#{slug}-#{clean_region.downcase}" if City.exists?(slug: slug)
+        slug = "#{slug}-#{state.parameterize}" if City.exists?(slug: slug)
 
-        City.create!(
-          name: clean_name, slug: slug, region: clean_region,
-          country: country.to_s.strip.upcase.presence || "US",
-          latitude: latitude, longitude: longitude
-        )
+        City.create!(name: clean_name, slug: slug, region: state, country: "US")
+      end
+
+      def state_name(region)
+        value = region.to_s.strip
+        US_STATES[value.upcase] || US_STATES.values.find { |n| n.casecmp?(value) }
       end
     end
   end

@@ -173,7 +173,7 @@
             }
           },
           "422": {
-            "description": "missing or malformed region",
+            "description": "region is not a US state",
             "content": {
               "application/json": {
                 "schema": {
@@ -208,16 +208,7 @@
                   },
                   "region": {
                     "type": "string",
-                    "description": "Two-letter state code"
-                  },
-                  "country": {
-                    "type": "string"
-                  },
-                  "latitude": {
-                    "type": "number"
-                  },
-                  "longitude": {
-                    "type": "number"
+                    "description": "US state name or two-letter code; stored as the name"
                   }
                 }
               }
