@@ -53,7 +53,8 @@ module Cities
           same_name = City.all.select { |c| c.name.parameterize == base }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
-          existing = same_name.find { |c| state_name(c.region) == state }
+          existing = same_name.find { |c| state_name(c.region) == state } ||
+                     abbreviation_of(clean_name, state)
           raise Duplicate, existing if existing
 
           # A same-named row whose state can't be read might be this city or
@@ -78,6 +79,19 @@ module Cities
         n += 1 while City.exists?(slug: "#{with_state}-#{n}")
         "#{with_state}-#{n}"
       end
+
+      # "SLC" for Salt Lake City: an abbreviation of a city already in the
+      # same state is that city, whichever of the two is being added.
+      def abbreviation_of(name, state)
+        City.all.find do |c|
+          next false unless state_name(c.region) == state
+
+          initials(c.name) == compact(name) || initials(name) == compact(c.name)
+        end
+      end
+
+      def initials(name) = name.split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
+      def compact(name) = name.gsub(/[^[:alnum:]]/, "").downcase
 
       def state_name(region)
         value = region.to_s.strip
