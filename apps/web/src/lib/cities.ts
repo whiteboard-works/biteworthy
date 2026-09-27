@@ -37,8 +37,9 @@ export async function createCity(
 }
 
 export interface DuplicateCandidate {
-  id: string;
-  slug: string;
+  /** null for someone else's draft, which comes back as a name only. */
+  id: string | null;
+  slug: string | null;
   name: string;
   status: string;
   street: string | null;

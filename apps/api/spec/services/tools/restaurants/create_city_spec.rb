@@ -82,6 +82,67 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  it "treats a civic abbreviation in the name as the same city" do
+    existing = create(:city, slug: "fort-worth", name: "Fort Worth", region: "Texas")
+
+    response = call(admin, name: "Ft. Worth", region: "TX")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
+  it "refuses an abbreviation while the full-named city has no state on file" do
+    create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: nil)
+
+    response = call(admin, name: "SLC", region: "UT")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(1)
+  end
+
+  it "refuses an abbreviation that could mean two cities in the state" do
+    create(:city, slug: "santa-clara", name: "Santa Clara", region: "California")
+    create(:city, slug: "santa-cruz", name: "Santa Cruz", region: "California")
+
+    response = call(admin, name: "SC", region: "CA")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(2)
+  end
+
+  it "treats a dotted initialism as the same city" do
+    existing = create(:city, slug: "washington-dc", name: "Washington DC", region: "District of Columbia")
+
+    response = call(admin, name: "Washington, D.C.", region: "DC")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
+  [ "O'Fallon", "O’Fallon" ].each do |spelling|
+    it "ignores the apostrophe in #{spelling}" do
+      existing = create(:city, slug: "ofallon", name: "OFallon", region: "Missouri")
+
+      response = call(admin, name: spelling, region: "MO")
+
+      expect(payload(response)[:city][:id]).to eq(existing.id)
+    end
+  end
+
+  it "ignores spacing around an elided apostrophe" do
+    existing = create(:city, slug: "coeur-d-alene", name: "Coeur d Alene", region: "Idaho")
+
+    response = call(admin, name: "Coeur d'Alene", region: "ID")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
+  it "ignores accents" do
+    existing = create(:city, slug: "canon-city", name: "Canon City", region: "Colorado")
+
+    response = call(admin, name: "Cañon City", region: "CO")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")

@@ -46,9 +46,12 @@ module Restaurants
       end
 
       # `scannable` lets the client offer a scan only where the scan door
-      # would accept one — someone else's draft is off limits.
+      # would accept one. Someone else's draft still counts as a duplicate —
+      # that's the point of the check — but it is unpublished work, so it
+      # comes back as a name only. Archived places are gone; they don't.
       def duplicate_candidates(name, city, creator)
         Restaurant
+          .kept
           .where(city: city)
           .where("similarity(restaurants.name, ?) > ?", name, DUPLICATE_SIMILARITY_THRESHOLD)
           .order(Arel.sql(ActiveRecord::Base.sanitize_sql_array(
@@ -56,13 +59,18 @@ module Restaurants
                           )))
           .limit(MAX_DUPLICATE_CANDIDATES)
           .includes(:addresses)
-          .map do |r|
-            {
-              id: r.id, slug: r.slug, name: r.name, status: r.status,
-              street: r.addresses.first&.street,
-              scannable: r.archived_at.nil? && Ingestion::StartRun.can_target?(r, creator)
-            }
-          end
+          .map { |r| candidate_row(r, creator) }
+      end
+
+      def candidate_row(restaurant, creator)
+        unless Ingestion::StartRun.can_target?(restaurant, creator)
+          return { id: nil, slug: nil, name: restaurant.name, status: restaurant.status, street: nil, scannable: false }
+        end
+
+        {
+          id: restaurant.id, slug: restaurant.slug, name: restaurant.name, status: restaurant.status,
+          street: restaurant.addresses.first&.street, scannable: true
+        }
       end
 
       private

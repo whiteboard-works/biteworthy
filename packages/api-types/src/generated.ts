@@ -4117,9 +4117,12 @@ export interface paths {
                         "application/json": {
                             error: string;
                             candidates: {
-                                /** Format: uuid */
-                                id: string;
-                                slug: string;
+                                /**
+                                 * Format: uuid
+                                 * @description null for someone else's draft
+                                 */
+                                id: string | null;
+                                slug: string | null;
                                 name: string;
                                 status: string;
                                 street?: string | null;

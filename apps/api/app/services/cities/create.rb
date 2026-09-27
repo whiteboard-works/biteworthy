@@ -47,15 +47,18 @@ module Cities
         # check; a transaction-scoped advisory lock makes them take turns.
         City.transaction do
           City.connection.execute("SELECT pg_advisory_xact_lock(hashtext('cities_create'))")
-          # Compared by slug form, so "St. Louis" and "St Louis" are one
-          # city. Cities are few enough to compare in Ruby.
+          # Cities are few enough to compare in Ruby; see same_name?.
           base = clean_name.parameterize
-          same_name = City.all.select { |c| c.name.parameterize == base }
+          same_name = City.order(:created_at).select { |c| same_name?(c.name, clean_name) }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
-          existing = same_name.find { |c| state_name(c.region) == state } ||
-                     abbreviation_of(clean_name, state)
-          raise Duplicate, existing if existing
+          in_state = same_name.select { |c| state_name(c.region) == state }
+          # "SC" could be Santa Clara or Santa Cruz; picking one would file
+          # restaurants under the wrong city.
+          if in_state.size > 1
+            raise ArgumentError, "'#{clean_name}' could be #{in_state.map(&:name).join(' or ')}; use the full name"
+          end
+          raise Duplicate, in_state.first if in_state.any?
 
           # A same-named row whose state can't be read might be this city or
           # another state's; guessing either way is wrong, so make someone say.
@@ -80,18 +83,26 @@ module Cities
         "#{with_state}-#{n}"
       end
 
-      # "SLC" for Salt Lake City: an abbreviation of a city already in the
-      # same state is that city, whichever of the two is being added.
-      def abbreviation_of(name, state)
-        City.all.find do |c|
-          next false unless state_name(c.region) == state
-
-          initials(c.name) == compact(name) || initials(name) == compact(c.name)
-        end
+      # Punctuation, civic abbreviations, and initials ("SLC" for Salt
+      # Lake City, either way round) all name the same city.
+      def same_name?(a, b)
+        name_key(a) == name_key(b) || initials(a) == compact(b) || initials(b) == compact(a)
       end
 
-      def initials(name) = name.split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
-      def compact(name) = name.gsub(/[^[:alnum:]]/, "").downcase
+      # "Ft. Worth" and "Fort Worth", "St. Louis" and "Saint Louis": the
+      # civic abbreviations people actually type, expanded before comparing.
+      WORD_ABBREVIATIONS = { "ft" => "fort", "st" => "saint", "mt" => "mount", "pt" => "point" }.freeze
+
+      # Separators are ignored entirely, so spacing and punctuation can't
+      # split a city: "Coeur d'Alene" = "Coeur d Alene", "D.C." = "DC",
+      # "Cañon City" = "Canon City".
+      def name_key(name)
+        ActiveSupport::Inflector.transliterate(name).downcase.split(/[^[:alnum:]]+/).reject(&:empty?)
+            .map { |w| WORD_ABBREVIATIONS.fetch(w, w) }.join
+      end
+
+      def initials(name) = ActiveSupport::Inflector.transliterate(name).split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
+      def compact(name) = ActiveSupport::Inflector.transliterate(name).gsub(/[^[:alnum:]]/, "").downcase
 
       def state_name(region)
         value = region.to_s.strip

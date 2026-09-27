@@ -115,8 +115,9 @@ RSpec.describe "restaurants", type: :request do
                      type: :object,
                      required: %w[id slug name status scannable],
                      properties: {
-                       id:        { type: :string, format: :uuid },
-                       slug:      { type: :string },
+                       id:        { type: :string, format: :uuid, nullable: true,
+                                    description: "null for someone else's draft" },
+                       slug:      { type: :string, nullable: true },
                        name:      { type: :string },
                        status:    { type: :string },
                        street:    { type: :string, nullable: true },

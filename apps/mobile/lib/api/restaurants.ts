@@ -99,13 +99,11 @@ export class RestaurantFetchError extends Error {
   }
 }
 
-export async function fetchRestaurant(
-  id: string,
-  opts: FetchOptions = {},
-): Promise<Restaurant> {
+export async function fetchRestaurant(id: string, opts: FetchOptions = {}): Promise<Restaurant> {
   const { fetchImpl = fetch } = opts;
   const res = await fetchImpl(`${API_BASE}/api/v1/restaurants/${id}`);
-  if (!res.ok) throw new RestaurantFetchError(res.status, `fetchRestaurant ${id} failed: ${res.status}`);
+  if (!res.ok)
+    throw new RestaurantFetchError(res.status, `fetchRestaurant ${id} failed: ${res.status}`);
   return (await res.json()) as Restaurant;
 }
 
@@ -128,7 +126,8 @@ export async function fetchRestaurantItems(
   if (jwt) headers.Authorization = `Bearer ${jwt}`;
 
   const res = await fetchImpl(url.toString(), { headers });
-  if (!res.ok) throw new RestaurantFetchError(res.status, `fetchRestaurantItems ${id} failed: ${res.status}`);
+  if (!res.ok)
+    throw new RestaurantFetchError(res.status, `fetchRestaurantItems ${id} failed: ${res.status}`);
   return (await res.json()) as RestaurantItemsResponse;
 }
 
@@ -149,7 +148,8 @@ export async function setNeverHide(
     method: 'POST',
     headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
   });
-  if (!res.ok) throw new RestaurantFetchError(res.status, `setNeverHide ${itemId} failed: ${res.status}`);
+  if (!res.ok)
+    throw new RestaurantFetchError(res.status, `setNeverHide ${itemId} failed: ${res.status}`);
   return (await res.json()) as { item_id: string; overridden_by_user: boolean };
 }
 
@@ -163,7 +163,8 @@ export async function clearNeverHide(
     method: 'DELETE',
     headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
   });
-  if (!res.ok) throw new RestaurantFetchError(res.status, `clearNeverHide ${itemId} failed: ${res.status}`);
+  if (!res.ok)
+    throw new RestaurantFetchError(res.status, `clearNeverHide ${itemId} failed: ${res.status}`);
   return (await res.json()) as { item_id: string; overridden_by_user: boolean };
 }
 
@@ -174,11 +175,14 @@ export async function clearNeverHide(
  */
 
 export interface DuplicateCandidate {
-  id: string;
-  slug: string;
+  /** null for someone else's draft, which the API returns as a name only. */
+  id: string | null;
+  slug: string | null;
   name: string;
   status: string;
   street: string | null;
+  /** Whether the scan door would accept this caller for this restaurant. */
+  scannable: boolean;
 }
 
 export interface CreatedRestaurant {
