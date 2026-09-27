@@ -18,20 +18,18 @@ the per-task acceptance criteria are in `docs/plans/archive/`.
 Everything remaining is human-credential-gated launch work — see
 **Next up** and `docs/launch-readiness.md`.
 
-## MVP speed + UI pass (active, 2026-09-26)
+## MVP speed + UI pass (shipped 2026-09-27, #695–#707)
 
-Make the core loop — scan a menu, see what you can eat, see your best
-picks — fast and obvious. Working todo: [`docs/plans/mvp-speed-ui.md`](plans/mvp-speed-ui.md).
-
-- [x] 2.1 REST scan door (`/api/v1/scans`) over the ingestion tools — status polling without a model round
-- [~] 2.2 Retry transient extraction failures — dropped: the client already retries (see plan)
-- [x] 2.3 Menu read path: dead preload + query budget (cache/ETag dropped, see plan)
-- [x] 2.4 Mobile fixes (frozen app): double fetch, image caching
-- [x] 2.5 Throttle keyed per user / real client IP, not the Next proxy's
-- [x] 3.1 Web scan screen (`/restaurants/[slug]/scan`)
-- [x] 3.2 Value before signup
-- [x] 3.3 Menu page hierarchy + picks/strict-mode empty states
-- [x] 3.4 Favorites + ratings feed picks
+The core loop — scan a menu, see what you can eat, see your best picks —
+made fast and obvious: a REST scan door and web scan screen (photo/link →
+review → filtered menu, no chat round per status check), a leaner menu read
+path, picks from favorites and ratings without the taste quiz, a filtered
+menu before signup (presets and share links *add to* a signed-in user's own
+avoids), a menu page that leads with best bets, analytics limited to named
+events and scrubbed page views, and throttling per user / real visitor IP.
+Dropped as unneeded once measured: extraction retries (the client already
+retries), a menu cache, mobile list virtualization. Per-PR detail lives in
+`docs/status.md` (2026-09-26 → 27).
 
 ## MCP pivot (active, 2026-08-07)
 
