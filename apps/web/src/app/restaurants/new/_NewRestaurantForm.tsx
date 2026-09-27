@@ -136,7 +136,11 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
                 )}
                 {c.street && <span className="text-zinc-500"> · {c.street}</span>}
                 {!c.scannable && (
-                  <span className="text-zinc-500"> · someone is already adding this one</span>
+                  <span className="text-zinc-500">
+                    {c.status === 'draft'
+                      ? ' · someone is already adding this one'
+                      : ' · no longer listed'}
+                  </span>
                 )}
               </li>
             ))}
