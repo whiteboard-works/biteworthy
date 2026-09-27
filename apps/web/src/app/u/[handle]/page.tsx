@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchPublicUserProfile, type UserReview } from '../../../lib/users';
+import { edgeHeaders } from '../../../lib/edge-headers';
 
 /**
  * Phase 4.7 — public user profile at `/u/<handle>`.
@@ -20,7 +21,7 @@ export default async function UserProfilePage({
   params: Promise<Params>;
 }) {
   const { handle } = await params;
-  const profile = await fetchPublicUserProfile(handle);
+  const profile = await fetchPublicUserProfile(handle, { headers: await edgeHeaders() });
   if (!profile) notFound();
 
   const memberSince = new Date(profile.member_since).toLocaleDateString('en-US', {

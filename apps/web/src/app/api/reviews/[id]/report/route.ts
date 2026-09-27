@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../../lib/server-auth';
 
 import { API_BASE } from '../../../../../lib/api-base';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 
 export async function POST(
   _request: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
 
   const upstream = await fetch(
     `${API_BASE}/api/v1/reviews/${encodeURIComponent(id)}/report`,
-    { method: 'POST', headers: { Authorization: `Bearer ${jwt}` } },
+    { method: 'POST', headers: { Authorization: `Bearer ${jwt}`, ...(await edgeHeaders()) } },
   );
   const text = await upstream.text();
   return new NextResponse(text.length > 0 ? text : null, {

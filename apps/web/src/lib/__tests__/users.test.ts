@@ -48,4 +48,16 @@ describe('fetchPublicUserProfile', () => {
     await fetchPublicUserProfile('a/b', { fetchImpl });
     expect(String(fetchImpl.mock.calls[0]![0])).toContain('/api/v1/users/a%2Fb');
   });
+
+  // The profile page renders on the server; without the visitor's IP every
+  // render lands in the Next server's one throttle bucket.
+  it('forwards the edge headers the page passes', async () => {
+    const fetchImpl = fakeFetch(200, samplePayload);
+    await fetchPublicUserProfile('diner_jane', {
+      fetchImpl,
+      headers: { 'X-BW-Client-IP': '203.0.113.7', 'X-BW-Proxy-Secret': 's' },
+    });
+    const init = (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(init.headers).toMatchObject({ 'X-BW-Client-IP': '203.0.113.7' });
+  });
 });

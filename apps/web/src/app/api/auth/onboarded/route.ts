@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { getServerJwt } from '../../../../lib/server-auth';
 import { API_BASE } from '../../../../lib/api-base';
+import { edgeHeaders } from '../../../../lib/edge-headers';
 
 export async function GET() {
   return NextResponse.json(
@@ -27,7 +28,7 @@ async function hasOnboarded(): Promise<boolean> {
   if (!jwt) return true;
   try {
     const res = await fetch(`${API_BASE}/api/v1/profile`, {
-      headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+      headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json', ...(await edgeHeaders()) },
       cache: 'no-store',
     });
     if (!res.ok) return true;

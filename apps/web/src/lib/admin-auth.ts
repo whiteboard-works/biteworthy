@@ -11,6 +11,7 @@
  * admin API call — this is UI gating only.
  */
 import { API_BASE } from './api-base';
+import { edgeHeaders } from './edge-headers';
 
 export type AdminStatus = 'admin' | 'denied' | 'unauthenticated';
 
@@ -33,7 +34,13 @@ export async function adminIdentity(
   if (!jwt) return { status: 'unauthenticated', isSuperAdmin: false };
   try {
     const res = await fetchImpl(`${API_BASE}/api/v1/me`, {
-      headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+      // Edge headers: a forged cookie fails JWT validation upstream and
+      // must fall into the visitor's IP bucket, not this server's.
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: 'application/json',
+        ...(await edgeHeaders()),
+      },
       cache: 'no-store',
     });
     if (res.status === 401) return { status: 'unauthenticated', isSuperAdmin: false };

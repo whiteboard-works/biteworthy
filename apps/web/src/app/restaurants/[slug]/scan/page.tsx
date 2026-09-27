@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { redirect } from 'next/navigation';
 import { fetchRestaurant } from '../../../../lib/restaurants';
 import { getServerJwt } from '../../../../lib/server-auth';
+import { edgeHeaders } from '../../../../lib/edge-headers';
 import { ScanClient } from './_ScanClient';
 
 export const metadata: Metadata = {
@@ -29,7 +30,9 @@ export default async function ScanPage({
   // A draft restaurant (just created, nothing published yet) is not on the
   // public endpoint, but its creator can still scan it — the scan door
   // decides who may, so a missing header only costs the display name.
-  const restaurant = await fetchRestaurant(slug, { jwt }).catch(() => null);
+  const restaurant = await fetchRestaurant(slug, { jwt, edgeHeaders: await edgeHeaders() }).catch(
+    () => null,
+  );
   return (
     <ScanClient slug={slug} restaurantName={restaurant?.name ?? slug} resumeScanId={resumeScanId} />
   );

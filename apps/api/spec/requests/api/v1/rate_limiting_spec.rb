@@ -45,6 +45,81 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
     expect(response).not_to have_http_status(:too_many_requests)
   end
 
+  # Web traffic reaches Rails from the Next server, so per-IP alone made
+  # every web user share one bucket: a few scan screens polling could 429
+  # the whole web tier.
+  describe "attribution behind the web proxy" do
+    let(:path) { "/api/v1/dietary_profiles" }
+
+    def burst(count, headers = {})
+      count.times { get path, headers: headers }
+    end
+
+    it "gives two signed-in users behind one IP their own budgets" do
+      burst(300, auth_headers_for(create(:user)))
+
+      get path, headers: auth_headers_for(create(:user))
+
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
+    # The discriminator runs before the counter, so it must not query:
+    # over-limit requests would still cost Postgres a round trip each.
+    it "attributes a signed-in request without touching the database" do
+      headers = auth_headers_for(create(:user))
+      queries = []
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| queries << p[:sql] }
+      Rack::Attack.api_user_key(Rack::Attack::Request.new(Rack::MockRequest.env_for("/api/v1/x", "HTTP_AUTHORIZATION" => headers["Authorization"])))
+      ActiveSupport::Notifications.unsubscribe(sub)
+
+      expect(queries).to be_empty
+    end
+
+    # The ceiling is per user: refreshing to a new token must not reset it.
+    it "keeps one budget per user across token rotations" do
+      user = create(:user)
+      burst(300, auth_headers_for(user))
+      user.update!(jti: SecureRandom.uuid)
+
+      get path, headers: auth_headers_for(user.reload)
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    # Keyed on a verified token, so inventing bearer strings can't mint
+    # a fresh bucket per request.
+    it "puts forged bearer tokens in the IP bucket, not one bucket each" do
+      300.times { |i| get path, headers: { "Authorization" => "Bearer forged-#{i}" } }
+
+      get path, headers: { "Authorization" => "Bearer forged-final" }
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    context "with the proxy secret configured" do
+      before do
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with("WEB_PROXY_SECRET").and_return("s3cret")
+      end
+
+      it "throttles anonymous visitors by the IP the proxy vouches for" do
+        burst(300, { "X-BW-Client-IP" => "203.0.113.7", "X-BW-Proxy-Secret" => "s3cret" })
+
+        get path, headers: { "X-BW-Client-IP" => "203.0.113.8", "X-BW-Proxy-Secret" => "s3cret" }
+
+        expect(response).not_to have_http_status(:too_many_requests)
+      end
+
+      it "ignores a forwarded IP without the right secret" do
+        300.times { |i| get path, headers: { "X-BW-Client-IP" => "198.51.100.#{i % 250}", "X-BW-Proxy-Secret" => "wrong" } }
+
+        get path, headers: { "X-BW-Client-IP" => "198.51.100.251", "X-BW-Proxy-Secret" => "wrong" }
+
+        expect(response).to have_http_status(:too_many_requests)
+      end
+    end
+  end
+
   # `/mcp` had no ceiling at all — the general rule keys on `/api/`, and
   # the MCP door does not live there. `get_menu` loads every item at a
   # restaurant and filters in Ruby, so an unbounded anonymous loop against

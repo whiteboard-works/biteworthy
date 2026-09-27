@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../lib/server-auth';
 
 import { API_BASE } from '../../../../lib/api-base';
+import { edgeHeaders } from '../../../../lib/edge-headers';
 
 async function proxy(method: 'PATCH' | 'DELETE', id: string, request: NextRequest) {
   const jwt = await getServerJwt();
@@ -13,7 +14,10 @@ async function proxy(method: 'PATCH' | 'DELETE', id: string, request: NextReques
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${jwt}`,
+    ...(await edgeHeaders()),
+  };
   let body: BodyInit | undefined;
   if (method === 'PATCH') {
     headers['Content-Type'] = 'application/json';

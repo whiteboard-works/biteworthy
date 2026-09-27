@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../../lib/server-auth';
 
 import { API_BASE } from '../../../../../lib/api-base';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 
 export async function GET(
   request: NextRequest,
@@ -18,7 +19,7 @@ export async function GET(
   const search = request.nextUrl.search ?? '';
   const upstream = await fetch(
     `${API_BASE}/api/v1/items/${encodeURIComponent(id)}/reviews${search}`,
-    { headers: { Accept: 'application/json' } },
+    { headers: { Accept: 'application/json', ...(await edgeHeaders()) } },
   );
   const body = await upstream.text();
   return new NextResponse(body, {
@@ -40,7 +41,10 @@ export async function POST(
   const contentType = request.headers.get('Content-Type') ?? 'application/octet-stream';
   const isMultipart = contentType.startsWith('multipart/form-data');
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${jwt}`,
+    ...(await edgeHeaders()),
+  };
   let body: BodyInit;
   if (isMultipart) {
     headers['Content-Type'] = contentType;
