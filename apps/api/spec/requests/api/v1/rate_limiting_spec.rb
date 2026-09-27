@@ -75,17 +75,15 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(queries).to be_empty
     end
 
-    # A token revoked by sign-out stays signature-valid until it expires;
-    # replaying it must not throttle the owner's new session.
-    it "keeps a revoked token from spending the owner's new session's budget" do
+    # The ceiling is per user: refreshing to a new token must not reset it.
+    it "keeps one budget per user across token rotations" do
       user = create(:user)
-      old_headers = auth_headers_for(user)
+      burst(300, auth_headers_for(user))
       user.update!(jti: SecureRandom.uuid)
 
-      burst(300, old_headers)
       get path, headers: auth_headers_for(user.reload)
 
-      expect(response).not_to have_http_status(:too_many_requests)
+      expect(response).to have_http_status(:too_many_requests)
     end
 
     # Keyed on a verified token, so inventing bearer strings can't mint

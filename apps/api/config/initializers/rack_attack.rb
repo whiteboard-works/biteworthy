@@ -150,25 +150,24 @@ class Rack::Attack
     req.ip
   end
 
-  # "user:<id>:<jti>" for a request carrying a signature-valid, unexpired
-  # Devise JWT; nil otherwise, which sends it to the IP bucket. Memoized on
-  # the env because both /api throttles ask.
+  # "user:<id>" for a request carrying a signature-valid, unexpired Devise
+  # JWT; nil otherwise, which sends it to the IP bucket. Memoized on the env
+  # because both /api throttles ask.
   #
-  # No database lookup: the discriminator runs before the counter, so a
-  # query here is one every flooded request still pays. The jti in the key
-  # keeps token generations apart instead — a token revoked by sign-out
-  # can't spend its owner's new session's budget. Minting fresh buckets
-  # takes a fresh login each, which `auth/ip` already limits.
+  # Keyed on the stable `sub` so the ceiling is per user: a per-token key
+  # would let anyone reset their budget by refreshing their token. No
+  # database lookup either: the discriminator runs before the counter, so a
+  # query here is one every flooded request still pays. Known residual: a
+  # token revoked by sign-out still counts against its owner until it
+  # expires, so whoever holds a stolen one can spend that one user's budget
+  # — closing that needs a revocation check, i.e. the query.
   def self.api_user_key(req)
     return req.env["bw.throttle_user"] if req.env.key?("bw.throttle_user")
 
     req.env["bw.throttle_user"] =
       begin
         bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
-        if bearer.present?
-          payload = Warden::JWTAuth::TokenDecoder.new.call(bearer)
-          "user:#{payload['sub']}:#{payload['jti']}"
-        end
+        "user:#{Warden::JWTAuth::TokenDecoder.new.call(bearer)['sub']}" if bearer.present?
       rescue JWT::DecodeError
         nil
       end
