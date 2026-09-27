@@ -52,7 +52,13 @@ RSpec.describe "admin/cities", type: :request do
         run_test!
       end
 
-      response(404, "not an admin") do
+      response(401, "not signed in") do
+        let(:Authorization) { "Bearer invalid" }
+        let(:body) { { name: "Salt Lake City", region: "UT" } }
+        run_test!
+      end
+
+            response(404, "not an admin") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(create(:user)) }
         let(:body) { { name: "Salt Lake City", region: "UT" } }

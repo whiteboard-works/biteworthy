@@ -134,6 +134,19 @@ RSpec.describe "restaurants", type: :request do
         end
       end
 
+      response(401, "not signed in") do
+        let(:Authorization) { "Bearer invalid" }
+        let(:body) { { name: "Red Iguana", city_slug: "salt-lake-city" } }
+        run_test!
+      end
+
+      response(422, "blank name") do
+        schema "$ref" => "#/components/schemas/Error"
+        let(:Authorization) { bearer_for(user) }
+        let(:body) { { name: "  ", city_slug: "salt-lake-city" } }
+        run_test!
+      end
+
       response(404, "unknown city") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(user) }
