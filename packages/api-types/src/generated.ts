@@ -109,6 +109,13 @@ export interface paths {
                         "application/json": components["schemas"]["City"];
                     };
                 };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
                 /** @description not an admin */
                 404: {
                     headers: {
@@ -4085,6 +4092,13 @@ export interface paths {
                         };
                     };
                 };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
                 /** @description unknown city */
                 404: {
                     headers: {
@@ -4112,6 +4126,15 @@ export interface paths {
                                 scannable: boolean;
                             }[];
                         };
+                    };
+                };
+                /** @description blank name */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };

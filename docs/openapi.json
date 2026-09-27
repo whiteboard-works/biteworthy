@@ -182,6 +182,9 @@
               }
             }
           },
+          "401": {
+            "description": "not signed in"
+          },
           "404": {
             "description": "not an admin",
             "content": {
@@ -6922,6 +6925,19 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          },
+          "422": {
+            "description": "blank name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
