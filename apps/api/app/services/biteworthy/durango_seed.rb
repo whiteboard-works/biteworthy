@@ -87,11 +87,12 @@ module Biteworthy
       end
     end
 
+    # An existing slug wins; otherwise the same rules as every other way a
+    # city is added, so `CITY=slc` next to "salt-lake-city" reuses it.
     def find_or_create_city!
-      City.find_or_create_by!(slug: @city_slug) do |c|
-        c.name   = @city_name
-        c.region = @city_region
-      end
+      City.find_by(slug: @city_slug) || ::Cities::Create.call(name: @city_name, region: @city_region)
+    rescue ::Cities::Create::Duplicate => e
+      e.city
     end
 
     # Skip comment lines + blank lines. Tolerate trailing whitespace.

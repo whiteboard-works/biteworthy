@@ -99,6 +99,16 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  it "refuses an abbreviation that could mean two cities in the state" do
+    create(:city, slug: "santa-clara", name: "Santa Clara", region: "California")
+    create(:city, slug: "santa-cruz", name: "Santa Cruz", region: "California")
+
+    response = call(admin, name: "SC", region: "CA")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(2)
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")

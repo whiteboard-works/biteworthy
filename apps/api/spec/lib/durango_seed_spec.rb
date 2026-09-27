@@ -49,6 +49,20 @@ RSpec.describe Biteworthy::DurangoSeed do
   end
 
   describe "#run" do
+    it "reuses an equivalent city added under another slug instead of creating a second" do
+      existing = create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "Utah")
+      csv = write_csv([ "Tacos,tacos,1 Main,(801) 555,https://tacos.example,https://tacos.example/menu,Downtown" ])
+
+      described_class.new(
+        csv_path: csv, city_slug: "slc", city_name: "Salt Lake City", city_region: "UT",
+        wait_seconds: 0, url_fetcher: FakeFetcher.new("https://tacos.example/menu" => fake_blob_result),
+        logger: logger
+      ).run
+
+      expect(City.count).to eq(1)
+      expect(Restaurant.find_by!(slug: "tacos").city).to eq(existing)
+    end
+
     it "find-or-creates the city + restaurants and kicks off ingestion runs" do
       csv = write_csv([
         "Tacos,tacos,1 Main,(970) 555,https://tacos.example,https://tacos.example/menu,Downtown",

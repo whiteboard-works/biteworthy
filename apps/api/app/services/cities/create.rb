@@ -52,8 +52,13 @@ module Cities
           same_name = City.order(:created_at).select { |c| same_name?(c.name, clean_name) }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
-          existing = same_name.find { |c| state_name(c.region) == state }
-          raise Duplicate, existing if existing
+          in_state = same_name.select { |c| state_name(c.region) == state }
+          # "SC" could be Santa Clara or Santa Cruz; picking one would file
+          # restaurants under the wrong city.
+          if in_state.size > 1
+            raise ArgumentError, "'#{clean_name}' could be #{in_state.map(&:name).join(' or ')}; use the full name"
+          end
+          raise Duplicate, in_state.first if in_state.any?
 
           # A same-named row whose state can't be read might be this city or
           # another state's; guessing either way is wrong, so make someone say.
