@@ -7,7 +7,13 @@ import { NotSignedInError } from '../../../lib/chat';
 
 const INPUT = 'mt-bw-1 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base';
 
-export function NewRestaurantForm({ cities }: { cities: City[] }) {
+export function NewRestaurantForm({
+  cities,
+  loadFailed = false,
+}: {
+  cities: City[];
+  loadFailed?: boolean;
+}) {
   const router = useRouter();
   const [citySlug, setCitySlug] = useState(cities.length === 1 ? cities[0]!.slug : '');
   const [name, setName] = useState('');
@@ -17,10 +23,18 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  if (loadFailed) {
+    return (
+      <p data-testid="new-restaurant-load-failed" className="mt-bw-6 text-bw-sm text-red-700">
+        We couldn&apos;t load the cities we cover. Refresh to try again.
+      </p>
+    );
+  }
+
   if (cities.length === 0) {
     return (
       <p data-testid="new-restaurant-no-cities" className="mt-bw-6 text-bw-sm text-zinc-600">
-        No cities to add to right now. Try again in a moment, or ask us to cover yours.
+        We don&apos;t cover any cities yet.
       </p>
     );
   }

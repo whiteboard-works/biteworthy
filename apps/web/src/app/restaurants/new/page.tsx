@@ -22,10 +22,11 @@ export default async function NewRestaurantPage(): Promise<ReactElement> {
   if (!(await getServerJwt())) redirect('/login?next=/restaurants/new');
 
   let cities: City[] = [];
+  let loadFailed = false;
   try {
     cities = await fetchCities({ edgeHeaders: await edgeHeaders() });
   } catch {
-    // The form explains an empty city list; no need to 500.
+    loadFailed = true;
   }
 
   return (
@@ -35,7 +36,7 @@ export default async function NewRestaurantPage(): Promise<ReactElement> {
       <p className="mt-bw-3 text-bw-base text-zinc-600">
         Add the place, then snap its menu. It stays private until the dishes are checked.
       </p>
-      <NewRestaurantForm cities={cities} />
+      <NewRestaurantForm cities={cities} loadFailed={loadFailed} />
     </main>
   );
 }

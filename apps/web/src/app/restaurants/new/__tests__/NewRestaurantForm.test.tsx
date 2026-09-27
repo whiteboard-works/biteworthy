@@ -119,6 +119,18 @@ describe('NewRestaurantForm', () => {
     expect(screen.queryByTestId('new-restaurant-error')).toBeNull();
   });
 
+  // A failed load must not read as "no cities": that would tell someone
+  // their city isn't covered when the API just hiccupped.
+  it('tells a failed city load apart from an empty list', () => {
+    const { unmount } = render(<NewRestaurantForm cities={[]} loadFailed />);
+    expect(screen.getByTestId('new-restaurant-load-failed')).toBeInTheDocument();
+    expect(screen.queryByTestId('new-restaurant-no-cities')).toBeNull();
+    unmount();
+
+    render(<NewRestaurantForm cities={[]} />);
+    expect(screen.getByTestId('new-restaurant-no-cities')).toBeInTheDocument();
+  });
+
   it('preselects the only city when there is just one', () => {
     render(<NewRestaurantForm cities={[SLC]} />);
     expect((screen.getByTestId('new-restaurant-city') as HTMLSelectElement).value).toBe(
