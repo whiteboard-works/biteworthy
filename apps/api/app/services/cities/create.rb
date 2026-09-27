@@ -49,7 +49,7 @@ module Cities
           City.connection.execute("SELECT pg_advisory_xact_lock(hashtext('cities_create'))")
           # Cities are few enough to compare in Ruby; see same_name?.
           base = clean_name.parameterize
-          same_name = City.all.select { |c| same_name?(c.name, clean_name) }
+          same_name = City.order(:created_at).select { |c| same_name?(c.name, clean_name) }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
           existing = same_name.find { |c| state_name(c.region) == state }
