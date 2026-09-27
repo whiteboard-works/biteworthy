@@ -44,6 +44,17 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  # Could be this city or a namesake elsewhere: neither creating a second
+  # row nor claiming it is the same city is safe.
+  it "refuses while a same-named city has no state on file" do
+    create(:city, slug: "springfield", name: "Springfield", region: nil)
+
+    response = call(admin, name: "Springfield", region: "MO")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(1)
+  end
+
   it "keeps a same-named city in another state apart instead of calling it a duplicate" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
 
