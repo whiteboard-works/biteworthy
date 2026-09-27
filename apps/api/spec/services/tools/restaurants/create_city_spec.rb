@@ -109,6 +109,14 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(2)
   end
 
+  it "treats a dotted initialism as the same city" do
+    existing = create(:city, slug: "washington-dc", name: "Washington DC", region: "District of Columbia")
+
+    response = call(admin, name: "Washington, D.C.", region: "DC")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")
