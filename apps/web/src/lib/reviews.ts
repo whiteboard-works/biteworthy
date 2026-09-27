@@ -74,8 +74,14 @@ export async function fetchReviews(
  * Server-side fetch (SSR). Hits Rails directly — no cookie / proxy
  * needed since the index endpoint is public.
  */
-export async function fetchReviewsServer(itemId: string): Promise<ReviewsResponse> {
-  return api<ReviewsResponse>(`/items/${encodeURIComponent(itemId)}/reviews`);
+/** `edgeHeaders`: pass `await edgeHeaders()` so Rails throttles by the visitor. */
+export async function fetchReviewsServer(
+  itemId: string,
+  edgeHeaders: Record<string, string> = {},
+): Promise<ReviewsResponse> {
+  return api<ReviewsResponse>(`/items/${encodeURIComponent(itemId)}/reviews`, {
+    headers: edgeHeaders,
+  });
 }
 
 export interface NewReview {
@@ -175,7 +181,10 @@ async function reviewError(res: Response, label: string): Promise<ReviewError> {
   } catch {
     // ignore
   }
-  return new ReviewError(res.status, `${label} failed: ${res.status}${body?.error ? ` — ${body.error}` : ''}`);
+  return new ReviewError(
+    res.status,
+    `${label} failed: ${res.status}${body?.error ? ` — ${body.error}` : ''}`,
+  );
 }
 
 // Re-export to keep imports from screens tidy.

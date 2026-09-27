@@ -10,6 +10,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { API_BASE } from '../../../lib/api-base';
+import { edgeHeaders } from '../../../lib/edge-headers';
 
 interface SignupBody {
   email?: string;
@@ -21,7 +22,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const upstream = await fetch(`${API_BASE}/api/v1/waitlist_signups`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(await edgeHeaders()),
+    },
     body: JSON.stringify({
       waitlist_signup: {
         email: body.email ?? '',
