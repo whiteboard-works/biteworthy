@@ -18,6 +18,13 @@ the per-task acceptance criteria are in `docs/plans/archive/`.
 Everything remaining is human-credential-gated launch work — see
 **Next up** and `docs/launch-readiness.md`.
 
+## Multi-city (in progress)
+
+Biteworthy launched as Durango-only; Salt Lake City is next.
+
+- [x] Add cities (admin: `create_city` tool, `/admin/cities`) and add restaurants from the web (`/restaurants/new`); `list_cities` lets the chat find a city with nothing published yet.
+- [ ] Location URLs: `/restaurants/usa/colorado/durango/<slug>`, with 301s from the old `/restaurants/<slug>`.
+
 ## MVP speed + UI pass (shipped 2026-09-27, #695–#707)
 
 The core loop — scan a menu, see what you can eat, see your best picks —

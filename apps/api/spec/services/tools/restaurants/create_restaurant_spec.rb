@@ -36,6 +36,20 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(Restaurant.where(name: "Maria's Tacos")).to be_empty
   end
 
+  # Only your own draft (or a published place) is scannable, so the
+  # client needs to know before it offers a scan.
+  it "marks which duplicate candidates the caller could scan" do
+    create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city, created_by_user_id: user.id)
+    create(:restaurant, name: "Marias Tacos", slug: "marias-tacos", city: city, created_by_user_id: create(:user).id)
+    create(:restaurant, name: "Maria Tacos", slug: "maria-tacos", city: city, created_by_user_id: user.id,
+                        archived_at: Time.current)
+
+    response = call(name: "Maria's Tacos", city_slug: "durango")
+
+    scannable = payload(response)[:possible_duplicates].to_h { |c| [ c[:slug], c[:scannable] ] }
+    expect(scannable).to eq("marias-taco" => true, "marias-tacos" => false, "maria-tacos" => false)
+  end
+
   it "creates anyway once the user has looked at the candidates" do
     create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city)
 

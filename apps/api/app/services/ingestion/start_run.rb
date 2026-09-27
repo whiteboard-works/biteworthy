@@ -69,6 +69,15 @@ module Ingestion
     # the upload door would accept a 50 MB file that the scan door then
     # refuses, which is the discovered-after-the-upload failure this
     # whole area exists to avoid.
+    # Public so the duplicate prompt on "add a restaurant" can say which
+    # candidates the caller could actually scan, by the same rule.
+    def self.can_target?(restaurant, user)
+      return true if user&.is_admin?
+      return true if restaurant.status == "published"
+
+      restaurant.status == "draft" && restaurant.created_by_user_id == user&.id
+    end
+
     def self.per_file_byte_limit(user)
       base  = Integer(ENV.fetch("INGESTION_MAX_INPUT_FILE_BYTES", MAX_INPUT_FILE_BYTES_DEFAULT))
       total = Integer(ENV.fetch("INGESTION_MAX_TOTAL_INPUT_BYTES", MAX_TOTAL_INPUT_BYTES_DEFAULT))
@@ -129,10 +138,7 @@ module Ingestion
     # published restaurants (re-scans). Another user's draft is off limits —
     # drafts are invisible work-in-progress until their creator publishes.
     def can_target_restaurant?
-      return true if @user&.is_admin?
-      return true if @restaurant.status == "published"
-
-      @restaurant.status == "draft" && @restaurant.created_by_user_id == @user&.id
+      self.class.can_target?(@restaurant, @user)
     end
 
     # Applies to admins too — extraction base64-encodes every byte into the

@@ -21,7 +21,7 @@ namespace :biteworthy do
         csv_path:     file,
         city_slug:    ENV.fetch("CITY", "durango"),
         city_name:    ENV.fetch("CITY_NAME", "Durango"),
-        city_region:  ENV.fetch("CITY_REGION", "CO"),
+        city_region:  ENV.fetch("CITY_REGION", "Colorado"),
         wait_seconds: (ENV["WAIT"].presence || "600").to_i,
         logger:       $stdout
       )

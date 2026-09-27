@@ -36,7 +36,7 @@ module Biteworthy
       csv_path:,
       city_slug: "durango",
       city_name: "Durango",
-      city_region: "CO",
+      city_region: "Colorado",
       logger: $stdout,
       wait_seconds: DEFAULT_WAIT_SECONDS,
       url_fetcher: UrlFetcher,

@@ -18,6 +18,7 @@ const TABS = [
   // `match` widens the active state to sibling sub-pages (tags).
   { href: '/admin/taxonomy/ingredients', label: 'Taxonomy', match: '/admin/taxonomy' },
   { href: '/admin/restaurants', label: 'Restaurants' },
+  { href: '/admin/cities', label: 'Cities' },
   { href: '/admin/users', label: 'Users' },
 ] as const;
 
@@ -38,7 +39,9 @@ export function AdminNav() {
             key={tab.href}
             href={tab.href}
             className={
-              active ? 'font-semibold text-bite' : 'font-semibold text-zinc-600 hover:text-bite-dark'
+              active
+                ? 'font-semibold text-bite'
+                : 'font-semibold text-zinc-600 hover:text-bite-dark'
             }
           >
             {tab.label}

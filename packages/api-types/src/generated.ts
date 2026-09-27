@@ -67,6 +67,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a city
+         * @description Creates a city restaurants can be added to. The slug is derived from the name and is permanent. 409 with the existing city when it is already covered.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** @description US state name or two-letter code; stored as the name */
+                        region: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["City"];
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description already covered */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            city: components["schemas"]["City"];
+                        };
+                    };
+                };
+                /** @description region is not a US state */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/dashboard": {
         parameters: {
             query?: never;
@@ -3102,6 +3189,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every city we cover
+         * @description Public. Includes cities with no published restaurants yet, so a new city can take its first restaurant.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description all cities, name-ordered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cities: components["schemas"]["City"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -3867,6 +3995,156 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/restaurants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List published restaurants
+         * @description Public. Name-ordered, capped at 100; `q` is a case-insensitive name match.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description published restaurants */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            restaurants: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                status: string;
+                                street: string | null;
+                                latitude: number | null;
+                                longitude: number | null;
+                                city: {
+                                    slug: string;
+                                    name: string;
+                                    region?: string | null;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Add a restaurant we don't have yet
+         * @description Creates a DRAFT restaurant attributed to the caller. A likely duplicate in the same city answers 409 with candidates; `scannable` says whether the caller could scan each one. Send `force: true` once they have ruled the candidates out.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        city_slug: string;
+                        street?: string;
+                        postal_code?: string;
+                        force?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description created as a draft */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            status: string;
+                            city: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                region?: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description unknown city */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description likely duplicate; nothing created */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            candidates: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                status: string;
+                                street?: string | null;
+                                scannable: boolean;
+                            }[];
+                        };
+                    };
+                };
+                /** @description blank name */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/restaurants/{restaurant_id}/items": {
         parameters: {
             query?: {
@@ -4398,6 +4676,14 @@ export interface components {
     schemas: {
         Error: {
             error?: string;
+        };
+        City: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            region: string | null;
+            country: string;
         };
         Pagination: {
             total: number;

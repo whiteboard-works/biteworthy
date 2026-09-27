@@ -1,0 +1,102 @@
+# frozen_string_literal: true
+
+# Adding a city Biteworthy covers. Shared by the admin REST endpoint and
+# the `create_city` tool so the slug rule and the duplicate check live in
+# one place — a second "salt-lake-city" beside "slc" would split a city's
+# restaurants across two pages.
+module Cities
+  class Create
+    class Duplicate < StandardError
+      attr_reader :city
+
+      def initialize(city)
+        @city = city
+        super("#{city.name}, #{city.region} already exists as '#{city.slug}'")
+      end
+    end
+
+    # Full names are what `cities.region` holds (Durango's is "Colorado")
+    # and what the location URLs are built from, so a typo here would be
+    # permanent in every restaurant URL in the city. Codes are accepted as
+    # input and stored as the name.
+    US_STATES = {
+      "AL" => "Alabama", "AK" => "Alaska", "AZ" => "Arizona", "AR" => "Arkansas",
+      "CA" => "California", "CO" => "Colorado", "CT" => "Connecticut", "DE" => "Delaware",
+      "DC" => "District of Columbia", "FL" => "Florida", "GA" => "Georgia", "HI" => "Hawaii",
+      "ID" => "Idaho", "IL" => "Illinois", "IN" => "Indiana", "IA" => "Iowa",
+      "KS" => "Kansas", "KY" => "Kentucky", "LA" => "Louisiana", "ME" => "Maine",
+      "MD" => "Maryland", "MA" => "Massachusetts", "MI" => "Michigan", "MN" => "Minnesota",
+      "MS" => "Mississippi", "MO" => "Missouri", "MT" => "Montana", "NE" => "Nebraska",
+      "NV" => "Nevada", "NH" => "New Hampshire", "NJ" => "New Jersey", "NM" => "New Mexico",
+      "NY" => "New York", "NC" => "North Carolina", "ND" => "North Dakota", "OH" => "Ohio",
+      "OK" => "Oklahoma", "OR" => "Oregon", "PA" => "Pennsylvania", "RI" => "Rhode Island",
+      "SC" => "South Carolina", "SD" => "South Dakota", "TN" => "Tennessee", "TX" => "Texas",
+      "UT" => "Utah", "VT" => "Vermont", "VA" => "Virginia", "WA" => "Washington",
+      "WV" => "West Virginia", "WI" => "Wisconsin", "WY" => "Wyoming"
+    }.freeze
+
+    class << self
+      def call(name:, region:)
+        clean_name = name.to_s.strip
+        raise ArgumentError, "name required" if clean_name.parameterize.blank?
+
+        state = state_name(region)
+        raise ArgumentError, "region must be a US state, e.g. 'Utah' or 'UT'" if state.nil?
+
+        # Check-then-insert, so two overlapping requests could both pass the
+        # check; a transaction-scoped advisory lock makes them take turns.
+        City.transaction do
+          City.connection.execute("SELECT pg_advisory_xact_lock(hashtext('cities_create'))")
+          # Compared by slug form, so "St. Louis" and "St Louis" are one
+          # city. Cities are few enough to compare in Ruby.
+          base = clean_name.parameterize
+          same_name = City.all.select { |c| c.name.parameterize == base }
+          # Older rows may hold a code ("CO", from the Durango seed task) or
+          # stray whitespace, so compare normalized states.
+          existing = same_name.find { |c| state_name(c.region) == state } ||
+                     abbreviation_of(clean_name, state)
+          raise Duplicate, existing if existing
+
+          # A same-named row whose state can't be read might be this city or
+          # another state's; guessing either way is wrong, so make someone say.
+          if (unknown = same_name.find { |c| state_name(c.region).nil? })
+            raise ArgumentError, "'#{unknown.name}' (#{unknown.slug}) is on file with no state; set its state first"
+          end
+
+          City.create!(name: clean_name, slug: unique_slug(base, state), region: state, country: "US")
+        end
+      end
+
+      # Springfield, IL and Springfield, MO are different cities; the second
+      # one to arrive gets its state in the slug, then a number if needed.
+      def unique_slug(base, state)
+        return base unless City.exists?(slug: base)
+
+        with_state = "#{base}-#{state.parameterize}"
+        return with_state unless City.exists?(slug: with_state)
+
+        n = 2
+        n += 1 while City.exists?(slug: "#{with_state}-#{n}")
+        "#{with_state}-#{n}"
+      end
+
+      # "SLC" for Salt Lake City: an abbreviation of a city already in the
+      # same state is that city, whichever of the two is being added.
+      def abbreviation_of(name, state)
+        City.all.find do |c|
+          next false unless state_name(c.region) == state
+
+          initials(c.name) == compact(name) || initials(name) == compact(c.name)
+        end
+      end
+
+      def initials(name) = name.split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
+      def compact(name) = name.gsub(/[^[:alnum:]]/, "").downcase
+
+      def state_name(region)
+        value = region.to_s.strip
+        US_STATES[value.upcase] || US_STATES.values.find { |n| n.casecmp?(value) }
+      end
+    end
+  end
+end
