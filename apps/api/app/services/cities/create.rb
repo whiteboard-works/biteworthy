@@ -22,7 +22,7 @@ module Cities
         raise ArgumentError, "name required" if clean_name.blank?
         raise ArgumentError, "region required (two-letter state code, e.g. 'UT')" unless clean_region.match?(/\A[A-Z]{2}\z/)
 
-        existing = City.where("lower(name) = ?", clean_name.downcase).find_by(region: clean_region)
+        existing = City.where("lower(name) = ?", clean_name.downcase).find_by(region: [ clean_region, nil ])
         raise Duplicate, existing if existing
 
         # Springfield, IL and Springfield, MO are different cities; the

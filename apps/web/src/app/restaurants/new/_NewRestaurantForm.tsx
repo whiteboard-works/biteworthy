@@ -19,7 +19,7 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
   if (cities.length === 0) {
     return (
       <p data-testid="new-restaurant-no-cities" className="mt-bw-6 text-bw-sm text-zinc-600">
-        We couldn&apos;t load the cities we cover. Try again in a moment.
+        No cities to add to right now. Try again in a moment, or ask us to cover yours.
       </p>
     );
   }
