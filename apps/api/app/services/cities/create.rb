@@ -50,7 +50,7 @@ module Cities
           # Compared by slug form, so "St. Louis" and "St Louis" are one
           # city. Cities are few enough to compare in Ruby.
           base = clean_name.parameterize
-          same_name = City.all.select { |c| c.name.parameterize == base }
+          same_name = City.all.select { |c| name_key(c.name) == name_key(clean_name) }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
           existing = same_name.find { |c| state_name(c.region) == state } ||
@@ -88,6 +88,14 @@ module Cities
 
           initials(c.name) == compact(name) || initials(name) == compact(c.name)
         end
+      end
+
+      # "Ft. Worth" and "Fort Worth", "St. Louis" and "Saint Louis": the
+      # civic abbreviations people actually type, expanded before comparing.
+      WORD_ABBREVIATIONS = { "ft" => "fort", "st" => "saint", "mt" => "mount", "pt" => "point" }.freeze
+
+      def name_key(name)
+        name.parameterize.split("-").map { |w| WORD_ABBREVIATIONS.fetch(w, w) }.join("-")
       end
 
       def initials(name) = name.split(/[^[:alnum:]]+/).reject(&:empty?).map { |w| w[0] }.join.downcase
