@@ -213,7 +213,8 @@
                 }
               }
             }
-          }
+          },
+          "required": true
         }
       }
     },
@@ -6732,7 +6733,11 @@
                           "id",
                           "slug",
                           "name",
-                          "city"
+                          "status",
+                          "city",
+                          "street",
+                          "latitude",
+                          "longitude"
                         ],
                         "properties": {
                           "id": {
@@ -6744,6 +6749,21 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "street": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "latitude": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "longitude": {
+                            "type": "number",
+                            "nullable": true
                           },
                           "city": {
                             "type": "object",
@@ -6945,7 +6965,8 @@
                 }
               }
             }
-          }
+          },
+          "required": true
         }
       }
     },

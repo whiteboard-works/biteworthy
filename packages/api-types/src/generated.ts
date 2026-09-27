@@ -90,7 +90,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         name: string;
@@ -4022,6 +4022,10 @@ export interface paths {
                                 id: string;
                                 slug: string;
                                 name: string;
+                                status: string;
+                                street: string | null;
+                                latitude: number | null;
+                                longitude: number | null;
                                 city: {
                                     slug: string;
                                     name: string;
@@ -4047,7 +4051,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         name: string;

@@ -16,7 +16,7 @@ RSpec.describe "admin/cities", type: :request do
       security [ bearerAuth: [] ]
       parameter name: :Authorization, in: :header, type: :string, required: true,
                 description: "Bearer <jwt> for a user with is_admin"
-      parameter name: :body, in: :body, schema: {
+      parameter name: :body, in: :body, required: true, schema: {
         type: :object,
         required: %w[name region],
         properties: {

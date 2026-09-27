@@ -46,13 +46,23 @@ RSpec.describe Tools::Restaurants::CreateCity do
 
   # Could be this city or a namesake elsewhere: neither creating a second
   # row nor claiming it is the same city is safe.
-  it "refuses while a same-named city has no state on file" do
-    create(:city, slug: "springfield", name: "Springfield", region: nil)
+  [ nil, "", "Missoury" ].each do |bad_region|
+    it "refuses while a same-named city has an unreadable state (#{bad_region.inspect})" do
+      create(:city, slug: "springfield", name: "Springfield", region: bad_region)
 
-    response = call(admin, name: "Springfield", region: "MO")
+      response = call(admin, name: "Springfield", region: "MO")
 
-    expect(response.to_h[:isError]).to be(true)
-    expect(City.count).to eq(1)
+      expect(response.to_h[:isError]).to be(true)
+      expect(City.count).to eq(1)
+    end
+  end
+
+  it "matches an existing city whose state has stray whitespace" do
+    existing = create(:city, slug: "moab", name: "Moab", region: "UT ")
+
+    response = call(admin, name: "Moab", region: "Utah")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
   end
 
   it "treats punctuation variants of a name as the same city" do

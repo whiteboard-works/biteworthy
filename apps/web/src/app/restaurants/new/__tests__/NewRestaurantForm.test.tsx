@@ -17,6 +17,7 @@ const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 import { NewRestaurantForm } from '../_NewRestaurantForm';
+import { NotSignedInError } from '../../../../lib/chat';
 
 const SLC = {
   id: 'c1',
@@ -106,6 +107,16 @@ describe('NewRestaurantForm', () => {
     expect(theirs!.querySelector('a')).toBeNull();
     expect(theirs).toHaveTextContent('someone is already adding this one');
     expect(mine!.querySelector('a')).toHaveAttribute('href', '/restaurants/red-iguana-2/scan');
+  });
+
+  it('sends an expired session back to login instead of showing an error', async () => {
+    mockCreate.mockRejectedValue(new NotSignedInError());
+    render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
+
+    fill('Red Iguana');
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/login?next=%2Frestaurants%2Fnew'));
+    expect(screen.queryByTestId('new-restaurant-error')).toBeNull();
   });
 
   it('preselects the only city when there is just one', () => {

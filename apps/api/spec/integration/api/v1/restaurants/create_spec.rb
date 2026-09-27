@@ -24,11 +24,15 @@ RSpec.describe "restaurants", type: :request do
                    type: :array,
                    items: {
                      type: :object,
-                     required: %w[id slug name city],
+                     required: %w[id slug name status city street latitude longitude],
                      properties: {
-                       id:   { type: :string, format: :uuid },
-                       slug: { type: :string },
-                       name: { type: :string },
+                       id:        { type: :string, format: :uuid },
+                       slug:      { type: :string },
+                       name:      { type: :string },
+                       status:    { type: :string },
+                       street:    { type: :string, nullable: true },
+                       latitude:  { type: :number, nullable: true },
+                       longitude: { type: :number, nullable: true },
                        city: {
                          type: :object,
                          required: %w[slug name],
@@ -63,7 +67,7 @@ RSpec.describe "restaurants", type: :request do
       produces "application/json"
       security [ bearerAuth: [] ]
       parameter name: :Authorization, in: :header, type: :string, required: true
-      parameter name: :body, in: :body, schema: {
+      parameter name: :body, in: :body, required: true, schema: {
         type: :object,
         required: %w[name city_slug],
         properties: {

@@ -51,13 +51,14 @@ module Cities
           # city. Cities are few enough to compare in Ruby.
           base = clean_name.parameterize
           same_name = City.all.select { |c| c.name.parameterize == base }
-          # Older rows (the Durango seed task) may hold the code, not the name.
-          existing = same_name.find { |c| [ state.upcase, US_STATES.key(state) ].include?(c.region.to_s.upcase) }
+          # Older rows may hold a code ("CO", from the Durango seed task) or
+          # stray whitespace, so compare normalized states.
+          existing = same_name.find { |c| state_name(c.region) == state }
           raise Duplicate, existing if existing
 
-          # A same-named row with no state might be this city or another
-          # state's; guessing either way is wrong, so make someone say which.
-          if (unknown = same_name.find { |c| c.region.nil? })
+          # A same-named row whose state can't be read might be this city or
+          # another state's; guessing either way is wrong, so make someone say.
+          if (unknown = same_name.find { |c| state_name(c.region).nil? })
             raise ArgumentError, "'#{unknown.name}' (#{unknown.slug}) is on file with no state; set its state first"
           end
 

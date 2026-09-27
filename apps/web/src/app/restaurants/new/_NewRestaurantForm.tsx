@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createRestaurant, type City, type DuplicateCandidate } from '../../../lib/cities';
+import { NotSignedInError } from '../../../lib/chat';
 
 const INPUT = 'mt-bw-1 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base';
 
@@ -40,7 +41,11 @@ export function NewRestaurantForm({ cities }: { cities: City[] }) {
         return;
       }
       router.push(`/restaurants/${result.slug}/scan`);
-    } catch {
+    } catch (err) {
+      if (err instanceof NotSignedInError) {
+        router.push('/login?next=%2Frestaurants%2Fnew');
+        return;
+      }
       setError('Something went wrong adding that restaurant. Try again.');
     } finally {
       setSubmitting(false);

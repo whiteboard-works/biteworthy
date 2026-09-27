@@ -9,6 +9,7 @@
 import type { paths } from '@biteworthy/api-types';
 import { api } from './api';
 import { postAdminJson } from './admin/shared';
+import { NotSignedInError } from './chat';
 
 export type City =
   paths['/api/v1/cities']['get']['responses']['200']['content']['application/json']['cities'][number];
@@ -68,6 +69,7 @@ export async function createRestaurant(
     const body = (await res.json()) as { candidates: DuplicateCandidate[] };
     return { kind: 'duplicate', candidates: body.candidates };
   }
+  if (res.status === 401) throw new NotSignedInError();
   if (!res.ok) throw new Error(`createRestaurant failed: ${res.status}`);
   const body = (await res.json()) as { slug: string };
   return { kind: 'created', slug: body.slug };
