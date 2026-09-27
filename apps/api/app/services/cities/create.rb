@@ -47,14 +47,12 @@ module Cities
         # check; a transaction-scoped advisory lock makes them take turns.
         City.transaction do
           City.connection.execute("SELECT pg_advisory_xact_lock(hashtext('cities_create'))")
-          # Compared by slug form, so "St. Louis" and "St Louis" are one
-          # city. Cities are few enough to compare in Ruby.
+          # Cities are few enough to compare in Ruby; see same_name?.
           base = clean_name.parameterize
-          same_name = City.all.select { |c| name_key(c.name) == name_key(clean_name) }
+          same_name = City.all.select { |c| same_name?(c.name, clean_name) }
           # Older rows may hold a code ("CO", from the Durango seed task) or
           # stray whitespace, so compare normalized states.
-          existing = same_name.find { |c| state_name(c.region) == state } ||
-                     abbreviation_of(clean_name, state)
+          existing = same_name.find { |c| state_name(c.region) == state }
           raise Duplicate, existing if existing
 
           # A same-named row whose state can't be read might be this city or
@@ -80,14 +78,10 @@ module Cities
         "#{with_state}-#{n}"
       end
 
-      # "SLC" for Salt Lake City: an abbreviation of a city already in the
-      # same state is that city, whichever of the two is being added.
-      def abbreviation_of(name, state)
-        City.all.find do |c|
-          next false unless state_name(c.region) == state
-
-          initials(c.name) == compact(name) || initials(name) == compact(c.name)
-        end
+      # Punctuation, civic abbreviations, and initials ("SLC" for Salt
+      # Lake City, either way round) all name the same city.
+      def same_name?(a, b)
+        name_key(a) == name_key(b) || initials(a) == compact(b) || initials(b) == compact(a)
       end
 
       # "Ft. Worth" and "Fort Worth", "St. Louis" and "Saint Louis": the

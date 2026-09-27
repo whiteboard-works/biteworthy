@@ -90,6 +90,15 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(payload(response)[:city][:id]).to eq(existing.id)
   end
 
+  it "refuses an abbreviation while the full-named city has no state on file" do
+    create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: nil)
+
+    response = call(admin, name: "SLC", region: "UT")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(1)
+  end
+
   it "numbers the slug when even the state-suffixed one is taken" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
     create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")
