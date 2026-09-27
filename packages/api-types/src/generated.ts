@@ -3995,7 +3995,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List published restaurants
+         * @description Public. Name-ordered, capped at 100; `q` is a case-insensitive name match.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description published restaurants */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            restaurants: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                city: {
+                                    slug: string;
+                                    name: string;
+                                    region?: string | null;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         /**
          * Add a restaurant we don't have yet

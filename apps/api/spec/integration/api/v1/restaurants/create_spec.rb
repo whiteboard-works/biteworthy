@@ -1,6 +1,6 @@
 require "swagger_helper"
 
-RSpec.describe "restaurants#create", type: :request do
+RSpec.describe "restaurants", type: :request do
   def bearer_for(user)
     token, _ = Warden::JWTAuth::UserEncoder.new.call(user, :user, nil)
     "Bearer #{token}"
@@ -10,6 +10,50 @@ RSpec.describe "restaurants#create", type: :request do
   let!(:city) { create(:city, slug: "salt-lake-city", name: "Salt Lake City", region: "Utah") }
 
   path "/api/v1/restaurants" do
+    get("List published restaurants") do
+      tags "Restaurants"
+      description "Public. Name-ordered, capped at 100; `q` is a case-insensitive name match."
+      produces "application/json"
+      parameter name: :q, in: :query, type: :string, required: false
+
+      response(200, "published restaurants") do
+        schema type: :object,
+               required: %w[restaurants],
+               properties: {
+                 restaurants: {
+                   type: :array,
+                   items: {
+                     type: :object,
+                     required: %w[id slug name city],
+                     properties: {
+                       id:   { type: :string, format: :uuid },
+                       slug: { type: :string },
+                       name: { type: :string },
+                       city: {
+                         type: :object,
+                         required: %w[slug name],
+                         properties: {
+                           slug:   { type: :string },
+                           name:   { type: :string },
+                           region: { type: :string, nullable: true }
+                         }
+                       }
+                     }
+                   }
+                 }
+               }
+        let(:q) { "iguana" }
+        before do
+          create(:restaurant, :published, name: "Red Iguana", slug: "red-iguana", city: city)
+          create(:restaurant, name: "Draft Iguana", slug: "draft-iguana", city: city)
+        end
+
+        run_test! do |response|
+          expect(JSON.parse(response.body)["restaurants"].map { |r| r["slug"] }).to eq([ "red-iguana" ])
+        end
+      end
+    end
+
     post("Add a restaurant we don't have yet") do
       tags "Restaurants"
       description "Creates a DRAFT restaurant attributed to the caller. A likely duplicate in the " \

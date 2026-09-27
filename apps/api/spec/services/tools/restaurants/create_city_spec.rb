@@ -55,6 +55,23 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.count).to eq(1)
   end
 
+  it "treats punctuation variants of a name as the same city" do
+    existing = create(:city, slug: "st-louis", name: "St. Louis", region: "Missouri")
+
+    response = call(admin, name: "St Louis", region: "MO")
+
+    expect(payload(response)[:city][:id]).to eq(existing.id)
+  end
+
+  it "numbers the slug when even the state-suffixed one is taken" do
+    create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
+    create(:city, slug: "springfield-missouri", name: "Springfield Township", region: "Ohio")
+
+    response = call(admin, name: "Springfield", region: "MO")
+
+    expect(payload(response)[:city][:slug]).to eq("springfield-missouri-2")
+  end
+
   it "keeps a same-named city in another state apart instead of calling it a duplicate" do
     create(:city, slug: "springfield", name: "Springfield", region: "Illinois")
 

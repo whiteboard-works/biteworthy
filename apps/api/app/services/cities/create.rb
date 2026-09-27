@@ -38,7 +38,7 @@ module Cities
     class << self
       def call(name:, region:)
         clean_name = name.to_s.strip
-        raise ArgumentError, "name required" if clean_name.blank?
+        raise ArgumentError, "name required" if clean_name.parameterize.blank?
 
         state = state_name(region)
         raise ArgumentError, "region must be a US state, e.g. 'Utah' or 'UT'" if state.nil?
@@ -47,24 +47,35 @@ module Cities
         # check; a transaction-scoped advisory lock makes them take turns.
         City.transaction do
           City.connection.execute("SELECT pg_advisory_xact_lock(hashtext('cities_create'))")
-          same_name = City.where("lower(name) = ?", clean_name.downcase)
+          # Compared by slug form, so "St. Louis" and "St Louis" are one
+          # city. Cities are few enough to compare in Ruby.
+          base = clean_name.parameterize
+          same_name = City.all.select { |c| c.name.parameterize == base }
           # Older rows (the Durango seed task) may hold the code, not the name.
-          existing = same_name.find_by("upper(region) IN (?)", [ state.upcase, US_STATES.key(state) ])
+          existing = same_name.find { |c| [ state.upcase, US_STATES.key(state) ].include?(c.region.to_s.upcase) }
           raise Duplicate, existing if existing
 
           # A same-named row with no state might be this city or another
           # state's; guessing either way is wrong, so make someone say which.
-          if (unknown = same_name.find_by(region: nil))
+          if (unknown = same_name.find { |c| c.region.nil? })
             raise ArgumentError, "'#{unknown.name}' (#{unknown.slug}) is on file with no state; set its state first"
           end
 
-          # Springfield, IL and Springfield, MO are different cities; the
-          # second one to arrive gets its state in the slug.
-          slug = clean_name.parameterize
-          slug = "#{slug}-#{state.parameterize}" if City.exists?(slug: slug)
-
-          City.create!(name: clean_name, slug: slug, region: state, country: "US")
+          City.create!(name: clean_name, slug: unique_slug(base, state), region: state, country: "US")
         end
+      end
+
+      # Springfield, IL and Springfield, MO are different cities; the second
+      # one to arrive gets its state in the slug, then a number if needed.
+      def unique_slug(base, state)
+        return base unless City.exists?(slug: base)
+
+        with_state = "#{base}-#{state.parameterize}"
+        return with_state unless City.exists?(slug: with_state)
+
+        n = 2
+        n += 1 while City.exists?(slug: "#{with_state}-#{n}")
+        "#{with_state}-#{n}"
       end
 
       def state_name(region)

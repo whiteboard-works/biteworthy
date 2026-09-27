@@ -6697,6 +6697,83 @@
       }
     },
     "/api/v1/restaurants": {
+      "get": {
+        "summary": "List published restaurants",
+        "tags": [
+          "Restaurants"
+        ],
+        "description": "Public. Name-ordered, capped at 100; `q` is a case-insensitive name match.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "published restaurants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurants"
+                  ],
+                  "properties": {
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "city"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "object",
+                            "required": [
+                              "slug",
+                              "name"
+                            ],
+                            "properties": {
+                              "slug": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "region": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Add a restaurant we don't have yet",
         "tags": [
