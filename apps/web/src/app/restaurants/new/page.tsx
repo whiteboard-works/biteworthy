@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { redirect } from 'next/navigation';
 import { getServerJwt } from '../../../lib/server-auth';
+import { edgeHeaders } from '../../../lib/edge-headers';
 import { fetchCities, type City } from '../../../lib/cities';
 import { NewRestaurantForm } from './_NewRestaurantForm';
 
@@ -22,7 +23,7 @@ export default async function NewRestaurantPage(): Promise<ReactElement> {
 
   let cities: City[] = [];
   try {
-    cities = await fetchCities();
+    cities = await fetchCities({ edgeHeaders: await edgeHeaders() });
   } catch {
     // The form explains an empty city list; no need to 500.
   }

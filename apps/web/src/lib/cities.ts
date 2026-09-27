@@ -13,9 +13,16 @@ import { postAdminJson } from './admin/shared';
 export type City =
   paths['/api/v1/cities']['get']['responses']['200']['content']['application/json']['cities'][number];
 
-export async function fetchCities(opts: { fetchImpl?: typeof fetch } = {}): Promise<City[]> {
+/**
+ * Server-side, uncached: pass `edgeHeaders()` so Rails throttles the
+ * visitor rather than the Next server's shared bucket.
+ */
+export async function fetchCities(
+  opts: { fetchImpl?: typeof fetch; edgeHeaders?: Record<string, string> } = {},
+): Promise<City[]> {
   const body = await api<{ cities: City[] }>('/cities', {
     fetchImpl: opts.fetchImpl,
+    headers: opts.edgeHeaders,
     cache: 'no-store',
   });
   return body.cities;

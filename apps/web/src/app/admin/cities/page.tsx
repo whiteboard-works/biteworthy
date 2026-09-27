@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { edgeHeaders } from '../../../lib/edge-headers';
 import { fetchCities, type City } from '../../../lib/cities';
 import { CityCreateForm } from './_CityCreateForm';
 
@@ -11,7 +12,7 @@ export default async function AdminCitiesPage(): Promise<ReactElement> {
   let cities: City[] = [];
   let loadFailed = false;
   try {
-    cities = await fetchCities();
+    cities = await fetchCities({ edgeHeaders: await edgeHeaders() });
   } catch {
     loadFailed = true;
   }
