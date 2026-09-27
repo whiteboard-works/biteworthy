@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerJwt } from '../../../../../lib/server-auth';
 
 import { API_BASE } from '../../../../../lib/api-base';
+import { edgeHeaders } from '../../../../../lib/edge-headers';
 
 async function proxy(method: 'POST' | 'DELETE', id: string) {
   const jwt = await getServerJwt();
@@ -17,7 +18,7 @@ async function proxy(method: 'POST' | 'DELETE', id: string) {
   }
   const upstream = await fetch(`${API_BASE}/api/v1/items/${encodeURIComponent(id)}/never_hide`, {
     method,
-    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json', ...(await edgeHeaders()) },
   });
   const responseText = await upstream.text();
   return new NextResponse(responseText, {

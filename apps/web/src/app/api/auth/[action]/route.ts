@@ -203,7 +203,7 @@ async function handleLogout() {
     // way and an attacker without it can't replay.
     await fetch(`${API_BASE}/api/v1/auth/logout`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(await edgeHeaders()) },
     }).catch(() => {});
   }
   const response = NextResponse.json({ ok: true }, { status: 200 });

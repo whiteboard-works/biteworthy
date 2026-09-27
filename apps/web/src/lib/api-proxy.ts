@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server';
 import { API_BASE } from './api-base';
 import { getServerJwt } from './server-auth';
+import { edgeHeaders } from './edge-headers';
 
 /**
  * Relay a Rails response back to the browser verbatim — same status,
@@ -46,9 +47,13 @@ export async function proxyAuthed(apiPath: string, init: ProxyInit = {}): Promis
   const jwt = await getServerJwt();
   if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
+  // Edge headers even on signed-in calls: a forged or stale session
+  // cookie fails JWT validation upstream and falls to the IP bucket, which
+  // must be the visitor's, not this server's.
   const headers: Record<string, string> = {
     Authorization: `Bearer ${jwt}`,
     Accept: 'application/json',
+    ...(await edgeHeaders()),
   };
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -71,7 +76,7 @@ export async function proxyStreamGet(apiPath: string): Promise<Response> {
   if (!jwt) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
   const upstream = await fetch(`${API_BASE}${apiPath}`, {
-    headers: { Authorization: `Bearer ${jwt}`, Accept: 'text/event-stream' },
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'text/event-stream', ...(await edgeHeaders()) },
   });
   if (!upstream.ok || !upstream.body) return relayUpstream(upstream);
 
@@ -104,6 +109,7 @@ export async function proxyStream(apiPath: string, body: string): Promise<Respon
       Authorization: `Bearer ${jwt}`,
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
+      ...(await edgeHeaders()),
     },
     body,
   });

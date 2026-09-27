@@ -63,22 +63,16 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).not_to have_http_status(:too_many_requests)
     end
 
-    # A token revoked by sign-out keeps its signature until it expires. It
-    # must neither spend the owner's current budget nor earn a bucket of its
-    # own (logging out repeatedly would mint fresh ones): it counts as
-    # anonymous traffic from its IP.
-    it "throttles a revoked token by IP, apart from the owner's current session" do
-      user = create(:user)
-      old_headers = auth_headers_for(user)
-      get path, headers: old_headers # counted as the user while still current
-      user.update!(jti: SecureRandom.uuid)
+    # The discriminator runs before the counter, so it must not query:
+    # over-limit requests would still cost Postgres a round trip each.
+    it "attributes a signed-in request without touching the database" do
+      headers = auth_headers_for(create(:user))
+      queries = []
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| queries << p[:sql] }
+      Rack::Attack.api_user_key(Rack::Attack::Request.new(Rack::MockRequest.env_for("/api/v1/x", "HTTP_AUTHORIZATION" => headers["Authorization"])))
+      ActiveSupport::Notifications.unsubscribe(sub)
 
-      burst(300, old_headers)
-
-      get path, headers: auth_headers_for(user.reload)
-      expect(response).not_to have_http_status(:too_many_requests)
-      get path
-      expect(response).to have_http_status(:too_many_requests)
+      expect(queries).to be_empty
     end
 
     # Keyed on a verified token, so inventing bearer strings can't mint

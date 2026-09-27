@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { API_BASE } from '../../../../lib/api-base';
 import { relayUpstream } from '../../../../lib/api-proxy';
 import { getServerJwt } from '../../../../lib/server-auth';
+import { edgeHeaders } from '../../../../lib/edge-headers';
 
 export async function POST(request: NextRequest) {
   const jwt = await getServerJwt();
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   const upstream = await fetch(`${API_BASE}/api/v1/attachments`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': contentType },
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': contentType, ...(await edgeHeaders()) },
     body: await request.arrayBuffer(),
   });
   return relayUpstream(upstream);

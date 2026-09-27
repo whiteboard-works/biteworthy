@@ -150,28 +150,21 @@ class Rack::Attack
     req.ip
   end
 
-  # A user's current jti. One primary-key lookup — the same one Devise runs
-  # to authenticate this request moments later — and uncached, so a token
-  # revoked by sign-out stops counting as its user immediately.
-  def self.current_jti(user_id)
-    User.where(id: user_id).pick(:jti)
-  end
-
-  # "user:<id>" for a request carrying a valid, unexpired, unrevoked Devise
+  # "user:<id>" for a request carrying a signature-valid, unexpired Devise
   # JWT; nil otherwise, which sends it to the IP bucket. Memoized on the env
-  # because both /api throttles ask. A revoked token must not get a bucket
-  # of its own — logging out repeatedly would mint fresh ones.
+  # because both /api throttles ask. Deliberately no database lookup: the
+  # discriminator runs before the counter, so a query here would be one
+  # every flooded request still pays. The cost is that a token revoked by
+  # sign-out keeps counting against its owner's bucket until it expires —
+  # someone holding a stolen token can spend that one user's budget, nobody
+  # else's.
   def self.api_user_key(req)
     return req.env["bw.throttle_user"] if req.env.key?("bw.throttle_user")
 
     req.env["bw.throttle_user"] =
       begin
         bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
-        if bearer.present?
-          payload = Warden::JWTAuth::TokenDecoder.new.call(bearer)
-          jti     = payload["jti"].presence
-          "user:#{payload['sub']}" if jti && jti == current_jti(payload["sub"])
-        end
+        "user:#{Warden::JWTAuth::TokenDecoder.new.call(bearer)['sub']}" if bearer.present?
       rescue JWT::DecodeError
         nil
       end

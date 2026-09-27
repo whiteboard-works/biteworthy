@@ -12,6 +12,10 @@ vi.mock('../server-auth', () => ({
   getServerJwt: () => mockGetServerJwt(),
 }));
 
+vi.mock('../edge-headers', () => ({
+  edgeHeaders: async () => ({ 'X-BW-Client-IP': '203.0.113.7', 'X-BW-Proxy-Secret': 's' }),
+}));
+
 const API_BASE = 'http://localhost:3000';
 
 beforeEach(() => {
@@ -121,5 +125,20 @@ describe('adminProxy', () => {
     const res = await adminProxy('/api/v1/admin/dashboard');
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found' });
+  });
+});
+
+// A forged or stale session cookie still gets proxied; Rails then rejects
+// the JWT and throttles by IP — which has to be the visitor's, or one
+// attacker could exhaust the bucket every other web visitor shares.
+describe('proxyAuthed edge headers', () => {
+  it("forwards the visitor's IP even on a signed-in call", async () => {
+    vi.mocked(fetch).mockResolvedValue(upstream('{}'));
+    await proxyAuthed('/api/v1/me');
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      'X-BW-Client-IP': '203.0.113.7',
+      Authorization: 'Bearer jwt-123',
+    });
   });
 });

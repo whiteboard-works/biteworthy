@@ -41,7 +41,10 @@ export async function POST(
   const contentType = request.headers.get('Content-Type') ?? 'application/octet-stream';
   const isMultipart = contentType.startsWith('multipart/form-data');
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${jwt}` };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${jwt}`,
+    ...(await edgeHeaders()),
+  };
   let body: BodyInit;
   if (isMultipart) {
     headers['Content-Type'] = contentType;
