@@ -116,6 +116,116 @@
         }
       }
     },
+    "/api/v1/admin/cities": {
+      "post": {
+        "summary": "Add a city",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Creates a city restaurants can be added to. The slug is derived from the name and is permanent. 409 with the existing city when it is already covered.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/City"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "already covered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "city"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "$ref": "#/components/schemas/City"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "missing or malformed region",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "region"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "region": {
+                    "type": "string",
+                    "description": "Two-letter state code"
+                  },
+                  "country": {
+                    "type": "string"
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/dashboard": {
       "get": {
         "summary": "Ops dashboard: ingestion cost metrics, community spend, queue counts",
@@ -5572,6 +5682,38 @@
         }
       }
     },
+    "/api/v1/cities": {
+      "get": {
+        "summary": "List every city we cover",
+        "tags": [
+          "Cities"
+        ],
+        "description": "Public. Includes cities with no published restaurants yet, so a new city can take its first restaurant.",
+        "responses": {
+          "200": {
+            "description": "all cities, name-ordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "cities"
+                  ],
+                  "properties": {
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/City"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/conversations": {
       "get": {
         "summary": "List the caller's conversations, newest first",
@@ -7464,6 +7606,35 @@
         "type": "object",
         "properties": {
           "error": {
+            "type": "string"
+          }
+        }
+      },
+      "City": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "region",
+          "country"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
             "type": "string"
           }
         }

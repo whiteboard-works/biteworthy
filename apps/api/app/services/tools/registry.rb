@@ -15,6 +15,7 @@ module Tools
       ],
       discovery: [
         "Discovery::SearchRestaurants",
+        "Discovery::ListCities",
         "Discovery::GetRestaurant",
         "Discovery::GetMenu",
         "Discovery::ExplainItem",
@@ -57,6 +58,7 @@ module Tools
         "History::ListSaved"
       ],
       restaurants: [
+        "Restaurants::CreateCity",
         "Restaurants::CreateRestaurant",
         "Restaurants::EditRestaurant",
         "Restaurants::ConfirmRestaurantData"

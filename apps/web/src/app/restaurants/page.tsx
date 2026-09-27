@@ -40,6 +40,17 @@ export default async function RestaurantsPage(): Promise<ReactElement> {
       </p>
 
       <RestaurantSearch restaurants={restaurants} />
+
+      <p className="mt-bw-8 text-bw-sm text-zinc-600">
+        Don&apos;t see your spot?{' '}
+        <Link
+          href="/restaurants/new"
+          data-testid="add-restaurant"
+          className="font-bold text-bite hover:text-bite-dark"
+        >
+          Add a restaurant and scan its menu →
+        </Link>
+      </p>
     </main>
   );
 }

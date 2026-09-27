@@ -25,7 +25,7 @@ module Tools
       input_schema(
         properties: {
           name:        { type: "string", description: "The restaurant's name as it appears on the sign." },
-          city_slug:   { type: "string", description: "City slug, e.g. 'durango'. From search_restaurants." },
+          city_slug:   { type: "string", description: "City slug, e.g. 'durango'. From list_cities." },
           street:      { type: "string", description: "Street address, if known." },
           postal_code: { type: "string", description: "Postal code, if known." },
           force: {
@@ -66,7 +66,7 @@ module Tools
       rescue ArgumentError => e
         raise Errors::InvalidArgument, e.message
       rescue ::Restaurants::Create::UnknownCity => e
-        raise Errors::InvalidArgument, "#{e.message}. Biteworthy only covers a few cities so far."
+        raise Errors::InvalidArgument, "#{e.message}. Check list_cities; an admin can add a missing city with create_city."
       end
     end
   end

@@ -67,6 +67,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a city
+         * @description Creates a city restaurants can be added to. The slug is derived from the name and is permanent. 409 with the existing city when it is already covered.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** @description Two-letter state code */
+                        region: string;
+                        country?: string;
+                        latitude?: number;
+                        longitude?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["City"];
+                    };
+                };
+                /** @description not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description already covered */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            city: components["schemas"]["City"];
+                        };
+                    };
+                };
+                /** @description missing or malformed region */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/dashboard": {
         parameters: {
             query?: never;
@@ -3102,6 +3185,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every city we cover
+         * @description Public. Includes cities with no published restaurants yet, so a new city can take its first restaurant.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description all cities, name-ordered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cities: components["schemas"]["City"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -4398,6 +4522,14 @@ export interface components {
     schemas: {
         Error: {
             error?: string;
+        };
+        City: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            region: string | null;
+            country: string;
         };
         Pagination: {
             total: number;

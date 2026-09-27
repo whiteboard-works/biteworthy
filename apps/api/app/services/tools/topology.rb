@@ -23,7 +23,7 @@ module Tools
       claims:    "Prove you run a restaurant, which unlocks its correction queue.",
       history:   "The caller's own visits and saves. Private.",
       ingestion: "Turn a photo, URL, or pasted menu into staged dishes, then verify them.",
-      restaurants: "Add a restaurant we do not have. Admins also edit and verify existing ones.",
+      restaurants: "Add a restaurant we do not have. Admins also add cities, and edit and verify restaurants.",
       structure: "Menus, sections, address, and hours. Admin.",
       items:     "Deep-edit one live dish. Admin.",
       taxonomy:  "The ingredient and tag trees the filter reads. Admin.",
@@ -60,7 +60,7 @@ module Tools
         audience: :user,
         arguments: %i[restaurant],
         steps: %w[
-          create_restaurant start_menu_scan get_scan_status list_staged_items
+          list_cities create_restaurant start_menu_scan get_scan_status list_staged_items
           edit_staged_item accept_staged_items undo_staged_item
         ],
         note: "create_restaurant only if search_restaurants found nothing. Extraction is " \

@@ -1,0 +1,83 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+/**
+ * The form's job is to get a new place into a scan without splitting an
+ * existing restaurant in two: a likely duplicate must stop and ask, and
+ * only an explicit "add it anyway" sends force.
+ */
+
+const mockCreate = vi.fn();
+vi.mock('../../../../lib/cities', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/cities')>()),
+  createRestaurant: (input: unknown) => mockCreate(input),
+}));
+
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
+
+import { NewRestaurantForm } from '../_NewRestaurantForm';
+
+const SLC = {
+  id: 'c1',
+  slug: 'salt-lake-city',
+  name: 'Salt Lake City',
+  region: 'UT',
+  country: 'US',
+};
+const DURANGO = { id: 'c2', slug: 'durango', name: 'Durango', region: 'CO', country: 'US' };
+
+function fill(name: string) {
+  fireEvent.change(screen.getByTestId('new-restaurant-city'), {
+    target: { value: 'salt-lake-city' },
+  });
+  fireEvent.change(screen.getByTestId('new-restaurant-name'), { target: { value: name } });
+  fireEvent.submit(screen.getByTestId('new-restaurant-form'));
+}
+
+beforeEach(() => {
+  mockCreate.mockReset();
+  mockPush.mockReset();
+});
+
+describe('NewRestaurantForm', () => {
+  it('creates the restaurant in the chosen city and goes straight to its scan', async () => {
+    mockCreate.mockResolvedValue({ kind: 'created', slug: 'red-iguana' });
+    render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
+
+    fill('Red Iguana');
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/restaurants/red-iguana/scan'));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Red Iguana', city_slug: 'salt-lake-city', force: false }),
+    );
+  });
+
+  it('stops on a likely duplicate and only forces after the user says none match', async () => {
+    mockCreate.mockResolvedValueOnce({
+      kind: 'duplicate',
+      candidates: [
+        { id: 'r1', slug: 'red-iguana', name: 'Red Iguana', status: 'published', street: null },
+      ],
+    });
+    render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
+
+    fill('Red Iguana 2');
+
+    await screen.findByTestId('new-restaurant-duplicates');
+    expect(mockPush).not.toHaveBeenCalled();
+
+    mockCreate.mockResolvedValueOnce({ kind: 'created', slug: 'red-iguana-2' });
+    fireEvent.click(screen.getByTestId('new-restaurant-force'));
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/restaurants/red-iguana-2/scan'));
+    expect(mockCreate).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }));
+  });
+
+  it('preselects the only city when there is just one', () => {
+    render(<NewRestaurantForm cities={[SLC]} />);
+    expect((screen.getByTestId('new-restaurant-city') as HTMLSelectElement).value).toBe(
+      'salt-lake-city',
+    );
+  });
+});

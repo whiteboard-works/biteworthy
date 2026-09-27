@@ -39,6 +39,17 @@ RSpec.configure do |config|
               error: { type: :string }
             }
           },
+          City: {
+            type: :object,
+            required: %w[id slug name region country],
+            properties: {
+              id:      { type: :string, format: :uuid },
+              slug:    { type: :string },
+              name:    { type: :string },
+              region:  { type: :string, nullable: true },
+              country: { type: :string }
+            }
+          },
           Pagination: {
             type: :object,
             required: %w[total limit offset],

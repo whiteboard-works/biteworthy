@@ -79,11 +79,10 @@ Rails.application.routes.draw do
       get "/account/export", to: "account_exports#show"
       # Phase 5.6 — backs the SSR /durango/[diet] SEO pages. Flat
       # route (not nested) so the `:city_slug` param name is explicit.
-      # There is no CitiesController yet, so only this restaurants-by-city
-      # read is exposed; a bare `resources :cities` would 500.
       get "/cities/:city_slug/restaurants",
           to: "city_restaurants#index",
           as: :city_restaurants_ranking
+      resources :cities, only: [:index]
       # Phase 6.2 — :create is the community "scan a new restaurant"
       # entrypoint (authenticated; pg_trgm dedup guard inside).
       resources :restaurants, only: [:index, :show, :create] do
@@ -180,6 +179,7 @@ Rails.application.routes.draw do
       # ERB /admin/dashboard capability by capability.
       namespace :admin do
         get :dashboard, to: "dashboards#show"
+        resources :cities, only: [:create]
         # DELETE archives; DELETE ?hard=true destroys and is super-admin
         # only (Api::V1::Admin::Deletable). Items, reviews and
         # suggestions accept only the hard form — each already has a
