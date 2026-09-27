@@ -108,6 +108,9 @@ env:
     - RAILS_MASTER_KEY
     - DATABASE_URL                  # Neon pooled connection string
     - DEVISE_JWT_SECRET_KEY
+    # Shared with Vercel's WEB_PROXY_SECRET: Rack::Attack trusts the visitor
+    # IP the Next server forwards only alongside it (config/initializers/rack_attack.rb).
+    - WEB_PROXY_SECRET
     # AI ingestion (Phase 2.1+)
     - ANTHROPIC_API_KEY
     # SMTP — Resend API key (username "resend" is non-secret, in env.clear)

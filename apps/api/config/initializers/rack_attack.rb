@@ -22,10 +22,9 @@
 # that are ISR-cached (home, /restaurants, /durango/*) hit Rails at most
 # once per revalidate window, so they don't forward a client IP.
 #
-# Production needs WEB_PROXY_SECRET in three places at once: Vercel's env,
-# `.kamal/secrets`, and `env.secret` in config/deploy.yml (then
-# bin/kamal-secrets-push). Listing it in deploy.yml before the value exists
-# fails the deploy, so that line lands with the provisioning, not before.
+# Production carries WEB_PROXY_SECRET in three places that must change
+# together: Vercel's env, `.kamal/secrets` (pushed with
+# bin/kamal-secrets-push), and `env.secret` in config/deploy.yml.
 class Rack::Attack
   # In-memory counter store. Single-process is fine for the launch
   # footprint; swap to a shared store (Solid Cache / Redis) when the API
