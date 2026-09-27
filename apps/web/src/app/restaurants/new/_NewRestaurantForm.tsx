@@ -84,6 +84,7 @@ export function NewRestaurantForm({
             setCandidates(null);
           }}
           required
+          disabled={submitting}
           data-testid="new-restaurant-city"
           className={INPUT}
         >
@@ -106,6 +107,7 @@ export function NewRestaurantForm({
             setCandidates(null);
           }}
           required
+          disabled={submitting}
           data-testid="new-restaurant-name"
           className={INPUT}
         />
@@ -115,6 +117,7 @@ export function NewRestaurantForm({
         <input
           value={street}
           onChange={(e) => setStreet(e.target.value)}
+          disabled={submitting}
           data-testid="new-restaurant-street"
           className={INPUT}
         />
@@ -125,6 +128,7 @@ export function NewRestaurantForm({
           value={postalCode}
           onChange={(e) => setPostalCode(e.target.value)}
           inputMode="numeric"
+          disabled={submitting}
           data-testid="new-restaurant-postal"
           className={INPUT}
         />

@@ -131,6 +131,21 @@ describe('NewRestaurantForm', () => {
     expect(screen.getByTestId('new-restaurant-no-cities')).toBeInTheDocument();
   });
 
+  // Candidates belong to the name that was submitted; editing it while the
+  // check is in flight would let "add anyway" force a different place.
+  it('locks the fields while a submit is in flight', async () => {
+    let resolve!: (v: unknown) => void;
+    mockCreate.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
+
+    fill('Red Iguana');
+
+    expect(screen.getByTestId('new-restaurant-name')).toBeDisabled();
+    expect(screen.getByTestId('new-restaurant-city')).toBeDisabled();
+    resolve({ kind: 'duplicate', candidates: [] });
+    await waitFor(() => expect(screen.getByTestId('new-restaurant-name')).not.toBeDisabled());
+  });
+
   it('preselects the only city when there is just one', () => {
     render(<NewRestaurantForm cities={[SLC]} />);
     expect((screen.getByTestId('new-restaurant-city') as HTMLSelectElement).value).toBe(
