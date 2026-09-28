@@ -84,6 +84,13 @@ RSpec.describe Chat::UpstreamError do
       expect(described_class.message_for(error)).to eq(described_class::REJECTED)
     end
 
+    # Starting over does not dodge a bug in how we build the request —
+    # the 2026-09-28 tool-search failure hit brand-new chats on their
+    # first tool round — so the sentence must not send people there.
+    it "does not promise a new chat will fix a rejection" do
+      expect(described_class::REJECTED).not_to match(/new chat/i)
+    end
+
     # Telling someone to retry a missing API key wastes their time on a
     # problem only we can see.
     it "owns a misconfigured key instead of asking for a retry" do

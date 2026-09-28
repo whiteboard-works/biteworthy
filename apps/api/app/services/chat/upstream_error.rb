@@ -44,8 +44,8 @@ module Chat
     MISCONFIGURED = "The assistant is not configured correctly on our side, so it cannot answer " \
                     "at all. Trying again will not help — this one is ours to fix."
 
-    REJECTED = "The assistant rejected this conversation, which is a bug on our side rather than " \
-               "anything you did. Starting a new chat should get you moving again."
+    REJECTED = "The assistant rejected this request because of a bug on our side, not anything " \
+               "you did. Try asking again; if it keeps happening, it is ours to fix."
 
     # The sentence for `error`, or GENERIC when its shape is unfamiliar.
     #
