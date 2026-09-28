@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.9.28.1",
+    "date": "2026-09-28",
+    "notes": [
+      "Chat: tool search no longer kills turns; tool steps say what they did; deleting a chat (and an account) works and asks first"
+    ]
+  },
+  {
     "version": "2026.9.28",
     "date": "2026-09-28",
     "notes": [
