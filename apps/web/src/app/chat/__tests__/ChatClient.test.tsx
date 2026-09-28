@@ -955,6 +955,32 @@ describe('ChatClient', () => {
       expect(await screen.findByTestId('chat-error')).toBeInTheDocument();
     });
 
+    // The turn can end, and its teardown refetch be in flight, just before
+    // the delete lands. A late answer must not put the chat back.
+    it('does not bring back a chat deleted while it was being refetched', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let answer: (c: Conversation) => void = () => {};
+      render(<ChatClient />);
+      await screen.findByText('Busy chat');
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      fireEvent.click(screen.getByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByText('Busy chat')).toBeNull());
+
+      answer({ ...blank, title: 'Busy chat', messages: [] });
+
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByText('Busy chat')).toBeNull();
+    });
+
     it('keeps the chat when the person cancels', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));

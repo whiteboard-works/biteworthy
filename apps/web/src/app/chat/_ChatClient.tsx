@@ -123,9 +123,15 @@ export function ChatClient(): ReactElement {
   // Refetching after every turn — rather than stitching the streamed
   // fragments into local state — means what's on screen is what the
   // server stored, which is also what a reload would show.
+  //
+  // Checked after the request, not before: a delete can start while this
+  // is in flight, and a late answer — the chat or its 404 — must not
+  // bring back what the person just deleted.
   const refresh = async (id: string): Promise<Conversation | null> => {
+    const deletedMeanwhile = async () => (await deletions.current.get(id)) ?? false;
     try {
       const conversation = await getConversation(id);
+      if (await deletedMeanwhile()) return null;
       adopt(conversation);
       setConversations((current) =>
         current.some((c) => c.id === id)
@@ -134,7 +140,7 @@ export function ChatClient(): ReactElement {
       );
       return conversation;
     } catch (e) {
-      onFailure(e);
+      if (!(await deletedMeanwhile())) onFailure(e);
       return null;
     }
   };
