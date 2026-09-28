@@ -25,7 +25,7 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
-      running_description { "Saving this restaurant to your list" }
+      running_description { |args| args[:saved] == false ? "Removing this restaurant from your list" : "Saving this restaurant to your list" }
 
       def self.perform(context:, restaurant:, saved: true)
         user   = context.user!
