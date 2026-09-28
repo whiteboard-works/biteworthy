@@ -55,6 +55,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Updating the restaurant’s address and hours" }
+
       # Replaces the address and the week wholesale, which is destructive in
       # the annotation's sense — but re-sending them is the way back.
       unrecoverable_when { false }

@@ -28,6 +28,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Looking up accounts" }
+
       DEFAULT_LIMIT = 25
       MAX_LIMIT     = 100
 

@@ -30,6 +30,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Confirming the restaurant details" }
+
       # The description above says it: cannot be undone through the tool
       # layer, and what it buys is visibility to strict-mode users — the
       # people filtering for a real allergy. There is no later edit that

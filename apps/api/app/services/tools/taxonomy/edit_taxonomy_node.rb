@@ -40,6 +40,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Updating the ingredient or tag" }
+
       def self.perform(context:, kind:, slug:, **fields)
         context.admin!
         node  = find_node!(kind, slug)

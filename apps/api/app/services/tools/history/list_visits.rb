@@ -29,6 +29,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Pulling up your recent visits" }
+
       DEFAULT_LIMIT = 30
       MAX_LIMIT     = 100
 

@@ -25,6 +25,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Deleting the review" }
+
       # Someone's own words, destroyed. No tool rewrites them.
       unrecoverable_when { true }
 

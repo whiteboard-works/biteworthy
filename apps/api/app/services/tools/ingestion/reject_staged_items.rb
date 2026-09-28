@@ -30,6 +30,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Dropping the dishes you rejected" }
+
       def self.perform(context:, scan_id:, item_ids:)
         run = find_run!(context, scan_id)
 

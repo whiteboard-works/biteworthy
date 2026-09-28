@@ -28,6 +28,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Reporting the review" }
+
       def self.perform(context:, review_id:)
         context.user!
         review = find_review!(review_id)

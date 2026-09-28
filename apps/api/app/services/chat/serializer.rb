@@ -147,9 +147,19 @@ module Chat
         case block["type"]
         when "text"     then { type: "text", text: block["text"] }
         when "thinking" then { type: "thinking", text: block["thinking"] }
-        when "tool_use" then { type: "tool_use", id: block["id"], name: block["name"], input: block["input"] }
+        when "tool_use" then tool_use(block)
         else                 tool_result(block)
         end
+      end
+
+      # The tool's own sentence rides with the stored call, not only the
+      # live event. Without it a finished turn redraws every card as the
+      # fallback "Did search restaurants" the moment the stream closes.
+      def tool_use(block)
+        tool  = Tools::Registry.find(block["name"])
+        input = block["input"].is_a?(Hash) ? block["input"].symbolize_keys : {}
+        doing = tool&.running_description_for(input)
+        { type: "tool_use", id: block["id"], name: block["name"], input: block["input"], doing: doing }
       end
 
       def tool_result(block)

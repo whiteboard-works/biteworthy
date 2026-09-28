@@ -30,6 +30,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Moderating the review" }
+
       # Hiding and unhiding are the same call with a different argument.
       unrecoverable_when { false }
 

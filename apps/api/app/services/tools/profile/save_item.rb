@@ -25,6 +25,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Saving this dish to your list" }
+
       def self.perform(context:, item_id:, saved: true)
         user = context.user!
         item = Item.published.joins(:restaurant).merge(Restaurant.published).find(item_id)

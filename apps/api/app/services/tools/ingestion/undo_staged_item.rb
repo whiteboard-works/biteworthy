@@ -29,6 +29,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Undoing that decision" }
+
       # The undo itself. Re-accepting is the way back, and the tool says out
       # loud that restoring an update is last-writer-wins.
       unrecoverable_when { false }

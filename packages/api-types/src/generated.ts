@@ -4798,6 +4798,8 @@ export interface components {
             input?: Record<string, never> | null;
             tool_use_id?: string | null;
             ok?: boolean | null;
+            /** @description tool_use only: the tool's own progress sentence, when it declares one. */
+            doing?: string | null;
         };
         ChatMessage: {
             /** Format: uuid */

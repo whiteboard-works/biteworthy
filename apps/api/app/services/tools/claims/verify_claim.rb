@@ -29,6 +29,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Verifying your claim" }
+
       def self.perform(context:, token:)
         context.user!
         suggestion = RestaurantClaim.verify(token: extract_token(token))

@@ -505,6 +505,26 @@ describe('ChatClient', () => {
       const card = await screen.findByTestId('tool-card');
       expect(within(card).getByRole('time')).toHaveAttribute('datetime', '2026-08-10T01:30:00Z');
     });
+
+    // History used to drop the sentence, so a finished turn redrew every
+    // card as "Did get menu" the moment the stream closed.
+    it("labels a stored card with the tool's own sentence", async () => {
+      getConversation.mockResolvedValue({
+        ...withTool,
+        messages: withTool.messages.map((m) => ({
+          ...m,
+          blocks: m.blocks.map((b) =>
+            b.type === 'tool_use' ? { ...b, doing: "Reading the menu at Nini's" } : b,
+          ),
+        })),
+      });
+      render(<ChatClient />);
+      await type('hi');
+
+      const card = await screen.findByTestId('tool-card');
+      expect(card).toHaveTextContent("Reading the menu at Nini's");
+      expect(card).not.toHaveTextContent('Did get menu');
+    });
   });
 
   it('resumes from the cursor when a turn outlives one connection', async () => {

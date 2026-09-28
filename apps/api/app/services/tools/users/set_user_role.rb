@@ -28,6 +28,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Changing the account’s role" }
+
       # Reversible as a row, not as an event: whatever the grant was used
       # for in between stands.
       unrecoverable_when { true }

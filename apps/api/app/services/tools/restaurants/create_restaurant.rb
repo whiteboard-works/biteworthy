@@ -38,6 +38,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { |args| args[:name].to_s.strip.present? ? "Adding #{args[:name].to_s.strip.truncate(30)}" : "Adding the restaurant" }
+
       def self.perform(context:, name:, city_slug:, street: nil, postal_code: nil, force: false)
         user = context.user!
         result = ::Restaurants::Create.call(

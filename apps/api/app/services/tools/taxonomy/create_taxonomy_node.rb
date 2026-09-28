@@ -46,6 +46,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { |args| args[:name].to_s.strip.present? ? "Adding #{args[:name].to_s.strip.truncate(30)} to the taxonomy" : "Adding to the taxonomy" }
+
       def self.perform(context:, kind:, slug:, name:, path:, **extra)
         context.admin!
         model = model_for(kind)

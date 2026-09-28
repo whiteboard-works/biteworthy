@@ -21,6 +21,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Looking up cities" }
+
       def self.perform(context:)
         counts = Restaurant.published.group(:city_id).count
         cities = City.order(:name).map do |city|
