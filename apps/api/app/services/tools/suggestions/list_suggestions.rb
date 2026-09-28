@@ -35,6 +35,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Pulling up suggested corrections" }
+
       DEFAULT_LIMIT = 25
       MAX_LIMIT     = 100
 

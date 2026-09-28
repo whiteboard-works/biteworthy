@@ -32,6 +32,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Looking at how the menu is laid out" }
+
       MAX_ITEMS = 500
 
       def self.perform(context:, restaurant:, include_items: true)

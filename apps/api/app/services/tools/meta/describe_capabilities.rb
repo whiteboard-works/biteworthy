@@ -36,6 +36,8 @@ module Tools
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Checking what I can help with" }
+
       def self.perform(context:, domain: nil)
         map = Topology.for(context)
         return ok(map) if domain.nil?

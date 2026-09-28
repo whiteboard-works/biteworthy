@@ -30,6 +30,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { |args| args[:name].to_s.strip.present? ? "Adding #{args[:name].to_s.strip.truncate(30)}" : "Adding the city" }
+
       def self.perform(context:, name:, region:)
         context.admin!
         city = ::Cities::Create.call(name: name, region: region)

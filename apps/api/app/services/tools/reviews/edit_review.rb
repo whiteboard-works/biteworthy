@@ -26,6 +26,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Updating your review" }
+
       def self.perform(context:, review_id:, rating: nil, body: nil)
         review = find_review!(review_id)
         authorize_author!(context, review)

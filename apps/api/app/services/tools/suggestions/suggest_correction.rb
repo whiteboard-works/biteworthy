@@ -47,6 +47,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
 
+      running_description { "Sending in your correction" }
+
       # `context.user` rather than `user!` — an anonymous correction is
       # allowed and lands with `user_id: nil`, which `suggestion_row`
       # already compacts the submitter out of.

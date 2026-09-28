@@ -34,6 +34,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Updating the restaurant" }
+
       EDITABLE = %i[name about website phone status].freeze
 
       def self.perform(context:, restaurant:, **fields)

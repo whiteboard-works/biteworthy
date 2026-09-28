@@ -25,6 +25,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Saving this restaurant to your list" }
+
       def self.perform(context:, restaurant:, saved: true)
         user   = context.user!
         record = Restaurant.published.find_by_id_or_slug!(restaurant)

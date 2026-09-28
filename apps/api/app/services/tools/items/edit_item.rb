@@ -78,6 +78,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Updating the dish" }
+
       # An edit to a dish. The way back is another edit.
       unrecoverable_when { false }
 

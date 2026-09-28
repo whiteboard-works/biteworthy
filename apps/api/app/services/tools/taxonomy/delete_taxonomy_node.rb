@@ -31,6 +31,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
 
+      running_description { "Removing the ingredient or tag" }
+
       # The node is shared taxonomy — recreating one by the same slug does
       # not restore what pointed at it.
       unrecoverable_when { true }

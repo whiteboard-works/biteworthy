@@ -143,7 +143,15 @@ function AssistantBlock({
   if (block.type === 'text') return <Markdown text={block.text} />;
   if (block.type === 'thinking') return <Thinking text={block.text} />;
   if (block.type === 'tool_use') {
-    return <ToolCard name={block.name} input={block.input} ok={outcomes.get(block.id)} at={at} />;
+    return (
+      <ToolCard
+        name={block.name}
+        input={block.input}
+        ok={outcomes.get(block.id)}
+        doing={block.doing}
+        at={at}
+      />
+    );
   }
   return null;
 }

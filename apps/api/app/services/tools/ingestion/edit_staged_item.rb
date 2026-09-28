@@ -76,6 +76,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Fixing that dish" }
+
       def self.perform(context:, item_id:, name: nil, description: nil,
                        ingredient_slugs: nil, tag_slugs: nil, prices: nil, addons: nil)
         item = find_staged_item!(context, item_id)

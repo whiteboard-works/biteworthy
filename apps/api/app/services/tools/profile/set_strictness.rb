@@ -34,6 +34,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Updating how strict your filter is" }
+
       def self.perform(context:, strictness:)
         unless UserProfile::STRICTNESS.include?(strictness)
           raise Errors::InvalidArgument, "strictness must be one of: #{UserProfile::STRICTNESS.join(', ')}."

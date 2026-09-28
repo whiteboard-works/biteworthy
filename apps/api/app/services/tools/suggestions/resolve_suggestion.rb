@@ -33,6 +33,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
 
+      running_description { "Resolving the suggestion" }
+
       # Accepting is not an edit the person accepting is the author of: the
       # change was written by a stranger, and an accepted `remove_ingredient`
       # un-hides that dish for **everyone** avoiding the ingredient. Rejecting

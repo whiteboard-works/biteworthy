@@ -35,6 +35,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { "Starting your claim on the restaurant" }
+
       def self.perform(context:, restaurant:, email:)
         user    = context.user!
         record  = Restaurant.published.find_by_id_or_slug!(restaurant)

@@ -213,7 +213,10 @@ RSpec.configure do |config|
               name:        { type: :string, nullable: true },
               input:       { type: :object, nullable: true },
               tool_use_id: { type: :string, nullable: true },
-              ok:          { type: :boolean, nullable: true }
+              ok:          { type: :boolean, nullable: true },
+              doing:       { type: :string, nullable: true,
+                             description: "tool_use only: the tool's own progress sentence, " \
+                                          "when it declares one." }
             }
           },
           ChatMessage: {

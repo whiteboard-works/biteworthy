@@ -17,7 +17,14 @@ import type {
 export type ChatBlock =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | {
+      type: 'tool_use';
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+      /** The tool's own progress sentence; null when it declares none. */
+      doing?: string | null;
+    }
   | { type: 'tool_result'; tool_use_id: string; ok: boolean; text: string | null };
 
 export interface ChatMessage {
