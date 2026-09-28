@@ -108,7 +108,7 @@ module Ingestion
             stats[:agree] += 1
           else
             stats[jev_yes ? :jev_only : :haiku_only] += 1
-            stats[:disagreements] << { item: row[:name], tag: tag[:slug], jev: noul, haiku: haiku_yes }
+            stats[:disagreements] << { index: i, item: row[:name], section: row[:section], tag: tag[:slug], jev: noul, haiku: haiku_yes }
           end
         end
       end

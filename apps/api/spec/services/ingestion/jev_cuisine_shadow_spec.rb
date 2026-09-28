@@ -54,7 +54,7 @@ RSpec.describe Ingestion::JevCuisineShadow do
     log = logged_line
     expect(log).to include("model" => "jev-1.13.0", "pairs" => 4, "agree" => 3, "jev_only" => 1, "haiku_only" => 0)
     expect(log["disagreements"]).to eq(
-      [ { "item" => "Carnitas Tacos", "tag" => "mexican", "jev" => 0.96, "haiku" => false } ]
+      [ { "index" => 1, "item" => "Carnitas Tacos", "section" => "Tacos", "tag" => "mexican", "jev" => 0.96, "haiku" => false } ]
     )
   end
 

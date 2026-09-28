@@ -66,6 +66,7 @@ class GapFillResolveJob < ApplicationJob
       # re-bill for rows merge! deduplicates anyway.
       next if slice.all? { |g| g[:enriched] }
 
+      prompt_rows = slice.map { |g| g[:prompt_row] }
       out = timed_anthropic_call(
         run,
         api_error:        "gap_fill_api_error",
@@ -75,7 +76,7 @@ class GapFillResolveJob < ApplicationJob
       ) do |client|
         client.messages_create(
           system:          Ingestion::GapFillPrompt.system(client),
-          messages:        Ingestion::GapFillPrompt.user_messages(slice.map { |g| g[:prompt_row] }),
+          messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
           response_schema: Ingestion::GapFillSchema
         )
       end
@@ -83,7 +84,7 @@ class GapFillResolveJob < ApplicationJob
 
       result, = out
       merge!(run, slice, result, ingredient_paths, cuisine_slugs)
-      shadowed << [ slice.map { |g| g[:prompt_row] }, result ]
+      shadowed << [ prompt_rows, result ]
     end
     run.update!(enrichment_status: "completed")
     # After `completed`, so a slow TypeSafe never holds up the status
