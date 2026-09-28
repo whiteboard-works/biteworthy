@@ -952,7 +952,9 @@ describe('ChatClient', () => {
 
       await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
       expect(screen.getByText('Busy chat')).toBeInTheDocument();
-      expect(await screen.findByTestId('chat-error')).toBeInTheDocument();
+      // The delete's failure, not the dropped stream: the chat the person
+      // tried to remove is still there, and that is what they need to know.
+      expect(await screen.findByTestId('chat-error')).toHaveTextContent('Could not delete');
     });
 
     // The turn can end, and its teardown refetch be in flight, just before
@@ -979,6 +981,28 @@ describe('ChatClient', () => {
 
       await new Promise((r) => setTimeout(r, 0));
       expect(screen.queryByText('Busy chat')).toBeNull();
+    });
+
+    it('does not re-queue a message whose chat was deleted before it was sent', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let refuse: (e: Error) => void = () => {};
+      sendMessage.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            refuse = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      refuse(new Error('Not found'));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
     });
 
     it('keeps the chat when the person cancels', async () => {

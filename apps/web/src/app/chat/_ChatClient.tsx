@@ -237,6 +237,7 @@ export function ChatClient(): ReactElement {
     let outcome = 'error';
     let accepted = false;
     let failure: unknown = null;
+    let gone = false;
     try {
       const { after } = await ask();
       accepted = true;
@@ -275,8 +276,12 @@ export function ChatClient(): ReactElement {
       setBusy(false);
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
-      const gone = (await deletions.current.get(id)) ?? false;
-      if (failure && !gone) onFailure(failure);
+      // A delete in flight speaks for this turn: if it worked there is
+      // nothing to report, and if it failed its own error is the one that
+      // matters — the chat the person tried to remove is still there.
+      const deleting = deletions.current.get(id);
+      gone = (await deleting) ?? false;
+      if (failure && !deleting) onFailure(failure);
       const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
@@ -301,7 +306,9 @@ export function ChatClient(): ReactElement {
       // deliver the two out of the order they were typed.
       if (!gone && accepted && settled && !settled.pending) flush(settled);
     }
-    return accepted;
+    // A deleted chat consumed the turn: handing the message back would
+    // queue it for a conversation that no longer exists.
+    return accepted || gone;
   };
 
   // The conversation is handed in rather than read from state: the
