@@ -47,6 +47,53 @@ RSpec.describe Conversation do
 
       expect(conversation.transcript.size).to eq(2)
     end
+
+    # A tool search the API deferred and then never finished — the turn
+    # after it failed — leaves a `server_tool_use` with no result, which
+    # the API rejects on every later turn. Dropping it is the repair: the
+    # schemas it would have loaded can be searched for again.
+    it "drops a tool search whose result never arrived once the transcript has moved on" do
+      conversation.append!(role: "user", content: [{ type: "text", text: "add a restaurant" }])
+      conversation.append!(role: "assistant", content: [
+                             { type: "text", text: "Checking." },
+                             { type: "server_tool_use", id: "srvtoolu_1", name: "tool_search_tool_regex", input: {} },
+                             { type: "tool_use", id: "toolu_1", name: "list_cities", input: {} }
+                           ])
+      conversation.append!(role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: [] }])
+      conversation.append!(role: "assistant", content: [{ type: "text", text: "Something went wrong." }])
+      conversation.append!(role: "user", content: [{ type: "text", text: "try again" }])
+
+      types = conversation.transcript[1][:content].map { |b| b["type"] }
+
+      expect(types).to eq(%w[text tool_use])
+    end
+
+    # The same block mid-turn is the API's own deferral, not an orphan:
+    # the next request is what finishes it, so it has to go out intact.
+    it "keeps a tool search the next request will finish" do
+      conversation.append!(role: "user", content: [{ type: "text", text: "add a restaurant" }])
+      conversation.append!(role: "assistant", content: [
+                             { type: "server_tool_use", id: "srvtoolu_1", name: "tool_search_tool_regex", input: {} },
+                             { type: "tool_use", id: "toolu_1", name: "list_cities", input: {} }
+                           ])
+      conversation.append!(role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: [] }])
+
+      expect(conversation.transcript[1][:content].map { |b| b["type"] }).to eq(%w[server_tool_use tool_use])
+    end
+
+    it "keeps a tool search whose result arrived in the following reply" do
+      conversation.append!(role: "assistant", content: [
+                             { type: "server_tool_use", id: "srvtoolu_1", name: "tool_search_tool_regex", input: {} },
+                             { type: "tool_use", id: "toolu_1", name: "list_cities", input: {} }
+                           ])
+      conversation.append!(role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: [] }])
+      conversation.append!(role: "assistant", content: [
+                             { type: "tool_search_tool_result", tool_use_id: "srvtoolu_1", content: {} },
+                             { type: "text", text: "Found it." }
+                           ])
+
+      expect(conversation.transcript.first[:content].map { |b| b["type"] }).to eq(%w[server_tool_use tool_use])
+    end
   end
 
   describe "#append!" do

@@ -65,8 +65,15 @@ class Conversation < ApplicationRecord
   # no new information. So the loaded rows are kept and every write path
   # below keeps them honest rather than the read re-fetching to be sure.
   def transcript
-    stored = stored_messages
-    stored.map { |m| { role: m.role, content: content_for(m) } } + repair_for(stored.last)
+    stored  = stored_messages
+    settled = stored.rindex { |m| m.role == "assistant" }.to_i
+    answered = stored.flat_map { |m| Array(m.content) }.filter_map { |b| b["tool_use_id"] || b[:tool_use_id] }
+
+    stored.each_with_index.map do |m, index|
+      content = content_for(m)
+      content = without_abandoned_searches(content, answered) if index < settled
+      { role: m.role, content: content }
+    end + repair_for(stored.last)
   end
 
   # The turn's rows, loaded once. Split out from `transcript` because
@@ -226,6 +233,18 @@ class Conversation < ApplicationRecord
   end
 
   private
+
+  # A tool search fired alongside one of our tools is deferred: the API
+  # finishes it at the top of the next reply. When that next request
+  # fails instead, the call is left with no result, and the API rejects
+  # it on every turn after — a permanently dead conversation. Only calls
+  # an assistant reply has since moved past are dropped; one in the
+  # latest reply may still be about to finish. The model can search again.
+  def without_abandoned_searches(content, answered)
+    Array(content).reject do |block|
+      (block["type"] || block[:type]) == "server_tool_use" && answered.exclude?(block["id"] || block[:id])
+    end
+  end
 
   # If a turn died between storing the assistant's tool calls and storing
   # their results — a crashed worker, a killed container — the stored

@@ -636,6 +636,27 @@ RSpec.describe Chat::AgentLoop do
         expect(args[:messages].last[:content].last[:text]).to include("Current time:")
       end
 
+      # A tool search fired in the same reply as one of our tools is
+      # deferred: the API runs it at the top of the next round, but only
+      # when that round's user message is nothing but tool results. A
+      # clock on it read as abandoning the search, and every such turn
+      # died with a 400 (production, 2026-09-28).
+      it "leaves the clock off while a tool search waits on this round's results" do
+        searched = {
+          "stop_reason" => "tool_use",
+          "content" => [
+            { "type" => "server_tool_use", "id" => "srvtoolu_1", "name" => "tool_search_tool_regex",
+              "input" => { "pattern" => "restaurant" } },
+            { "type" => "tool_use", "id" => "toolu_1", "name" => "list_cities", "input" => {} }
+          ]
+        }
+        client = ScriptedClient.new(searched, say("done"))
+        described_class.new(conversation, client: client).run(text: "add a restaurant")
+
+        texts = client.requests.second[:messages].last[:content].filter_map { |b| b[:text] || b["text"] }
+        expect(texts.join).not_to include("Current time:")
+      end
+
       # Rounding was a tax paid to the cache. Nothing downstream of the
       # clock is cached now, so it can be exact again — and it has to be,
       # because the model relays it and "are they open now" is a real

@@ -1085,12 +1085,29 @@ module Chat
     # which are also `user`. Appending to an assistant message would be a
     # prefill rather than a note to the model, so it goes without the
     # clock instead.
+    #
+    # It also goes without while a tool search is pending. Fired in the
+    # same reply as one of our tools, the search is deferred to the top of
+    # the next round, and the API only finishes it when that round's user
+    # message is nothing but tool results — a clock there reads as the
+    # search being abandoned and the request 400s.
     def clocked(turns)
       last = turns.last
       return turns unless last.is_a?(Hash) && last[:role].to_s == "user"
+      return turns if search_pending?(turns[-2])
 
       stamped = Array(last[:content]) + [ { type: "text", text: current_time } ]
       turns[0..-2] + [ last.merge(content: stamped) ]
+    end
+
+    def search_pending?(turn)
+      return false unless turn.is_a?(Hash) && turn[:role].to_s == "assistant"
+
+      blocks = Array(turn[:content])
+      type   = ->(b) { b["type"] || b[:type] }
+      calls  = blocks.select { |b| type.(b) == "server_tool_use" }.map { |b| b["id"] || b[:id] }
+      done   = blocks.filter_map { |b| b["tool_use_id"] || b[:tool_use_id] }
+      (calls - done).any?
     end
 
     # No longer rounded: nothing downstream of it is cached, so precision

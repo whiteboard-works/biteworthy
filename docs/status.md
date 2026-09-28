@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-09-28 (UTC) — **Chat: tool search no longer kills turns.** A tool search fired alongside one of our tools is deferred by the API to the next round, which only completes it when that round is pure tool results; `AgentLoop#clocked` was appending the time there, so every such turn 400d (prod logs 2026-09-28, reproduced live). The clock now skips that round, `Conversation#transcript` drops a search whose result never arrived once a later reply exists (revives chats already wedged), and `UpstreamError::REJECTED` no longer promises a new chat will help.
+
 2026-09-28 (UTC) — **Jev shadow trial on gap-fill cuisine tags.** `TypesafeClient` wraps TypeSafe's `/v1/systemone`; `Ingestion::JevCuisineShadow` asks Jev one yes/no per (item, leaf cuisine) after each Haiku slice merges and logs a `[jev_shadow]` agreement line. Observation only: nothing written, errors swallowed, off when `JEV_API_KEY` is unset (now in `deploy.yml` env.secret). Live smoke on 3 dishes: 267ms, 18/18 pairs agreed with Haiku's tags.
 
 2026-09-27 (UTC) — **City duplicate check hardened (follow-up to #709, which auto-merged mid-review).** Names compare with separators, accents and apostrophes ignored and Ft/St/Mt/Pt expanded; initials ("SLC") match either way round, and one that could mean two cities in the state is refused. Creation is serialized with an advisory lock (a two-connection race spec proves it). The Durango seed task now goes through `Cities::Create`. Duplicate candidates drop archived places and return someone else's draft as a name only.
