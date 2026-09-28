@@ -66,7 +66,11 @@ class Conversation < ApplicationRecord
   # below keeps them honest rather than the read re-fetching to be sure.
   def transcript
     stored  = stored_messages
-    settled = stored.rindex { |m| m.role == "assistant" }.to_i
+    # Everything before the reply a pending search could still belong to:
+    # the latest assistant message, and only while nothing but tool
+    # results has followed it.
+    last    = stored.rindex { |m| m.role == "assistant" }
+    settled = last && stored[(last + 1)..].all?(&:tool_result?) ? last : stored.size
     answered = stored.flat_map { |m| Array(m.content) }.filter_map { |b| b["tool_use_id"] || b[:tool_use_id] }
 
     stored.each_with_index.map do |m, index|

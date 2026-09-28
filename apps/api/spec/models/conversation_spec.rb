@@ -68,6 +68,19 @@ RSpec.describe Conversation do
       expect(types).to eq(%w[text tool_use])
     end
 
+    # A killed worker stores no apology, so the person's next message
+    # lands straight after the tool results. The search is just as dead.
+    it "drops it when the person's next message follows the tool results directly" do
+      conversation.append!(role: "assistant", content: [
+                             { type: "server_tool_use", id: "srvtoolu_1", name: "tool_search_tool_regex", input: {} },
+                             { type: "tool_use", id: "toolu_1", name: "list_cities", input: {} }
+                           ])
+      conversation.append!(role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: [] }])
+      conversation.append!(role: "user", content: [{ type: "text", text: "try again" }])
+
+      expect(conversation.transcript.first[:content].map { |b| b["type"] }).to eq(%w[tool_use])
+    end
+
     # The same block mid-turn is the API's own deferral, not an orphan:
     # the next request is what finishes it, so it has to go out intact.
     it "keeps a tool search the next request will finish" do
