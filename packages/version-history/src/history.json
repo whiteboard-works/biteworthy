@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.9.28",
+    "date": "2026-09-28",
+    "notes": [
+      "Missing a restaurant? Signed in, you can now add one from the web — look for Add a restaurant on the Browse page: pick the city, name the place, and go straight to scanning its menu. We check for duplicates first, so you land on the existing page if it is already here."
+    ]
+  },
+  {
     "version": "2026.9.26",
     "date": "2026-09-26",
     "notes": [
