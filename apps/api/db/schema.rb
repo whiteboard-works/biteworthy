@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_231500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -736,9 +736,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_231500) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "addresses", "restaurants"
-  add_foreign_key "conversation_events", "conversation_runs"
-  add_foreign_key "conversation_events", "conversations"
-  add_foreign_key "conversation_runs", "conversations"
+  add_foreign_key "conversation_events", "conversation_runs", on_delete: :cascade
+  add_foreign_key "conversation_events", "conversations", on_delete: :cascade
+  add_foreign_key "conversation_runs", "conversations", on_delete: :cascade
   add_foreign_key "conversations", "users"
   add_foreign_key "dietary_profile_ingredients", "dietary_profiles"
   add_foreign_key "dietary_profile_ingredients", "ingredients"
@@ -766,7 +766,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_231500) do
   add_foreign_key "mcp_tokens", "users"
   add_foreign_key "menu_sections", "menus"
   add_foreign_key "menus", "restaurants"
-  add_foreign_key "messages", "conversations"
+  add_foreign_key "messages", "conversations", on_delete: :cascade
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_grants", "users", column: "resource_owner_id"
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"

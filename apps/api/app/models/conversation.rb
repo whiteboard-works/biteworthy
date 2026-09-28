@@ -6,8 +6,10 @@ class Conversation < ApplicationRecord
 
   belongs_to :user
   has_many :messages, -> { order(:position) }, dependent: :destroy, inverse_of: :conversation
-  has_many :runs, class_name: "ConversationRun", dependent: :destroy, inverse_of: :conversation
+  # Events before runs: `dependent: :destroy` runs in declaration order,
+  # and every event holds a foreign key to its run.
   has_many :events, class_name: "ConversationEvent", dependent: :destroy, inverse_of: :conversation
+  has_many :runs, class_name: "ConversationRun", dependent: :destroy, inverse_of: :conversation
 
   validates :state, inclusion: { in: STATES }
   # The four gates in `Chat::ModePolicy`. Listed there rather than here so

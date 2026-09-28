@@ -190,4 +190,21 @@ RSpec.describe Conversation do
       expect(conversation.mutated_since_last_user_message?).to be(false)
     end
   end
+
+  # A turn can still be writing when someone deletes the chat. Whatever
+  # it managed to insert after Rails cleared the children must not block
+  # the final DELETE, so the database takes it along.
+  describe "deleting while a turn is still writing" do
+    it "takes rows written after the children were cleared" do
+      run = ConversationRun.acquire(conversation)
+      ConversationEvent.append!(run, { "type" => "done", "text" => "fin" })
+      conversation.append!(role: "user", content: [ { type: "text", text: "late" } ])
+
+      Conversation.where(id: conversation.id).delete_all
+
+      expect(Message.where(conversation_id: conversation.id)).to be_empty
+      expect(ConversationRun.where(conversation_id: conversation.id)).to be_empty
+      expect(ConversationEvent.where(conversation_id: conversation.id)).to be_empty
+    end
+  end
 end

@@ -835,4 +835,43 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('undo-turn')).not.toBeInTheDocument();
     });
   });
+
+  // Deleting a chat cannot be undone, and the × sits right next to the
+  // title people click to open it. One stray click must not cost a
+  // conversation.
+  describe('deleting a chat from the sidebar', () => {
+    beforeEach(() => {
+      listConversations.mockResolvedValue({
+        conversations: [{ ...blank, id: 'c-old', title: 'Add city Riverton Utah' }],
+      });
+      // Like the server: once deleted, the list stops returning it.
+      deleteConversation.mockImplementation(async () => {
+        listConversations.mockResolvedValue({ conversations: [] });
+      });
+    });
+
+    it('asks before deleting', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));
+
+      expect(deleteConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Delete this chat?')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-old'));
+      await waitFor(() =>
+        expect(screen.queryByText('Add city Riverton Utah')).not.toBeInTheDocument(),
+      );
+    });
+
+    it('keeps the chat when the person cancels', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(deleteConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+  });
 });

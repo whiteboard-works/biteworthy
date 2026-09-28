@@ -208,6 +208,20 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(Conversation.exists?(conversation.id)).to be(false)
       expect(Message.where(conversation_id: conversation.id)).to be_empty
     end
+
+    # Any chat that has answered once has a run with events pointing at
+    # it. Runs were destroyed before events, so the foreign key refused
+    # and every delete of a used chat 500'd (production, 2026-09-28) —
+    # and so did deleting the account that owned it.
+    it "removes a conversation that has run a turn" do
+      conversation = create(:conversation, user: user)
+      ConversationEvent.append!(ConversationRun.acquire(conversation), { "type" => "done", "text" => "fin" })
+
+      delete "/api/v1/conversations/#{conversation.id}", headers: headers
+
+      expect(response).to have_http_status(:no_content)
+      expect(ConversationRun.where(conversation_id: conversation.id)).to be_empty
+    end
   end
 
   # The stop button. It has to be a separate request from the turn it

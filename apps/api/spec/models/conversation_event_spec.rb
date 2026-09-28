@@ -47,4 +47,13 @@ RSpec.describe ConversationEvent do
       expect(described_class.where(conversation_id: conversation.id).in_order.pluck(:position)).to eq([ 1, 2 ])
     end
   end
+
+  # A chat can be deleted while a turn is still writing. An event that
+  # lands after Rails cleared the events but before it deletes the run
+  # must not block that delete, so the database drops it with its run.
+  it "goes with its run when the run is deleted" do
+    described_class.append!(run, { "type" => "done", "text" => "fin" })
+
+    expect { ConversationRun.where(id: run.id).delete_all }.to change(described_class, :count).by(-1)
+  end
 end

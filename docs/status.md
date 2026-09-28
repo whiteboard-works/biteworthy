@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-09-28 (UTC) — **Deleting a chat works again (and so does deleting an account).** `Conversation` destroyed its runs before its events, and events hold a foreign key to runs, so every delete of a chat that had answered once 500d with `PG::ForeignKeyViolation` (prod logs) — and `User has_many :conversations, dependent: :destroy` carried the same failure into account deletion. Events now go first, the event→run FK cascades (so a turn still writing cannot re-block the delete), and the sidebar × asks "Delete this chat?" before deleting.
+
 2026-09-28 (UTC) — **Chat tool cards say what they did.** Finished turns redrew every card as "Did search restaurants" because stored `tool_use` blocks never carried the tool's `running_description`; `Chat::Serializer` now serves it as `doing` (new `ChatBlock.doing`), the web history card uses it, and the 33 tools that lacked a sentence got one, pinned by a spec over `Tools::Registry.all`.
 2026-09-28 (UTC) — **Chat: tool search no longer kills turns.** A tool search fired alongside one of our tools is deferred by the API to the next round, which only completes it when that round is pure tool results; `AgentLoop#clocked` was appending the time there, so every such turn 400d (prod logs 2026-09-28, reproduced live). The clock now skips that round, `Conversation#transcript` drops a search whose result never arrived once a later reply exists (revives chats already wedged), and `UpstreamError::REJECTED` no longer promises a new chat will help.
 

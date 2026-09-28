@@ -114,4 +114,17 @@ RSpec.describe User do
       expect(build(:user, :super_admin)).to be_valid
     end
   end
+
+  # Deleting an account cascades through its chats, so the chat delete bug
+  # (runs destroyed before the events that reference them) took account
+  # deletion down with it for anyone who had ever chatted.
+  describe "destroy" do
+    it "succeeds for someone whose chats have run" do
+      user = create(:user)
+      conversation = create(:conversation, user: user)
+      ConversationEvent.append!(ConversationRun.acquire(conversation), { "type" => "done", "text" => "fin" })
+
+      expect { user.destroy! }.to change(Conversation, :count).by(-1)
+    end
+  end
 end
