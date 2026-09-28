@@ -67,6 +67,10 @@ export function ChatClient(): ReactElement {
   // Which switch is the newest, so an older PATCH resolving late cannot
   // speak for the picker.
   const modeTicket = useRef(0);
+  // Chats deleted from this tab. Deleting one mid-turn takes its run with
+  // it, so the turn's watcher and teardown refresh both fail — news to no
+  // one, and not worth an error on the blank chat that replaced it.
+  const deleted = useRef(new Set<string>());
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -156,11 +160,13 @@ export function ChatClient(): ReactElement {
   };
 
   const remove = async (id: string) => {
+    deleted.current.add(id);
     try {
       await deleteConversation(id);
       setConversations((current) => current.filter((c) => c.id !== id));
       if (active?.id === id) startNew();
     } catch (e) {
+      deleted.current.delete(id);
       onFailure(e);
     }
   };
@@ -236,7 +242,7 @@ export function ChatClient(): ReactElement {
         cursor = resume;
       }
     } catch (e) {
-      onFailure(e);
+      if (!deleted.current.has(id)) onFailure(e);
     } finally {
       // Counts and outcome only — never the message, never which tools.
       // A tool name on an identified event would say this account edited
@@ -251,7 +257,8 @@ export function ChatClient(): ReactElement {
       setBusy(false);
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
-      const conversation = await refresh(id);
+      const gone = deleted.current.has(id);
+      const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
       // has already been shortened, which is one render before the next
@@ -273,7 +280,7 @@ export function ChatClient(): ReactElement {
       // message it was carrying is on its way back to the head of the
       // queue — flushing now would send the one behind it first and
       // deliver the two out of the order they were typed.
-      if (accepted && settled && !settled.pending) flush(settled);
+      if (!gone && accepted && settled && !settled.pending) flush(settled);
     }
     return accepted;
   };

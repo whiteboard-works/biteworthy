@@ -865,6 +865,33 @@ describe('ChatClient', () => {
       );
     });
 
+    // Deleting the open chat mid-turn takes its run with it, so the watcher
+    // and the teardown refresh both fail. Neither is news to the person
+    // who just deleted it — the new blank chat must not open on a 404.
+    it('stays quiet when the chat deleted was mid-turn', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let dropWatch: (e: Error) => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            dropWatch = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+
+      getConversation.mockRejectedValue(new Error('Not found'));
+      dropWatch(new Error('Not found'));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('chat-error')).toBeNull();
+    });
+
     it('keeps the chat when the person cancels', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));
