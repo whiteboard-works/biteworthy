@@ -88,30 +88,30 @@ module Ingestion
     def key(index, slug) = "i#{index}__#{slug}"
 
     # Haiku's cuisine slugs per slice index, limited to the tags Jev was
-    # asked about — an unknown slug is dropped by the merge anyway.
+    # asked about — an unknown slug is dropped by the merge anyway. An
+    # index Haiku omitted has no key: its silence is not a "no".
     def haiku_sets(result, tags)
       known = tags.to_set { |t| t[:slug] }
-      Array(result&.dig("items")).each_with_object(Hash.new { |h, k| h[k] = Set.new }) do |row, sets|
-        Array(row.dig("cuisine_tags", "resolved")).each do |r|
-          sets[row["index"]] << r["slug"] if known.include?(r["slug"])
-        end
+      Array(result&.dig("items")).each_with_object({}) do |row, sets|
+        slugs = Array(row.dig("cuisine_tags", "resolved")).map { |r| r["slug"] }
+        sets[row["index"]] ||= slugs.select { |s| known.include?(s) }.to_set
       end
     end
 
     def compare(prompt_rows, tags, answers, haiku)
-      # `missing` is kept apart from `pairs` so an incomplete response
-      # shows up as one instead of reading as perfect agreement.
+      # `missing` is kept apart from `pairs` so an incomplete response —
+      # from either model — shows up as one instead of reading as agreement.
       stats = { pairs: 0, agree: 0, jev_only: 0, haiku_only: 0, missing: 0, disagreements: [] }
       prompt_rows.each_with_index do |row, i|
         tags.each do |tag|
           noul = answers.dig(key(i, tag[:slug]), "noul")
-          unless noul.is_a?(Numeric) && noul.between?(0, 1)
+          unless noul.is_a?(Numeric) && noul.between?(0, 1) && haiku.key?(i)
             stats[:missing] += 1
             next
           end
 
           jev_yes   = noul >= THRESHOLD
-          haiku_yes = haiku[i].include?(tag[:slug])
+          haiku_yes = haiku.fetch(i).include?(tag[:slug])
           stats[:pairs] += 1
           if jev_yes == haiku_yes
             stats[:agree] += 1

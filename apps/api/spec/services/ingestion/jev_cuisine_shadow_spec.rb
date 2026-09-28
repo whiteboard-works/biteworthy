@@ -82,6 +82,14 @@ RSpec.describe Ingestion::JevCuisineShadow do
     expect(logged_line).to include("pairs" => 2, "agree" => 2, "missing" => 2)
   end
 
+  it "treats a dish Haiku returned no row for as missing, not as Haiku saying no" do
+    haiku_result["items"].pop
+    stub_jev
+    described_class.new(client: client).call(run, rows, haiku_result)
+
+    expect(logged_line).to include("pairs" => 2, "agree" => 2, "jev_only" => 0, "missing" => 2)
+  end
+
   # The trial runs inside GapFillResolveJob; an error escaping it would
   # trip the job's retry/failed handling over work nobody depends on.
   it "swallows API failures and logs them instead" do
