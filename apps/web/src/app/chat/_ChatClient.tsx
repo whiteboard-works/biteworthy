@@ -644,6 +644,8 @@ function History({
   onNew: () => void;
   onDelete: (id: string) => void;
 }): ReactElement {
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   return (
     <aside
       data-testid="chat-history"
@@ -659,27 +661,55 @@ function History({
         </button>
       </div>
       <ul className="px-bw-2">
-        {conversations.map((conversation) => (
-          <li key={conversation.id} className="group flex items-center gap-bw-1">
-            <button
-              type="button"
-              onClick={() => onOpen(conversation.id)}
-              className={`flex-1 truncate rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
-                conversation.id === activeId ? 'bg-zinc-100 font-medium' : 'text-zinc-600'
-              }`}
+        {conversations.map((conversation) =>
+          conversation.id === confirmingId ? (
+            // Inline rather than a browser dialog, like deleting a review: the
+            // question sits where the click was, and a delete cannot be undone.
+            <li
+              key={conversation.id}
+              className="flex items-center gap-bw-2 rounded-bw-md bg-zinc-50 px-bw-2 py-bw-2 text-bw-sm"
             >
-              {conversation.title ?? 'Untitled'}
-            </button>
-            <button
-              type="button"
-              aria-label={`Delete ${conversation.title ?? 'conversation'}`}
-              onClick={() => onDelete(conversation.id)}
-              className="px-bw-1 text-zinc-300 hover:text-danger"
-            >
-              ×
-            </button>
-          </li>
-        ))}
+              <span className="flex-1 truncate text-zinc-600">Delete this chat?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingId(null);
+                  onDelete(conversation.id);
+                }}
+                className="font-semibold text-danger hover:underline"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingId(null)}
+                className="font-semibold text-zinc-400 hover:text-zinc-600"
+              >
+                Cancel
+              </button>
+            </li>
+          ) : (
+            <li key={conversation.id} className="group flex items-center gap-bw-1">
+              <button
+                type="button"
+                onClick={() => onOpen(conversation.id)}
+                className={`flex-1 truncate rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
+                  conversation.id === activeId ? 'bg-zinc-100 font-medium' : 'text-zinc-600'
+                }`}
+              >
+                {conversation.title ?? 'Untitled'}
+              </button>
+              <button
+                type="button"
+                aria-label={`Delete ${conversation.title ?? 'conversation'}`}
+                onClick={() => setConfirmingId(conversation.id)}
+                className="px-bw-1 text-zinc-300 hover:text-danger"
+              >
+                ×
+              </button>
+            </li>
+          ),
+        )}
       </ul>
     </aside>
   );
