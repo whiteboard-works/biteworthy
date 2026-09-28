@@ -206,6 +206,17 @@ use), only items still `pending`, and allergen/diet tags re-derived
 in code over the merged ingredient set. A gap-fill failure never fails
 the run — it's already staged and usable on deterministic data.
 
+**Jev shadow trial (2026-09-28).** When `JEV_API_KEY` is set, each
+merged slice is also sent to TypeSafe's Jev (`TypesafeClient`,
+`Ingestion::JevCuisineShadow`): one yes/no question per (item, leaf
+cuisine tag), state limited to the slice's names/descriptions/sections.
+It writes nothing — it logs one `[jev_shadow]` JSON line per slice
+(resolved model version, latency, agree / `jev_only` / `haiku_only`
+counts, up to 20 disagreements) and swallows its own errors. Whether
+Jev takes over cuisine tags is decided from those lines. Ingredients
+stay with Haiku regardless: ~1,088 slugs exceed Jev's 255-option
+Choice limit.
+
 ### 3. Stage
 
 Items are materialized at extract time (empty payloads); resolve and

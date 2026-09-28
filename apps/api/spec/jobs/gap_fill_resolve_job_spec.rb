@@ -352,4 +352,55 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
   end
+
+  # The Jev trial is observation only: whatever it does, the merge and
+  # the enrichment status must come out exactly as they would without it.
+  describe "the Jev cuisine shadow" do
+    let(:jev_url) { "https://api.typesafe.ai/v1/systemone" }
+
+    before do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(response)
+      allow(ENV).to receive(:[]).and_call_original
+      allow(Rails.logger).to receive(:warn)
+    end
+
+    it "never calls TypeSafe when no key is configured" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return(nil)
+      jev = stub_request(:post, jev_url)
+
+      described_class.perform_now(run.id)
+
+      expect(jev).not_to have_been_made
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
+    # Clients poll enrichment_status; a slow TypeSafe must never be what
+    # they are waiting on.
+    it "stamps completed before asking Jev anything" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      status_at_call = nil
+      stub_request(:post, jev_url).to_return do
+        status_at_call = run.reload.enrichment_status
+        { status: 200, body: { model: "jev-1.13.0", answers: {} }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      described_class.perform_now(run.id)
+
+      expect(status_at_call).to eq("completed")
+    end
+
+    it "a failing Jev call leaves the Haiku merge and the completed status untouched" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      jev = stub_request(:post, jev_url).to_return(status: 500, body: "{}")
+
+      described_class.perform_now(run.id)
+
+      expect(jev).to have_been_made.at_least_once
+      expect(run.reload.enrichment_status).to eq("completed")
+      expect(gap_item.reload.tags_payload).to include(
+        { "slug" => "italian", "confidence" => 0.8, "source" => "ai" }
+      )
+    end
+  end
 end
