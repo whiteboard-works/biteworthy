@@ -52,7 +52,8 @@ RSpec.describe Ingestion::JevCuisineShadow do
     described_class.new(client: client).call(run, rows, haiku_result)
 
     log = logged_line
-    expect(log).to include("model" => "jev-1.13.0", "pairs" => 4, "agree" => 3, "jev_only" => 1, "haiku_only" => 0)
+    expect(log).to include("model" => "jev-1.13.0", "pairs" => 4, "agree" => 3, "jev_only" => 1, "haiku_only" => 0,
+                               "missing" => 0)
     expect(log["disagreements"]).to eq(
       [ { "index" => 1, "item" => "Carnitas Tacos", "section" => "Tacos", "tag" => "mexican", "jev" => 0.96, "haiku" => false } ]
     )
@@ -70,6 +71,15 @@ RSpec.describe Ingestion::JevCuisineShadow do
           { "name" => "Carnitas Tacos", "section" => "Tacos" }
         ] }
     }).to have_been_made
+  end
+
+  it "counts absent or out-of-range answers as missing instead of letting them pass as agreement" do
+    answers.delete("i1__mexican")
+    answers["i1__italian"] = { "type" => "noul", "noul" => 1.7 }
+    stub_jev
+    described_class.new(client: client).call(run, rows, haiku_result)
+
+    expect(logged_line).to include("pairs" => 2, "agree" => 2, "missing" => 2)
   end
 
   # The trial runs inside GapFillResolveJob; an error escaping it would

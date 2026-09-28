@@ -25,6 +25,10 @@ module Ingestion
   #   * **Never raises.** It runs inside a job whose failure handling
   #     means something (enrichment_status, retry_on). A trial that could
   #     trip either would be measuring itself at the product's expense.
+  #
+  # It is a sample, not a ledger: a run whose gap-fill fails or is
+  # interrupted logs nothing for it, and that is fine — the question is
+  # whether Jev agrees on the slices it *does* see.
   class JevCuisineShadow
     # A pair counts as "Jev says yes" at or above this. 0.5 is the neutral
     # read of a calibrated probability; tune it from the logs, not here.
@@ -95,11 +99,16 @@ module Ingestion
     end
 
     def compare(prompt_rows, tags, answers, haiku)
-      stats = { pairs: 0, agree: 0, jev_only: 0, haiku_only: 0, disagreements: [] }
+      # `missing` is kept apart from `pairs` so an incomplete response
+      # shows up as one instead of reading as perfect agreement.
+      stats = { pairs: 0, agree: 0, jev_only: 0, haiku_only: 0, missing: 0, disagreements: [] }
       prompt_rows.each_with_index do |row, i|
         tags.each do |tag|
           noul = answers.dig(key(i, tag[:slug]), "noul")
-          next if noul.nil?
+          unless noul.is_a?(Numeric) && noul.between?(0, 1)
+            stats[:missing] += 1
+            next
+          end
 
           jev_yes   = noul >= THRESHOLD
           haiku_yes = haiku[i].include?(tag[:slug])

@@ -211,7 +211,7 @@ merged slice is also sent to TypeSafe's Jev (`TypesafeClient`,
 `Ingestion::JevCuisineShadow`): one yes/no question per (item, leaf
 cuisine tag), state limited to the slice's names/descriptions/sections.
 It writes nothing — it logs one `[jev_shadow]` JSON line per slice
-(resolved model version, latency, agree / `jev_only` / `haiku_only`
+(resolved model version, latency, agree / `jev_only` / `haiku_only` / `missing`
 counts, up to 20 disagreements) and swallows its own errors. Whether
 Jev takes over cuisine tags is decided from those lines. Ingredients
 stay with Haiku regardless: ~1,088 slugs exceed Jev's 255-option
