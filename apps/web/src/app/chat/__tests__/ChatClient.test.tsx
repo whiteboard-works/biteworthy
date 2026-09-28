@@ -1005,6 +1005,35 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('queued-messages')).toBeNull();
     });
 
+    // The blank chat that replaces a deleted one is usable at once, not
+    // after the dead turn's stream gets around to closing.
+    it('sends from the replacement chat while the deleted turn is still closing', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let finish: () => void = () => {};
+      watchTurn.mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      createConversation.mockResolvedValue({ ...blank, id: 'c-2' });
+      await type('next question');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'next question', undefined, 'manual'),
+      );
+      finish();
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
     it('keeps the chat when the person cancels', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));

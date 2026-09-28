@@ -179,7 +179,15 @@ export function ChatClient(): ReactElement {
     deletions.current.set(id, attempt);
     if (await attempt) {
       setConversations((current) => current.filter((c) => c.id !== id));
-      if (active?.id === id) startNew();
+      if (active?.id === id) {
+        // The page is handed back now rather than when the dead turn's
+        // stream finally closes: until then the blank chat would queue
+        // everything typed into it behind a turn that no longer exists.
+        // That turn's teardown leaves the screen alone from here on.
+        startNew();
+        setBusy(false);
+        inFlight.current = false;
+      }
     } else {
       deletions.current.delete(id);
     }
@@ -252,9 +260,10 @@ export function ChatClient(): ReactElement {
           if (event.type === 'tool_use') tools += 1;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
-          // The server reports a run deleted under it as an error event;
-          // if the delete fails instead, its own error is the one shown.
-          if (event.type === 'error' && deletions.current.has(id)) return;
+          // Once its chat is being deleted, nothing this turn says belongs
+          // on screen — not its text, and not the error event the server
+          // sends when the run vanishes. A failed delete shows its own.
+          if (deletions.current.has(id)) return;
           consume(event);
         });
         if (resume === null) break;
@@ -272,16 +281,19 @@ export function ChatClient(): ReactElement {
         tool_count: tools,
         duration_ms: Date.now() - startedAt,
       });
-      setLive(null);
-      setBusy(false);
-      // The turn was persisted as it ran, so this reconciles whether it
-      // finished, parked on a confirmation, or the connection dropped.
       // A delete in flight speaks for this turn: if it worked there is
-      // nothing to report, and if it failed its own error is the one that
-      // matters — the chat the person tried to remove is still there.
+      // nothing to report and the screen already belongs to the next chat
+      // (`remove` reset it), and if it failed its own error is the one
+      // that matters — the chat the person tried to remove is still there.
       const deleting = deletions.current.get(id);
       gone = (await deleting) ?? false;
+      if (!gone) {
+        setLive(null);
+        setBusy(false);
+      }
       if (failure && !deleting) onFailure(failure);
+      // The turn was persisted as it ran, so this reconciles whether it
+      // finished, parked on a confirmation, or the connection dropped.
       const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
@@ -379,7 +391,9 @@ export function ChatClient(): ReactElement {
     try {
       return await run(id, () => sendMessage(id, composed, pageContext(), mode));
     } finally {
-      inFlight.current = false;
+      // A deleted chat's `remove` already released the latch, and a send
+      // in the chat that replaced it may hold it by now.
+      if (!deletions.current.has(id)) inFlight.current = false;
     }
   };
   deliverLatest.current = deliver;
