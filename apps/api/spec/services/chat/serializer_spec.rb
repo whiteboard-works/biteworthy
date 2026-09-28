@@ -26,4 +26,16 @@ RSpec.describe Chat::Serializer do
 
     expect(block[:doing]).to be_nil
   end
+
+  # History is read far more often than it is written; one odd stored
+  # block must not take the whole conversation down with it.
+  it "survives a stored call whose input is not an object" do
+    conversation.append!(role: "assistant", content: [
+                           { type: "tool_use", id: "toolu_1", name: "list_cities", input: "oops" }
+                         ])
+
+    block = described_class.conversation(conversation, messages: true)[:messages].first[:blocks].first
+
+    expect(block[:doing]).to be_present
+  end
 end

@@ -205,7 +205,7 @@ function ToolCard({
             running ? (
               <>{doing}…</>
             ) : ok === false ? (
-              <>Could not: {doing.toLowerCase()}</>
+              <>Could not: {doing.charAt(0).toLowerCase() + doing.slice(1)}</>
             ) : (
               doing
             )

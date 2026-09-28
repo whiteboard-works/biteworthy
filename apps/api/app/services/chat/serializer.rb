@@ -157,7 +157,8 @@ module Chat
       # fallback "Did search restaurants" the moment the stream closes.
       def tool_use(block)
         tool  = Tools::Registry.find(block["name"])
-        doing = tool&.running_description_for((block["input"] || {}).to_h.symbolize_keys)
+        input = block["input"].is_a?(Hash) ? block["input"].symbolize_keys : {}
+        doing = tool&.running_description_for(input)
         { type: "tool_use", id: block["id"], name: block["name"], input: block["input"], doing: doing }
       end
 
