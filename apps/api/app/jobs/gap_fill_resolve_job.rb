@@ -54,6 +54,7 @@ class GapFillResolveJob < ApplicationJob
 
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
     cuisine_slugs    = Tag.where(family: "cuisine").pluck(:slug).to_set
+    shadowed         = []
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The
@@ -65,6 +66,7 @@ class GapFillResolveJob < ApplicationJob
       # re-bill for rows merge! deduplicates anyway.
       next if slice.all? { |g| g[:enriched] }
 
+      prompt_rows = slice.map { |g| g[:prompt_row] }
       out = timed_anthropic_call(
         run,
         api_error:        "gap_fill_api_error",
@@ -74,7 +76,7 @@ class GapFillResolveJob < ApplicationJob
       ) do |client|
         client.messages_create(
           system:          Ingestion::GapFillPrompt.system(client),
-          messages:        Ingestion::GapFillPrompt.user_messages(slice.map { |g| g[:prompt_row] }),
+          messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
           response_schema: Ingestion::GapFillSchema
         )
       end
@@ -82,8 +84,12 @@ class GapFillResolveJob < ApplicationJob
 
       result, = out
       merge!(run, slice, result, ingredient_paths, cuisine_slugs)
+      shadowed << [ prompt_rows, result ]
     end
     run.update!(enrichment_status: "completed")
+    # After `completed`, so a slow TypeSafe never holds up the status
+    # clients are waiting on. Observation only; see JevCuisineShadow.
+    shadow_cuisine_tags(run, shadowed)
   rescue StandardError
     # Everything that should reach retry_on (a slice's SliceFailedError,
     # transport errors that bypass ApiError, DB hiccups, bugs) re-raises so
@@ -100,6 +106,13 @@ class GapFillResolveJob < ApplicationJob
   end
 
   private
+
+  def shadow_cuisine_tags(run, shadowed)
+    return unless Ingestion::JevCuisineShadow.enabled?
+
+    shadow = Ingestion::JevCuisineShadow.new
+    shadowed.each { |rows, result| shadow.call(run, rows, result) }
+  end
 
   # Recompute the gap set from scratch (the resolver is stateless and
   # cheap) instead of trusting anything persisted at stage time — items

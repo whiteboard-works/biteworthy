@@ -158,6 +158,13 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
+  — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
+  alongside Haiku and logs `[jev_shadow]` agreement lines, writing
+  nothing. After a few dozen real scans, compare: if agreement is high
+  and the disagreements favor Jev, move cuisine tags to Jev (and drop
+  the cuisine catalog from the Haiku prompt); otherwise remove the
+  trial. See `docs/ingestion.md` §2b.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
