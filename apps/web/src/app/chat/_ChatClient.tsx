@@ -67,10 +67,13 @@ export function ChatClient(): ReactElement {
   // Which switch is the newest, so an older PATCH resolving late cannot
   // speak for the picker.
   const modeTicket = useRef(0);
-  // Chats deleted from this tab. Deleting one mid-turn takes its run with
-  // it, so the turn's watcher and teardown refresh both fail — news to no
-  // one, and not worth an error on the blank chat that replaced it.
-  const deleted = useRef(new Set<string>());
+  // Deletes started from this tab, each resolving to whether it worked.
+  // Deleting a chat mid-turn takes its run with it, so the turn's watcher
+  // and teardown refresh both fail — news to no one, and not worth an
+  // error on the blank chat that replaced it. A turn waits on the answer
+  // rather than the attempt: if the delete fails, the chat is still there
+  // and its teardown has to run as usual.
+  const deletions = useRef(new Map<string, Promise<boolean>>());
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -160,14 +163,19 @@ export function ChatClient(): ReactElement {
   };
 
   const remove = async (id: string) => {
-    deleted.current.add(id);
-    try {
-      await deleteConversation(id);
+    const attempt = deleteConversation(id).then(
+      () => true,
+      (e: unknown) => {
+        onFailure(e);
+        return false;
+      },
+    );
+    deletions.current.set(id, attempt);
+    if (await attempt) {
       setConversations((current) => current.filter((c) => c.id !== id));
       if (active?.id === id) startNew();
-    } catch (e) {
-      deleted.current.delete(id);
-      onFailure(e);
+    } else {
+      deletions.current.delete(id);
     }
   };
 
@@ -222,6 +230,7 @@ export function ChatClient(): ReactElement {
     let tools = 0;
     let outcome = 'error';
     let accepted = false;
+    let failure: unknown = null;
     try {
       const { after } = await ask();
       accepted = true;
@@ -236,13 +245,16 @@ export function ChatClient(): ReactElement {
           if (event.type === 'tool_use') tools += 1;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          // The server reports a run deleted under it as an error event;
+          // if the delete fails instead, its own error is the one shown.
+          if (event.type === 'error' && deletions.current.has(id)) return;
           consume(event);
         });
         if (resume === null) break;
         cursor = resume;
       }
     } catch (e) {
-      if (!deleted.current.has(id)) onFailure(e);
+      failure = e;
     } finally {
       // Counts and outcome only — never the message, never which tools.
       // A tool name on an identified event would say this account edited
@@ -257,7 +269,8 @@ export function ChatClient(): ReactElement {
       setBusy(false);
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
-      const gone = deleted.current.has(id);
+      const gone = (await deletions.current.get(id)) ?? false;
+      if (failure && !gone) onFailure(failure);
       const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue

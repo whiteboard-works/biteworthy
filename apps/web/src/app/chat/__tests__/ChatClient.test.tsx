@@ -892,6 +892,69 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('chat-error')).toBeNull();
     });
 
+    // The real mid-stream shape: the server reports the vanished run as an
+    // error event and then closes the stream normally.
+    it('ignores the error event a deleted run reports', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let finish: (e: ChatEvent | null) => void = () => {};
+      watchTurn.mockImplementation(
+        async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
+          new Promise<null>((resolve) => {
+            finish = (event) => {
+              if (event) onEvent(event);
+              resolve(null);
+            };
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+
+      finish({ type: 'error', message: 'Conversation not found' });
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('chat-error')).toBeNull();
+    });
+
+    // A delete that fails leaves the chat in place, so the turn it
+    // interrupted has to settle the way it normally would.
+    it('still settles the turn when the delete fails', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let failDelete: (e: Error) => void = () => {};
+      deleteConversation.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            failDelete = reject;
+          }),
+      );
+      let dropWatch: (e: Error) => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            dropWatch = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      getConversation.mockClear();
+
+      dropWatch(new Error('Connection lost'));
+      failDelete(new Error('Could not delete'));
+
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      expect(screen.getByText('Busy chat')).toBeInTheDocument();
+      expect(await screen.findByTestId('chat-error')).toBeInTheDocument();
+    });
+
     it('keeps the chat when the person cancels', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));
