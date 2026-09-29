@@ -1272,6 +1272,251 @@ describe('ChatClient', () => {
       expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
     });
 
+    // Switching away is not cancelling: a failed first message waits for
+    // the chat it created and goes as soon as the person opens that chat.
+    it('retries a failed first message when its chat is opened', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new', title: 'Brand new' });
+          }),
+      );
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      render(<ChatClient />);
+      await type('first');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-new' ? { ...blank, id: 'c-new', title: 'Brand new' } : other),
+        messages: [],
+      }));
+      listConversations.mockResolvedValue({
+        conversations: [{ ...blank, id: 'c-new', title: 'Brand new' }, busy, other],
+      });
+      created();
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.queryByTestId('live-turn')).toBeNull());
+
+      fireEvent.click(await screen.findByText('Brand new'));
+
+      // The retry, not the failed attempt: that one was also (c-new, first).
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+      expect(sendMessage).toHaveBeenLastCalledWith('c-new', 'first', undefined, 'manual');
+    });
+
+    it('keeps a chat’s queued message through a switch away and back', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      await type('later');
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('later');
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+
+      fireEvent.click(within(screen.getByTestId('chat-history')).getByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('later');
+
+      finish();
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'later', undefined, 'manual'),
+      );
+    });
+
+    // Two blank chats in a row are two conversations. A message queued in
+    // the second must not be re-tagged to the first when that one finishes
+    // being created.
+    it('keeps a message typed in a second blank chat out of the first one', async () => {
+      let createA: () => void = () => {};
+      createConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              createA = () => resolve({ ...blank, id: 'c-a', title: 'Chat A' });
+            }),
+        )
+        .mockResolvedValueOnce({ ...blank, id: 'c-b', title: 'Chat B' });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...blank,
+        id,
+        title: id === 'c-a' ? 'Chat A' : 'Chat B',
+        messages: [],
+      }));
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('for B');
+
+      createA();
+      await waitFor(() => expect(watchTurn).toHaveBeenCalled());
+      finish();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-b', 'for B', undefined, 'manual'),
+      );
+      expect(sendMessage).toHaveBeenCalledWith('c-a', 'for A', undefined, 'manual');
+      expect(sendMessage).not.toHaveBeenCalledWith('c-a', 'for B', undefined, 'manual');
+    });
+
+    // A confirmation gate the person chose for one chat must not be
+    // swapped for another chat's because of when the queue drains.
+    it("sends a reopened chat's queued message under that chat's own mode", async () => {
+      getConversation.mockImplementation(async (id: string) =>
+        id === 'c-2'
+          ? { ...other, mode: 'manual', messages: [] }
+          : { ...busy, mode: 'auto', messages: [] },
+      );
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      await type('queued for other');
+      fireEvent.click(within(screen.getByTestId('chat-history')).getByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      fireEvent.click(screen.getByText('Other chat'));
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'queued for other', undefined, 'manual'),
+      );
+    });
+
+    it('drains the blank chat on screen when an earlier chat fails to be created', async () => {
+      let failA: () => void = () => {};
+      createConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              failA = () => reject(new Error('Could not start a chat'));
+            }),
+        )
+        .mockResolvedValueOnce({ ...blank, id: 'c-b', title: 'Chat B' });
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('for B');
+
+      failA();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-b', 'for B', undefined, 'manual'),
+      );
+      expect(screen.queryByText('for A')).toBeNull();
+    });
+
+    it('keeps the order of a blank chat’s messages when its creation fails', async () => {
+      let failA: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failA = () => reject(new Error('Could not start a chat'));
+          }),
+      );
+      render(<ChatClient />);
+      await type('first');
+      await type('second');
+
+      failA();
+
+      await waitFor(() =>
+        expect(screen.getByTestId('queued-messages')).toHaveTextContent(/first[\s\S]*second/),
+      );
+      expect(sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('drains an opened chat when the blank chat left behind fails to be created', async () => {
+      let failA: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failA = () => reject(new Error('Could not start a chat'));
+          }),
+      );
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      await type('for other');
+
+      failA();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for other', undefined, 'manual'),
+      );
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
+    it('sends a message typed while a chat is opening to that chat once it arrives', async () => {
+      let arrive: () => void = () => {};
+      render(<ChatClient />);
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            arrive = () => resolve({ ...other, messages: [] });
+          }),
+      );
+      fireEvent.click(await screen.findByText('Other chat'));
+      await type('early');
+      expect(sendMessage).not.toHaveBeenCalled();
+
+      arrive();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'early', undefined, 'manual'),
+      );
+    });
+
+    it('drains the chat it falls back to when an open fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      await type('queued');
+      let refuse: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            refuse = () => reject(new Error('Could not open'));
+          }),
+      );
+      fireEvent.click(screen.getByText('Other chat'));
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      refuse();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'queued', undefined, 'manual'),
+      );
+    });
+
+    it('keeps a blank chat’s queued message when opening another chat fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('in the blank chat');
+      getConversation.mockRejectedValueOnce(new Error('Could not open'));
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByTestId('chat-error');
+
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('in the blank chat');
+      finish();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

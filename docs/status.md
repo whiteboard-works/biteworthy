@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-09-29 (UTC) — **Chat queues survive switching chats.** A queued message used to be cleared the moment the person opened another chat — including a failed first message #729 had bound to the chat it created, which then had no way to be sent. Each queued message now waits for its own chat across switches (the composer shows only that chat's chips), sends once that chat is opened and free, and untagged messages typed while a chat was being created are re-tagged with it so the drain matches exactly.
+
 2026-09-29 (UTC) — **Chat turns have an owner separate from the chat on screen (#729).** `_ChatClient` now tracks the running turn (`turn` ref, claimed synchronously, released by identity after the end-of-turn refetch and queue drain) apart from the chat being viewed (`viewing` ref), so switching chats mid-turn no longer drags the person back, deleting the running chat no longer shows a spurious 404, and a deleted chat's queued messages go with it. Known gaps with the blank-chat/opening identity are tracked in #731.
 
 2026-09-28 (UTC) — **Deleting a chat works again (and so does deleting an account).** `Conversation` destroyed its runs before its events, and events hold a foreign key to runs, so every delete of a chat that had answered once 500d with `PG::ForeignKeyViolation` (prod logs) — and `User has_many :conversations, dependent: :destroy` carried the same failure into account deletion. Events now go first, the event→run FK cascades (so a turn still writing cannot re-block the delete), and the sidebar × asks "Delete this chat?" before deleting.
