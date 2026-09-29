@@ -93,6 +93,10 @@ export function ChatClient(): ReactElement {
   // Chats whose delete succeeded, for the checks that cannot wait on a
   // promise.
   const removed = useRef(new Set<string>());
+  // Which blank chat is on screen (see `blankKey`), and which blank chats
+  // have a create in flight.
+  const blank = useRef(0);
+  const creating = useRef(new Set<string>());
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -136,10 +140,21 @@ export function ChatClient(): ReactElement {
   // A queued message belongs to the conversation it was typed into, and
   // there is no reading of "send it to the other one" that a user would
   // want — so each carries its chat's id and waits for that chat, however
-  // often the person switches away and back. Only a blank chat's messages
-  // (id still null) are dropped when a new blank chat replaces it.
-  const dropBlankQueue = () => {
-    queue.current = queue.current.filter((message) => message.conversationId !== null);
+  // often the person switches away and back.
+  //
+  // A blank chat has no id yet, so each one gets a key of its own rather
+  // than sharing null: two blank chats in a row — "New chat" pressed while
+  // the first was still being created — are two different conversations,
+  // and their messages must not trade places.
+  const blankKey = () => `blank:${blank.current}`;
+  // Leaving a blank chat for a new one drops what was typed into it —
+  // unless it is still being created, in which case its messages are
+  // about to be re-tagged with the real id and wait for it.
+  const leaveBlank = () => {
+    const key = blankKey();
+    blank.current += 1;
+    if (creating.current.has(key)) return;
+    queue.current = queue.current.filter((message) => message.conversationId !== key);
     setQueued(queue.current);
   };
 
@@ -206,7 +221,7 @@ export function ChatClient(): ReactElement {
     setActive(null);
     setMessages([]);
     setPending(null);
-    dropBlankQueue();
+    leaveBlank();
     // A fresh conversation starts where the server starts it. Carrying
     // the last one's mode over means someone who used `auto` once gets a
     // new chat silently in `auto` — a gate turned off by a decision they
@@ -424,7 +439,7 @@ export function ChatClient(): ReactElement {
     // first send is re-tagged with that chat's id once it exists (see
     // `deliver`), so an untagged one only ever belongs to the blank chat.
     const next = queue.current.find(
-      (message) => message.conversationId === (conversation?.id ?? null),
+      (message) => message.conversationId === (conversation?.id ?? blankKey()),
     );
     if (!next) return;
 
@@ -491,25 +506,30 @@ export function ChatClient(): ReactElement {
     const release = () => {
       if (turn.current === mine) turn.current = null;
     };
+    const draft = conversation ? null : blankKey();
+    if (draft) creating.current.add(draft);
     try {
       if (!conversation) {
         const created = await createConversation();
         conversation = created;
         mine.id = created.id;
         bind?.(created.id);
-        // Anything typed while this chat was being created was for it.
+        // Anything typed into this blank chat while it was being created
+        // was for it — and only this one.
         queue.current = queue.current.map((message) =>
-          message.conversationId === null ? { ...message, conversationId: created.id } : message,
+          message.conversationId === draft ? { ...message, conversationId: created.id } : message,
         );
         setQueued(queue.current);
+        if (draft) creating.current.delete(draft);
         // Only onto a screen still showing the blank chat it was typed
         // into. Someone who opened another chat while this was being
         // created keeps what they opened; the new chat joins the list.
-        if (viewing.current === null) adopt(created);
+        if (viewing.current === null && blankKey() === draft) adopt(created);
         else setConversations((list) => [created, ...list.filter((c) => c.id !== created.id)]);
         tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
+      if (draft) creating.current.delete(draft);
       onFailure(e);
       release();
       return false;
@@ -535,7 +555,7 @@ export function ChatClient(): ReactElement {
     // millisecond would otherwise collide.
     const message: QueuedMessage = {
       id: `queued-${Date.now()}-${queue.current.length}`,
-      conversationId: active?.id ?? null,
+      conversationId: active?.id ?? blankKey(),
       text,
       attachments,
     };
@@ -718,7 +738,7 @@ export function ChatClient(): ReactElement {
         ) : null}
         <Composer
           queueing={busy || pending !== null}
-          queued={queued.filter((m) => m.conversationId === (active?.id ?? null))}
+          queued={queued.filter((m) => m.conversationId === (active?.id ?? blankKey()))}
           onSend={send}
           onCancelQueued={cancelQueued}
         />

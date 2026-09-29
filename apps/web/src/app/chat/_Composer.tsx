@@ -9,7 +9,8 @@ export interface QueuedMessage {
   id: string;
   /** The conversation it was typed into. `busy` is global, so a turn
    *  running in one chat must not deliver a message meant for another —
-   *  null means "the one being created right now". */
+   *  A blank chat's messages carry that blank chat's own key until the
+   *  chat is created, then its id. */
   conversationId: string | null;
   text: string;
   attachments: Attachment[];
@@ -158,7 +159,9 @@ export function Composer({
           rows={1}
           aria-label="Message"
           placeholder={
-            queueing ? 'Type the next one — it will send when this finishes…' : 'Ask what you can eat, or add a menu…'
+            queueing
+              ? 'Type the next one — it will send when this finishes…'
+              : 'Ask what you can eat, or add a menu…'
           }
           className="max-h-40 min-h-[42px] flex-1 resize-y rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base focus:border-bite focus:outline-none"
         />

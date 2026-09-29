@@ -1326,6 +1326,41 @@ describe('ChatClient', () => {
       );
     });
 
+    // Two blank chats in a row are two conversations. A message queued in
+    // the second must not be re-tagged to the first when that one finishes
+    // being created.
+    it('keeps a message typed in a second blank chat out of the first one', async () => {
+      let createA: () => void = () => {};
+      createConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              createA = () => resolve({ ...blank, id: 'c-a', title: 'Chat A' });
+            }),
+        )
+        .mockResolvedValueOnce({ ...blank, id: 'c-b', title: 'Chat B' });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...blank,
+        id,
+        title: id === 'c-a' ? 'Chat A' : 'Chat B',
+        messages: [],
+      }));
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('for B');
+
+      createA();
+      await waitFor(() => expect(watchTurn).toHaveBeenCalled());
+      finish();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-b', 'for B', undefined, 'manual'),
+      );
+      expect(sendMessage).toHaveBeenCalledWith('c-a', 'for A', undefined, 'manual');
+      expect(sendMessage).not.toHaveBeenCalledWith('c-a', 'for B', undefined, 'manual');
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 
