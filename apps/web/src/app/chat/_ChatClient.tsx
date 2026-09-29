@@ -313,14 +313,11 @@ export function ChatClient(): ReactElement {
       // the person tried to remove is still there.
       const deleting = deletions.current.get(id);
       gone = (await deleting) ?? false;
-      // Still ours unless a delete took it back. Released before the
-      // refresh, as it always was, so the flush below starts the next turn
-      // on a free page.
-      const owned = turn.current === mine;
-      if (owned) {
-        turn.current = null;
-        setBusy(false);
-      }
+      // Still ours unless a delete took it back. `busy` drops now so Stop
+      // goes away, but the claim itself is held through the refresh and
+      // the flush: a send slipped into that gap would start a turn the
+      // refresh then overwrites with the snapshot from before it.
+      if (turn.current === mine) setBusy(false);
       if (onScreen()) setLive(null);
       if (failure && !deleting && onScreen()) onFailure(failure);
       // The turn was persisted as it ran, so this reconciles whether it
@@ -344,18 +341,25 @@ export function ChatClient(): ReactElement {
       // `busy` is false, and nothing else drains it — the chips would sit
       // there forever behind a generic error.
       //
-      // Only the turn that held the page drains it, and it drains whatever
-      // is on screen: a person who moved to another chat mid-turn queued
-      // their messages there.
-      if (owned && onScreen()) {
-        const settled = conversation ?? current.current;
-        // Only when the server took this turn. If `ask` was rejected, the
-        // message it was carrying is on its way back to the head of the
-        // queue — flushing now would send the one behind it first and
-        // deliver the two out of the order they were typed.
-        if (accepted && settled && !settled.pending) flush(settled);
-      } else if (owned) {
-        flushView();
+      // Only the turn that still holds the page drains it — asked again
+      // after the refresh, which a delete may have landed during — and it
+      // drains whatever is on screen: a person who moved to another chat
+      // mid-turn queued their messages there.
+      //
+      // Released after, and only if nothing claimed it meanwhile: the
+      // flush's own `deliver` claims it synchronously for the next turn.
+      if (turn.current === mine) {
+        turn.current = null;
+        if (onScreen()) {
+          const settled = conversation ?? current.current;
+          // Only when the server took this turn. If `ask` was rejected,
+          // the message it was carrying is on its way back to the head of
+          // the queue — flushing now would send the one behind it first
+          // and deliver the two out of the order they were typed.
+          if (accepted && settled && !settled.pending) flush(settled);
+        } else {
+          flushView();
+        }
       }
     }
     // A deleted chat consumed the turn: handing the message back would
@@ -408,7 +412,9 @@ export function ChatClient(): ReactElement {
 
   // The running turn, which is not necessarily the chat on screen.
   const stop = async () => {
-    const id = turn.current?.id ?? active?.id;
+    // A turn whose chat is still being created has nothing to stop yet —
+    // and falling back to the chat on screen would stop the wrong one.
+    const id = turn.current ? turn.current.id : active?.id;
     if (!id) return;
     try {
       await stopTurn(id);
@@ -513,7 +519,9 @@ export function ChatClient(): ReactElement {
   };
 
   const answer = async (approved: boolean) => {
-    if (!active || !pending) return;
+    // One turn at a time per tab; the buttons are disabled while one runs,
+    // and this covers the instant before `busy` catches up.
+    if (!active || !pending || turn.current) return;
     const id = active.id;
     const { fingerprint } = pending;
     setPending(null);

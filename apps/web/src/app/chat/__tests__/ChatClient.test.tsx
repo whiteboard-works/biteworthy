@@ -946,12 +946,13 @@ describe('ChatClient', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
       await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
       getConversation.mockClear();
+      getConversation.mockResolvedValue({ ...blank, title: 'Busy chat' });
 
       dropWatch(new Error('Connection lost'));
       failDelete(new Error('Could not delete'));
 
       await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
-      expect(screen.getByText('Busy chat')).toBeInTheDocument();
+      expect(within(screen.getByTestId('chat-history')).getByText('Busy chat')).toBeInTheDocument();
       // The delete's failure, not the dropped stream: the chat the person
       // tried to remove is still there, and that is what they need to know.
       expect(await screen.findByTestId('chat-error')).toHaveTextContent('Could not delete');
@@ -1094,6 +1095,33 @@ describe('ChatClient', () => {
         expect(sendMessage).toHaveBeenCalledWith('c-2', 'for the other chat', undefined, 'manual'),
       );
       finish();
+    });
+
+    // A finished turn still holds the page while it refetches. A message
+    // typed into that gap waits and then goes, instead of starting a turn
+    // the refetch would overwrite with the snapshot from before it.
+    it('queues a message typed while the finished turn is still refetching', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      let land: () => void = () => {};
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+
+      finish();
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('next');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('queued-messages')).toBeInTheDocument();
+
+      land();
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'next', undefined, 'manual'),
+      );
     });
 
     it('keeps the running turn when a different chat is deleted', async () => {
