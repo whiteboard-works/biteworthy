@@ -207,7 +207,11 @@ export function ChatClient(): ReactElement {
     const opened = await refresh(id);
     // A failed open leaves the previous chat drawn; point the page back
     // at it, or that chat would read as off screen and stop updating.
-    if (!opened && viewing.current === id) viewing.current = current.current?.id ?? null;
+    if (!opened && viewing.current === id) {
+      viewing.current = current.current?.id ?? null;
+      // That chat is on screen again, so its queue is drainable again.
+      if (turn.current === null) flushView();
+    }
     // Whatever was left waiting here — typed before the person switched
     // away, or a send that failed while they were elsewhere — goes now,
     // unless another turn still holds the page (its teardown drains the
@@ -577,7 +581,9 @@ export function ChatClient(): ReactElement {
     // millisecond would otherwise collide.
     const message: QueuedMessage = {
       id: `queued-${Date.now()}-${queue.current.length}`,
-      conversationId: active?.id ?? blankKey(),
+      // `viewing`, not `active`: typed while a chat is still opening, it
+      // is for the chat being opened, and waits for it (see `opening`).
+      conversationId: viewing.current ?? blankKey(),
       text,
       attachments,
     };
@@ -585,7 +591,10 @@ export function ChatClient(): ReactElement {
     // The ref, not `busy`: it is claimed before the state catches up and
     // released by whichever of a turn's end or its chat's deletion comes
     // first.
-    const idle = turn.current === null && pending === null;
+    // Mid-open the chat this is for has not arrived yet; `open` sends
+    // what waited once it has.
+    const opening = viewing.current !== (current.current?.id ?? null);
+    const idle = turn.current === null && pending === null && !opening;
     // This chat's backlog is part of "idle" on purpose. Without it a
     // message typed while earlier ones are waiting jumps the queue and
     // arrives before them — reachable whenever a flush was interrupted

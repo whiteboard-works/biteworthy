@@ -1455,6 +1455,51 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('queued-messages')).toBeNull();
     });
 
+    it('sends a message typed while a chat is opening to that chat once it arrives', async () => {
+      let arrive: () => void = () => {};
+      render(<ChatClient />);
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            arrive = () => resolve({ ...other, messages: [] });
+          }),
+      );
+      fireEvent.click(await screen.findByText('Other chat'));
+      await type('early');
+      expect(sendMessage).not.toHaveBeenCalled();
+
+      arrive();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'early', undefined, 'manual'),
+      );
+    });
+
+    it('drains the chat it falls back to when an open fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      await type('queued');
+      let refuse: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            refuse = () => reject(new Error('Could not open'));
+          }),
+      );
+      fireEvent.click(screen.getByText('Other chat'));
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      refuse();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'queued', undefined, 'manual'),
+      );
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 
