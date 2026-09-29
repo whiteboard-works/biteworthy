@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-09-29 (UTC) — **Chat turns have an owner separate from the chat on screen (#729).** `_ChatClient` now tracks the running turn (`turn` ref, claimed synchronously, released by identity after the end-of-turn refetch and queue drain) apart from the chat being viewed (`viewing` ref), so switching chats mid-turn no longer drags the person back, deleting the running chat no longer shows a spurious 404, and a deleted chat's queued messages go with it. Known gaps with the blank-chat/opening identity are tracked in #731.
+
 2026-09-28 (UTC) — **Deleting a chat works again (and so does deleting an account).** `Conversation` destroyed its runs before its events, and events hold a foreign key to runs, so every delete of a chat that had answered once 500d with `PG::ForeignKeyViolation` (prod logs) — and `User has_many :conversations, dependent: :destroy` carried the same failure into account deletion. Events now go first, the event→run FK cascades (so a turn still writing cannot re-block the delete), and the sidebar × asks "Delete this chat?" before deleting.
 
 2026-09-28 (UTC) — **Chat tool cards say what they did.** Finished turns redrew every card as "Did search restaurants" because stored `tool_use` blocks never carried the tool's `running_description`; `Chat::Serializer` now serves it as `doing` (new `ChatBlock.doing`), the web history card uses it, and the 33 tools that lacked a sentence got one, pinned by a spec over `Tools::Registry.all`.
