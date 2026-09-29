@@ -57,16 +57,42 @@ export function ChatClient(): ReactElement {
   // `deliver` closes over `active` and `mode`, and the flush happens a
   // turn later, so the same staleness applies to it.
   const deliverLatest = useRef<
-    (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
+    (
+      text: string,
+      attachments: Attachment[],
+      known?: Conversation,
+      bind?: (id: string) => void,
+    ) => Promise<boolean>
   >(async () => false);
-  // A send is under way but `busy` has not caught up yet — see `deliver`.
-  const inFlight = useRef(false);
+  // The one turn this tab is running, and the chat it belongs to — `id`
+  // is null only while `deliver` is still creating that chat. It is set
+  // synchronously, before `busy` can catch up, which is what stops two
+  // quick sends from both seeing an idle chat. Compared by identity: only
+  // the turn that claimed it, or the deletion of its chat, may let it go.
+  const turn = useRef<{ id: string | null } | null>(null);
+  // The chat on screen, or the one being opened. Set before the request
+  // that fetches it, so an answer for any other chat — a finished turn's
+  // refresh, a late event — knows it no longer owns the screen.
+  const viewing = useRef<string | null>(null);
+  // `active` as of the latest adopt, for teardowns that closed over an
+  // older render.
+  const current = useRef<Conversation | null>(null);
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
   // Which switch is the newest, so an older PATCH resolving late cannot
   // speak for the picker.
   const modeTicket = useRef(0);
+  // Deletes started from this tab, each resolving to whether it worked.
+  // Deleting a chat mid-turn takes its run with it, so the turn's watcher
+  // and teardown refresh both fail — news to no one, and not worth an
+  // error on the blank chat that replaced it. A turn waits on the answer
+  // rather than the attempt: if the delete fails, the chat is still there
+  // and its teardown has to run as usual.
+  const deletions = useRef(new Map<string, Promise<boolean>>());
+  // Chats whose delete succeeded, for the checks that cannot wait on a
+  // promise.
+  const removed = useRef(new Set<string>());
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -90,6 +116,8 @@ export function ChatClient(): ReactElement {
   }, [messages, live, pending]);
 
   const adopt = (conversation: Conversation) => {
+    viewing.current = conversation.id;
+    current.current = conversation;
     setActive(conversation);
     setMessages(conversation.messages);
     setPending(conversation.pending);
@@ -113,34 +141,59 @@ export function ChatClient(): ReactElement {
     setQueued([]);
   };
 
+  // Back to the head of the queue after a send that never reached the
+  // server — unless its chat was deleted in the meantime. A chip for a
+  // chat that no longer exists could never drain, and while it sat there
+  // every later message would queue behind it.
+  const putBack = (message: QueuedMessage) => {
+    if (message.conversationId && removed.current.has(message.conversationId)) return;
+    queue.current = [message, ...queue.current];
+    setQueued(queue.current);
+  };
+
   // Refetching after every turn — rather than stitching the streamed
   // fragments into local state — means what's on screen is what the
   // server stored, which is also what a reload would show.
+  //
+  // Checked after the request, not before: the person can delete this
+  // chat or move to another while it is in flight, and a late answer —
+  // the chat or its 404 — must neither bring back what they deleted nor
+  // pull them away from what they opened. Returns null when the answer
+  // no longer belongs on screen.
   const refresh = async (id: string): Promise<Conversation | null> => {
+    const deletedMeanwhile = async () => (await deletions.current.get(id)) ?? false;
     try {
       const conversation = await getConversation(id);
-      adopt(conversation);
-      setConversations((current) =>
-        current.some((c) => c.id === id)
-          ? current.map((c) => (c.id === id ? { ...c, ...conversation } : c))
-          : [conversation, ...current],
+      if (await deletedMeanwhile()) return null;
+      setConversations((list) =>
+        list.some((c) => c.id === id)
+          ? list.map((c) => (c.id === id ? { ...c, ...conversation } : c))
+          : [conversation, ...list],
       );
+      if (viewing.current !== id) return null;
+      adopt(conversation);
       return conversation;
     } catch (e) {
-      onFailure(e);
+      if (!(await deletedMeanwhile()) && viewing.current === id) onFailure(e);
       return null;
     }
   };
 
   const open = async (id: string) => {
+    viewing.current = id;
     setHistoryOpen(false);
     setError(null);
     setLive(null);
     clearQueue();
-    await refresh(id);
+    const opened = await refresh(id);
+    // A failed open leaves the previous chat drawn; point the page back
+    // at it, or that chat would read as off screen and stop updating.
+    if (!opened && viewing.current === id) viewing.current = current.current?.id ?? null;
   };
 
   const startNew = () => {
+    viewing.current = null;
+    current.current = null;
     setHistoryOpen(false);
     setError(null);
     setLive(null);
@@ -156,12 +209,41 @@ export function ChatClient(): ReactElement {
   };
 
   const remove = async (id: string) => {
-    try {
-      await deleteConversation(id);
-      setConversations((current) => current.filter((c) => c.id !== id));
-      if (active?.id === id) startNew();
-    } catch (e) {
-      onFailure(e);
+    const attempt = deleteConversation(id).then(
+      () => true,
+      (e: unknown) => {
+        onFailure(e);
+        return false;
+      },
+    );
+    deletions.current.set(id, attempt);
+    if (await attempt) {
+      removed.current.add(id);
+      setConversations((list) => list.filter((c) => c.id !== id));
+      // Its queued messages go with it, whether or not it is on screen.
+      queue.current = queue.current.filter((message) => message.conversationId !== id);
+      setQueued(queue.current);
+      if (viewing.current === id) {
+        startNew();
+      } else if (current.current?.id === id) {
+        // Still drawn while another chat is being opened: clear it without
+        // cancelling that open.
+        current.current = null;
+        setActive(null);
+        setMessages([]);
+        setPending(null);
+      }
+      // Only a turn this chat owns is released, and it is released now
+      // rather than when its dead stream gets round to closing: until then
+      // whatever is on screen would queue behind a turn that no longer
+      // exists. That turn's teardown leaves the page alone from here on.
+      if (turn.current?.id === id) {
+        turn.current = null;
+        setBusy(false);
+        flushView();
+      }
+    } else {
+      deletions.current.delete(id);
     }
   };
 
@@ -209,13 +291,22 @@ export function ChatClient(): ReactElement {
   // that drops mid-narration must not read as "nothing was sent", or the
   // caller puts a message back that is already on its way.
   const run = async (id: string, ask: () => Promise<{ after: number }>): Promise<boolean> => {
+    // `deliver` claimed the turn before the chat existed; a confirmation
+    // answer arrives here without one.
+    const mine = turn.current?.id === id ? turn.current : { id };
+    turn.current = mine;
+    const onScreen = () => viewing.current === id;
     setBusy(true);
     setError(null);
-    setLive(EMPTY_TURN);
+    // Only on its own chat: teardown clears it only there, so a turn that
+    // starts off screen would leave another chat "thinking" for good.
+    if (onScreen()) setLive(EMPTY_TURN);
     const startedAt = Date.now();
     let tools = 0;
     let outcome = 'error';
     let accepted = false;
+    let failure: unknown = null;
+    let gone = false;
     try {
       const { after } = await ask();
       accepted = true;
@@ -230,13 +321,18 @@ export function ChatClient(): ReactElement {
           if (event.type === 'tool_use') tools += 1;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          // Narration belongs to its own chat. Once that chat is off
+          // screen or being deleted, nothing this turn says belongs on the
+          // page — not its text, and not the error event the server sends
+          // when a deleted run vanishes. A failed delete shows its own.
+          if (!onScreen() || deletions.current.has(id)) return;
           consume(event);
         });
         if (resume === null) break;
         cursor = resume;
       }
     } catch (e) {
-      onFailure(e);
+      failure = e;
     } finally {
       // Counts and outcome only — never the message, never which tools.
       // A tool name on an identified event would say this account edited
@@ -247,11 +343,22 @@ export function ChatClient(): ReactElement {
         tool_count: tools,
         duration_ms: Date.now() - startedAt,
       });
-      setLive(null);
-      setBusy(false);
+      // A delete in flight speaks for this turn: if it worked there is
+      // nothing to report and `remove` has already handed the page back,
+      // and if it failed its own error is the one that matters — the chat
+      // the person tried to remove is still there.
+      const deleting = deletions.current.get(id);
+      gone = (await deleting) ?? false;
+      // The claim — and `busy` with it — is held through the refresh and
+      // the flush: a send slipped into that gap would start a turn the
+      // refresh then overwrites with the snapshot from before it, and a
+      // confirmation answered there would have nowhere to go.
+      if (onScreen()) setLive(null);
+      if (failure && !deleting && onScreen()) onFailure(failure);
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
-      const conversation = await refresh(id);
+      // `refresh` only redraws if this chat is still the one on screen.
+      const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
       // has already been shortened, which is one render before the next
@@ -264,52 +371,92 @@ export function ChatClient(): ReactElement {
       // behind one, and more to the point the queued message may well be
       // the user changing their mind about the thing being asked.
       //
-      // `?? active` covers a failed refresh. Without it a `getConversation`
-      // error strands the whole queue: the turn is over, `busy` is false,
-      // and nothing else drains it — the chips would sit there forever
-      // behind a generic error.
-      const settled = conversation ?? active;
-      // Only when the server took this turn. If `ask` was rejected, the
-      // message it was carrying is on its way back to the head of the
-      // queue — flushing now would send the one behind it first and
-      // deliver the two out of the order they were typed.
-      if (accepted && settled && !settled.pending) flush(settled);
+      // `?? current` covers a failed refresh. Without it a
+      // `getConversation` error strands the whole queue: the turn is over,
+      // `busy` is false, and nothing else drains it — the chips would sit
+      // there forever behind a generic error.
+      //
+      // Only the turn that still holds the page drains it — asked again
+      // after the refresh, which a delete may have landed during — and it
+      // drains whatever is on screen: a person who moved to another chat
+      // mid-turn queued their messages there.
+      //
+      // Released after, and only if nothing claimed it meanwhile: the
+      // flush's own `deliver` claims it synchronously for the next turn.
+      if (turn.current === mine) {
+        turn.current = null;
+        setBusy(false);
+        if (onScreen()) {
+          const settled = conversation ?? current.current;
+          // Only when the server took this turn. If `ask` was rejected,
+          // the message it was carrying is on its way back to the head of
+          // the queue — flushing now would send the one behind it first
+          // and deliver the two out of the order they were typed.
+          if (accepted && settled && !settled.pending) flush(settled);
+        } else {
+          flushView();
+        }
+      }
     }
-    return accepted;
+    // A deleted chat consumed the turn: handing the message back would
+    // queue it for a conversation that no longer exists.
+    // Asked again here: the delete may have landed during the refresh.
+    return accepted || gone || removed.current.has(id);
   };
 
   // The conversation is handed in rather than read from state: the
   // `setActive` that just ran may not have re-rendered yet, and a
   // `deliver` that reads `active` as null opens a second conversation
   // and sends the queued message into it.
-  const flush = (conversation: Conversation) => {
+  // A null conversation is the blank chat on screen, whose first queued
+  // message opens it.
+  const flush = (conversation: Conversation | null) => {
     // Only this conversation's messages. `busy` is global, so a turn
     // running in A while the user opens B and types puts B's message in
     // the same queue — and A's teardown would then deliver it into A.
     // `null` is a message typed during the very first send, before the
     // conversation existed — this is the one it was meant for.
     const next = queue.current.find(
-      (message) => message.conversationId === conversation.id || message.conversationId === null,
+      (message) =>
+        message.conversationId === (conversation?.id ?? null) || message.conversationId === null,
     );
     if (!next) return;
 
     queue.current = queue.current.filter((message) => message.id !== next.id);
     setQueued(queue.current);
-    void deliverLatest.current(next.text, next.attachments, conversation).then((sent) => {
-      if (sent) return;
-      // Put it back where it was rather than losing it. Removing it first
-      // is what keeps a second flush from picking up the same message,
-      // but it means a send that never reached the server would otherwise
-      // vanish with nothing but an error banner to show for it.
-      queue.current = [next, ...queue.current];
-      setQueued(queue.current);
-    });
+    let back = next;
+    void deliverLatest
+      .current(next.text, next.attachments, conversation ?? undefined, (id) => {
+        back = { ...next, conversationId: id };
+      })
+      .then((sent) => {
+        if (sent) return;
+        // Put it back where it was rather than losing it. Removing it first
+        // is what keeps a second flush from picking up the same message,
+        // but it means a send that never reached the server would otherwise
+        // vanish with nothing but an error banner to show for it.
+        putBack(back);
+      });
   };
 
+  // Drains the queue for whatever is on screen once a turn that was
+  // running elsewhere lets go of the page. Skipped mid-open, when the
+  // chat being opened has not arrived yet, and behind a parked
+  // confirmation, which the server would refuse a message behind.
+  const flushView = () => {
+    const view = current.current;
+    if ((view?.id ?? null) !== viewing.current || view?.pending) return;
+    flush(view);
+  };
+
+  // The running turn, which is not necessarily the chat on screen.
   const stop = async () => {
-    if (!active) return;
+    // A turn whose chat is still being created has nothing to stop yet —
+    // and falling back to the chat on screen would stop the wrong one.
+    const id = turn.current ? turn.current.id : active?.id;
+    if (!id) return;
     try {
-      await stopTurn(active.id);
+      await stopTurn(id);
     } catch (e) {
       onFailure(e);
     }
@@ -321,32 +468,48 @@ export function ChatClient(): ReactElement {
     text: string,
     attachments: Attachment[],
     known?: Conversation,
+    // Told the id of a chat created for this message, so a retry goes
+    // back to that chat rather than to whatever is on screen by then.
+    bind?: (id: string) => void,
   ): Promise<boolean> => {
     const composed = compose(text, attachments);
-    let conversation = known ?? active;
+    // The ref, not `active`: a flush from another render's teardown may
+    // call a `deliver` that closed over a chat since deleted.
+    let conversation = known ?? current.current;
     // `busy` is React state set inside `run`, which on a first message
     // only runs after `createConversation` resolves — two sends inside
     // that window would both see an idle chat and open two conversations.
     // A ref latches synchronously, which is the whole point.
-    inFlight.current = true;
+    const mine: { id: string | null } = { id: conversation?.id ?? null };
+    turn.current = mine;
+    const release = () => {
+      if (turn.current === mine) turn.current = null;
+    };
     try {
       if (!conversation) {
-        conversation = await createConversation();
-        adopt(conversation);
+        const created = await createConversation();
+        conversation = created;
+        mine.id = created.id;
+        bind?.(created.id);
+        // Only onto a screen still showing the blank chat it was typed
+        // into. Someone who opened another chat while this was being
+        // created keeps what they opened; the new chat joins the list.
+        if (viewing.current === null) adopt(created);
+        else setConversations((list) => [created, ...list.filter((c) => c.id !== created.id)]);
         tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
       onFailure(e);
-      inFlight.current = false;
+      release();
       return false;
     }
 
     const id = conversation.id;
-    setMessages((current) => [...current, optimistic(composed, current.length)]);
+    if (viewing.current === id) setMessages((list) => [...list, optimistic(composed, list.length)]);
     try {
       return await run(id, () => sendMessage(id, composed, pageContext(), mode));
     } finally {
-      inFlight.current = false;
+      release();
     }
   };
   deliverLatest.current = deliver;
@@ -366,21 +529,26 @@ export function ChatClient(): ReactElement {
       attachments,
     };
 
-    const idle = !busy && !inFlight.current && pending === null;
+    // The ref, not `busy`: it is claimed before the state catches up and
+    // released by whichever of a turn's end or its chat's deletion comes
+    // first.
+    const idle = turn.current === null && pending === null;
     // `queue.current.length` is part of "idle" on purpose. Without it a
     // message typed while a backlog is waiting jumps the queue and
     // arrives before messages typed earlier — reachable whenever a flush
     // was interrupted and left chips behind.
     if (idle && queue.current.length === 0) {
-      void deliver(text, attachments).then((sent) => {
+      let back = message;
+      void deliver(text, attachments, undefined, (id) => {
+        back = { ...message, conversationId: id };
+      }).then((sent) => {
         if (sent) return;
         // The composer has already cleared itself, so a rejected POST
         // would otherwise take the message with it. It becomes a chip
         // instead — visible, cancelable, and picked up by the next
         // flush, which beats restoring text into a box the user has
         // probably started typing in again.
-        queue.current = [message, ...queue.current];
-        setQueued(queue.current);
+        putBack(back);
       });
       return;
     }
@@ -401,7 +569,9 @@ export function ChatClient(): ReactElement {
   };
 
   const answer = async (approved: boolean) => {
-    if (!active || !pending) return;
+    // One turn at a time per tab; the buttons are disabled while one runs,
+    // and this covers the instant before `busy` catches up.
+    if (!active || !pending || turn.current) return;
     const id = active.id;
     const { fingerprint } = pending;
     setPending(null);

@@ -865,6 +865,176 @@ describe('ChatClient', () => {
       );
     });
 
+    // Deleting the open chat mid-turn takes its run with it, so the watcher
+    // and the teardown refresh both fail. Neither is news to the person
+    // who just deleted it — the new blank chat must not open on a 404.
+    it('stays quiet when the chat deleted was mid-turn', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let dropWatch: (e: Error) => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            dropWatch = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+
+      getConversation.mockRejectedValue(new Error('Not found'));
+      dropWatch(new Error('Not found'));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('chat-error')).toBeNull();
+    });
+
+    // The real mid-stream shape: the server reports the vanished run as an
+    // error event and then closes the stream normally.
+    it('ignores the error event a deleted run reports', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let finish: (e: ChatEvent | null) => void = () => {};
+      watchTurn.mockImplementation(
+        async (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
+          new Promise<null>((resolve) => {
+            finish = (event) => {
+              if (event) onEvent(event);
+              resolve(null);
+            };
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+
+      finish({ type: 'error', message: 'Conversation not found' });
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('chat-error')).toBeNull();
+    });
+
+    // A delete that fails leaves the chat in place, so the turn it
+    // interrupted has to settle the way it normally would.
+    it('still settles the turn when the delete fails', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let failDelete: (e: Error) => void = () => {};
+      deleteConversation.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            failDelete = reject;
+          }),
+      );
+      let dropWatch: (e: Error) => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            dropWatch = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      getConversation.mockClear();
+      getConversation.mockResolvedValue({ ...blank, title: 'Busy chat' });
+
+      dropWatch(new Error('Connection lost'));
+      failDelete(new Error('Could not delete'));
+
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      expect(within(screen.getByTestId('chat-history')).getByText('Busy chat')).toBeInTheDocument();
+      // The delete's failure, not the dropped stream: the chat the person
+      // tried to remove is still there, and that is what they need to know.
+      expect(await screen.findByTestId('chat-error')).toHaveTextContent('Could not delete');
+    });
+
+    // The turn can end, and its teardown refetch be in flight, just before
+    // the delete lands. A late answer must not put the chat back.
+    it('does not bring back a chat deleted while it was being refetched', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let answer: (c: Conversation) => void = () => {};
+      render(<ChatClient />);
+      await screen.findByText('Busy chat');
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      fireEvent.click(screen.getByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByText('Busy chat')).toBeNull());
+
+      answer({ ...blank, title: 'Busy chat', messages: [] });
+
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByText('Busy chat')).toBeNull();
+    });
+
+    it('does not re-queue a message whose chat was deleted before it was sent', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let refuse: (e: Error) => void = () => {};
+      sendMessage.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            refuse = reject;
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      refuse(new Error('Not found'));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
+    // The blank chat that replaces a deleted one is usable at once, not
+    // after the dead turn's stream gets around to closing.
+    it('sends from the replacement chat while the deleted turn is still closing', async () => {
+      listConversations.mockResolvedValue({ conversations: [{ ...blank, title: 'Busy chat' }] });
+      let finish: () => void = () => {};
+      watchTurn.mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      createConversation.mockResolvedValue({ ...blank, id: 'c-2' });
+      await type('next question');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'next question', undefined, 'manual'),
+      );
+      finish();
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
     it('keeps the chat when the person cancels', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByRole('button', { name: 'Delete Add city Riverton Utah' }));
@@ -872,6 +1042,246 @@ describe('ChatClient', () => {
 
       expect(deleteConversation).not.toHaveBeenCalled();
       expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+  });
+  // A turn belongs to the chat it runs in, not to whatever is on screen.
+  // These pin that when the person moves between chats mid-turn.
+  describe('a turn that keeps running after the person moves on', () => {
+    const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
+    const other = { ...blank, id: 'c-2', title: 'Other chat' };
+    let finish: () => void = () => {};
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [busy, other] });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-2' ? other : busy),
+        messages: [],
+      }));
+      deleteConversation.mockResolvedValue(undefined);
+      watchTurn.mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+    });
+
+    async function startTurnThenOpenOther() {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+    }
+
+    it('does not pull the person back when the turn they left finishes', async () => {
+      await startTurnThenOpenOther();
+
+      finish();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Other chat');
+    });
+
+    it('sends what was queued on screen when the running chat is deleted', async () => {
+      await startTurnThenOpenOther();
+      await type('for the other chat');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for the other chat', undefined, 'manual'),
+      );
+      finish();
+    });
+
+    // A finished turn still holds the page while it refetches. A message
+    // typed into that gap waits and then goes, instead of starting a turn
+    // the refetch would overwrite with the snapshot from before it.
+    it('queues a message typed while the finished turn is still refetching', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      let land: () => void = () => {};
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+
+      finish();
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('next');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('queued-messages')).toBeInTheDocument();
+
+      land();
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'next', undefined, 'manual'),
+      );
+    });
+
+    // A message that never reached the server is normally put back as a
+    // chip. If its chat is deleted before that happens, there is nowhere
+    // for it to go — and a chip that can never drain would hold up every
+    // message typed after it.
+    it('drops a failed message whose chat was deleted instead of re-queueing it', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      let land: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+      await type('hi');
+      await waitFor(() => expect(getConversation).toHaveBeenCalledTimes(2));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      land();
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New chat'),
+      );
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+
+      createConversation.mockResolvedValue({ ...blank, id: 'c-9' });
+      await type('fresh start');
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-9', 'fresh start', undefined, 'manual'),
+      );
+    });
+
+    it('keeps the chat the person opened while a new one was still being created', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new', title: 'Brand new' });
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+
+      created();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-new', 'hi', undefined, 'manual'),
+      );
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Other chat');
+      finish();
+      await waitFor(() => expect(screen.queryByTestId('live-turn')).toBeNull());
+    });
+
+    it('clears a deleted chat that is still drawn while another is opening', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      getConversation.mockImplementationOnce(() => new Promise(() => {}));
+      fireEvent.click(screen.getByText('Other chat'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('heading', { level: 1, name: 'Busy chat' })).toBeNull(),
+      );
+    });
+
+    it('drops a failed first message whose new chat was deleted during the refetch', async () => {
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      let land: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      land();
+
+      await new Promise((r) => setTimeout(r, 0));
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+    });
+
+    it('keeps the drawn chat working after opening another one fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      getConversation.mockRejectedValueOnce(new Error('Could not open'));
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByTestId('chat-error');
+
+      await type('still here');
+
+      expect(await screen.findByText('still here')).toBeInTheDocument();
+      finish();
+    });
+
+    it('re-queues a failed first message for the chat it created, not the one on screen', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new' });
+          }),
+      );
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      render(<ChatClient />);
+      await type('first');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      created();
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+      await type('for other');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for other', undefined, 'manual'),
+      );
+      expect(sendMessage).not.toHaveBeenCalledWith('c-2', 'first', undefined, 'manual');
+    });
+
+    it('stays busy until the finished turn has let go of the page', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      getConversation.mockImplementationOnce(() => new Promise(() => {}));
+
+      finish();
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    });
+
+    it('keeps the running turn when a different chat is deleted', async () => {
+      await startTurnThenOpenOther();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Other chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-2'));
+
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
     });
   });
 });
