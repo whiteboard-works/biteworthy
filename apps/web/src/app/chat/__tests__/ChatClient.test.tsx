@@ -1124,6 +1124,44 @@ describe('ChatClient', () => {
       );
     });
 
+    // A message that never reached the server is normally put back as a
+    // chip. If its chat is deleted before that happens, there is nowhere
+    // for it to go — and a chip that can never drain would hold up every
+    // message typed after it.
+    it('drops a failed message whose chat was deleted instead of re-queueing it', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      let land: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+      await type('hi');
+      await waitFor(() => expect(getConversation).toHaveBeenCalledTimes(2));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      land();
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('New chat'),
+      );
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+
+      createConversation.mockResolvedValue({ ...blank, id: 'c-9' });
+      await type('fresh start');
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-9', 'fresh start', undefined, 'manual'),
+      );
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

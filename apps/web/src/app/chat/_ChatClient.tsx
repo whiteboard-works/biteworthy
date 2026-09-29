@@ -85,6 +85,9 @@ export function ChatClient(): ReactElement {
   // rather than the attempt: if the delete fails, the chat is still there
   // and its teardown has to run as usual.
   const deletions = useRef(new Map<string, Promise<boolean>>());
+  // Chats whose delete succeeded, for the checks that cannot wait on a
+  // promise.
+  const removed = useRef(new Set<string>());
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -131,6 +134,16 @@ export function ChatClient(): ReactElement {
   const clearQueue = () => {
     queue.current = [];
     setQueued([]);
+  };
+
+  // Back to the head of the queue after a send that never reached the
+  // server — unless its chat was deleted in the meantime. A chip for a
+  // chat that no longer exists could never drain, and while it sat there
+  // every later message would queue behind it.
+  const putBack = (message: QueuedMessage) => {
+    if (message.conversationId && removed.current.has(message.conversationId)) return;
+    queue.current = [message, ...queue.current];
+    setQueued(queue.current);
   };
 
   // Refetching after every turn — rather than stitching the streamed
@@ -197,7 +210,11 @@ export function ChatClient(): ReactElement {
     );
     deletions.current.set(id, attempt);
     if (await attempt) {
+      removed.current.add(id);
       setConversations((list) => list.filter((c) => c.id !== id));
+      // Its queued messages go with it, whether or not it is on screen.
+      queue.current = queue.current.filter((message) => message.conversationId !== id);
+      setQueued(queue.current);
       if (viewing.current === id) startNew();
       // Only a turn this chat owns is released, and it is released now
       // rather than when its dead stream gets round to closing: until then
@@ -395,8 +412,7 @@ export function ChatClient(): ReactElement {
         // is what keeps a second flush from picking up the same message,
         // but it means a send that never reached the server would otherwise
         // vanish with nothing but an error banner to show for it.
-        queue.current = [next, ...queue.current];
-        setQueued(queue.current);
+        putBack(next);
       });
   };
 
@@ -497,8 +513,7 @@ export function ChatClient(): ReactElement {
         // instead — visible, cancelable, and picked up by the next
         // flush, which beats restoring text into a box the user has
         // probably started typing in again.
-        queue.current = [message, ...queue.current];
-        setQueued(queue.current);
+        putBack(message);
       });
       return;
     }
