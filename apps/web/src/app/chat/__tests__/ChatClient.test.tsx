@@ -1500,6 +1500,23 @@ describe('ChatClient', () => {
       );
     });
 
+    it('keeps a blank chat’s queued message when opening another chat fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('in the blank chat');
+      getConversation.mockRejectedValueOnce(new Error('Could not open'));
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByTestId('chat-error');
+
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('in the blank chat');
+      finish();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

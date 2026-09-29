@@ -197,9 +197,7 @@ export function ChatClient(): ReactElement {
   };
 
   const open = async (id: string) => {
-    // Leaving a blank chat for an existing one retires it just as "New
-    // chat" does — nothing can navigate back to a chat with no id.
-    if (viewing.current === null) leaveBlank();
+    const fromBlank = viewing.current === null;
     viewing.current = id;
     setHistoryOpen(false);
     setError(null);
@@ -207,6 +205,11 @@ export function ChatClient(): ReactElement {
     const opened = await refresh(id);
     // A failed open leaves the previous chat drawn; point the page back
     // at it, or that chat would read as off screen and stop updating.
+    // Leaving a blank chat for an existing one retires it just as "New
+    // chat" does — nothing can navigate back to a chat with no id. Only
+    // once the open worked: a failed one puts the blank chat back on
+    // screen, and what was queued in it has to still be there.
+    if (opened && fromBlank) leaveBlank();
     if (!opened && viewing.current === id) {
       viewing.current = current.current?.id ?? null;
       // That chat is on screen again, so its queue is drainable again.
