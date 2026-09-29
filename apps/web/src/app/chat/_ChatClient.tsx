@@ -59,8 +59,19 @@ export function ChatClient(): ReactElement {
   const deliverLatest = useRef<
     (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
   >(async () => false);
-  // A send is under way but `busy` has not caught up yet — see `deliver`.
-  const inFlight = useRef(false);
+  // The one turn this tab is running, and the chat it belongs to — `id`
+  // is null only while `deliver` is still creating that chat. It is set
+  // synchronously, before `busy` can catch up, which is what stops two
+  // quick sends from both seeing an idle chat. Compared by identity: only
+  // the turn that claimed it, or the deletion of its chat, may let it go.
+  const turn = useRef<{ id: string | null } | null>(null);
+  // The chat on screen, or the one being opened. Set before the request
+  // that fetches it, so an answer for any other chat — a finished turn's
+  // refresh, a late event — knows it no longer owns the screen.
+  const viewing = useRef<string | null>(null);
+  // `active` as of the latest adopt, for teardowns that closed over an
+  // older render.
+  const current = useRef<Conversation | null>(null);
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
@@ -97,6 +108,8 @@ export function ChatClient(): ReactElement {
   }, [messages, live, pending]);
 
   const adopt = (conversation: Conversation) => {
+    viewing.current = conversation.id;
+    current.current = conversation;
     setActive(conversation);
     setMessages(conversation.messages);
     setPending(conversation.pending);
@@ -124,28 +137,32 @@ export function ChatClient(): ReactElement {
   // fragments into local state — means what's on screen is what the
   // server stored, which is also what a reload would show.
   //
-  // Checked after the request, not before: a delete can start while this
-  // is in flight, and a late answer — the chat or its 404 — must not
-  // bring back what the person just deleted.
+  // Checked after the request, not before: the person can delete this
+  // chat or move to another while it is in flight, and a late answer —
+  // the chat or its 404 — must neither bring back what they deleted nor
+  // pull them away from what they opened. Returns null when the answer
+  // no longer belongs on screen.
   const refresh = async (id: string): Promise<Conversation | null> => {
     const deletedMeanwhile = async () => (await deletions.current.get(id)) ?? false;
     try {
       const conversation = await getConversation(id);
       if (await deletedMeanwhile()) return null;
-      adopt(conversation);
-      setConversations((current) =>
-        current.some((c) => c.id === id)
-          ? current.map((c) => (c.id === id ? { ...c, ...conversation } : c))
-          : [conversation, ...current],
+      setConversations((list) =>
+        list.some((c) => c.id === id)
+          ? list.map((c) => (c.id === id ? { ...c, ...conversation } : c))
+          : [conversation, ...list],
       );
+      if (viewing.current !== id) return null;
+      adopt(conversation);
       return conversation;
     } catch (e) {
-      if (!(await deletedMeanwhile())) onFailure(e);
+      if (!(await deletedMeanwhile()) && viewing.current === id) onFailure(e);
       return null;
     }
   };
 
   const open = async (id: string) => {
+    viewing.current = id;
     setHistoryOpen(false);
     setError(null);
     setLive(null);
@@ -154,6 +171,8 @@ export function ChatClient(): ReactElement {
   };
 
   const startNew = () => {
+    viewing.current = null;
+    current.current = null;
     setHistoryOpen(false);
     setError(null);
     setLive(null);
@@ -178,15 +197,16 @@ export function ChatClient(): ReactElement {
     );
     deletions.current.set(id, attempt);
     if (await attempt) {
-      setConversations((current) => current.filter((c) => c.id !== id));
-      if (active?.id === id) {
-        // The page is handed back now rather than when the dead turn's
-        // stream finally closes: until then the blank chat would queue
-        // everything typed into it behind a turn that no longer exists.
-        // That turn's teardown leaves the screen alone from here on.
-        startNew();
+      setConversations((list) => list.filter((c) => c.id !== id));
+      if (viewing.current === id) startNew();
+      // Only a turn this chat owns is released, and it is released now
+      // rather than when its dead stream gets round to closing: until then
+      // whatever is on screen would queue behind a turn that no longer
+      // exists. That turn's teardown leaves the page alone from here on.
+      if (turn.current?.id === id) {
+        turn.current = null;
         setBusy(false);
-        inFlight.current = false;
+        flushView();
       }
     } else {
       deletions.current.delete(id);
@@ -237,6 +257,11 @@ export function ChatClient(): ReactElement {
   // that drops mid-narration must not read as "nothing was sent", or the
   // caller puts a message back that is already on its way.
   const run = async (id: string, ask: () => Promise<{ after: number }>): Promise<boolean> => {
+    // `deliver` claimed the turn before the chat existed; a confirmation
+    // answer arrives here without one.
+    const mine = turn.current?.id === id ? turn.current : { id };
+    turn.current = mine;
+    const onScreen = () => viewing.current === id;
     setBusy(true);
     setError(null);
     setLive(EMPTY_TURN);
@@ -260,10 +285,11 @@ export function ChatClient(): ReactElement {
           if (event.type === 'tool_use') tools += 1;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
-          // Once its chat is being deleted, nothing this turn says belongs
-          // on screen — not its text, and not the error event the server
-          // sends when the run vanishes. A failed delete shows its own.
-          if (deletions.current.has(id)) return;
+          // Narration belongs to its own chat. Once that chat is off
+          // screen or being deleted, nothing this turn says belongs on the
+          // page — not its text, and not the error event the server sends
+          // when a deleted run vanishes. A failed delete shows its own.
+          if (!onScreen() || deletions.current.has(id)) return;
           consume(event);
         });
         if (resume === null) break;
@@ -282,18 +308,24 @@ export function ChatClient(): ReactElement {
         duration_ms: Date.now() - startedAt,
       });
       // A delete in flight speaks for this turn: if it worked there is
-      // nothing to report and the screen already belongs to the next chat
-      // (`remove` reset it), and if it failed its own error is the one
-      // that matters — the chat the person tried to remove is still there.
+      // nothing to report and `remove` has already handed the page back,
+      // and if it failed its own error is the one that matters — the chat
+      // the person tried to remove is still there.
       const deleting = deletions.current.get(id);
       gone = (await deleting) ?? false;
-      if (!gone) {
-        setLive(null);
+      // Still ours unless a delete took it back. Released before the
+      // refresh, as it always was, so the flush below starts the next turn
+      // on a free page.
+      const owned = turn.current === mine;
+      if (owned) {
+        turn.current = null;
         setBusy(false);
       }
-      if (failure && !deleting) onFailure(failure);
+      if (onScreen()) setLive(null);
+      if (failure && !deleting && onScreen()) onFailure(failure);
       // The turn was persisted as it ran, so this reconciles whether it
       // finished, parked on a confirmation, or the connection dropped.
+      // `refresh` only redraws if this chat is still the one on screen.
       const conversation = gone ? null : await refresh(id);
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
@@ -307,16 +339,24 @@ export function ChatClient(): ReactElement {
       // behind one, and more to the point the queued message may well be
       // the user changing their mind about the thing being asked.
       //
-      // `?? active` covers a failed refresh. Without it a `getConversation`
-      // error strands the whole queue: the turn is over, `busy` is false,
-      // and nothing else drains it — the chips would sit there forever
-      // behind a generic error.
-      const settled = conversation ?? active;
-      // Only when the server took this turn. If `ask` was rejected, the
-      // message it was carrying is on its way back to the head of the
-      // queue — flushing now would send the one behind it first and
-      // deliver the two out of the order they were typed.
-      if (!gone && accepted && settled && !settled.pending) flush(settled);
+      // `?? current` covers a failed refresh. Without it a
+      // `getConversation` error strands the whole queue: the turn is over,
+      // `busy` is false, and nothing else drains it — the chips would sit
+      // there forever behind a generic error.
+      //
+      // Only the turn that held the page drains it, and it drains whatever
+      // is on screen: a person who moved to another chat mid-turn queued
+      // their messages there.
+      if (owned && onScreen()) {
+        const settled = conversation ?? current.current;
+        // Only when the server took this turn. If `ask` was rejected, the
+        // message it was carrying is on its way back to the head of the
+        // queue — flushing now would send the one behind it first and
+        // deliver the two out of the order they were typed.
+        if (accepted && settled && !settled.pending) flush(settled);
+      } else if (owned) {
+        flushView();
+      }
     }
     // A deleted chat consumed the turn: handing the message back would
     // queue it for a conversation that no longer exists.
@@ -327,34 +367,51 @@ export function ChatClient(): ReactElement {
   // `setActive` that just ran may not have re-rendered yet, and a
   // `deliver` that reads `active` as null opens a second conversation
   // and sends the queued message into it.
-  const flush = (conversation: Conversation) => {
+  // A null conversation is the blank chat on screen, whose first queued
+  // message opens it.
+  const flush = (conversation: Conversation | null) => {
     // Only this conversation's messages. `busy` is global, so a turn
     // running in A while the user opens B and types puts B's message in
     // the same queue — and A's teardown would then deliver it into A.
     // `null` is a message typed during the very first send, before the
     // conversation existed — this is the one it was meant for.
     const next = queue.current.find(
-      (message) => message.conversationId === conversation.id || message.conversationId === null,
+      (message) =>
+        message.conversationId === (conversation?.id ?? null) || message.conversationId === null,
     );
     if (!next) return;
 
     queue.current = queue.current.filter((message) => message.id !== next.id);
     setQueued(queue.current);
-    void deliverLatest.current(next.text, next.attachments, conversation).then((sent) => {
-      if (sent) return;
-      // Put it back where it was rather than losing it. Removing it first
-      // is what keeps a second flush from picking up the same message,
-      // but it means a send that never reached the server would otherwise
-      // vanish with nothing but an error banner to show for it.
-      queue.current = [next, ...queue.current];
-      setQueued(queue.current);
-    });
+    void deliverLatest
+      .current(next.text, next.attachments, conversation ?? undefined)
+      .then((sent) => {
+        if (sent) return;
+        // Put it back where it was rather than losing it. Removing it first
+        // is what keeps a second flush from picking up the same message,
+        // but it means a send that never reached the server would otherwise
+        // vanish with nothing but an error banner to show for it.
+        queue.current = [next, ...queue.current];
+        setQueued(queue.current);
+      });
   };
 
+  // Drains the queue for whatever is on screen once a turn that was
+  // running elsewhere lets go of the page. Skipped mid-open, when the
+  // chat being opened has not arrived yet, and behind a parked
+  // confirmation, which the server would refuse a message behind.
+  const flushView = () => {
+    const view = current.current;
+    if ((view?.id ?? null) !== viewing.current || view?.pending) return;
+    flush(view);
+  };
+
+  // The running turn, which is not necessarily the chat on screen.
   const stop = async () => {
-    if (!active) return;
+    const id = turn.current?.id ?? active?.id;
+    if (!id) return;
     try {
-      await stopTurn(active.id);
+      await stopTurn(id);
     } catch (e) {
       onFailure(e);
     }
@@ -368,32 +425,37 @@ export function ChatClient(): ReactElement {
     known?: Conversation,
   ): Promise<boolean> => {
     const composed = compose(text, attachments);
-    let conversation = known ?? active;
+    // The ref, not `active`: a flush from another render's teardown may
+    // call a `deliver` that closed over a chat since deleted.
+    let conversation = known ?? current.current;
     // `busy` is React state set inside `run`, which on a first message
     // only runs after `createConversation` resolves — two sends inside
     // that window would both see an idle chat and open two conversations.
     // A ref latches synchronously, which is the whole point.
-    inFlight.current = true;
+    const mine: { id: string | null } = { id: conversation?.id ?? null };
+    turn.current = mine;
+    const release = () => {
+      if (turn.current === mine) turn.current = null;
+    };
     try {
       if (!conversation) {
         conversation = await createConversation();
+        mine.id = conversation.id;
         adopt(conversation);
         tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
       onFailure(e);
-      inFlight.current = false;
+      release();
       return false;
     }
 
     const id = conversation.id;
-    setMessages((current) => [...current, optimistic(composed, current.length)]);
+    setMessages((list) => [...list, optimistic(composed, list.length)]);
     try {
       return await run(id, () => sendMessage(id, composed, pageContext(), mode));
     } finally {
-      // A deleted chat's `remove` already released the latch, and a send
-      // in the chat that replaced it may hold it by now.
-      if (!deletions.current.has(id)) inFlight.current = false;
+      release();
     }
   };
   deliverLatest.current = deliver;
@@ -413,7 +475,10 @@ export function ChatClient(): ReactElement {
       attachments,
     };
 
-    const idle = !busy && !inFlight.current && pending === null;
+    // The ref, not `busy`: it is claimed before the state catches up and
+    // released by whichever of a turn's end or its chat's deletion comes
+    // first.
+    const idle = turn.current === null && pending === null;
     // `queue.current.length` is part of "idle" on purpose. Without it a
     // message typed while a backlog is waiting jumps the queue and
     // arrives before messages typed earlier — reachable whenever a flush

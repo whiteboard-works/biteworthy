@@ -1043,4 +1043,69 @@ describe('ChatClient', () => {
       expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
     });
   });
+  // A turn belongs to the chat it runs in, not to whatever is on screen.
+  // These pin that when the person moves between chats mid-turn.
+  describe('a turn that keeps running after the person moves on', () => {
+    const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
+    const other = { ...blank, id: 'c-2', title: 'Other chat' };
+    let finish: () => void = () => {};
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [busy, other] });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-2' ? other : busy),
+        messages: [],
+      }));
+      deleteConversation.mockResolvedValue(undefined);
+      watchTurn.mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+    });
+
+    async function startTurnThenOpenOther() {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+    }
+
+    it('does not pull the person back when the turn they left finishes', async () => {
+      await startTurnThenOpenOther();
+
+      finish();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Other chat');
+    });
+
+    it('sends what was queued on screen when the running chat is deleted', async () => {
+      await startTurnThenOpenOther();
+      await type('for the other chat');
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for the other chat', undefined, 'manual'),
+      );
+      finish();
+    });
+
+    it('keeps the running turn when a different chat is deleted', async () => {
+      await startTurnThenOpenOther();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Other chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-2'));
+
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+    });
+  });
 });
