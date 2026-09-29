@@ -1361,6 +1361,58 @@ describe('ChatClient', () => {
       expect(sendMessage).not.toHaveBeenCalledWith('c-a', 'for B', undefined, 'manual');
     });
 
+    // A confirmation gate the person chose for one chat must not be
+    // swapped for another chat's because of when the queue drains.
+    it("sends a reopened chat's queued message under that chat's own mode", async () => {
+      getConversation.mockImplementation(async (id: string) =>
+        id === 'c-2'
+          ? { ...other, mode: 'manual', messages: [] }
+          : { ...busy, mode: 'auto', messages: [] },
+      );
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      await type('queued for other');
+      fireEvent.click(within(screen.getByTestId('chat-history')).getByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      finish();
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+
+      fireEvent.click(screen.getByText('Other chat'));
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'queued for other', undefined, 'manual'),
+      );
+    });
+
+    it('drains the blank chat on screen when an earlier chat fails to be created', async () => {
+      let failA: () => void = () => {};
+      createConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              failA = () => reject(new Error('Could not start a chat'));
+            }),
+        )
+        .mockResolvedValueOnce({ ...blank, id: 'c-b', title: 'Chat B' });
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('for B');
+
+      failA();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-b', 'for B', undefined, 'manual'),
+      );
+      expect(screen.queryByText('for A')).toBeNull();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

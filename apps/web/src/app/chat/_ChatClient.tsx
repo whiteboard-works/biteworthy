@@ -90,8 +90,8 @@ export function ChatClient(): ReactElement {
   // rather than the attempt: if the delete fails, the chat is still there
   // and its teardown has to run as usual.
   const deletions = useRef(new Map<string, Promise<boolean>>());
-  // Chats whose delete succeeded, for the checks that cannot wait on a
-  // promise.
+  // Chats that no longer exist — deleted, or blank chats abandoned before
+  // they could be created — for the checks that cannot wait on a promise.
   const removed = useRef(new Set<string>());
   // Which blank chat is on screen (see `blankKey`), and which blank chats
   // have a create in flight.
@@ -531,14 +531,31 @@ export function ChatClient(): ReactElement {
     } catch (e) {
       if (draft) creating.current.delete(draft);
       onFailure(e);
+      // A blank chat the person has already left will never be created
+      // now: its messages have nowhere to go, including the one this
+      // call is about to hand back.
+      if (draft && draft !== blankKey()) {
+        removed.current.add(draft);
+        queue.current = queue.current.filter((message) => message.conversationId !== draft);
+        setQueued(queue.current);
+      }
       release();
+      // Nothing else will drain what the chat on screen queued behind
+      // this one.
+      if (turn.current === null) flushView();
       return false;
     }
 
     const id = conversation.id;
     if (viewing.current === id) setMessages((list) => [...list, optimistic(composed, list.length)]);
     try {
-      return await run(id, () => sendMessage(id, composed, pageContext(), mode));
+      // The mode of the chat this is going to. `mode` is the picker, which
+      // is only that chat's while it is the one on screen: a queued message
+      // flushed the moment its chat is opened would otherwise go out under
+      // the previous chat's mode — `auto` where this chat asked for
+      // `manual` is a skipped confirmation.
+      const sendMode = known && known.id !== active?.id ? (known.mode ?? 'manual') : mode;
+      return await run(id, () => sendMessage(id, composed, pageContext(), sendMode));
     } finally {
       release();
     }
@@ -592,7 +609,7 @@ export function ChatClient(): ReactElement {
     // interrupted. Draining now — after appending, so order holds — is
     // what gets the backlog moving again without asking the user to
     // understand any of this.
-    if (idle && active) flush(active);
+    if (idle) flush(current.current);
   };
 
   const cancelQueued = (id: string) => {
