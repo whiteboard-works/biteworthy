@@ -133,12 +133,14 @@ export function ChatClient(): ReactElement {
     if (!switchingMode.current) setMode(conversation.mode ?? 'manual');
   };
 
-  // Emptying it here rather than at every call site: a queued message
-  // belongs to the conversation it was typed into, and there is no
-  // reading of "send it to the other one" that a user would want.
-  const clearQueue = () => {
-    queue.current = [];
-    setQueued([]);
+  // A queued message belongs to the conversation it was typed into, and
+  // there is no reading of "send it to the other one" that a user would
+  // want — so each carries its chat's id and waits for that chat, however
+  // often the person switches away and back. Only a blank chat's messages
+  // (id still null) are dropped when a new blank chat replaces it.
+  const dropBlankQueue = () => {
+    queue.current = queue.current.filter((message) => message.conversationId !== null);
+    setQueued(queue.current);
   };
 
   // Back to the head of the queue after a send that never reached the
@@ -184,11 +186,15 @@ export function ChatClient(): ReactElement {
     setHistoryOpen(false);
     setError(null);
     setLive(null);
-    clearQueue();
     const opened = await refresh(id);
     // A failed open leaves the previous chat drawn; point the page back
     // at it, or that chat would read as off screen and stop updating.
     if (!opened && viewing.current === id) viewing.current = current.current?.id ?? null;
+    // Whatever was left waiting here — typed before the person switched
+    // away, or a send that failed while they were elsewhere — goes now,
+    // unless another turn still holds the page (its teardown drains the
+    // queue for whatever is on screen) or a confirmation is parked.
+    if (opened && turn.current === null && !opened.pending) flush(opened);
   };
 
   const startNew = () => {
@@ -200,7 +206,7 @@ export function ChatClient(): ReactElement {
     setActive(null);
     setMessages([]);
     setPending(null);
-    clearQueue();
+    dropBlankQueue();
     // A fresh conversation starts where the server starts it. Carrying
     // the last one's mode over means someone who used `auto` once gets a
     // new chat silently in `auto` — a gate turned off by a decision they
@@ -414,11 +420,11 @@ export function ChatClient(): ReactElement {
     // Only this conversation's messages. `busy` is global, so a turn
     // running in A while the user opens B and types puts B's message in
     // the same queue — and A's teardown would then deliver it into A.
-    // `null` is a message typed during the very first send, before the
-    // conversation existed — this is the one it was meant for.
+    // An exact match, `null` included: a message typed during the very
+    // first send is re-tagged with that chat's id once it exists (see
+    // `deliver`), so an untagged one only ever belongs to the blank chat.
     const next = queue.current.find(
-      (message) =>
-        message.conversationId === (conversation?.id ?? null) || message.conversationId === null,
+      (message) => message.conversationId === (conversation?.id ?? null),
     );
     if (!next) return;
 
@@ -491,6 +497,11 @@ export function ChatClient(): ReactElement {
         conversation = created;
         mine.id = created.id;
         bind?.(created.id);
+        // Anything typed while this chat was being created was for it.
+        queue.current = queue.current.map((message) =>
+          message.conversationId === null ? { ...message, conversationId: created.id } : message,
+        );
+        setQueued(queue.current);
         // Only onto a screen still showing the blank chat it was typed
         // into. Someone who opened another chat while this was being
         // created keeps what they opened; the new chat joins the list.
@@ -533,11 +544,12 @@ export function ChatClient(): ReactElement {
     // released by whichever of a turn's end or its chat's deletion comes
     // first.
     const idle = turn.current === null && pending === null;
-    // `queue.current.length` is part of "idle" on purpose. Without it a
-    // message typed while a backlog is waiting jumps the queue and
-    // arrives before messages typed earlier — reachable whenever a flush
-    // was interrupted and left chips behind.
-    if (idle && queue.current.length === 0) {
+    // This chat's backlog is part of "idle" on purpose. Without it a
+    // message typed while earlier ones are waiting jumps the queue and
+    // arrives before them — reachable whenever a flush was interrupted
+    // and left chips behind. Other chats' chips wait for their own chat.
+    const backlog = queue.current.some((m) => m.conversationId === message.conversationId);
+    if (idle && !backlog) {
       let back = message;
       void deliver(text, attachments, undefined, (id) => {
         back = { ...message, conversationId: id };
@@ -706,7 +718,7 @@ export function ChatClient(): ReactElement {
         ) : null}
         <Composer
           queueing={busy || pending !== null}
-          queued={queued}
+          queued={queued.filter((m) => m.conversationId === (active?.id ?? null))}
           onSend={send}
           onCancelQueued={cancelQueued}
         />

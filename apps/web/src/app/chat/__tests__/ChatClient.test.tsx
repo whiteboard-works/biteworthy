@@ -1272,6 +1272,60 @@ describe('ChatClient', () => {
       expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
     });
 
+    // Switching away is not cancelling: a failed first message waits for
+    // the chat it created and goes as soon as the person opens that chat.
+    it('retries a failed first message when its chat is opened', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new', title: 'Brand new' });
+          }),
+      );
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      render(<ChatClient />);
+      await type('first');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-new' ? { ...blank, id: 'c-new', title: 'Brand new' } : other),
+        messages: [],
+      }));
+      listConversations.mockResolvedValue({
+        conversations: [{ ...blank, id: 'c-new', title: 'Brand new' }, busy, other],
+      });
+      created();
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.queryByTestId('live-turn')).toBeNull());
+
+      fireEvent.click(await screen.findByText('Brand new'));
+
+      // The retry, not the failed attempt: that one was also (c-new, first).
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+      expect(sendMessage).toHaveBeenLastCalledWith('c-new', 'first', undefined, 'manual');
+    });
+
+    it('keeps a chat’s queued message through a switch away and back', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      await type('later');
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('later');
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+
+      fireEvent.click(within(screen.getByTestId('chat-history')).getByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      expect(screen.getByTestId('queued-messages')).toHaveTextContent('later');
+
+      finish();
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'later', undefined, 'manual'),
+      );
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 
