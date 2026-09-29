@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.9.29",
+    "date": "2026-09-29",
+    "notes": [
+      "Chat: switching or deleting chats mid-reply no longer loses your place, your queued messages, or the chat you opened"
+    ]
+  },
+  {
     "version": "2026.9.28.1",
     "date": "2026-09-28",
     "notes": [
