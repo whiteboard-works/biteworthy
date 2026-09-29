@@ -1222,6 +1222,56 @@ describe('ChatClient', () => {
       await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
     });
 
+    it('keeps the drawn chat working after opening another one fails', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      getConversation.mockRejectedValueOnce(new Error('Could not open'));
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByTestId('chat-error');
+
+      await type('still here');
+
+      expect(await screen.findByText('still here')).toBeInTheDocument();
+      finish();
+    });
+
+    it('re-queues a failed first message for the chat it created, not the one on screen', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new' });
+          }),
+      );
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      render(<ChatClient />);
+      await type('first');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      created();
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+      await type('for other');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for other', undefined, 'manual'),
+      );
+      expect(sendMessage).not.toHaveBeenCalledWith('c-2', 'first', undefined, 'manual');
+    });
+
+    it('stays busy until the finished turn has let go of the page', async () => {
+      render(<ChatClient />);
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      getConversation.mockImplementationOnce(() => new Promise(() => {}));
+
+      finish();
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

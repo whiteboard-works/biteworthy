@@ -57,7 +57,12 @@ export function ChatClient(): ReactElement {
   // `deliver` closes over `active` and `mode`, and the flush happens a
   // turn later, so the same staleness applies to it.
   const deliverLatest = useRef<
-    (text: string, attachments: Attachment[], known?: Conversation) => Promise<boolean>
+    (
+      text: string,
+      attachments: Attachment[],
+      known?: Conversation,
+      bind?: (id: string) => void,
+    ) => Promise<boolean>
   >(async () => false);
   // The one turn this tab is running, and the chat it belongs to — `id`
   // is null only while `deliver` is still creating that chat. It is set
@@ -180,7 +185,10 @@ export function ChatClient(): ReactElement {
     setError(null);
     setLive(null);
     clearQueue();
-    await refresh(id);
+    const opened = await refresh(id);
+    // A failed open leaves the previous chat drawn; point the page back
+    // at it, or that chat would read as off screen and stop updating.
+    if (!opened && viewing.current === id) viewing.current = current.current?.id ?? null;
   };
 
   const startNew = () => {
@@ -341,11 +349,10 @@ export function ChatClient(): ReactElement {
       // the person tried to remove is still there.
       const deleting = deletions.current.get(id);
       gone = (await deleting) ?? false;
-      // Still ours unless a delete took it back. `busy` drops now so Stop
-      // goes away, but the claim itself is held through the refresh and
+      // The claim — and `busy` with it — is held through the refresh and
       // the flush: a send slipped into that gap would start a turn the
-      // refresh then overwrites with the snapshot from before it.
-      if (turn.current === mine) setBusy(false);
+      // refresh then overwrites with the snapshot from before it, and a
+      // confirmation answered there would have nowhere to go.
       if (onScreen()) setLive(null);
       if (failure && !deleting && onScreen()) onFailure(failure);
       // The turn was persisted as it ran, so this reconciles whether it
@@ -378,6 +385,7 @@ export function ChatClient(): ReactElement {
       // flush's own `deliver` claims it synchronously for the next turn.
       if (turn.current === mine) {
         turn.current = null;
+        setBusy(false);
         if (onScreen()) {
           const settled = conversation ?? current.current;
           // Only when the server took this turn. If `ask` was rejected,
@@ -416,15 +424,18 @@ export function ChatClient(): ReactElement {
 
     queue.current = queue.current.filter((message) => message.id !== next.id);
     setQueued(queue.current);
+    let back = next;
     void deliverLatest
-      .current(next.text, next.attachments, conversation ?? undefined)
+      .current(next.text, next.attachments, conversation ?? undefined, (id) => {
+        back = { ...next, conversationId: id };
+      })
       .then((sent) => {
         if (sent) return;
         // Put it back where it was rather than losing it. Removing it first
         // is what keeps a second flush from picking up the same message,
         // but it means a send that never reached the server would otherwise
         // vanish with nothing but an error banner to show for it.
-        putBack(next);
+        putBack(back);
       });
   };
 
@@ -457,6 +468,9 @@ export function ChatClient(): ReactElement {
     text: string,
     attachments: Attachment[],
     known?: Conversation,
+    // Told the id of a chat created for this message, so a retry goes
+    // back to that chat rather than to whatever is on screen by then.
+    bind?: (id: string) => void,
   ): Promise<boolean> => {
     const composed = compose(text, attachments);
     // The ref, not `active`: a flush from another render's teardown may
@@ -476,11 +490,12 @@ export function ChatClient(): ReactElement {
         const created = await createConversation();
         conversation = created;
         mine.id = created.id;
+        bind?.(created.id);
         // Only onto a screen still showing the blank chat it was typed
         // into. Someone who opened another chat while this was being
         // created keeps what they opened; the new chat joins the list.
         if (viewing.current === null) adopt(created);
-        else setConversations((list) => [created, ...list]);
+        else setConversations((list) => [created, ...list.filter((c) => c.id !== created.id)]);
         tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
@@ -523,14 +538,17 @@ export function ChatClient(): ReactElement {
     // arrives before messages typed earlier — reachable whenever a flush
     // was interrupted and left chips behind.
     if (idle && queue.current.length === 0) {
-      void deliver(text, attachments).then((sent) => {
+      let back = message;
+      void deliver(text, attachments, undefined, (id) => {
+        back = { ...message, conversationId: id };
+      }).then((sent) => {
         if (sent) return;
         // The composer has already cleared itself, so a rejected POST
         // would otherwise take the message with it. It becomes a chip
         // instead — visible, cancelable, and picked up by the next
         // flush, which beats restoring text into a box the user has
         // probably started typing in again.
-        putBack(message);
+        putBack(back);
       });
       return;
     }
