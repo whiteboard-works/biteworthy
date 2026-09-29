@@ -540,9 +540,11 @@ export function ChatClient(): ReactElement {
         setQueued(queue.current);
       }
       release();
-      // Nothing else will drain what the chat on screen queued behind
-      // this one.
-      if (turn.current === null) flushView();
+      // Nothing else will drain what the person queued in the chat they
+      // moved on to. Their own blank chat is left alone: the caller puts
+      // this message back at its head first, so the ones typed after it
+      // cannot overtake it.
+      if (draft && draft !== blankKey() && turn.current === null) flushView();
       return false;
     }
 

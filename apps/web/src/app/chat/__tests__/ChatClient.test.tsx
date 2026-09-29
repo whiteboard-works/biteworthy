@@ -1413,6 +1413,26 @@ describe('ChatClient', () => {
       expect(screen.queryByText('for A')).toBeNull();
     });
 
+    it('keeps the order of a blank chat’s messages when its creation fails', async () => {
+      let failA: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failA = () => reject(new Error('Could not start a chat'));
+          }),
+      );
+      render(<ChatClient />);
+      await type('first');
+      await type('second');
+
+      failA();
+
+      await waitFor(() =>
+        expect(screen.getByTestId('queued-messages')).toHaveTextContent(/first[\s\S]*second/),
+      );
+      expect(sendMessage).not.toHaveBeenCalled();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 
