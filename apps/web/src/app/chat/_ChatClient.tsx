@@ -215,7 +215,16 @@ export function ChatClient(): ReactElement {
       // Its queued messages go with it, whether or not it is on screen.
       queue.current = queue.current.filter((message) => message.conversationId !== id);
       setQueued(queue.current);
-      if (viewing.current === id) startNew();
+      if (viewing.current === id) {
+        startNew();
+      } else if (current.current?.id === id) {
+        // Still drawn while another chat is being opened: clear it without
+        // cancelling that open.
+        current.current = null;
+        setActive(null);
+        setMessages([]);
+        setPending(null);
+      }
       // Only a turn this chat owns is released, and it is released now
       // rather than when its dead stream gets round to closing: until then
       // whatever is on screen would queue behind a turn that no longer
@@ -381,7 +390,8 @@ export function ChatClient(): ReactElement {
     }
     // A deleted chat consumed the turn: handing the message back would
     // queue it for a conversation that no longer exists.
-    return accepted || gone;
+    // Asked again here: the delete may have landed during the refresh.
+    return accepted || gone || removed.current.has(id);
   };
 
   // The conversation is handed in rather than read from state: the
@@ -461,9 +471,14 @@ export function ChatClient(): ReactElement {
     };
     try {
       if (!conversation) {
-        conversation = await createConversation();
-        mine.id = conversation.id;
-        adopt(conversation);
+        const created = await createConversation();
+        conversation = created;
+        mine.id = created.id;
+        // Only onto a screen still showing the blank chat it was typed
+        // into. Someone who opened another chat while this was being
+        // created keeps what they opened; the new chat joins the list.
+        if (viewing.current === null) adopt(created);
+        else setConversations((list) => [created, ...list]);
         tracker.track('chat_started', { surface: 'web' });
       }
     } catch (e) {
@@ -473,7 +488,7 @@ export function ChatClient(): ReactElement {
     }
 
     const id = conversation.id;
-    setMessages((list) => [...list, optimistic(composed, list.length)]);
+    if (viewing.current === id) setMessages((list) => [...list, optimistic(composed, list.length)]);
     try {
       return await run(id, () => sendMessage(id, composed, pageContext(), mode));
     } finally {

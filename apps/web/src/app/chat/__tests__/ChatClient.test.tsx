@@ -1162,6 +1162,65 @@ describe('ChatClient', () => {
       );
     });
 
+    it('keeps the chat the person opened while a new one was still being created', async () => {
+      let created: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            created = () => resolve({ ...blank, id: 'c-new', title: 'Brand new' });
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+
+      created();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-new', 'hi', undefined, 'manual'),
+      );
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Other chat');
+      finish();
+    });
+
+    it('clears a deleted chat that is still drawn while another is opening', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      getConversation.mockImplementationOnce(() => new Promise(() => {}));
+      fireEvent.click(screen.getByText('Other chat'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('heading', { level: 1, name: 'Busy chat' })).toBeNull(),
+      );
+    });
+
+    it('drops a failed first message whose new chat was deleted during the refetch', async () => {
+      sendMessage.mockRejectedValueOnce(new Error('Could not send'));
+      let land: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...busy, messages: [] });
+          }),
+      );
+      render(<ChatClient />);
+      await type('hi');
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Busy chat' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(deleteConversation).toHaveBeenCalledWith('c-1'));
+      land();
+
+      await new Promise((r) => setTimeout(r, 0));
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 
