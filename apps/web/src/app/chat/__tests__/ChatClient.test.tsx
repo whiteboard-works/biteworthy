@@ -1182,6 +1182,7 @@ describe('ChatClient', () => {
       );
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Other chat');
       finish();
+      await waitFor(() => expect(screen.queryByTestId('live-turn')).toBeNull());
     });
 
     it('clears a deleted chat that is still drawn while another is opening', async () => {

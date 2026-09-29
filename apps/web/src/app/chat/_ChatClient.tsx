@@ -290,7 +290,9 @@ export function ChatClient(): ReactElement {
     const onScreen = () => viewing.current === id;
     setBusy(true);
     setError(null);
-    setLive(EMPTY_TURN);
+    // Only on its own chat: teardown clears it only there, so a turn that
+    // starts off screen would leave another chat "thinking" for good.
+    if (onScreen()) setLive(EMPTY_TURN);
     const startedAt = Date.now();
     let tools = 0;
     let outcome = 'error';
