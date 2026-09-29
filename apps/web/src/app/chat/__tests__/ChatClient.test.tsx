@@ -1433,6 +1433,28 @@ describe('ChatClient', () => {
       expect(sendMessage).not.toHaveBeenCalled();
     });
 
+    it('drains an opened chat when the blank chat left behind fails to be created', async () => {
+      let failA: () => void = () => {};
+      createConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failA = () => reject(new Error('Could not start a chat'));
+          }),
+      );
+      render(<ChatClient />);
+      await type('for A');
+      fireEvent.click(await screen.findByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+      await type('for other');
+
+      failA();
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-2', 'for other', undefined, 'manual'),
+      );
+      expect(screen.queryByTestId('queued-messages')).toBeNull();
+    });
+
     it('keeps the running turn when a different chat is deleted', async () => {
       await startTurnThenOpenOther();
 

@@ -197,6 +197,9 @@ export function ChatClient(): ReactElement {
   };
 
   const open = async (id: string) => {
+    // Leaving a blank chat for an existing one retires it just as "New
+    // chat" does — nothing can navigate back to a chat with no id.
+    if (viewing.current === null) leaveBlank();
     viewing.current = id;
     setHistoryOpen(false);
     setError(null);
