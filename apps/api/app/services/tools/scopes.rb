@@ -60,7 +60,7 @@ module Tools
     SUBJECTS = {
       meta:        "what this server can do",
       discovery:   "restaurants, menus, and why a dish is or is not safe for you",
-      profile:     "your avoid lists, strictness, and saved places",
+      profile:     "your avoid lists, strictness, home city, and saved places",
       ingestion:   "menu photos you scan and the items they produce",
       reviews:     "your reviews",
       suggestions: "corrections you suggest to menu data",

@@ -46,6 +46,13 @@ subject is what they cannot eat.
 `Chat::SystemPrompt` (`apps/api/app/services/chat/system_prompt.rb:99-118`)
 embeds a snapshot for every signed-in caller:
 
+**Update 2026-09-30 (#738):** the snapshot now also carries the caller's
+home city when they set one (`user_profiles.home_city_id`, a city, never
+coordinates). The `/privacy` Anthropic bullet was rewritten in that PR to
+say the chat sends messages, the dietary profile, and menu data to
+Anthropic and that none of it trains the model — accurate wording, still
+awaiting the L1 sign-off this brief exists for.
+
 - Strictness setting
 - **Avoided ingredients, by name**
 - **Avoided tags, by name**

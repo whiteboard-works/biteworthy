@@ -70,6 +70,10 @@ module Tools
         # should find it wherever it is. Either way the result says which
         # city was applied, so an empty answer is never mistaken for
         # "nowhere" when it means "not here".
+        if anywhere && city_slug.present?
+          raise Errors::InvalidArgument, "Pass city_slug or anywhere: true, not both."
+        end
+
         source = "argument" if city_slug.present?
         if city_slug.blank? && query.blank? && !anywhere && (home = home_city_slug(context))
           city_slug = home
@@ -114,7 +118,12 @@ module Tools
       end
       private_class_method :ranked_by_diet
 
+      # Profile data, so it stays behind the profile scope: a credential
+      # granted only discovery must not learn where its owner lives from
+      # a listing that quietly defaulted to it.
       def self.home_city_slug(context)
+        return nil unless Tools::Scopes.satisfied?(context.scopes, "profile:read")
+
         context.user&.profile&.home_city&.slug
       end
       private_class_method :home_city_slug

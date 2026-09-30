@@ -38,7 +38,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-09-26';
+const LAST_UPDATED = '2026-09-30';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -134,8 +134,10 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
-              Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. We do not send your reviews or profile to Anthropic.
+              Anthropic Claude for OCR + structuring. When you use the chat, your messages, your
+              dietary profile (avoid lists, strictness, and your home city if you set one), and the
+              menu data needed to answer are sent to Anthropic Claude to generate the reply. None
+              of it is used to train the model. We do not send your reviews to Anthropic.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The

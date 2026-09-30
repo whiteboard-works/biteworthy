@@ -38,6 +38,13 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
     expect(payload(response)).not_to have_key(:city)
   end
 
+  it "refuses anywhere alongside a named city rather than quietly keeping the city" do
+    response = described_class.call(server_context: { user_id: user.id }, city_slug: "durango", anywhere: true)
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(payload(response)[:message]).to include("not both")
+  end
+
   it "lets a named city win over the home city" do
     user.profile.update!(home_city: slc)
 
@@ -62,6 +69,17 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
     expect(response.to_h[:isError]).to be_falsey
     expect(names(response)).to eq([ "Ninis Taqueria" ])
     expect(payload(response)).to include(city: "durango", city_source: "home_city", diet: "vegan")
+  end
+
+  # Least privilege: the default reads the profile, so a credential that
+  # was granted only discovery gets no default and no echo of the city.
+  it "gives a discovery-only credential no home-city default" do
+    user.profile.update!(home_city: slc)
+
+    response = described_class.call(server_context: { user_id: user.id, scopes: [ "discovery:read" ] })
+
+    expect(names(response)).to contain_exactly("Ninis Taqueria", "Red Iguana")
+    expect(payload(response)).not_to have_key(:city)
   end
 
   it "leaves an anonymous caller unscoped" do
