@@ -4841,6 +4841,8 @@ export interface components {
             /** @description Whether a tool that writes has run since the caller last spoke, so a client can offer to reverse it. Sent only alongside `messages` — the list endpoint omits it rather than loading every transcript to answer. A tool that declares no annotations, or one this build does not recognise, counts as writing. */
             can_undo?: boolean;
             usage?: components["schemas"]["ChatUsage"];
+            /** @description What the results pane was last pointed at. Sent only alongside `messages`. */
+            pane?: components["schemas"]["ChatPane"] | null;
         };
         /** @description Spend and cache accounting. Present only for admins — the server decides, so a non-admin never receives it. */
         ChatUsage: {
@@ -4865,6 +4867,22 @@ export interface components {
                 duration_ms?: number | null;
             } | null;
         };
+        /** @description A reference to what a tool just acted on, for the chat's results pane. The client fetches the detail from the REST endpoint that renders it; this carries only the ids and a summary. Flat and keyed on `kind` so a new kind is additive for every client. */
+        ChatPane: {
+            /** @enum {string} */
+            kind: "menu" | "scan";
+            /** @description Restaurant slug. */
+            restaurant?: string | null;
+            /** @description `menu`: the preset the menu was filtered by, when not the caller's profile. */
+            preset?: string | null;
+            /** @enum {string|null} */
+            strictness?: "relaxed" | "balanced" | "strict" | null;
+            visible_count?: number | null;
+            hidden_count?: number | null;
+            scan_id?: string | null;
+            /** @description `scan`: the run's status when the tool answered. */
+            status?: string | null;
+        };
         /** @description One line of a turn's narration, carrying the cursor to resume from. */
         ChatEvent: {
             type: string;
@@ -4876,6 +4894,7 @@ export interface components {
             doing?: string | null;
             message?: string | null;
             tool?: components["schemas"]["PendingTool"] | null;
+            pane?: components["schemas"]["ChatPane"] | null;
         };
         ChatEventsPage: {
             events: components["schemas"]["ChatEvent"][];

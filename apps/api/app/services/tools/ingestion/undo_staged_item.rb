@@ -46,6 +46,7 @@ module Tools
         item.undo!
 
         ok(
+          scan_id: item.ingestion_run_id,
           dish: staged_item_row(item.reload),
           removed_from_live_menu: was_promoted
         )

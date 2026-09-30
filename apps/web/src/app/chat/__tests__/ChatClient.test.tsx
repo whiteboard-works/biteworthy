@@ -46,6 +46,25 @@ vi.mock('../../../lib/chat', async () => {
   };
 });
 
+// The pane fetches menus and scans of its own; here it only has to show
+// where it was pointed.
+vi.mock('../_ResultsPane', () => ({
+  ResultsPane: ({
+    pane,
+    revision,
+    working,
+  }: {
+    pane: { kind: string; restaurant?: string | null; scan_id?: string | null } | null;
+    revision: number;
+    working: string | null;
+  }) => (
+    <div data-testid="results-pane" data-revision={revision}>
+      {pane ? `${pane.kind}:${pane.restaurant ?? pane.scan_id ?? ''}` : 'empty'}
+      {working ? ` working:${working}` : ''}
+    </div>
+  ),
+}));
+
 const { ChatClient } = await import('../_ChatClient');
 
 const blank: Conversation = {
@@ -1527,6 +1546,187 @@ describe('ChatClient', () => {
       expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
       finish();
       await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+    });
+  });
+
+  describe('the results pane', () => {
+    it('points the pane at what the turn acted on, and keeps it after the refetch', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({
+          type: 'tool_use',
+          name: 'get_menu',
+          input: { restaurant: 'ninis' },
+          doing: 'Reading the menu at ninis',
+        });
+        onEvent({ type: 'pane', pane: { kind: 'menu', restaurant: 'ninis' } });
+        onEvent({ type: 'tool_result', name: 'get_menu', ok: true });
+        onEvent({ type: 'done', text: 'Here you go.' });
+      });
+      getConversation.mockResolvedValue({
+        ...answered('Here you go.'),
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      });
+
+      render(<ChatClient />);
+      expect(screen.getByTestId('results-pane')).toHaveTextContent('empty');
+      await type('what can I eat at ninis');
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis'),
+      );
+      // The phone-width toggle appears only once there is something to show.
+      expect(screen.getByTestId('pane-toggle')).toBeInTheDocument();
+    });
+
+    it('restores the stored pane when a chat is opened, and clears it for a new one', async () => {
+      listConversations.mockResolvedValue({
+        conversations: [{ ...blank, id: 'c-9', title: 'Ninis', messages: undefined }],
+      });
+      getConversation.mockResolvedValue({
+        ...answered('12 dishes.'),
+        id: 'c-9',
+        pane: { kind: 'scan', scan_id: 'run-1' },
+      });
+
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Ninis' }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveTextContent('scan:run-1'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      expect(screen.getByTestId('results-pane')).toHaveTextContent('empty');
+    });
+
+    it('counts every live pane event, and not the stored copy adopted after the turn', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'pane', pane: { kind: 'scan', scan_id: 'run-1' } });
+        onEvent({ type: 'pane', pane: { kind: 'scan', scan_id: 'run-1' } });
+        onEvent({ type: 'done', text: 'Accepted both.' });
+        // Over, not dropped — `undefined` would read as a reconnect and
+        // replay these twenty times.
+        return null;
+      });
+      getConversation.mockResolvedValue({
+        ...answered('Accepted both.'),
+        pane: { kind: 'scan', scan_id: 'run-1' },
+      });
+
+      render(<ChatClient />);
+      expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '0');
+      await type('accept them all');
+
+      await waitFor(() => expect(getConversation).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '2'),
+      );
+    });
+
+    // Two chats may point at the same menu. The second is still fetched
+    // again on open: another turn — or another tab — may have changed the
+    // filter since the first drew it.
+    it('looks again on open even when the next chat points where the last one did', async () => {
+      listConversations.mockResolvedValue({
+        conversations: [
+          { ...blank, id: 'c-1', title: 'First', messages: undefined },
+          { ...blank, id: 'c-2', title: 'Second', messages: undefined },
+        ],
+      });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...answered('menu'),
+        id,
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      }));
+
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByRole('button', { name: 'First' }));
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '1'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Second' }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '2'),
+      );
+      expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis');
+    });
+
+    it('keeps the live pane when the refetch says nothing about one', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'pane', pane: { kind: 'menu', restaurant: 'ninis' } });
+        onEvent({ type: 'done', text: 'Here you go.' });
+      });
+      // An API that predates the field — the web deploys first.
+      getConversation.mockResolvedValue(answered('Here you go.'));
+
+      render(<ChatClient />);
+      await type('what can I eat at ninis');
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis'),
+      );
+      await waitFor(() => expect(getConversation).toHaveBeenCalled());
+      expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis');
+    });
+
+    it('brings the transcript back when another chat is opened with the pane showing', async () => {
+      listConversations.mockResolvedValue({
+        conversations: [{ ...blank, id: 'c-9', title: 'Other', messages: undefined }],
+      });
+      getConversation.mockResolvedValueOnce({
+        ...answered('first'),
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      });
+      getConversation.mockResolvedValueOnce({ ...answered('second'), id: 'c-9', pane: null });
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'done', text: 'first' });
+      });
+
+      render(<ChatClient />);
+      await type('hi');
+      fireEvent.click(await screen.findByTestId('pane-toggle'));
+      // Under `lg` the pane takes the transcript's column.
+      expect(screen.getByRole('main')).toHaveClass('hidden');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Other' }));
+
+      await waitFor(() => expect(screen.getByTestId('results-pane')).toHaveTextContent('empty'));
+      expect(screen.getByRole('main')).not.toHaveClass('hidden');
+    });
+
+    it('hands the pane the running tool’s sentence while it runs', async () => {
+      let finish: () => void = () => {};
+      watchTurn.mockImplementation(
+        (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
+          new Promise<null>((resolve) => {
+            onEvent({
+              type: 'tool_use',
+              name: 'get_menu',
+              input: {},
+              doing: 'Reading the menu at ninis',
+            });
+            finish = () => {
+              onEvent({ type: 'tool_result', name: 'get_menu', ok: true });
+              onEvent({ type: 'done', text: 'ok' });
+              resolve(null);
+            };
+          }),
+      );
+
+      render(<ChatClient />);
+      await type('hi');
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveTextContent(
+          'working:Reading the menu at ninis',
+        ),
+      );
+      finish();
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).not.toHaveTextContent('working:'),
+      );
     });
   });
 });

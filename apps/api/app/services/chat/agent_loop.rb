@@ -575,7 +575,41 @@ module Chat
       )
       payload  = response.to_h
       remember_facts(call, payload)
+      show(call, tool, payload)
       tool_result(call, payload[:structuredContent] || payload[:content], error: payload[:isError] == true)
+    end
+
+    # The results pane. A reference the tool declared for its own
+    # successful result — sent as an event so a reconnect replays it, and
+    # kept on the conversation so reopening the chat restores it. A failed
+    # call leaves the pane where it was: there is nothing new to show.
+    #
+    # Rescued whole. By the time this runs the tool has already done its
+    # work — an accept has promoted its dishes — and the result is about
+    # to be recorded. A pane write that fails on a connection blip must
+    # not turn that into a failed turn the model then retries, re-running
+    # the mutation. The pane is decoration; it logs and steps aside.
+    #
+    # A write with no pane of its own re-points the pane at what it already
+    # shows. `update_avoid_lists` changes which dishes are safe, and the
+    # menu on screen was drawn under the filter from before it — left
+    # alone, it would keep saying "you can eat" about a dish the person
+    # just told us they cannot. The reference is unchanged, so this is
+    # the event saying "look again", which the client refetches on.
+    def show(call, tool, payload)
+      return if payload[:isError] == true
+
+      pane = tool.pane_for(arguments_for(call), payload[:structuredContent] || {})
+      if pane.blank?
+        current = @conversation.last_pane
+        emit(type: "pane", pane: current) if current.present? && !ModePolicy.read_only?(tool)
+        return
+      end
+
+      @conversation.update_column(:last_pane, pane)
+      emit(type: "pane", pane: pane)
+    rescue StandardError => e
+      Rails.logger.error("[chat] pane for #{call['name']} on #{@conversation.id} failed: #{e.class}: #{e.message}")
     end
 
     def declined(call)

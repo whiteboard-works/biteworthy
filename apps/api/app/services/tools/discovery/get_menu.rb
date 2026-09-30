@@ -56,6 +56,23 @@ module Tools
 
       running_description { |args| "Reading the menu at #{args[:restaurant]}" }
 
+      # Only the overrides the model asked for ride along — a previewed
+      # preset, a tightened strictness — so the pane draws the menu the
+      # assistant is talking about. What is *not* sent matters as much:
+      # the caller's saved filter is left for the pane's own fetch to
+      # resolve, so a chat reopened after they changed their profile shows
+      # today's menu, not a snapshot of the one from the conversation.
+      pane do |args, data|
+        {
+          kind:          "menu",
+          restaurant:    data.dig(:restaurant, :slug),
+          preset:        args[:diet].presence,
+          strictness:    args[:strictness].presence,
+          visible_count: data[:visible_count],
+          hidden_count:  data[:hidden_count]
+        }.compact
+      end
+
       def self.perform(context:, restaurant:, diet: nil, strictness: nil)
         record = Restaurant.published.find_by_id_or_slug!(restaurant)
         filter = build_filter(context, diet, strictness)

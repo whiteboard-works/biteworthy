@@ -65,6 +65,72 @@ RSpec.describe Chat::AgentLoop do
     end
   end
 
+  describe "the results pane" do
+    def events_for(*responses)
+      seen = []
+      described_class.new(conversation, client: StreamingScriptedClient.new(*responses),
+                                        on_event: ->(payload) { seen << payload }).run(text: "what can I eat")
+      seen
+    end
+
+    it "points the pane at what the tool read, and keeps it for a reopen" do
+      seen = events_for(call_tool("get_menu", { "restaurant" => "ninis" }), say("Nothing on the menu yet."))
+
+      pane = seen.find { |e| e[:type] == "pane" }&.dig(:pane)
+      expect(pane).to include(kind: "menu", restaurant: "ninis", visible_count: 0, hidden_count: 0)
+      expect(conversation.reload.last_pane).to include("kind" => "menu", "restaurant" => "ninis")
+      expect(Chat::Serializer.conversation(conversation, messages: true)[:pane]).to include("kind" => "menu")
+    end
+
+    it "arrives between the call and its result, so the card is still open when the pane swaps" do
+      types = events_for(call_tool("get_menu", { "restaurant" => "ninis" }), say("Done.")).map { |e| e[:type].to_s }
+
+      expect(types.index("tool_use")).to be < types.index("pane")
+      expect(types.index("pane")).to be < types.index("tool_result")
+    end
+
+    it "leaves the pane where it was when the tool fails" do
+      seen = events_for(call_tool("get_menu", { "restaurant" => "nowhere" }), say("No such place."))
+
+      expect(seen.map { |e| e[:type].to_s }).not_to include("pane")
+      expect(conversation.reload.last_pane).to be_nil
+    end
+
+    it "shows nothing for a tool that declares no pane" do
+      seen = events_for(call_tool("get_restaurant", { "restaurant" => "ninis" }), say("On Main Ave."))
+
+      expect(seen.map { |e| e[:type].to_s }).not_to include("pane")
+    end
+
+    # Safety Property 1 has a pane-shaped corner: a menu drawn under the
+    # old filter would keep calling a dish safe after the person tightened
+    # it. A write the pane knows nothing about still makes it look again.
+    it "re-points the pane at the menu it shows when a write changes the filter under it" do
+      create(:user_profile, user: user, strictness: "balanced") unless user.profile
+
+      seen = events_for(
+        call_tool("get_menu", { "restaurant" => "ninis" }, id: "a"),
+        call_tool("set_strictness", { "strictness" => "strict" }, id: "b"),
+        say("Done — strict now.")
+      )
+
+      panes = seen.select { |e| e[:type] == "pane" }
+      expect(panes.size).to eq(2)
+      expect(panes.last[:pane]).to include("kind" => "menu", "restaurant" => "ninis")
+      expect(user.profile.reload.strictness).to eq("strict")
+    end
+
+    it "does not re-point the pane for a read that shows nothing" do
+      seen = events_for(
+        call_tool("get_menu", { "restaurant" => "ninis" }, id: "a"),
+        call_tool("get_restaurant", { "restaurant" => "ninis" }, id: "b"),
+        say("Both read.")
+      )
+
+      expect(seen.count { |e| e[:type] == "pane" }).to eq(1)
+    end
+  end
+
   describe "read-only tool calls" do
     it "runs them without asking and feeds the result back" do
       client = ScriptedClient.new(

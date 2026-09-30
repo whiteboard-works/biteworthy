@@ -18,6 +18,7 @@ import {
   type Attachment,
   type ChatEvent,
   type ChatMode,
+  type ChatPane,
   type ChatUsage,
   type ChatMessage,
   type Conversation,
@@ -27,6 +28,7 @@ import {
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
 import { ModeNotice, ModePicker } from './_ModePicker';
+import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
 import { useToolVisibility } from './_useToolVisibility';
 
@@ -49,6 +51,17 @@ export function ChatClient(): ReactElement {
   const [showTools, toggleTools] = useToolVisibility();
   const [mode, setMode] = useState<ChatMode>('manual');
   const [queued, setQueued] = useState<QueuedMessage[]>([]);
+  // What the results pane is pointed at — the last thing a tool acted on
+  // in the chat on screen. Set by the live `pane` event and by the stored
+  // copy on every adopt, so a reopened chat shows what it was looking at.
+  const [pane, setPane] = useState<ChatPane | null>(null);
+  // Counts live `pane` events, so a tool that acts on the same thing the
+  // pane already shows — an accept on the scan it is listing — still
+  // makes it look again. Adopting a stored pane does not count: it is
+  // the same reference the live event already drew.
+  const [paneRevision, setPaneRevision] = useState(0);
+  // Phone width: the pane takes the transcript's place while open.
+  const [paneOpen, setPaneOpen] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   // The queue is read from inside `run`'s teardown, which closes over the
   // render that started the turn — by then `queued` is whatever it was a
@@ -125,6 +138,10 @@ export function ChatClient(): ReactElement {
     setActive(conversation);
     setMessages(conversation.messages);
     setPending(conversation.pending);
+    // Only when the server spoke to it. The web deploys ahead of the API,
+    // and in that window a refetch that carries no `pane` field must not
+    // blank what the live event just drew; an explicit null still clears.
+    if (conversation.pane !== undefined) setPane(conversation.pane);
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
@@ -200,6 +217,13 @@ export function ChatClient(): ReactElement {
     const fromBlank = viewing.current === null;
     viewing.current = id;
     setHistoryOpen(false);
+    // Whatever they had open on a phone, the chat they picked is what
+    // they asked to see.
+    setPaneOpen(false);
+    // A chat opened is a chat looked at afresh: even a pane pointing at
+    // the same menu as the last one is fetched again, under whatever the
+    // filter is now — not what it was when another chat drew it.
+    setPaneRevision((n) => n + 1);
     setError(null);
     setLive(null);
     const opened = await refresh(id);
@@ -231,6 +255,8 @@ export function ChatClient(): ReactElement {
     setActive(null);
     setMessages([]);
     setPending(null);
+    setPane(null);
+    setPaneOpen(false);
     leaveBlank();
     // A fresh conversation starts where the server starts it. Carrying
     // the last one's mode over means someone who used `auto` once gets a
@@ -263,6 +289,8 @@ export function ChatClient(): ReactElement {
         setActive(null);
         setMessages([]);
         setPending(null);
+        setPane(null);
+        setPaneOpen(false);
       }
       // Only a turn this chat owns is released, and it is released now
       // rather than when its dead stream gets round to closing: until then
@@ -308,6 +336,11 @@ export function ChatClient(): ReactElement {
           } to keep this conversation within its budget. I can fetch anything I still need.`,
         ],
       }));
+    } else if (event.type === 'pane') {
+      // Only ever for the chat on screen — `run` drops every event for
+      // any other, and the stored copy catches that chat up on open.
+      setPane(event.pane);
+      setPaneRevision((n) => n + 1);
     } else if (event.type === 'error') {
       setError(event.message);
     }
@@ -670,8 +703,11 @@ export function ChatClient(): ReactElement {
       });
   };
 
+  // The running tool's own sentence, for the pane's status line.
+  const working = [...(live?.tools ?? [])].reverse().find((t) => t.ok === undefined)?.doing ?? null;
+
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] w-full max-w-5xl">
+    <div className="mx-auto flex h-[calc(100dvh-4rem)] w-full max-w-7xl">
       <History
         conversations={conversations}
         activeId={active?.id ?? null}
@@ -681,7 +717,9 @@ export function ChatClient(): ReactElement {
         onDelete={remove}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      {/* Under `lg` the pane and the transcript share one column and the
+          person picks which is showing; from `lg` up both are drawn. */}
+      <main className={`${paneOpen ? 'hidden lg:flex' : 'flex'} min-w-0 flex-1 flex-col`}>
         <header className="flex items-center justify-between border-b border-zinc-200 px-bw-4 py-bw-3">
           <h1 className="truncate text-bw-lg font-bold text-zinc-900">
             {active?.title ?? 'New chat'}
@@ -719,6 +757,16 @@ export function ChatClient(): ReactElement {
             >
               History
             </button>
+            {pane ? (
+              <button
+                type="button"
+                data-testid="pane-toggle"
+                onClick={() => setPaneOpen(true)}
+                className="rounded-bw-md border border-zinc-300 px-bw-3 py-bw-1 text-bw-sm text-zinc-700 lg:hidden"
+              >
+                Results
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -777,6 +825,17 @@ export function ChatClient(): ReactElement {
           onCancelQueued={cancelQueued}
         />
       </main>
+
+      <aside
+        className={`${paneOpen ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col border-l border-zinc-200 lg:flex lg:w-80 lg:flex-none xl:w-[26rem] 2xl:w-[30rem]`}
+      >
+        <ResultsPane
+          pane={pane}
+          revision={paneRevision}
+          working={working}
+          onClose={() => setPaneOpen(false)}
+        />
+      </aside>
     </div>
   );
 }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_28_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_29_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -112,6 +112,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_230000) do
     t.bigint "api_cost_micro_cents", default: 0, null: false
     t.string "chat_mode", default: "manual", null: false
     t.datetime "created_at", null: false
+    t.jsonb "last_pane"
     t.jsonb "pending_tool_call"
     t.jsonb "pending_turns", default: [], null: false
     t.string "state", default: "active", null: false

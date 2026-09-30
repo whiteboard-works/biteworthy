@@ -35,7 +35,13 @@ module Chat
         # of every one. The show endpoint has the rows in hand already,
         # so mapping them first makes the predicate free.
         rendered = conversation.messages.map { |m| message(m) }
-        payload.merge(messages: rendered, can_undo: conversation.mutated_since_last_user_message?)
+        payload.merge(
+          messages: rendered,
+          can_undo: conversation.mutated_since_last_user_message?,
+          # What the results pane was last pointed at, so a reopened chat
+          # draws it without replaying the turn.
+          pane:     conversation.last_pane
+        )
       end
 
       def message(message)

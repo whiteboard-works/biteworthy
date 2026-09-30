@@ -51,6 +51,32 @@ RSpec.describe Tools::Base do
     end
   end
 
+  describe "pane" do
+    it "is nil with nothing declared anywhere" do
+      expect(Class.new(described_class).pane_for({}, {})).to be_nil
+    end
+
+    it "inherits a domain base class's pane and hands the block symbolized data" do
+      domain_base = Class.new(described_class) { pane { |args, data| { kind: "scan", scan_id: data[:scan_id] || args[:scan_id] } } }
+      subclass    = Class.new(domain_base)
+
+      expect(subclass.pane_for({ scan_id: "from-args" }, {})).to eq(kind: "scan", scan_id: "from-args")
+      expect(subclass.pane_for({}, { "scan_id" => "from-data" })).to eq(kind: "scan", scan_id: "from-data")
+    end
+
+    # A presenter is decoration on a call that already succeeded; its bug
+    # must not turn that success into a failed turn.
+    it "contains a raising block as no pane" do
+      broken = Class.new(described_class) do
+        tool_name "broken_pane"
+        pane { |_args, _data| raise "presenter bug" }
+      end
+
+      expect(Rails.logger).to receive(:error).with(/broken_pane pane raised/)
+      expect(broken.pane_for({}, {})).to be_nil
+    end
+  end
+
   describe "audience enforcement" do
     it "lets anyone call a public tool" do
       response = tool(:public) { |_ctx, _args| Tools::Base.send(:ok, ok: true) }.call(server_context: {})

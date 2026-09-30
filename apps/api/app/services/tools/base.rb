@@ -65,6 +65,39 @@ module Tools
         nil
       end
 
+      # What the chat's results pane shows once this tool has run: a
+      # reference to the thing acted on (`kind: "menu", restaurant: slug`),
+      # never the data itself. The pane fetches the detail from the REST
+      # endpoint that already renders it, so the model-facing payload —
+      # fenced, trimmed for tokens, and dropped by compaction — is never
+      # drawn on a page.
+      #
+      # Declared by the tool, like `running_description`, and for the same
+      # reason: the pane is the server's account of what happened, and a
+      # model does not get to point it anywhere. Inherited through the
+      # superclass chain so a domain base class can declare it once.
+      def pane(&block)
+        if block
+          @pane = block
+          return block
+        end
+        return @pane if defined?(@pane) && @pane
+
+        superclass.respond_to?(:pane) ? superclass.pane : nil
+      end
+
+      # The block sees the tool's own arguments and its successful
+      # `structuredContent`. nil for a tool that declares nothing, and for a
+      # block that raises — a broken presenter must not take the turn down
+      # with it.
+      def pane_for(args = {}, data = {})
+        data = data.deep_symbolize_keys if data.respond_to?(:deep_symbolize_keys)
+        pane&.call(args, data)
+      rescue StandardError => e
+        Rails.logger.error("[tools] #{name_value} pane raised: #{e.class}: #{e.message}")
+        nil
+      end
+
       # A call a human has to approve before it runs.
       #
       # `destructive_hint` covers a tool that is always dangerous. This
