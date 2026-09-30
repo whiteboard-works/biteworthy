@@ -20,7 +20,7 @@ module Api
       def show
         user = User.find_by!(handle: params[:handle])
         recent_reviews = user.reviews.visible
-                            .includes(item: :restaurant, photo_attachment: :blob)
+                            .includes(item: { restaurant: :city }, photo_attachment: :blob)
                             .order(created_at: :desc)
                             .limit(RECENT_REVIEW_LIMIT)
 
@@ -48,9 +48,10 @@ module Api
             id:   item.id,
             name: item.name,
             restaurant: {
-              id:   item.restaurant_id,
-              slug: item.restaurant.slug,
-              name: item.restaurant.name
+              id:       item.restaurant_id,
+              slug:     item.restaurant.slug,
+              name:     item.restaurant.name,
+              web_path: item.restaurant.web_path
             }
           },
           rating:     review.rating,

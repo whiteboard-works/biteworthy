@@ -14,6 +14,7 @@ const samplePayload: HistoryResponse = {
         id: 'rest-1',
         slug: 'cream-bean-berry-1',
         name: 'Cream, Bean & Berry',
+        web_path: '/restaurants/usa/co/durango/cream-bean-berry-1',
         city: { slug: 'durango', name: 'Durango', region: 'CO' },
       },
     },

@@ -46,9 +46,10 @@ module Api
           items_visible_count: visit.items_visible_count,
           items_hidden_count:  visit.items_hidden_count,
           restaurant: {
-            id:   r.id,
-            slug: r.slug,
-            name: r.name,
+            id:       r.id,
+            slug:     r.slug,
+            name:     r.name,
+            web_path: r.web_path,
             city: { slug: r.city.slug, name: r.city.name, region: r.city.region }
           }
         }

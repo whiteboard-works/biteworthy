@@ -18,7 +18,7 @@ module Api
         # is bypassed here on purpose, so the filter is explicit.
         restaurants = current_user.favorite_restaurants
                                   .joins(:restaurant).merge(Restaurant.kept)
-                                  .includes(:restaurant)
+                                  .includes(restaurant: :city)
                                   .order(created_at: :desc)
                                   .map { |f| serialize_restaurant(f.restaurant) }
 
@@ -28,7 +28,7 @@ module Api
         # so the page renders a live link to a page that 404s.
         items = current_user.favorite_items
                             .joins(item: :restaurant).merge(Restaurant.kept)
-                            .includes(item: :restaurant)
+                            .includes(item: { restaurant: :city })
                             .order(created_at: :desc)
                             .map { |f| serialize_item(f.item) }
 
@@ -39,10 +39,11 @@ module Api
 
       def serialize_restaurant(restaurant)
         {
-          id:     restaurant.id,
-          slug:   restaurant.slug,
-          name:   restaurant.name,
-          status: restaurant.status
+          id:       restaurant.id,
+          slug:     restaurant.slug,
+          name:     restaurant.name,
+          status:   restaurant.status,
+          web_path: restaurant.web_path
         }
       end
 
@@ -59,7 +60,8 @@ module Api
             # restaurant, so the web needs the restaurant's status too to
             # decide whether the dish link is safe (a dish stays
             # 'published' when its restaurant is later closed/unpublished).
-            status: item.restaurant.status
+            status:   item.restaurant.status,
+            web_path: item.restaurant.web_path
           }
         }
       end

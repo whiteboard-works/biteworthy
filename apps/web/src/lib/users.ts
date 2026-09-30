@@ -9,7 +9,7 @@ import { api, type ApiOptions } from './api';
 export interface UserReviewItem {
   id: string;
   name: string;
-  restaurant: { id: string; slug: string; name: string };
+  restaurant: { id: string; slug: string; name: string; web_path: string };
 }
 
 export interface UserReview {

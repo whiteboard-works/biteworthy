@@ -20,7 +20,7 @@ module Api
 
         scope = current_user.reviews
                             .newest_first
-                            .includes(item: :restaurant, photo_attachment: :blob)
+                            .includes({ item: { restaurant: :city } }, photo_attachment: :blob)
                             .offset(offset)
                             .limit(limit)
 
@@ -46,7 +46,8 @@ module Api
             restaurant: {
               id:   item.restaurant_id,
               slug: item.restaurant.slug,
-              name: item.restaurant.name
+              name: item.restaurant.name,
+              web_path: item.restaurant.web_path
             }
           },
           rating:        review.rating,

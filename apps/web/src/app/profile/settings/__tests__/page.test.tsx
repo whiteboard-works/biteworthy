@@ -274,36 +274,68 @@ describe('ProfileSettingsPage — favorites', () => {
 
   it('lists saved restaurants and dishes, linking published ones', async () => {
     mockFetchMyFavorites.mockResolvedValue({
-      restaurants: [{ id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' }],
+      restaurants: [
+        {
+          id: 'r1',
+          slug: 'ninis',
+          name: 'Ninis',
+          status: 'published',
+          web_path: '/restaurants/usa/colorado/durango/ninis',
+        },
+      ],
       items: [
         {
           id: 'i1',
           name: 'Carne Asada Taco',
           status: 'published',
-          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
+          restaurant: {
+            id: 'r1',
+            slug: 'ninis',
+            name: 'Ninis',
+            status: 'published',
+            web_path: '/restaurants/usa/colorado/durango/ninis',
+          },
         },
         {
           id: 'i2',
           name: 'Gone Dish',
           status: 'removed',
-          restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', status: 'published' },
+          restaurant: {
+            id: 'r1',
+            slug: 'ninis',
+            name: 'Ninis',
+            status: 'published',
+            web_path: '/restaurants/usa/colorado/durango/ninis',
+          },
         },
         {
           // Published dish, but its restaurant is closed → still must not link.
           id: 'i3',
           name: 'Orphan Dish',
           status: 'published',
-          restaurant: { id: 'r2', slug: 'closed-spot', name: 'Closed Spot', status: 'closed' },
+          restaurant: {
+            id: 'r2',
+            slug: 'closed-spot',
+            name: 'Closed Spot',
+            status: 'closed',
+            web_path: '/restaurants/usa/colorado/durango/closed-spot',
+          },
         },
       ],
     });
     render(<ProfileSettingsPage />);
 
     const rest = await screen.findByTestId('favorite-restaurant-r1');
-    expect(rest.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis');
+    expect(rest.querySelector('a')).toHaveAttribute(
+      'href',
+      '/restaurants/usa/colorado/durango/ninis',
+    );
 
     const dish = screen.getByTestId('favorite-dish-i1');
-    expect(dish.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis/items/i1');
+    expect(dish.querySelector('a')).toHaveAttribute(
+      'href',
+      '/restaurants/usa/colorado/durango/ninis/items/i1',
+    );
 
     // A removed dish is shown but not linked.
     const gone = screen.getByTestId('favorite-dish-i2');
@@ -332,7 +364,7 @@ describe('ProfileSettingsPage — my reviews', () => {
             id: 'item-1',
             name: 'Carne Asada Taco',
             status: 'published',
-            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', web_path: '/restaurants/usa/colorado/durango/ninis' },
           },
           rating: 5,
           body: 'Best in town.',
@@ -348,7 +380,7 @@ describe('ProfileSettingsPage — my reviews', () => {
             id: 'item-2',
             name: 'Bean Burrito',
             status: 'published',
-            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', web_path: '/restaurants/usa/colorado/durango/ninis' },
           },
           rating: 2,
           body: 'spammy',
@@ -364,7 +396,10 @@ describe('ProfileSettingsPage — my reviews', () => {
 
     const first = await screen.findByTestId('my-review-rev-1');
     expect(first).toHaveTextContent('Carne Asada Taco');
-    expect(first.querySelector('a')).toHaveAttribute('href', '/restaurants/ninis/items/item-1');
+    expect(first.querySelector('a')).toHaveAttribute(
+      'href',
+      '/restaurants/usa/colorado/durango/ninis/items/item-1',
+    );
     // The hidden review tells the author why it's hidden.
     expect(screen.getByTestId('my-review-hidden-rev-2')).toHaveTextContent(/spam/i);
   });
@@ -379,7 +414,7 @@ describe('ProfileSettingsPage — my reviews', () => {
             id: 'item-x',
             name: 'Old Taco',
             status: 'removed',
-            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+            restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', web_path: '/restaurants/usa/colorado/durango/ninis' },
           },
           rating: 3,
           body: null,
@@ -406,7 +441,7 @@ describe('ProfileSettingsPage — my reviews', () => {
         id: `i-${id}`,
         name: `Dish ${id}`,
         status: 'published',
-        restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis' },
+        restaurant: { id: 'r1', slug: 'ninis', name: 'Ninis', web_path: '/restaurants/usa/colorado/durango/ninis' },
       },
       rating: 4,
       body: null,

@@ -50,6 +50,7 @@ module Api
           id:            r.restaurant.id,
           slug:          r.restaurant.slug,
           name:          r.restaurant.name,
+          web_path:      r.restaurant.web_path,
           visible_count: r.visible_count,
           hidden_count:  r.hidden_count,
           total_count:   r.total_count

@@ -13,6 +13,7 @@ const ranked = {
   id: 'r-1',
   slug: 'chamayo',
   name: 'Chamayo',
+  web_path: '/restaurants/usa/colorado/durango/chamayo',
   visible_count: 28,
   hidden_count: 8,
   total_count: 36,
@@ -40,7 +41,7 @@ describe('RestaurantCard', () => {
     );
     expect(screen.getByTestId('restaurant-link-chamayo')).toHaveAttribute(
       'href',
-      '/restaurants/chamayo?profile=celiac',
+      '/restaurants/usa/colorado/durango/chamayo?profile=celiac',
     );
   });
 

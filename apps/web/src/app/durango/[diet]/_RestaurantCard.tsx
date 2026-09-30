@@ -25,7 +25,7 @@ export function RestaurantCard({
           reader's own avoids are added on the menu, so it's labelled as the
           diet's count, not as "safe for you". */}
       <a
-        href={`/restaurants/${encodeURIComponent(r.slug)}?profile=${encodeURIComponent(dietSlug)}`}
+        href={`${r.web_path}?profile=${encodeURIComponent(dietSlug)}`}
         className="block"
         data-testid={`restaurant-link-${r.slug}`}
       >

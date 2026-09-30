@@ -725,7 +725,7 @@ function FavoritesSection() {
                   <li key={r.id} data-testid={`favorite-restaurant-${r.id}`}>
                     {r.status === 'published' ? (
                       <a
-                        href={`/restaurants/${encodeURIComponent(r.slug)}`}
+                        href={r.web_path}
                         className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
                       >
                         {r.name}
@@ -752,7 +752,7 @@ function FavoritesSection() {
                     <li key={d.id} data-testid={`favorite-dish-${d.id}`}>
                       {linkable ? (
                         <a
-                          href={`/restaurants/${encodeURIComponent(d.restaurant.slug)}/items/${encodeURIComponent(d.id)}`}
+                          href={`${d.restaurant.web_path}/items/${encodeURIComponent(d.id)}`}
                           className="text-bw-base font-semibold text-zinc-900 hover:text-bite"
                         >
                           {d.name}
@@ -868,7 +868,7 @@ function MyReviewRow({ review }: { review: MyReview }) {
   // review. Encode both segments like every sibling link (slugs are
   // only presence/uniqueness-validated, not auto-parameterized).
   const linkable = item.status === 'published';
-  const href = `/restaurants/${encodeURIComponent(item.restaurant.slug)}/items/${encodeURIComponent(item.id)}`;
+  const href = `${item.restaurant.web_path}/items/${encodeURIComponent(item.id)}`;
   return (
     <li
       className="rounded-bw-md border border-zinc-200 p-bw-4"

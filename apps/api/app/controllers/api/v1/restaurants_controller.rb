@@ -81,6 +81,7 @@ module Api
           slug:   r.slug,
           name:   r.name,
           status: r.status,
+          web_path: r.web_path,
           city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
           street:    first_address&.street,
           latitude:  first_address&.latitude&.to_f,
@@ -103,6 +104,7 @@ module Api
           phone:              r.phone,
           website:            r.website,
           status:             r.status,
+          web_path:           r.web_path,
           # Phase 4.9 — non-PII signals so the web page can show or
           # hide the "Claim this restaurant" button without a second
           # roundtrip. claimed_by_user_id is the user's UUID; not

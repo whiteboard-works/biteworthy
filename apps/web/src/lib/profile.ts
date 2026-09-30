@@ -146,6 +146,8 @@ export interface FavoriteRestaurant {
   slug: string;
   name: string;
   status: string;
+  /** See `Restaurant.web_path` in lib/restaurants.ts. */
+  web_path: string;
 }
 
 export interface FavoriteDish {
@@ -155,7 +157,7 @@ export interface FavoriteDish {
   // `restaurant.status` matters too: a dish stays 'published' when its
   // restaurant is later closed, but the dish page resolves through the
   // restaurant, so the link is only safe when both are published.
-  restaurant: { id: string; slug: string; name: string; status: string };
+  restaurant: { id: string; slug: string; name: string; status: string; web_path: string };
 }
 
 export interface MyFavoritesResponse {

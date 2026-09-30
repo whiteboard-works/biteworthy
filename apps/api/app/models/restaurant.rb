@@ -111,4 +111,21 @@ class Restaurant < ApplicationRecord
       find_by!(slug: value)
     end
   end
+
+  # Single source of truth for the public web path
+  # (`/restaurants/<country>/<region>/<city>/<slug>`). Country/region/city
+  # are for humans + SEO; lookup is always by the trailing slug, so a
+  # stale or mismatched location segment never breaks the link — the web
+  # page just redirects to whatever this returns. Callers must
+  # `includes(:city)` to avoid an N+1.
+  #
+  # The location segments are parameterized (they only have to read well);
+  # the slug is percent-encoded, since it is the lookup key and must
+  # survive the round trip exactly.
+  def web_path
+    country_seg = city.country == "US" ? "usa" : city.country.to_s.parameterize
+    region_seg  = city.region.to_s.parameterize.presence || "na"
+    city_seg    = city.slug.to_s.parameterize.presence || "na"
+    "/restaurants/#{country_seg}/#{region_seg}/#{city_seg}/#{ERB::Util.url_encode(slug)}"
+  end
 end

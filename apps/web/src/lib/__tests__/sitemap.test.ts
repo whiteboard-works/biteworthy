@@ -37,14 +37,14 @@ describe('buildSitemapEntries', () => {
     ]);
   });
 
-  it('encodes slugs with reserved URL characters', () => {
+  it('appends restaurant web_paths verbatim', () => {
     const entries = buildSitemapEntries(
       'https://bite-worthy.com',
-      { restaurantSlugs: ['café & co'] },
+      { restaurantPaths: ['/restaurants/usa/colorado/durango/ninis'] },
       FROZEN,
     );
     expect(entries.at(-1)!.url).toBe(
-      'https://bite-worthy.com/restaurants/caf%C3%A9%20%26%20co',
+      'https://bite-worthy.com/restaurants/usa/colorado/durango/ninis',
     );
   });
 
@@ -56,7 +56,7 @@ describe('buildSitemapEntries', () => {
   it('combines diet + restaurant extensions in order: static → diets → restaurants', () => {
     const entries = buildSitemapEntries(
       'https://bite-worthy.com',
-      { dietSlugs: ['vegan'], restaurantSlugs: ['ninis'] },
+      { dietSlugs: ['vegan'], restaurantPaths: ['/restaurants/usa/colorado/durango/ninis'] },
       FROZEN,
     );
     expect(entries.map((e) => e.url)).toEqual([
@@ -68,7 +68,7 @@ describe('buildSitemapEntries', () => {
       'https://bite-worthy.com/login',
       'https://bite-worthy.com/signup',
       'https://bite-worthy.com/durango/vegan',
-      'https://bite-worthy.com/restaurants/ninis',
+      'https://bite-worthy.com/restaurants/usa/colorado/durango/ninis',
     ]);
   });
 });

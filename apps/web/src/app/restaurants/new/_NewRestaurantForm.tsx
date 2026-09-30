@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import { createRestaurant, type City, type DuplicateCandidate } from '../../../lib/cities';
 import { NotSignedInError } from '../../../lib/chat';
 
@@ -54,7 +55,7 @@ export function NewRestaurantForm({
         setCandidates(result.candidates);
         return;
       }
-      router.push(`/restaurants/${result.slug}/scan`);
+      router.push(`${result.web_path}/scan` as Route);
     } catch (err) {
       if (err instanceof NotSignedInError) {
         router.push('/login?next=%2Frestaurants%2Fnew');

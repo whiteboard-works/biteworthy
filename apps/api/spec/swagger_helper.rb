@@ -571,6 +571,21 @@ RSpec.configure do |config|
               name: { type: :string }
             }
           },
+          # Shared by ProfileFavoritesController — the same {id, slug,
+          # name, status, web_path} shape appears both as a favorited
+          # restaurant and nested under a favorited item, so the two
+          # copies are pinned to one definition instead of drifting.
+          FavoriteRestaurantRef: {
+            type: :object,
+            required: %w[id slug name status web_path],
+            properties: {
+              id:       { type: :string, format: :uuid },
+              slug:     { type: :string },
+              name:     { type: :string },
+              status:   { type: :string, enum: %w[draft published closed] },
+              web_path: { type: :string }
+            }
+          },
           TagRef: {
             type: :object,
             required: %w[id slug name family],

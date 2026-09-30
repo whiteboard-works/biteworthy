@@ -25,7 +25,15 @@ const samplePayload: CityRanked = {
   city: { id: 'c-1', slug: 'durango', name: 'Durango', region: 'CO' },
   profile: { id: 'p-1', slug: 'vegan', name: 'Vegan', description: null },
   restaurants: [
-    { id: 'r-1', slug: 'tacos', name: 'Tacos', visible_count: 5, hidden_count: 2, total_count: 7 },
+    {
+      id: 'r-1',
+      slug: 'tacos',
+      name: 'Tacos',
+      web_path: '/restaurants/usa/co/durango/tacos',
+      visible_count: 5,
+      hidden_count: 2,
+      total_count: 7,
+    },
   ],
 };
 
