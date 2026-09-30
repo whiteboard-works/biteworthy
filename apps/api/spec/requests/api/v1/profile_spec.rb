@@ -98,6 +98,16 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
         expect(user.profile.reload.home_city).to be_nil
       end
 
+      # What the settings page actually sends.
+      it "clears it with JSON null" do
+        user.profile.update!(home_city: durango)
+
+        patch "/api/v1/profile", params: { home_city_slug: nil }.to_json, headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(user.profile.reload.home_city).to be_nil
+      end
+
       it "rejects a slug that is not a city" do
         patch "/api/v1/profile", params: { home_city_slug: "atlantis" }.to_json, headers: headers
 

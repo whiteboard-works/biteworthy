@@ -9,7 +9,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
   across case even on the write paths Devise doesn't own
   (`from_omniauth`, admin creates, seeds).
 - `user_profiles` — one per user. `avoid_ingredient_ids[]`,
-  `avoid_tag_ids[]`, `prefer_tag_ids[]`, plus `strictness` enum.
+  `avoid_tag_ids[]`, `prefer_tag_ids[]`, plus `strictness` enum and
+  `home_city_id` (nullable FK to `cities`, nullified on delete — the
+  chat's default for "nearby", never a filter).
 
 ## Taxonomy (the unique-value engine)
 

@@ -36,11 +36,11 @@ module Tools
           },
           city_slug: {
             type: "string",
-            description: 'City to scope to, e.g. "durango". Required when ranking by diet.'
+            description: 'City to scope to, e.g. "durango". Omit to use the caller\'s home city when they have one.'
           },
           diet: {
             type: "string",
-            description: "Dietary preset slug to rank by. Requires city_slug."
+            description: "Dietary preset slug to rank by. Needs a city: city_slug, or the caller's home city."
           },
           limit: {
             type: "integer",

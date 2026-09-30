@@ -24,6 +24,15 @@ RSpec.describe Tools::Profile::SetHomeCity do
     expect(user.profile.reload.home_city.slug).to eq("salt-lake-city")
   end
 
+  it "clears it with an empty slug, like the settings page" do
+    user.profile.update!(home_city: durango)
+
+    result = payload(call(city_slug: ""))
+
+    expect(result).to eq(previous_home_city: "durango", home_city: nil)
+    expect(user.profile.reload.home_city).to be_nil
+  end
+
   it "refuses a slug it cannot find, pointing at list_cities" do
     response = call(city_slug: "atlantis")
 
