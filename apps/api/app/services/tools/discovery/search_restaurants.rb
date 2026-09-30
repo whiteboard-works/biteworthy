@@ -154,17 +154,7 @@ module Tools
         if query.present?
           scope = scope.where("restaurants.name ILIKE ?", "%#{Restaurant.sanitize_sql_like(query)}%")
         end
-        scope = within_box(scope, here, radius) if city_slug.blank?
-
-        rows = scope.to_a.filter_map do |restaurant|
-          address, distance = nearest(restaurant, here)
-          if city_slug.blank?
-            next if distance && distance > radius
-            next if distance.nil? && !city_within?(restaurant.city, here, radius)
-          end
-          [ restaurant, address, distance ]
-        end
-        rows.sort_by! { |restaurant, _, distance| [ distance.nil? ? 1 : 0, distance || 0, restaurant.name ] }
+        rows = city_slug.present? ? by_distance(scope.to_a, here) : in_range(scope, here, radius)
 
         applied = { sorted_by: "distance" }
         applied[:radius_km] = radius if city_slug.blank?
@@ -173,36 +163,69 @@ module Tools
       end
       private_class_method :near
 
+      # Published restaurants within `radius`, nearest first, as
+      # `[restaurant, address, km]`. One without coordinates is kept when
+      # its city's centre is in range, after every measured one.
+      def self.in_range(scope, here, radius)
+        rows = by_distance(within_box(scope, here, radius).to_a, here)
+        rows.select do |restaurant, _, distance|
+          distance ? distance <= radius : (city_km(restaurant.city, here) || Float::INFINITY) <= radius
+        end
+      end
+      private_class_method :in_range
+
+      # Unmeasured rows go last, ordered by how far their city's centre is.
+      def self.by_distance(restaurants, here)
+        restaurants
+          .map { |restaurant| [ restaurant, *nearest(restaurant, here) ] }
+          .sort_by do |restaurant, _, distance|
+            [ distance.nil? ? 1 : 0, distance || city_km(restaurant.city, here) || Float::INFINITY, restaurant.name ]
+          end
+      end
+      private_class_method :by_distance
+
       # A cheap SQL cut before the exact distance in Ruby. Either the
-      # restaurant has an address in the box, or it has none with
-      # coordinates and its city is in the box.
+      # restaurant has an address in the box, or its city is in the box.
       def self.within_box(scope, here, radius)
         dlat = radius / KM_PER_DEGREE
         dlng = radius / (KM_PER_DEGREE * [ Math.cos(here["lat"] * Math::PI / 180).abs, 0.01 ].max)
-        box  = [ here["lat"] - dlat, here["lat"] + dlat, here["lng"] - dlng, here["lng"] + dlng ]
-        in_box = "latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?"
+        lat_sql = "latitude BETWEEN ? AND ?"
+        lng_sql, lng_binds = longitude_span(here["lng"] - dlng, here["lng"] + dlng)
+        in_box = "#{lat_sql} AND #{lng_sql}"
+        binds  = [ here["lat"] - dlat, here["lat"] + dlat, *lng_binds ]
 
-        by_address = Address.where(in_box, *box).select(:restaurant_id)
-        by_city    = City.where(in_box, *box).select(:id)
+        by_address = Address.where(in_box, *binds).select(:restaurant_id)
+        by_city    = City.where(in_box, *binds).select(:id)
         scope.where(id: by_address).or(scope.where(city_id: by_city))
       end
       private_class_method :within_box
 
+      # A span that runs past ±180° wraps to the other side of the date
+      # line, so it becomes two ranges rather than one that matches nothing.
+      def self.longitude_span(west, east)
+        return [ "longitude BETWEEN -180 AND 180", [] ] if east - west >= 360
+        return [ "(longitude >= ? OR longitude <= ?)", [ west + 360, east ] ] if west < -180
+        return [ "(longitude >= ? OR longitude <= ?)", [ west, east - 360 ] ] if east > 180
+
+        [ "longitude BETWEEN ? AND ?", [ west, east ] ]
+      end
+      private_class_method :longitude_span
+
+      # The city of the nearest published restaurant, not the nearest city
+      # centre: centres are unset for cities added through
+      # `Cities::Create`, and the nearest centre can be a city with
+      # nothing published in it.
       def self.nearest_city_slug(here, radius)
-        City.where.not(latitude: nil).where.not(longitude: nil)
-            .map { |city| [ city, Geo.distance_km(here["lat"], here["lng"], city.latitude, city.longitude) ] }
-            .select { |_, distance| distance <= radius }
-            .min_by { |_, distance| distance }
-            &.first&.slug
+        in_range(Restaurant.published.includes(:city, :addresses), here, radius).first&.first&.city&.slug
       end
       private_class_method :nearest_city_slug
 
-      def self.city_within?(city, here, radius)
-        return false if city.latitude.nil? || city.longitude.nil?
+      def self.city_km(city, here)
+        return nil if city.latitude.nil? || city.longitude.nil?
 
-        Geo.distance_km(here["lat"], here["lng"], city.latitude, city.longitude) <= radius
+        Geo.distance_km(here["lat"], here["lng"], city.latitude, city.longitude)
       end
-      private_class_method :city_within?
+      private_class_method :city_km
 
       # The nearest of its locations, as `[address, km]`: the box admits a
       # restaurant on any address in range, so the exact check has to

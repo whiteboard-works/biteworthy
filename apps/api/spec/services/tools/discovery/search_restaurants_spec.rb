@@ -171,6 +171,29 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
       expect(payload(response)[:message]).to include("list_cities")
     end
 
+    # City centres are unset for cities added through Cities::Create, and
+    # the nearest centre can hold nothing published.
+    it "ranks a diet in the city of the nearest restaurant, not the nearest centre" do
+      vegan = create(:dietary_profile, slug: "vegan", name: "Vegan")
+      durango.update!(latitude: nil, longitude: nil)
+      create(:city, slug: "empty-town", name: "Empty Town", latitude: 37.275, longitude: -107.880)
+
+      response = near(diet: vegan.slug)
+
+      expect(payload(response)).to include(city: "durango", city_source: "device_location")
+    end
+
+    it "finds a restaurant across the date line" do
+      aleutian = create(:restaurant, :published, city: slc, name: "Adak Grill", slug: "adak")
+      aleutian.addresses.create!(street: "1 Harbor", latitude: 51.88, longitude: -179.95)
+
+      response = described_class.call(
+        server_context: { user_id: user.id, device_location: { "lat" => 51.88, "lng" => 179.95 } }, near_me: true
+      )
+
+      expect(names(response)).to eq([ "Adak Grill" ])
+    end
+
     it "refuses near_me alongside anywhere" do
       expect(near(anywhere: true).to_h[:isError]).to be(true)
     end
