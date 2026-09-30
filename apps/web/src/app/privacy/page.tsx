@@ -38,7 +38,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-09-30';
+const LAST_UPDATED = '2026-09-26';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -67,10 +67,9 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Dietary profile:</strong> the ingredients and tags you mark “avoid,” the
-              dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, any
-              taste signals (ingredients/tags you like or dislike) you add to improve your picks,
-              and your home city if you set one (a city, never a precise location). Stored
-              against your account so it follows you across devices.
+              dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, and any
+              taste signals (ingredients/tags you like or dislike) you add to improve your picks.
+              Stored against your account so it follows you across devices.
             </li>
             <li>
               <strong>Reviews:</strong> the rating, body, and optional photo you submit on a dish.
@@ -134,10 +133,8 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
-              Anthropic Claude for OCR + structuring. When you use the chat, your messages, your
-              dietary profile (avoid lists, strictness, and your home city if you set one), and the
-              menu data needed to answer are sent to Anthropic Claude to generate the reply. None
-              of it is used to train the model. We do not send your reviews to Anthropic.
+              Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
+              to train the model. We do not send your reviews or profile to Anthropic.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The
