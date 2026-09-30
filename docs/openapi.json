@@ -5677,6 +5677,152 @@
         }
       }
     },
+    "/api/v1/cities/{city_slug}/restaurants": {
+      "parameters": [
+        {
+          "name": "city_slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "profile",
+          "in": "query",
+          "required": true,
+          "description": "DietaryProfile slug to rank by",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Rank a city's published restaurants by a dietary preset",
+        "tags": [
+          "Cities"
+        ],
+        "description": "Public. Backs the SSR /durango/[diet] SEO pages. Ranked by visible_count DESC, then name ASC. 404s on an unknown city or unknown profile slug.",
+        "responses": {
+          "200": {
+            "description": "city + profile metadata + ranked restaurants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "city",
+                    "profile",
+                    "restaurants"
+                  ],
+                  "properties": {
+                    "city": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "region"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "profile": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "description"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "web_path",
+                          "visible_count",
+                          "hidden_count",
+                          "total_count"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "web_path": {
+                            "type": "string"
+                          },
+                          "visible_count": {
+                            "type": "integer"
+                          },
+                          "hidden_count": {
+                            "type": "integer"
+                          },
+                          "total_count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown city slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cities": {
       "get": {
         "summary": "List every city we cover",
@@ -6502,6 +6648,394 @@
         }
       }
     },
+    "/api/v1/profile/favorites": {
+      "get": {
+        "summary": "The caller's saved restaurants + dishes, newest first",
+        "tags": [
+          "Profile"
+        ],
+        "description": "Authenticated. Deliberately includes draft/closed (not archived) restaurants so the page can grey out a dead link instead of hiding it.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "favorited restaurants + dishes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurants",
+                    "items"
+                  ],
+                  "properties": {
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FavoriteRestaurantRef"
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "status",
+                          "restaurant"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "published",
+                              "removed"
+                            ]
+                          },
+                          "restaurant": {
+                            "$ref": "#/components/schemas/FavoriteRestaurantRef"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          }
+        }
+      }
+    },
+    "/api/v1/profile/history": {
+      "get": {
+        "summary": "The caller's recent restaurant visits, newest first",
+        "tags": [
+          "Profile"
+        ],
+        "description": "Authenticated. Item counts are captured AT VIEW TIME, not recomputed.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "recent visits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "visits",
+                    "total"
+                  ],
+                  "properties": {
+                    "visits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "viewed_on",
+                          "updated_at",
+                          "items_visible_count",
+                          "items_hidden_count",
+                          "restaurant"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "viewed_on": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "items_visible_count": {
+                            "type": "integer"
+                          },
+                          "items_hidden_count": {
+                            "type": "integer"
+                          },
+                          "restaurant": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "slug",
+                              "name",
+                              "web_path",
+                              "city"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "slug": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "web_path": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "object",
+                                "required": [
+                                  "slug",
+                                  "name",
+                                  "region"
+                                ],
+                                "properties": {
+                                  "slug": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "region": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          }
+        }
+      }
+    },
+    "/api/v1/profile/reviews": {
+      "get": {
+        "summary": "The caller's own reviews, newest first, hidden ones included",
+        "tags": [
+          "Profile"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the caller's reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "reviews",
+                    "total"
+                  ],
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "reviews": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "item",
+                          "rating",
+                          "body",
+                          "photo_url",
+                          "hidden",
+                          "hidden_reason",
+                          "created_at",
+                          "updated_at"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "status",
+                              "restaurant"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "draft",
+                                  "published",
+                                  "removed"
+                                ]
+                              },
+                              "restaurant": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "slug",
+                                  "name",
+                                  "web_path"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "slug": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "web_path": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rating": {
+                            "type": "integer"
+                          },
+                          "body": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "photo_url": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "hidden": {
+                            "type": "boolean"
+                          },
+                          "hidden_reason": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          }
+        }
+      }
+    },
     "/api/v1/profile": {
       "get": {
         "summary": "Read the caller's dietary profile",
@@ -6705,6 +7239,217 @@
         }
       }
     },
+    "/api/v1/restaurants/{restaurant_id}/claim": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "description": "Restaurant UUID or slug",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Ask to claim a restaurant; emails a verification link",
+        "tags": [
+          "Restaurants"
+        ],
+        "description": "Authenticated. Emails `<web_path>/claim?t=<token>` to the given address.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "verification sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "email",
+                    "auto_acceptable",
+                    "expires_at"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "auto_acceptable": {
+                      "type": "boolean"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "missing email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/restaurants/{restaurant_id}/claim/verify": {
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "in": "path",
+          "description": "Restaurant id or slug",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "t",
+          "in": "query",
+          "description": "Verification token",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Verify a claim token and mark the restaurant claimed",
+        "tags": [
+          "Restaurants"
+        ],
+        "description": "Anonymous — the token alone is the credential.",
+        "responses": {
+          "200": {
+            "description": "restaurant marked claimed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "restaurant"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "claimed"
+                      ]
+                    },
+                    "restaurant": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "web_path",
+                        "claimed_at",
+                        "claimed_by_user_id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "web_path": {
+                          "type": "string"
+                        },
+                        "claimed_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "claimed_by_user_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid, expired, or already-claimed-by-someone-else token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "kind"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "InvalidTokenError",
+                        "ExpiredTokenError",
+                        "AlreadyClaimedError"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/restaurants": {
       "get": {
         "summary": "List published restaurants",
@@ -6742,6 +7487,7 @@
                           "slug",
                           "name",
                           "status",
+                          "web_path",
                           "city",
                           "street",
                           "latitude",
@@ -6759,6 +7505,9 @@
                             "type": "string"
                           },
                           "status": {
+                            "type": "string"
+                          },
+                          "web_path": {
                             "type": "string"
                           },
                           "street": {
@@ -6835,6 +7584,7 @@
                     "slug",
                     "name",
                     "status",
+                    "web_path",
                     "city"
                   ],
                   "properties": {
@@ -6849,6 +7599,9 @@
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "web_path": {
                       "type": "string"
                     },
                     "city": {
@@ -7535,6 +8288,142 @@
         }
       }
     },
+    "/api/v1/restaurants/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "Published restaurant id or slug",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Show one published restaurant",
+        "tags": [
+          "Restaurants"
+        ],
+        "description": "Public. `favorited` seeds the detail page's save button — always false for an anonymous caller.",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "about",
+                    "phone",
+                    "website",
+                    "status",
+                    "web_path",
+                    "claimed_at",
+                    "claimed_by_user_id",
+                    "city",
+                    "favorited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "about": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "website": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "closed"
+                      ]
+                    },
+                    "web_path": {
+                      "type": "string"
+                    },
+                    "claimed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "claimed_by_user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "city": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "region"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "favorited": {
+                      "type": "boolean",
+                      "description": "Always false for an anonymous caller."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found (unknown id/slug, or not published)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/scans": {
       "post": {
         "summary": "Start a menu scan from a URL, pasted text, or uploaded attachments",
@@ -7867,6 +8756,157 @@
             }
           },
           "required": true
+        }
+      }
+    },
+    "/api/v1/users/{handle}": {
+      "parameters": [
+        {
+          "name": "handle",
+          "in": "path",
+          "description": "3-30 chars, [A-Za-z0-9_]",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Public user profile by handle",
+        "tags": [
+          "Users"
+        ],
+        "description": "Public — anonymous and authenticated callers get the same payload. Sensitive fields (email, dietary profile, jti, …) are intentionally absent.",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "public profile + recent visible reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "handle",
+                    "display_name",
+                    "member_since",
+                    "reviews_count",
+                    "restaurants_reviewed_count",
+                    "recent_reviews"
+                  ],
+                  "properties": {
+                    "handle": {
+                      "type": "string"
+                    },
+                    "display_name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "member_since": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reviews_count": {
+                      "type": "integer"
+                    },
+                    "restaurants_reviewed_count": {
+                      "type": "integer"
+                    },
+                    "recent_reviews": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "item",
+                          "rating",
+                          "body",
+                          "photo_url",
+                          "created_at"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "restaurant"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "restaurant": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "slug",
+                                  "name",
+                                  "web_path"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "slug": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "web_path": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "rating": {
+                            "type": "integer"
+                          },
+                          "body": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "photo_url": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown handle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -9173,6 +10213,39 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          }
+        }
+      },
+      "FavoriteRestaurantRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "status",
+          "web_path"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "closed"
+            ]
+          },
+          "web_path": {
             "type": "string"
           }
         }

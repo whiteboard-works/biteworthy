@@ -8,6 +8,7 @@ const summary = (slug: string, name: string, city = 'Durango'): RestaurantSummar
   slug,
   name,
   status: 'published',
+  web_path: `/restaurants/usa/colorado/${city.toLowerCase()}/${slug}`,
   city: { slug: city.toLowerCase(), name: city, region: 'Colorado' },
   street: null,
   latitude: null,

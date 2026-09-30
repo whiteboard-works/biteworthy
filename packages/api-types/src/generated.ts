@@ -3189,6 +3189,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cities/{city_slug}/restaurants": {
+        parameters: {
+            query: {
+                /** @description DietaryProfile slug to rank by */
+                profile: string;
+            };
+            header?: never;
+            path: {
+                city_slug: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Rank a city's published restaurants by a dietary preset
+         * @description Public. Backs the SSR /durango/[diet] SEO pages. Ranked by visible_count DESC, then name ASC. 404s on an unknown city or unknown profile slug.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description DietaryProfile slug to rank by */
+                    profile: string;
+                };
+                header?: never;
+                path: {
+                    city_slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description city + profile metadata + ranked restaurants */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            city: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                region: string | null;
+                            };
+                            profile: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                description: string | null;
+                            };
+                            restaurants: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                web_path: string;
+                                visible_count: number;
+                                hidden_count: number;
+                                total_count: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description unknown city slug */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cities": {
         parameters: {
             query?: never;
@@ -3887,6 +3970,216 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/profile/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's saved restaurants + dishes, newest first
+         * @description Authenticated. Deliberately includes draft/closed (not archived) restaurants so the page can grey out a dead link instead of hiding it.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description favorited restaurants + dishes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            restaurants: components["schemas"]["FavoriteRestaurantRef"][];
+                            items: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                /** @enum {string} */
+                                status: "draft" | "published" | "removed";
+                                restaurant: components["schemas"]["FavoriteRestaurantRef"];
+                            }[];
+                        };
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's recent restaurant visits, newest first
+         * @description Authenticated. Item counts are captured AT VIEW TIME, not recomputed.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description recent visits */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            visits: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: date */
+                                viewed_on: string;
+                                /** Format: date-time */
+                                updated_at: string;
+                                items_visible_count: number;
+                                items_hidden_count: number;
+                                restaurant: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    slug: string;
+                                    name: string;
+                                    web_path: string;
+                                    city: {
+                                        slug: string;
+                                        name: string;
+                                        region: string | null;
+                                    };
+                                };
+                            }[];
+                            total: number;
+                        };
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own reviews, newest first, hidden ones included */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the caller's reviews */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            total: number;
+                            reviews: {
+                                /** Format: uuid */
+                                id: string;
+                                item: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    /** @enum {string} */
+                                    status: "draft" | "published" | "removed";
+                                    restaurant: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        slug: string;
+                                        name: string;
+                                        web_path: string;
+                                    };
+                                };
+                                rating: number;
+                                body: string | null;
+                                photo_url: string | null;
+                                hidden: boolean;
+                                hidden_reason: string | null;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                updated_at: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profile": {
         parameters: {
             query?: never;
@@ -3997,6 +4290,158 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/restaurants/{restaurant_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restaurant UUID or slug */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask to claim a restaurant; emails a verification link
+         * @description Authenticated. Emails `<web_path>/claim?t=<token>` to the given address.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** @description Restaurant UUID or slug */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description verification sent */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            status: string;
+                            email: string;
+                            auto_acceptable: boolean;
+                            expires_at: string;
+                        };
+                    };
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description missing email */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/restaurants/{restaurant_id}/claim/verify": {
+        parameters: {
+            query?: {
+                /** @description Verification token */
+                t?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Restaurant id or slug */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Verify a claim token and mark the restaurant claimed
+         * @description Anonymous — the token alone is the credential.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Verification token */
+                    t?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description Restaurant id or slug */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description restaurant marked claimed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "claimed";
+                            restaurant: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                web_path: string;
+                                /** Format: date-time */
+                                claimed_at: string;
+                                /** Format: uuid */
+                                claimed_by_user_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description invalid, expired, or already-claimed-by-someone-else token */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            /** @enum {string} */
+                            kind: "InvalidTokenError" | "ExpiredTokenError" | "AlreadyClaimedError";
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/restaurants": {
         parameters: {
             query?: never;
@@ -4032,6 +4477,7 @@ export interface paths {
                                 slug: string;
                                 name: string;
                                 status: string;
+                                web_path: string;
                                 street: string | null;
                                 latitude: number | null;
                                 longitude: number | null;
@@ -4084,6 +4530,7 @@ export interface paths {
                             slug: string;
                             name: string;
                             status: string;
+                            web_path: string;
                             city: {
                                 /** Format: uuid */
                                 id: string;
@@ -4397,6 +4844,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/restaurants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Published restaurant id or slug */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Show one published restaurant
+         * @description Public. `favorited` seeds the detail page's save button — always false for an anonymous caller.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Published restaurant id or slug */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the restaurant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string;
+                            name: string;
+                            about: string | null;
+                            phone: string | null;
+                            website: string | null;
+                            /** @enum {string} */
+                            status: "draft" | "published" | "closed";
+                            web_path: string;
+                            /** Format: date-time */
+                            claimed_at: string | null;
+                            /** Format: uuid */
+                            claimed_by_user_id: string | null;
+                            city: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                name: string;
+                                region: string | null;
+                            };
+                            /** @description Always false for an anonymous caller. */
+                            favorited: boolean;
+                        };
+                    };
+                };
+                /** @description not found (unknown id/slug, or not published) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scans": {
         parameters: {
             query?: never;
@@ -4669,6 +5194,88 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 3-30 chars, [A-Za-z0-9_] */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Public user profile by handle
+         * @description Public — anonymous and authenticated callers get the same payload. Sensitive fields (email, dietary profile, jti, …) are intentionally absent.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 3-30 chars, [A-Za-z0-9_] */
+                    handle: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description public profile + recent visible reviews */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            handle: string;
+                            display_name: string | null;
+                            /** Format: date-time */
+                            member_since: string;
+                            reviews_count: number;
+                            restaurants_reviewed_count: number;
+                            recent_reviews: {
+                                /** Format: uuid */
+                                id: string;
+                                item: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    restaurant: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        slug: string;
+                                        name: string;
+                                        web_path: string;
+                                    };
+                                };
+                                rating: number;
+                                body: string | null;
+                                photo_url: string | null;
+                                /** Format: date-time */
+                                created_at: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description unknown handle */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5058,6 +5665,15 @@ export interface components {
             id: string;
             slug: string;
             name: string;
+        };
+        FavoriteRestaurantRef: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            /** @enum {string} */
+            status: "draft" | "published" | "closed";
+            web_path: string;
         };
         TagRef: {
             /** Format: uuid */

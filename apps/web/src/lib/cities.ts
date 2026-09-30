@@ -60,7 +60,8 @@ export interface DuplicateCandidate {
 }
 
 export type CreateRestaurantResult =
-  { kind: 'created'; slug: string } | { kind: 'duplicate'; candidates: DuplicateCandidate[] };
+  | { kind: 'created'; slug: string; web_path: string }
+  | { kind: 'duplicate'; candidates: DuplicateCandidate[] };
 
 export async function createRestaurant(
   input: {
@@ -84,6 +85,6 @@ export async function createRestaurant(
   }
   if (res.status === 401) throw new NotSignedInError();
   if (!res.ok) throw new Error(`createRestaurant failed: ${res.status}`);
-  const body = (await res.json()) as { slug: string };
-  return { kind: 'created', slug: body.slug };
+  const body = (await res.json()) as { slug: string; web_path: string };
+  return { kind: 'created', slug: body.slug, web_path: body.web_path };
 }

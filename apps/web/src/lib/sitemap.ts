@@ -34,10 +34,12 @@ export interface SitemapExtension {
    */
   dietSlugs?: string[];
   /**
-   * Phase 5.7 hook — published restaurant slugs. Each becomes
-   * `/restaurants/<slug>`. Empty until the seed run.
+   * Phase 5.7 hook — published restaurants' `web_path` (location-based
+   * URLs — `/restaurants/<country>/<region>/<city>/<slug>`), used
+   * verbatim as the sitemap URL's path. Empty until the seed run wires
+   * this up to real restaurant data.
    */
-  restaurantSlugs?: string[];
+  restaurantPaths?: string[];
 }
 
 const STATIC_ROUTES: ReadonlyArray<{
@@ -76,8 +78,8 @@ export function buildSitemapEntries(
     priority: 0.8,
   }));
 
-  const restaurantEntries: SitemapEntry[] = (options.restaurantSlugs ?? []).map((slug) => ({
-    url: `${base}/restaurants/${encodeURIComponent(slug)}`,
+  const restaurantEntries: SitemapEntry[] = (options.restaurantPaths ?? []).map((path) => ({
+    url: `${base}${path}`,
     lastModified,
     changeFrequency: 'weekly',
     priority: 0.7,

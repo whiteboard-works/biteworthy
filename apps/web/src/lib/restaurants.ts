@@ -41,6 +41,13 @@ export interface Restaurant {
   phone: string | null;
   website: string | null;
   status: string;
+  /**
+   * Location-based URLs — the canonical public path
+   * (`/restaurants/<country>/<region>/<city>/<slug>`), computed server-side
+   * by `Restaurant#web_path`. Always build restaurant links from this
+   * instead of `slug` alone.
+   */
+  web_path: string;
   /** Phase 4.9 — set when an owner has verified the claim. */
   claimed_at: string | null;
   claimed_by_user_id: string | null;
@@ -55,6 +62,8 @@ export interface RestaurantSummary {
   slug: string;
   name: string;
   status: string;
+  /** See `Restaurant.web_path`. */
+  web_path: string;
   city: { slug: string; name: string; region: string };
   street: string | null;
   latitude: number | null;

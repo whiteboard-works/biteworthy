@@ -16,7 +16,7 @@ module Api
 
       # POST /api/v1/restaurants/:restaurant_id/claim
       def create
-        restaurant = Restaurant.published.find_by_id_or_slug!(params[:restaurant_id])
+        restaurant = Restaurant.published.includes(:city).find_by_id_or_slug!(params[:restaurant_id])
         email      = params[:email].to_s.strip.downcase
 
         if email.empty? || !email.include?("@")
@@ -52,6 +52,7 @@ module Api
             id:                 restaurant.id,
             slug:               restaurant.slug,
             name:               restaurant.name,
+            web_path:           restaurant.web_path,
             claimed_at:         restaurant.claimed_at,
             claimed_by_user_id: restaurant.claimed_by_user_id
           }
@@ -62,10 +63,10 @@ module Api
 
       private
 
-      # Build the URL the email recipient clicks. The web app at
-      # PUBLIC_HOST handles /restaurants/<slug>/claim?t=<token>.
+      # Build the URL the email recipient clicks. The web app handles
+      # `<web_path>/claim?t=<token>`.
       def build_verify_url(restaurant, token)
-        "#{public_host.chomp('/')}/restaurants/#{restaurant.slug}/claim?t=#{token}"
+        "#{public_host.chomp('/')}#{restaurant.web_path}/claim?t=#{token}"
       end
     end
   end

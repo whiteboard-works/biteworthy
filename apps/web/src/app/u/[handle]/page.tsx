@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { fetchPublicUserProfile, type UserReview } from '../../../lib/users';
 import { edgeHeaders } from '../../../lib/edge-headers';
 
@@ -76,7 +77,9 @@ function ReviewRow({ review }: { review: UserReview }) {
         </span>{' '}
         on{' '}
         <Link
-          href={`/restaurants/${encodeURIComponent(review.item.restaurant.slug)}/items/${encodeURIComponent(review.item.id)}`}
+          href={
+            `${review.item.restaurant.web_path}/items/${encodeURIComponent(review.item.id)}` as Route
+          }
           className="font-bold text-zinc-900 hover:text-bite-dark"
         >
           {review.item.name}

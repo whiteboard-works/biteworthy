@@ -39,7 +39,7 @@ module Tools
 
       def self.perform(context:, restaurant:, email:)
         user    = context.user!
-        record  = Restaurant.published.find_by_id_or_slug!(restaurant)
+        record  = Restaurant.published.includes(:city).find_by_id_or_slug!(restaurant)
         address = email.to_s.strip.downcase
         raise Errors::InvalidArgument, "That does not look like an email address." unless address.include?("@")
 
@@ -61,7 +61,7 @@ module Tools
 
       def self.verify_url(context, restaurant, suggestion)
         host = context.public_host.to_s.chomp("/")
-        "#{host}/restaurants/#{restaurant.slug}/claim?t=#{suggestion.payload['token']}"
+        "#{host}#{restaurant.web_path}/claim?t=#{suggestion.payload['token']}"
       end
       private_class_method :verify_url
     end

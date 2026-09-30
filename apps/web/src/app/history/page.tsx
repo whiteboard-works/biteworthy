@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import {
   fetchHistory,
   HistoryError,
@@ -87,7 +88,7 @@ function VisitRow({ visit }: { visit: HistoryVisit }) {
   return (
     <li className="py-bw-3" data-testid={`visit-${visit.id}`}>
       <Link
-        href={`/restaurants/${encodeURIComponent(visit.restaurant.slug)}`}
+        href={visit.restaurant.web_path as Route}
         className="font-bold text-zinc-900 hover:text-bite-dark"
       >
         {visit.restaurant.name}

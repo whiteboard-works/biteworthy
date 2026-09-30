@@ -43,12 +43,18 @@ beforeEach(() => {
 
 describe('NewRestaurantForm', () => {
   it('creates the restaurant in the chosen city and goes straight to its scan', async () => {
-    mockCreate.mockResolvedValue({ kind: 'created', slug: 'red-iguana' });
+    mockCreate.mockResolvedValue({
+      kind: 'created',
+      slug: 'red-iguana',
+      web_path: '/restaurants/usa/utah/salt-lake-city/red-iguana',
+    });
     render(<NewRestaurantForm cities={[DURANGO, SLC]} />);
 
     fill('Red Iguana');
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/restaurants/red-iguana/scan'));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana/scan'),
+    );
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Red Iguana', city_slug: 'salt-lake-city', force: false }),
     );
@@ -68,10 +74,16 @@ describe('NewRestaurantForm', () => {
     await screen.findByTestId('new-restaurant-duplicates');
     expect(mockPush).not.toHaveBeenCalled();
 
-    mockCreate.mockResolvedValueOnce({ kind: 'created', slug: 'red-iguana-2' });
+    mockCreate.mockResolvedValueOnce({
+      kind: 'created',
+      slug: 'red-iguana-2',
+      web_path: '/restaurants/usa/utah/salt-lake-city/red-iguana-2',
+    });
     fireEvent.click(screen.getByTestId('new-restaurant-force'));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/restaurants/red-iguana-2/scan'));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana-2/scan'),
+    );
     expect(mockCreate).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }));
   });
 

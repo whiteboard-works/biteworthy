@@ -1042,12 +1042,23 @@ function compose(text: string, attachments: Attachment[]): string {
 }
 
 /** The chat lives at /chat, so the useful signal is where the user came
- *  from — a restaurant page is the case that matters. */
+ *  from — a restaurant page is the case that matters.
+ *
+ * Location-based URLs — the slug is now the 4th segment
+ * (`/restaurants/<country>/<region>/<city>/<slug>`). The old 1-segment
+ * shape (`/restaurants/<slug>`, still reachable during the redirect
+ * window and from any stale referrer) is tried as a fallback, anchored so
+ * a location listing (`/restaurants/usa/colorado`) or `/restaurants/new`
+ * isn't read as a restaurant. */
 function pageContext(): PageContext | undefined {
   if (typeof document === 'undefined') return undefined;
   const from = new URL(document.referrer || document.location.href, document.location.href);
   if (from.origin !== document.location.origin) return undefined;
-  const restaurant = /^\/restaurants\/([^/]+)/.exec(from.pathname)?.[1];
+  const restaurant =
+    /^\/restaurants\/[^/]+\/[^/]+\/[^/]+\/([^/]+)/.exec(from.pathname)?.[1] ??
+    /^\/restaurants\/(?!new\/?$)([^/]+)(?:\/(?:scan|claim|suggestions|items\/[^/]+))?\/?$/.exec(
+      from.pathname,
+    )?.[1];
   return restaurant ? { path: from.pathname, restaurant } : undefined;
 }
 

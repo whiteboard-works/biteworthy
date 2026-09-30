@@ -18,7 +18,7 @@ export function RestaurantCards({
       {restaurants.map((r) => (
         <li key={r.id}>
           <Link
-            href={`/restaurants/${r.slug}` as Route}
+            href={r.web_path as Route}
             data-testid={`restaurant-card-${r.slug}`}
             className="flex h-full flex-col rounded-bw-lg border border-zinc-200 bg-white p-bw-5 shadow-sm transition hover:border-bite hover:shadow-md"
           >

@@ -9,7 +9,7 @@ import {
   type RestaurantItemsResponse,
 } from '../../lib/restaurants';
 import { getScan, type ScanDish, type ScanStatus } from '../../lib/scans';
-import { HiddenReasonChip } from '../restaurants/[slug]/SectionList';
+import { HiddenReasonChip } from '../restaurants/[country]/[region]/[city]/[slug]/SectionList';
 
 /**
  * What the assistant is acting on, drawn beside the transcript.

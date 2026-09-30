@@ -55,6 +55,8 @@ export interface CityRanked {
     id: string;
     slug: string;
     name: string;
+    /** See `Restaurant.web_path` in lib/restaurants.ts. */
+    web_path: string;
     visible_count: number;
     hidden_count: number;
     total_count: number;
