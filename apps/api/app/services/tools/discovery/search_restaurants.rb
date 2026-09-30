@@ -145,6 +145,10 @@ module Tools
           return ranked_by_diet(city_slug, diet, limit, applied, here: here)
         end
 
+        if city_slug.present? && !City.exists?(slug: city_slug)
+          raise Errors::NotFound, "No city with slug #{city_slug.inspect}. Try list_cities."
+        end
+
         scope = Restaurant.published.includes(:city, :addresses)
         scope = scope.joins(:city).where(cities: { slug: city_slug }) if city_slug.present?
         if query.present?
@@ -200,11 +204,13 @@ module Tools
       end
       private_class_method :city_within?
 
+      # The nearest of its locations: the box admits a restaurant on any
+      # address in range, so the exact check has to agree with it.
       def self.distance_km(restaurant, here)
-        address = restaurant.addresses.find { |a| a.latitude && a.longitude }
-        return nil if address.nil?
-
-        Geo.distance_km(here["lat"], here["lng"], address.latitude, address.longitude)
+        restaurant.addresses
+                  .select { |a| a.latitude && a.longitude }
+                  .map { |a| Geo.distance_km(here["lat"], here["lng"], a.latitude, a.longitude) }
+                  .min
       end
       private_class_method :distance_km
 
@@ -220,6 +226,8 @@ module Tools
         # Ranking is a single grouped query over the whole city; slicing
         # in Ruby keeps the `visible_count DESC, name ASC` order intact.
         ranked = Cities::RestaurantRanking.new(city: city, dietary_profile: preset).call.first(limit)
+        # One query for every row's addresses, not one per row.
+        ActiveRecord::Associations::Preloader.new(records: ranked.map(&:restaurant), associations: :addresses).call
 
         ok(
           **applied,

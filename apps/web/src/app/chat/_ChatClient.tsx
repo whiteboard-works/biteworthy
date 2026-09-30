@@ -621,8 +621,9 @@ export function ChatClient(): ReactElement {
       // the previous chat's mode — `auto` where this chat asked for
       // `manual` is a skipped confirmation.
       const sendMode = known && known.id !== active?.id ? (known.mode ?? 'manual') : mode;
+      const here = await deviceLocation.current();
       return await run(id, () =>
-        sendMessage(id, composed, withLocation(pageContext(), deviceLocation.current()), sendMode),
+        sendMessage(id, composed, withLocation(pageContext(), here), sendMode),
       );
     } finally {
       release();

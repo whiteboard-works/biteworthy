@@ -154,6 +154,22 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
       expect(payload(response)[:message]).to include("Use my location")
     end
 
+    # Any address in range admits a restaurant, so its distance is to the
+    # nearest one, whichever order the rows come back in.
+    it "measures a multi-location restaurant to its nearest address" do
+      ninis.addresses.create!(street: "Far away", latitude: 40.0, longitude: -105.0)
+      ninis.addresses.create!(street: "Next door", latitude: 37.2755, longitude: -107.8801)
+
+      expect(payload(near)[:restaurants].find { |r| r[:name] == "Ninis Taqueria" }[:distance_km]).to eq(0.1)
+    end
+
+    it "says so when a named city does not exist rather than returning nothing" do
+      response = near(city_slug: "durango-co")
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(payload(response)[:message]).to include("list_cities")
+    end
+
     it "refuses near_me alongside anywhere" do
       expect(near(anywhere: true).to_h[:isError]).to be(true)
     end
