@@ -1,6 +1,6 @@
 # AGENTS.md — apps/web (Next.js)
 
-<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
+<!-- BEGIN codex-review-guidelines -->
 ## Review guidelines
 
 **Context:** The Next.js web client for BiteWorthy. It does **not** compute the visible/hidden menu set — the Rails API does, and this app renders the `status` / `reasons` each item arrives with. `@biteworthy/filter-engine` supplies the wire types and the presentation helpers (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), not a filter. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)

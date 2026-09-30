@@ -1,6 +1,6 @@
 # AGENTS.md — apps/api (Rails)
 
-<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
+<!-- BEGIN codex-review-guidelines -->
 ## Review guidelines
 
 **Context:** The Rails API behind BiteWorthy's dietary filter, and the only place the filter runs — the clients render the `status` / `reasons` this app emits, so a bug here reaches every surface with nothing downstream to catch it. Allergen safety and the E1–E13 legal columns are the stakes: a wrong join-row confidence or a dropped safety/consent column can show an unsafe item to an allergic user or break a legal guarantee. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)

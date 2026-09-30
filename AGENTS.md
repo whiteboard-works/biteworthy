@@ -65,11 +65,11 @@ soften or flag it rather than leaving it stale.
 Pnpm + Turborepo monorepo. Three apps + six shared packages:
 
 - `apps/api` — Rails 8 (Ruby 3.3.6) JSON API on Postgres 16. **Not** part of the pnpm workspace; lives as its own Bundler tree.
-- `apps/web` — Next.js 15 App Router + Tailwind. Dev port `:3001`.
+- `apps/web` — Next.js 16 App Router + Tailwind. Dev port `:3001`.
 - `apps/mobile` — Expo SDK 56 + expo-router.
 - `packages/api-types` — TS types codegen'd from `docs/openapi.json` (see Cross-package contracts below).
 - `packages/filter-engine` — the menu wire types plus the presentation helpers web + mobile share (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), with Vitest tests. **It does not filter** — despite the name, no client decides visible/hidden.
-- `packages/analytics` — the funnel-event taxonomy (`EVENTS` map + `EventPropsMap`; 9 core funnel/engagement events + 3 auth events). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add new events + optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
+- `packages/analytics` — the funnel-event taxonomy (`EVENTS` map + `EventPropsMap`; 18 events: 9 core funnel/engagement, 3 auth, 3 chat, 3 scan). Event names/payloads are a contract with the launch dashboards — **renaming an event breaks downstream funnels**; add new events + optional fields freely. `docs/analytics.md` documents each event; when doc and types disagree, the types win.
 - `packages/ui-tokens` — design tokens consumed by Tailwind (web) and `StyleSheet.create` (mobile).
 - `packages/eslint-config` — minimal flat config; framework rules live per-app.
 - `packages/version-history` — the calver release log (`YYYY.M.D[.X]`): `src/history.json` is the source of truth, `pnpm bump --note "…"` prepends a release, a contract test rejects malformed edits, and web (`/updates` + footer) and mobile (home screen) render its exports.
@@ -88,7 +88,7 @@ pnpm dev                   # turbo: boots web + mobile in parallel (api is separ
 pnpm build                 # turbo build across packages + apps
 pnpm typecheck             # turbo typecheck
 pnpm lint                  # turbo lint
-pnpm test                  # turbo test (Vitest for packages/web, Jest for mobile)
+pnpm test                  # turbo test (Vitest for web + packages, Jest for mobile)
 
 pnpm api <script>          # alias for: pnpm --filter @biteworthy/api ... (no JS scripts yet — use bin/rails)
 pnpm web <script>          # alias for: pnpm --filter @biteworthy/web ...
@@ -146,7 +146,7 @@ The array-overlap SQL does exist, just not here — `Cities::RestaurantRanking` 
 
 Two consequences that affect almost every change in `app/models/item*.rb`:
 
-1. **Items carry denormalized `ingredient_ids uuid[]` and `tag_ids uuid[]`.** The Ruby filter, `TasteScoring`, and `Cities::RestaurantRanking` all read them, which is what keeps a restaurant page to a couple of queries instead of a join per item. The `ItemIngredient` and `ItemTag` join tables are the source of truth + audit log; `after_save`/`after_destroy` callbacks on the joins keep the arrays in sync. **Never write to the arrays directly** — write to the joins. **Reading them has a trap**: `item.ingredient_ids` resolves to the has_many-through reader, which shadows the identically-named column and costs a query per item — use `item.denormalized_ingredient_ids` / `denormalized_tag_ids` unless you actually need the join rows.
+1. **Items carry denormalized `ingredient_ids uuid[]` and `tag_ids uuid[]`.** The Ruby filter, `TasteScoring`, and `Cities::RestaurantRanking` all read them, which is what keeps a restaurant page to a couple of queries instead of a join per item. The `ItemIngredient` and `ItemTag` join tables are the source of truth + audit log; the `SyncsDenormalizedIds` concern on the joins rebuilds the arrays from the join rows after save/destroy (bulk writers wrap in `Item.defer_denormalization`). **Never write to the arrays directly** — write to the joins. **Reading them has a trap**: `item.ingredient_ids` resolves to the has_many-through reader, which shadows the identically-named column and costs a query per item — use `item.denormalized_ingredient_ids` / `denormalized_tag_ids` unless you actually need the join rows.
 2. **Every join row has `confidence` (`confirmed | suggested | inferred`) and `source` (`human | ai | owner`).** Strict-mode users (`user_profiles.strictness = 'strict'`) only see items where every association is `confirmed`. The honest-disclosure UX depends on these columns being accurate.
 
 **There is exactly one filter, and it is the server's.** `Menus::Filter#reasons_for` decides `status` / `reasons`; web and mobile render what they receive and never recompute it. The same goes for ranking — `TasteScoring` emits `taste_score` / `taste_reasons` and the clients only select and phrase (`topPicksFromScores`, `tasteReasonLine`). A hand-mirrored TS copy of both used to live in `packages/filter-engine` with a lockstep rule attached; it was deleted in Aug 2026 because nothing ever called it, and its "parity" test compared TS to TS.
@@ -165,11 +165,11 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 
 ## Conventions specific to this repo
 
-- **Code style is enforced by `.prettierrc` at the repo root**: semicolons ON, single quotes, trailing commas, 100-col, 2-space. This **overrides** any conflicting global preference (e.g. `~/CLAUDE.md` says no semis / double quotes — that does not apply here; this repo uses semis + single quotes).
+- **Code style is enforced by `.prettierrc` at the repo root**: semicolons ON, single quotes, trailing commas, 100-col, 2-space. This **overrides** any conflicting global preference (a global agent-instructions file saying no semis / double quotes does not apply here; this repo uses semis + single quotes).
 - TypeScript everywhere uses `tsconfig.base.json` (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `moduleResolution: bundler`).
 - Conventional commits are required by `pr-title.yml` workflow: `feat(api): …`, `fix(web): …`, `docs: …`, `chore(ci): …`.
 - Branch naming for delivery-loop work: `claude/<phase-slug>` (e.g. `claude/phase-1.2-omniauth`).
-- **`.github/workflows/auto-merge.yml` enables squash auto-merge on every non-draft PR**, so a PR merges itself the moment required checks go green. The `claude-cd` / `auto-merge-ok` label gate was dropped 2026-04-29 and the labels are now tagging only — withholding them does **not** hold a PR back. Two consequences worth internalizing: review a change *before* opening the PR, because afterwards there may be no window; and open a draft if you need one to stay put. `docs/delivery-playbook.md` §"Auto-merge policy" is the authority (its earlier sections still describe the pre-2026-04-29 gate).
+- **`.github/workflows/auto-merge.yml` enables squash auto-merge on every non-draft PR**, so a PR merges itself the moment required checks go green. The `claude-cd` / `auto-merge-ok` label gate was dropped 2026-04-29 and the labels are now tagging only — withholding them does **not** hold a PR back. Two consequences worth internalizing: review a change *before* opening the PR, because afterwards there may be no window; and open a draft if you need one to stay put. `docs/delivery-playbook.md` §"Auto-merge policy" is the authority.
 - `master` is the default branch (not `main`).
 - **Never edit a previously-shipped migration.** Add a new one. The auto-merge policy in `docs/delivery-playbook.md` blocks destructive edits under `apps/api/db/migrate/`.
 - **Never modify anything under `_legacy/`.** It's frozen reference material.
@@ -189,16 +189,16 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 
 ## CI
 
-Two workflows gate PRs:
+Two workflows run the test suites:
 
 - `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, `docs/openapi.json`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test` → api-types codegen drift check.
 - `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman and Rubocop run in the same job and both block** (neither has `continue-on-error`). Rubocop inherits Rails' omakase style plus a generated `.rubocop_todo.yml` that freezes the pre-existing offences, so new code has to be clean while the backlog stays grandfathered — run `bundle exec rubocop --parallel` before pushing rather than adding a todo entry.
 
-Both are required for auto-merge. Don't request human review on red.
+Branch protection requires four check runs: those two jobs plus the two CodeQL language jobs (`javascript-typescript`, `ruby`). Don't request human review on red.
 
-Other workflows run but don't gate auto-merge: `migration-guard.yml` (blocks edits to previously-shipped migrations under `apps/api/db/migrate/`), `ci-nightly.yml` (nightly full suite), `codeql.yml` (security scan), `expo-align.yml` (mobile Expo-SDK dependency alignment), `labeler.yml` (auto-labels PRs, feeds the auto-merge opt-in), `pr-title.yml` (conventional-commit title check), `auto-merge.yml` (the merge driver), `deploy-api.yml` (runs `kamal deploy` to Hetzner on merge to master touching `apps/api/**`, or on manual `workflow_dispatch`; needs the `KAMAL_SECRETS_B64`, `SSH_PRIVATE_KEY`, and `SSH_KNOWN_HOSTS` repo secrets — the last pins the box's host keys, so re-pin it only after confirming a genuine rebuild, never to clear a host-key error).
+Other workflows run but don't gate auto-merge: `migration-guard.yml` (blocks edits to previously-shipped migrations under `apps/api/db/migrate/`), `ci-nightly.yml` (nightly full suite), `codeql.yml` (security scan), `expo-align.yml` (mobile Expo-SDK dependency alignment), `labeler.yml` (auto-applies `area:*` labels), `pr-title.yml` (conventional-commit title check), `auto-merge.yml` (the merge driver), `deploy-api.yml` (runs `kamal deploy` to Hetzner on merge to master touching `apps/api/**` or the workflow file itself, or on manual `workflow_dispatch`; needs the `KAMAL_SECRETS_B64`, `SSH_PRIVATE_KEY`, and `SSH_KNOWN_HOSTS` repo secrets — the last pins the box's host keys, so re-pin it only after confirming a genuine rebuild, never to clear a host-key error).
 
-<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
+<!-- BEGIN codex-review-guidelines -->
 ## Review guidelines
 
 **Context:** BiteWorthy is a dietary-filter app — users set avoid lists and are shown only menu items safe for them — shipped as a monorepo: a Rails API (`apps/api`), a Next.js web app (`apps/web`), an Expo mobile app (`apps/mobile`), and shared TypeScript packages under `packages/` (`filter-engine`, `analytics`, `api-types`, `ui-tokens`, `eslint-config`, `version-history`). The safe/unsafe decision is made in exactly one place — `Menus::Filter#reasons_for` in the Rails API — and both clients render the `status` / `reasons` they receive. `packages/filter-engine` holds shared *presentation* helpers and wire types only, despite the name; there is no client-side filter. **The worst failure is an unsafe item shown as safe to an allergic user.** Legal remediation E1–E13 (GDPR/CCPA, allergen disclosure) is baked into the schema and the analytics contract. (This is the repo-root block covering cross-package contracts; see the nested `apps/*/AGENTS.md` for per-stack rules.)
@@ -208,7 +208,7 @@ GitHub surfaces only P0/P1 findings, so phrase issues as block-worthy and escala
 Block a PR (P0/P1) when it:
 
 - **Adds a second implementation of the filter.** `Menus::Filter#reasons_for` is the only place an item becomes visible or hidden, and any other consumer of an avoid list must route through `Menus::Filter.resolve_subtrees` so a parent node still hides its descendants (`Cities::RestaurantRanking`, which counts the same dishes in SQL for the SEO pages, is the one other consumer). Reject a new copy of the rule — in TypeScript or in SQL — unless it comes with a shared fixture generated from `Menus::Query#serialize` that both suites assert against. A copy checked only against expectations written in its own language proves nothing; the repo shipped exactly that for months.
-- **Writes `items.ingredient_ids` or `items.tag_ids` directly.** These columns are denormalized by `ItemIngredient#sync_item_ingredient_ids` / `ItemTag#sync_item_tag_ids` (`update_columns` on save/destroy). A direct write corrupts the array index and can make an unsafe item match as safe.
+- **Writes `items.ingredient_ids` or `items.tag_ids` directly.** These columns are denormalized by the `SyncsDenormalizedIds` concern (`sync_denormalized_ids` after save/destroy on the join rows). A direct write corrupts the array index and can make an unsafe item match as safe.
 - **Renames or removes a `packages/analytics` event or field.** The names in `EVENTS` and their property shapes are a dashboard contract. In particular `profile_set` must not re-acquire the health fields removed for legal E7 (`preset_slug`, `strictness`, avoid-list counts). Adding optional fields is fine; renames need a coordinated dashboard change.
 - **Changes an API endpoint without regenerating types.** A new/changed endpoint must regenerate `docs/openapi.json` and `@biteworthy/api-types` in the same PR. `codegen:check` gates drift, but only for endpoints that have rswag specs — so also confirm the endpoint has one (see `apps/api/AGENTS.md`).
 - **Edits anything under `_legacy/`.** It is frozen reference material; any change — even a comment — is wrong.

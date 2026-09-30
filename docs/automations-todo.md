@@ -15,7 +15,7 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
    enforced — done in #280. Path filters moved from the `pull_request`
    trigger into a `changes` job (`dorny/paths-filter`, bumped to v4 by
    #282) gating the heavy job; skipped jobs satisfy required checks.
-   Brakeman was clean → now blocking; Rubocop stays informational.
+   Brakeman was clean → now blocking; Rubocop became blocking later (see `ci-api.yml`).
    Codegen drift check now prints exact fix commands on failure.
 2. [x] **Enforce required status checks on `master` branch protection**
    — applied 2026-06-11 via `gh api` (the token had admin). Required

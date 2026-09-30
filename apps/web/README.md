@@ -1,6 +1,6 @@
 # BiteWorthy Web
 
-Next.js 15 (App Router) + Tailwind. Dev server on `:3001`; the Rails API
+Next.js 16 (App Router) + Tailwind. Dev server on `:3001`; the Rails API
 runs on `:3000`.
 
 ## Local

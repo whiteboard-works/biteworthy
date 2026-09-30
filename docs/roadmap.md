@@ -2,7 +2,7 @@
 
 The phase plan. Each phase ends with a real demo. The autonomous
 delivery loop reads the **Next up** queue below to pick its next PR;
-live phases link to a `docs/plans/phase-N.md` subplan with the gory
+live plans link to a subplan under `docs/plans/` with the gory
 details (shipped subplans are archived under `docs/plans/archive/`).
 
 ## Status
@@ -351,9 +351,8 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   hand-written for them. One PR could rswag the lot + re-run codegen.
 - **Auto-merge race lost a follow-on commit (#150, #172)** — twice a
   second commit was added before CI finished and auto-merge had already
-  enabled on the first sha and squashed without the second diff. Either
-  push everything in one go, or gate auto-merge on a manual "ready"
-  label after final push.
+  enabled on the first sha and squashed without the second diff. Resolved in
+  practice: open as a draft until review is clean, then mark ready.
   - **Stacked-PR variant (#493/#494/#495, 2026-07-31)** — three PRs
     based on each other were all marked ready at once. `auto-merge.yml`
     fires on `ready_for_review` for every non-draft PR, so each merged
