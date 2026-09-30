@@ -589,7 +589,7 @@ RSpec.configure do |config|
                          avoid_ingredients avoid_tags
                          liked_ingredients liked_tags
                          disliked_ingredients disliked_tags
-                         strictness primary_dietary_profile
+                         strictness primary_dietary_profile home_city
                          disclaimer_acknowledged_at],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
@@ -617,6 +617,20 @@ RSpec.configure do |config|
                   id:   { type: :string, format: :uuid },
                   slug: { type: :string },
                   name: { type: :string }
+                }
+              },
+              # Where they usually are — a default for "nearby" in the chat
+              # and nothing else. Set with `home_city_slug` on PATCH; blank
+              # clears it.
+              home_city: {
+                type: :object, nullable: true,
+                required: %w[id slug name region country],
+                properties: {
+                  id:      { type: :string, format: :uuid },
+                  slug:    { type: :string },
+                  name:    { type: :string },
+                  region:  { type: :string, nullable: true },
+                  country: { type: :string }
                 }
               },
               # Legal remediation E1 — ISO-8601 timestamp of when the

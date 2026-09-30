@@ -23,6 +23,7 @@ module Tools
           {
             strictness:           profile.strictness,
             primary_preset:       profile.primary_dietary_profile&.slug,
+            home_city:            profile.home_city&.summary&.slice(:slug, :name, :region),
             avoid_ingredients:    slugs(profile.avoid_ingredient_ids, ingredients),
             avoid_tags:           slugs(profile.avoid_tag_ids, tags),
             liked_ingredients:    slugs(profile.liked_ingredient_ids, ingredients),

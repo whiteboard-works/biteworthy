@@ -6688,6 +6688,11 @@
                   "dietary_profile_slug": {
                     "type": "string"
                   },
+                  "home_city_slug": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "A city slug from GET /cities sets the home city; null or blank clears it."
+                  },
                   "acknowledge_disclaimer": {
                     "type": "boolean",
                     "description": "When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding."
@@ -9221,6 +9226,7 @@
           "disliked_tags",
           "strictness",
           "primary_dietary_profile",
+          "home_city",
           "disclaimer_acknowledged_at"
         ],
         "properties": {
@@ -9329,6 +9335,36 @@
                 "type": "string"
               },
               "name": {
+                "type": "string"
+              }
+            }
+          },
+          "home_city": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "region",
+              "country"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "region": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
                 "type": "string"
               }
             }

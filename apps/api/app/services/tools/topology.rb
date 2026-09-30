@@ -17,7 +17,7 @@ module Tools
     DOMAIN_SUMMARIES = {
       meta:      "This map. Read it when a request is open-ended and the route is not obvious.",
       discovery: "Find restaurants and read filtered menus. Where almost every conversation starts.",
-      profile:   "The caller's own avoid lists, strictness, and saved places. Changes what they are shown.",
+      profile:   "The caller's own avoid lists, strictness, home city, and saved places. Changes what they are shown.",
       reviews:   "Per-dish ratings. Reading is public; writing is the caller's own words only.",
       suggestions: "Propose a fix to somebody else's menu data, and — if you own the restaurant — decide one.",
       claims:    "Prove you run a restaurant, which unlocks its correction queue.",
@@ -45,7 +45,9 @@ module Tools
         arguments: %i[city],
         steps: %w[search_restaurants get_menu explain_item],
         note: "get_menu returns hidden dishes WITH their reasons. Report them — a shorter " \
-              "list with no explanation is not the answer. explain_item is for \"why not?\"."
+              "list with no explanation is not the answer. explain_item is for \"why not?\". " \
+              "A signed-in caller with a home city can omit city_slug on a listing or diet ranking " \
+              "when the credential can read their profile."
       },
       {
         name: "Set up or adjust what gets hidden",

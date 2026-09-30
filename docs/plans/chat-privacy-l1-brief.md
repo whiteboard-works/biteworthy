@@ -46,6 +46,16 @@ subject is what they cannot eat.
 `Chat::SystemPrompt` (`apps/api/app/services/chat/system_prompt.rb:99-118`)
 embeds a snapshot for every signed-in caller:
 
+**Update 2026-09-30 (#738):** the snapshot now also carries the caller's
+home city when they set one (`user_profiles.home_city_id`, a city, never
+coordinates). The `/privacy` text was deliberately left unchanged in that
+PR — the owner chose to hold policy wording for this sign-off — so two
+things now wait on it: the Anthropic bullet above (which should say the
+chat sends messages, the dietary profile including home city, and menu
+data, none of it used for training), and the "Dietary profile" item under
+what is stored, which should list the home city (a city, never a precise
+location). Proposed wording was drafted and reverted in #738's history.
+
 - Strictness setting
 - **Avoided ingredients, by name**
 - **Avoided tags, by name**

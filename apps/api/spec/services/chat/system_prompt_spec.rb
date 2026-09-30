@@ -86,6 +86,19 @@ RSpec.describe Chat::SystemPrompt do
       expect(volatile).to include("strict")
     end
 
+    # "What's nearby" has an answer only if the prompt knows where they
+    # are — and says so when it does not, rather than letting the model
+    # assume the launch city.
+    it "names the caller's home city, or says it is not set" do
+      expect(described_class.new(context: context).volatile).to include("Home city: not set").and include("set_home_city")
+
+      user.profile.update!(home_city: create(:city, slug: "durango", name: "Durango", region: "CO"))
+
+      # A fresh context: the memoized one resolved its user before the update.
+      fresh = Tools::Context.new({ user_id: user.id })
+      expect(described_class.new(context: fresh).volatile).to include("Home city: Durango")
+    end
+
     # A snapshot goes stale the moment the model edits the profile, and a
     # model trusting it over the tool's own answer would report a change
     # it just made as not having happened.

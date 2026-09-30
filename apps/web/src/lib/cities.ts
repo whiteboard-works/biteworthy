@@ -29,6 +29,18 @@ export async function fetchCities(
   return body.cities;
 }
 
+/**
+ * The same list from the browser, through the Next proxy at `/api/cities`
+ * — same-origin like every other signed-in page call, so the visitor is
+ * the one Rails throttles and nothing depends on CORS.
+ */
+export async function fetchCitiesClient(): Promise<City[]> {
+  const res = await fetch('/api/cities', { credentials: 'same-origin', cache: 'no-store' });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  const body = (await res.json()) as { cities: City[] };
+  return body.cities;
+}
+
 export async function createCity(
   input: { name: string; region: string },
   fetchImpl: typeof fetch = fetch,

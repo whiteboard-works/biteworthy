@@ -3958,6 +3958,8 @@ export interface paths {
                         /** @enum {string} */
                         strictness?: "relaxed" | "balanced" | "strict";
                         dietary_profile_slug?: string;
+                        /** @description A city slug from GET /cities sets the home city; null or blank clears it. */
+                        home_city_slug?: string | null;
                         /** @description When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding. */
                         acknowledge_disclaimer?: boolean;
                     };
@@ -5086,6 +5088,14 @@ export interface components {
                 id?: string;
                 slug?: string;
                 name?: string;
+            } | null;
+            home_city: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+                region: string | null;
+                country: string;
             } | null;
             /** Format: date-time */
             disclaimer_acknowledged_at: string | null;

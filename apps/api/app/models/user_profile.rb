@@ -20,6 +20,8 @@ class UserProfile < ApplicationRecord
 
   belongs_to :user
   belongs_to :primary_dietary_profile, class_name: "DietaryProfile", optional: true
+  # Where they usually are — a default for "nearby", never a filter.
+  belongs_to :home_city, class_name: "City", optional: true
 
   validates :strictness, inclusion: { in: STRICTNESS }
   validate :taste_signals_disjoint

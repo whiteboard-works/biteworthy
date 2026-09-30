@@ -24,6 +24,8 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 
 - [x] Add cities (admin: `create_city` tool, `/admin/cities`) and add restaurants from the web (`/restaurants/new`); `list_cities` lets the chat find a city with nothing published yet.
 - [ ] Location URLs: `/restaurants/usa/colorado/durango/<slug>`, with 301s from the old `/restaurants/<slug>`.
+- [x] Home city on the profile (`set_home_city`, settings picker): "what's nearby" in chat defaults `search_restaurants` to it. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
+- [ ] Location P2 — device location per turn (`PageContext` lat/lng behind a "Use my location" control) and distance ranking in `search_restaurants` over `addresses.latitude/longitude`; verify production address coverage first (`/sb-hc`). Detail in the plan's P2 section.
 
 ## MVP speed + UI pass (shipped 2026-09-27, #695–#707)
 

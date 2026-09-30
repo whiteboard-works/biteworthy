@@ -65,6 +65,10 @@ RSpec.describe "profile", type: :request do
           disliked_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
           strictness:           { type: :string, enum: %w[relaxed balanced strict] },
           dietary_profile_slug: { type: :string },
+          home_city_slug: {
+            type: :string, nullable: true,
+            description: "A city slug from GET /cities sets the home city; null or blank clears it."
+          },
           acknowledge_disclaimer: {
             type: :boolean,
             description: "When true, server-stamps disclaimer_acknowledged_at " \

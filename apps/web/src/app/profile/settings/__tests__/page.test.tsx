@@ -55,6 +55,11 @@ vi.mock('../../../../lib/mcp-tokens', () => ({
   revokeToken: (...a: unknown[]) => mockRevokeToken(...a),
 }));
 
+const mockFetchCitiesClient = vi.fn();
+vi.mock('../../../../lib/cities', () => ({
+  fetchCitiesClient: (...a: unknown[]) => mockFetchCitiesClient(...a),
+}));
+
 const mockFetchMe = vi.fn();
 const mockUpdateMyHandle = vi.fn();
 vi.mock('../../../../lib/me', () => {
@@ -100,6 +105,7 @@ const PROFILE: ProfilePayload = {
   disliked_tags: [],
   strictness: 'balanced',
   primary_dietary_profile: { id: 'dp-vegan', slug: 'vegan', name: 'Vegan' },
+  home_city: null,
   disclaimer_acknowledged_at: '2026-07-01T00:00:00Z',
 };
 
@@ -122,6 +128,10 @@ beforeEach(() => {
     { slug: 'keto', name: 'Keto', description: 'Low carb' },
   ]);
   mockSearchIngredients.mockReset().mockResolvedValue([]);
+  mockFetchCitiesClient.mockReset().mockResolvedValue([
+    { id: 'c-1', slug: 'durango', name: 'Durango', region: 'CO', country: 'US' },
+    { id: 'c-2', slug: 'salt-lake-city', name: 'Salt Lake City', region: 'UT', country: 'US' },
+  ]);
   mockFetchMyReviews.mockReset().mockResolvedValue({ reviews: [], total: 0 });
   mockFetchMyFavorites.mockReset().mockResolvedValue({ restaurants: [], items: [] });
   mockListTokens.mockReset().mockResolvedValue({
@@ -153,6 +163,28 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     expect(screen.getByTestId('pref-taste')).toHaveTextContent('Thai');
     expect(screen.getByTestId('pref-taste')).toHaveTextContent('Basil');
     expect(screen.getByTestId('set-strictness-balanced')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  // A city slug, not an id, and the one field — the same partial-patch
+  // rule as strictness, for the same reason.
+  it('sets and clears the home city via a partial patch', async () => {
+    render(<ProfileSettingsPage />);
+    const select = await screen.findByLabelText('Home city');
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Salt Lake City, UT' })).toBeInTheDocument(),
+    );
+
+    fireEvent.change(select, { target: { value: 'salt-lake-city' } });
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ home_city_slug: 'salt-lake-city' }),
+    );
+
+    mockUpdateProfile.mockResolvedValueOnce({
+      ...structuredClone(PROFILE),
+      home_city: { id: 'c-2', slug: 'salt-lake-city', name: 'Salt Lake City', region: 'UT', country: 'US' },
+    });
+    fireEvent.change(select, { target: { value: '' } });
+    await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalledWith({ home_city_slug: null }));
   });
 
   it('changes strictness via a partial patch', async () => {

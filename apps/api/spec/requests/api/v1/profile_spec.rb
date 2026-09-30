@@ -77,6 +77,50 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
     let(:vegan_tag) { create(:tag, slug: "diet-vegan") }
     let(:fried_tag) { create(:tag, slug: "prep-fried") }
 
+    describe "home city" do
+      let!(:durango) { create(:city, slug: "durango", name: "Durango", region: "CO") }
+
+      it "sets it from a slug and returns it resolved" do
+        patch "/api/v1/profile", params: { home_city_slug: "durango" }.to_json, headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["home_city"]).to include("slug" => "durango", "name" => "Durango")
+        expect(user.profile.reload.home_city).to eq(durango)
+      end
+
+      it "clears it with a blank slug" do
+        user.profile.update!(home_city: durango)
+
+        patch "/api/v1/profile", params: { home_city_slug: "" }.to_json, headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["home_city"]).to be_nil
+        expect(user.profile.reload.home_city).to be_nil
+      end
+
+      # What the settings page actually sends.
+      it "clears it with JSON null" do
+        user.profile.update!(home_city: durango)
+
+        patch "/api/v1/profile", params: { home_city_slug: nil }.to_json, headers: headers
+
+        expect(response).to have_http_status(:ok)
+        expect(user.profile.reload.home_city).to be_nil
+      end
+
+      it "rejects a slug that is not a city" do
+        patch "/api/v1/profile", params: { home_city_slug: "atlantis" }.to_json, headers: headers
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "reads back null until one is set" do
+        get "/api/v1/profile", headers: headers
+
+        expect(response.parsed_body).to include("home_city" => nil)
+      end
+    end
+
     # Wholesale replacement is right for a wizard and wrong for a settings
     # page. The wizard just built the list in front of the person, so what
     # it sends is the answer. A settings page sends an array rebuilt from

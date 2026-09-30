@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -690,6 +690,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_230000) do
     t.string "strictness", default: "balanced", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.uuid "home_city_id"
+    t.index ["home_city_id"], name: "index_user_profiles_on_home_city_id"
     t.index ["primary_dietary_profile_id"], name: "index_user_profiles_on_primary_dietary_profile_id"
     t.index ["user_id"], name: "index_user_profiles_on_user_id", unique: true
     t.check_constraint "strictness::text = ANY (ARRAY['relaxed'::character varying::text, 'balanced'::character varying::text, 'strict'::character varying::text])", name: "user_profiles_strictness_valid"
@@ -789,6 +791,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_230000) do
   add_foreign_key "suggestions", "users", column: "resolved_by_user_id"
   add_foreign_key "user_item_overrides", "items"
   add_foreign_key "user_item_overrides", "users"
+  add_foreign_key "user_profiles", "cities", column: "home_city_id", on_delete: :nullify
   add_foreign_key "user_profiles", "dietary_profiles", column: "primary_dietary_profile_id"
   add_foreign_key "user_profiles", "users"
 end
