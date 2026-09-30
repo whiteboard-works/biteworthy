@@ -165,11 +165,11 @@ fixes the loop can ship while the human does Track A.
 
 ### Visibility — so people can find it at all
 
-3. **Populate `restaurantSlugs` (+ `/u` handles) in the sitemap.** *(S — the hook
+3. **Populate `restaurantPaths` (each `web_path`, + `/u` handles) in the sitemap.** *(S — the hook
    at `apps/web/src/lib/sitemap.ts:40` exists but is never filled.)* Today **zero
    restaurant pages are indexed** — only `/`, `/story`, `/login`, `/signup`,
    `/durango/<diet>`.
-4. **Add `generateMetadata` + Restaurant/Menu JSON-LD to `/restaurants/[slug]`.**
+4. **Add `generateMetadata` + Restaurant/Menu JSON-LD to `/restaurants/[country]/[region]/[city]/[slug]`.**
    *(S–M — copy the `durango/[diet]/page.tsx:42-57` pattern.)* Every restaurant
    currently shares one generic `<title>`; no rich results, no social unfurls.
 5. **Forward diet context from the durango cards** — link
