@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.9.30",
+    "date": "2026-09-30",
+    "notes": [
+      "Chat results pane: a pane beside the transcript shows the menu or scan the assistant is acting on, drawn from the site's own pages, and follows every tool call."
+    ]
+  },
+  {
     "version": "2026.9.29",
     "date": "2026-09-29",
     "notes": [
