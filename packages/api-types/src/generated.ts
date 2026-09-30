@@ -5087,6 +5087,14 @@ export interface components {
                 slug?: string;
                 name?: string;
             } | null;
+            home_city?: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+                region?: string | null;
+                country: string;
+            } | null;
             /** Format: date-time */
             disclaimer_acknowledged_at: string | null;
         };

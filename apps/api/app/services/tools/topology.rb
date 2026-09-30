@@ -17,7 +17,7 @@ module Tools
     DOMAIN_SUMMARIES = {
       meta:      "This map. Read it when a request is open-ended and the route is not obvious.",
       discovery: "Find restaurants and read filtered menus. Where almost every conversation starts.",
-      profile:   "The caller's own avoid lists, strictness, and saved places. Changes what they are shown.",
+      profile:   "The caller's own avoid lists, strictness, home city, and saved places. Changes what they are shown.",
       reviews:   "Per-dish ratings. Reading is public; writing is the caller's own words only.",
       suggestions: "Propose a fix to somebody else's menu data, and — if you own the restaurant — decide one.",
       claims:    "Prove you run a restaurant, which unlocks its correction queue.",

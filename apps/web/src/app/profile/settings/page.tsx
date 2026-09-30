@@ -17,6 +17,7 @@ import {
   type FavoriteRestaurant,
   type FavoriteDish,
 } from '../../../lib/profile';
+import { fetchCitiesClient, type City } from '../../../lib/cities';
 import {
   createToken,
   listTokens,
@@ -209,6 +210,17 @@ function PreferencesSection() {
       });
   }, [router]);
 
+  // The picker's options. A failed load leaves the row showing the saved
+  // city by name with nothing to pick — the same shape as presets above.
+  const [cities, setCities] = useState<City[]>([]);
+  useEffect(() => {
+    fetchCitiesClient()
+      .then(setCities)
+      .catch(() => {
+        // Non-fatal; the row still renders what is saved.
+      });
+  }, []);
+
   useEffect(() => {
     fetchDietaryProfiles()
       .then(setPresets)
@@ -291,6 +303,13 @@ function PreferencesSection() {
         active={profile.strictness}
         disabled={saving}
         onPick={(strictness) => save({ strictness })}
+      />
+
+      <HomeCitySubsection
+        current={profile.home_city ?? null}
+        cities={cities}
+        disabled={saving}
+        onPick={(slug) => save({ home_city_slug: slug })}
       />
 
       {/* Sends the one change, not a rebuilt array. This page holds a
@@ -1258,5 +1277,49 @@ function AnalyticsSection() {
             : 'Analytics are off. You’ve opted out on this device.'}
       </p>
     </section>
+  );
+}
+
+/**
+ * Where the person usually is — a city, never a precise location. The
+ * chat's `search_restaurants` falls back to it when "nearby" names no
+ * city; nothing else reads it, and nothing is filtered by it.
+ */
+function HomeCitySubsection({
+  current,
+  cities,
+  disabled,
+  onPick,
+}: {
+  current: { slug: string; name: string } | null;
+  cities: City[];
+  disabled: boolean;
+  onPick: (slug: string | null) => void;
+}) {
+  // The saved city stays selectable even if the list has not loaded, so
+  // the select never shows a blank for a value that is set.
+  const options =
+    cities.some((c) => c.slug === current?.slug) || !current ? cities : [current, ...cities];
+  return (
+    <div className="mt-bw-6" data-testid="pref-home-city">
+      <SubsectionHeader
+        title="Home city"
+        hint="Lets the chat answer “what’s nearby” without asking which city. A city, never your precise location."
+      />
+      <select
+        aria-label="Home city"
+        value={current?.slug ?? ''}
+        disabled={disabled}
+        onChange={(e) => onPick(e.target.value === '' ? null : e.target.value)}
+        className="mt-bw-3 w-full rounded-bw-md border border-zinc-200 bg-white p-bw-3 text-bw-base text-zinc-900 disabled:opacity-50"
+      >
+        <option value="">Not set</option>
+        {options.map((city) => (
+          <option key={city.slug} value={city.slug}>
+            {city.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

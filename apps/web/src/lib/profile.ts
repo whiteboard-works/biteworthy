@@ -48,6 +48,8 @@ export interface ProfilePatch {
   disliked_tag_ids?: string[];
   /** Additive — unions the preset's avoid lists onto the stored ones. */
   dietary_profile_slug?: string;
+  /** A city slug sets the home city; null clears it. */
+  home_city_slug?: string | null;
 }
 
 /** Raised on a 401 so callers can bounce to /login. */

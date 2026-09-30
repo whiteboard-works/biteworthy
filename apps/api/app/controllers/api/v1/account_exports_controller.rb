@@ -47,7 +47,8 @@ module Api
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
           strictness:              profile.strictness,
-          primary_dietary_profile_slug: profile.primary_dietary_profile&.slug
+          primary_dietary_profile_slug: profile.primary_dietary_profile&.slug,
+          home_city_slug:          profile.home_city&.slug
         }
       end
 

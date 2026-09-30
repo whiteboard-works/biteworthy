@@ -25,6 +25,7 @@ module Tools
         "Profile::GetProfile",
         "Profile::UpdateAvoidLists",
         "Profile::SetStrictness",
+        "Profile::SetHomeCity",
         "Profile::SaveRestaurant",
         "Profile::SaveItem"
       ],

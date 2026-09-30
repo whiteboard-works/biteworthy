@@ -45,8 +45,14 @@ module Api
           # Wholesale replacement happens first; the preset (if any)
           # then unions on top so the user's POSTed list is never a
           # subset of what gets saved.
-          profile.assign_attributes(attrs.except(:dietary_profile_slug))
+          profile.assign_attributes(attrs.except(:dietary_profile_slug, :home_city_slug))
           apply_avoid_diffs!(profile)
+          # A slug, resolved here, so the client never holds a city id;
+          # blank clears it.
+          if attrs.key?(:home_city_slug)
+            slug = attrs[:home_city_slug]
+            profile.home_city = slug.present? ? City.find_by!(slug: slug) : nil
+          end
 
           if (slug = attrs[:dietary_profile_slug]).present?
             preset = DietaryProfile.includes(:dietary_profile_ingredients,
@@ -125,6 +131,7 @@ module Api
         params.permit(
           :strictness,
           :dietary_profile_slug,
+          :home_city_slug,
           avoid_ingredient_ids: [],
           avoid_tag_ids:        [],
           prefer_tag_ids:       [],
@@ -176,6 +183,7 @@ module Api
           disliked_tags:        resolve(profile.disliked_tag_ids, tag, &TAG_ROW),
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
+          home_city:            profile.home_city&.summary,
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
       end

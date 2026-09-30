@@ -67,9 +67,10 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Dietary profile:</strong> the ingredients and tags you mark “avoid,” the
-              dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, and any
-              taste signals (ingredients/tags you like or dislike) you add to improve your picks.
-              Stored against your account so it follows you across devices.
+              dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, any
+              taste signals (ingredients/tags you like or dislike) you add to improve your picks,
+              and your home city if you set one (a city, never a precise location). Stored
+              against your account so it follows you across devices.
             </li>
             <li>
               <strong>Reviews:</strong> the rating, body, and optional photo you submit on a dish.

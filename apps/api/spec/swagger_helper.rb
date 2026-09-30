@@ -619,6 +619,20 @@ RSpec.configure do |config|
                   name: { type: :string }
                 }
               },
+              # Where they usually are — a default for "nearby" in the chat
+              # and nothing else. Set with `home_city_slug` on PATCH; blank
+              # clears it.
+              home_city: {
+                type: :object, nullable: true,
+                required: %w[id slug name country],
+                properties: {
+                  id:      { type: :string, format: :uuid },
+                  slug:    { type: :string },
+                  name:    { type: :string },
+                  region:  { type: :string, nullable: true },
+                  country: { type: :string }
+                }
+              },
               # Legal remediation E1 — ISO-8601 timestamp of when the
               # user accepted the in-app allergen disclaimer, or null if
               # they never have. Server-stamped.

@@ -9333,6 +9333,35 @@
               }
             }
           },
+          "home_city": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "country"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "region": {
+                "type": "string",
+                "nullable": true
+              },
+              "country": {
+                "type": "string"
+              }
+            }
+          },
           "disclaimer_acknowledged_at": {
             "type": "string",
             "format": "date-time",

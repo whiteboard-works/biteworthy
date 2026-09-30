@@ -17,6 +17,10 @@ module Tools
         Find published restaurants by name and/or city. Call this first when
         the user names a place, asks what's nearby, or asks where they can eat
         something — you need a restaurant id or slug before you can read a menu.
+        A listing or a diet ranking with no `city_slug` uses the caller's home
+        city when they have one (see `set_home_city`); a `query` by name is
+        never limited to it. The result says which `city` was applied and why
+        (`city_source`). Pass `anywhere: true` to list across every city.
 
         Pass `diet` (a dietary preset slug such as "vegan" or "gluten-free") to
         rank results by how many dishes pass that preset rather than by name;
@@ -43,6 +47,10 @@ module Tools
             description: "Maximum results (1-25, default 10).",
             minimum: 1,
             maximum: 25
+          },
+          anywhere: {
+            type: "boolean",
+            description: "List across every city, ignoring the caller's home city. Cannot rank by diet."
           }
         },
         required: []
@@ -55,10 +63,21 @@ module Tools
       MAX_LIMIT     = 25
       DEFAULT_LIMIT = 10
 
-      def self.perform(context:, query: nil, city_slug: nil, diet: nil, limit: nil)
+      def self.perform(context:, query: nil, city_slug: nil, diet: nil, limit: nil, anywhere: false)
         capped = (limit || DEFAULT_LIMIT).clamp(1, MAX_LIMIT)
+        # "What's nearby" with no city named means the one they live in. A
+        # search by name does not: someone asking about a place they know
+        # should find it wherever it is. Either way the result says which
+        # city was applied, so an empty answer is never mistaken for
+        # "nowhere" when it means "not here".
+        source = "argument" if city_slug.present?
+        if city_slug.blank? && query.blank? && !anywhere && (home = home_city_slug(context))
+          city_slug = home
+          source    = "home_city"
+        end
+        applied = { city: city_slug.presence, city_source: source }.compact
 
-        return ranked_by_diet(city_slug, diet, capped) if diet.present?
+        return ranked_by_diet(city_slug, diet, capped, applied) if diet.present?
 
         scope = Restaurant.published.includes(:city, :addresses)
         scope = scope.joins(:city).where(cities: { slug: city_slug }) if city_slug.present?
@@ -66,10 +85,10 @@ module Tools
           scope = scope.where("restaurants.name ILIKE ?", "%#{Restaurant.sanitize_sql_like(query)}%")
         end
 
-        ok(restaurants: scope.order(:name).limit(capped).map { |r| summary(r) })
+        ok(applied.merge(restaurants: scope.order(:name).limit(capped).map { |r| summary(r) }))
       end
 
-      def self.ranked_by_diet(city_slug, diet, limit)
+      def self.ranked_by_diet(city_slug, diet, limit, applied = {})
         raise Errors::InvalidArgument, "city_slug is required when ranking by diet." if city_slug.blank?
 
         city = City.find_by(slug: city_slug)
@@ -83,6 +102,7 @@ module Tools
         ranked = Cities::RestaurantRanking.new(city: city, dietary_profile: preset).call.first(limit)
 
         ok(
+          **applied,
           diet: preset.slug,
           restaurants: ranked.map do |row|
             summary(row.restaurant).merge(
@@ -93,6 +113,11 @@ module Tools
         )
       end
       private_class_method :ranked_by_diet
+
+      def self.home_city_slug(context)
+        context.user&.profile&.home_city&.slug
+      end
+      private_class_method :home_city_slug
 
       def self.summary(restaurant)
         address = restaurant.addresses.first
