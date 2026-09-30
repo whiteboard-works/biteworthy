@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react';
 /**
  * Location-based URLs — old flat sub-page URL
  * `/restaurants/<slug>/{scan|claim|suggestions}`. A successful fetch 301s
- * to `<web_path>/<sub>` with the query string preserved. `scan` alone
- * falls through to rendering the scan screen directly when the fetch
+ * to `<web_path>/<sub>` with the query string preserved. `scan` and
+ * `claim` fall through to rendering their screen directly when the fetch
  * fails — a draft restaurant is invisible to the public show endpoint
  * even for its own creator, so a failed fetch there must not 404 the
  * creator's own scan flow.
@@ -29,6 +29,14 @@ vi.mock('../[city]/[slug]/scan/_ScanClient', () => ({
   ScanClient: ({ slug, basePath }: { slug: string; basePath: string }) => (
     <p data-testid="scan-client-stub">
       {slug} / {basePath}
+    </p>
+  ),
+}));
+
+vi.mock('../[city]/[slug]/claim/_ClaimVerify', () => ({
+  ClaimVerify: ({ slug, token }: { slug: string; token: string }) => (
+    <p data-testid="claim-verify-stub">
+      {slug} / {token}
     </p>
   ),
 }));
@@ -105,9 +113,13 @@ describe('OldRestaurantSubPageUrl (/restaurants/[country]/[region])', () => {
     );
   });
 
-  it('404s claim when the restaurant cannot be fetched', async () => {
+  // A claim email sent before the restaurant was unpublished still holds
+  // a valid token; the verify endpoint doesn't need the restaurant public.
+  it('verifies claim in place when the restaurant cannot be fetched', async () => {
     mockFetchRestaurant.mockRejectedValue(new Error('404'));
-    await expect(run('some-draft', 'claim')).rejects.toThrow('NEXT_NOT_FOUND');
+    render(await run('closed-place', 'claim', { t: 'token-1' }));
+    expect(screen.getByTestId('claim-verify-stub')).toHaveTextContent('closed-place / token-1');
+    expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   it('404s suggestions when the restaurant cannot be fetched', async () => {

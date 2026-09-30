@@ -6,6 +6,7 @@ import { edgeHeaders } from '../../../../lib/edge-headers';
 import { toQueryString } from '../../../../lib/query-string';
 import { pathSegment } from '../../../../lib/restaurant-path';
 import { ScanClient } from './[city]/[slug]/scan/_ScanClient';
+import { ClaimVerify } from './[city]/[slug]/claim/_ClaimVerify';
 
 /**
  * Location-based URLs — old flat sub-page URL:
@@ -23,6 +24,11 @@ import { ScanClient } from './[city]/[slug]/scan/_ScanClient';
  * self-links stay on this old-style URL (there's no web_path to redirect
  * to yet); once the restaurant publishes, this same handler's normal
  * fetch-and-redirect path takes over.
+ *
+ * `claim` likewise: a claim email sent before location URLs links here,
+ * and the restaurant may have been unpublished since. The verify
+ * endpoint doesn't require it to be public, so verify the token in
+ * place rather than 404ing a still-valid credential.
  */
 const SUB_PAGES = ['scan', 'claim', 'suggestions'] as const;
 type SubPage = (typeof SUB_PAGES)[number];
@@ -61,6 +67,10 @@ export default async function OldRestaurantSubPageUrl({
     permanentRedirect(`${restaurant.web_path}/${region}${toQueryString(search)}` as Route);
   }
 
+  if (region === 'claim') {
+    const t = search.t;
+    return <ClaimVerify slug={slug} token={(Array.isArray(t) ? t[0] : t) ?? ''} />;
+  }
   if (region !== 'scan') notFound();
 
   const scanParam = search.scan;
