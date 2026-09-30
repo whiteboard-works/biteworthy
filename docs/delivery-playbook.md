@@ -67,7 +67,7 @@ applicable branch.
 | PR open, CI red | Fetch the failing logs. If the cause is known and the fix is small, push it to the same branch. If unknown after one diagnosis attempt, post a status comment summarizing the failure, ping `@shadoath`, and pause. |
 | PR open, CI pending | Do nothing. Log "waiting for CI." |
 | PR open, conflicts with master | Rebase onto master. If conflicts are mechanical, resolve and force-push. If non-trivial, ping and pause. |
-| No PR open, branch has commits | Open the PR (auto-merge enables on open), do a self-review pass, then continue to step 3. |
+| No PR open, branch has commits | Open the PR as a draft (auto-merge arms the moment a PR is non-draft), do the self-review pass, mark it ready once review threads are resolved, then continue to step 3. |
 | No PR open, working tree clean | Continue to step 3. |
 
 ### 3. Update the plan
