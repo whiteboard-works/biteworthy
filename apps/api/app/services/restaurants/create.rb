@@ -88,7 +88,8 @@ module Restaurants
       # **`restaurants.slug` stays globally unique, deliberately.** The
       # obvious reading of "city-scope the slug" is a `[city_id, slug]`
       # index, and that breaks lookup: `find_by_id_or_slug!` and the web
-      # route `/restaurants/[slug]` carry no city, so a per-city-unique
+      # route look up by the trailing slug alone (the location segments
+      # are for humans and SEO), so a per-city-unique
       # slug makes `find_by!(slug:)` ambiguous — it would return whichever
       # row Postgres reached first, silently, which for a filtered menu is
       # the wrong restaurant's dietary data. Making generation

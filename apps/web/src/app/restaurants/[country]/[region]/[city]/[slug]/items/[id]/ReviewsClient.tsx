@@ -28,11 +28,14 @@ const PAGE_SIZE = 20;
 export function ReviewsClient({
   itemId,
   restaurantSlug,
+  restaurantPath,
   initial,
   currentUserId = null,
 }: {
   itemId: string;
   restaurantSlug: string;
+  /** The restaurant's `web_path`, so a login bounce returns to this dish. */
+  restaurantPath: string;
   initial: ReviewsResponse;
   /** Legal remediation E11 — drives the owner-only edit/delete controls. */
   currentUserId?: string | null;
@@ -96,7 +99,7 @@ export function ReviewsClient({
           onCancel={() => setComposerOpen(false)}
           onPosted={onPosted}
           onUnauthenticated={() => {
-            router.replace(`/login?next=${encodeURIComponent(`/restaurants/_/items/${itemId}`)}`);
+            router.replace(`/login?next=${encodeURIComponent(`${restaurantPath}/items/${itemId}`)}`);
           }}
         />
       )}

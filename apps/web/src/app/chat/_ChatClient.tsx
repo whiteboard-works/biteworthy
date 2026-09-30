@@ -1047,15 +1047,18 @@ function compose(text: string, attachments: Attachment[]): string {
  * Location-based URLs — the slug is now the 4th segment
  * (`/restaurants/<country>/<region>/<city>/<slug>`). The old 1-segment
  * shape (`/restaurants/<slug>`, still reachable during the redirect
- * window and from any stale referrer) is tried as a fallback: any path
- * short of 4 segments falls through to it and takes the 1st segment. */
+ * window and from any stale referrer) is tried as a fallback, anchored so
+ * a location listing (`/restaurants/usa/colorado`) or `/restaurants/new`
+ * isn't read as a restaurant. */
 function pageContext(): PageContext | undefined {
   if (typeof document === 'undefined') return undefined;
   const from = new URL(document.referrer || document.location.href, document.location.href);
   if (from.origin !== document.location.origin) return undefined;
   const restaurant =
     /^\/restaurants\/[^/]+\/[^/]+\/[^/]+\/([^/]+)/.exec(from.pathname)?.[1] ??
-    /^\/restaurants\/([^/]+)/.exec(from.pathname)?.[1];
+    /^\/restaurants\/(?!new\/?$)([^/]+)(?:\/(?:scan|claim|suggestions|items\/[^/]+))?\/?$/.exec(
+      from.pathname,
+    )?.[1];
   return restaurant ? { path: from.pathname, restaurant } : undefined;
 }
 

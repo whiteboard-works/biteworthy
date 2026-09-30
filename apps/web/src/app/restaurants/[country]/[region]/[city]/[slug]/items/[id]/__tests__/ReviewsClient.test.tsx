@@ -56,6 +56,7 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
       <ReviewsClient
         itemId="item-1"
         restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
         currentUserId="user-1"
         initial={initial([
           review(),
@@ -75,6 +76,7 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
       <ReviewsClient
         itemId="item-1"
         restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
         currentUserId={null}
         initial={initial([review()])}
       />,
@@ -89,6 +91,7 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
       <ReviewsClient
         itemId="item-1"
         restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
         currentUserId="user-1"
         initial={initial([review()])}
       />,
@@ -112,6 +115,7 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
       <ReviewsClient
         itemId="item-1"
         restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
         currentUserId="user-1"
         initial={initial([review()])}
       />,

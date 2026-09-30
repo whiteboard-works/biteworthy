@@ -127,6 +127,7 @@ function Page({
       <ReviewsClient
         itemId={item.id}
         restaurantSlug={restaurant.slug}
+        restaurantPath={restaurant.web_path}
         initial={initialReviews}
         currentUserId={currentUserId}
       />
