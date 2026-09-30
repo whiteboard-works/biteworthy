@@ -5,10 +5,16 @@
 ## Goal
 
 "What's good for vegan nearby?" gets an answer without the model asking
-"which city?" first. Today `search_restaurants` needs a `city_slug`, the
-profile stores nothing about where the person is, and the prompt's
-volatile block (`Chat::SystemPrompt#page_section`) only knows a
+"which city?" first.
+
+**Before P1** (the motivation, now history): `search_restaurants` needed a
+`city_slug` for any listing or ranking, the profile stored nothing about
+where the person is, and the prompt's volatile block only knew a
 restaurant slug when the chat was opened from a restaurant page.
+**Since P1** (2026-09-30): the profile holds `home_city_id`, the prompt
+names it, and a listing or diet ranking with no `city_slug` defaults to it
+for a credential that can read the profile. P2 makes "nearby" mean
+distance within a city.
 
 ## What exists
 

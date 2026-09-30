@@ -624,7 +624,7 @@ RSpec.configure do |config|
               # clears it.
               home_city: {
                 type: :object, nullable: true,
-                required: %w[id slug name country],
+                required: %w[id slug name region country],
                 properties: {
                   id:      { type: :string, format: :uuid },
                   slug:    { type: :string },

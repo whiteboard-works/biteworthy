@@ -9346,6 +9346,7 @@
               "id",
               "slug",
               "name",
+              "region",
               "country"
             ],
             "properties": {

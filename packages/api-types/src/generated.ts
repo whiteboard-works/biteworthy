@@ -5094,7 +5094,7 @@ export interface components {
                 id: string;
                 slug: string;
                 name: string;
-                region?: string | null;
+                region: string | null;
                 country: string;
             } | null;
             /** Format: date-time */
