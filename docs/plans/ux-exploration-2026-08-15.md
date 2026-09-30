@@ -137,7 +137,7 @@ connected) — worth repeating with one for layout/interaction issues.
     `apps/api/.env` holds the prod `DATABASE_URL`; `compose.yaml` loads it via
     `env_file`, and Rails lets `DATABASE_URL` override `database.yml` for the
     current env — `DATABASE_HOST: postgres` does not win over it. The
-    documented "fastest path" (CLAUDE.md, `docs/local-dev.md`) plausibly boots
+    documented "fastest path" (AGENTS.md, `docs/local-dev.md`) plausibly boots
     dev + `db:prepare` against prod. Same trap already known for local rspec;
     the compose file re-arms it.
 

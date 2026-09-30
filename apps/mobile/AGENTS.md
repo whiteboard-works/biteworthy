@@ -13,5 +13,5 @@ Block a PR (P0/P1) when it:
 - **Decides visible/hidden in a screen/component.** Render the server's `status` and `reasons`; never derive them from the item's `ingredient_ids` / `tag_ids` or from a stored profile. The taxonomy is hierarchical and the device does not have it, so a local re-derivation under-filters and can show an unsafe item as safe.
 - **Emits an analytics event off-contract.** Use the `@biteworthy/analytics` `EVENTS` names/shapes; never re-add the legal-E7 health fields to `profile_set`.
 
-For architecture and conventions, also follow CLAUDE.md and the repo-root `AGENTS.md`.
+For architecture and conventions, also follow the repo-root `AGENTS.md`.
 <!-- END codex-review-guidelines -->

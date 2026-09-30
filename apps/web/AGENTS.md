@@ -13,5 +13,5 @@ Block a PR (P0/P1) when it:
 - **Emits an analytics event off-contract.** Use the `@biteworthy/analytics` `EVENTS` names and property shapes; never add the legal-E7 health fields (`preset_slug`, `strictness`, avoid-list counts) back to `profile_set`.
 - **Leaks a secret into the client bundle.** Only `NEXT_PUBLIC_*` env vars may reach client code; a non-`NEXT_PUBLIC_` server key imported into a `'use client'` component (or otherwise reachable from the client bundle) ships to the browser.
 
-For architecture and conventions, also follow CLAUDE.md and the repo-root `AGENTS.md`.
+For architecture and conventions, also follow the repo-root `AGENTS.md`.
 <!-- END codex-review-guidelines -->
