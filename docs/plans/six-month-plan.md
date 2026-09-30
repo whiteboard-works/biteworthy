@@ -97,7 +97,7 @@ Tags: **[MANUAL]** = human-only · **[CODE]** = loop-shippable · P0/P1/P2 = pri
 - [ ] **[P0] Anonymous filter picker on `/r/<slug>` + `localStorage`** — kills the empty-first-impression risk (backend already supports `?profile=`/`?profile_token=`)
 - [ ] **[P0] Confirm/dispute "✓/✗" micro-loop** → writes a suggestion/verification. The *one* retention hook; also backfills strict-mode confirmations (fixes sparsity). Not the gamified identity yet.
 - [ ] **[P0] Instrumentation before first user:** week-2 return rate, strict-mode `visible_count`, coverage velocity, **rec-acceptance** (tap/save on a Top Pick)
-- [ ] **[P1] Visibility / SEO:** populate `restaurantSlugs` in the sitemap, add `generateMetadata` + Restaurant/Menu JSON-LD, forward diet context from durango cards (`?profile=<diet>`). SEO compounds — start early.
+- [ ] **[P1] Visibility / SEO:** populate `restaurantPaths` (each restaurant's `web_path`) in the sitemap, add `generateMetadata` + Restaurant/Menu JSON-LD, forward diet context from durango cards (`?profile=<diet>`). SEO compounds — start early.
 - [ ] **[P1] QR Phase 1 (web-only)** — encode `https://<host>/r/<slug>`; owner-independent distribution, zero install
 - [ ] **[P1] Top Picks row *inside* safe menus only**, labeled provisional (discovery as a within-safety layer)
 - [ ] **[MANUAL] Copy review:** cross-contamination + "not a medical guarantee" disclaimers reviewed at L1 — never let marketing say "safe"

@@ -124,7 +124,9 @@ class Restaurant < ApplicationRecord
   # survive the round trip exactly.
   def web_path
     country_seg = city.country == "US" ? "usa" : city.country.to_s.parameterize
-    region_seg  = city.region.to_s.parameterize.presence || "na"
+    # Older rows may hold a state code ("CO", from the Durango seed task).
+    region      = (city.country == "US" && Cities::Create.state_name(city.region)) || city.region
+    region_seg  = region.to_s.parameterize.presence || "na"
     city_seg    = city.slug.to_s.parameterize.presence || "na"
     "/restaurants/#{country_seg}/#{region_seg}/#{city_seg}/#{ERB::Util.url_encode(slug)}"
   end
