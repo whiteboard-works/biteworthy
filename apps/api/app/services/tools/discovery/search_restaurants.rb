@@ -189,27 +189,26 @@ module Tools
       def self.within_box(scope, here, radius)
         dlat = radius / KM_PER_DEGREE
         dlng = radius / (KM_PER_DEGREE * [ Math.cos(here["lat"] * Math::PI / 180).abs, 0.01 ].max)
-        lat_sql = "latitude BETWEEN ? AND ?"
-        lng_sql, lng_binds = longitude_span(here["lng"] - dlng, here["lng"] + dlng)
-        in_box = "#{lat_sql} AND #{lng_sql}"
-        binds  = [ here["lat"] - dlat, here["lat"] + dlat, *lng_binds ]
+        lats = (here["lat"] - dlat)..(here["lat"] + dlat)
+        lngs = longitude_ranges(here["lng"] - dlng, here["lng"] + dlng)
+        in_box = ->(model) { lngs.map { |lng| model.where(latitude: lats, longitude: lng) }.reduce(:or) }
 
-        by_address = Address.where(in_box, *binds).select(:restaurant_id)
-        by_city    = City.where(in_box, *binds).select(:id)
+        by_address = in_box.call(Address).select(:restaurant_id)
+        by_city    = in_box.call(City).select(:id)
         scope.where(id: by_address).or(scope.where(city_id: by_city))
       end
       private_class_method :within_box
 
       # A span that runs past ±180° wraps to the other side of the date
       # line, so it becomes two ranges rather than one that matches nothing.
-      def self.longitude_span(west, east)
-        return [ "longitude BETWEEN -180 AND 180", [] ] if east - west >= 360
-        return [ "(longitude >= ? OR longitude <= ?)", [ west + 360, east ] ] if west < -180
-        return [ "(longitude >= ? OR longitude <= ?)", [ west, east - 360 ] ] if east > 180
+      def self.longitude_ranges(west, east)
+        return [ -180.0..180.0 ] if east - west >= 360
+        return [ (west + 360)..180.0, -180.0..east ] if west < -180
+        return [ west..180.0, -180.0..(east - 360) ] if east > 180
 
-        [ "longitude BETWEEN ? AND ?", [ west, east ] ]
+        [ west..east ]
       end
-      private_class_method :longitude_span
+      private_class_method :longitude_ranges
 
       # The city of the nearest published restaurant, not the nearest city
       # centre: centres are unset for cities added through
