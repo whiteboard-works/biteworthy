@@ -15,6 +15,13 @@ RSpec.describe Restaurant, type: :model do
       expect(restaurant.web_path).to eq("/restaurants/usa/colorado/durango/rgp-s-wraps")
     end
 
+    it "spells out a US state stored as a code" do
+      city = create(:city, slug: "durango", region: "CO", country: "US")
+      restaurant = create(:restaurant, city: city, slug: "rgp-s-wraps")
+
+      expect(restaurant.web_path).to eq("/restaurants/usa/colorado/durango/rgp-s-wraps")
+    end
+
     it "parameterizes a multi-word region" do
       city = create(:city, slug: "salt-lake-city", region: "Utah", country: "US")
       restaurant = create(:restaurant, city: city, slug: "some-diner")
