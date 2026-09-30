@@ -2,6 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { uploadAttachment, type Attachment } from '../../lib/chat';
+import type { LocationStatus } from './_useDeviceLocation';
 
 /** A message typed while the assistant was busy. Held here until the
  *  turn it was typed during finishes. */
@@ -24,7 +25,15 @@ interface ComposerProps {
   queued: QueuedMessage[];
   onSend: (text: string, attachments: Attachment[]) => void;
   onCancelQueued: (id: string) => void;
+  /** "Use my location". Omitted, the control is not shown. */
+  location?: { status: LocationStatus; onToggle: () => void };
 }
+
+const LOCATION_NOTE: Partial<Record<LocationStatus, string>> = {
+  locating: 'Finding your location…',
+  denied: 'Location is blocked for this site. Allow it in your browser settings, or name a city.',
+  unavailable: 'Could not get your location. Name a city instead.',
+};
 
 const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf';
 
@@ -33,6 +42,7 @@ export function Composer({
   queued,
   onSend,
   onCancelQueued,
+  location,
 }: ComposerProps): ReactElement {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -132,6 +142,12 @@ export function Composer({
         </p>
       ) : null}
 
+      {location && LOCATION_NOTE[location.status] ? (
+        <p role="status" className="mb-bw-2 text-bw-sm text-zinc-500">
+          {LOCATION_NOTE[location.status]}
+        </p>
+      ) : null}
+
       <div className="flex items-end gap-bw-2">
         <label
           className="cursor-pointer rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-sm text-zinc-600 hover:bg-zinc-50"
@@ -151,6 +167,27 @@ export function Composer({
             onChange={(e) => void attach(e.target.files)}
           />
         </label>
+
+        {location ? (
+          <button
+            type="button"
+            onClick={location.onToggle}
+            aria-pressed={location.status === 'on' || location.status === 'locating'}
+            aria-label="Use my location"
+            title={
+              location.status === 'on'
+                ? 'Sending your approximate location with each message. Tap to stop.'
+                : 'Send your approximate location with each message, for “near me”.'
+            }
+            className={`rounded-bw-md border px-bw-3 py-bw-2 text-bw-sm ${
+              location.status === 'on'
+                ? 'border-bite bg-bite-light text-bite-dark'
+                : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            <span aria-hidden="true">📍</span>
+          </button>
+        ) : null}
 
         <textarea
           value={text}

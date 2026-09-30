@@ -127,6 +127,14 @@ module Chat
       lines = ["## Where the user is", ""]
       lines << "- Page: #{@page['path']}" if @page["path"].present?
       lines << "- Restaurant in view: #{@page['restaurant']}" if @page["restaurant"].present?
+      # That a location exists, never what it is: the model has no use for
+      # the numbers, and whatever it is told can end up quoted in a reply
+      # or a tool call that is stored with the conversation.
+      if @page["location"].present?
+        lines << "- Device location: shared for this message. `search_restaurants` with " \
+                 "`near_me: true` sorts by distance from it; you cannot see the coordinates, " \
+                 "so do not guess a street or neighbourhood."
+      end
       return nil if lines.length == 2
 
       lines << ""

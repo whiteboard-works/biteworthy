@@ -85,4 +85,94 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
   it "leaves an anonymous caller unscoped" do
     expect(names(described_class.call(server_context: {}))).to contain_exactly("Ninis Taqueria", "Red Iguana")
   end
+
+  # Device location is per message and comes from the chat's tool
+  # context, never from the model's arguments.
+  describe "near_me" do
+    # Downtown Durango, and two places at known distances from it.
+    let(:here) { { "lat" => 37.275, "lng" => -107.880 } }
+    let!(:close)  { create(:restaurant, :published, city: durango, name: "Zia Taqueria", slug: "zia") }
+    let!(:bakery) { create(:restaurant, :published, city: slc, name: "Far Bakery", slug: "far-bakery") }
+
+    before do
+      durango.update!(latitude: 37.2753, longitude: -107.8801)
+      slc.update!(latitude: 40.7608, longitude: -111.8910)
+      close.addresses.create!(street: "1 Main Ave", latitude: 37.276, longitude: -107.880)
+      ninis.addresses.create!(street: "9 College Dr", latitude: 37.300, longitude: -107.870)
+      red_iguana.addresses.create!(street: "736 W North Temple", latitude: 40.772, longitude: -111.908)
+    end
+
+    def near(**args)
+      described_class.call(server_context: { user_id: user.id, device_location: here }, near_me: true, **args)
+    end
+
+    it "sorts nearest first, drops what is out of range, and says how far" do
+      response = near
+
+      expect(names(response)).to eq([ "Zia Taqueria", "Ninis Taqueria" ])
+      expect(payload(response)[:restaurants].first[:distance_km]).to eq(0.1)
+      expect(payload(response)).to include(sorted_by: "distance", radius_km: 40.0)
+    end
+
+    # A thin coordinate backfill must read as "distance unknown", not
+    # as nothing nearby.
+    it "lists a restaurant without coordinates last when its city is in range" do
+      create(:restaurant, :published, city: durango, name: "Aardvark Cafe", slug: "aardvark")
+
+      expect(names(near)).to eq([ "Zia Taqueria", "Ninis Taqueria", "Aardvark Cafe" ])
+      expect(payload(near)[:restaurants].last[:distance_km]).to be_nil
+    end
+
+    it "outranks the home city" do
+      user.profile.update!(home_city: slc)
+
+      expect(names(near)).to eq([ "Zia Taqueria", "Ninis Taqueria" ])
+      expect(payload(near)).not_to have_key(:city_source)
+    end
+
+    it "sorts within a named city without a radius" do
+      response = near(city_slug: "salt-lake-city")
+
+      expect(names(response)).to eq([ "Red Iguana", "Far Bakery" ])
+      expect(payload(response)).not_to have_key(:radius_km)
+    end
+
+    it "ranks a diet in the nearest city and adds distance" do
+      vegan = create(:dietary_profile, slug: "vegan", name: "Vegan")
+
+      response = near(diet: vegan.slug)
+
+      expect(response.to_h[:isError]).to be_falsey
+      expect(payload(response)).to include(city: "durango", city_source: "device_location")
+      expect(payload(response)[:restaurants]).to all(have_key(:distance_km))
+    end
+
+    it "refuses when no location was shared, and says what to ask for" do
+      response = described_class.call(server_context: { user_id: user.id }, near_me: true)
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(payload(response)[:message]).to include("Use my location")
+    end
+
+    # Any address in range admits a restaurant, so its distance is to the
+    # nearest one, whichever order the rows come back in.
+    it "measures a multi-location restaurant to its nearest address" do
+      ninis.addresses.create!(street: "Far away", latitude: 40.0, longitude: -105.0)
+      ninis.addresses.create!(street: "Next door", latitude: 37.2755, longitude: -107.8801)
+
+      row = payload(near)[:restaurants].find { |r| r[:name] == "Ninis Taqueria" }
+      expect(row).to include(distance_km: 0.1, street: "Next door")
+    end
+
+    it "says so when a named city does not exist rather than returning nothing" do
+      response = near(city_slug: "durango-co")
+
+      expect(response.to_h[:isError]).to be(true)
+      expect(payload(response)[:message]).to include("list_cities")
+    end
+
+    it "refuses near_me alongside anywhere" do
+      expect(near(anywhere: true).to_h[:isError]).to be(true)
+    end
+  end
 end

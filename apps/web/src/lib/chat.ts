@@ -188,6 +188,15 @@ export interface Queued {
 export interface PageContext {
   path?: string;
   restaurant?: string;
+  /** Only while the person has "Use my location" on. The API uses it for
+   *  the one turn it rides with and keeps it nowhere. */
+  location?: DeviceLocation;
+}
+
+export interface DeviceLocation {
+  lat: number;
+  lng: number;
+  accuracy_m?: number;
 }
 
 /** Asks for a turn. Returns as soon as the request is recorded — the turn

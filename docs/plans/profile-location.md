@@ -1,6 +1,8 @@
 # Profile location — "X food nearby"
 
-**Status:** P1 (home city) shipped 2026-09-30; P2 next.
+**Status:** P1 (home city) shipped 2026-09-30; P2 (device location per
+turn) shipped for web 2026-09-30, mobile and the results-pane distance
+still open.
 
 ## Goal
 
@@ -93,7 +95,21 @@ behind an explicit "remember this".
 - rswag + openapi + api-types; specs for the default in
   `search_restaurants`, the serializer, and the tool.
 
-### P2 — device location per turn
+### P2 — device location per turn (web shipped 2026-09-30)
+
+**As built**, where it differs from the sketch below: the coordinates
+never reach the model. `PageContext.location` rides the turn into
+`Tools::Context#device_location` (`Chat::DeviceLocation` parses and
+rounds it to three decimals); the prompt says only that a location was
+shared; `search_restaurants` takes `near_me: true` + `radius_km` rather
+than a `near: {lat, lng}` the model would copy into a stored tool_use
+block. With no `city_slug`, `near_me` keeps restaurants within the radius,
+plus those without coordinates whose city is within it (listed last,
+`distance_km: null`), so a thin address backfill reads as "distance
+unknown", not "nothing nearby". A diet ranking with `near_me` ranks in
+the nearest city. Not done yet: the results pane (its `restaurants` kind
+is still on the pane branch), mobile `expo-location`, and a production
+count of addresses with coordinates.
 
 - `PageContext` gains `lat`, `lng`, `accuracy_m`; a "Use my location"
   control in the chat composer (browser Geolocation API, permission

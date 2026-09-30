@@ -3544,6 +3544,12 @@ export interface paths {
                         context?: {
                             path?: string;
                             restaurant?: string;
+                            /** @description The device's location, sent only while the person has "Use my location" on. Coarsened to three decimals, filtered from request logs, and used for this turn only: not saved to the profile or the transcript, and the coordinates are not sent to the model. Restaurant distances computed from it (distance_km, 0.1 km) are, and are kept in the transcript. Malformed values are dropped, not refused. */
+                            location?: {
+                                lat: number;
+                                lng: number;
+                                accuracy_m?: number;
+                            };
                         };
                     };
                 };

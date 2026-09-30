@@ -56,6 +56,18 @@ data, none of it used for training), and the "Dietary profile" item under
 what is stored, which should list the home city (a city, never a precise
 location). Proposed wording was drafted and reverted in #738's history.
 
+**Update 2026-09-30 (location P2):** web chat has an opt-in "Use my
+location" control. While it is on, each message carries the device's
+position rounded to three decimals (~110 m). The API holds it in the
+turn queue until the job picks the turn up, then only in memory for that
+turn; it is never written to the profile or the transcript, and it is
+**not** sent to Anthropic — the prompt says only that a location exists,
+and `search_restaurants` reads the coordinates server-side. What does
+reach Anthropic and the stored transcript is each result's `distance_km`
+(rounded to 0.1 km). A third `/privacy` item waits on this sign-off: a
+line saying location is sent with a message only while the control is
+on, used for that message, and not stored.
+
 - Strictness setting
 - **Avoided ingredients, by name**
 - **Avoided tags, by name**
