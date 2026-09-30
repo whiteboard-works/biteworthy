@@ -24,9 +24,11 @@ import {
   type Conversation,
   type ConversationSummary,
   type PageContext,
+  type DeviceLocation,
   type PendingTool,
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
+import { useDeviceLocation } from './_useDeviceLocation';
 import { ModeNotice, ModePicker } from './_ModePicker';
 import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
@@ -49,6 +51,7 @@ export function ChatClient(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showTools, toggleTools] = useToolVisibility();
+  const deviceLocation = useDeviceLocation();
   const [mode, setMode] = useState<ChatMode>('manual');
   const [queued, setQueued] = useState<QueuedMessage[]>([]);
   // What the results pane is pointed at — the last thing a tool acted on
@@ -618,7 +621,9 @@ export function ChatClient(): ReactElement {
       // the previous chat's mode — `auto` where this chat asked for
       // `manual` is a skipped confirmation.
       const sendMode = known && known.id !== active?.id ? (known.mode ?? 'manual') : mode;
-      return await run(id, () => sendMessage(id, composed, pageContext(), sendMode));
+      return await run(id, () =>
+        sendMessage(id, composed, withLocation(pageContext(), deviceLocation.current()), sendMode),
+      );
     } finally {
       release();
     }
@@ -841,6 +846,7 @@ export function ChatClient(): ReactElement {
           queued={queued.filter((m) => m.conversationId === (active?.id ?? blankKey()))}
           onSend={send}
           onCancelQueued={cancelQueued}
+          location={{ status: deviceLocation.status, onToggle: deviceLocation.toggle }}
         />
       </main>
 
@@ -1060,6 +1066,13 @@ function pageContext(): PageContext | undefined {
       from.pathname,
     )?.[1];
   return restaurant ? { path: from.pathname, restaurant } : undefined;
+}
+
+function withLocation(
+  context: PageContext | undefined,
+  location: DeviceLocation | undefined,
+): PageContext | undefined {
+  return location ? { ...context, location } : context;
 }
 
 function optimistic(text: string, index: number): ChatMessage {

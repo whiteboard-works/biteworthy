@@ -1220,8 +1220,12 @@ module Chat
     def server_context
       @server_context ||= {
         user_id: @conversation.user_id, public_host: @public_host,
-        scopes: [ Tools::Scopes::ALL ]
-      }
+        scopes: [ Tools::Scopes::ALL ],
+        # Re-parsed rather than trusted: the queued payload is JSON the
+        # controller wrote, but a turn written before this key existed,
+        # or by a direct caller, must not reach a tool half-formed.
+        device_location: DeviceLocation.from(@page.is_a?(Hash) ? (@page["location"] || @page[:location]) : nil)
+      }.compact
     end
 
     # Both ceilings are pre-call: the check runs before the request that

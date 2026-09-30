@@ -718,6 +718,77 @@ describe('ChatClient', () => {
 
   // The gate is the server's. The picker only says which one to use, so
   // there is nothing here that could disagree with what actually ran.
+  // Off until turned on; while on, every message carries a coarse fix
+  // and nothing else about where the person is.
+  describe('"Use my location"', () => {
+    const getCurrentPosition = vi.fn();
+
+    beforeEach(() => {
+      window.localStorage.clear();
+      getCurrentPosition.mockReset();
+      Object.defineProperty(navigator, 'geolocation', {
+        configurable: true,
+        value: { getCurrentPosition },
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
+    });
+
+    it('sends nothing until it is turned on', async () => {
+      render(<ChatClient />);
+      await type('hi');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'hi', undefined, 'manual'),
+      );
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+    });
+
+    it('sends a coarse fix with the message once on, and remembers the choice', async () => {
+      getCurrentPosition.mockImplementation((ok: PositionCallback) =>
+        ok({
+          coords: { latitude: 37.27531, longitude: -107.88012, accuracy: 18.6 },
+        } as GeolocationPosition),
+      );
+      render(<ChatClient />);
+      await screen.findByTestId('chat-welcome');
+
+      const toggle = screen.getByRole('button', { name: 'Use my location' });
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
+      await type('what is near me');
+
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith(
+          'c-1',
+          'what is near me',
+          { location: { lat: 37.275, lng: -107.88, accuracy_m: 19 } },
+          'manual',
+        ),
+      );
+      expect(window.localStorage.getItem('bw_chat_use_location')).toBe('on');
+    });
+
+    it('says so and stays off when the browser refuses', async () => {
+      getCurrentPosition.mockImplementation((_ok: PositionCallback, fail: PositionErrorCallback) =>
+        fail({ code: 1, PERMISSION_DENIED: 1 } as GeolocationPositionError),
+      );
+      render(<ChatClient />);
+      await screen.findByTestId('chat-welcome');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Use my location' }));
+
+      expect(await screen.findByText(/Location is blocked/)).toBeInTheDocument();
+      expect(window.localStorage.getItem('bw_chat_use_location')).toBeNull();
+      await type('hi');
+      await waitFor(() =>
+        expect(sendMessage).toHaveBeenCalledWith('c-1', 'hi', undefined, 'manual'),
+      );
+    });
+  });
+
   describe('the mode picker', () => {
     it('opens in the mode the server stored', async () => {
       getConversation.mockResolvedValue({ ...answered('ok'), mode: 'accept_edits' });

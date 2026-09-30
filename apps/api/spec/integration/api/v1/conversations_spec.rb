@@ -140,7 +140,22 @@ RSpec.describe "conversations", type: :request do
           context: {
             type: :object,
             description: "Where the user is standing, so \"what can I eat here\" is answerable.",
-            properties: { path: { type: :string }, restaurant: { type: :string } }
+            properties: {
+              path: { type: :string },
+              restaurant: { type: :string },
+              location: {
+                type: :object,
+                description: "The device's location, sent only while the person has \"Use my location\" on. " \
+                             "Coarsened to three decimals and used for this turn only; never stored, never " \
+                             "shown to the model. Malformed values are dropped, not refused.",
+                properties: {
+                  lat: { type: :number, minimum: -90, maximum: 90 },
+                  lng: { type: :number, minimum: -180, maximum: 180 },
+                  accuracy_m: { type: :number }
+                },
+                required: %w[lat lng]
+              }
+            }
           }
         }
       }

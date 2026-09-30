@@ -3544,6 +3544,12 @@ export interface paths {
                         context?: {
                             path?: string;
                             restaurant?: string;
+                            /** @description The device's location, sent only while the person has "Use my location" on. Coarsened to three decimals and used for this turn only; never stored, never shown to the model. Malformed values are dropped, not refused. */
+                            location?: {
+                                lat: number;
+                                lng: number;
+                                accuracy_m?: number;
+                            };
                         };
                     };
                 };

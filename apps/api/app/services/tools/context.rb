@@ -11,6 +11,11 @@ module Tools
     # user lookup to decide whether a call needs one.
     attr_reader :user_id, :public_host, :request_id, :scopes
 
+    # `{ "lat", "lng", "accuracy_m" }` for this turn, or nil. Only the
+    # first-party chat sets it (see `Chat::DeviceLocation`); an MCP
+    # credential never has one.
+    attr_reader :device_location
+
     # `Registry.for`'s memo. It lives here because a context is the unit
     # the filtered catalogue is constant over; see the comment there.
     attr_accessor :cached_tools
@@ -20,6 +25,7 @@ module Tools
       @user_id     = raw[:user_id]
       @public_host = raw[:public_host]
       @request_id  = raw[:request_id]
+      @device_location = raw[:device_location].presence
       # What this caller's credential is allowed to touch.
       #
       # **Not saying and saying nothing are different answers**, and the

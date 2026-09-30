@@ -186,20 +186,23 @@ module Api
         conversation.events.maximum(:position).to_i
       end
 
-      # Deliberately not a loose boolean cast: those read anything that
-      # isn't literally false as `true`, which would turn a malformed
-      # request into approval for a destructive call.
       # Where the user was standing when they asked. Rides with the turn
       # rather than being read at run time, because by then they may have
-      # navigated away.
+      # navigated away. `location` is the device's, sent only while the
+      # person has "Use my location" on; it lives in the queued payload
+      # until the job picks the turn up, and nowhere after.
       def page_context
         raw = params[:context]
         return nil if raw.blank?
 
         { "path" => raw[:path].to_s.first(200).presence,
-          "restaurant" => raw[:restaurant].to_s.first(100).presence }.compact.presence
+          "restaurant" => raw[:restaurant].to_s.first(100).presence,
+          "location" => Chat::DeviceLocation.from(raw[:location]) }.compact.presence
       end
 
+      # Deliberately not a loose boolean cast: those read anything that
+      # isn't literally false as `true`, which would turn a malformed
+      # request into approval for a destructive call.
       def confirm_answer
         case params[:confirm]
         when true, "true"   then true

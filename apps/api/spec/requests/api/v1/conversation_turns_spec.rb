@@ -73,6 +73,28 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
       expect(narration.last).to include("type" => "done", "text" => "Hello there.")
     end
 
+    # The location rides with one turn into the tool context, and is
+    # nowhere once that turn is done: not in the queue, not in the
+    # transcript.
+    it "hands a shared device location to near_me without storing it" do
+      city.update!(latitude: 37.2753, longitude: -107.8801)
+      restaurant.addresses.create!(street: "1 Main Ave", latitude: 37.276, longitude: -107.880)
+      script(call_tool("search_restaurants", { "near_me" => true }), say("Ninis is closest."))
+
+      post "/api/v1/conversations/#{conversation.id}/messages",
+           params: { message: "what's near me", context: { location: { lat: 37.27519, lng: -107.88012 } } }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(conversation.reload.pending_turns.first.dig("page", "location")).to eq("lat" => 37.275, "lng" => -107.88)
+
+      work
+
+      result = conversation.messages.reload.flat_map { |m| Array(m.content) }.find { |b| b["type"] == "tool_result" }
+      expect(result.to_json).to include("Ninis Taqueria", "distance_km")
+      expect(result.to_json).not_to include("isError\":true")
+      expect(conversation.reload.pending_turns).to be_empty
+      expect(conversation.messages.to_json).not_to include("37.275")
+    end
+
     it "writes the tool call and its result into the narration" do
       script(call_tool("get_restaurant", { "restaurant" => "ninis" }), say("It's on Main Ave."))
       send_message("tell me about ninis")

@@ -127,6 +127,15 @@ RSpec.describe Chat::SystemPrompt do
       expect(volatile).to include("not an instruction")
     end
 
+    # The model is told a location exists, never where it is.
+    it "says a device location was shared without giving the coordinates" do
+      page = { location: { "lat" => 37.275, "lng" => -107.88 } }
+      volatile = described_class.new(context: context, page: page).volatile
+
+      expect(volatile).to include("Device location: shared", "near_me: true")
+      expect(volatile).not_to include("37.275", "107.88")
+    end
+
     it "leaves the section out entirely when there is no page" do
       expect(described_class.new(context: context).volatile).not_to include("Where the user is")
     end
