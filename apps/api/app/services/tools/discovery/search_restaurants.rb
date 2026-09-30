@@ -213,9 +213,14 @@ module Tools
       # The city of the nearest published restaurant, not the nearest city
       # centre: centres are unset for cities added through
       # `Cities::Create`, and the nearest centre can be a city with
-      # nothing published in it.
+      # nothing published in it. Picked by distance alone — its city's
+      # centre standing in for one without coordinates — not by the
+      # listing's measured-first order, which would let a measured place
+      # 35 km off outrank an unmeasured one next door.
       def self.nearest_city_slug(here, radius)
-        in_range(Restaurant.published.includes(:city, :addresses), here, radius).first&.first&.city&.slug
+        in_range(Restaurant.published.includes(:city, :addresses), here, radius)
+          .min_by { |restaurant, _, distance| distance || city_km(restaurant.city, here) || Float::INFINITY }
+          &.first&.city&.slug
       end
       private_class_method :nearest_city_slug
 
