@@ -149,9 +149,11 @@ describe('ResultsPane', () => {
       strictness: 'strict',
     });
     expect(screen.getByText('Mains')).toBeInTheDocument();
+    // The dish page must judge under the same filter — preset and the
+    // assistant's strictness override both ride on the link.
     expect(screen.getByRole('link', { name: 'Pad Thai' })).toHaveAttribute(
       'href',
-      '/restaurants/ninis/items/i-1?profile=vegan',
+      '/restaurants/ninis/items/i-1?profile=vegan&strictness=strict',
     );
     // The hidden dish is drawn, not dropped, and says why.
     expect(screen.getByRole('link', { name: 'Queso' })).toBeInTheDocument();
@@ -297,9 +299,38 @@ describe('ResultsPane', () => {
     await screen.findByText(/usually 20 to 60 seconds/);
     await vi.advanceTimersByTimeAsync(4000);
     expect(await screen.findByRole('alert')).toHaveTextContent('502');
-    await vi.advanceTimersByTimeAsync(4000);
+    // A failed look waits twice as long before the next.
+    await vi.advanceTimersByTimeAsync(8000);
     expect(await screen.findByText('Carnitas')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  // A chat reopened mid-scan gets no further pane event, so the first
+  // look has to be retried on its own.
+  it('retries a scan whose very first look fails, and gives up after enough in a row', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    getScan.mockRejectedValueOnce(new Error('Request failed (429)')).mockResolvedValueOnce(scan);
+    render(<ResultsPane pane={{ kind: 'scan', scan_id: 'run-1' }} working={null} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('429');
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(await screen.findByText('Carnitas')).toBeInTheDocument();
+    expect(getScan).toHaveBeenCalledTimes(2);
+
+    // Once it has answered ready there is nothing left to watch.
+    await vi.advanceTimersByTimeAsync(64000);
+    expect(getScan).toHaveBeenCalledTimes(2);
+
+    getScan.mockReset();
+    getScan.mockRejectedValue(new Error('Request failed (404)'));
+    render(<ResultsPane pane={{ kind: 'scan', scan_id: 'run-gone' }} working={null} />);
+    // Retries back off: 4s, 8s, 16s, 32s, 64s — the first look plus
+    // MAX_FAILED_LOOKS retries, then it stops asking.
+    for (const wait of [4000, 8000, 16000, 32000, 64000, 128000]) {
+      await vi.advanceTimersByTimeAsync(wait);
+    }
+    expect(getScan).toHaveBeenCalledTimes(6);
     vi.useRealTimers();
   });
 

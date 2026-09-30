@@ -143,6 +143,15 @@ direction.
   carries `diet` / `strictness` from the *arguments*, not the resolved
   filter, so a chat reopened after the person changed their profile
   draws today's menu, not a snapshot.
+- **Dish links carry the pane's filter.** A menu pane drawn under
+  `strictness: strict` links each dish with `?strictness=strict` (and the
+  preset), and the dish page passes both to `fetchItem`, so the server
+  judges the dish under the same filter the list was drawn with. Without
+  it a dish hidden here as unconfirmed opens as visible under the saved
+  strictness.
+- **A scan pane retries its first look.** A chat reopened mid-scan gets no
+  further pane event, so a first status request lost to a 429 or a 502
+  is retried on the poll cadence, bounded to five failures in a row.
 - **A pane event can arrive for a chat that is off screen.** Same rule as
   every other event in `_ChatClient`: only the chat being viewed draws it;
   the stored `last_pane` catches up on open.

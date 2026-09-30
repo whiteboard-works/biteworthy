@@ -32,6 +32,11 @@ type Loaded =
  *  polls too, and each of its polls re-points the pane, but a person
  *  watching should not have to wait for the model's next round. */
 const SCAN_POLL_MS = 4000;
+/** Failed looks in a row before a scan pane stops asking. Each waits
+ *  twice as long as the last (4s … 64s, about two minutes in all), so a
+ *  throttled minute is outlasted rather than hammered; a scan that is
+ *  gone stops being asked about. */
+const MAX_FAILED_LOOKS = 5;
 
 export function ResultsPane({
   pane,
@@ -73,12 +78,16 @@ export function ResultsPane({
     }
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // Whether the last answer said "still extracting". One failed poll —
-    // a dropped connection, a proxy 502 — must not end the watch, so a
-    // failure while polling asks again on the same cadence.
-    let polling = false;
+    // A scan is watched until it says ready or failed. Watching starts
+    // before the first answer, not after it: a chat reopened while its
+    // scan is extracting gets no further pane event, so a first request
+    // lost to a blip or a throttled minute would otherwise leave the
+    // pane on that error for good. A failed look asks again on the same
+    // cadence, a bounded number of times in a row.
+    let settled = pane.kind !== 'scan';
+    let failures = 0;
     const again = () => {
-      timer = setTimeout(() => void load(), SCAN_POLL_MS);
+      timer = setTimeout(() => void load(), SCAN_POLL_MS * 2 ** failures);
     };
     const load = async () => {
       setLoading(true);
@@ -86,15 +95,17 @@ export function ResultsPane({
         const next = await fetchFor(pane, key, revision);
         if (!live) return;
         setError(null);
+        failures = 0;
         // An unknown kind from a newer server is not an error, just
         // nothing this build can show.
         if (next) setFetched(next);
-        polling = next?.kind === 'scan' && !next.data.ready && !next.data.failed;
-        if (polling) again();
+        if (next?.kind === 'scan') settled = next.data.ready || next.data.failed;
+        if (!settled) again();
       } catch (e) {
         if (!live) return;
         setError((e as Error).message);
-        if (polling) again();
+        failures += 1;
+        if (!settled && failures <= MAX_FAILED_LOOKS) again();
       } finally {
         if (live) setLoading(false);
       }
@@ -227,7 +238,13 @@ function MenuView({
         {preset ? ` · ${preset}` : ''} · {data.filter.strictness}
       </p>
       {sections.map((section) => (
-        <MenuSection key={section.id ?? 'none'} section={section} slug={slug} preset={preset} />
+        <MenuSection
+          key={section.id ?? 'none'}
+          section={section}
+          slug={slug}
+          preset={preset}
+          strictness={pane?.strictness ?? null}
+        />
       ))}
       {data.items.length === 0 ? (
         <p className="mt-bw-4 text-bw-sm text-zinc-500">No published dishes yet.</p>
@@ -240,15 +257,26 @@ function MenuSection({
   section,
   slug,
   preset,
+  strictness,
 }: {
   section: ItemSection<RestaurantItem>;
   slug: string;
   preset: string | null;
+  /** The pane's own strictness override, when the assistant asked for one. */
+  strictness: string | null;
 }): ReactElement {
-  const href = (item: RestaurantItem) =>
-    `/restaurants/${encodeURIComponent(slug)}/items/${encodeURIComponent(item.id)}${
-      preset ? `?profile=${encodeURIComponent(preset)}` : ''
+  // The dish page decides status under the same filter this list was
+  // drawn with — preset and strictness both — or a dish hidden here as
+  // unconfirmed could open as visible under the saved strictness.
+  const href = (item: RestaurantItem) => {
+    const params = new URLSearchParams();
+    if (preset) params.set('profile', preset);
+    if (strictness) params.set('strictness', strictness);
+    const qs = params.toString();
+    return `/restaurants/${encodeURIComponent(slug)}/items/${encodeURIComponent(item.id)}${
+      qs ? `?${qs}` : ''
     }`;
+  };
   const row = (item: RestaurantItem, hidden: boolean) => (
     <li key={item.id} data-testid={`pane-item-${item.id}`} className="py-bw-2">
       {/* A new tab: the pane sits beside a chat that may be mid-turn, and

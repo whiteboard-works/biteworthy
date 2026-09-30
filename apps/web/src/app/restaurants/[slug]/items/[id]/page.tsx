@@ -5,6 +5,7 @@ import {
   fetchRestaurant,
   type Restaurant,
   type RestaurantItem,
+  type Strictness,
 } from '../../../../../lib/restaurants';
 import { fetchReviewsServer, type ReviewsResponse } from '../../../../../lib/reviews';
 import { getServerJwt, getServerUserId } from '../../../../../lib/server-auth';
@@ -24,7 +25,13 @@ import { SuggestFixClient } from './SuggestFixClient';
  * static parts.
  */
 type Params = { slug: string; id: string };
-type Search = { profile?: string | string[] };
+type Search = { profile?: string | string[]; strictness?: string | string[] };
+
+const STRICTNESS: readonly Strictness[] = ['relaxed', 'balanced', 'strict'];
+function parseStrictness(raw: string | string[] | undefined): Strictness | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return STRICTNESS.find((s) => s === value) ?? null;
+}
 
 export default async function ItemDetailPage({
   params,
@@ -36,8 +43,11 @@ export default async function ItemDetailPage({
   const { slug, id } = await params;
   // Carried from the menu page's item links so the back-link can return
   // to the same filtered view instead of silently unfiltering.
-  const { profile } = await searchParams;
+  const { profile, strictness: rawStrictness } = await searchParams;
   const presetSlug = (Array.isArray(profile) ? profile[0] : profile) ?? null;
+  // The chat's results pane links here under the strictness the assistant
+  // read the menu with; the server decides status under the same one.
+  const strictness = parseStrictness(rawStrictness);
 
   // The JWT lets fetchItem populate `favorited` for the save button;
   // anonymous callers still render (favorited defaults false, button hidden).
@@ -45,7 +55,9 @@ export default async function ItemDetailPage({
   const edge = await edgeHeaders();
   const [restaurant, item, initialReviews, currentUserId] = await Promise.all([
     fetchRestaurant(slug, { edgeHeaders: edge }).catch(() => null),
-    fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug, edgeHeaders: edge }).catch(() => null),
+    fetchItem(slug, id, { jwt: jwt ?? undefined, presetSlug, strictness, edgeHeaders: edge }).catch(
+      () => null,
+    ),
     fetchReviewsServer(id, edge).catch(() => null),
     getServerUserId(),
   ]);

@@ -186,13 +186,18 @@ export async function fetchRestaurants(
 export async function fetchItem(
   restaurantSlugOrId: string,
   itemId: string,
-  opts: FetchOptions & { presetSlug?: string | null } = {},
+  opts: FetchOptions & { presetSlug?: string | null; strictness?: Strictness | null } = {},
 ): Promise<RestaurantItem> {
   const headers: Record<string, string> = { ...opts.edgeHeaders };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
-  // ?profile= keeps the show payload's status/reasons consistent with the
-  // filtered menu the user clicked through from.
-  const qs = opts.presetSlug ? `?profile=${encodeURIComponent(opts.presetSlug)}` : '';
+  // ?profile= and ?strictness= keep the show payload's status/reasons
+  // consistent with the filtered menu the user clicked through from — a
+  // dish hidden as unconfirmed under a strict view must not come back
+  // visible on its own page under the saved strictness.
+  const qs = itemsQuery({
+    presetSlug: opts.presetSlug ?? undefined,
+    strictness: opts.strictness ?? undefined,
+  });
   return api<RestaurantItem>(
     `/restaurants/${encodeURIComponent(restaurantSlugOrId)}/items/${encodeURIComponent(itemId)}${qs}`,
     { headers, fetchImpl: opts.fetchImpl },
