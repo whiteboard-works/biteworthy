@@ -157,19 +157,19 @@ module Tools
         scope = within_box(scope, here, radius) if city_slug.blank?
 
         rows = scope.to_a.filter_map do |restaurant|
-          distance = distance_km(restaurant, here)
+          address, distance = nearest(restaurant, here)
           if city_slug.blank?
             next if distance && distance > radius
             next if distance.nil? && !city_within?(restaurant.city, here, radius)
           end
-          [ restaurant, distance ]
+          [ restaurant, address, distance ]
         end
-        rows.sort_by! { |restaurant, distance| [ distance.nil? ? 1 : 0, distance || 0, restaurant.name ] }
+        rows.sort_by! { |restaurant, _, distance| [ distance.nil? ? 1 : 0, distance || 0, restaurant.name ] }
 
         applied = { sorted_by: "distance" }
         applied[:radius_km] = radius if city_slug.blank?
         applied.merge!(city: city_slug, city_source: "argument") if city_slug.present?
-        ok(**applied, restaurants: rows.first(limit).map { |restaurant, distance| summary(restaurant).merge(distance_km: distance&.round(1)) })
+        ok(**applied, restaurants: rows.first(limit).map { |restaurant, address, distance| near_summary(restaurant, address, distance) })
       end
       private_class_method :near
 
@@ -204,15 +204,21 @@ module Tools
       end
       private_class_method :city_within?
 
-      # The nearest of its locations: the box admits a restaurant on any
-      # address in range, so the exact check has to agree with it.
-      def self.distance_km(restaurant, here)
+      # The nearest of its locations, as `[address, km]`: the box admits a
+      # restaurant on any address in range, so the exact check has to
+      # agree with it, and the street shown has to be the one measured.
+      def self.nearest(restaurant, here)
         restaurant.addresses
                   .select { |a| a.latitude && a.longitude }
-                  .map { |a| Geo.distance_km(here["lat"], here["lng"], a.latitude, a.longitude) }
-                  .min
+                  .map { |a| [ a, Geo.distance_km(here["lat"], here["lng"], a.latitude, a.longitude) ] }
+                  .min_by { |_, distance| distance } || [ nil, nil ]
       end
-      private_class_method :distance_km
+      private_class_method :nearest
+
+      def self.near_summary(restaurant, address, distance)
+        summary(restaurant, address: address).merge(distance_km: distance&.round(1))
+      end
+      private_class_method :near_summary
 
       def self.ranked_by_diet(city_slug, diet, limit, applied = {}, here: nil)
         raise Errors::InvalidArgument, "city_slug is required when ranking by diet." if city_slug.blank?
@@ -233,11 +239,10 @@ module Tools
           **applied,
           diet: preset.slug,
           restaurants: ranked.map do |row|
-            row_summary = summary(row.restaurant).merge(
-              passing_item_count: row.visible_count,
-              total_item_count:   row.total_count
-            )
-            here ? row_summary.merge(distance_km: distance_km(row.restaurant, here)&.round(1)) : row_summary
+            counts = { passing_item_count: row.visible_count, total_item_count: row.total_count }
+            next summary(row.restaurant).merge(counts) unless here
+
+            near_summary(row.restaurant, *nearest(row.restaurant, here)).merge(counts)
           end
         )
       end
@@ -253,8 +258,8 @@ module Tools
       end
       private_class_method :home_city_slug
 
-      def self.summary(restaurant)
-        address = restaurant.addresses.first
+      def self.summary(restaurant, address: nil)
+        address ||= restaurant.addresses.first
         {
           id:     restaurant.id,
           slug:   restaurant.slug,

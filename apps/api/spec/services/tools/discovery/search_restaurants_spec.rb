@@ -160,7 +160,8 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
       ninis.addresses.create!(street: "Far away", latitude: 40.0, longitude: -105.0)
       ninis.addresses.create!(street: "Next door", latitude: 37.2755, longitude: -107.8801)
 
-      expect(payload(near)[:restaurants].find { |r| r[:name] == "Ninis Taqueria" }[:distance_km]).to eq(0.1)
+      row = payload(near)[:restaurants].find { |r| r[:name] == "Ninis Taqueria" }
+      expect(row).to include(distance_km: 0.1, street: "Next door")
     end
 
     it "says so when a named city does not exist rather than returning nothing" do
