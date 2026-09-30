@@ -120,6 +120,36 @@ RSpec.describe Chat::AgentLoop do
       expect(user.profile.reload.strictness).to eq("strict")
     end
 
+    # The override was the model's, for a preview. The setting is the
+    # person's. Once they change it, the preview must not outlive it.
+    it "drops the model's filter overrides when the person changes their own filter" do
+      create(:user_profile, user: user, strictness: "balanced") unless user.profile
+
+      seen = events_for(
+        call_tool("get_menu", { "restaurant" => "ninis", "strictness" => "relaxed" }, id: "a"),
+        call_tool("set_strictness", { "strictness" => "strict" }, id: "b"),
+        say("Strict now.")
+      )
+
+      panes = seen.select { |e| e[:type] == "pane" }.map { |e| e[:pane] }
+      expect(panes.first).to include("strictness" => "relaxed").or include(strictness: "relaxed")
+      expect(panes.last.keys.map(&:to_s)).not_to include("strictness", "preset")
+      expect(panes.last).to include("kind" => "menu", "restaurant" => "ninis")
+      expect(conversation.reload.last_pane).not_to have_key("strictness")
+    end
+
+    it "keeps a previewed filter when a write that does not touch the filter re-points the pane" do
+      seen = events_for(
+        call_tool("get_menu", { "restaurant" => "ninis", "strictness" => "relaxed" }, id: "a"),
+        call_tool("save_restaurant", { "restaurant" => "ninis", "saved" => true }, id: "b"),
+        say("Saved.")
+      )
+
+      panes = seen.select { |e| e[:type] == "pane" }.map { |e| e[:pane] }
+      expect(panes.size).to eq(2)
+      expect(panes.last.transform_keys(&:to_s)).to include("strictness" => "relaxed")
+    end
+
     it "does not re-point the pane for a read that shows nothing" do
       seen = events_for(
         call_tool("get_menu", { "restaurant" => "ninis" }, id: "a"),

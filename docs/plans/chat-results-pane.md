@@ -57,7 +57,11 @@ opening an old chat restores what it was last looking at. The show
 endpoint serves it as `Conversation.pane`.
 
 A successful **write** with no pane of its own re-emits the current
-`last_pane` unchanged (`AgentLoop#show`). The web counts every live pane
+`last_pane` (`AgentLoop#repoint`). When that write changes the filter
+(`update_avoid_lists`, `set_strictness`) a menu pane also loses the
+model's `preset` / `strictness` overrides, stored copy included: the
+preview was the model's, the setting is the person's, and the preview
+must not outlive it. The web counts every live pane
 event (`revision`) and refetches on each, so `update_avoid_lists` or
 `set_strictness` redraws the menu on screen under the new filter instead
 of leaving "you can eat" labels from the old one. Reads with no pane

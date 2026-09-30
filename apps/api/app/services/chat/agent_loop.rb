@@ -601,8 +601,7 @@ module Chat
 
       pane = tool.pane_for(arguments_for(call), payload[:structuredContent] || {})
       if pane.blank?
-        current = @conversation.last_pane
-        emit(type: "pane", pane: current) if current.present? && !ModePolicy.read_only?(tool)
+        repoint(tool)
         return
       end
 
@@ -610,6 +609,31 @@ module Chat
       emit(type: "pane", pane: pane)
     rescue StandardError => e
       Rails.logger.error("[chat] pane for #{call['name']} on #{@conversation.id} failed: #{e.class}: #{e.message}")
+    end
+
+    # The tools that change what the filter hides. Saving a restaurant is
+    # a profile write too, but it moves no dish between safe and hidden.
+    FILTER_TOOLS = %w[update_avoid_lists set_strictness].freeze
+    private_constant :FILTER_TOOLS
+
+    # A write with nothing of its own to show. Reads change nothing, so
+    # they leave the pane alone.
+    #
+    # A filter change also drops the menu pane's overrides. The
+    # model may have previewed the menu under `strictness: relaxed`; once
+    # the person tightens their own setting, redrawing that preview would
+    # keep calling unconfirmed dishes safe under an override they did not
+    # choose. The pane goes back to the saved profile — which is what
+    # they just changed — and the stored copy follows so a reopen agrees.
+    def repoint(tool)
+      current = @conversation.last_pane
+      return if current.blank? || ModePolicy.read_only?(tool)
+
+      if current["kind"] == "menu" && FILTER_TOOLS.include?(tool.name_value)
+        current = current.except("preset", "strictness")
+        @conversation.update_column(:last_pane, current)
+      end
+      emit(type: "pane", pane: current)
     end
 
     def declined(call)
