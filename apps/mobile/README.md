@@ -1,6 +1,6 @@
 # BiteWorthy Mobile
 
-Expo SDK 52 + expo-router. The diner-first surface — camera, filter,
+Expo SDK 56 + expo-router. The diner-first surface — camera, filter,
 scan-and-eat.
 
 ## Local

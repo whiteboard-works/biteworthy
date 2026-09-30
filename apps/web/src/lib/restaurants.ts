@@ -105,7 +105,7 @@ export interface RestaurantItem extends FilterableItem {
 /**
  * One ingredient/tag association with the columns strict mode rests on.
  * `confidence` is the canonical filter-engine enum — a third hand-written
- * copy of that union is exactly the drift CLAUDE.md warns codegen can't
+ * copy of that union is exactly the drift AGENTS.md warns codegen can't
  * catch. `source` has no canonical TS home yet, so it lives here.
  */
 export interface DetectedAssociation {

@@ -12,7 +12,7 @@ allergies, intolerances, religious observance, lifestyle.
 biteworthy/
 ├── apps/
 │   ├── api/         Rails 8 JSON API
-│   ├── web/         Next.js 15 (App Router)
+│   ├── web/         Next.js 16 (App Router)
 │   └── mobile/      Expo / React Native
 ├── packages/
 │   ├── api-types/       TS types generated from the Rails OpenAPI spec
@@ -68,7 +68,7 @@ guide. Each app also has its own README under `apps/<name>/`.
 
 ## Status
 
-Phase 5 (launch prep): all loop-shippable code is on master; remaining
+Launch prep: all loop-shippable code is on master; remaining
 items need human provisioning — see `docs/launch-readiness.md`. See
 `docs/adr/0001-stack.md` for the architectural picks and
 `docs/roadmap.md` for the phase plan.

@@ -10,7 +10,7 @@ inherit_gem:
 
 AllCops:
   # Generated or vendored: schema.rb is rewritten by migrations, and the
-  # legacy tree is frozen reference material (see CLAUDE.md).
+  # legacy tree is frozen reference material (see AGENTS.md).
   Exclude:
     - "db/schema.rb"
     - "bin/**/*"

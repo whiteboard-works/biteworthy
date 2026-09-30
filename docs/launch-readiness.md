@@ -40,7 +40,7 @@ The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:0
 - Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example`) — Phase 5.1.1.
 - 377 rspec examples passing.
 
-### Web (Next.js 15, `apps/web/`)
+### Web (Next.js 16, `apps/web/`)
 
 - Marketing landing at `/` + waitlist form — Phase 5.5, 5.10.
 - SEO city/diet pages at `/durango/[diet]` (8 curated diets, build-time pre-render) — Phase 5.6.
@@ -254,15 +254,15 @@ provider up again on a new box:
 
 ## CI status
 
-- `ci-api.yml` — runs on every PR touching `apps/api/`. Postgres 16, ImageMagick installed, full rspec, Brakeman + Rubocop informational.
+- `ci-api.yml` — runs on every PR touching `apps/api/`. Postgres 16, ImageMagick installed, full rspec, Brakeman + Rubocop (both blocking).
 - `ci-js.yml` — runs on `apps/web/` / `apps/mobile/` / `packages/` / root config. typecheck → lint → test.
-- `pr-title.yml` — enforces lowercase-after-colon conventional-commit titles (informational).
-- `auto-merge.yml` — squash-merges PRs labeled `claude-cd` + `auto-merge-ok` once branch protection allows.
+- `pr-title.yml` — checks conventional-commit titles.
+- `auto-merge.yml` — enables squash auto-merge on every non-draft PR once branch protection allows.
 
 ## Known gaps + Discovered followups
 
 - **jest-expo + web `@testing-library/react` wiring** — single Discovered note covers both apps. Once landed, retroactively add UI snapshots from Phases 3.2 / 3.3 / 3.4 / 3.5 / 4.11.4.
-- **Auto-merge race** — twice now (#150, #172) a follow-on commit has been lost when auto-merge enabled before the second push. Either tighten the loop's flow (push everything in one go) or gate auto-merge on a manual `ready-to-merge` label after final push.
+- **Auto-merge race** — twice now (#150, #172) a follow-on commit has been lost when auto-merge enabled before the second push. Resolved in practice: open as a draft until review is clean, then mark ready (`ship merge` does this).
 - **Restaurant `neighborhood` column** — Phase 5.6 surfaced this; the SEO page wanted to show neighborhood names but the addresses table doesn't have that column. Worth a Phase 6+ followup once the launch market grows beyond Durango itself.
 
 ## Stop conditions tripped

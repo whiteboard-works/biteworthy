@@ -22,9 +22,11 @@ from it. If the loop's behavior diverges from this file, the file wins.
    marking ready-for-merge.
 4. **CI must pass.** Never request human review on red. Never
    auto-merge on red.
-5. **Trust review.** Auto-merge runs only after CI is green AND no
-   unresolved review threads AND `@shadoath` (the project owner) has
-   either explicitly approved or labeled the PR `auto-merge-ok`.
+5. **Trust review.** GitHub auto-merge runs once required checks are
+   green; it does not wait on review threads (conversation resolution is
+   off on `master`), and there is no label or approval gate (see
+   §Auto-merge policy). Open a draft to hold a PR; `ship merge` also
+   waits for zero unresolved P1/P2 findings.
 6. **Plan-first updates.** Before starting work, the loop syncs
    `docs/roadmap.md`'s "Next up" queue. Before merging, it ticks the
    completed item. Mid-task progress goes in `docs/status.md` (see
@@ -36,8 +38,8 @@ from it. If the loop's behavior diverges from this file, the file wins.
 8. **Honest scope.** Don't pull next-phase work into a current-phase
    PR. Don't refactor adjacent code while fixing a bug. Don't add
    features the roadmap didn't ask for.
-9. **Subplans for depth.** Each phase has a `docs/plans/phase-N.md`
-   that decomposes the phase into ordered tasks, gotchas, and
+9. **Subplans for depth.** Each live plan has a subplan under
+   `docs/plans/` that decomposes it into ordered tasks, gotchas, and
    acceptance criteria. The roadmap's "Next up" links into the
    relevant subplan. Completed subplans move to
    `docs/plans/archive/` once their phase ships (read-only history).
@@ -65,7 +67,7 @@ applicable branch.
 | PR open, CI red | Fetch the failing logs. If the cause is known and the fix is small, push it to the same branch. If unknown after one diagnosis attempt, post a status comment summarizing the failure, ping `@shadoath`, and pause. |
 | PR open, CI pending | Do nothing. Log "waiting for CI." |
 | PR open, conflicts with master | Rebase onto master. If conflicts are mechanical, resolve and force-push. If non-trivial, ping and pause. |
-| No PR open, branch has commits | Open the PR (auto-merge enables on open), do a self-review pass, then continue to step 3. |
+| No PR open, branch has commits | Open the PR as a draft (auto-merge arms the moment a PR is non-draft), do the self-review pass, mark it ready once review threads are resolved, then continue to step 3. |
 | No PR open, working tree clean | Continue to step 3. |
 
 ### 3. Update the plan
@@ -82,7 +84,7 @@ applicable branch.
 
 - Read `docs/roadmap.md` "Next up" queue.
 - Take the topmost unblocked item.
-- Open the relevant `docs/plans/phase-N.md` (or `docs/plans/archive/`
+- Open the relevant subplan under `docs/plans/` (or `docs/plans/archive/`
   for a shipped phase) to confirm scope.
 - Create a branch: `claude/<phase-slug>` from origin/master.
 
@@ -100,11 +102,10 @@ applicable branch.
 
 - Title: `<scope>: <imperative summary>` (matches the roadmap
   item).
-- Body sections: **Why** (linked roadmap item), **What** (bullet
-  diff summary), **Test plan** (checklist), **Notes** (anything
-  surprising).
-- Labels: `claude-cd`, plus `auto-merge-ok` if the PR is small +
-  mechanical (lockfile bumps, type regen, no behavior change).
+- Body: `## Summary` with 1–3 bullets on the why (link the roadmap
+  item) plus one "How this could fail" bullet; no test-plan section.
+- Labels: `claude-cd` tags loop-authored PRs; it does not gate
+  auto-merge (see §Auto-merge policy).
 - Request `@codex review` immediately.
 - Subscribe to PR activity for webhook events.
 - Append to `docs/status.md`.
@@ -148,7 +149,7 @@ actually decides what "required" means.
 Hard rules the loop still enforces (refuse to open or merge a PR
 that violates these):
 
-- The PR description has a populated **Test plan** checklist.
+- The PR description has a `## Summary` with a "How this could fail" bullet.
 - No file under `apps/api/db/migrate/` is edited destructively (a
   new migration is fine; editing a previously-shipped migration is
   not).

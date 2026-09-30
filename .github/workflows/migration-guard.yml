@@ -1,7 +1,7 @@
 name: Migration guard
 
 # Enforces the repo rule "never edit a previously-shipped migration — add a
-# new one" (CLAUDE.md + docs/delivery-playbook.md). Fails any PR that
+# new one" (AGENTS.md + docs/delivery-playbook.md). Fails any PR that
 # modifies, deletes, or renames a file under apps/api/db/migrate/ that
 # already exists on the base branch. Newly added migrations are fine.
 

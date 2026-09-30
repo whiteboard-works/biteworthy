@@ -1,6 +1,6 @@
 # AGENTS.md — apps/web (Next.js)
 
-<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
+<!-- BEGIN codex-review-guidelines -->
 ## Review guidelines
 
 **Context:** The Next.js web client for BiteWorthy. It does **not** compute the visible/hidden menu set — the Rails API does, and this app renders the `status` / `reasons` each item arrives with. `@biteworthy/filter-engine` supplies the wire types and the presentation helpers (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), not a filter. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)
@@ -13,5 +13,5 @@ Block a PR (P0/P1) when it:
 - **Emits an analytics event off-contract.** Use the `@biteworthy/analytics` `EVENTS` names and property shapes; never add the legal-E7 health fields (`preset_slug`, `strictness`, avoid-list counts) back to `profile_set`.
 - **Leaks a secret into the client bundle.** Only `NEXT_PUBLIC_*` env vars may reach client code; a non-`NEXT_PUBLIC_` server key imported into a `'use client'` component (or otherwise reachable from the client bundle) ships to the browser.
 
-For architecture and conventions, also follow CLAUDE.md and the repo-root `AGENTS.md`.
+For architecture and conventions, also follow the repo-root `AGENTS.md`.
 <!-- END codex-review-guidelines -->

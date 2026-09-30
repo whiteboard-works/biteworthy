@@ -8,20 +8,7 @@ Allowed types: feat | fix | chore | docs | refactor | test | ci | build
               | perf | revert | style
 -->
 
-## Why
+## Summary
 
-<!-- Linked roadmap item or issue. One paragraph on the goal. -->
-
-## What
-
-<!-- Bullet diff summary. Link surprises and design choices. -->
-
-## Test plan
-
-- [ ] CI green
-- [ ] <!-- specific spec / scenario -->
-- [ ] <!-- specific spec / scenario -->
-
-## Notes
-
-<!-- Anything reviewers should know that isn't obvious from the diff. Delete if none. -->
+- <!-- 1–3 bullets on the *why*; link the roadmap item or issue -->
+- How this could fail: <!-- the most likely production failure this diff could cause, who notices first, how bad it gets -->
