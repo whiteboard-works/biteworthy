@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   clearNeverHide,
+  fetchItem,
   fetchRestaurant,
   fetchRestaurantItems,
   fetchRestaurantItemsClient,
@@ -57,9 +58,7 @@ describe('fetchRestaurant', () => {
     const fetchImpl = fakeFetch(200, restaurantPayload);
     const r = await fetchRestaurant('cream-bean-berry-1', { fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(String(fetchImpl.mock.calls[0]![0])).toContain(
-      '/api/v1/restaurants/cream-bean-berry-1',
-    );
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('/api/v1/restaurants/cream-bean-berry-1');
     expect(r.name).toBe('Cream, Bean & Berry');
   });
 
@@ -124,6 +123,31 @@ describe('fetchRestaurantItems', () => {
     await fetchRestaurantItems('cream-bean-berry-1', { fetchImpl, jwt: 'jjj.www.ttt' });
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jjj.www.ttt');
+  });
+});
+
+describe('fetchItem', () => {
+  const itemPayload = { id: 'item-1', restaurant_id: 'rest-1', name: 'Queso', status: 'hidden' };
+
+  it('sends no filter params when none are given', async () => {
+    const fetchImpl = fakeFetch(200, itemPayload);
+    await fetchItem('cream-bean-berry-1', 'item-1', { fetchImpl });
+    expect(String(fetchImpl.mock.calls[0]![0])).toMatch(/\/items\/item-1$/);
+  });
+
+  // The dish page judges under the filter the person clicked through
+  // from. Dropping strictness here would let a dish hidden as unconfirmed
+  // under a strict view open as visible under the saved one.
+  it('carries presetSlug + strictness so the dish page judges under the same filter', async () => {
+    const fetchImpl = fakeFetch(200, itemPayload);
+    await fetchItem('cream-bean-berry-1', 'item-1', {
+      fetchImpl,
+      presetSlug: 'celiac',
+      strictness: 'strict',
+    });
+    const url = String(fetchImpl.mock.calls[0]![0]);
+    expect(url).toContain('profile=celiac');
+    expect(url).toContain('strictness=strict');
   });
 });
 

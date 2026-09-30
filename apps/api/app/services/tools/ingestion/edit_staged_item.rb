@@ -105,7 +105,11 @@ module Tools
 
         item.update!(attrs.merge(decision: "edited", decided_at: Time.current))
 
-        ok(dish: staged_item_row(item.reload), next_step: "Call accept_staged_items to put this on the menu.")
+        ok(
+          scan_id:   item.ingestion_run_id,
+          dish:      staged_item_row(item.reload),
+          next_step: "Call accept_staged_items to put this on the menu."
+        )
       end
 
       # A human typed these, so they land at the confidence a human edit

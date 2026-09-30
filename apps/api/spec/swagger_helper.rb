@@ -275,7 +275,12 @@ RSpec.configure do |config|
                              "every transcript to answer. A tool that declares no annotations, " \
                              "or one this build does not recognise, counts as writing."
               },
-              usage:      { "$ref" => "#/components/schemas/ChatUsage" }
+              usage:      { "$ref" => "#/components/schemas/ChatUsage" },
+              pane: {
+                nullable: true,
+                allOf: [{ "$ref" => "#/components/schemas/ChatPane" }],
+                description: "What the results pane was last pointed at. Sent only alongside `messages`."
+              }
             }
           },
           ChatUsage: {
@@ -330,6 +335,24 @@ RSpec.configure do |config|
               }
             }
           },
+          ChatPane: {
+            type: :object,
+            description: "A reference to what a tool just acted on, for the chat's results pane. " \
+                         "The client fetches the detail from the REST endpoint that renders it; " \
+                         "this carries only the ids and a summary. Flat and keyed on `kind` so a " \
+                         "new kind is additive for every client.",
+            required: %w[kind],
+            properties: {
+              kind:          { type: :string, enum: %w[menu scan] },
+              restaurant:    { type: :string, nullable: true, description: "Restaurant slug." },
+              preset:        { type: :string, nullable: true, description: "`menu`: the preset the menu was filtered by, when not the caller's profile." },
+              strictness:    { type: :string, nullable: true, enum: %w[relaxed balanced strict] },
+              visible_count: { type: :integer, nullable: true },
+              hidden_count:  { type: :integer, nullable: true },
+              scan_id:       { type: :string, nullable: true },
+              status:        { type: :string, nullable: true, description: "`scan`: the run's status when the tool answered." }
+            }
+          },
           ChatEvent: {
             type: :object,
             description: "One line of a turn's narration, carrying the cursor to resume from.",
@@ -342,7 +365,8 @@ RSpec.configure do |config|
               ok:       { type: :boolean, nullable: true },
               doing:    { type: :string, nullable: true, description: "The tool's own progress sentence." },
               message:  { type: :string, nullable: true },
-              tool:     { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] }
+              tool:     { nullable: true, allOf: [{ "$ref" => "#/components/schemas/PendingTool" }] },
+              pane:     { nullable: true, allOf: [{ "$ref" => "#/components/schemas/ChatPane" }] }
             }
           },
           ChatEventsPage: {

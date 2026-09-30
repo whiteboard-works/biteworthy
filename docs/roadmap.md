@@ -94,6 +94,21 @@ Read its Decisions and Safety-properties tables before picking up a phase.
 - [x] C8 — exact cost accounting: micro-cents, the reviewer's spend, `run_token` on every accrual
 - [x] C9 — cache the transcript, not just the prompt (~69% off a long turn's input, estimated)
 
+## Chat results pane (active, 2026-09-29)
+
+The chat stops being a transcript on its own. Beside it sits a pane that
+shows what the assistant is acting on — the menu it just read, the scan
+it started and the dishes that came out — rendered from the same REST
+payloads the pages use. The server sends a small typed reference
+(`Tools::Base.pane`, the `pane` event, `conversations.last_pane`); the
+web fetches the detail. Read-only until P3.
+
+**Plan + decisions: [`docs/plans/chat-results-pane.md`](plans/chat-results-pane.md).**
+
+- [x] P1 — contract + shell: `pane` hook, `menu` + `scan` kinds, split view on `/chat`
+- [ ] P2 — more kinds (restaurants, restaurant, profile, item) + highlight what the last write touched
+- [ ] P3 — the pane talks back: dish as page context, accept/reject from the pane, preload from a restaurant page
+
 M1 extracted the menu filter out of `ItemsController` into `Menus::Filter` /
 `Menus::Labels` / `Menus::Query` so the `get_menu` tool and the REST endpoint
 share one implementation — that logic is the product's safety story and must

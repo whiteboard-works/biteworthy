@@ -8431,6 +8431,15 @@
           },
           "usage": {
             "$ref": "#/components/schemas/ChatUsage"
+          },
+          "pane": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatPane"
+              }
+            ],
+            "description": "What the results pane was last pointed at. Sent only alongside `messages`."
           }
         }
       },
@@ -8510,6 +8519,58 @@
           }
         }
       },
+      "ChatPane": {
+        "type": "object",
+        "description": "A reference to what a tool just acted on, for the chat's results pane. The client fetches the detail from the REST endpoint that renders it; this carries only the ids and a summary. Flat and keyed on `kind` so a new kind is additive for every client.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "menu",
+              "scan"
+            ]
+          },
+          "restaurant": {
+            "type": "string",
+            "nullable": true,
+            "description": "Restaurant slug."
+          },
+          "preset": {
+            "type": "string",
+            "nullable": true,
+            "description": "`menu`: the preset the menu was filtered by, when not the caller's profile."
+          },
+          "strictness": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "relaxed",
+              "balanced",
+              "strict"
+            ]
+          },
+          "visible_count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "hidden_count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "scan_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "description": "`scan`: the run's status when the tool answered."
+          }
+        }
+      },
       "ChatEvent": {
         "type": "object",
         "description": "One line of a turn's narration, carrying the cursor to resume from.",
@@ -8550,6 +8611,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/PendingTool"
+              }
+            ]
+          },
+          "pane": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatPane"
               }
             ]
           }

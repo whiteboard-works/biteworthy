@@ -41,6 +41,7 @@ export type ChatBlock      = components['schemas']['ChatBlock'];
 export type PendingTool    = components['schemas']['PendingTool'];
 export type ChatUsage      = components['schemas']['ChatUsage'];
 export type ChatEventsPage = components['schemas']['ChatEventsPage'];
+export type ChatPane       = components['schemas']['ChatPane'];
 export type Attachment     = components['schemas']['Attachment'];
 export type McpToken       = components['schemas']['McpToken'];
 export type TagRef         = components['schemas']['TagRef'];

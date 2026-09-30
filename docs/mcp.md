@@ -126,6 +126,17 @@ Notes that bite:
 - **Declare `running_description`** on anything a person watches. It is the
   only text a user reads while a turn works, and it is the tool's to write —
   never the model's.
+- **Declare `pane`** on a tool whose result the chat's results pane should
+  show: `pane { |args, data| { kind: "menu", restaurant: data.dig(:restaurant, :slug) } }`.
+  It sees the tool's own arguments and its successful `structuredContent`,
+  and returns a small reference — ids and counts, never the data — that
+  the web pane fetches the detail for over REST. Inherited like `audience`
+  (`Tools::Ingestion::Base` declares the `scan` pane once for all seven
+  ingestion tools). A raising block logs and shows nothing; it never fails
+  the call. A write tool with no `pane` still re-points the pane at what
+  it already shows, so a filter change redraws the menu on screen. Kinds are listed in the `ChatPane` schema in
+  `spec/swagger_helper.rb`; a new kind is a schema enum entry plus a
+  renderer in `apps/web/src/app/chat/_ResultsPane.tsx`.
 - **`confirm_when` is enforced by `Base.call`, on both doors.**
   `destructive_hint` is static, so an MCP client reads it and puts a human
   in front of the call itself; `confirm_when` covers the case no annotation

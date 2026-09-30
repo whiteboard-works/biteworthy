@@ -10,6 +10,24 @@ module Tools
     class Base < Tools::Base
       audience :user
 
+      # Every ingestion tool acts on one scan, so they share a pane. The id
+      # comes from the result where the tool returns one and from the call
+      # otherwise; a tool that resolves neither shows nothing. `status` is
+      # read as the *run's* status, which is the only thing that key means
+      # in these tools' results today — a new tool that returns a `status`
+      # meaning something else has to declare its own pane.
+      pane do |args, data|
+        scan_id = data[:scan_id] || args[:scan_id]
+        next nil if scan_id.blank?
+
+        {
+          kind:       "scan",
+          scan_id:    scan_id.to_s,
+          status:     data[:status],
+          restaurant: data.dig(:restaurant, :slug)
+        }.compact
+      end
+
       class << self
         def find_run!(context, run_id)
           run = IngestionRun.find(run_id)

@@ -10,6 +10,7 @@
 
 import type {
   ChatMode as ApiChatMode,
+  ChatPane as ApiChatPane,
   ChatUsage as ApiChatUsage,
   PendingTool as ApiPendingTool,
 } from '@biteworthy/api-types';
@@ -74,9 +75,19 @@ export interface ConversationSummary {
  *  Generated from the rswag spec, not restated here. */
 export type ChatUsage = ApiChatUsage;
 
+/**
+ * What the results pane is pointed at: a reference the tool that just ran
+ * declared for its own result (`kind: 'menu'`, a restaurant slug, the
+ * filter it used), never the data. The pane fetches the detail from the
+ * REST endpoint the site already renders it with.
+ */
+export type ChatPane = ApiChatPane;
+
 export interface Conversation extends ConversationSummary {
   messages: ChatMessage[];
   usage?: ChatUsage;
+  /** Where the results pane was last pointed, so reopening restores it. */
+  pane?: ChatPane | null;
   /** Whether a tool that writes has run since you last spoke. Sent only
    *  alongside `messages`, so the sidebar's summaries never carry it —
    *  answering it there would mean loading every transcript. */
@@ -101,6 +112,7 @@ export type ChatEvent =
   | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
   | { type: 'compacted'; messages: number; tokens_saved: number }
+  | { type: 'pane'; pane: ChatPane }
   | { type: 'reconnect'; after: number }
   | { type: 'error'; message: string };
 
