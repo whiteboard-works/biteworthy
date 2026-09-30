@@ -171,6 +171,39 @@ RSpec.describe Tools::Discovery::SearchRestaurants do
       expect(payload(response)[:message]).to include("list_cities")
     end
 
+    # City centres are unset for cities added through Cities::Create, and
+    # the nearest centre can hold nothing published.
+    it "ranks a diet in the city of the nearest restaurant, not the nearest centre" do
+      vegan = create(:dietary_profile, slug: "vegan", name: "Vegan")
+      durango.update!(latitude: nil, longitude: nil)
+      create(:city, slug: "empty-town", name: "Empty Town", latitude: 37.275, longitude: -107.880)
+
+      response = near(diet: vegan.slug)
+
+      expect(payload(response)).to include(city: "durango", city_source: "device_location")
+    end
+
+    it "picks the diet city by distance, not the listing's measured-first order" do
+      vegan = create(:dietary_profile, slug: "vegan", name: "Vegan")
+      bayfield = create(:city, slug: "bayfield", name: "Bayfield", latitude: 37.2755, longitude: -107.8802)
+      create(:restaurant, :published, city: bayfield, name: "No Address Diner", slug: "no-address")
+      durango.update!(latitude: 37.5, longitude: -107.6)
+      [ close, ninis ].each { |r| r.addresses.update_all(latitude: 37.5, longitude: -107.6) }
+
+      expect(payload(near(diet: vegan.slug))).to include(city: "bayfield")
+    end
+
+    it "finds a restaurant across the date line" do
+      aleutian = create(:restaurant, :published, city: slc, name: "Adak Grill", slug: "adak")
+      aleutian.addresses.create!(street: "1 Harbor", latitude: 51.88, longitude: -179.95)
+
+      response = described_class.call(
+        server_context: { user_id: user.id, device_location: { "lat" => 51.88, "lng" => 179.95 } }, near_me: true
+      )
+
+      expect(names(response)).to eq([ "Adak Grill" ])
+    end
+
     it "refuses near_me alongside anywhere" do
       expect(near(anywhere: true).to_h[:isError]).to be(true)
     end

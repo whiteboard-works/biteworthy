@@ -107,7 +107,10 @@ block. With no `city_slug`, `near_me` keeps restaurants within the radius,
 plus those without coordinates whose city is within it (listed last,
 `distance_km: null`), so a thin address backfill reads as "distance
 unknown", not "nothing nearby". A diet ranking with `near_me` ranks in
-the nearest city. Not done yet: the results pane (its `restaurants` kind
+the city of the nearest published restaurant (by address, or its city's
+centre when it has none), not the nearest city centre: centres are unset
+for cities added through `Cities::Create`. The bounding box wraps at
+±180°. Not done yet: the results pane (its `restaurants` kind
 is still on the pane branch), mobile `expo-location`, and a production
 count of addresses with coordinates.
 
