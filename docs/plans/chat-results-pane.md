@@ -156,6 +156,10 @@ direction.
 - **A scan pane retries its first look.** A chat reopened mid-scan gets no
   further pane event, so a first status request lost to a 429 or a 502
   is retried on the poll cadence, bounded to five failures in a row.
+- **A pane event can be lost with the connection.** A turn that ran tools
+  but whose narration carried no `pane` event bumps the pane's revision
+  at the end-of-turn refetch anyway (`_ChatClient`), because the stored
+  pane it adopts may be the same reference the pane already shows.
 - **A pane event can arrive for a chat that is off screen.** Same rule as
   every other event in `_ChatClient`: only the chat being viewed draws it;
   the stored `last_pane` catches up on open.

@@ -371,6 +371,10 @@ export function ChatClient(): ReactElement {
     let accepted = false;
     let failure: unknown = null;
     let gone = false;
+    // Whether a `pane` event followed the latest tool call — see the
+    // refetch below. Per tool, not per turn: a menu read early in the
+    // turn shows one, and a filter change after it may lose its own.
+    let sawPane = false;
     try {
       const { after } = await ask();
       accepted = true;
@@ -382,7 +386,11 @@ export function ChatClient(): ReactElement {
       let cursor = after;
       for (let hop = 0; hop < MAX_RECONNECTS; hop += 1) {
         const resume = await watchTurn(id, cursor, (event) => {
-          if (event.type === 'tool_use') tools += 1;
+          if (event.type === 'tool_use') {
+            tools += 1;
+            sawPane = false;
+          }
+          if (event.type === 'pane') sawPane = true;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
           // Narration belongs to its own chat. Once that chat is off
@@ -423,6 +431,16 @@ export function ChatClient(): ReactElement {
       // finished, parked on a confirmation, or the connection dropped.
       // `refresh` only redraws if this chat is still the one on screen.
       const conversation = gone ? null : await refresh(id);
+      // The stream can drop after a write and before its `pane` event —
+      // past the reconnect cap, or with the run gone. The refetch then
+      // hands back the stored pane, which after `set_strictness` is the
+      // same reference the pane already shows, and the same reference
+      // would not be looked at again — leaving "you can eat" labels from
+      // before the change. A turn whose latest tool call was not followed
+      // by a pane event makes the pane look again anyway.
+      if (conversation?.pane && tools > 0 && !sawPane && onScreen()) {
+        setPaneRevision((n) => n + 1);
+      }
       // Flushed here rather than from an effect on `busy`. An effect
       // would fire on the render where `busy` flips false and the queue
       // has already been shortened, which is one render before the next

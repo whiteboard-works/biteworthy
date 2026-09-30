@@ -1653,6 +1653,69 @@ describe('ChatClient', () => {
       expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis');
     });
 
+    // A write's `pane` event can be lost with the connection. The stored
+    // pane the refetch hands back is the same reference, so it has to be
+    // made to look again by the turn, not by the value.
+    it('makes the pane look again when a turn ran tools but its pane event never arrived', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'tool_use', name: 'set_strictness', input: { strictness: 'strict' } });
+        throw new Error('Lost the connection to that turn.');
+      });
+      getConversation.mockResolvedValue({
+        ...answered('Strict now.'),
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      });
+
+      render(<ChatClient />);
+      await type('make it strict');
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '1'),
+      );
+      expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis');
+    });
+
+    it('is not fooled by a pane event from an earlier tool in the same turn', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'tool_use', name: 'get_menu', input: { restaurant: 'ninis' } });
+        onEvent({ type: 'pane', pane: { kind: 'menu', restaurant: 'ninis' } });
+        onEvent({ type: 'tool_result', name: 'get_menu', ok: true });
+        onEvent({ type: 'tool_use', name: 'set_strictness', input: { strictness: 'strict' } });
+        throw new Error('Lost the connection to that turn.');
+      });
+      getConversation.mockResolvedValue({
+        ...answered('Strict now.'),
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      });
+
+      render(<ChatClient />);
+      await type('read ninis then make it strict');
+
+      // One bump from the menu's own event, one from the lost one.
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '2'),
+      );
+    });
+
+    it('leaves the revision alone after a turn that ran no tools', async () => {
+      watchTurn.mockImplementation(async (_id, _after, onEvent) => {
+        onEvent({ type: 'done', text: 'Hi.' });
+        return null;
+      });
+      getConversation.mockResolvedValue({
+        ...answered('Hi.'),
+        pane: { kind: 'menu', restaurant: 'ninis' },
+      });
+
+      render(<ChatClient />);
+      await type('hi');
+
+      await waitFor(() =>
+        expect(screen.getByTestId('results-pane')).toHaveTextContent('menu:ninis'),
+      );
+      expect(screen.getByTestId('results-pane')).toHaveAttribute('data-revision', '0');
+    });
+
     it('keeps the live pane when the refetch says nothing about one', async () => {
       watchTurn.mockImplementation(async (_id, _after, onEvent) => {
         onEvent({ type: 'pane', pane: { kind: 'menu', restaurant: 'ninis' } });
