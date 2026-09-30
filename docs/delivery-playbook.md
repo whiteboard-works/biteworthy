@@ -22,9 +22,11 @@ from it. If the loop's behavior diverges from this file, the file wins.
    marking ready-for-merge.
 4. **CI must pass.** Never request human review on red. Never
    auto-merge on red.
-5. **Trust review.** Auto-merge runs once CI is green and no review
-   thread is left unresolved; there is no label or approval gate (see
-   §Auto-merge policy). Open a draft to hold a PR.
+5. **Trust review.** GitHub auto-merge runs once required checks are
+   green; it does not wait on review threads (conversation resolution is
+   off on `master`), and there is no label or approval gate (see
+   §Auto-merge policy). Open a draft to hold a PR; `ship merge` also
+   waits for zero unresolved P1/P2 findings.
 6. **Plan-first updates.** Before starting work, the loop syncs
    `docs/roadmap.md`'s "Next up" queue. Before merging, it ticks the
    completed item. Mid-task progress goes in `docs/status.md` (see
@@ -100,9 +102,8 @@ applicable branch.
 
 - Title: `<scope>: <imperative summary>` (matches the roadmap
   item).
-- Body sections: **Why** (linked roadmap item), **What** (bullet
-  diff summary), **Notes** (anything
-  surprising).
+- Body: `## Summary` with 1–3 bullets on the why (link the roadmap
+  item) plus one "How this could fail" bullet; no test-plan section.
 - Labels: `claude-cd` tags loop-authored PRs; it does not gate
   auto-merge (see §Auto-merge policy).
 - Request `@codex review` immediately.
