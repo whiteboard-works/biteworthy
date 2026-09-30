@@ -111,7 +111,7 @@ module Chat
         change the profile this turn, trust the tool's response over this.
 
         - Strictness: #{snapshot[:strictness]}
-        - Home city: #{snapshot[:home_city]&.dig(:name) || 'not set — ask which city before assuming, then keep it with `set_home_city`'}
+        - Home city: #{snapshot[:home_city]&.dig(:name) || 'not set — ask which city for this search; save it with `set_home_city` only if they say it is home or ask you to remember it'}
         - Avoiding (ingredients): #{listed(snapshot[:avoid_ingredients])}
         - Avoiding (tags): #{listed(snapshot[:avoid_tags])}
         - Likes: #{listed(snapshot[:liked_ingredients] + snapshot[:liked_tags])}

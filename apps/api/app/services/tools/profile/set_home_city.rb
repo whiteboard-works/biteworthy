@@ -18,8 +18,11 @@ module Tools
         listing or a diet ranking; a search by name is never limited to it.
 
         Take the slug from `list_cities`. Do not guess a city from a name or
-        an accent — ask, or read it from the page context. Say what changed.
-        Pass an empty string to clear it, the same as the settings page.
+        an accent — ask, or read it from the page context. Only save a city
+        the caller identifies as home or asks you to remember: a city named
+        for one search while travelling is a `city_slug` for that search,
+        not a home. Say what changed. Pass an empty string to clear it, the
+        same as the settings page.
       TEXT
 
       input_schema(

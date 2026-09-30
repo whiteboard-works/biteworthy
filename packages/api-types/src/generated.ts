@@ -5089,7 +5089,7 @@ export interface components {
                 slug?: string;
                 name?: string;
             } | null;
-            home_city?: {
+            home_city: {
                 /** Format: uuid */
                 id: string;
                 slug: string;

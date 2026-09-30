@@ -9226,6 +9226,7 @@
           "disliked_tags",
           "strictness",
           "primary_dietary_profile",
+          "home_city",
           "disclaimer_acknowledged_at"
         ],
         "properties": {

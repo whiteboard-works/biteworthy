@@ -589,7 +589,7 @@ RSpec.configure do |config|
                          avoid_ingredients avoid_tags
                          liked_ingredients liked_tags
                          disliked_ingredients disliked_tags
-                         strictness primary_dietary_profile
+                         strictness primary_dietary_profile home_city
                          disclaimer_acknowledged_at],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },

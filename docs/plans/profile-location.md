@@ -17,8 +17,10 @@ restaurant slug when the chat was opened from a restaurant page.
   already scope by city. **Unverified:** how many production addresses
   actually carry coordinates — check with `/sb-prod-query` before P2
   promises distance.
-- `user_profiles` has no location column. `Tools::Profile::Serializer`
-  and `ProfilePayload` are the two shapes a new field has to appear in.
+- `user_profiles.home_city_id` (P1, 2026-09-30) is the only location the
+  profile holds: a city, never coordinates. `Tools::Profile::Serializer`
+  and `ProfilePayload` carry it as `home_city`; any precise field P3 adds
+  has to appear in both the same way.
 - The page-context block already says "treat this as context for what
   *here* means"; it is the right carrier for a per-turn device location.
 - Mobile deferred "near me" pending `expo-location`

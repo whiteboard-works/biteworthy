@@ -105,6 +105,7 @@ const PROFILE: ProfilePayload = {
   disliked_tags: [],
   strictness: 'balanced',
   primary_dietary_profile: { id: 'dp-vegan', slug: 'vegan', name: 'Vegan' },
+  home_city: null,
   disclaimer_acknowledged_at: '2026-07-01T00:00:00Z',
 };
 

@@ -46,7 +46,8 @@ module Tools
         steps: %w[search_restaurants get_menu explain_item],
         note: "get_menu returns hidden dishes WITH their reasons. Report them — a shorter " \
               "list with no explanation is not the answer. explain_item is for \"why not?\". " \
-              "A signed-in caller with a home city can omit city_slug on a listing or diet ranking."
+              "A signed-in caller with a home city can omit city_slug on a listing or diet ranking " \
+              "when the credential can read their profile."
       },
       {
         name: "Set up or adjust what gets hidden",

@@ -18,9 +18,10 @@ module Tools
         the user names a place, asks what's nearby, or asks where they can eat
         something — you need a restaurant id or slug before you can read a menu.
         A listing or a diet ranking with no `city_slug` uses the caller's home
-        city when they have one (see `set_home_city`); a `query` by name is
-        never limited to it. The result says which `city` was applied and why
-        (`city_source`). Pass `anywhere: true` to list across every city.
+        city when they have one and the credential can read their profile
+        (`profile:read`; the first-party chat always can); a `query` by name
+        is never limited to it. The result says which `city` was applied and
+        why (`city_source`). Pass `anywhere: true` to list across every city.
 
         Pass `diet` (a dietary preset slug such as "vegan" or "gluten-free") to
         rank results by how many dishes pass that preset rather than by name;
@@ -36,7 +37,7 @@ module Tools
           },
           city_slug: {
             type: "string",
-            description: 'City to scope to, e.g. "durango". Omit to use the caller\'s home city when they have one.'
+            description: 'City to scope to, e.g. "durango". Omit to use the caller\'s home city when they have one and the credential can read their profile.'
           },
           diet: {
             type: "string",
