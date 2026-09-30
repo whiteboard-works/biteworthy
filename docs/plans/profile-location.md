@@ -86,7 +86,10 @@ behind an explicit "remember this".
 - Web: a "Home city" row in `/profile/settings` Dietary preferences; an
   optional onboarding step only if the picker is one select — otherwise
   settings + chat is enough for P1.
-- Privacy page: one line under what the profile stores.
+- ~~Privacy page: one line under what the profile stores.~~ **Deferred**
+  by owner decision (2026-09-30): the `/privacy` wording is held for the
+  L1 attorney sign-off; both sentences that need updating are listed in
+  `docs/plans/chat-privacy-l1-brief.md`.
 - rswag + openapi + api-types; specs for the default in
   `search_restaurants`, the serializer, and the tool.
 

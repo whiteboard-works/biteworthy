@@ -171,7 +171,7 @@ describe('ProfileSettingsPage — dietary preferences', () => {
     render(<ProfileSettingsPage />);
     const select = await screen.findByLabelText('Home city');
     await waitFor(() =>
-      expect(screen.getByRole('option', { name: 'Salt Lake City' })).toBeInTheDocument(),
+      expect(screen.getByRole('option', { name: 'Salt Lake City, UT' })).toBeInTheDocument(),
     );
 
     fireEvent.change(select, { target: { value: 'salt-lake-city' } });

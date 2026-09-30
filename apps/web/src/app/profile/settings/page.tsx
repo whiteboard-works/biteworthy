@@ -1291,7 +1291,7 @@ function HomeCitySubsection({
   disabled,
   onPick,
 }: {
-  current: { slug: string; name: string } | null;
+  current: { slug: string; name: string; region?: string | null } | null;
   cities: City[];
   disabled: boolean;
   onPick: (slug: string | null) => void;
@@ -1314,9 +1314,12 @@ function HomeCitySubsection({
         className="mt-bw-3 w-full rounded-bw-md border border-zinc-200 bg-white p-bw-3 text-bw-base text-zinc-900 disabled:opacity-50"
       >
         <option value="">Not set</option>
+        {/* Region too: two covered cities can share a name (a Springfield
+            in two states), and the wrong one would quietly steer every
+            later "nearby" search. */}
         {options.map((city) => (
           <option key={city.slug} value={city.slug}>
-            {city.name}
+            {city.region ? `${city.name}, ${city.region}` : city.name}
           </option>
         ))}
       </select>
