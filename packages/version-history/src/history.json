@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.1",
+    "date": "2026-10-01",
+    "notes": [
+      "Menu photos: on your phone you can now pick a photo you already took, not just open the camera — on the scan page and in chat."
+    ]
+  },
+  {
     "version": "2026.9.30.2",
     "date": "2026-09-30",
     "notes": [
