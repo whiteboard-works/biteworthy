@@ -32,7 +32,6 @@ import { useDeviceLocation } from './_useDeviceLocation';
 import { ModeNotice, ModePicker } from './_ModePicker';
 import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
-import { useToolVisibility } from './_useToolVisibility';
 
 const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [], notices: [] };
 
@@ -50,7 +49,6 @@ export function ChatClient(): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [showTools, toggleTools] = useToolVisibility();
   const deviceLocation = useDeviceLocation();
   const [mode, setMode] = useState<ChatMode>('manual');
   const [queued, setQueued] = useState<QueuedMessage[]>([]);
@@ -750,30 +748,6 @@ export function ChatClient(): ReactElement {
           </h1>
           <div className="flex items-center gap-bw-2">
             <ModePicker mode={mode} onChange={changeMode} />
-            {/* A per-person preference for a quieter read, not a new
-                default — showing every tool call is the honest-disclosure
-                claim made visible, so it stays on unless someone turns it
-                off.
-
-                A state label, not an action one. "Hide tools" alongside
-                `aria-pressed={showTools}` announces as "Hide tools,
-                pressed" in exactly the state where tools are still
-                showing, which reads as the opposite of the truth. The
-                canonical toggle is a stable name plus a pressed state,
-                and the fill carries the same signal visually. */}
-            <button
-              type="button"
-              onClick={toggleTools}
-              aria-pressed={showTools}
-              data-testid="tools-toggle"
-              className={`rounded-bw-md border px-bw-3 py-bw-1 text-bw-sm ${
-                showTools
-                  ? 'border-zinc-400 bg-zinc-100 text-zinc-900'
-                  : 'border-zinc-300 text-zinc-500'
-              }`}
-            >
-              Tools
-            </button>
             <button
               type="button"
               onClick={() => setHistoryOpen((v) => !v)}
@@ -803,7 +777,6 @@ export function ChatClient(): ReactElement {
             live={live}
             pending={pending}
             busy={busy}
-            showTools={showTools}
             onAnswer={(approved) => void answer(approved)}
           />
           {active?.usage ? <UsagePills usage={active.usage} /> : null}
