@@ -450,10 +450,8 @@ describe('ChatClient', () => {
   // be invisible: the narration continues on screen and the turn is not
   // treated as finished.
   // Showing every tool call is the honest-disclosure claim made visible,
-  // so hiding is a per-person preference and never the default. These pin
-  // both halves: it is on unless someone turned it off, and turning it
-  // off does not touch the answer itself.
-  describe('the tool-visibility toggle', () => {
+  // so there is no way to hide them.
+  describe('tool cards', () => {
     const withTool: Conversation = {
       ...blank,
       title: 'hi',
@@ -476,52 +474,22 @@ describe('ChatClient', () => {
       getConversation.mockResolvedValue(withTool);
     });
 
-    it('shows tool cards by default', async () => {
+    it('always shows them, with no toggle to hide them', async () => {
       render(<ChatClient />);
       await type('hi');
 
       expect(await screen.findByTestId('tool-card')).toBeInTheDocument();
+      expect(screen.queryByTestId('tools-toggle')).toBeNull();
     });
 
-    // A stable name plus a pressed state, not an action label. "Hide
-    // tools" with `aria-pressed={showTools}` announces as "Hide tools,
-    // pressed" in exactly the state where tools are still showing, which
-    // is the opposite of the truth.
-    it('announces its state rather than its action', async () => {
+    // The toggle used to remember "hidden" per browser; that choice must
+    // not outlive the toggle.
+    it('ignores a hide saved by the old toggle', async () => {
+      window.localStorage.setItem('bw_chat_show_tools', 'false');
       render(<ChatClient />);
       await type('hi');
-      await screen.findByTestId('tool-card');
 
-      const toggle = screen.getByTestId('tools-toggle');
-      expect(toggle).toHaveTextContent('Tools');
-      expect(toggle).toHaveAttribute('aria-pressed', 'true');
-
-      fireEvent.click(toggle);
-
-      expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    });
-
-    it('hides them on request and keeps the answer', async () => {
-      render(<ChatClient />);
-      await type('hi');
-      await screen.findByTestId('tool-card');
-
-      fireEvent.click(screen.getByTestId('tools-toggle'));
-
-      expect(screen.queryByTestId('tool-card')).toBeNull();
-      expect(screen.getByTestId('assistant-message')).toHaveTextContent(
-        'Ninis has 12 dishes you can eat.',
-      );
-    });
-
-    it('remembers the choice', async () => {
-      render(<ChatClient />);
-      await type('hi');
-      await screen.findByTestId('tool-card');
-
-      fireEvent.click(screen.getByTestId('tools-toggle'));
-
-      expect(window.localStorage.getItem('bw_chat_show_tools')).toBe('false');
+      expect(await screen.findByTestId('tool-card')).toBeInTheDocument();
     });
 
     // Next to the machinery, not on every bubble: a timestamp on each
