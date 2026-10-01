@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.1.1",
+    "date": "2026-10-01",
+    "notes": [
+      "Phone photos upload again: big photos are shrunk on your phone before sending, instead of failing with \"Request failed (413)\". Works in chat, menu scans, and review photos.",
+      "Chat always shows what the assistant did (tool steps); the Tools toggle is gone."
+    ]
+  },
+  {
     "version": "2026.10.1",
     "date": "2026-10-01",
     "notes": [
