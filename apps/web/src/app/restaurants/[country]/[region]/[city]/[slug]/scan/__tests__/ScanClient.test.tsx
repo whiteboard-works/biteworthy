@@ -96,6 +96,20 @@ describe('ScanClient', () => {
     rejectScan.mockResolvedValue({ rejected: [], remaining_pending: 0 });
   });
 
+  // `capture` makes a phone open the camera and skip the photo library,
+  // so a menu photographed earlier could never be scanned.
+  it('lets a phone pick a photo already taken, not only open the camera', () => {
+    render(
+      <ScanClient
+        slug="ninis"
+        basePath="/restaurants/usa/colorado/durango/ninis"
+        restaurantName="Nini's"
+      />,
+    );
+
+    expect(screen.getByLabelText('Menu photos')).not.toHaveAttribute('capture');
+  });
+
   // Unticked in the main list means "not on the menu": recorded as
   // rejected, before the accept, so the draft-publish ratio counts it.
   it('publishes the ticked dishes, discards the unticked ones, then lands on the menu', async () => {

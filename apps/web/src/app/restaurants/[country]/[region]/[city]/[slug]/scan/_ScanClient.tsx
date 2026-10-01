@@ -329,7 +329,6 @@ function PickSource({
           type="file"
           accept="image/*,application/pdf"
           multiple
-          capture="environment"
           aria-label="Menu photos"
           className="sr-only"
           onChange={(e) => {

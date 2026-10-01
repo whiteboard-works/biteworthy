@@ -120,6 +120,16 @@ describe('ChatClient', () => {
     expect(await screen.findByTestId('chat-welcome')).toBeInTheDocument();
   });
 
+  // `capture` makes a phone open the camera and skip the photo library,
+  // so a menu photographed earlier could never be attached.
+  it('lets a phone attach a photo already taken, not only open the camera', async () => {
+    render(<ChatClient />);
+
+    expect(await screen.findByLabelText('Attach a menu photo or PDF')).not.toHaveAttribute(
+      'capture',
+    );
+  });
+
   // The disclaimer earns its place on an empty chat, where someone is
   // about to decide how much to trust the answers, and stops earning it
   // once they are reading one — the chat sizes itself to the viewport,
