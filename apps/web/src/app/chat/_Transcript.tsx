@@ -21,8 +21,6 @@ interface TranscriptProps {
   live: LiveTurn | null;
   pending: PendingTool | null;
   busy: boolean;
-  /** Tool cards and their timestamps. Default on — see `useToolVisibility`. */
-  showTools: boolean;
   onAnswer: (approved: boolean) => void;
 }
 
@@ -31,7 +29,6 @@ export function Transcript({
   live,
   pending,
   busy,
-  showTools,
   onAnswer,
 }: TranscriptProps): ReactElement {
   const outcomes = toolOutcomes(messages);
@@ -39,9 +36,9 @@ export function Transcript({
   return (
     <div className="flex flex-col gap-bw-6" data-testid="chat-transcript">
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} outcomes={outcomes} showTools={showTools} />
+        <MessageRow key={message.id} message={message} outcomes={outcomes} />
       ))}
-      {live ? <LiveRow turn={live} showTools={showTools} /> : null}
+      {live ? <LiveRow turn={live} /> : null}
       {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={onAnswer} /> : null}
     </div>
   );
@@ -65,17 +62,13 @@ function toolOutcomes(messages: ChatMessage[]): Map<string, boolean> {
 function MessageRow({
   message,
   outcomes,
-  showTools,
 }: {
   message: ChatMessage;
   outcomes: Map<string, boolean>;
-  showTools: boolean;
 }): ReactElement | null {
   // Tool results are carried on a user-role message because that is the
   // Messages API shape, not because a person typed them.
-  const visible = message.blocks
-    .filter((b) => b.type !== 'tool_result')
-    .filter((b) => showTools || b.type !== 'tool_use');
+  const visible = message.blocks.filter((b) => b.type !== 'tool_result');
   if (visible.length === 0) return null;
 
   if (message.role === 'user') {
@@ -96,7 +89,7 @@ function MessageRow({
 }
 
 /**
- * Shown beside tool cards only, and only when tools are shown.
+ * Shown beside tool cards only.
  *
  * A timestamp on every bubble is noise in a conversation you are having;
  * it earns its place next to the machinery, where the question is "when
@@ -229,7 +222,7 @@ function ToolCard({
   );
 }
 
-function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): ReactElement {
+function LiveRow({ turn }: { turn: LiveTurn }): ReactElement {
   return (
     <div className="flex flex-col gap-bw-2" data-testid="live-turn">
       {turn.notices.map((notice, index) => (
@@ -238,22 +231,20 @@ function LiveRow({ turn, showTools }: { turn: LiveTurn; showTools: boolean }): R
         </p>
       ))}
       {turn.thinking ? <Thinking text={turn.thinking} /> : null}
-      {showTools
-        ? turn.tools.map((tool, index) => (
-            <ToolCard
-              key={index}
-              name={tool.name}
-              ok={tool.ok}
-              doing={tool.doing}
-              running={tool.ok === undefined}
-            />
-          ))
-        : null}
+      {turn.tools.map((tool, index) => (
+        <ToolCard
+          key={index}
+          name={tool.name}
+          ok={tool.ok}
+          doing={tool.doing}
+          running={tool.ok === undefined}
+        />
+      ))}
       {/* Rendered as markdown while it streams too. A half-arrived list
           renders as a shorter list rather than as raw asterisks that
           rearrange themselves when the turn lands. */}
       {turn.text ? <Markdown text={turn.text} /> : null}
-      {!turn.thinking && !turn.text && turn.notices.length === 0 && (!showTools || turn.tools.length === 0) ? (
+      {!turn.thinking && !turn.text && turn.notices.length === 0 && turn.tools.length === 0 ? (
         <p className="text-bw-sm text-zinc-400">Thinking…</p>
       ) : null}
     </div>

@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-01 (UTC) — **Chat tool cards are always shown.** The "Tools" toggle in the `/chat` header and its `useToolVisibility` hook are gone; a hide saved by the old toggle (`bw_chat_show_tools`) is ignored.
+
 2026-10-01 (UTC) — **Web uploads can pick existing photos.** The scan page and the chat attach button dropped `capture="environment"`, which made phones open the camera and skip the photo library; the OS sheet now offers camera and library both.
 
 2026-09-30 (UTC) — **Near-me diet city fix (#742).** #741 auto-merged before Codex answered; its three P1s land here. A `near_me` diet ranking now picks the city of the nearest published restaurant (its address, or its city's centre when it has none) instead of the nearest city centre, which `Cities::Create` never sets and which could name a city with nothing published. The bounding box splits a longitude span crossing ±180°, built from ranges rather than SQL fragments (Brakeman).
