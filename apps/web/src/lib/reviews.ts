@@ -12,6 +12,7 @@
 import { api, type ApiOptions } from './api';
 
 import { API_BASE } from './api-base';
+import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
 
 export interface ReviewAuthor {
   id: string;
@@ -104,10 +105,12 @@ export async function createReview(
   let body: BodyInit;
   const headers: Record<string, string> = {};
   if (review.photo) {
+    const photo = await shrinkForUpload(review.photo);
+    if (tooLargeToUpload(photo)) throw new ReviewError(413, TOO_LARGE_MESSAGE);
     const form = new FormData();
     form.append('rating', String(review.rating));
     if (review.body != null) form.append('body', review.body);
-    form.append('photo', review.photo, review.photo.name);
+    form.append('photo', photo, photo.name);
     body = form;
     // No Content-Type — fetch sets the multipart boundary.
   } else {
@@ -120,6 +123,8 @@ export async function createReview(
     headers,
     body,
   });
+  // Refused by the web server's body limit, before the API sees it.
+  if (res.status === 413) throw new ReviewError(413, TOO_LARGE_MESSAGE);
   if (!res.ok) throw await reviewError(res, `createReview ${itemId}`);
   return (await res.json()) as ReviewPayload;
 }

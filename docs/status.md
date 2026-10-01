@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-01 (UTC) — **Phone photo uploads no longer 413.** Uploads go through Vercel functions, which refuse request bodies over 4.5 MB before Rails sees them, so a full-size phone photo failed with a bare "Request failed (413)". `lib/shrink-image.ts` re-encodes any image over 1.5 MB to a 2000px JPEG on the device (bitmap decode, `<img>` fallback for Safari HEIC) before the chat attachment, scan, and review-photo uploads; the scan page shrinks on pick so its batch limits judge the bytes actually sent. Anything still over 4 MB (a big PDF) is refused up front with a clear message. Larger files would need direct-to-R2 uploads.
+
 2026-10-01 (UTC) — **Chat tool cards are always shown.** The "Tools" toggle in the `/chat` header and its `useToolVisibility` hook are gone; a hide saved by the old toggle (`bw_chat_show_tools`) is ignored.
 
 2026-10-01 (UTC) — **Web uploads can pick existing photos.** The scan page and the chat attach button dropped `capture="environment"`, which made phones open the camera and skip the photo library; the OS sheet now offers camera and library both.

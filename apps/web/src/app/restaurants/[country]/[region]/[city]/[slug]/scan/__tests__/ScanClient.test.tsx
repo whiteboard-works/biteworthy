@@ -38,6 +38,11 @@ vi.mock('../../../../../../../../lib/scans', async () => {
   };
 });
 
+const shrinkForUpload = vi.fn(async (f: File) => f);
+vi.mock('../../../../../../../../lib/shrink-image', () => ({
+  shrinkForUpload: (f: File) => shrinkForUpload(f),
+}));
+
 const { ScanClient } = await import('../_ScanClient');
 const { NotSignedInError, ScanError } = await import('../../../../../../../../lib/scans');
 
@@ -74,6 +79,12 @@ const readyScan = (dishes: ScanDish[]) => ({
   dishes,
 });
 
+// Picked photos are shrunk before the form will send them.
+async function pick(files: File[]) {
+  fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files } });
+  await waitFor(() => expect(screen.queryByText('Preparing photos…')).toBeNull());
+}
+
 async function scanAPhoto() {
   render(
     <ScanClient
@@ -83,7 +94,7 @@ async function scanAPhoto() {
     />,
   );
   const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
-  fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
+  await pick([file]);
   fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
 }
 
@@ -92,6 +103,7 @@ describe('ScanClient', () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     uploadAttachment.mockResolvedValue({ id: 'blob-1' });
+    shrinkForUpload.mockImplementation(async (f: File) => f);
     startScan.mockResolvedValue({ scan_id: 'scan-1', status: 'extracting', restaurant: {} });
     rejectScan.mockResolvedValue({ rejected: [], remaining_pending: 0 });
   });
@@ -206,7 +218,7 @@ describe('ScanClient', () => {
       />,
     );
     const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
-    fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
+    await pick([file]);
     fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
     fireEvent.click(await screen.findByLabelText('Page Header'));
     fireEvent.click(screen.getByRole('button', { name: 'Discard 1 dish' }));
@@ -296,7 +308,7 @@ describe('ScanClient', () => {
       />,
     );
     const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' });
-    fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files: [file] } });
+    await pick([file]);
     fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Add 1 dish to the menu' }));
 
@@ -420,11 +432,42 @@ describe('ScanClient', () => {
       { length: 11 },
       (_, i) => new File(['x'], `p${i}.jpg`, { type: 'image/jpeg' }),
     );
-    fireEvent.change(screen.getByLabelText('Menu photos'), { target: { files } });
+    await pick(files);
 
     expect(screen.getByText(/up to 10 per scan/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scan the menu' })).toBeDisabled();
     expect(uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  // Four phone photos are over the 20 MB batch limit as picked, and the
+  // web server refuses any single one of them. Shrunk, they go through —
+  // and what is uploaded is the shrunk copy.
+  it('judges and uploads the shrunk photos, not the originals', async () => {
+    getScan.mockResolvedValue(readyScan([dish({ id: 'd1' })]));
+    const big = (i: number) =>
+      new File([new Uint8Array(6 * 1024 * 1024)], `IMG_${i}.HEIC`, { type: 'image/heic' });
+    const small = (f: File) =>
+      new File(['small'], f.name.replace('.HEIC', '.jpg'), { type: 'image/jpeg' });
+    shrinkForUpload.mockImplementation(async (f: File) => small(f));
+    render(
+      <ScanClient
+        slug="ninis"
+        basePath="/restaurants/usa/colorado/durango/ninis"
+        restaurantName="Nini's"
+      />,
+    );
+
+    await pick([big(1), big(2), big(3), big(4)]);
+    expect(screen.getByText('4 files ready')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the menu' }));
+
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(4));
+    expect(uploadAttachment.mock.calls.map(([f]) => (f as File).name)).toEqual([
+      'IMG_1.jpg',
+      'IMG_2.jpg',
+      'IMG_3.jpg',
+      'IMG_4.jpg',
+    ]);
   });
 
   it('cannot publish a dish whose ingredients it could not vouch for', async () => {
