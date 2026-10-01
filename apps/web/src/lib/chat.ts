@@ -14,6 +14,7 @@ import type {
   ChatUsage as ApiChatUsage,
   PendingTool as ApiPendingTool,
 } from '@biteworthy/api-types';
+import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
 
 export type ChatBlock =
   | { type: 'text'; text: string }
@@ -163,7 +164,10 @@ export async function deleteConversation(id: string): Promise<void> {
   if (!res.ok) throw new Error(await errorMessage(res));
 }
 
-export async function uploadAttachment(file: File): Promise<Attachment> {
+export async function uploadAttachment(picked: File): Promise<Attachment> {
+  const file = await shrinkForUpload(picked);
+  if (tooLargeToUpload(file)) throw new Error(TOO_LARGE_MESSAGE);
+
   const form = new FormData();
   form.append('file', file);
   // No Content-Type — fetch sets the multipart boundary.
@@ -173,6 +177,8 @@ export async function uploadAttachment(file: File): Promise<Attachment> {
     credentials: 'same-origin',
   });
   if (res.status === 401) throw new NotSignedInError();
+  // Refused by the web server's body limit, before the API sees it.
+  if (res.status === 413) throw new Error(TOO_LARGE_MESSAGE);
   if (!res.ok) throw new Error(await errorMessage(res));
   return (await res.json()) as Attachment;
 }

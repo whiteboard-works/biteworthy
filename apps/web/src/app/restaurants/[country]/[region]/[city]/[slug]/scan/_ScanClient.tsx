@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useTracker } from '../../../../../../_PostHogProvider';
+import { shrinkForUpload } from '../../../../../../../lib/shrink-image';
 import {
   acceptScan,
   getScan,
@@ -303,9 +304,27 @@ function PickSource({
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [url, setUrl] = useState('');
+  const [preparing, setPreparing] = useState(false);
+  const picks = useRef(0);
   const tooMany = files.length > MAX_FILES;
   const tooBig = files.reduce((sum, f) => sum + f.size, 0) > MAX_TOTAL_BYTES;
-  const ready = (files.length > 0 && !tooMany && !tooBig) || url.trim() !== '';
+  const ready = !preparing && ((files.length > 0 && !tooMany && !tooBig) || url.trim() !== '');
+
+  // Shrunk on pick, not on upload, so the batch limits above judge the
+  // bytes that will actually be sent — four phone photos are over the
+  // total as picked and well under it once shrunk.
+  const pick = async (picked: File[]) => {
+    const pickId = ++picks.current;
+    setUrl('');
+    setPreparing(true);
+    // One at a time: ten full-size photos decoded at once can exceed
+    // Safari's canvas memory, which would quietly fall back to originals.
+    const shrunk: File[] = [];
+    for (const file of picked) shrunk.push(await shrinkForUpload(file));
+    if (pickId !== picks.current) return;
+    setFiles(shrunk);
+    setPreparing(false);
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -317,13 +336,15 @@ function PickSource({
       <label className="block rounded-bw-lg border-2 border-dashed border-zinc-300 p-bw-6 text-center hover:border-bite">
         <span className="block text-bw-lg font-bold">Take or choose photos of the menu</span>
         <span className="mt-bw-1 block text-bw-sm text-zinc-500">
-          {tooMany
-            ? `That's ${files.length} files — up to ${MAX_FILES} per scan. Send the rest in a second scan.`
-            : tooBig
-              ? 'Those files are too big to scan together. Send them in smaller batches.'
-              : files.length > 0
-                ? `${files.length} file${files.length === 1 ? '' : 's'} ready`
-                : 'One photo per page. PDFs work too.'}
+          {preparing
+            ? 'Preparing photos…'
+            : tooMany
+              ? `That's ${files.length} files — up to ${MAX_FILES} per scan. Send the rest in a second scan.`
+              : tooBig
+                ? 'Those files are too big to scan together. Send them in smaller batches.'
+                : files.length > 0
+                  ? `${files.length} file${files.length === 1 ? '' : 's'} ready`
+                  : 'One photo per page. PDFs work too.'}
         </span>
         <input
           type="file"
@@ -331,10 +352,7 @@ function PickSource({
           multiple
           aria-label="Menu photos"
           className="sr-only"
-          onChange={(e) => {
-            setFiles(Array.from(e.target.files ?? []));
-            setUrl('');
-          }}
+          onChange={(e) => void pick(Array.from(e.target.files ?? []))}
         />
       </label>
 
@@ -348,6 +366,9 @@ function PickSource({
         onChange={(e) => {
           setUrl(e.target.value);
           setFiles([]);
+          // A link typed while photos are still shrinking wins over them.
+          picks.current++;
+          setPreparing(false);
         }}
         className="w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
       />

@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-01 (UTC) — **Phone photo uploads no longer 413.** Uploads go through Vercel functions, which refuse request bodies over 4.5 MB before Rails sees them, so a full-size phone photo failed with a bare "Request failed (413)". `lib/shrink-image.ts` re-encodes any image over 1.5 MB to a 2000px JPEG on the device (bitmap decode, `<img>` fallback for Safari HEIC) before the chat attachment, scan, and review-photo uploads; the scan page shrinks on pick so its batch limits judge the bytes actually sent. Anything still over 4 MB (a big PDF) is refused up front with a clear message. Larger files would need direct-to-R2 uploads.
+
 2026-10-01 (UTC) — **Web uploads can pick existing photos.** The scan page and the chat attach button dropped `capture="environment"`, which made phones open the camera and skip the photo library; the OS sheet now offers camera and library both.
 
 2026-09-30 (UTC) — **Near-me diet city fix (#742).** #741 auto-merged before Codex answered; its three P1s land here. A `near_me` diet ranking now picks the city of the nearest published restaurant (its address, or its city's centre when it has none) instead of the nearest city centre, which `Cities::Create` never sets and which could name a city with nothing published. The bounding box splits a longitude span crossing ±180°, built from ranges rather than SQL fragments (Brakeman).

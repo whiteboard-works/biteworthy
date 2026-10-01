@@ -75,7 +75,10 @@ export function Composer({
     setUploading(true);
     setError(null);
     try {
-      const uploaded = await Promise.all(Array.from(files).map(uploadAttachment));
+      // One at a time: each upload shrinks a full-size photo first, and
+      // several decoded at once can exceed Safari's canvas memory.
+      const uploaded: Attachment[] = [];
+      for (const file of Array.from(files)) uploaded.push(await uploadAttachment(file));
       setAttachments((current) => [...current, ...uploaded]);
     } catch (e) {
       setError((e as Error).message);

@@ -8,6 +8,12 @@ import {
   uploadAttachment,
   type ChatEvent,
 } from '../chat';
+import { shrinkForUpload } from '../shrink-image';
+
+vi.mock('../shrink-image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../shrink-image')>();
+  return { ...actual, shrinkForUpload: vi.fn(actual.shrinkForUpload) };
+});
 
 type FetchArgs = Parameters<typeof fetch>;
 
@@ -150,6 +156,58 @@ describe('chat client', () => {
     expect(init.body).toBeInstanceOf(FormData);
     // Setting Content-Type by hand would drop the multipart boundary.
     expect(init.headers).toBeUndefined();
+  });
+
+  // A full-size phone photo is over the 4.5 MB the web server accepts;
+  // what goes up has to be the shrunk copy.
+  it('uploads the shrunk copy of a photo, not the original', async () => {
+    const fetchMock = jsonFetch(201, { id: 'signed-abc' });
+    vi.stubGlobal('fetch', fetchMock);
+    const original = new File([new Uint8Array(6 * 1024 * 1024)], 'IMG_1.HEIC', {
+      type: 'image/heic',
+    });
+    const shrunk = new File(['small'], 'IMG_1.jpg', { type: 'image/jpeg' });
+    vi.mocked(shrinkForUpload).mockResolvedValueOnce(shrunk);
+
+    await uploadAttachment(original);
+
+    const sent = ((fetchMock.mock.calls[0]?.[1] as RequestInit).body as FormData).get(
+      'file',
+    ) as File;
+    expect(sent.name).toBe('IMG_1.jpg');
+    expect(sent.size).toBe(shrunk.size);
+  });
+
+  // Sending it anyway only earns a bare "Request failed (413)".
+  it('refuses a file still too large, with a message that says so, before sending it', async () => {
+    const fetchMock = jsonFetch(201, { id: 'never' });
+    vi.stubGlobal('fetch', fetchMock);
+    const pdf = new File([new Uint8Array(5 * 1024 * 1024)], 'menu.pdf', {
+      type: 'application/pdf',
+    });
+
+    await expect(uploadAttachment(pdf)).rejects.toThrow(/too large/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('explains a 413 from the server instead of showing the status code', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 413,
+            json: async () => {
+              throw new Error('html');
+            },
+          }) as unknown as Response,
+      ),
+    );
+
+    await expect(
+      uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' })),
+    ).rejects.toThrow(/too large/);
   });
 
   // The reconnect event is transport bookkeeping — the transcript should

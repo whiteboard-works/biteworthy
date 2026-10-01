@@ -10,6 +10,12 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../reviews';
+import { shrinkForUpload } from '../shrink-image';
+
+vi.mock('../shrink-image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../shrink-image')>();
+  return { ...actual, shrinkForUpload: vi.fn(actual.shrinkForUpload) };
+});
 
 const sampleReview: ReviewPayload = {
   id: 'rev-1',
@@ -97,6 +103,33 @@ describe('createReview', () => {
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect(init.body).toBeInstanceOf(FormData);
     expect((init.headers as Record<string, string> | undefined)?.['Content-Type']).toBeUndefined();
+  });
+
+  // A full-size phone photo is over the 4.5 MB the web server accepts.
+  it('sends the shrunk copy of the photo', async () => {
+    const fetchImpl = fakeFetch(201, sampleReview);
+    const original = new File([new Uint8Array(6 * 1024 * 1024)], 'IMG_1.HEIC', {
+      type: 'image/heic',
+    });
+    vi.mocked(shrinkForUpload).mockResolvedValueOnce(
+      new File(['small'], 'IMG_1.jpg', { type: 'image/jpeg' }),
+    );
+
+    await createReview('item-1', { rating: 4, photo: original }, { fetchImpl });
+
+    const form = (fetchImpl.mock.calls[0]![1] as RequestInit).body as FormData;
+    expect((form.get('photo') as File).name).toBe('IMG_1.jpg');
+  });
+
+  it('refuses a photo still too large, with a message that says so, before sending it', async () => {
+    const fetchImpl = fakeFetch(201, sampleReview);
+    const photo = new File([new Uint8Array(5 * 1024 * 1024)], 'odd.bmp', { type: 'image/bmp' });
+    vi.mocked(shrinkForUpload).mockResolvedValueOnce(photo);
+
+    await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
+      /too large/,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('throws ReviewError on validation failure', async () => {
