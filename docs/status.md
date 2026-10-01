@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-01 (UTC) — **Web uploads can pick existing photos.** The scan page and the chat attach button dropped `capture="environment"`, which made phones open the camera and skip the photo library; the OS sheet now offers camera and library both.
+
 2026-09-30 (UTC) — **Near-me diet city fix (#742).** #741 auto-merged before Codex answered; its three P1s land here. A `near_me` diet ranking now picks the city of the nearest published restaurant (its address, or its city's centre when it has none) instead of the nearest city centre, which `Cities::Create` never sets and which could name a city with nothing published. The bounding box splits a longitude span crossing ±180°, built from ranges rather than SQL fragments (Brakeman).
 
 2026-09-30 (UTC) — **"Use my location" in chat (location P2, web).** A 📍 toggle in the chat composer (off by default, choice remembered per browser, position never) sends the device location, rounded to ~110 m, with each message as `context.location`. `Chat::DeviceLocation` re-parses and rounds it; it rides the queued turn into `Tools::Context#device_location` and nowhere else — the prompt only says a location was shared, so coordinates never reach Anthropic or the stored transcript. `search_restaurants` gains `near_me` + `radius_km` (default 40): nearest first with `distance_km`, restaurants without coordinates listed last when their city is in range, a diet ranking done in the nearest city; refused with a "tap Use my location" message when nothing was shared. openapi + api-types regenerated. `/privacy` line held for L1 (added to `docs/plans/chat-privacy-l1-brief.md`). Open: production coordinate coverage, results-pane distance, mobile.

@@ -159,9 +159,6 @@ export function Composer({
             type="file"
             accept={ACCEPT}
             multiple
-            // Prefers the rear camera on a phone, which is what a menu
-            // photo needs; desktop browsers ignore it and show a picker.
-            capture="environment"
             className="hidden"
             aria-label="Attach a menu photo or PDF"
             onChange={(e) => void attach(e.target.files)}
