@@ -37,6 +37,9 @@ const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [], notices: [] };
 
 /** Enough hops for a very long scan; a bound, not an expectation. */
 const MAX_RECONNECTS = 20;
+// How close to the bottom still counts as "at the bottom" — a finger
+// rarely lands a scroll on the exact last pixel.
+const FOLLOW_SLACK_PX = 48;
 
 export function ChatClient(): ReactElement {
   const router = useRouter();
@@ -63,7 +66,11 @@ export function ChatClient(): ReactElement {
   const [paneRevision, setPaneRevision] = useState(0);
   // Phone width: the pane takes the transcript's place while open.
   const [paneOpen, setPaneOpen] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  // Whether new content should pull the transcript down with it — only
+  // while the reader is at the bottom. Someone who scrolled up to read the
+  // start of a long reply is left there.
+  const following = useRef(true);
   // The queue is read from inside `run`'s teardown, which closes over the
   // render that started the turn — by then `queued` is whatever it was a
   // minute ago. The ref is the current one; the state is what draws.
@@ -129,9 +136,26 @@ export function ChatClient(): ReactElement {
       .catch(onFailure);
   }, [onFailure]);
 
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_SLACK_PX;
+  };
+
+  // `scrollTop` on the transcript rather than `scrollIntoView`, which also
+  // scrolls every ancestor — on a phone, the page itself.
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages, live, pending]);
+    const el = scroller.current;
+    if (el && following.current) el.scrollTop = el.scrollHeight;
+  }, [messages, live]);
+
+  // A parked call does nothing until it is answered, so it is never left
+  // above the fold.
+  useEffect(() => {
+    if (!pending) return;
+    following.current = true;
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [pending]);
 
   const adopt = (conversation: Conversation) => {
     viewing.current = conversation.id;
@@ -216,6 +240,7 @@ export function ChatClient(): ReactElement {
 
   const open = async (id: string) => {
     const fromBlank = viewing.current === null;
+    following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
     // Whatever they had open on a phone, the chat they picked is what
@@ -249,6 +274,7 @@ export function ChatClient(): ReactElement {
 
   const startNew = () => {
     viewing.current = null;
+    following.current = true;
     current.current = null;
     setHistoryOpen(false);
     setError(null);
@@ -633,6 +659,8 @@ export function ChatClient(): ReactElement {
   // the composer does not need to know which, and the user finds out by
   // seeing a chip appear instead of a message.
   const send = (text: string, attachments: Attachment[]) => {
+    // Sending is asking to watch the answer arrive.
+    following.current = true;
     // The id is a React key and a cancel handle, nothing more: it only
     // has to be unique among the handful queued at once. The length
     // suffix is there because two messages sent inside the same
@@ -770,7 +798,12 @@ export function ChatClient(): ReactElement {
 
         <ModeNotice mode={mode} />
 
-        <div className="flex-1 overflow-y-auto px-bw-4 py-bw-6">
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          data-testid="chat-scroller"
+          className="flex-1 overflow-y-auto px-bw-4 py-bw-6"
+        >
           {messages.length === 0 && !live ? <Welcome /> : null}
           <Transcript
             messages={messages}
@@ -785,7 +818,6 @@ export function ChatClient(): ReactElement {
               {error}
             </p>
           ) : null}
-          <div ref={bottom} />
         </div>
 
         {busy ? (

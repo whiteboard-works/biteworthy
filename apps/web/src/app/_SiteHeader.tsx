@@ -61,6 +61,13 @@ export function SiteHeader() {
   // A mid-session grant appears after the next full load; a mid-session
   // demotion is handled by the /admin pages themselves.
   const [admin, setAdmin] = useState(false);
+  // The phone menu. Closed on every navigation — the header stays mounted
+  // across soft navs, and an open menu would cover the page just opened.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -151,6 +158,7 @@ export function SiteHeader() {
 
   const onLogout = async () => {
     setLoggingOut(true);
+    setMenuOpen(false);
     let loggedOut = true;
     try {
       await logout();
@@ -197,14 +205,44 @@ export function SiteHeader() {
     <>
       <header
         data-testid="site-header"
-        className="flex items-center justify-between border-b border-zinc-200 bg-white px-bw-6 py-bw-3"
+        className="relative flex items-center justify-between border-b border-zinc-200 bg-white px-bw-6 py-bw-3"
       >
         <Link href="/" className="text-bw-lg font-bold text-bite hover:text-bite-dark">
           BiteWorthy
         </Link>
 
-        {/* Reserve height while auth state resolves so the bar doesn't jump. */}
-        <nav className="flex min-h-[1.5rem] items-center gap-bw-4 text-bw-sm">
+        <button
+          type="button"
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+          aria-controls="site-nav"
+          onClick={() => setMenuOpen((open) => !open)}
+          className="-mr-bw-2 p-bw-2 text-zinc-700 hover:text-bite-dark md:hidden"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+          >
+            {menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+          </svg>
+        </button>
+
+        {/* Under `md` a dropdown under the bar; from `md` up the inline row.
+            Reserve height while auth state resolves so the bar doesn't jump. */}
+        <nav
+          id="site-nav"
+          data-testid="site-nav"
+          // A link to the page already open changes no pathname.
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('a')) setMenuOpen(false);
+          }}
+          className={`${menuOpen ? 'flex' : 'hidden'} absolute inset-x-0 top-full z-20 flex-col items-start gap-bw-3 border-b border-zinc-200 bg-white px-bw-6 py-bw-4 text-bw-sm md:static md:flex md:min-h-[1.5rem] md:flex-row md:items-center md:gap-bw-4 md:border-0 md:p-0`}
+        >
           {/* Discovery — visible to everyone, signed in or not. */}
           <Link
             href="/restaurants"
