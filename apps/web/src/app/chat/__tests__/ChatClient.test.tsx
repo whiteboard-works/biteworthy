@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ChatEvent, Conversation } from '../../../lib/chat';
 
 /**
@@ -243,6 +243,110 @@ describe('ChatClient', () => {
     await type('what can I eat');
 
     expect(await screen.findByTestId('tool-card')).toHaveTextContent('get menu');
+  });
+
+  // On a phone the transcript is most of the screen, and a reply streams
+  // in for many seconds. Snapping to the bottom on every line made it
+  // unreadable: the person scrolled up to read the start of the answer and
+  // was dragged back down by the next delta.
+  describe('scrolling while a reply streams', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // jsdom has no layout, so the scroller's geometry is stubbed.
+    function layout(el: HTMLElement, height: number) {
+      let top = 0;
+      Object.defineProperty(el, 'clientHeight', { configurable: true, value: 500 });
+      Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => height });
+      Object.defineProperty(el, 'scrollTop', {
+        configurable: true,
+        get: () => top,
+        set: (v: number) => (top = Math.min(v, height - 500)),
+      });
+      // What a browser does with a sentinel at the end of the scroller.
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {
+        top = height - 500;
+      });
+      return {
+        grow: (h: number) => (height = h),
+        scrollTo: (v: number) => {
+          top = v;
+          fireEvent.scroll(el);
+        },
+      };
+    }
+
+    function streaming() {
+      const turn = { emit: (_e: ChatEvent) => {}, release: () => {} };
+      watchTurn.mockImplementation(
+        (_id: string, _after: number, onEvent: (e: ChatEvent) => void) => {
+          turn.emit = (e) => act(() => onEvent(e));
+          onEvent({ type: 'tool_use', name: 'get_menu', input: {}, doing: 'Reading the menu' });
+          return new Promise<null>((resolve) => (turn.release = () => resolve(null)));
+        },
+      );
+      return turn;
+    }
+
+    it('leaves a reader who scrolled up where they are', async () => {
+      const turn = streaming();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await screen.findByTestId('tool-card');
+
+      const view = layout(screen.getByTestId('chat-scroller'), 2000);
+      view.scrollTo(100);
+      view.grow(2600);
+      turn.emit({ type: 'tool_use', name: 'get_menu', input: {}, doing: 'Reading another menu' });
+
+      await waitFor(() => expect(screen.getAllByTestId('tool-card')).toHaveLength(2));
+      expect(screen.getByTestId('chat-scroller').scrollTop).toBe(100);
+      turn.release();
+    });
+
+    it('keeps following a reader who is already at the bottom', async () => {
+      const turn = streaming();
+      render(<ChatClient />);
+      await type('what can I eat');
+      await screen.findByTestId('tool-card');
+
+      const view = layout(screen.getByTestId('chat-scroller'), 2000);
+      view.scrollTo(1500);
+      view.grow(2600);
+      turn.emit({ type: 'tool_use', name: 'get_menu', input: {}, doing: 'Reading another menu' });
+
+      await waitFor(() => expect(screen.getByTestId('chat-scroller').scrollTop).toBe(2100));
+      turn.release();
+    });
+
+    // A parked destructive call does nothing until it is answered, so it
+    // cannot be left somewhere above the fold.
+    it('brings a confirmation prompt into view even when scrolled up', async () => {
+      const turn = streaming();
+      render(<ChatClient />);
+      await type('delete my review');
+      await screen.findByTestId('tool-card');
+
+      const view = layout(screen.getByTestId('chat-scroller'), 2000);
+      view.scrollTo(100);
+      view.grow(2600);
+      const tool = {
+        name: 'delete_review',
+        input: { id: 'r-1' },
+        prompt: null,
+        fingerprint: 'fp-1',
+      };
+      getConversation.mockResolvedValue({
+        ...blank,
+        state: 'awaiting_confirmation',
+        pending: tool,
+      });
+      turn.emit({ type: 'awaiting_confirmation', tool: { ...tool, input: {} } });
+      turn.release();
+
+      await waitFor(() => expect(screen.getByTestId('chat-scroller').scrollTop).toBe(2100));
+    });
   });
 
   // The human gate. Nothing that publishes or deletes runs because a
