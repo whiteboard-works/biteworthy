@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.2",
+    "date": "2026-10-02",
+    "notes": [
+      "Chat on your phone no longer jumps to the bottom while you're reading a reply; it only follows new text when you're already at the bottom. The top menu folds into a menu button on phones, so pages no longer scroll sideways."
+    ]
+  },
+  {
     "version": "2026.10.1.1",
     "date": "2026-10-01",
     "notes": [
