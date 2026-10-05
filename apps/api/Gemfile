@@ -4,7 +4,7 @@ ruby "3.3.6"
 
 # --- Core --------------------------------------------------------------------
 gem "rails", "~> 8.1.4"
-gem "pg", "~> 1.5"
+gem "pg", "~> 1.7"
 gem "puma", "~> 8.0"
 
 # Solid* trio (Rails 8 defaults — no Redis, all Postgres).
@@ -34,7 +34,7 @@ gem "doorkeeper", "~> 5.9"
 gem "omniauth-apple"
 
 # --- Storage / files ---------------------------------------------------------
-gem "image_processing", "~> 2.1"
+gem "image_processing", "~> 2.2"
 # image_processing 2.0 dropped mini_magick as a hard dependency, but
 # Ingestion::DishPhotoCropper requires it directly — keep it explicit.
 gem "mini_magick", "~> 5.4"
