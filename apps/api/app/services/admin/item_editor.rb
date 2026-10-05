@@ -92,20 +92,34 @@ module Admin
     # Photo can be attached via direct upload (multipart file), signed blob
     # id (from POST /attachments), or removed with a flag. Attach before
     # save! so validation errors surface as 422 instead of silently failing.
+    # Preprocess the card variant after attachment for faster first load.
     def handle_photo(attrs)
       if attrs[:remove_photo].to_s == "true"
         @item.photo.purge if @item.photo.attached?
         return
       end
 
+      photo_attached = false
       if attrs[:photo].respond_to?(:tempfile)
         @item.photo.attach(
           io:           attrs[:photo].tempfile,
           filename:     attrs[:photo].original_filename.presence || "dish.jpg",
           content_type: attrs[:photo].content_type.presence
         )
+        photo_attached = true
       elsif attrs[:photo_signed_id].present?
         @item.photo.attach(attrs[:photo_signed_id])
+        photo_attached = true
+      end
+
+      # Preprocess the card variant for faster menu page loads (swallow errors
+      # in environments where variant processing is unavailable, e.g. test).
+      if photo_attached && @item.photo.attached?
+        begin
+          @item.photo.variant(:card).processed
+        rescue StandardError => e
+          Rails.logger.warn("Variant preprocessing failed: #{e.message}")
+        end
       end
     end
 

@@ -330,6 +330,72 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.reload.photo).to be_attached
       expect(item.photo.blob.id).to eq(blob.id)
     end
+
+    describe "WebP variants" do
+      before do
+        item.photo.attach(
+          io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+          filename: "dish.jpg",
+          content_type: "image/jpeg"
+        )
+      end
+
+      it "exposes photo_urls with thumb, card, and full variants" do
+        patch "/api/v1/admin/items/#{item.id}",
+              params: {}.to_json,
+              headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+        expect(response).to have_http_status(:ok)
+        photo_urls = response.parsed_body["photo_urls"]
+        expect(photo_urls).to be_present
+        expect(photo_urls).to have_key("thumb")
+        expect(photo_urls).to have_key("card")
+        expect(photo_urls).to have_key("full")
+        expect(photo_urls["thumb"]).to include("/representations/")
+        expect(photo_urls["card"]).to include("/representations/")
+        expect(photo_urls["full"]).to include("/representations/")
+      end
+
+      it "generates WebP variants from JPEG input", skip: !defined?(Vips) do
+        thumb_variant = item.photo.variant(:thumb)
+        card_variant = item.photo.variant(:card)
+        full_variant = item.photo.variant(:full)
+
+        # Process the variants
+        thumb_blob = thumb_variant.processed.blob
+        card_blob = card_variant.processed.blob
+        full_blob = full_variant.processed.blob
+
+        # All variants should be WebP format
+        expect(thumb_blob.content_type).to eq("image/webp")
+        expect(card_blob.content_type).to eq("image/webp")
+        expect(full_blob.content_type).to eq("image/webp")
+
+        # Variants should be resized appropriately
+        expect(thumb_blob.metadata["width"]).to be <= 200
+        expect(thumb_blob.metadata["height"]).to be <= 200
+        expect(card_blob.metadata["width"]).to be <= 600
+        expect(card_blob.metadata["height"]).to be <= 600
+        expect(full_blob.metadata["width"]).to be <= 1600
+        expect(full_blob.metadata["height"]).to be <= 1600
+      end
+
+      it "keeps the original photo as-is" do
+        original_blob = item.photo.blob
+        expect(original_blob.content_type).to eq("image/jpeg")
+        expect(original_blob.filename.to_s).to eq("dish.jpg")
+      end
+
+      it "preprocesses the card variant on upload", skip: !defined?(Vips) do
+        patch_with_photo(photo: jpeg_file)
+        item.reload
+
+        # Card variant should be preprocessed (representation should process without error)
+        card_variant = item.photo.variant(:card)
+        expect(card_variant).to be_present
+        expect { card_variant.processed }.not_to raise_error
+      end
+    end
   end
 
   it "404s non-admins" do

@@ -142,6 +142,7 @@ module Api
               { id: v.id, size: v.size, price_cents: v.price_cents, currency: v.currency }
             end,
             photo_url:    admin_photo_url_for(item),
+            photo_urls:   admin_photo_urls_for(item),
             created_at:   item.created_at
           }
         end
@@ -149,6 +150,21 @@ module Api
         def admin_photo_url_for(item)
           return nil unless item.photo.attached?
           Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: request.base_url)
+        end
+
+        def admin_photo_urls_for(item)
+          return nil unless item.photo.attached?
+          {
+            thumb: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:thumb), host: request.base_url
+            ),
+            card: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:card), host: request.base_url
+            ),
+            full: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:full), host: request.base_url
+            )
+          }
         end
       end
     end

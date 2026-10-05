@@ -105,6 +105,16 @@ export interface RestaurantItem extends FilterableItem {
    */
   photo_url: string | null;
   /**
+   * WebP variants of the dish photo at different sizes. Uses
+   * `rails_representation_url` for lazy generation. Null when no
+   * photo is attached.
+   */
+  photo_urls?: {
+    thumb: string;
+    card: string;
+    full: string;
+  } | null;
+  /**
    * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
    * caller's profile carries taste signals (Phase 8.1 arrays).
    */
