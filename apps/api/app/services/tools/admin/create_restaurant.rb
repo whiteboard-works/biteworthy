@@ -51,7 +51,8 @@ module Tools
       running_description { |args| args[:name].to_s.strip.present? ? "Creating #{args[:name].to_s.strip.truncate(30)}" : "Creating restaurant" }
 
       def self.perform(context:, name:, city_slug:, street: nil, postal_code: nil, force: false)
-        user = context.user!
+        context.admin!
+        user = context.user
         result = ::Restaurants::Create.call(
           name: name,
           city_slug: city_slug,
