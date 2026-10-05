@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useState, useEffect, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
@@ -58,6 +58,26 @@ function SignupForm() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect signed-in users to /restaurants. Check once on mount, but don't
+  // block the form — render immediately and only redirect if the check comes
+  // back signed in. A signed-in user on /signup is either a mistake (they
+  // meant /login) or they're already done — either way, the signup form is
+  // wrong, but showing "Loading..." to every signed-out visitor is a
+  // regression (PR 764 and 767 existed to make this render immediately).
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { signedIn: false }))
+      .then((d: { signedIn?: boolean }) => {
+        if (d.signedIn) {
+          router.replace('/restaurants');
+        }
+      })
+      .catch(() => {
+        // On fetch failure, stay on the form — better to let them sign up
+        // than block on a flaky check.
+      });
+  }, [router]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -185,7 +205,7 @@ function SignupForm() {
       <p className="mt-bw-6 text-bw-sm text-zinc-500">
         Already have an account?{' '}
         <Link
-          href={`/login${next !== '/onboarding' ? `?next=${encodeURIComponent(next)}` : ''}`}
+          href={`/login${next !== '/onboarding' ? `?next=${encodeURIComponent(next)}` : ''}` as Route}
           className="font-semibold text-bite hover:text-bite-dark"
         >
           Sign in

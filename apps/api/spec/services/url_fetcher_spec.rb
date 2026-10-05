@@ -30,6 +30,30 @@ RSpec.describe UrlFetcher do
       expect(result.content_type).to eq("application/pdf")
     end
 
+    it "corrects application/xml to text/html when the body is actually HTML" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        body: "<html><head><title>Menu</title></head><body>items</body></html>",
+        headers: { "Content-Type" => "application/xml" }
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+    end
+
+    it "detects HTML from body structure when content-type is missing" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        body: "<!DOCTYPE html><html><body>Menu items</body></html>",
+        headers: {}
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+    end
+
     it "rejects non-2xx responses with FetchError" do
       stub_request(:get, url).to_return(status: 404, body: "missing")
 
@@ -72,6 +96,94 @@ RSpec.describe UrlFetcher do
       )
 
       expect(described_class.fetch("https://example.com/").filename).to eq("menu.html")
+    end
+
+    describe "bot challenge detection" do
+      it "detects SiteGround captcha when a .pdf URL returns HTML with sgcaptcha" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><body><a href="/.well-known/sgcaptcha/">Verify</a></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError) { |e|
+            expect(e.reason).to eq("bot_challenge")
+          }
+      end
+
+      it "detects Cloudflare challenge pages with specific markers" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><head><title>Just a moment...</title></head><body><div class="challenge-platform"></div></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError, /bot_challenge/)
+      end
+
+      it "detects Cloudflare __cf_chl parameter" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><body><form action="?__cf_chl_tk=abc"></form></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError, /bot_challenge/)
+      end
+
+      it "allows normal HTML pages when no .pdf extension is expected" do
+        stub_request(:get, "https://example.com/menu").to_return(
+          status: 200,
+          body: "<html><body>Menu items here</body></html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu") }.not_to raise_error
+      end
+
+      it "does NOT flag normal menus that mention Cloudflare or security in content" do
+        # A restaurant mentioning "We use Cloudflare for security" in their footer
+        # should NOT be flagged as a bot challenge
+        menu_with_footer = <<~HTML
+          <html>
+          <body>
+            <h1>Our Menu</h1>
+            <div class="menu">
+              <h2>Appetizers</h2>
+              <p>Spring Rolls - $8</p>
+              <p>Hummus - $6</p>
+            </div>
+            <footer>
+              <p>This site is protected by Cloudflare for security.</p>
+            </footer>
+          </body>
+          </html>
+        HTML
+
+        stub_request(:get, "https://example.com/menu").to_return(
+          status: 200,
+          body: menu_with_footer,
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu") }.not_to raise_error
+      end
+
+      it "raises unexpected_content_type when a .pdf returns HTML without challenge markers" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: "<html><body>Regular page</body></html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError) { |e|
+            expect(e.reason).to eq("unexpected_content_type")
+          }
+      end
     end
 
     describe "SSRF guard" do

@@ -239,6 +239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
     t.integer "cached_input_tokens", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "enrichment_status", default: "pending", null: false
+    t.text "enrichment_failure_message"
     t.text "failure_message"
     t.datetime "finished_at"
     t.string "input_kind", null: false
