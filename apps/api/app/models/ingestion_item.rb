@@ -273,7 +273,7 @@ class IngestionItem < ApplicationRecord
     created.rows.flatten
   end
 
-  # Map numeric confidence + source → Item confidence enum, capped by who accepted.
+  # Map numeric confidence + source → Item confidence enum, capped/promoted by who accepted.
   def map_confidence(numeric, source, accept_cap)
     # DeterministicResolver's IngredientMatcher produces rows without a source field
     # (only implied_rows adds source:"derived", gap-fill adds source:"ai").
@@ -282,9 +282,13 @@ class IngestionItem < ApplicationRecord
     # Treat nil numeric as below threshold (0) so it maps to suggested.
     numeric = numeric&.to_f || 0.0
 
-    # Explicit menu text (source="match") at high confidence → confirmed
+    # Admin/owner accept (accept_cap="confirmed") stamps all joins as confirmed
+    return "confirmed" if accept_cap == "confirmed"
+
+    # Community accept (accept_cap="suggested") derives from source + numeric:
+    # Explicit menu text (source="match") at high confidence → confirmed, capped at suggested
     enum_confidence = if source == "match" && numeric >= 0.95
-                        "confirmed"
+                        "suggested" # community cap
                       # Implied-base keywords → suggested (wheat in "pizza")
                       elsif source == "derived"
                         "suggested"
@@ -294,9 +298,6 @@ class IngestionItem < ApplicationRecord
                       else
                         "suggested"
                       end
-
-    # Community accept never stamps "confirmed" — cap it at "suggested"
-    return "suggested" if accept_cap == "suggested" && enum_confidence == "confirmed"
 
     enum_confidence
   end
