@@ -214,7 +214,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       ]
     end
 
-    it "makes one call per 25 gap items and merges each slice at its own indexes" do
+    it "makes one call per 15 gap items and merges each slice at its own indexes" do
       prompts = []
       allow_any_instance_of(AnthropicClient).to receive(:messages_create) do |_, **kwargs|
         prompts << kwargs[:messages].first[:content].first[:text]
@@ -224,14 +224,14 @@ RSpec.describe GapFillResolveJob, type: :job do
       described_class.perform_now(run.id)
 
       expect(prompts.length).to eq(2)
-      expect(prompts.first).to include("[0] Caesar Salad", "[24] Mystery Dish 23")
-      expect(prompts.first).not_to include("Mystery Dish 24")
-      expect(prompts.last).to include("[0] Mystery Dish 24", "[1] Mystery Dish 25")
+      expect(prompts.first).to include("[0] Caesar Salad", "[14] Mystery Dish 13")
+      expect(prompts.first).not_to include("Mystery Dish 14")
+      expect(prompts.last).to include("[0] Mystery Dish 14", "[11] Mystery Dish 25")
 
       # index 0 of each response lands on that slice's first item, not the run's.
       expect(gap_item.reload.ingredients_payload)
         .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
-      expect(mysteries[24].reload.ingredients_payload)
+      expect(mysteries[14].reload.ingredients_payload)
         .to include({ "slug" => "meat-beef", "confidence" => 0.7, "source" => "ai" })
       expect(run.reload.enrichment_status).to eq("completed")
     end
@@ -295,6 +295,45 @@ RSpec.describe GapFillResolveJob, type: :job do
       run.reload
       expect(run.status).to eq("staged")
       expect(run.enrichment_status).to eq("failed")
+    end
+
+    it "network errors are recorded in enrichment_failure_message for diagnostics" do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create)
+        .and_raise(Faraday::ConnectionFailed.new("DNS lookup failed"))
+      allow(Rails.logger).to receive(:error)
+
+      final_attempt(run.id)
+
+      run.reload
+      expect(run.enrichment_status).to eq("failed")
+      expect(run.enrichment_failure_message).to include("network error")
+      expect(run.enrichment_failure_message).to include("ConnectionFailed")
+    end
+
+    it "rate limit (429) errors are recorded with status code" do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create)
+        .and_raise(AnthropicClient::ApiError.new(status: 429, body: '{"error":"rate_limit"}'))
+      allow(Rails.logger).to receive(:error)
+
+      final_attempt(run.id)
+
+      run.reload
+      expect(run.enrichment_status).to eq("failed")
+      expect(run.enrichment_failure_message).to include("429")
+      expect(run.enrichment_failure_message).to include("rate_limit")
+    end
+
+    it "timeout errors are recorded with timeout duration" do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create)
+        .and_raise(Faraday::TimeoutError)
+      allow(Rails.logger).to receive(:error)
+
+      final_attempt(run.id)
+
+      run.reload
+      expect(run.enrichment_status).to eq("failed")
+      expect(run.enrichment_failure_message).to include("timeout")
+      expect(run.enrichment_failure_message).to match(/\d+s/)
     end
 
     it "ValidationError still accrues the billed usage" do

@@ -121,6 +121,7 @@ module Ingestion
     # images — doing so 400s with "media_type should be image/...".
     #   * PDF   → document block (Claude reads PDFs natively)
     #   * text/*→ text block (the model reads the menu text directly)
+    #   * application/xml → text block (XML is text, often misreported HTML)
     #   * else  → image block (jpeg/png/gif/webp — and, unchanged,
     #             heic/heif, which still 400; converting them is a
     #             follow-up, but a text block of raw HEIC bytes would be
@@ -129,7 +130,7 @@ module Ingestion
       ct = blob.content_type.to_s
       if ct == "application/pdf"
         client.document_block(blob)
-      elsif ct.start_with?("text/")
+      elsif ct.start_with?("text/") || ct == "application/xml"
         { type: "text", text: blob.download.to_s }
       else
         client.image_block(blob)

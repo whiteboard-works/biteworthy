@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -239,6 +239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_020000) do
     t.integer "cached_input_tokens", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "enrichment_status", default: "pending", null: false
+    t.text "enrichment_failure_message"
     t.text "failure_message"
     t.datetime "finished_at"
     t.string "input_kind", null: false
