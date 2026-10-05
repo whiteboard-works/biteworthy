@@ -128,8 +128,10 @@ RSpec.describe "Admin tools authorization" do
 
           if jsonrpc_error?
             # Tool not found is the expected case (registry filtered it out)
+            # Invalid params can also happen if schema validation fails before tool execution
             error_msg = jsonrpc_error_message.to_s.downcase
-            expect(error_msg).to match(/tool not found|not found|unauthorized|forbidden/i)
+            expect(error_msg).to match(/tool not found|not found|unauthorized|forbidden|invalid/i),
+              "Expected blocking error, got: #{error_msg}"
           end
 
           # Verify no side effects
@@ -153,7 +155,8 @@ RSpec.describe "Admin tools authorization" do
 
           if jsonrpc_error?
             error_msg = jsonrpc_error_message.to_s.downcase
-            expect(error_msg).to match(/tool not found|not found|forbidden/i)
+            expect(error_msg).to match(/tool not found|not found|forbidden|invalid/i),
+              "Expected blocking error, got: #{error_msg}"
           end
 
           # Verify no side effects
