@@ -100,22 +100,24 @@ module Admin
         return
       end
 
-      photo_attached = false
+      preprocess = false
       if attrs[:photo].respond_to?(:tempfile)
         @item.photo.attach(
           io:           attrs[:photo].tempfile,
           filename:     attrs[:photo].original_filename.presence || "dish.jpg",
           content_type: attrs[:photo].content_type.presence
         )
-        photo_attached = true
+        preprocess = true
       elsif attrs[:photo_signed_id].present?
         @item.photo.attach(attrs[:photo_signed_id])
-        photo_attached = true
+        # Skip preprocessing for signed_id - the blob is already stored and
+        # variants will be generated on first access
       end
 
-      # Preprocess the card variant for faster menu page loads. Rescue all errors
-      # since preprocessing is optional (it just speeds up first access).
-      if photo_attached && @item.photo.attached? && @item.photo.blob.persisted?
+      # Preprocess the card variant for faster menu page loads. Only for direct
+      # uploads since signed_id blobs are already stored. Rescue all errors since
+      # preprocessing is optional (it just speeds up first access).
+      if preprocess && @item.photo.attached?
         begin
           @item.photo.variant(:card).processed
         rescue => e
