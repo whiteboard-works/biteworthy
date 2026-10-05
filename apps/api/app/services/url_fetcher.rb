@@ -102,7 +102,7 @@ class UrlFetcher
       raise FetchError.new("response_too_large") if body.bytesize > MAX_BYTES
 
       content_type = detect_content_type(response, body)
-      
+
       # Detect bot challenges or interstitials AFTER content-type detection,
       # so we know whether the response is HTML when we expect something else.
       expected_type = expected_content_type_for(current_url)
@@ -177,14 +177,14 @@ class UrlFetcher
 
   def detect_content_type(response, body)
     header = response.headers["content-type"].to_s.split(";").first&.strip
-    
+
     # Sniff content when the header is missing or obviously wrong.
     # Servers sometimes return application/xml for HTML pages, or the wrong
     # MIME type entirely. Sniff magic bytes and structure to decide.
     if header.blank? || looks_like_wrong_content_type?(header, body)
       return sniff_content_type(body)
     end
-    
+
     header
   end
 
@@ -195,19 +195,19 @@ class UrlFetcher
 
   def sniff_content_type(body)
     stripped = body.strip
-    
+
     # PDF magic bytes
     return "application/pdf" if stripped.start_with?("%PDF")
-    
+
     # HTML markers
     if stripped.start_with?("<html", "<!DOCTYPE html", "<!doctype html") ||
        stripped.match?(%r{<html[\s>]|<head[\s>]|<body[\s>]}i)
       return "text/html"
     end
-    
+
     # XML markers (after ruling out HTML)
     return "application/xml" if stripped.start_with?("<?xml")
-    
+
     # Default fallback: treat as HTML if we can't determine
     "text/html"
   end
@@ -228,9 +228,9 @@ class UrlFetcher
   def bot_challenge?(body, content_type)
     return false unless content_type == "text/html" || content_type == "application/xml"
     return false if body.bytesize > 5_000 # Challenges are typically tiny
-    
+
     lower = body.downcase
-    
+
     # Specific challenge markers that are definitive, not incidental mentions
     [
       "/.well-known/sgcaptcha",         # SiteGround captcha path

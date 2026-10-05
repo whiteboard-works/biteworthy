@@ -81,7 +81,7 @@ class GapFillResolveJob < ApplicationJob
           response_schema: Ingestion::GapFillSchema
         )
       end
-      
+
       # When fail_run: false, timed_anthropic_call returns [nil, nil, error_msg] on failure
       if out.nil? || (out.is_a?(Array) && out[0].nil?)
         error_msg = out.is_a?(Array) && out.size == 3 ? out[2] : "gap-fill slice failed"
