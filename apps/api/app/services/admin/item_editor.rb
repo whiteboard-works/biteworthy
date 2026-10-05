@@ -95,7 +95,8 @@ module Admin
     # Preprocess the card variant after attachment for faster first load.
     def handle_photo(attrs)
       if attrs[:remove_photo].to_s == "true"
-        @item.photo.purge if @item.photo.attached?
+        # Use purge_later to avoid blocking the transaction
+        @item.photo.purge_later if @item.photo.attached?
         return
       end
 
@@ -112,11 +113,13 @@ module Admin
         photo_attached = true
       end
 
-      # Preprocess the card variant for faster menu page loads (swallow errors
-      # in environments where variant processing is unavailable, e.g. test).
+      # Preprocess the card variant for faster menu page loads. Rescue LoadError
+      # when ruby-vips gem is missing, and StandardError for other failures.
       if photo_attached && @item.photo.attached?
         begin
           @item.photo.variant(:card).processed
+        rescue LoadError => e
+          Rails.logger.error("Variant preprocessing failed (missing ruby-vips?): #{e.message}")
         rescue StandardError => e
           Rails.logger.warn("Variant preprocessing failed: #{e.message}")
         end
