@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -286,7 +286,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
     t.index ["item_id", "ingredient_id"], name: "index_item_ingredients_on_item_id_and_ingredient_id", unique: true
     t.index ["item_id"], name: "index_item_ingredients_on_item_id"
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_ingredients_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text])", name: "item_ingredients_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text, 'derived'::character varying::text])", name: "item_ingredients_source_valid"
   end
 
   create_table "item_modifiers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -315,7 +315,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
     t.index ["item_id"], name: "index_item_tags_on_item_id"
     t.index ["tag_id"], name: "index_item_tags_on_tag_id"
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_tags_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text])", name: "item_tags_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text, 'derived'::character varying::text])", name: "item_tags_source_valid"
   end
 
   create_table "item_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

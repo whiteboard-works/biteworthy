@@ -255,7 +255,8 @@ class IngestionItem < ApplicationRecord
 
       join_confidence = map_confidence(row.confidence, row.source, accept_confidence)
       join_source = case row.source
-                    when "match", "derived" then "human"
+                    when "match" then "human"
+                    when "derived" then "derived"
                     when "ai" then "ai"
                     when "owner" then "owner"
                     else "human"
