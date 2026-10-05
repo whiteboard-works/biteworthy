@@ -52,7 +52,7 @@ class AddBeerAleToGlutenFreePresets < ActiveRecord::Migration[8.0]
         next
       end
 
-      [beer, ale].each do |ingredient|
+      [ beer, ale ].each do |ingredient|
         # Use find_or_create_by to be idempotent
         DietaryProfileIngredient.find_or_create_by!(
           dietary_profile_id: preset.id,
@@ -71,7 +71,7 @@ class AddBeerAleToGlutenFreePresets < ActiveRecord::Migration[8.0]
     gluten_free = DietaryProfile.find_by(slug: "gluten-free")
 
     if celiac || gluten_free
-      preset_ids = [celiac&.id, gluten_free&.id].compact
+      preset_ids = [ celiac&.id, gluten_free&.id ].compact
       beer_id = beer.id
       ale_id = ale.id
       updated_count = 0
@@ -90,7 +90,7 @@ class AddBeerAleToGlutenFreePresets < ActiveRecord::Migration[8.0]
           WHERE primary_dietary_profile_id = '#{preset_id}'
           AND NOT (avoid_ingredient_ids && ARRAY['#{beer_id}', '#{ale_id}']::uuid[])
         SQL
-        
+
         # result.cmd_tuples returns the number of rows updated
         count = result.respond_to?(:cmd_tuples) ? result.cmd_tuples : 0
         updated_count += count
