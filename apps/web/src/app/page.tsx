@@ -130,7 +130,7 @@ function Hero(): ReactElement {
       </p>
 
       <p className="mt-bw-4 text-bw-xs text-zinc-500">
-        Free during the Durango beta. No ads, no email signup until you choose to save a profile.
+        Free during the Durango beta. No ads.
       </p>
 
       <WaitlistSection />

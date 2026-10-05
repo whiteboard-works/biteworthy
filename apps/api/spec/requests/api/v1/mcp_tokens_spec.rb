@@ -79,6 +79,28 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["scopes"]).to eq([Tools::Scopes::ALL])
     end
+
+    it "refuses admin-only scopes for regular users" do
+      post "/api/v1/mcp_tokens",
+           params: { name: "trying admin", scopes: ["moderation:write"] }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to include("Admin-only")
+      expect(response.parsed_body["error"]).to include("moderation:write")
+    end
+
+    it "allows admin-only scopes for admin users" do
+      admin = create(:user, :admin)
+      admin_headers = auth_headers_for(admin)
+
+      post "/api/v1/mcp_tokens",
+           params: { name: "admin tool", scopes: ["moderation:write"] }.to_json,
+           headers: admin_headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["scopes"]).to eq(["moderation:write"])
+    end
   end
 
   describe "GET /api/v1/mcp_tokens" do
@@ -99,6 +121,26 @@ RSpec.describe "Api::V1::McpTokens", type: :request do
       get "/api/v1/mcp_tokens", headers: headers
 
       expect(response.parsed_body["scopes"]).to include("discovery:read", "profile:write")
+    end
+
+    it "filters admin-only scopes for regular users" do
+      get "/api/v1/mcp_tokens", headers: headers
+
+      scopes = response.parsed_body["scopes"]
+      expect(scopes).to include("discovery:read", "profile:write")
+      expect(scopes).not_to include("moderation:read", "moderation:write")
+      expect(scopes).not_to include("users:read", "users:write")
+    end
+
+    it "includes admin-only scopes for admin users" do
+      admin = create(:user, :admin)
+      admin_headers = auth_headers_for(admin)
+
+      get "/api/v1/mcp_tokens", headers: admin_headers
+
+      scopes = response.parsed_body["scopes"]
+      expect(scopes).to include("moderation:read", "moderation:write")
+      expect(scopes).to include("users:read", "users:write")
     end
 
     # The UI has to be able to offer full access as a chip. Hardcoding the
