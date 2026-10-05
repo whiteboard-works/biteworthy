@@ -58,7 +58,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return adminProxy(`/api/v1/admin/items/${encodeURIComponent(id)}${hardSuffix(request)}`, {
-    method: 'DELETE',
+  const jwt = await getServerJwt();
+  if (!jwt) {
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${jwt}`,
+    Accept: 'application/json',
+    ...(await edgeHeaders()),
+  };
+
+  const upstream = await fetch(
+    `${API_BASE}/api/v1/admin/items/${encodeURIComponent(id)}${hardSuffix(request)}`,
+    { method: 'DELETE', headers },
+  );
+  const responseText = await upstream.text();
+  const response = new NextResponse(responseText, {
+    status: upstream.status,
+    headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
   });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
 }

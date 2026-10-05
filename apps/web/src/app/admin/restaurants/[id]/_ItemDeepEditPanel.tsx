@@ -9,6 +9,9 @@ import type {
 } from '../../../../lib/admin/management';
 import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from '../../../../lib/shrink-image';
 
+// Temporary extension until OpenAPI spec is regenerated
+type AdminItemRowWithPhoto = AdminItemRow & { photo_url?: string | null };
+
 /**
  * Deep-edit a live dish: name, description, the ingredient/tag chips
  * that drive the allergen filter, prices, modifiers, and which section
@@ -48,7 +51,7 @@ function centsToInput(cents: number | null | undefined): string {
   return cents == null ? '' : (cents / 100).toFixed(2);
 }
 
-export function draftFromItem(item: AdminItemRow): ItemDraft {
+export function draftFromItem(item: AdminItemRowWithPhoto): ItemDraft {
   return {
     name: item.name ?? '',
     description: item.description ?? '',
@@ -160,19 +163,25 @@ export function formDataFromDraft(draft: ItemDraft, baseline: ItemDraft): FormDa
 
   Object.entries(edits).forEach(([key, value]) => {
     if (key === 'variants' && Array.isArray(value)) {
-      value.forEach((variant, index) => {
-        if (variant.size !== undefined) formData.append(`variants[${index}][size]`, variant.size || '');
-        if (variant.price_cents !== undefined) formData.append(`variants[${index}][price_cents]`, String(variant.price_cents || ''));
-        if (variant.currency !== undefined) formData.append(`variants[${index}][currency]`, variant.currency || 'USD');
+      value.forEach((variant: unknown, index: number) => {
+        if (typeof variant === 'object' && variant !== null) {
+          const v = variant as { size?: string | null; price_cents?: number | null; currency?: string };
+          if (v.size !== undefined) formData.append(`variants[${index}][size]`, v.size || '');
+          if (v.price_cents !== undefined) formData.append(`variants[${index}][price_cents]`, String(v.price_cents || ''));
+          if (v.currency !== undefined) formData.append(`variants[${index}][currency]`, v.currency || 'USD');
+        }
       });
     } else if (key === 'modifiers' && Array.isArray(value)) {
-      value.forEach((modifier, index) => {
-        if (modifier.name !== undefined) formData.append(`modifiers[${index}][name]`, modifier.name || '');
-        if (modifier.kind !== undefined) formData.append(`modifiers[${index}][kind]`, modifier.kind || 'addition');
-        if (modifier.price_cents !== undefined) formData.append(`modifiers[${index}][price_cents]`, String(modifier.price_cents || ''));
+      value.forEach((modifier: unknown, index: number) => {
+        if (typeof modifier === 'object' && modifier !== null) {
+          const m = modifier as { name?: string; kind?: string; price_cents?: number | null };
+          if (m.name !== undefined) formData.append(`modifiers[${index}][name]`, m.name || '');
+          if (m.kind !== undefined) formData.append(`modifiers[${index}][kind]`, m.kind || 'addition');
+          if (m.price_cents !== undefined) formData.append(`modifiers[${index}][price_cents]`, String(m.price_cents || ''));
+        }
       });
     } else if (Array.isArray(value)) {
-      value.forEach((item) => {
+      value.forEach((item: unknown) => {
         formData.append(`${key}[]`, String(item));
       });
     } else if (value !== null && value !== undefined) {

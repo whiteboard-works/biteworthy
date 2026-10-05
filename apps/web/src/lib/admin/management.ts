@@ -121,7 +121,8 @@ export async function updateAdminItemMultipart(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new AdminError(res.status, body);
+    const code = typeof body.error === 'string' ? body.error : undefined;
+    throw new AdminError(`Admin item update failed (${res.status})`, res.status, code, body);
   }
   return res.json();
 }
