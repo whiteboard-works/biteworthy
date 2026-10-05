@@ -22,6 +22,9 @@ module TimedAnthropicCall
   # run is marked failed; `fail_run: false` (the post-staged gap-fill —
   # the run is already usable) logs instead, leaving the caller to
   # record the degradation (e.g. enrichment_status).
+  #
+  # When `fail_run: false`, also returns the error message as a third
+  # element: `[nil, nil, error_msg]`, so the caller can record it.
   def timed_anthropic_call(run, api_error:, validation_error:, truncation_error: "output_truncated",
                            model: nil, fail_run: true)
     client  = AnthropicClient.new(model: model)
@@ -31,8 +34,13 @@ module TimedAnthropicCall
       result = yield client
     rescue AnthropicClient::ApiError => e
       message = "#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}"
-      fail_run ? run.fail!(message) : log_soft_failure(run, message)
-      return nil
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
     rescue AnthropicClient::TruncatedError => e
       # Its own failure code, not `#{validation_error}`. A truncated
       # response is a parse failure too, so it used to be reported as
@@ -47,13 +55,32 @@ module TimedAnthropicCall
       # rescue exists to stop producing.
       run.record_api_usage!(client.last_usage, model: client.model)
       message = "#{truncation_error}: hit the #{e.max_tokens}-token output limit"
-      fail_run ? run.fail!(message) : log_soft_failure(run, message)
-      return nil
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
     rescue AnthropicClient::ValidationError => e
       run.record_api_usage!(client.last_usage, model: client.model)
       message = "#{validation_error}: #{e.errors.first(3).join('; ')}"
-      fail_run ? run.fail!(message) : log_soft_failure(run, message)
-      return nil
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
+    rescue Faraday::TimeoutError => e
+      message = "#{api_error}: timeout after #{client.instance_variable_get(:@timeout) || 240}s"
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
     end
 
     elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round

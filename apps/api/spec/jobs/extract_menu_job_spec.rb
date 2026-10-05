@@ -260,6 +260,44 @@ RSpec.describe ExtractMenuJob, type: :job do
     end
   end
 
+  describe "oversized HTML input" do
+    it "fails upfront when HTML input exceeds 50KB with a clear user-facing message" do
+      # Large HTML (95KB+) commonly produces extraction responses that
+      # hit the 16k output token cap. Rather than fail mid-extraction,
+      # detect and reject upfront.
+      large_html = "<html><body>#{'x' * 60_000}</body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(large_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.failed?).to be true
+      expect(run.failure_message).to start_with("input_too_large:")
+      expect(run.failure_message).to include("Upload a PDF or photo instead")
+    end
+
+    it "allows HTML under the 50KB threshold" do
+      normal_html = "<html><body>#{'x' * 30_000}</body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(normal_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+    end
+  end
+
   describe "Anthropic API error" do
     before do
       attach_fake_input!

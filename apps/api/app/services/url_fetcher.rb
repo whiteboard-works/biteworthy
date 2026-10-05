@@ -101,9 +101,22 @@ class UrlFetcher
       body = response.body.to_s
       raise FetchError.new("response_too_large") if body.bytesize > MAX_BYTES
 
+      content_type = detect_content_type(response, body)
+      
+      # Detect bot challenges or interstitials AFTER content-type detection,
+      # so we know whether the response is HTML when we expect something else.
+      expected_type = expected_content_type_for(current_url)
+      if expected_type && expected_type != content_type
+        if bot_challenge?(body, content_type)
+          raise FetchError.new("bot_challenge")
+        else
+          raise FetchError.new("unexpected_content_type")
+        end
+      end
+
       return Result.new(
         io:           StringIO.new(body),
-        content_type: detect_content_type(response, body),
+        content_type: content_type,
         filename:     filename_for(current_url, response),
         byte_size:    body.bytesize
       )
@@ -164,10 +177,72 @@ class UrlFetcher
 
   def detect_content_type(response, body)
     header = response.headers["content-type"].to_s.split(";").first&.strip
-    return header if header.present?
+    
+    # Sniff content when the header is missing or obviously wrong.
+    # Servers sometimes return application/xml for HTML pages, or the wrong
+    # MIME type entirely. Sniff magic bytes and structure to decide.
+    if header.blank? || looks_like_wrong_content_type?(header, body)
+      return sniff_content_type(body)
+    end
+    
+    header
+  end
 
-    # Sniff PDF magic bytes when the server didn't tell us.
-    body.start_with?("%PDF") ? "application/pdf" : "text/html"
+  def looks_like_wrong_content_type?(header, body)
+    # application/xml but the body is actually HTML
+    header == "application/xml" && body.strip.start_with?("<html", "<!DOCTYPE html", "<!doctype html")
+  end
+
+  def sniff_content_type(body)
+    stripped = body.strip
+    
+    # PDF magic bytes
+    return "application/pdf" if stripped.start_with?("%PDF")
+    
+    # HTML markers
+    if stripped.start_with?("<html", "<!DOCTYPE html", "<!doctype html") ||
+       stripped.match?(%r{<html[\s>]|<head[\s>]|<body[\s>]}i)
+      return "text/html"
+    end
+    
+    # XML markers (after ruling out HTML)
+    return "application/xml" if stripped.start_with?("<?xml")
+    
+    # Default fallback: treat as HTML if we can't determine
+    "text/html"
+  end
+
+  # Infer what content type a URL *should* return based on its extension.
+  # Returns nil if we have no expectation (e.g., a generic /menu path).
+  def expected_content_type_for(url)
+    path = URI.parse(url).path.to_s.downcase
+    return "application/pdf" if path.end_with?(".pdf")
+    nil
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # Detect common bot challenges and captcha/WAF interstitials.
+  # These are HTML pages returned instead of the actual resource,
+  # typically very small and containing known patterns.
+  def bot_challenge?(body, content_type)
+    return false unless content_type == "text/html" || content_type == "application/xml"
+    return false if body.bytesize > 5_000 # Challenges are typically tiny
+    
+    lower = body.downcase
+    
+    # Common patterns in captcha/WAF pages
+    [
+      "sgcaptcha",              # SiteGround captcha
+      "cloudflare",             # Cloudflare challenge
+      "please verify you are a human",
+      "checking your browser",
+      "one more step",
+      "enable javascript and cookies",
+      "security check",
+      "access denied",
+      "ddos-guard"
+    ].any? { |pattern| lower.include?(pattern) }
   end
 
   def filename_for(url, response)
