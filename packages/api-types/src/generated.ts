@@ -39,6 +39,7 @@ export interface paths {
                                 email: string;
                                 handle: string;
                                 display_name: string | null;
+                                bio: string | null;
                                 provider: string | null;
                                 /** Format: date-time */
                                 created_at: string;

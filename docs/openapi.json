@@ -55,6 +55,7 @@
                         "email",
                         "handle",
                         "display_name",
+                        "bio",
                         "provider",
                         "created_at"
                       ],
@@ -70,6 +71,10 @@
                           "type": "string"
                         },
                         "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "bio": {
                           "type": "string",
                           "nullable": true
                         },
