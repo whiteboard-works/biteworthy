@@ -84,6 +84,18 @@ module Tools
       users: [
         "Users::ListUsers",
         "Users::SetUserRole"
+      ],
+      admin: [
+        "Admin::FindRestaurants",
+        "Admin::UpdateRestaurant",
+        "Admin::SetRestaurantHours",
+        "Admin::StartScan",
+        "Admin::GetScan",
+        "Admin::AcceptItems",
+        "Admin::RejectItems",
+        "Admin::ListRestaurantItems",
+        "Admin::UpdatePublishedItem",
+        "Admin::SetRestaurantStatus"
       ]
     }.freeze
 
