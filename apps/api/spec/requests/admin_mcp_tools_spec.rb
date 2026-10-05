@@ -387,7 +387,7 @@ RSpec.describe "Admin MCP tools" do
       it "validates price_cents as non-negative integer" do
         mcp_call("update_published_item", {
           item_id: item.id,
-          variants: [{ size: "Large", price_cents: "not a number" }]
+          variants: [ { size: "Large", price_cents: "not a number" } ]
         }, admin)
 
         result = JSON.parse(response.body)["result"]

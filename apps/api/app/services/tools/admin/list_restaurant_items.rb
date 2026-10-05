@@ -29,7 +29,7 @@ module Tools
             description: "Filter by status: #{Item::STATUSES.join(', ')}. Omit for all."
           }
         },
-        required: ["restaurant"]
+        required: [ "restaurant" ]
       )
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)

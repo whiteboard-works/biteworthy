@@ -26,7 +26,7 @@ module Tools
             description: "Scan id from start_scan."
           }
         },
-        required: ["scan_id"]
+        required: [ "scan_id" ]
       )
 
       annotations(read_only_hint: true, destructive_hint: false, idempotent_hint: true)

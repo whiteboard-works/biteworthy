@@ -61,7 +61,7 @@ module Tools
               type: "object",
               properties: {
                 size: { type: "string" },
-                price_cents: { anyOf: [{ type: "integer", minimum: 0 }, { type: "string" }] },
+                price_cents: { anyOf: [ { type: "integer", minimum: 0 }, { type: "string" } ] },
                 currency: { type: "string" }
               }
             },
@@ -80,7 +80,7 @@ module Tools
             description: "Add-ons/modifiers. Replaces current list."
           }
         },
-        required: ["item_id"],
+        required: [ "item_id" ],
         additionalProperties: false
       )
 

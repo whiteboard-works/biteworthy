@@ -51,7 +51,7 @@ module Tools
             description: "Base64-encoded image (JPEG/PNG/WebP/HEIC). Decoded and processed as an image attachment."
           }
         },
-        required: ["restaurant"]
+        required: [ "restaurant" ]
       )
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: false)
@@ -69,7 +69,7 @@ module Tools
         user = context.user
         record = Restaurant.kept.find_by_id_or_slug!(restaurant)
 
-        sources = [source_url, source_text, attachment_ids, base64_pdf, base64_image].compact
+        sources = [ source_url, source_text, attachment_ids, base64_pdf, base64_image ].compact
         return error(ERROR_MESSAGES[:multiple_sources], code: "multiple_sources") if sources.size > 1
 
         files = resolve_files(user, attachment_ids, base64_pdf, base64_image)
@@ -99,7 +99,7 @@ module Tools
       def self.failure(result)
         message = ERROR_MESSAGES.fetch(result.error, "Could not start the scan.")
         detail = result.detail.presence
-        error([message, detail&.to_json].compact.join(" "), code: result.error.to_s)
+        error([ message, detail&.to_json ].compact.join(" "), code: result.error.to_s)
       end
       private_class_method :failure
 

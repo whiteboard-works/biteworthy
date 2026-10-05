@@ -37,7 +37,7 @@ module Tools
               opens_at: { type: "string" },
               closes_at: { type: "string" }
             },
-            required: ["day_of_week"]
+            required: [ "day_of_week" ]
             },
             description: "Array of hour ranges. Empty array = closed all week."
           }

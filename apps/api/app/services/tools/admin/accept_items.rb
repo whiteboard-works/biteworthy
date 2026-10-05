@@ -38,7 +38,7 @@ module Tools
             description: "Accept all pending items. Only when explicitly requested."
           }
         },
-        required: ["scan_id"]
+        required: [ "scan_id" ]
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
