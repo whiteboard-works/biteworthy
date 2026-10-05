@@ -275,6 +275,11 @@ class IngestionItem < ApplicationRecord
 
   # Map numeric confidence + source → Item confidence enum, capped by who accepted.
   def map_confidence(numeric, source, accept_cap)
+    # DeterministicResolver's IngredientMatcher produces rows without a source field
+    # (only implied_rows adds source:"derived", gap-fill adds source:"ai").
+    # Treat nil source as "match" — it came from menu text.
+    source = "match" if source.nil?
+
     # Explicit menu text (source="match") at high confidence → confirmed
     enum_confidence = if source == "match" && numeric >= 0.95
                         "confirmed"
