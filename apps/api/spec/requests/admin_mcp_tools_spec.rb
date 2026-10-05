@@ -68,9 +68,11 @@ RSpec.describe "Admin MCP tools" do
       it "refuses the call" do
         mcp_call("find_restaurants", {}, user)
         expect(response).to have_http_status(:ok)
-        result = JSON.parse(response.body)["result"]
-        expect(result["isError"]).to be(true)
-        expect(result.dig("content", 0, "text")).to include("forbidden")
+        
+        response_body = JSON.parse(response.body)
+        # Should get JSON-RPC error (tool not found) since registry filters by audience
+        expect(response_body.key?("error")).to be(true), 
+          "Expected JSON-RPC error, got: #{response_body}"
       end
     end
   end
@@ -129,8 +131,10 @@ RSpec.describe "Admin MCP tools" do
     context "as non-admin" do
       it "refuses the call" do
         mcp_call("update_restaurant", { restaurant: restaurant.id, name: "New" }, user)
-        result = JSON.parse(response.body)["result"]
-        expect(result["isError"]).to be(true)
+        
+        response_body = JSON.parse(response.body)
+        expect(response_body.key?("error")).to be(true),
+          "Expected JSON-RPC error, got: #{response_body}"
       end
     end
   end
@@ -265,8 +269,11 @@ RSpec.describe "Admin MCP tools" do
 
       it "refuses access to another user's scan" do
         mcp_call("get_scan", { scan_id: run.id }, other_user)
-        result = JSON.parse(response.body)["result"]
-        expect(result["isError"]).to be(true)
+        
+        response_body = JSON.parse(response.body)
+        # Non-admin should get JSON-RPC error (tool not found)
+        expect(response_body.key?("error")).to be(true),
+          "Expected JSON-RPC error, got: #{response_body}"
       end
     end
   end
@@ -481,8 +488,10 @@ RSpec.describe "Admin MCP tools" do
           city_slug: "nonexistent"
         )
 
+        # Tool returns error response with error: true attribute
+        expect(result.error?).to be(true)
         content = result.to_h[:structuredContent]
-        expect(content[:isError]).to be(true)
+        expect(content[:error]).to be_present
       end
     end
 
