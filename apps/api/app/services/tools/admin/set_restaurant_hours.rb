@@ -51,6 +51,7 @@ module Tools
       running_description { "Setting hours" }
 
       def self.perform(context:, restaurant:, hours:)
+        context.admin!
         record = find_restaurant!(restaurant)
         Places::Writer.replace_hours!(record, hours)
 

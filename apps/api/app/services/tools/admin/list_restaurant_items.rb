@@ -37,6 +37,7 @@ module Tools
       running_description { "Listing items" }
 
       def self.perform(context:, restaurant:, status: nil)
+        context.admin!
         record = find_restaurant!(restaurant)
         scope = Item.where(restaurant_id: record.id)
                     .includes(:item_variants, :item_modifiers, :ingredients, :tags, :menu_section)

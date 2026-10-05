@@ -43,6 +43,7 @@ module Tools
       running_description { "Searching restaurants" }
 
       def self.perform(context:, q: nil, city_slug: nil, status: nil, archived: nil)
+        context.admin!
         scope = Restaurant.includes(:city).order(created_at: :desc)
 
         # Archived filter: three states: archived-only, kept-only (default), or both.

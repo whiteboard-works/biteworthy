@@ -47,6 +47,7 @@ module Tools
       running_description { "Accepting items" }
 
       def self.perform(context:, scan_id:, item_ids: nil, all: false)
+        context.admin!
         # Delegate to the existing tool — same logic, same validations
         Tools::Ingestion::AcceptStagedItems.perform(
           context: context,

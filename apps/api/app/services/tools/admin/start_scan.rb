@@ -65,6 +65,7 @@ module Tools
 
       def self.perform(context:, restaurant:, source_url: nil, source_text: nil, attachment_ids: nil,
                        base64_pdf: nil, base64_image: nil)
+        context.admin!
         user = context.user
         record = Restaurant.kept.find_by_id_or_slug!(restaurant)
 
