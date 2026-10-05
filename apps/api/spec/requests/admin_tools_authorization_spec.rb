@@ -115,7 +115,7 @@ RSpec.describe "Admin tools authorization" do
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
-          mcp_call(tool_name, args, nil)
+          mcp_call(spec[:name], args, nil)
 
           expect(response).to have_http_status(:ok)
           expect(result_is_error?).to be(true)
@@ -134,7 +134,7 @@ RSpec.describe "Admin tools authorization" do
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
-          mcp_call(tool_name, args, user)
+          mcp_call(spec[:name], args, user)
 
           expect(response).to have_http_status(:ok)
           expect(result_is_error?).to be(true)
