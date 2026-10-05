@@ -199,6 +199,9 @@ export function ChatClient(): ReactElement {
   const leaveBlank = () => {
     const key = blankKey();
     blank.current += 1;
+    // Clear any stale leftBlankKey so a later blank chat's queue cannot
+    // be stranded by an earlier open that set it but never cleared it.
+    leftBlankKey.current = null;
     if (creating.current.has(key)) return;
     queue.current = queue.current.filter((message) => message.conversationId !== key);
     setQueued(queue.current);
