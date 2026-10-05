@@ -165,7 +165,7 @@ RSpec.describe "Admin MCP tools" do
       it "rejects invalid times" do
         mcp_call("set_restaurant_hours", {
           restaurant: restaurant.id,
-          hours: [{ day_of_week: 1, opens_at: "25:99", closes_at: "14:00" }]
+          hours: [ { day_of_week: 1, opens_at: "25:99", closes_at: "14:00" } ]
         }, admin)
 
         result = JSON.parse(response.body)["result"]
@@ -236,11 +236,11 @@ RSpec.describe "Admin MCP tools" do
     let!(:run) { create(:ingestion_run, restaurant: restaurant, user: admin, status: "staged") }
     let!(:item1) do
       create(:ingestion_item, ingestion_run: run, name: "Burger", decision: "pending",
-                              ingredients_payload: [{ slug: "beef", confidence: "confirmed", source: "ai" }])
+                              ingredients_payload: [ { slug: "beef", confidence: "confirmed", source: "ai" } ])
     end
     let!(:item2) do
       create(:ingestion_item, ingestion_run: run, name: "Salad", decision: "accepted",
-                              tags_payload: [{ slug: "vegetarian", confidence: "suggested", source: "ai" }])
+                              tags_payload: [ { slug: "vegetarian", confidence: "suggested", source: "ai" } ])
     end
     let!(:beef) { create(:ingredient, slug: "beef", name: "Beef") }
     let!(:veg_tag) { create(:tag, slug: "vegetarian", name: "Vegetarian") }

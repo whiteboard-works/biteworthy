@@ -74,7 +74,7 @@ module Tools
               properties: {
                 name: { type: "string" },
                 kind: { type: "string" },
-                price_cents: { anyOf: [{ type: "integer", minimum: 0 }, { type: "string" }] }
+                price_cents: { anyOf: [ { type: "integer", minimum: 0 }, { type: "string" } ] }
               }
             },
             description: "Add-ons/modifiers. Replaces current list."
