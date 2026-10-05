@@ -194,6 +194,7 @@ Rails.application.routes.draw do
           member do
             post :confirm_community
             post :restore
+            post :backfill_structure
           end
           resources :items, only: [:index]
           resources :menus, only: [:index, :create]
@@ -203,7 +204,6 @@ Rails.application.routes.draw do
             get :place,   to: "places#show"
             put :address, to: "places#update_address"
             put :hours,   to: "places#update_hours"
-            post :backfill_structure, to: "restaurant_structure_backfills#create"
           end
         end
         resources :items, only: [:update, :destroy]

@@ -200,6 +200,8 @@ class IngestionItem < ApplicationRecord
 
   def apply_section!(target, snapshot)
     return if target.menu_section_id.present?
+    return if section_name.blank?
+    
     section = find_or_create_section
     return if section.nil?
 

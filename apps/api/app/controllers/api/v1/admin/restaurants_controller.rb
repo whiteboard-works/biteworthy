@@ -123,6 +123,25 @@ module Api
           render json: serialize_restaurant(restaurant)
         end
 
+        # POST /api/v1/admin/restaurants/:id/backfill_structure — rebuild
+        # menu sections and item variants from accepted ingestion payloads.
+        def backfill_structure
+          restaurant = Restaurant.find(params[:id])
+          dry_run    = ActiveModel::Type::Boolean.new.cast(params[:dry_run])
+
+          result = Restaurants::BackfillStructure.new(
+            restaurant: restaurant,
+            dry_run:    dry_run
+          ).call
+
+          render json: {
+            restaurant_id:     restaurant.id,
+            dry_run:           dry_run,
+            sections_created:  result[:sections_created],
+            variants_added:    result[:variants_added]
+          }
+        end
+
         private
 
         def serialize_restaurant(restaurant)

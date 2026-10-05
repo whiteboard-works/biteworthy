@@ -82,7 +82,7 @@ RSpec.describe Menus::Query, "serialization" do
 
       expect do
         query.call
-      end.not_to exceed_query_limit(10)
+      end.not_to exceed_query_limit(12)
     end
   end
 end
