@@ -149,7 +149,8 @@ RSpec.describe "dietary profiles seed", type: :model do
 
     it "avoids gluten-bearing grains specifically" do
       avoid_paths = celiac.ingredients.map(&:path).map(&:to_s)
-      expect(avoid_paths).to contain_exactly("grain.wheat", "grain.rye", "grain.barley")
+      grain_paths = avoid_paths.select { |p| p.start_with?("grain") }
+      expect(grain_paths).to contain_exactly("grain.wheat", "grain.rye", "grain.barley")
     end
 
     it "avoids beer and ale (made from barley, contains gluten)" do
