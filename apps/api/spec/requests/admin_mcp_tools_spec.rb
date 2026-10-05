@@ -285,7 +285,7 @@ RSpec.describe "Admin MCP tools" do
 
     context "as admin" do
       it "accepts items" do
-        mcp_call("accept_items", { scan_id: run.id, item_ids: [item1.id] }, admin)
+        mcp_call("accept_items", { scan_id: run.id, item_ids: [ item1.id ] }, admin)
 
         expect(response).to have_http_status(:ok)
         content = result_content
@@ -293,7 +293,7 @@ RSpec.describe "Admin MCP tools" do
       end
 
       it "rejects items" do
-        mcp_call("reject_items", { scan_id: run.id, item_ids: [item2.id] }, admin)
+        mcp_call("reject_items", { scan_id: run.id, item_ids: [ item2.id ] }, admin)
 
         expect(response).to have_http_status(:ok)
         content = result_content
@@ -353,14 +353,14 @@ RSpec.describe "Admin MCP tools" do
           item_id: item.id,
           name: "New Name",
           description: "New description",
-          ingredient_slugs: ["tomato"]
+          ingredient_slugs: [ "tomato" ]
         }, admin)
 
         expect(response).to have_http_status(:ok)
         item.reload
         expect(item.name).to eq("New Name")
         expect(item.description).to eq("New description")
-        expect(item.ingredients.pluck(:slug)).to eq(["tomato"])
+        expect(item.ingredients.pluck(:slug)).to eq([ "tomato" ])
       end
 
       it "sets status to removed" do
