@@ -74,6 +74,36 @@ RSpec.describe IngestionItem, "#promote! (update path)" do
     end
   end
 
+  describe "section" do
+    it "sets menu_section when the scan carries section_name and the item has none" do
+      row = staged(section_name: "Tacos")
+      row.promote!
+
+      expect(target.reload.menu_section).to be_present
+      expect(target.menu_section.name).to eq("Tacos")
+      expect(row.reload.applied_changes["menu_section_id"]).to eq([nil, target.menu_section.id])
+    end
+
+    it "never overwrites an existing menu_section" do
+      existing_menu = Menu.create!(restaurant: restaurant, name: "Main")
+      existing_section = MenuSection.create!(menu: existing_menu, name: "Original Section")
+      target.update!(menu_section: existing_section)
+
+      row = staged(section_name: "New Section")
+      row.promote!
+
+      expect(target.reload.menu_section).to eq(existing_section)
+      expect(row.reload.applied_changes).not_to have_key("menu_section_id")
+    end
+
+    it "leaves menu_section nil when section_name is blank" do
+      row = staged(section_name: nil)
+      row.promote!
+
+      expect(target.reload.menu_section).to be_nil
+    end
+  end
+
   describe "prices" do
     before { ItemVariant.create!(item: target, size: "small", price_cents: 450, position: 0) }
 

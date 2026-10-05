@@ -203,6 +203,7 @@ Rails.application.routes.draw do
             get :place,   to: "places#show"
             put :address, to: "places#update_address"
             put :hours,   to: "places#update_hours"
+            post :backfill_structure, to: "restaurant_structure_backfills#create"
           end
         end
         resources :items, only: [:update, :destroy]
