@@ -204,7 +204,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
         ]
       )
 
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       wheat_join = item.item_ingredients.find_by(ingredient: wheat)
 
       # The join was inserted with source="derived"
@@ -227,7 +227,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
           { slug: "grain-wheat", confidence: 0.9, source: "derived" }     # suggested
         ]
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("suggested")
     end
 
@@ -239,7 +239,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
           { slug: "grain-wheat", confidence: 0.5, source: "ai" }          # inferred
         ]
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("inferred")
     end
 
@@ -251,7 +251,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
           { slug: "dairy-cheddar", confidence: 0.5, source: "ai" }        # inferred
         ]
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("inferred")
     end
 
@@ -263,7 +263,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
           { slug: "vegetable-tomato", confidence: 1.0, source: "match" }
         ]
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("confirmed")
     end
 
@@ -279,7 +279,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
           { slug: "cuisine-italian", confidence: 1.0, source: "match" }   # confirmed
         ]
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("suggested")
     end
 
@@ -288,7 +288,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
         name: "Mystery Dish",
         ingredients_payload: []
       )
-      item = ing_item.promote!(admin)
+      item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("suggested")
     end
   end
