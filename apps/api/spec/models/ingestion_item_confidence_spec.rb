@@ -216,4 +216,80 @@ RSpec.describe IngestionItem, "confidence assignment" do
       expect(wheat_join.reload.confidence).to eq("confirmed")
     end
   end
+
+  # Weakest-link derivation must gather all confidences, not rely on SQL MIN (alphabetical)
+  describe "mixed confidence derivation (weakest link)" do
+    it "[confirmed, suggested] → suggested" do
+      ing_item = run.ingestion_items.create!(
+        name: "Cheese Pizza",
+        ingredients_payload: [
+          { slug: "dairy-cheddar", confidence: 1.0, source: "match" },    # confirmed
+          { slug: "grain-wheat", confidence: 0.9, source: "derived" }     # suggested
+        ]
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("suggested")
+    end
+
+    it "[confirmed, inferred] → inferred" do
+      ing_item = run.ingestion_items.create!(
+        name: "Cheese Pizza",
+        ingredients_payload: [
+          { slug: "dairy-cheddar", confidence: 1.0, source: "match" },    # confirmed
+          { slug: "grain-wheat", confidence: 0.5, source: "ai" }          # inferred
+        ]
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("inferred")
+    end
+
+    it "[suggested, inferred] → inferred" do
+      ing_item = run.ingestion_items.create!(
+        name: "Cheese Pizza",
+        ingredients_payload: [
+          { slug: "grain-wheat", confidence: 0.9, source: "derived" },    # suggested
+          { slug: "dairy-cheddar", confidence: 0.5, source: "ai" }        # inferred
+        ]
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("inferred")
+    end
+
+    it "all confirmed → confirmed" do
+      ing_item = run.ingestion_items.create!(
+        name: "Cheese Pizza",
+        ingredients_payload: [
+          { slug: "dairy-cheddar", confidence: 1.0, source: "match" },
+          { slug: "vegetable-tomato", confidence: 1.0, source: "match" }
+        ]
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("confirmed")
+    end
+
+    it "mixed ingredients and tags (suggested ingredient + confirmed tag → suggested)" do
+      cuisine_tag = create(:tag, name: "Italian", slug: "cuisine-italian", path: "cuisine.italian")
+
+      ing_item = run.ingestion_items.create!(
+        name: "Cheese Pizza",
+        ingredients_payload: [
+          { slug: "grain-wheat", confidence: 0.9, source: "derived" }     # suggested
+        ],
+        tags_payload: [
+          { slug: "cuisine-italian", confidence: 1.0, source: "match" }   # confirmed
+        ]
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("suggested")
+    end
+
+    it "no joins at all defaults to suggested (safer than confirmed)" do
+      ing_item = run.ingestion_items.create!(
+        name: "Mystery Dish",
+        ingredients_payload: []
+      )
+      item = ing_item.promote!(admin)
+      expect(item.confidence).to eq("suggested")
+    end
+  end
 end

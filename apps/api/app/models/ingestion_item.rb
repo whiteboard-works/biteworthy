@@ -301,11 +301,19 @@ class IngestionItem < ApplicationRecord
     target.item_ingredients.reload
     target.item_tags.reload
 
-    min_ingredient = target.item_ingredients.minimum(:confidence) || "confirmed"
-    min_tag = target.item_tags.minimum(:confidence) || "confirmed"
+    # Gather all confidence values from both join tables (SQL MIN is alphabetical,
+    # which would incorrectly pick "confirmed" over "suggested", losing information).
+    all_confidences = target.item_ingredients.pluck(:confidence) + target.item_tags.pluck(:confidence)
 
-    # CONFIDENCE array is [confirmed, suggested, inferred] — highest index = weakest
-    weakest = [min_ingredient, min_tag].max_by { |c| Item::CONFIDENCE.index(c) }
+    # Item::CONFIDENCE is [confirmed, suggested, inferred] — highest index = weakest
+    weakest = if all_confidences.any?
+                all_confidences.max_by { |c| Item::CONFIDENCE.index(c) }
+              else
+                # No joins at all — extraction found nothing. "suggested" is safer than
+                # "confirmed" (Strict mode would show an item we know nothing about).
+                "suggested"
+              end
+
     target.update!(confidence: weakest) if target.confidence != weakest
   end
 
