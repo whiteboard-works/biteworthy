@@ -367,6 +367,54 @@ is the only place that audience is declared. `Registry.for(context)` drops
 them wholesale for non-admins, so a normal caller's `tools/list` never
 mentions them.
 
+### Restaurant curation tools (admin domain)
+
+The `admin` domain groups tools for the full restaurant curation workflow,
+reusing the same business logic and validation as the REST admin endpoints:
+
+- **`find_restaurants`** — search by name or city, with filters for status
+  (draft/published/closed) and archived state. Unlike public search, this
+  shows everything.
+- **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
+  with candidate matches if the name looks like an existing one in that city;
+  call again with force: true after reviewing. New restaurants land as draft.
+- **`update_restaurant`** — edit name, about, website, phone, and address.
+  Address is a wholesale replacement when any address field is provided.
+  Reuses `Places::Writer` validation.
+- **`set_restaurant_hours`** — replace weekly hours. Supports multiple
+  intervals per day (lunch + dinner). Validates HH:MM format and rejects
+  contradictory rows (closed + open on the same day).
+- **`start_scan`** — the admin version of `start_menu_scan`. Accepts
+  `base64_pdf` or `base64_image` in addition to URL/text/attachment_ids, so
+  captcha-blocked or manually-supplied menus can be ingested. Base64 content
+  is decoded and processed through the same pipeline as uploads.
+- **`get_scan`** — combines `get_scan_status` and `list_staged_items` in
+  one call. Returns status, ready flag, and the full list of staged items
+  with ingredients, tags, confidence, and needs_attention flags.
+- **`accept_items`** — publish staged dishes to the live menu. When an admin
+  accepts, associations are stamped `confirmed` and visible to strict-mode
+  users. Delegates to `Tools::Ingestion::AcceptStagedItems` so the 80%
+  publish threshold and confidence promotion stay in one place.
+- **`reject_items`** — mark items as "not on the menu". Rejected items stay
+  in the scan for audit and count toward the publish threshold but never
+  promote.
+- **`list_restaurant_items`** — list all items at a restaurant, including
+  removed ones. Returns id, name, status, confidence, ingredients (with
+  slugs for editing), tags, variants, and modifiers.
+- **`update_published_item`** — edit a live menu item: name, description,
+  status (including `removed` = admin unpublish), section, position,
+  ingredients (by slug), tags (by slug), variants, modifiers. Reuses
+  `Admin::ItemEditor` so validation and join-sync logic stay shared with
+  the REST endpoint. `confidence` is NOT editable — it only moves through
+  `promote!` and `confirm_restaurant_data`.
+- **`set_restaurant_status`** — change status to draft, published, or
+  closed. Archive/restore are separate (soft/hard delete in the REST API).
+
+All ten require `is_admin: true` and are filtered out of the catalogue for
+non-admin callers. Rate limiting is shared with the rest of `/mcp`:
+120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
+anonymous.
+
 ### Deleting things
 
 `DELETE /api/v1/admin/<resource>/:id` means **archive**;
@@ -872,6 +920,19 @@ curl -s -X POST https://<api-host>/api/v1/auth/login \
   -H 'content-type: application/json' \
   -d '{"user":{"email":"you@example.com","password":"…"}}' -i | grep -i '^authorization:'
 ```
+
+**Admin access**: The tools under the `admin` domain (restaurant curation)
+require `is_admin: true` on the user account. A JWT for a non-admin will
+authenticate fine but see only the public/user tools. Set the admin flag
+from a Rails console:
+
+```ruby
+User.find_by(email: "admin@example.com").update!(is_admin: true)
+```
+
+Or use the `users:promote` rake task if one exists. Admin tools are hidden
+from the catalogue for non-admins — they won't appear in `tools/list` and
+calling them by name returns `forbidden`.
 
 ### Public distribution — OAuth 2.1 (M8) — SHIPPED
 

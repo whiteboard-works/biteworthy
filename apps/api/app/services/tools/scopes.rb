@@ -54,7 +54,7 @@ module Tools
 
     # Domains that require admin access. Regular users should not see or
     # mint tokens with these scopes.
-    ADMIN_ONLY_DOMAINS = %i[taxonomy moderation users structure].freeze
+    ADMIN_ONLY_DOMAINS = %i[taxonomy moderation users structure admin].freeze
 
     # What each domain is, in words someone deciding whether to grant it
     # can act on. "taxonomy:write" tells a person nothing; "Change the
@@ -75,7 +75,8 @@ module Tools
       items:       "individual dishes",
       taxonomy:    "the shared ingredient and tag catalogue",
       moderation:  "the moderation queue",
-      users:       "user accounts and their roles"
+      users:       "user accounts and their roles",
+      admin:       "restaurant curation: find, create, update restaurants, scan menus, accept items"
     }.freeze
 
     class << self
