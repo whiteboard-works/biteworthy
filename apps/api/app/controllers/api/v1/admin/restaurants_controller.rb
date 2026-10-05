@@ -127,7 +127,7 @@ module Api
         # menu sections and item variants from accepted ingestion payloads.
         def backfill_structure
           restaurant = Restaurant.find(params[:id])
-          dry_run    = ActiveModel::Type::Boolean.new.cast(params[:dry_run])
+          dry_run    = ActiveModel::Type::Boolean.new.cast(params[:dry_run]) || false
 
           result = Restaurants::BackfillStructure.new(
             restaurant: restaurant,
