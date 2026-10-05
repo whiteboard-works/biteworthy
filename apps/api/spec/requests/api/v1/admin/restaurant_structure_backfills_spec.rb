@@ -41,7 +41,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              decision: "accepted",
              item: item,
              section_name: "Tacos",
-             prices_payload: [{ "size" => "small", "price_cents" => 450 }])
+             prices_payload: [ { "size" => "small", "price_cents" => 450 } ])
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
            headers: headers_for(admin)
