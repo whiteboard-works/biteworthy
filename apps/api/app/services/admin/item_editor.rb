@@ -115,9 +115,11 @@ module Admin
       # Preprocess the card variant for faster menu page loads (swallow errors
       # in environments where variant processing is unavailable, e.g. test).
       if photo_attached && @item.photo.attached?
-        @item.photo.variant(:card).processed
-      rescue StandardError => e
-        Rails.logger.warn("Variant preprocessing failed: #{e.message}")
+        begin
+          @item.photo.variant(:card).processed
+        rescue StandardError => e
+          Rails.logger.warn("Variant preprocessing failed: #{e.message}")
+        end
       end
     end
 
