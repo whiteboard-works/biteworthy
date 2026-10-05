@@ -174,6 +174,19 @@ RSpec.describe "Admin tools authorization" do
           expect(IngestionRun.count).to eq(initial_scan_count)
         end
       end
+
+      context "as admin" do
+        it "allows the call" do
+          mcp_call(tool_name, args, admin)
+
+          expect(response).to have_http_status(:ok)
+          # The call should succeed (no JSON-RPC error, no tool error)
+          expect(jsonrpc_error?).to be(false), 
+            "Expected success, got JSON-RPC error: #{jsonrpc_error_message}"
+          expect(result_is_error?).to be(false),
+            "Expected success, got tool error in result"
+        end
+      end
     end
   end
 end
