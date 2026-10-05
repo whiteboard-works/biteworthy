@@ -113,15 +113,13 @@ module Admin
         photo_attached = true
       end
 
-      # Preprocess the card variant for faster menu page loads. Rescue LoadError
-      # when ruby-vips gem is missing, and StandardError for other failures.
-      if photo_attached && @item.photo.attached?
+      # Preprocess the card variant for faster menu page loads. Rescue all errors
+      # since preprocessing is optional (it just speeds up first access).
+      if photo_attached && @item.photo.attached? && @item.photo.blob.persisted?
         begin
           @item.photo.variant(:card).processed
-        rescue LoadError => e
-          Rails.logger.error("Variant preprocessing failed (missing ruby-vips?): #{e.message}")
-        rescue StandardError => e
-          Rails.logger.warn("Variant preprocessing failed: #{e.message}")
+        rescue => e
+          Rails.logger.warn("Variant preprocessing failed: #{e.class} #{e.message}")
         end
       end
     end
