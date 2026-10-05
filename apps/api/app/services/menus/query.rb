@@ -112,6 +112,7 @@ module Menus
         overridden_by_user: override_ids.include?(item.id),
         reviews_count:      review_counts.fetch(item.id, 0),
         photo_url:          photo_url_for(item),
+        photo_urls:         photo_urls_for(item),
         # null / [] whenever the caller has no taste signals.
         taste_score:        score_row&.fetch(:score),
         taste_reasons:      taste_reasons_for(score_row, taste_labels)
@@ -168,6 +169,23 @@ module Menus
       return nil unless item.photo.attached?
 
       Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: @public_host)
+    end
+
+    def photo_urls_for(item)
+      return nil unless @public_host
+      return nil unless item.photo.attached?
+
+      {
+        thumb: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:thumb), host: @public_host
+        ),
+        card: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:card), host: @public_host
+        ),
+        full: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:full), host: @public_host
+        )
+      }
     end
   end
 end

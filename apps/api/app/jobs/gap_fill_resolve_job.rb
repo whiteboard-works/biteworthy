@@ -23,11 +23,17 @@ class GapFillResolveJob < ApplicationJob
   # Same cheap-model override knob the old resolve stages had.
   DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
 
-  # Items per API call. Reduced from 25 to 15 to avoid hitting output-token
+  # Items per API call. Reduced from 25 → 15 → 10 to avoid hitting output-token
   # limits or timeouts on large slices. Each item in the batch increases
   # both input (name + description + matched ingredients) and output (resolved
-  # ingredients + tags), so smaller batches are more reliable.
-  GAP_BATCH_SIZE = 15
+  # ingredients + tags). College Cafe (77 items) failed enrichment at 15/batch;
+  # 10/batch keeps slices under ~6K output tokens.
+  GAP_BATCH_SIZE = 10
+
+  # Explicit output budget for gap-fill. Each item can emit ~10 ingredients
+  # + 3 cuisine tags, each with slug + confidence + unresolved arrays.
+  # At 10 items/batch, ~500-600 tokens/item = ~6K tokens, with headroom.
+  GAP_MAX_TOKENS = 8_000
 
   # One slice's API call soft-failed (timed_anthropic_call already
   # logged it and recorded any billed usage). Raised so the rescue below
@@ -72,12 +78,14 @@ class GapFillResolveJob < ApplicationJob
         run,
         api_error:        "gap_fill_api_error",
         validation_error: "gap_fill_validation_failed",
+        truncation_error: "gap_fill_truncated",
         model:            resolve_model,
         fail_run:         false
       ) do |client|
         client.messages_create(
           system:          Ingestion::GapFillPrompt.system(client),
           messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
+          max_tokens:      GAP_MAX_TOKENS,
           response_schema: Ingestion::GapFillSchema
         )
       end
@@ -85,6 +93,8 @@ class GapFillResolveJob < ApplicationJob
       # When fail_run: false, timed_anthropic_call returns [nil, nil, error_msg] on failure
       if out.nil? || (out.is_a?(Array) && out[0].nil?)
         error_msg = out.is_a?(Array) && out.size == 3 ? out[2] : "gap-fill slice failed"
+        # Log the full error for debugging enrichment failures
+        Rails.logger.error("GapFillResolveJob failed for run #{run.id}: #{error_msg}")
         run.update(enrichment_failure_message: error_msg) if run.enrichment_failure_message.nil?
         raise SliceFailedError, error_msg
       end
@@ -97,7 +107,7 @@ class GapFillResolveJob < ApplicationJob
     # After `completed`, so a slow TypeSafe never holds up the status
     # clients are waiting on. Observation only; see JevCuisineShadow.
     shadow_cuisine_tags(run, shadowed)
-  rescue StandardError
+  rescue StandardError => e
     # Everything that should reach retry_on (a slice's SliceFailedError,
     # transport errors that bypass ApiError, DB hiccups, bugs) re-raises so
     # retry_on gets its attempts. Only the LAST attempt records the
@@ -106,8 +116,16 @@ class GapFillResolveJob < ApplicationJob
     # The stamp is conditional on still-pending so a stale attempt can
     # never demote an enrichment already completed.
     if run&.persisted? && executions >= RETRY_ATTEMPTS
+      # Capture detailed error info for admin visibility
+      error_summary = "#{e.class.name}: #{e.message}"
+      Rails.logger.error("GapFillResolveJob final failure for run #{run.id}: #{error_summary}")
+
       IngestionRun.where(id: run.id, enrichment_status: "pending")
-                  .update_all(enrichment_status: "failed", updated_at: Time.current)
+                  .update_all(
+                    enrichment_status: "failed",
+                    enrichment_failure_message: error_summary.truncate(2_000),
+                    updated_at: Time.current
+                  )
     end
     raise
   end

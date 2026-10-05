@@ -211,10 +211,14 @@ RSpec.describe GapFillResolveJob, type: :job do
                         "ingredients" => { "resolved" => [{ "slug" => "meat-beef", "confidence" => 0.7 }],
                                            "unresolved" => [] },
                         "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+        { "items" => [{ "index" => 0,
+                        "ingredients" => { "resolved" => [{ "slug" => "fish-anchovy", "confidence" => 0.6 }],
+                                           "unresolved" => [] },
+                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
       ]
     end
 
-    it "makes one call per 15 gap items and merges each slice at its own indexes" do
+    it "makes one call per 10 gap items and merges each slice at its own indexes" do
       prompts = []
       allow_any_instance_of(AnthropicClient).to receive(:messages_create) do |_, **kwargs|
         prompts << kwargs[:messages].first[:content].first[:text]
@@ -223,16 +227,46 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       described_class.perform_now(run.id)
 
-      expect(prompts.length).to eq(2)
-      expect(prompts.first).to include("[0] Caesar Salad", "[14] Mystery Dish 13")
-      expect(prompts.first).not_to include("Mystery Dish 14")
-      expect(prompts.last).to include("[0] Mystery Dish 14", "[11] Mystery Dish 25")
+      # 27 gap items total (1 gap_item + 26 mysteries) = 3 slices at 10/batch
+      expect(prompts.length).to eq(3)
+      expect(prompts.first).to include("[0] Caesar Salad", "[9] Mystery Dish 08")
+      expect(prompts.first).not_to include("Mystery Dish 09")
+      expect(prompts[1]).to include("[0] Mystery Dish 09", "[9] Mystery Dish 18")
+      expect(prompts[2]).to include("[0] Mystery Dish 19", "[6] Mystery Dish 25")
 
       # index 0 of each response lands on that slice's first item, not the run's.
       expect(gap_item.reload.ingredients_payload)
         .to include({ "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" })
-      expect(mysteries[14].reload.ingredients_payload)
+      expect(mysteries[9].reload.ingredients_payload)
         .to include({ "slug" => "meat-beef", "confidence" => 0.7, "source" => "ai" })
+      expect(mysteries[19].reload.ingredients_payload)
+        .to include({ "slug" => "fish-anchovy", "confidence" => 0.6, "source" => "ai" })
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
+    it "handles large menus (77 items like College Cafe) without token limit errors" do
+      # Create 77 gap items total (simulating College Cafe)
+      additional_items = Array.new(50) do |i|
+        create(:ingestion_item, ingestion_run: run, position: 30 + i,
+               name: format("College Item %02d", i), description: nil, decision: "pending",
+               ingredients_payload: [], tags_payload: [])
+      end
+
+      # 77 items at 10/batch = 8 slices (7 full + 1 partial)
+      prompts = []
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create) do |_, **kwargs|
+        prompts << kwargs[:messages].first[:content].first[:text]
+        # Verify max_tokens is set
+        expect(kwargs[:max_tokens]).to eq(described_class::GAP_MAX_TOKENS)
+        slice_responses.first # return valid response for each slice
+      end
+
+      described_class.perform_now(run.id)
+
+      # Should make 8 calls for 77 items at 10/batch
+      total_items = 1 + 26 + 50 # gap_item + mysteries + additional_items
+      expected_batches = (total_items.to_f / described_class::GAP_BATCH_SIZE).ceil
+      expect(prompts.length).to eq(expected_batches)
       expect(run.reload.enrichment_status).to eq("completed")
     end
 
@@ -283,7 +317,9 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.status).to eq("staged")
       expect(run.enrichment_status).to eq("failed")
       expect(run.failure_message).to be_nil
-      expect(Rails.logger).to have_received(:error).with(/gap_fill_api_error/)
+      # Error is logged multiple times: once in timed_anthropic_call (soft failure),
+      # once in the slice failure handler, and once in the final rescue block
+      expect(Rails.logger).to have_received(:error).with(/gap_fill_api_error/).at_least(:once)
     end
 
     it "an unexpected error (transport, bug) on the last attempt marks enrichment failed" do

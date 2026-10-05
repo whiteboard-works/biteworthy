@@ -7,6 +7,10 @@ import type {
   AdminItemRow,
   AdminModifierKind,
 } from '../../../../lib/admin/management';
+import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from '../../../../lib/shrink-image';
+
+// Temporary extension until OpenAPI spec is regenerated
+type AdminItemRowWithPhoto = AdminItemRow & { photo_url?: string | null };
 
 /**
  * Deep-edit a live dish: name, description, the ingredient/tag chips
@@ -31,6 +35,9 @@ export interface ItemDraft {
   /** `currency` is carried, not edited — dropping it would rewrite a non-USD row to USD. */
   variants: Array<{ size: string; price: string; currency: string }>;
   modifiers: Array<{ name: string; kind: AdminModifierKind; price: string }>;
+  photoUrl: string | null;
+  photoFile: File | null;
+  removePhoto: boolean;
 }
 
 const MODIFIER_KINDS: readonly AdminModifierKind[] = ['addition', 'choice', 'side'];
@@ -44,7 +51,7 @@ function centsToInput(cents: number | null | undefined): string {
   return cents == null ? '' : (cents / 100).toFixed(2);
 }
 
-export function draftFromItem(item: AdminItemRow): ItemDraft {
+export function draftFromItem(item: AdminItemRowWithPhoto): ItemDraft {
   return {
     name: item.name ?? '',
     description: item.description ?? '',
@@ -61,6 +68,9 @@ export function draftFromItem(item: AdminItemRow): ItemDraft {
       kind: toModifierKind(row.kind),
       price: centsToInput(row.price_cents),
     })),
+    photoUrl: item.photo_url ?? null,
+    photoFile: null,
+    removePhoto: false,
   };
 }
 
@@ -104,19 +114,19 @@ function modifiersPayload(draft: ItemDraft) {
   });
 }
 
-/** Draft → PATCH body, omitting facets the user never touched. */
+/**
+ * Draft → PATCH body, omitting facets the user never touched.
+ * Photo changes are excluded — they're handled separately as multipart.
+ */
 export function editsFromDraft(draft: ItemDraft, baseline: ItemDraft): AdminItemEdits {
   const edits: AdminItemEdits = {};
   if (draft.name.trim() !== baseline.name.trim()) edits.name = draft.name.trim();
   if (draft.description.trim() !== baseline.description.trim()) {
-    // null clears the column; '' would store an empty string over NULL.
     edits.description = draft.description.trim() || null;
   }
   if (draft.sectionId !== baseline.sectionId) {
     edits.menu_section_id = draft.sectionId === '' ? null : draft.sectionId;
   }
-  // Compared as JSON, not join() — a slug containing the separator would
-  // otherwise compare equal to a different list and drop the edit.
   if (JSON.stringify(draft.ingredientSlugs) !== JSON.stringify(baseline.ingredientSlugs)) {
     edits.ingredient_slugs = draft.ingredientSlugs;
   }
@@ -133,6 +143,59 @@ export function editsFromDraft(draft: ItemDraft, baseline: ItemDraft): AdminItem
     edits.modifiers = modifiers;
   }
   return edits;
+}
+
+/**
+ * Whether the draft has photo changes (upload or removal).
+ */
+export function hasPhotoChanges(draft: ItemDraft): boolean {
+  return draft.photoFile !== null || draft.removePhoto;
+}
+
+/**
+ * Build FormData with all edits plus the photo. Used when the draft
+ * includes photo changes. Rails expects arrays as `field[]=value` and
+ * nested objects as `field[0][key]=value`.
+ */
+export function formDataFromDraft(draft: ItemDraft, baseline: ItemDraft): FormData {
+  const edits = editsFromDraft(draft, baseline);
+  const formData = new FormData();
+
+  Object.entries(edits).forEach(([key, value]) => {
+    if (key === 'variants' && Array.isArray(value)) {
+      value.forEach((variant: unknown, index: number) => {
+        if (typeof variant === 'object' && variant !== null) {
+          const v = variant as { size?: string | null; price_cents?: number | null; currency?: string };
+          if (v.size !== undefined) formData.append(`variants[${index}][size]`, v.size || '');
+          if (v.price_cents !== undefined) formData.append(`variants[${index}][price_cents]`, String(v.price_cents || ''));
+          if (v.currency !== undefined) formData.append(`variants[${index}][currency]`, v.currency || 'USD');
+        }
+      });
+    } else if (key === 'modifiers' && Array.isArray(value)) {
+      value.forEach((modifier: unknown, index: number) => {
+        if (typeof modifier === 'object' && modifier !== null) {
+          const m = modifier as { name?: string; kind?: string; price_cents?: number | null };
+          if (m.name !== undefined) formData.append(`modifiers[${index}][name]`, m.name || '');
+          if (m.kind !== undefined) formData.append(`modifiers[${index}][kind]`, m.kind || 'addition');
+          if (m.price_cents !== undefined) formData.append(`modifiers[${index}][price_cents]`, String(m.price_cents || ''));
+        }
+      });
+    } else if (Array.isArray(value)) {
+      value.forEach((item: unknown) => {
+        formData.append(`${key}[]`, String(item));
+      });
+    } else if (value !== null && value !== undefined) {
+      formData.append(key, String(value));
+    }
+  });
+
+  if (draft.removePhoto) {
+    formData.append('remove_photo', 'true');
+  } else if (draft.photoFile) {
+    formData.append('photo', draft.photoFile);
+  }
+
+  return formData;
 }
 
 export function ItemDeepEditPanel({
@@ -153,12 +216,106 @@ export function ItemDeepEditPanel({
   onSave: () => void;
 }) {
   const blocker = draftBlockers(draft);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (tooLargeToUpload(file)) {
+      alert(TOO_LARGE_MESSAGE);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setPhotoProcessing(true);
+    try {
+      const shrunk = await shrinkForUpload(file);
+      onChange({
+        ...draft,
+        photoFile: shrunk,
+        photoUrl: URL.createObjectURL(shrunk),
+        removePhoto: false,
+      });
+    } catch (err) {
+      alert('Failed to process the photo. Try a different file.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } finally {
+      setPhotoProcessing(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    onChange({
+      ...draft,
+      photoFile: null,
+      photoUrl: null,
+      removePhoto: true,
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const currentPhotoUrl = draft.photoFile ? draft.photoUrl : draft.removePhoto ? null : draft.photoUrl;
 
   return (
     <div
       className="mt-bw-3 space-y-bw-3 border-t border-zinc-100 pt-bw-3 text-bw-sm"
       data-testid={`item-deep-edit-${itemId}`}
     >
+      <div>
+        <span className="text-zinc-600">Photo</span>
+        {currentPhotoUrl && (
+          <div className="mt-bw-1 flex items-start gap-bw-2">
+            <img
+              src={currentPhotoUrl}
+              alt="Dish preview"
+              className="h-24 w-24 rounded-bw-md object-cover"
+              data-testid={`item-photo-preview-${itemId}`}
+            />
+            <div className="flex flex-col gap-bw-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || photoProcessing}
+                data-testid={`item-photo-replace-${itemId}`}
+                className="text-bw-xs font-semibold text-zinc-600 underline hover:text-zinc-900 disabled:opacity-50"
+              >
+                Replace
+              </button>
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                disabled={busy || photoProcessing}
+                data-testid={`item-photo-remove-${itemId}`}
+                className="text-bw-xs font-semibold text-red-600 underline hover:text-red-900 disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
+        {!currentPhotoUrl && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || photoProcessing}
+            data-testid={`item-photo-upload-${itemId}`}
+            className="mt-bw-1 text-bw-xs font-semibold text-zinc-600 underline hover:text-zinc-900 disabled:opacity-50"
+          >
+            {photoProcessing ? 'Processing…' : 'Upload a photo'}
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp"
+          onChange={handlePhotoChange}
+          className="hidden"
+          data-testid={`item-photo-input-${itemId}`}
+        />
+      </div>
+
       <div className="grid gap-bw-2 sm:grid-cols-2">
         <label className="flex flex-col gap-bw-1 text-zinc-600">
           Name
