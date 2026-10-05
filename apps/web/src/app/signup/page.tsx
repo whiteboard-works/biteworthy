@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useState, useEffect, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
@@ -58,6 +58,36 @@ function SignupForm() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Redirect signed-in users to /restaurants. A signed-in user on /signup
+  // is either a mistake (they meant /login) or they're already done — either
+  // way, the signup form is wrong. Check once on mount; the header's own
+  // session check handles post-logout updates.
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { signedIn: false }))
+      .then((d: { signedIn?: boolean }) => {
+        if (d.signedIn) {
+          router.replace('/restaurants');
+        } else {
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        // On fetch failure, show the form — better to let them sign up than
+        // block on a flaky check.
+        setCheckingAuth(false);
+      });
+  }, [router]);
+
+  if (checkingAuth) {
+    return (
+      <div className="mt-bw-6">
+        <p className="text-bw-sm text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

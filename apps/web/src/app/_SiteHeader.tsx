@@ -86,7 +86,13 @@ export function SiteHeader() {
     // A confirmation belongs to the check that produced it; after a sign-in
     // the old "signed out" must not linger while this one is in flight.
     setConfirmedSignedOut(false);
-    fetch('/api/auth/session', { credentials: 'same-origin' })
+    // Cache-busting: add timestamp to force fresh fetch after logout.
+    // Next.js router caching can serve stale /api/auth/session responses
+    // despite Cache-Control: no-store, causing the header to briefly show
+    // signed-in state after logout. The timestamp query param forces a new
+    // request past any cache layer.
+    const url = `/api/auth/session?_=${Date.now()}`;
+    fetch(url, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : { signedIn: false, unknown: true }))
       .then((d: { signedIn?: boolean; unknown?: boolean }) => {
         if (!active) return;
