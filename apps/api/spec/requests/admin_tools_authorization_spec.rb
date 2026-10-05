@@ -9,6 +9,7 @@ RSpec.describe "Admin tools authorization" do
   let(:restaurant) { create(:restaurant, city: city, status: "draft") }
   let(:item) { create(:item, restaurant: restaurant, status: "published") }
   let(:scan) { create(:ingestion_run, restaurant: restaurant, user: admin, status: "staged") }
+  let!(:ingestion_item) { create(:ingestion_item, ingestion_run: scan, name: "Test Item", decision: "pending") }
 
   def mcp_call(tool_name, args, auth_user)
     headers = { "Content-Type": "application/json" }
@@ -85,7 +86,7 @@ RSpec.describe "Admin tools authorization" do
   end
 
   def reject_items_args
-    { scan_id: scan.id, item_ids: [] }
+    { scan_id: scan.id, item_ids: [ingestion_item.id] }
   end
 
   def list_restaurant_items_args
@@ -119,6 +120,7 @@ RSpec.describe "Admin tools authorization" do
           restaurant
           scan
           item
+          ingestion_item
           
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
@@ -151,6 +153,7 @@ RSpec.describe "Admin tools authorization" do
           restaurant
           scan
           item
+          ingestion_item
           
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
