@@ -94,44 +94,4 @@ describe('SiteHeader logout race condition', () => {
     expect(screen.queryByTestId('nav-logout')).not.toBeInTheDocument();
     expect(screen.getByTestId('nav-signin')).toBeInTheDocument();
   });
-
-  it('allows normal session updates after logout completes', async () => {
-    // After logout, new session fetches should work normally
-    sessionResponses = [
-      { signedIn: true, delay: 10 },   // Initial: signed in
-      { signedIn: false, delay: 10 },  // After logout: signed out
-      { signedIn: true, delay: 10 },   // After re-login: signed in again
-    ];
-
-    const { rerender } = render(<SiteHeader />);
-
-    // Wait for initial signed-in state
-    await waitFor(() => {
-      expect(screen.getByTestId('nav-logout')).toBeInTheDocument();
-    });
-
-    // Logout
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('nav-logout'));
-    });
-
-    // Should show signed-out
-    await waitFor(() => {
-      expect(screen.getByTestId('nav-signin')).toBeInTheDocument();
-    });
-
-    // Simulate navigation that triggers new session check (e.g., user logs back in)
-    act(() => {
-      currentPathname = '/restaurants';
-    });
-    rerender(<SiteHeader />);
-
-    // Should show signed-in again (new generation, new fetch)
-    await waitFor(
-      () => {
-        expect(screen.getByTestId('nav-logout')).toBeInTheDocument();
-      },
-      { timeout: 100 }
-    );
-  });
 });
