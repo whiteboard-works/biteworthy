@@ -33,7 +33,7 @@ module Tools
           },
           archived: {
             type: "boolean",
-            description: "true for archived only, false (default) for kept only, omit for both."
+            description: "true = archived only, false or omit = kept only (default)."
           }
         }
       )
@@ -46,9 +46,11 @@ module Tools
         context.admin!
         scope = Restaurant.includes(:city).order(created_at: :desc)
 
-        # Archived filter: three states: archived-only, kept-only, or both.
+        # Archived filter: three states: archived-only, kept-only (default), or both.
+        # Default to kept-only when not specified.
         case archived
         when true  then scope = scope.archived
+        when nil   then scope = scope.kept
         when false then scope = scope.kept
         end
 

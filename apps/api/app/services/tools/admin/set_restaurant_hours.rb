@@ -31,13 +31,13 @@ module Tools
           hours: {
             type: "array",
             items: {
-              type: "object",
-              properties: {
-                day_of_week: { type: "integer", minimum: 0, maximum: 6 },
-                opens_at: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" },
-                closes_at: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" }
-              },
-              required: ["day_of_week"]
+            type: "object",
+            properties: {
+              day_of_week: { type: "integer", minimum: 0, maximum: 6 },
+              opens_at: { type: "string" },
+              closes_at: { type: "string" }
+            },
+            required: ["day_of_week"]
             },
             description: "Array of hour ranges. Empty array = closed all week."
           }

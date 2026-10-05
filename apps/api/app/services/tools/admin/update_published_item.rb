@@ -61,7 +61,7 @@ module Tools
               type: "object",
               properties: {
                 size: { type: "string" },
-                price_cents: { type: "integer", minimum: 0 },
+                price_cents: { anyOf: [{ type: "integer", minimum: 0 }, { type: "string" }] },
                 currency: { type: "string" }
               }
             },
@@ -74,13 +74,14 @@ module Tools
               properties: {
                 name: { type: "string" },
                 kind: { type: "string" },
-                price_cents: { type: "integer", minimum: 0 }
+                price_cents: { anyOf: [{ type: "integer", minimum: 0 }, { type: "string" }] }
               }
             },
             description: "Add-ons/modifiers. Replaces current list."
           }
         },
-        required: ["item_id"]
+        required: ["item_id"],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)

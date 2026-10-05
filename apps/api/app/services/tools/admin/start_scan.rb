@@ -92,6 +92,8 @@ module Tools
           ready: false,
           next_step: "Poll get_scan with this scan_id."
         )
+      rescue Errors::InvalidArgument => e
+        error(e.message, code: "base64_decode_failed")
       end
 
       def self.failure(result)

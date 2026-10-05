@@ -33,11 +33,12 @@ module Tools
           region: { type: "string" },
           postal_code: { type: "string" },
           country: { type: "string" },
-          latitude: { type: "number" },
-          longitude: { type: "number" },
+          latitude: { anyOf: [{ type: "number" }, { type: "string" }] },
+          longitude: { anyOf: [{ type: "number" }, { type: "string" }] },
           map_provider_place_id: { type: "string" }
         },
-        required: ["restaurant"]
+        required: ["restaurant"],
+        additionalProperties: false
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)

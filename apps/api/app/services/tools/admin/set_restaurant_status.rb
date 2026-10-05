@@ -31,7 +31,6 @@ module Tools
           },
           status: {
             type: "string",
-            enum: Restaurant::STATUSES,
             description: "New status: #{Restaurant::STATUSES.join(', ')}."
           }
         },
