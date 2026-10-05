@@ -290,11 +290,10 @@ class IngestionItem < ApplicationRecord
       return numeric >= 0.8 ? "suggested" : "inferred"
     end
 
-    # Explicit menu text (source="match"): admin/owner promotes to confirmed; community caps at suggested
-    if accept_cap == "confirmed"
+    # Explicit menu text (source="match"): admin/owner promotes high-confidence rows to confirmed
+    # Low confidence (< 0.95) stays suggested even for admin accepts
+    if accept_cap == "confirmed" && numeric >= 0.95
       "confirmed"
-    elsif numeric >= 0.95
-      "suggested" # community accept caps confirmed → suggested
     else
       "suggested"
     end
