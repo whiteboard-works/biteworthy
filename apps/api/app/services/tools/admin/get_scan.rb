@@ -34,7 +34,6 @@ module Tools
       running_description { "Fetching scan" }
 
       def self.perform(context:, scan_id:)
-        context.admin!
         run = Tools::Ingestion::Base.find_run!(context, scan_id)
 
         items = run.ingestion_items.includes(:matched_item).order(:position, :created_at).to_a

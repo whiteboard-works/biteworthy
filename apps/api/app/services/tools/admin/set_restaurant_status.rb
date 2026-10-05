@@ -43,7 +43,6 @@ module Tools
       running_description { |args| "Setting status to #{args[:status]}" }
 
       def self.perform(context:, restaurant:, status:)
-        context.admin!
         record = find_restaurant!(restaurant)
 
         unless Restaurant::STATUSES.include?(status.to_s)

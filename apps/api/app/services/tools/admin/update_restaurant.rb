@@ -47,7 +47,6 @@ module Tools
       running_description { |args| "Updating #{args[:restaurant]}" }
 
       def self.perform(context:, restaurant:, **attrs)
-        context.admin!
         record = find_restaurant!(restaurant)
 
         # Basic fields
