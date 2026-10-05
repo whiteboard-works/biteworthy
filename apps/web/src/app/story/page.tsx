@@ -203,7 +203,7 @@ function ClosingCTA(): ReactElement {
     <section className="mx-auto max-w-3xl px-bw-6 py-bw-16 text-center">
       <h2 className="text-bw-2xl font-bold text-zinc-900">Try it on your next meal out.</h2>
       <p className="mx-auto mt-bw-3 max-w-xl text-bw-base text-zinc-700">
-        Six taps to a working profile. Free during the Durango beta — no ads, no email until you
+        Four steps to a working profile. Free during the Durango beta — no ads, no email until you
         choose to save a profile.
       </p>
       <div className="mt-bw-8 flex flex-wrap justify-center gap-bw-3">

@@ -15,8 +15,8 @@ iPad screenshots are optional and skipped for v1 (mobile-only beta).
 1. **Hero — restaurant page filtered.**
    "Cream, Bean & Berry" with a Celiac filter applied. 7 visible dishes, 4 hidden with "Contains gluten (wheat)" chips. Caption: *Find what you can eat.*
 
-2. **Onboarding — 6 taps.**
-   The preset picker mid-tap (Celiac highlighted). Caption: *Six taps to a working filter.*
+2. **Onboarding — 4 steps.**
+   The preset picker mid-tap (Celiac highlighted). Caption: *Four steps to a working filter.*
 
 3. **Hidden item explainer.**
    Detail view of a hidden dish with the chip expanded ("Contains shellfish — Crab Rangoon"). Caption: *Every hidden dish says why.*

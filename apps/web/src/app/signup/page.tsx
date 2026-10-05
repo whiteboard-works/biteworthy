@@ -97,7 +97,7 @@ function SignupForm() {
         Free. Stores your dietary filter so it&rsquo;s ready next time.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-bw-6 flex flex-col gap-bw-3">
+      <form onSubmit={onSubmit} className="mt-bw-6 flex flex-col gap-bw-3" suppressHydrationWarning>
         <label className="flex flex-col gap-1">
           <span className="text-bw-sm font-semibold text-zinc-700">Email</span>
           <input

@@ -293,6 +293,12 @@ function OnboardingFlow() {
           query={searchQuery}
           results={searchResults}
           addedIds={draft.manualIngredientIds}
+          presetCount={presets
+            .filter((p) => draft.selectedPresetSlugs.includes(p.slug))
+            .reduce(
+              (sum, p) => sum + p.avoid_ingredient_ids.length + p.avoid_tag_ids.length,
+              0,
+            )}
           onQueryChange={setSearchQuery}
           onToggle={(id, added) =>
             dispatch({
@@ -475,6 +481,7 @@ function IngredientsStep({
   query,
   results,
   addedIds,
+  presetCount,
   onQueryChange,
   onToggle,
   onNext,
@@ -482,13 +489,18 @@ function IngredientsStep({
   query: string;
   results: IngredientSearchResult[];
   addedIds: string[];
+  presetCount: number;
   onQueryChange: (q: string) => void;
   onToggle: (id: string, isAlreadyAdded: boolean) => void;
   onNext: () => void;
 }) {
   return (
     <>
-      <StepHeader step={2} title="Anything else?" body="Search for specific ingredients to avoid." />
+      <StepHeader
+        step={2}
+        title="Anything else?"
+        body="Search for specific ingredients to avoid. Your chosen presets already cover common items."
+      />
       <input
         type="search"
         value={query}
@@ -532,7 +544,20 @@ function IngredientsStep({
           </li>
         )}
       </ul>
-      <p className="mt-bw-3 text-bw-sm text-zinc-500">{addedIds.length} added manually</p>
+      {presetCount > 0 && (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500">
+          {presetCount} item{presetCount === 1 ? '' : 's'} from your chosen preset
+          {addedIds.length > 0 ? `, plus ${addedIds.length} added manually` : ''}
+        </p>
+      )}
+      {presetCount === 0 && addedIds.length > 0 && (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500">{addedIds.length} added manually</p>
+      )}
+      {presetCount === 0 && addedIds.length === 0 && (
+        <p className="mt-bw-3 text-bw-sm text-zinc-400">
+          No preset chosen and nothing added yet — that&rsquo;s fine, you can skip this.
+        </p>
+      )}
       <NextButton label="Next →" onClick={onNext} testId="next-to-strictness" />
     </>
   );
