@@ -29,15 +29,16 @@ FactoryBot.define do
     decision { "pending" }
 
     # The shape Phase 2.4's resolve job will write here.
+    # IngredientMatcher produces NAME_CONFIDENCE=1.0 or ALIAS_CONFIDENCE=0.95
     ingredients_payload do
       [
-        { "slug" => "meat-beef",         "confidence" => 0.97 },
-        { "slug" => "vegetable-onion",   "confidence" => 0.93 },
-        { "slug" => "herb-cilantro",     "confidence" => 0.91 }
+        { "slug" => "meat-beef",         "confidence" => 1.0 },
+        { "slug" => "vegetable-onion",   "confidence" => 1.0 },
+        { "slug" => "herb-cilantro",     "confidence" => 0.95 }
       ]
     end
     tags_payload do
-      [{ "slug" => "cuisine-mexican", "confidence" => 0.99 }]
+      [{ "slug" => "cuisine-mexican", "confidence" => 1.0 }]
     end
     prices_payload { [{ "size" => nil, "price_cents" => 450 }] }
 

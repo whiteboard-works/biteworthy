@@ -160,8 +160,8 @@ RSpec.describe IngestionItem, "confidence assignment" do
     it "appends new ingredients with appropriate confidence to existing item" do
       existing_item = create(:item, :published, restaurant: restaurant,
                              name: "Cheese Plate", confidence: "confirmed")
-      create(:item_ingredient, item: existing_item, ingredient: cheese,
-             confidence: "confirmed", source: "human")
+      ItemIngredient.create!(item: existing_item, ingredient: cheese,
+                             confidence: "confirmed", source: "human")
 
       ing_item = run.ingestion_items.create!(
         name: "Cheese Plate",
