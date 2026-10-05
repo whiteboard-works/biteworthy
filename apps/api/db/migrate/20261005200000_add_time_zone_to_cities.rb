@@ -55,7 +55,7 @@ class AddTimeZoneToCities < ActiveRecord::Migration[8.0]
     "Wyoming" => "America/Denver",
     # Legacy state codes (some older rows may still have "CO" instead of "Colorado")
     "CO" => "America/Denver",
-    "UT" => "America/Denver",
+    "UT" => "America/Denver"
   }.freeze
 
   def up
