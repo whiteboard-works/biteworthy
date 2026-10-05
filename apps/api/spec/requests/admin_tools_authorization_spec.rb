@@ -50,22 +50,65 @@ RSpec.describe "Admin tools authorization" do
   end
 
   # Map each admin tool to minimal valid arguments
-  ADMIN_TOOLS = {
-    "find_restaurants" => {},
-    "update_restaurant" => proc { { restaurant: restaurant.id, name: "Updated Name" } },
-    "set_restaurant_hours" => proc { { restaurant: restaurant.id, hours: [] } },
-    "start_scan" => proc { { restaurant: restaurant.id, source_text: "Menu text" } },
-    "get_scan" => proc { { scan_id: scan.id } },
-    "accept_items" => proc { { scan_id: scan.id, all: true } },
-    "reject_items" => proc { { scan_id: scan.id, all: true } },
-    "list_restaurant_items" => proc { { restaurant: restaurant.id } },
-    "update_published_item" => proc { { item_id: item.id, name: "Updated Item" } },
-    "set_restaurant_status" => proc { { restaurant: restaurant.id, status: "draft" } }
-  }.freeze
+  # Procs are evaluated inside the test context where lets are available
+  ADMIN_TOOLS_SPECS = [
+    { name: "find_restaurants", args: {} },
+    { name: "update_restaurant", args_method: :update_restaurant_args },
+    { name: "set_restaurant_hours", args_method: :set_restaurant_hours_args },
+    { name: "start_scan", args_method: :start_scan_args },
+    { name: "get_scan", args_method: :get_scan_args },
+    { name: "accept_items", args_method: :accept_items_args },
+    { name: "reject_items", args_method: :reject_items_args },
+    { name: "list_restaurant_items", args_method: :list_restaurant_items_args },
+    { name: "update_published_item", args_method: :update_published_item_args },
+    { name: "set_restaurant_status", args_method: :set_restaurant_status_args }
+  ].freeze
 
-  ADMIN_TOOLS.each do |tool_name, args_proc|
-    describe tool_name do
-      let(:args) { args_proc.is_a?(Proc) ? args_proc.call : args_proc }
+  def update_restaurant_args
+    { restaurant: restaurant.id, name: "Updated Name" }
+  end
+
+  def set_restaurant_hours_args
+    { restaurant: restaurant.id, hours: [] }
+  end
+
+  def start_scan_args
+    { restaurant: restaurant.id, source_text: "Menu text" }
+  end
+
+  def get_scan_args
+    { scan_id: scan.id }
+  end
+
+  def accept_items_args
+    { scan_id: scan.id, all: true }
+  end
+
+  def reject_items_args
+    { scan_id: scan.id, item_ids: [] }
+  end
+
+  def list_restaurant_items_args
+    { restaurant: restaurant.id }
+  end
+
+  def update_published_item_args
+    { item_id: item.id, name: "Updated Item" }
+  end
+
+  def set_restaurant_status_args
+    { restaurant: restaurant.id, status: "draft" }
+  end
+
+  ADMIN_TOOLS_SPECS.each do |spec|
+    describe spec[:name] do
+      let(:args) do
+        if spec[:args_method]
+          send(spec[:args_method])
+        else
+          spec[:args]
+        end
+      end
 
       context "as anonymous user" do
         it "refuses the call with unauthorized" do
@@ -105,7 +148,7 @@ RSpec.describe "Admin tools authorization" do
 
       context "as admin" do
         it "allows the call" do
-          mcp_call(tool_name, args, admin)
+          mcp_call(spec[:name], args, admin)
 
           expect(response).to have_http_status(:ok)
           # The call should succeed (isError should be false or nil)

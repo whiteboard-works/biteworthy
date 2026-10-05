@@ -37,6 +37,7 @@ module Tools
       running_description { "Rejecting items" }
 
       def self.perform(context:, scan_id:, item_ids:)
+        context.admin!
         # Delegate to the existing tool
         Tools::Ingestion::RejectStagedItems.perform(
           context: context,
