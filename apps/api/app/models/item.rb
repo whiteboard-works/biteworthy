@@ -58,7 +58,11 @@ class Item < ApplicationRecord
   # restaurant could strand its own claim forever.
   has_many :suggestions, as: :subject, dependent: :destroy
 
-  has_one_attached :photo
+  has_one_attached :photo do |attachable|
+    attachable.variant :thumb, resize_to_limit: [200, 200], format: :webp, saver: { quality: 80 }
+    attachable.variant :card, resize_to_limit: [600, 600], format: :webp, saver: { quality: 80 }
+    attachable.variant :full, resize_to_limit: [1600, 1600], format: :webp, saver: { quality: 80 }
+  end
 
   validates :name, presence: true
   validates :status,     inclusion: { in: STATUSES }
