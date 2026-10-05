@@ -67,7 +67,7 @@ module Menus
 
     def load_items
       @restaurant.items.published
-                 .includes(:menu_section, photo_attachment: :blob)
+                 .includes(:menu_section, :item_variants, photo_attachment: :blob)
                  .order(name: :asc)
                  .to_a
     end
@@ -107,6 +107,10 @@ module Menus
         tag_ids:            item.denormalized_tag_ids,
         menu_section_id:    section&.id,
         menu_section_name:  section&.name,
+        menu_section_position: section&.position,
+        variants:           item.item_variants.sort_by(&:position).map do |v|
+          { size: v.size, price_cents: v.price_cents, currency: v.currency }
+        end,
         status:             reasons.empty? ? "visible" : "hidden",
         reasons:            reasons,
         overridden_by_user: override_ids.include?(item.id),
