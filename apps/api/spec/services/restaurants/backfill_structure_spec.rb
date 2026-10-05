@@ -83,7 +83,7 @@ RSpec.describe Restaurants::BackfillStructure do
 
         expect(item.reload.item_variants.count).to eq(2)
         expect(item.item_variants.order(:position).pluck(:size, :price_cents))
-          .to eq([["small", 450], ["large", 750]])
+          .to eq([ ["small", 450], ["large", 750] ])
         expect(result[:variants_added].first[:count]).to eq(2)
       end
 
