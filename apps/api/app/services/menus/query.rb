@@ -108,7 +108,7 @@ module Menus
         menu_section_id:    section&.id,
         menu_section_name:  section&.name,
         menu_section_position: section&.position,
-        variants:           item.item_variants.order(:position).map do |v|
+        variants:           item.item_variants.sort_by(&:position).map do |v|
           { size: v.size, price_cents: v.price_cents, currency: v.currency }
         end,
         status:             reasons.empty? ? "visible" : "hidden",

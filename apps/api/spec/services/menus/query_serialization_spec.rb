@@ -73,16 +73,35 @@ RSpec.describe Menus::Query, "serialization" do
 
   describe "N+1 queries" do
     it "does not trigger N+1 queries for variants" do
+      query = described_class.new(restaurant: restaurant, filter: filter)
+
       5.times do |i|
         item = create(:item, restaurant: restaurant, name: "Item #{i}", status: "published")
         ItemVariant.create!(item: item, size: "small", price_cents: 500, position: 0)
       end
 
-      query = described_class.new(restaurant: restaurant, filter: filter)
+      short_queries = count_queries { query.call }
 
-      expect do
-        query.call
-      end.not_to exceed_query_limit(12)
+      20.times do |i|
+        item = create(:item, restaurant: restaurant, name: "Item #{i + 5}", status: "published")
+        ItemVariant.create!(item: item, size: "small", price_cents: 500, position: 0)
+      end
+
+      long_queries = count_queries { query.call }
+
+      # Query count should be constant regardless of item count
+      expect(long_queries).to eq(short_queries)
+    end
+
+    def count_queries
+      queries = 0
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        queries += 1 unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      yield
+      queries
+    ensure
+      ActiveSupport::Notifications.unsubscribe(sub)
     end
   end
 end

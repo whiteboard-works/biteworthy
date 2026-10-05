@@ -24,7 +24,8 @@ RSpec.describe IngestionItem, "#promote! (update path)" do
     create(:ingestion_item, {
       ingestion_run: run, name: "Carne Asada Tacos",
       description: nil, matched_item_id: target.id, match_score: 1.0,
-      ingredients_payload: [], tags_payload: [], prices_payload: []
+      ingredients_payload: [], tags_payload: [], prices_payload: [],
+      section_name: nil
     }.merge(attrs))
   end
 
