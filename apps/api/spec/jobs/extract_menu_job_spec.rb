@@ -261,7 +261,7 @@ RSpec.describe ExtractMenuJob, type: :job do
   end
 
   describe "empty text content detection" do
-    it "fails the run when text/html input is empty or near-empty" do
+    it "fails the run when text/html input is empty or near-empty with helpful guidance" do
       # SinglePlatform and other JS-rendered sites return HTML shells with no menu text
       empty_html = "<!DOCTYPE html><html><head></head><body></body></html>"
       run.inputs.attach(
@@ -276,7 +276,8 @@ RSpec.describe ExtractMenuJob, type: :job do
 
       run.reload
       expect(run.failed?).to be true
-      expect(run.failure_message).to eq("no_menu_text")
+      expect(run.failure_message).to include("no_menu_text")
+      expect(run.failure_message).to include("Upload the menu as a PDF or photos, or paste the menu text")
     end
 
     it "succeeds when text/html input has sufficient content" do

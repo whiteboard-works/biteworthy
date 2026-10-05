@@ -23,11 +23,17 @@ class GapFillResolveJob < ApplicationJob
   # Same cheap-model override knob the old resolve stages had.
   DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
 
-  # Items per API call. Reduced from 25 to 15 to avoid hitting output-token
+  # Items per API call. Reduced from 25 → 15 → 10 to avoid hitting output-token
   # limits or timeouts on large slices. Each item in the batch increases
   # both input (name + description + matched ingredients) and output (resolved
-  # ingredients + tags), so smaller batches are more reliable.
-  GAP_BATCH_SIZE = 15
+  # ingredients + tags). College Cafe (77 items) failed enrichment at 15/batch;
+  # 10/batch keeps slices under ~6K output tokens.
+  GAP_BATCH_SIZE = 10
+
+  # Explicit output budget for gap-fill. Each item can emit ~10 ingredients
+  # + 3 cuisine tags, each with slug + confidence + unresolved arrays.
+  # At 10 items/batch, ~500-600 tokens/item = ~6K tokens, with headroom.
+  GAP_MAX_TOKENS = 8_000
 
   # One slice's API call soft-failed (timed_anthropic_call already
   # logged it and recorded any billed usage). Raised so the rescue below
@@ -72,12 +78,14 @@ class GapFillResolveJob < ApplicationJob
         run,
         api_error:        "gap_fill_api_error",
         validation_error: "gap_fill_validation_failed",
+        truncation_error: "gap_fill_truncated",
         model:            resolve_model,
         fail_run:         false
       ) do |client|
         client.messages_create(
           system:          Ingestion::GapFillPrompt.system(client),
           messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
+          max_tokens:      GAP_MAX_TOKENS,
           response_schema: Ingestion::GapFillSchema
         )
       end

@@ -67,7 +67,8 @@ module Ingestion
       if blobs.all? { |b| text_content_type?(b.content_type.to_s) }
         combined_text = blobs.map { |b| b.download.to_s.strip }.join(" ")
         if combined_text.length < MIN_TEXT_LENGTH
-          @run.fail!("no_menu_text")
+          @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
+                     "Upload the menu as a PDF or photos, or paste the menu text.")
           return
         end
       end
