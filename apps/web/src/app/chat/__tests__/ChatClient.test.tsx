@@ -1671,6 +1671,44 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('queued-messages')).toBeNull();
     });
 
+    it('retires a blank chat when two opens overlap', async () => {
+      // Simulate the race: type in blank chat (starts creation), then click
+      // two chats in quick succession so the first open is still pending
+      // when the second starts.
+      listConversations.mockResolvedValue({
+        conversations: [busy, other, { ...blank, id: 'c-3', title: 'Third chat' }],
+      });
+      let openFirst: () => void = () => {};
+      getConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              openFirst = () => resolve({ ...busy, messages: [] });
+            }),
+        )
+        .mockResolvedValue({ ...other, messages: [] });
+
+      render(<ChatClient />);
+      await type('in blank');
+      // Opens busy, but hangs
+      fireEvent.click(await screen.findByText('Busy chat'));
+      // Opens other, succeeds immediately
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+
+      // The first open finishes late
+      openFirst();
+
+      // Blank chat message should be retired, not stranded
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('in blank'),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
     it('sends a message typed while a chat is opening to that chat once it arrives', async () => {
       let arrive: () => void = () => {};
       render(<ChatClient />);

@@ -272,10 +272,18 @@ export function ChatClient(): ReactElement {
     // otherwise leave it stranded.
     if (opened) {
       const retire = leftBlankKey.current;
-      if (retire !== null && !creating.current.has(retire)) {
+      if (retire !== null) {
         leftBlankKey.current = null;
-        queue.current = queue.current.filter((message) => message.conversationId !== retire);
-        setQueued(queue.current);
+        // Increment blank counter so a failed creation can tell it's been
+        // left behind (draft !== blankKey()).
+        blank.current += 1;
+        // Only retire the queue if the blank chat is not still being
+        // created — if it is, its creation will either succeed (and re-tag
+        // the messages) or fail (and drop them in the catch block).
+        if (!creating.current.has(retire)) {
+          queue.current = queue.current.filter((message) => message.conversationId !== retire);
+          setQueued(queue.current);
+        }
       }
     }
     if (!opened && viewing.current === id) {
@@ -644,6 +652,11 @@ export function ChatClient(): ReactElement {
         removed.current.add(draft);
         queue.current = queue.current.filter((message) => message.conversationId !== draft);
         setQueued(queue.current);
+        // If this failed blank chat was the one left behind, clear it so
+        // future opens don't try to retire it.
+        if (leftBlankKey.current === draft) {
+          leftBlankKey.current = null;
+        }
       }
       release();
       // Nothing else will drain what the person queued in the chat they
