@@ -89,6 +89,7 @@ module Tools
       running_description { |args| "Updating item #{args[:item_id]}" }
 
       def self.perform(context:, item_id:, **attrs)
+        context.admin!
         item = Item.find(item_id)
 
         # Validate status
