@@ -58,36 +58,26 @@ function SignupForm() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Redirect signed-in users to /restaurants. A signed-in user on /signup
-  // is either a mistake (they meant /login) or they're already done — either
-  // way, the signup form is wrong. Check once on mount; the header's own
-  // session check handles post-logout updates.
+  // Redirect signed-in users to /restaurants. Check once on mount, but don't
+  // block the form — render immediately and only redirect if the check comes
+  // back signed in. A signed-in user on /signup is either a mistake (they
+  // meant /login) or they're already done — either way, the signup form is
+  // wrong, but showing "Loading..." to every signed-out visitor is a
+  // regression (PR 764 and 767 existed to make this render immediately).
   useEffect(() => {
     fetch('/api/auth/session', { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : { signedIn: false }))
       .then((d: { signedIn?: boolean }) => {
         if (d.signedIn) {
           router.replace('/restaurants');
-        } else {
-          setCheckingAuth(false);
         }
       })
       .catch(() => {
-        // On fetch failure, show the form — better to let them sign up than
-        // block on a flaky check.
-        setCheckingAuth(false);
+        // On fetch failure, stay on the form — better to let them sign up
+        // than block on a flaky check.
       });
   }, [router]);
-
-  if (checkingAuth) {
-    return (
-      <div className="mt-bw-6">
-        <p className="text-bw-sm text-zinc-500">Loading...</p>
-      </div>
-    );
-  }
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

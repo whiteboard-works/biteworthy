@@ -64,6 +64,11 @@ export function SiteHeader() {
   // The phone menu. Closed on every navigation — the header stays mounted
   // across soft navs, and an open menu would cover the page just opened.
   const [menuOpen, setMenuOpen] = useState(false);
+  // Logout generation counter: incremented on each logout to invalidate
+  // any in-flight session fetches. Fixes race where a fetch started before
+  // logout completes after setSignedIn(false), causing the header to
+  // briefly re-show signed-in state.
+  const logoutGeneration = useRef(0);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -83,24 +88,27 @@ export function SiteHeader() {
   // re-fetching, so there's no flash between routes.
   useEffect(() => {
     let active = true;
+    // Capture the current logout generation so we can ignore responses
+    // from fetches that started before the most recent logout.
+    const generation = logoutGeneration.current;
+    
     // A confirmation belongs to the check that produced it; after a sign-in
     // the old "signed out" must not linger while this one is in flight.
     setConfirmedSignedOut(false);
-    // Cache-busting: add timestamp to force fresh fetch after logout.
-    // Next.js router caching can serve stale /api/auth/session responses
-    // despite Cache-Control: no-store, causing the header to briefly show
-    // signed-in state after logout. The timestamp query param forces a new
-    // request past any cache layer.
-    const url = `/api/auth/session?_=${Date.now()}`;
-    fetch(url, { credentials: 'same-origin' })
+    
+    fetch('/api/auth/session', { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : { signedIn: false, unknown: true }))
       .then((d: { signedIn?: boolean; unknown?: boolean }) => {
-        if (!active) return;
+        // Ignore stale responses: if logout happened after this fetch started,
+        // the generation will have incremented. This prevents the race where
+        // a fetch started before logout completes after setSignedIn(false) and
+        // overwrites the signed-out state.
+        if (!active || generation !== logoutGeneration.current) return;
         setSignedIn(Boolean(d.signedIn));
         setConfirmedSignedOut(!d.unknown && d.signedIn === false);
       })
       .catch(() => {
-        if (!active) return;
+        if (!active || generation !== logoutGeneration.current) return;
         setSignedIn(false);
         setConfirmedSignedOut(false);
       });
@@ -173,6 +181,10 @@ export function SiteHeader() {
       // jti-rotation still leaves the browser signed out.
       loggedOut = false;
     }
+    // Increment logout generation BEFORE setting signedIn=false. Any session
+    // fetch in flight will now be ignored when it completes, preventing the
+    // race where it overwrites the signed-out state.
+    logoutGeneration.current += 1;
     setSignedIn(false);
     // Only a logout that succeeded confirms signed-out (on `/` no route
     // change re-runs the session check). After a failure the cookie may
