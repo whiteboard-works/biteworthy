@@ -214,6 +214,13 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
         expect(user.profile.reload.chat_notes).to eq("Pregnant — no raw fish.")
       end
 
+      it "drops a NUL byte instead of 500ing on the text column" do
+        patch "/api/v1/profile", params: { chat_notes: "a\u0000b" }, headers: auth_headers_for(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(user.profile.reload.chat_notes).to eq("ab")
+      end
+
       it "clears them when sent blank" do
         user.profile.update!(chat_notes: "old")
         patch "/api/v1/profile", params: { chat_notes: "" }, headers: auth_headers_for(user)

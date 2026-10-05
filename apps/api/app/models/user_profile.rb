@@ -31,7 +31,8 @@ class UserProfile < ApplicationRecord
   # on an avoid list. Blank is stored as NULL so "no notes" has one
   # spelling.
   CHAT_NOTES_MAX_LENGTH = 500
-  normalizes :chat_notes, with: ->(notes) { notes.strip.presence }
+  # NUL is dropped because Postgres text cannot store it (a 500, not a 422).
+  normalizes :chat_notes, with: ->(notes) { notes.delete("\u0000").strip.presence }
   validates :chat_notes, length: { maximum: CHAT_NOTES_MAX_LENGTH }
   validate :taste_signals_disjoint
   validate :taste_ids_exist
