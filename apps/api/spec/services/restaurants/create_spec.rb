@@ -9,7 +9,7 @@ RSpec.describe Restaurants::Create do
       it "allows different restaurants with generic shared terms and different streets" do
         # Create "Nini's Taqueria" on Main St
         existing = create(:restaurant, :published, name: "Nini's Taqueria", city: city)
-        RestaurantAddress.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
+        Address.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
 
         # Try to create "Zia Taqueria" on Oak St - should succeed
         result = described_class.call(
@@ -27,7 +27,7 @@ RSpec.describe Restaurants::Create do
       it "flags possible duplicates when names are very similar even with different streets" do
         # Create "Red Iguana" on Main St
         existing = create(:restaurant, :published, name: "Red Iguana", city: city)
-        RestaurantAddress.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
+        Address.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
 
         # Try to create "Red Iguana" (exact match) on Oak St - should flag as duplicate
         result = described_class.call(
@@ -44,7 +44,7 @@ RSpec.describe Restaurants::Create do
       it "flags duplicates when names are very similar on the same street" do
         # Create "Maria's Tacos" on Main St
         existing = create(:restaurant, :published, name: "Maria's Tacos", city: city)
-        RestaurantAddress.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
+        Address.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
 
         # Try to create "Marias Taco" on same street - should flag as duplicate
         result = described_class.call(
@@ -61,7 +61,7 @@ RSpec.describe Restaurants::Create do
       it "allows creation with force flag even when duplicate detected" do
         # Create existing restaurant
         existing = create(:restaurant, :published, name: "Zia Taqueria", city: city)
-        RestaurantAddress.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
+        Address.create!(restaurant: existing, street: "123 Main St", city: city.name, region: city.region)
 
         # Force creation of similar name
         result = described_class.call(
@@ -96,7 +96,7 @@ RSpec.describe Restaurants::Create do
       it "normalizes street addresses for comparison" do
         # Create restaurant on "Main Street"
         existing = create(:restaurant, :published, name: "Coffee Shop", city: city)
-        RestaurantAddress.create!(restaurant: existing, street: "123 Main Street", city: city.name, region: city.region)
+        Address.create!(restaurant: existing, street: "123 Main Street", city: city.name, region: city.region)
 
         # Try to create on "Main St" (abbreviation) - should recognize as same street
         result = described_class.call(
