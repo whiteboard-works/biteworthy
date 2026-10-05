@@ -45,7 +45,7 @@ RSpec.describe "Admin tools authorization" do
   def result_is_error?
     response_body = JSON.parse(response.body)
     return false unless response_body.key?("result")
-    
+
     result = response_body["result"]
     result.is_a?(Hash) && result["isError"] == true
   end
@@ -86,7 +86,7 @@ RSpec.describe "Admin tools authorization" do
   end
 
   def reject_items_args
-    { scan_id: scan.id, item_ids: [ingestion_item.id] }
+    { scan_id: scan.id, item_ids: [ ingestion_item.id ] }
   end
 
   def list_restaurant_items_args
@@ -105,7 +105,7 @@ RSpec.describe "Admin tools authorization" do
     describe spec[:name] do
       let(:tool_name) { spec[:name] }
       let(:args_method) { spec[:args_method] }
-      
+
       let(:args) do
         if args_method
           send(args_method)
@@ -121,7 +121,7 @@ RSpec.describe "Admin tools authorization" do
           scan
           item
           ingestion_item
-          
+
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
@@ -130,7 +130,7 @@ RSpec.describe "Admin tools authorization" do
           expect(response).to have_http_status(:ok)
           # Should get JSON-RPC error (tool not found, since registry filters by audience)
           # OR a tool-level authorization error if the tool was somehow visible
-          expect(jsonrpc_error? || result_is_error?).to be(true), 
+          expect(jsonrpc_error? || result_is_error?).to be(true),
             "Expected JSON-RPC error or tool error, got: #{response.body[0..500]}"
 
           if jsonrpc_error?
@@ -154,7 +154,7 @@ RSpec.describe "Admin tools authorization" do
           scan
           item
           ingestion_item
-          
+
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
@@ -184,7 +184,7 @@ RSpec.describe "Admin tools authorization" do
 
           expect(response).to have_http_status(:ok)
           # The call should succeed (no JSON-RPC error, no tool error)
-          expect(jsonrpc_error?).to be(false), 
+          expect(jsonrpc_error?).to be(false),
             "Expected success, got JSON-RPC error: #{jsonrpc_error_message}"
           expect(result_is_error?).to be(false),
             "Expected success, got tool error in result"
