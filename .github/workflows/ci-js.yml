@@ -61,6 +61,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Generate Next.js typed routes before typecheck so tsc can validate
+      # them. The typed routes live in .next/types/ and are only generated
+      # at build time, so running `tsc` alone misses Link href errors.
+      # This step is scoped to web only and doesn't need production secrets
+      # since all env vars have fallback defaults.
+      - name: Generate Next.js typed routes
+        run: pnpm --filter @biteworthy/web build
+
       - name: Typecheck
         run: pnpm typecheck
 

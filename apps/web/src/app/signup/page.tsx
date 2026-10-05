@@ -185,7 +185,7 @@ function SignupForm() {
       <p className="mt-bw-6 text-bw-sm text-zinc-500">
         Already have an account?{' '}
         <Link
-          href={`/login${next !== '/onboarding' ? `?next=${encodeURIComponent(next)}` : ''}`}
+          href={`/login${next !== '/onboarding' ? `?next=${encodeURIComponent(next)}` : ''}` as Route}
           className="font-semibold text-bite hover:text-bite-dark"
         >
           Sign in
