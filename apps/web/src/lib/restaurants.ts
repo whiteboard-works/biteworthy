@@ -121,7 +121,7 @@ export interface DetectedAssociation {
   slug: string | null;
   name: string | null;
   confidence: Confidence;
-  source: 'human' | 'ai' | 'owner';
+  source: 'human' | 'ai' | 'owner' | 'derived';
 }
 
 export interface DetectedIngredient extends DetectedAssociation {

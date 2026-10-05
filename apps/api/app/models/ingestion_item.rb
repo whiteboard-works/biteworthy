@@ -304,7 +304,8 @@ class IngestionItem < ApplicationRecord
     min_ingredient = target.item_ingredients.minimum(:confidence) || "confirmed"
     min_tag = target.item_tags.minimum(:confidence) || "confirmed"
 
-    weakest = [min_ingredient, min_tag].min_by { |c| Item::CONFIDENCE.index(c) }
+    # CONFIDENCE array is [confirmed, suggested, inferred] — highest index = weakest
+    weakest = [min_ingredient, min_tag].max_by { |c| Item::CONFIDENCE.index(c) }
     target.update!(confidence: weakest) if target.confidence != weakest
   end
 
