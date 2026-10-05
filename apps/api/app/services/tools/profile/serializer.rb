@@ -29,7 +29,8 @@ module Tools
             liked_ingredients:    slugs(profile.liked_ingredient_ids, ingredients),
             liked_tags:           slugs(profile.liked_tag_ids, tags),
             disliked_ingredients: slugs(profile.disliked_ingredient_ids, ingredients),
-            disliked_tags:        slugs(profile.disliked_tag_ids, tags)
+            disliked_tags:        slugs(profile.disliked_tag_ids, tags),
+            chat_notes:           profile.chat_notes
           }
         end
 

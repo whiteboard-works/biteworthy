@@ -132,6 +132,7 @@ module Api
           :strictness,
           :dietary_profile_slug,
           :home_city_slug,
+          :chat_notes,
           avoid_ingredient_ids: [],
           avoid_tag_ids:        [],
           prefer_tag_ids:       [],
@@ -184,6 +185,7 @@ module Api
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
           home_city:            profile.home_city&.summary,
+          chat_notes:           profile.chat_notes,
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
       end

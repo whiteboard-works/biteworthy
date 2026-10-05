@@ -50,7 +50,12 @@ export interface ProfilePatch {
   dietary_profile_slug?: string;
   /** A city slug sets the home city; null clears it. */
   home_city_slug?: string | null;
+  /** Private notes the chat reads as context. Blank clears them. */
+  chat_notes?: string;
 }
+
+/** Mirrors `UserProfile::CHAT_NOTES_MAX_LENGTH` in the API. */
+export const CHAT_NOTES_MAX_LENGTH = 500;
 
 /** Raised on a 401 so callers can bounce to /login. */
 export class NotSignedInError extends Error {

@@ -31,7 +31,7 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 ## Profile: about + chat notes (in progress, 2026-10-05)
 
 - [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.
-- [ ] Chat notes — a private free-text "anything the assistant should know" field on the profile, added to the chat's profile section every conversation; never read by the filter.
+- [x] Chat notes — `user_profiles.chat_notes` (500 chars, private), edited under "Notes for the assistant" in settings via `PATCH /profile`, quoted into the chat prompt's caller section as data the filter never reads, returned by `get_profile`, and included in the account export.
 - [ ] Mobile — edit the bio and chat notes, show the bio on `users/[handle]`.
 
 ## MVP speed + UI pass (shipped 2026-09-27, #695–#707)

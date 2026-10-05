@@ -606,7 +606,7 @@ RSpec.configure do |config|
                          liked_ingredients liked_tags
                          disliked_ingredients disliked_tags
                          strictness primary_dietary_profile home_city
-                         disclaimer_acknowledged_at],
+                         chat_notes disclaimer_acknowledged_at],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
               avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
@@ -649,6 +649,9 @@ RSpec.configure do |config|
                   country: { type: :string }
                 }
               },
+              # Private free text the chat reads as context every
+              # conversation. Never an input to the filter.
+              chat_notes: { type: :string, nullable: true },
               # Legal remediation E1 — ISO-8601 timestamp of when the
               # user accepted the in-app allergen disclaimer, or null if
               # they never have. Server-stamped.

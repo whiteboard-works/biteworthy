@@ -86,6 +86,26 @@ RSpec.describe Chat::SystemPrompt do
       expect(volatile).to include("strict")
     end
 
+    # The notes are the user's own words, saved once so every chat starts
+    # knowing them. They ride as data: the filter never reads them, so an
+    # allergy that lives only in the notes hides nothing, and the prompt
+    # has to say that rather than let the model assume it is handled.
+    describe "the caller's saved notes" do
+      it "includes them, quoted as the user's words, with the filter caveat" do
+        user.profile.update!(chat_notes: "Cooking for two kids. Mild only, please.")
+
+        volatile = described_class.new(context: context).volatile
+
+        expect(volatile).to include("Cooking for two kids. Mild only, please.")
+        expect(volatile).to include("not instructions")
+        expect(volatile).to include("update_avoid_lists")
+      end
+
+      it "leaves the notes block out when there are none" do
+        expect(described_class.new(context: context).volatile).not_to include("In their own words")
+      end
+    end
+
     # "What's nearby" has an answer only if the prompt knows where they
     # are — and says so when it does not, rather than letting the model
     # assume the launch city.

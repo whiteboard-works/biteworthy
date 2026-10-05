@@ -205,6 +205,41 @@ RSpec.describe "GET/PATCH /api/v1/profile", type: :request do
       end
     end
 
+    describe "chat_notes" do
+      it "saves trimmed notes and reads them back, private to the caller" do
+        patch "/api/v1/profile", params: { chat_notes: "  Pregnant — no raw fish.  " }, headers: auth_headers_for(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["chat_notes"]).to eq("Pregnant — no raw fish.")
+        expect(user.profile.reload.chat_notes).to eq("Pregnant — no raw fish.")
+      end
+
+      it "clears them when sent blank" do
+        user.profile.update!(chat_notes: "old")
+        patch "/api/v1/profile", params: { chat_notes: "" }, headers: auth_headers_for(user)
+
+        expect(user.profile.reload.chat_notes).to be_nil
+      end
+
+      # Notes are context for the chat, never a filter input: saving them
+      # must not touch the avoid lists that actually hide dishes.
+      it "leaves the avoid lists alone" do
+        user.profile.update!(avoid_ingredient_ids: [cheese.id])
+        patch "/api/v1/profile", params: { chat_notes: "no peanuts ever" }, headers: auth_headers_for(user)
+
+        expect(user.profile.reload.avoid_ingredient_ids).to eq([cheese.id])
+      end
+
+      it "422s notes over the cap rather than truncating" do
+        patch "/api/v1/profile",
+              params: { chat_notes: "a" * (UserProfile::CHAT_NOTES_MAX_LENGTH + 1) },
+              headers: auth_headers_for(user)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["errors"]).to have_key("chat_notes")
+      end
+    end
+
     it "round-trips avoid_ingredient_ids" do
       patch "/api/v1/profile",
             params: { avoid_ingredient_ids: [cheese.id, wheat.id] }.to_json,

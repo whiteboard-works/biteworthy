@@ -53,7 +53,7 @@ RSpec.describe "account/export", type: :request do
           expect(json["reviews"].first["body"]).to eq("Loved it")
           expect(json["suggestions"].map { |s| s["id"] }).to contain_exactly(suggestion.id)
           expect(json["restaurant_visits"].map { |v| v["id"] }).to contain_exactly(visit.id)
-          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug")
+          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug", "chat_notes")
           # No password hash, no JWT secret — only the user's own data.
           expect(response.body).not_to include("encrypted_password")
         end

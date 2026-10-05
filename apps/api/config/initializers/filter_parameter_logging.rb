@@ -14,6 +14,9 @@ Rails.application.config.filter_parameters += %i[
 # but list it explicitly so the intent is unmistakable.)
 Rails.application.config.filter_parameters += %i[profile_token]
 
+# Free text that often carries health details ("pregnant", "celiac").
+Rails.application.config.filter_parameters += %i[chat_notes]
+
 # The chat's "Use my location" coordinates arrive unrounded; the server
 # coarsens them only after the request line is logged. Dotted so only
 # these nested keys match, not every param with "lat" in its name.

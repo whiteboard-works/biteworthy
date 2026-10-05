@@ -24,6 +24,15 @@ class UserProfile < ApplicationRecord
   belongs_to :home_city, class_name: "City", optional: true
 
   validates :strictness, inclusion: { in: STRICTNESS }
+
+  # Free text the user wants every chat to start knowing ("cooking for
+  # two kids", "pregnant"). Private, and context only: the filter never
+  # reads it, so an allergy written here hides nothing until it is also
+  # on an avoid list. Blank is stored as NULL so "no notes" has one
+  # spelling.
+  CHAT_NOTES_MAX_LENGTH = 500
+  normalizes :chat_notes, with: ->(notes) { notes.strip.presence }
+  validates :chat_notes, length: { maximum: CHAT_NOTES_MAX_LENGTH }
   validate :taste_signals_disjoint
   validate :taste_ids_exist
   validate :avoid_ids_are_real

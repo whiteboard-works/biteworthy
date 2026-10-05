@@ -4261,6 +4261,8 @@ export interface paths {
                         dietary_profile_slug?: string;
                         /** @description A city slug from GET /cities sets the home city; null or blank clears it. */
                         home_city_slug?: string | null;
+                        /** @description Private notes added to every chat's context. Never read by the filter. Trimmed; null or blank clears them. */
+                        chat_notes?: string | null;
                         /** @description When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding. */
                         acknowledge_disclaimer?: boolean;
                     };
@@ -5732,6 +5734,7 @@ export interface components {
                 region: string | null;
                 country: string;
             } | null;
+            chat_notes: string | null;
             /** Format: date-time */
             disclaimer_acknowledged_at: string | null;
         };
