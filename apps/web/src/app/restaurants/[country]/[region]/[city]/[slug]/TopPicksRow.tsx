@@ -152,9 +152,15 @@ export function TopPicksRow({
                 href={`${basePath}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
                 className="block"
               >
-                {item.photo_url && (
+                {(item.photo_urls?.card || item.photo_url) && (
                   <img
-                    src={item.photo_url}
+                    src={item.photo_urls?.card || item.photo_url}
+                    srcSet={
+                      item.photo_urls
+                        ? `${item.photo_urls.thumb} 200w, ${item.photo_urls.card} 600w`
+                        : undefined
+                    }
+                    sizes="200px"
                     alt={item.name}
                     loading="lazy"
                     className="mb-bw-2 h-28 w-full rounded-bw-md object-cover"
