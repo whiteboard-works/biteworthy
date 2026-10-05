@@ -216,14 +216,14 @@ RSpec.describe "Admin item deep edit", type: :request do
   describe "photo uploads" do
     let(:jpeg_file) do
       Rack::Test::UploadedFile.new(
-        Rails.root.join("../../../spec/fixtures/files/test-image.jpg"),
+        Rails.root.join("spec/fixtures/files/test-image.jpg"),
         "image/jpeg"
       )
     end
 
     let(:png_file) do
       Rack::Test::UploadedFile.new(
-        Rails.root.join("../../../spec/fixtures/files/test-image.png"),
+        Rails.root.join("spec/fixtures/files/test-image.png"),
         "image/png"
       )
     end
@@ -245,7 +245,7 @@ RSpec.describe "Admin item deep edit", type: :request do
 
     it "replaces an existing photo" do
       item.photo.attach(
-        io: File.open(Rails.root.join("../../../spec/fixtures/files/test-image.jpg")),
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
         filename: "old-photo.jpg",
         content_type: "image/jpeg"
       )
@@ -261,7 +261,7 @@ RSpec.describe "Admin item deep edit", type: :request do
 
     it "removes a photo when remove_photo is true" do
       item.photo.attach(
-        io: File.open(Rails.root.join("../../../spec/fixtures/files/test-image.jpg")),
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
         filename: "dish.jpg",
         content_type: "image/jpeg"
       )
@@ -317,7 +317,7 @@ RSpec.describe "Admin item deep edit", type: :request do
 
     it "accepts photo_signed_id from the attachments flow" do
       blob = ActiveStorage::Blob.create_and_upload!(
-        io: File.open(Rails.root.join("../../../spec/fixtures/files/test-image.jpg")),
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
         filename: "from-signed-id.jpg",
         content_type: "image/jpeg"
       )

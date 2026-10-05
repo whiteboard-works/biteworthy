@@ -52,6 +52,8 @@ module Api
 
           ::Admin::ItemEditor.new(item).call(edit_attrs)
           render json: serialize_item(item)
+        rescue ActiveRecord::RecordInvalid => e
+          render json: e.record.errors.as_json, status: :unprocessable_entity
         rescue ::Admin::ItemEditor::UnknownSlug => e
           render json: { error: "unknown_#{e.kind}_slugs", slugs: e.slugs },
                  status: :unprocessable_entity
