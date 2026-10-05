@@ -191,4 +191,29 @@ RSpec.describe IngestionItem, "confidence assignment" do
       expect(item.confidence).to eq("inferred")
     end
   end
+
+  # Regression: ItemIngredient validation must accept source="derived" after insert_all
+  describe "ActiveRecord validation after promote with derived source" do
+    it "allows updating a join row created with source=derived through ActiveRecord" do
+      ing_item = run.ingestion_items.create!(
+        name: "Pizza",
+        description: "tomato pizza",
+        ingredients_payload: [
+          { slug: "vegetable-tomato", confidence: 1.0, source: "match" },
+          { slug: "grain-wheat", confidence: 0.9, source: "derived" } # implied base
+        ]
+      )
+
+      item = ing_item.promote!(admin)
+      wheat_join = item.item_ingredients.find_by(ingredient: wheat)
+
+      # The join was inserted with source="derived"
+      expect(wheat_join.source).to eq("derived")
+      expect(wheat_join.confidence).to eq("suggested")
+
+      # Updating through ActiveRecord (e.g. graduating confidence) must validate
+      expect { wheat_join.update!(confidence: "confirmed") }.not_to raise_error
+      expect(wheat_join.reload.confidence).to eq("confirmed")
+    end
+  end
 end

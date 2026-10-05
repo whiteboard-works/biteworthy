@@ -8243,7 +8243,8 @@
                             "enum": [
                               "human",
                               "ai",
-                              "owner"
+                              "owner",
+                              "derived"
                             ]
                           },
                           "allergen": {
@@ -8284,7 +8285,8 @@
                             "enum": [
                               "human",
                               "ai",
-                              "owner"
+                              "owner",
+                              "derived"
                             ]
                           }
                         }
