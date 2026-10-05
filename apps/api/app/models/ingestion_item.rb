@@ -302,6 +302,7 @@ class IngestionItem < ApplicationRecord
 
   # Item confidence is the weakest link: if any join is inferred, the item
   # is inferred; else if any is suggested, the item is suggested; else confirmed.
+  # NEVER upgrades — graduation belongs to confirm_community_associations!.
   def derive_item_confidence!(target)
     # Reload associations to see joins created in this transaction
     target.item_ingredients.reload
@@ -323,7 +324,10 @@ class IngestionItem < ApplicationRecord
       weakest ||= "suggested"
     end
 
-    target.update!(confidence: weakest) if target.confidence != weakest
+    # Only downgrade, never upgrade (graduation is explicit via confirm_community_associations!)
+    current_idx = Item::CONFIDENCE.index(target.confidence) || 1
+    weakest_idx = Item::CONFIDENCE.index(weakest) || 1
+    target.update!(confidence: weakest) if weakest_idx > current_idx
   end
 
   # Restore what apply_update! changed, then release the link. Restore
