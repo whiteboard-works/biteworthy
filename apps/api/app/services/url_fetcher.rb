@@ -224,25 +224,28 @@ class UrlFetcher
 
   # Detect common bot challenges and captcha/WAF interstitials.
   # These are HTML pages returned instead of the actual resource,
-  # typically very small and containing known patterns.
+  # typically very small and containing specific known patterns.
   def bot_challenge?(body, content_type)
     return false unless content_type == "text/html" || content_type == "application/xml"
     return false if body.bytesize > 5_000 # Challenges are typically tiny
     
     lower = body.downcase
     
-    # Common patterns in captcha/WAF pages
+    # Specific challenge markers that are definitive, not incidental mentions
     [
-      "sgcaptcha",              # SiteGround captcha
-      "cloudflare",             # Cloudflare challenge
-      "please verify you are a human",
-      "checking your browser",
-      "one more step",
-      "enable javascript and cookies",
-      "security check",
-      "access denied",
-      "ddos-guard"
-    ].any? { |pattern| lower.include?(pattern) }
+      "/.well-known/sgcaptcha",         # SiteGround captcha path
+      "__cf_chl",                       # Cloudflare challenge parameter
+      "cf-chl-bypass",                  # Cloudflare challenge bypass
+      "challenge-platform",             # Cloudflare challenge platform
+      "/_guard/",                       # DDoS-Guard
+      "g-recaptcha",                    # Google reCAPTCHA widget
+      "hcaptcha"                        # hCaptcha widget
+    ].any? { |marker| lower.include?(marker) } ||
+      # "Just a moment..." title with challenge script is Cloudflare's signature
+      (lower.include?("just a moment") && lower.include?("challenge-platform")) ||
+      # Akamai/Imperva block pages with specific markers
+      (lower.include?("akamai") && lower.include?("reference")) ||
+      (lower.include?("imperva") && lower.include?("incident"))
   end
 
   def filename_for(url, response)

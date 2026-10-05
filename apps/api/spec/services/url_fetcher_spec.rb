@@ -112,10 +112,21 @@ RSpec.describe UrlFetcher do
           }
       end
 
-      it "detects Cloudflare challenge pages" do
+      it "detects Cloudflare challenge pages with specific markers" do
         stub_request(:get, "https://example.com/menu.pdf").to_return(
           status: 200,
-          body: '<html><body>Checking your browser before accessing cloudflare</body></html>',
+          body: '<html><head><title>Just a moment...</title></head><body><div class="challenge-platform"></div></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError, /bot_challenge/)
+      end
+
+      it "detects Cloudflare __cf_chl parameter" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><body><form action="?__cf_chl_tk=abc"></form></body></html>',
           headers: { "Content-Type" => "text/html" }
         )
 
@@ -127,6 +138,34 @@ RSpec.describe UrlFetcher do
         stub_request(:get, "https://example.com/menu").to_return(
           status: 200,
           body: "<html><body>Menu items here</body></html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu") }.not_to raise_error
+      end
+
+      it "does NOT flag normal menus that mention Cloudflare or security in content" do
+        # A restaurant mentioning "We use Cloudflare for security" in their footer
+        # should NOT be flagged as a bot challenge
+        menu_with_footer = <<~HTML
+          <html>
+          <body>
+            <h1>Our Menu</h1>
+            <div class="menu">
+              <h2>Appetizers</h2>
+              <p>Spring Rolls - $8</p>
+              <p>Hummus - $6</p>
+            </div>
+            <footer>
+              <p>This site is protected by Cloudflare for security.</p>
+            </footer>
+          </body>
+          </html>
+        HTML
+
+        stub_request(:get, "https://example.com/menu").to_return(
+          status: 200,
+          body: menu_with_footer,
           headers: { "Content-Type" => "text/html" }
         )
 

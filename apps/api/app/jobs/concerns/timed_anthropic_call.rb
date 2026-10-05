@@ -33,6 +33,9 @@ module TimedAnthropicCall
     begin
       result = yield client
     rescue AnthropicClient::ApiError => e
+      # ApiError includes rate limits (429), server errors (5xx), and client
+      # errors (4xx). The Faraday retry middleware already retried transient
+      # ones, so if we're here it's either persistent or a non-retriable error.
       message = "#{api_error}: #{e.status} #{e.body.to_s.truncate(500)}"
       if fail_run
         run.fail!(message)
@@ -73,7 +76,33 @@ module TimedAnthropicCall
         return [nil, nil, message]
       end
     rescue Faraday::TimeoutError => e
-      message = "#{api_error}: timeout after #{client.instance_variable_get(:@timeout) || 240}s"
+      # Timeout after Faraday's configured timeout (default 240s for Anthropic).
+      # This is distinct from Anthropic returning a 408 or 504, which would be
+      # caught as ApiError above. A timeout here means the socket read hung.
+      timeout_val = client.instance_variable_get(:@timeout) || 240
+      message = "#{api_error}: timeout after #{timeout_val}s"
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
+    rescue Faraday::ConnectionFailed, Faraday::SSLError, Errno::ECONNREFUSED => e
+      # Network-level failures: DNS failure, connection refused, SSL errors.
+      # These are transient and the job's retry_on will handle them.
+      message = "#{api_error}: network error - #{e.class.name}: #{e.message.truncate(200)}"
+      if fail_run
+        run.fail!(message)
+        return nil
+      else
+        log_soft_failure(run, message)
+        return [nil, nil, message]
+      end
+    rescue JSON::ParserError => e
+      # JSON parse failure on the response body. This shouldn't happen with
+      # the JSON response middleware, but if it does it's a malformed response.
+      message = "#{api_error}: failed to parse JSON response - #{e.message.truncate(200)}"
       if fail_run
         run.fail!(message)
         return nil

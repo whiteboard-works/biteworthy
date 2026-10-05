@@ -23,10 +23,11 @@ class GapFillResolveJob < ApplicationJob
   # Same cheap-model override knob the old resolve stages had.
   DEFAULT_RESOLVE_MODEL = "claude-haiku-4-5-20251001"
 
-  # Items per API call. Keeps each response inside the output-token
-  # budget now that composed-dish names widen the gap set well past
-  # "nothing matched".
-  GAP_BATCH_SIZE = 25
+  # Items per API call. Reduced from 25 to 15 to avoid hitting output-token
+  # limits or timeouts on large slices. Each item in the batch increases
+  # both input (name + description + matched ingredients) and output (resolved
+  # ingredients + tags), so smaller batches are more reliable.
+  GAP_BATCH_SIZE = 15
 
   # One slice's API call soft-failed (timed_anthropic_call already
   # logged it and recorded any billed usage). Raised so the rescue below

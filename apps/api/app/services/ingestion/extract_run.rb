@@ -55,28 +55,6 @@ module Ingestion
         return
       end
 
-      # Check for oversized HTML inputs that would hit the output cap.
-      # Large HTML pages (95KB+) can produce extraction responses that
-      # exceed MAX_OUTPUT_TOKENS. Rather than fail mid-extraction with
-      # "menu_too_large", fail upfront with a clear message about the
-      # input size. Rough estimate: 4 chars/token, but HTML is less
-      # efficient due to markup overhead, so use 3 chars/token. The
-      # MAX_OUTPUT_TOKENS cap covers the *response*, but a 95KB input
-      # commonly produces a 20KB+ JSON response, which is ~5000-6000
-      # tokens.
-      blobs.each do |blob|
-        if blob.content_type.to_s.start_with?("text/") && blob.byte_size > 50_000
-          estimated_tokens = blob.byte_size / 3
-          @run.fail!(
-            "input_too_large: #{blob.filename} is #{blob.byte_size} bytes " \
-            "(~#{estimated_tokens} tokens). Large HTML menus require " \
-            "chunking or preprocessing. Upload a PDF or photo instead, or " \
-            "contact support for assistance."
-          )
-          return
-        end
-      end
-
       # A previous attempt may already have paid for the vision call — it is
       # the most expensive thing the product does, and `ApplicationJob`
       # retries every StandardError three times. Anything raised below this

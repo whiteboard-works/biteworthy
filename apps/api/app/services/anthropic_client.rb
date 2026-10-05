@@ -100,19 +100,6 @@ class AnthropicClient
     end
   end
 
-  # Raised when the input is too large to extract in one call.
-  # Distinct from TruncatedError (output limit) — this is the input budget.
-  class InputTooLargeError < StandardError
-    attr_reader :byte_size, :estimated_tokens
-
-    def initialize(byte_size:, estimated_tokens:)
-      @byte_size = byte_size
-      @estimated_tokens = estimated_tokens
-      super("Input is too large (#{byte_size} bytes, ~#{estimated_tokens} tokens); " \
-            "extraction requires chunking or preprocessing")
-    end
-  end
-
   attr_reader :api_key, :model, :base_url
 
   # The `usage` object from the most recent successful messages_create
