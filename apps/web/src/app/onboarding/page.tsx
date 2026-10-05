@@ -218,12 +218,7 @@ function OnboardingFlow() {
       });
       // Redirect to restaurants list with brief confirmation instead of
       // marketing home (per filter-loop.md: minimal, sensible landing).
-      const presetName =
-        draft.selectedPresetSlugs.length === 1
-          ? presets.find((p) => p.slug === draft.selectedPresetSlugs[0])?.name
-          : null;
-      const message = presetName ? `filtering for ${presetName}` : 'profile saved';
-      router.replace(`/restaurants?from_onboarding=1&message=${encodeURIComponent(message)}`);
+      router.replace('/restaurants?from_onboarding=1');
     } catch (err) {
       const message = (err as Error).message;
       // 401 from the proxy means the cookie expired or never existed

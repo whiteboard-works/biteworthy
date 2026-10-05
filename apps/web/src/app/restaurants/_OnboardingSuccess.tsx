@@ -2,30 +2,51 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { fetchProfile, NotSignedInError, type ProfilePayload } from '../../lib/profile';
 
 /**
  * Shows a brief success confirmation when landing here from onboarding.
- * Dismissible, auto-hides after 8s, and removed from URL on dismiss so
- * a refresh doesn't re-show it. Kept minimal per filter-loop.md.
+ * Reads the user's actual saved profile to build the message (never
+ * trusts URL params for display text). Dismissible, auto-hides after 8s,
+ * and removed from URL on dismiss so a refresh doesn't re-show it.
+ * Kept minimal per filter-loop.md.
  */
 export function OnboardingSuccess() {
   const params = useSearchParams();
   const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (params.get('from_onboarding') === '1') {
-      setMessage(params.get('message') || 'Profile saved');
-      setVisible(true);
-
-      // Auto-hide after 8s
-      const timer = setTimeout(() => {
-        dismiss();
-      }, 8000);
-
-      return () => clearTimeout(timer);
+    if (params.get('from_onboarding') !== '1') {
+      setLoading(false);
+      return;
     }
+
+    // Fetch the user's actual profile to build the success message
+    fetchProfile()
+      .then((profile: ProfilePayload) => {
+        const presetName = profile.primary_dietary_profile?.name;
+        setMessage(presetName ? `filtering for ${presetName}` : 'profile saved');
+        setVisible(true);
+        setLoading(false);
+
+        // Auto-hide after 8s
+        const timer = setTimeout(() => {
+          dismiss();
+        }, 8000);
+
+        return () => clearTimeout(timer);
+      })
+      .catch((e) => {
+        // If not signed in or fetch fails, show generic message
+        if (!(e instanceof NotSignedInError)) {
+          setMessage('profile saved');
+          setVisible(true);
+        }
+        setLoading(false);
+      });
   }, [params]);
 
   const dismiss = () => {
@@ -34,7 +55,7 @@ export function OnboardingSuccess() {
     router.replace('/restaurants');
   };
 
-  if (!visible) return null;
+  if (loading || !visible) return null;
 
   return (
     <div
