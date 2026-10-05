@@ -52,6 +52,10 @@ module Tools
     # the exact wasted turn the exemption exists to prevent.
     UNGATED_DOMAINS = %i[meta].freeze
 
+    # Domains that require admin access. Regular users should not see or
+    # mint tokens with these scopes.
+    ADMIN_ONLY_DOMAINS = %i[taxonomy moderation users structure].freeze
+
     # What each domain is, in words someone deciding whether to grant it
     # can act on. "taxonomy:write" tells a person nothing; "Change the
     # shared ingredient and tag catalogue" tells them enough to refuse.
@@ -81,6 +85,21 @@ module Tools
       def available
         @available ||= (Registry::DOMAINS.keys - UNGATED_DOMAINS)
                        .flat_map { |domain| ["#{domain}:read", "#{domain}:write"] }.freeze
+      end
+
+      # Scopes available to regular (non-admin) users. Filters out admin-only
+      # domains so the UI doesn't offer scopes the user can't actually use.
+      def available_for_regular_user
+        @available_for_regular_user ||= (Registry::DOMAINS.keys - UNGATED_DOMAINS - ADMIN_ONLY_DOMAINS)
+                                        .flat_map { |domain| ["#{domain}:read", "#{domain}:write"] }.freeze
+      end
+
+      # Whether a scope requires admin privileges.
+      def admin_only?(scope)
+        return false if scope == ALL
+
+        domain, _action = scope.split(":")
+        ADMIN_ONLY_DOMAINS.include?(domain&.to_sym)
       end
 
       # The scope a given tool call requires, or nil for a class the
