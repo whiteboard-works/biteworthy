@@ -213,6 +213,125 @@ RSpec.describe "Admin item deep edit", type: :request do
     end
   end
 
+  describe "photo uploads" do
+    let(:jpeg_file) do
+      Rack::Test::UploadedFile.new(
+        Rails.root.join("spec/fixtures/files/test-image.jpg"),
+        "image/jpeg"
+      )
+    end
+
+    let(:png_file) do
+      Rack::Test::UploadedFile.new(
+        Rails.root.join("spec/fixtures/files/test-image.png"),
+        "image/png"
+      )
+    end
+
+    def patch_with_photo(photo:, extra_params: {})
+      patch "/api/v1/admin/items/#{item.id}",
+            params: extra_params.merge(photo: photo),
+            headers: auth_headers_for(admin)
+    end
+
+    it "attaches a photo and returns photo_url" do
+      patch_with_photo(photo: jpeg_file)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(response.parsed_body["photo_url"]).to be_present
+      expect(response.parsed_body["photo_url"]).to include("test-image.jpg")
+    end
+
+    it "replaces an existing photo" do
+      item.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "old-photo.jpg",
+        content_type: "image/jpeg"
+      )
+      old_blob_id = item.photo.blob.id
+
+      patch_with_photo(photo: png_file)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(item.photo.blob.id).not_to eq(old_blob_id)
+      expect(item.photo.filename.to_s).to eq("test-image.png")
+    end
+
+    it "removes a photo when remove_photo is true" do
+      item.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "dish.jpg",
+        content_type: "image/jpeg"
+      )
+
+      patch "/api/v1/admin/items/#{item.id}",
+            params: { remove_photo: "true" }.to_json,
+            headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).not_to be_attached
+      expect(response.parsed_body["photo_url"]).to be_nil
+    end
+
+    it "can edit other fields and attach a photo in the same request" do
+      patch_with_photo(
+        photo: jpeg_file,
+        extra_params: { name: "Renamed with photo", ingredient_slugs: ["meat-beef"] }
+      )
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.name).to eq("Renamed with photo")
+      expect(item.photo).to be_attached
+      expect(item.item_ingredients.pluck(:confidence, :source)).to eq([%w[confirmed human]])
+    end
+
+    it "422s a file that exceeds the 5 MB limit" do
+      oversized = Rack::Test::UploadedFile.new(
+        StringIO.new("x" * (HasPhotoValidation::MAX_PHOTO_BYTES + 1)),
+        "image/jpeg",
+        original_filename: "huge.jpg"
+      )
+
+      patch_with_photo(photo: oversized)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["photo"]).to include("must be 5 MB or smaller")
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "422s a file with a disallowed content type" do
+      bad_file = Rack::Test::UploadedFile.new(
+        StringIO.new("not an image"),
+        "application/pdf",
+        original_filename: "menu.pdf"
+      )
+
+      patch_with_photo(photo: bad_file)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["photo"]).to be_present
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "accepts photo_signed_id from the attachments flow" do
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "from-signed-id.jpg",
+        content_type: "image/jpeg"
+      )
+
+      patch "/api/v1/admin/items/#{item.id}",
+            params: { photo_signed_id: blob.signed_id }.to_json,
+            headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(item.photo.blob.id).to eq(blob.id)
+    end
+  end
+
   it "404s non-admins" do
     patch "/api/v1/admin/items/#{item.id}",
           params: { name: "nope" }.to_json,
