@@ -131,15 +131,17 @@ class IngestionItem < ApplicationRecord
       name:        name,
       description: description.presence,
       status:      "published",
-      confidence:  "confirmed" # will be downgraded if any join is unconfirmed
+      confidence:  "confirmed" # temporary, derived below after joins exist
     )
 
     insert_joins_with_payload!(ItemIngredient, created, Ingredient, ingredients_payload, accept_confidence)
     insert_joins_with_payload!(ItemTag,        created, Tag,        tags_payload,        accept_confidence)
-    derive_item_confidence!(created)
     create_modifiers!(created)
     create_variants!(created)
     attach_dish_photo!(created)
+
+    # Derive item confidence from weakest join (must happen after joins exist)
+    derive_item_confidence!(created)
 
     update!(item: created, decision: "accepted", decided_at: Time.current)
     created
@@ -160,6 +162,7 @@ class IngestionItem < ApplicationRecord
     apply_description!(target, snapshot)
     apply_variants!(target, snapshot)
 
+    old_confidence = target.confidence
     created_ingredient_ids =
       insert_joins_with_payload!(ItemIngredient, target, Ingredient, ingredients_payload, accept_confidence)
     created_tag_ids =
@@ -174,8 +177,8 @@ class IngestionItem < ApplicationRecord
     # Restaurant#confirm_community_associations!.
     if created_ingredient_ids.any? || created_tag_ids.any?
       derive_item_confidence!(target.reload)
-      if target.confidence_previously_was == "confirmed" && target.confidence != "confirmed"
-        snapshot["confidence"] = [target.confidence_previously_was, target.confidence]
+      if old_confidence == "confirmed" && target.confidence != "confirmed"
+        snapshot["confidence"] = [old_confidence, target.confidence]
       end
     end
 
@@ -288,6 +291,10 @@ class IngestionItem < ApplicationRecord
   # Item confidence is the weakest link: if any join is inferred, the item
   # is inferred; else if any is suggested, the item is suggested; else confirmed.
   def derive_item_confidence!(target)
+    # Reload associations to see joins created in this transaction
+    target.item_ingredients.reload
+    target.item_tags.reload
+
     min_ingredient = target.item_ingredients.minimum(:confidence) || "confirmed"
     min_tag = target.item_tags.minimum(:confidence) || "confirmed"
 
