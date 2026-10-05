@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.5",
+    "date": "2026-10-05",
+    "notes": [
+      "Profiles can carry a short public bio, and you can save notes the chat assistant starts every conversation with."
+    ]
+  },
+  {
     "version": "2026.10.2",
     "date": "2026-10-02",
     "notes": [
