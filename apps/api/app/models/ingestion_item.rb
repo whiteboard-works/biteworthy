@@ -282,24 +282,22 @@ class IngestionItem < ApplicationRecord
     # Treat nil numeric as below threshold (0) so it maps to suggested.
     numeric = numeric&.to_f || 0.0
 
-    # Admin/owner accept (accept_cap="confirmed") stamps all joins as confirmed
-    return "confirmed" if accept_cap == "confirmed"
+    # Derived and AI rows honor their intrinsic confidence regardless of who accepted
+    # (a pizza's implied wheat stays "suggested" even when an admin accepts the dish)
+    if source == "derived"
+      return "suggested"
+    elsif source == "ai"
+      return numeric >= 0.8 ? "suggested" : "inferred"
+    end
 
-    # Community accept (accept_cap="suggested") derives from source + numeric:
-    # Explicit menu text (source="match") at high confidence → confirmed, capped at suggested
-    enum_confidence = if source == "match" && numeric >= 0.95
-                        "suggested" # community cap
-                      # Implied-base keywords → suggested (wheat in "pizza")
-                      elsif source == "derived"
-                        "suggested"
-                      # AI gap-fill → inferred (low conf) or suggested (high conf)
-                      elsif source == "ai"
-                        numeric >= 0.8 ? "suggested" : "inferred"
-                      else
-                        "suggested"
-                      end
-
-    enum_confidence
+    # Explicit menu text (source="match"): admin/owner promotes to confirmed; community caps at suggested
+    if accept_cap == "confirmed"
+      "confirmed"
+    elsif numeric >= 0.95
+      "suggested" # community accept caps confirmed → suggested
+    else
+      "suggested"
+    end
   end
 
   # Item confidence is the weakest link: if any join is inferred, the item
