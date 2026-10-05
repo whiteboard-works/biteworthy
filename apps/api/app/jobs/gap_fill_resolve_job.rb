@@ -93,7 +93,7 @@ class GapFillResolveJob < ApplicationJob
       merge!(run, slice, result, ingredient_paths, cuisine_slugs)
       shadowed << [ prompt_rows, result ]
     end
-    run.update!(enrichment_status: "completed")
+    run.update!(enrichment_status: "completed", enrichment_failure_message: nil)
     # After `completed`, so a slow TypeSafe never holds up the status
     # clients are waiting on. Observation only; see JevCuisineShadow.
     shadow_cuisine_tags(run, shadowed)

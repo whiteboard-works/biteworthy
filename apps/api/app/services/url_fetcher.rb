@@ -178,14 +178,21 @@ class UrlFetcher
   def detect_content_type(response, body)
     header = response.headers["content-type"].to_s.split(";").first&.strip
 
-    # Sniff content when the header is missing or obviously wrong.
-    # Servers sometimes return application/xml for HTML pages, or the wrong
-    # MIME type entirely. Sniff magic bytes and structure to decide.
-    if header.blank? || looks_like_wrong_content_type?(header, body)
+    # Sniff content when the header is missing, obviously wrong, or generic.
+    # Servers sometimes return application/xml for HTML pages, generic
+    # octet-stream for PDFs, or the wrong MIME type entirely.
+    if header.blank? || looks_like_wrong_content_type?(header, body) || generic_content_type?(header)
       return sniff_content_type(body)
     end
 
     header
+  end
+
+  def generic_content_type?(header)
+    %w[
+      application/octet-stream
+      binary/octet-stream
+    ].include?(header)
   end
 
   def looks_like_wrong_content_type?(header, body)

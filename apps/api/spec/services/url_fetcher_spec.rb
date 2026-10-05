@@ -30,6 +30,30 @@ RSpec.describe UrlFetcher do
       expect(result.content_type).to eq("application/pdf")
     end
 
+    it "sniffs PDF magic bytes when content-type is generic octet-stream" do
+      stub_request(:get, "https://example.com/menu.pdf").to_return(
+        status: 200,
+        body: "%PDF-1.7 binary content here",
+        headers: { "Content-Type" => "application/octet-stream" }
+      )
+
+      result = described_class.fetch("https://example.com/menu.pdf")
+
+      expect(result.content_type).to eq("application/pdf")
+    end
+
+    it "sniffs PDF magic bytes when content-type is binary/octet-stream" do
+      stub_request(:get, "https://example.com/menu.pdf").to_return(
+        status: 200,
+        body: "%PDF-1.5 more binary",
+        headers: { "Content-Type" => "binary/octet-stream" }
+      )
+
+      result = described_class.fetch("https://example.com/menu.pdf")
+
+      expect(result.content_type).to eq("application/pdf")
+    end
+
     it "corrects application/xml to text/html when the body is actually HTML" do
       stub_request(:get, url).to_return(
         status: 200,
