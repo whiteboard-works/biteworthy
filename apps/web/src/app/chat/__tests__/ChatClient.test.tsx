@@ -1746,7 +1746,7 @@ describe('ChatClient', () => {
     });
   });
 
-  describe('the results pane', () => {
+    it('keeps the running turn when a different chat is deleted', async () => {
     it('points the pane at what the turn acted on, and keeps it after the refetch', async () => {
       watchTurn.mockImplementation(async (_id, _after, onEvent) => {
         onEvent({

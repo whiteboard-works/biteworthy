@@ -118,6 +118,10 @@ export function ChatClient(): ReactElement {
   // have a create in flight.
   const blank = useRef(0);
   const creating = useRef(new Set<string>());
+  // The blank key captured when leaving a blank chat, so overlapping opens
+  // can all retire it once any one succeeds. Set when any open sees that
+  // active is null (blank chat on screen); cleared when any open wins.
+  const leftBlankKey = useRef<string | null>(null);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -240,6 +244,9 @@ export function ChatClient(): ReactElement {
 
   const open = async (id: string) => {
     const fromBlank = viewing.current === null;
+    if (fromBlank && leftBlankKey.current === null) {
+      leftBlankKey.current = blankKey();
+    }
     following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
@@ -259,7 +266,18 @@ export function ChatClient(): ReactElement {
     // chat" does — nothing can navigate back to a chat with no id. Only
     // once the open worked: a failed one puts the blank chat back on
     // screen, and what was queued in it has to still be there.
-    if (opened && fromBlank) leaveBlank();
+    //
+    // Any open winning retires the blank chat left behind, even when the
+    // open that first saw it is still pending — overlapping opens would
+    // otherwise leave it stranded.
+    if (opened) {
+      const retire = leftBlankKey.current;
+      if (retire !== null && !creating.current.has(retire)) {
+        leftBlankKey.current = null;
+        queue.current = queue.current.filter((message) => message.conversationId !== retire);
+        setQueued(queue.current);
+      }
+    }
     if (!opened && viewing.current === id) {
       viewing.current = current.current?.id ?? null;
       // That chat is on screen again, so its queue is drainable again.
