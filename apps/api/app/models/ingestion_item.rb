@@ -254,7 +254,12 @@ class IngestionItem < ApplicationRecord
       next if node_id.nil?
 
       join_confidence = map_confidence(row.confidence, row.source, accept_confidence)
-      join_source = row.source == "match" ? "human" : row.source
+      join_source = case row.source
+                    when "match", "derived" then "human"
+                    when "ai" then "ai"
+                    when "owner" then "owner"
+                    else "human"
+                    end
 
       { :item_id => target.id, foreign_key => node_id,
         :confidence => join_confidence, :source => join_source }
