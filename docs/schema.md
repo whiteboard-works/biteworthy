@@ -11,7 +11,8 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 - `user_profiles` — one per user. `avoid_ingredient_ids[]`,
   `avoid_tag_ids[]`, `prefer_tag_ids[]`, plus `strictness` enum and
   `home_city_id` (nullable FK to `cities`, nullified on delete — the
-  chat's default for "nearby", never a filter).
+  chat's default for "nearby", never a filter), and `chat_notes`
+  (private free text the chat reads as context, never a filter).
 
 ## Taxonomy (the unique-value engine)
 

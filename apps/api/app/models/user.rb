@@ -68,7 +68,8 @@ class User < ApplicationRecord
   # or two under the name; a blank one is stored as NULL so "no bio"
   # has one spelling.
   BIO_MAX_LENGTH = 300
-  normalizes :bio, with: ->(bio) { bio.strip.presence }
+  # NUL is dropped because Postgres text cannot store it (a 500, not a 422).
+  normalizes :bio, with: ->(bio) { bio.delete("\u0000").strip.presence }
   validates :bio, length: { maximum: BIO_MAX_LENGTH }
 
   # Mirrors the `super_admin_implies_admin` CHECK constraint so the

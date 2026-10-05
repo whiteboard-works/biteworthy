@@ -3,7 +3,10 @@ module Api
     # GET   /api/v1/profile  → returns the caller's dietary settings.
     # PATCH /api/v1/profile  → replaces the avoid/prefer arrays wholesale
     #                          and/or applies a dietary_profile preset
-    #                          (additive — never destructive).
+    #                          (additive — never destructive). Also sets
+    #                          home city, `chat_notes` (chat context only,
+    #                          never a filter input; blank clears), and
+    #                          the disclaimer acknowledgment.
     #
     # Replacement semantics: PATCH treats avoid_ingredient_ids,
     # avoid_tag_ids, prefer_tag_ids, and strictness as a wholesale
@@ -132,6 +135,7 @@ module Api
           :strictness,
           :dietary_profile_slug,
           :home_city_slug,
+          :chat_notes,
           avoid_ingredient_ids: [],
           avoid_tag_ids:        [],
           prefer_tag_ids:       [],
@@ -184,6 +188,7 @@ module Api
           strictness:           profile.strictness,
           primary_dietary_profile: dietary_profile_summary(profile.primary_dietary_profile),
           home_city:            profile.home_city&.summary,
+          chat_notes:           profile.chat_notes,
           disclaimer_acknowledged_at: profile.disclaimer_acknowledged_at&.iso8601
         }
       end

@@ -69,6 +69,11 @@ RSpec.describe "profile", type: :request do
             type: :string, nullable: true,
             description: "A city slug from GET /cities sets the home city; null or blank clears it."
           },
+          chat_notes: {
+            type: :string, nullable: true, maxLength: 500,
+            description: "Private notes added to every chat's context. Never read by the " \
+                         "filter. Trimmed; null or blank clears them."
+          },
           acknowledge_disclaimer: {
             type: :boolean,
             description: "When true, server-stamps disclaimer_acknowledged_at " \

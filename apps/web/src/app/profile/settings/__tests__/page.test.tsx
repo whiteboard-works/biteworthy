@@ -35,6 +35,7 @@ vi.mock('../../../../lib/profile', () => {
     fetchMyReviews: (...a: unknown[]) => mockFetchMyReviews(...a),
     fetchMyFavorites: (...a: unknown[]) => mockFetchMyFavorites(...a),
     NotSignedInError,
+    CHAT_NOTES_MAX_LENGTH: 500,
   };
 });
 import { NotSignedInError } from '../../../../lib/profile';
@@ -107,6 +108,7 @@ const PROFILE: ProfilePayload = {
   disliked_ingredients: [],
   disliked_tags: [],
   strictness: 'balanced',
+  chat_notes: null,
   primary_dietary_profile: { id: 'dp-vegan', slug: 'vegan', name: 'Vegan' },
   home_city: null,
   disclaimer_acknowledged_at: '2026-07-01T00:00:00Z',
@@ -626,6 +628,47 @@ describe('ProfileSettingsPage — public profile (username)', () => {
     expect(await screen.findByTestId('handle-error')).toHaveTextContent(
       'Username has already been taken.',
     );
+  });
+});
+
+describe('ProfileSettingsPage — notes for the assistant', () => {
+  it('prefills saved notes and only enables Save once they change', async () => {
+    mockFetchProfile.mockResolvedValue({ ...structuredClone(PROFILE), chat_notes: 'Pregnant.' });
+    render(<ProfileSettingsPage />);
+
+    const textarea = await screen.findByLabelText('Notes for the assistant');
+    expect(textarea).toHaveValue('Pregnant.');
+    expect(screen.getByTestId('chat-notes-save')).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: 'Pregnant. Mild spice only.' } });
+    expect(screen.getByTestId('chat-notes-save')).toBeEnabled();
+  });
+
+  // Only the notes go up: a PATCH carrying avoid arrays rebuilt from
+  // the mount-time load could drop an allergen another client added.
+  it('patches only chat_notes and confirms', async () => {
+    mockUpdateProfile.mockImplementation((patch: { chat_notes?: string }) =>
+      Promise.resolve({ ...structuredClone(PROFILE), chat_notes: patch.chat_notes ?? null }),
+    );
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Notes for the assistant'), {
+      target: { value: 'Cooking for two kids.' },
+    });
+    fireEvent.click(screen.getByTestId('chat-notes-save'));
+
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ chat_notes: 'Cooking for two kids.' }),
+    );
+    expect(await screen.findByTestId('chat-notes-saved')).toBeInTheDocument();
+  });
+
+  // The notes never filter anything. Someone who writes "peanut allergy"
+  // here must be told it hides nothing until it is on the avoid list.
+  it('says the notes do not filter dishes', async () => {
+    render(<ProfileSettingsPage />);
+    await screen.findByLabelText('Notes for the assistant');
+    expect(screen.getByTestId('chat-notes-help')).toHaveTextContent(/don.t hide dishes/i);
   });
 });
 
