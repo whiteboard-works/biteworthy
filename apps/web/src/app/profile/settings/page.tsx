@@ -1135,7 +1135,7 @@ function McpTokensSection() {
           </li>
         ))}
         {tokens.length === 0 ? (
-          <li className="text-bw-sm text-zinc-500">No connected apps yet.</li>
+          <li className="text-bw-sm text-zinc-500">No access tokens yet.</li>
         ) : null}
       </ul>
 

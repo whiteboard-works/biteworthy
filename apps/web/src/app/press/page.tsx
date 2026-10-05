@@ -51,7 +51,7 @@ export default function PressPage(): ReactElement {
         <p className="text-bw-base text-zinc-800">
           BiteWorthy turns the question &ldquo;is there anything I can eat here?&rdquo; into a
           glanceable answer. The app reads any restaurant menu &mdash; from a phone-camera scan, a
-          PDF, or an online link &mdash; and applies a dietary filter you set in six taps. Items
+          PDF, or an online link &mdash; and applies a dietary filter you set in four steps. Items
           you can&rsquo;t eat get hidden, with a transparent label explaining
           <em> why</em> (&ldquo;Contains dairy (cheese)&rdquo;, &ldquo;Contains gluten
           (wheat)&rdquo;). Tap &ldquo;show anyway&rdquo; to override one for tonight; flag
