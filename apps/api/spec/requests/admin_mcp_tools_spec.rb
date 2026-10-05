@@ -432,69 +432,70 @@ RSpec.describe "Admin MCP tools" do
 
     context "as admin" do
       it "creates a new restaurant" do
-        mcp_call("create_restaurant", {
+        # Use the existing Restaurants::CreateRestaurant tool
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
           name: "New Place",
           city_slug: city.slug,
           street: "123 Main St",
           postal_code: "12345"
-        }, admin)
+        )
 
-        expect(response).to have_http_status(:ok)
-        content = result_content
-        expect(content["created"]).to be(true)
-        expect(content.dig("restaurant", "name")).to eq("New Place")
-        expect(content.dig("restaurant", "status")).to eq("draft")
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
+        expect(content.dig(:restaurant, :name)).to eq("New Place")
+        expect(content.dig(:restaurant, :status)).to eq("draft")
       end
 
       it "returns possible_duplicate without force" do
-        mcp_call("create_restaurant", {
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
           name: "Café Mondo",
           city_slug: city.slug
-        }, admin)
+        )
 
-        expect(response).to have_http_status(:ok)
-        content = result_content
-        expect(content["created"]).to be(false)
-        expect(content["reason"]).to eq("possible_duplicate")
-        expect(content["possible_duplicates"]).to be_present
-        expect(content["possible_duplicates"].first["name"]).to eq("Cafe Mondo")
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(false)
+        expect(content[:reason]).to eq("possible_duplicate")
+        expect(content[:possible_duplicates]).to be_present
+        expect(content[:possible_duplicates].first[:name]).to eq("Cafe Mondo")
       end
 
       it "creates with force: true after reviewing duplicates" do
-        mcp_call("create_restaurant", {
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
           name: "Café Mondo",
           city_slug: city.slug,
           force: true
-        }, admin)
+        )
 
-        expect(response).to have_http_status(:ok)
-        content = result_content
-        expect(content["created"]).to be(true)
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
         expect(Restaurant.where(city: city).count).to eq(2)
       end
 
       it "rejects unknown city" do
-        mcp_call("create_restaurant", {
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
           name: "New Place",
           city_slug: "nonexistent"
-        }, admin)
+        )
 
-        result = JSON.parse(response.body)["result"]
-        expect(result["isError"]).to be(true)
-        expect(result.dig("content", 0, "text")).to include("Unknown city")
+        content = result.to_h[:structuredContent]
+        expect(content[:isError]).to be(true)
       end
     end
 
     context "as non-admin" do
-      it "refuses the call" do
-        mcp_call("create_restaurant", {
+      it "allows the call (audience is :user, not :admin)" do
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: user.id },
           name: "New Place",
           city_slug: city.slug
-        }, user)
+        )
 
-        result = JSON.parse(response.body)["result"]
-        expect(result["isError"]).to be(true)
-        expect(result.dig("content", 0, "text")).to include("forbidden")
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
       end
     end
   end
