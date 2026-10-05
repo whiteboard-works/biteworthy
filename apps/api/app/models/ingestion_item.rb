@@ -279,6 +279,8 @@ class IngestionItem < ApplicationRecord
     # (only implied_rows adds source:"derived", gap-fill adds source:"ai").
     # Treat nil source as "match" — it came from menu text.
     source = "match" if source.nil?
+    # Treat nil numeric as below threshold (0) so it maps to suggested.
+    numeric = numeric&.to_f || 0.0
 
     # Explicit menu text (source="match") at high confidence → confirmed
     enum_confidence = if source == "match" && numeric >= 0.95

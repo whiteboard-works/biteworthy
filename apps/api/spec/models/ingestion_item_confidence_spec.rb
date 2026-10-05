@@ -291,5 +291,17 @@ RSpec.describe IngestionItem, "confidence assignment" do
       item = ing_item.promote!(decided_by: admin)
       expect(item.confidence).to eq("suggested")
     end
+
+    it "nil numeric confidence is treated as below threshold → suggested" do
+      ing_item = run.ingestion_items.create!(
+        name: "Pizza",
+        ingredients_payload: [
+          { slug: "grain-wheat", confidence: nil, source: "match" }
+        ]
+      )
+      item = ing_item.promote!(decided_by: admin)
+      # nil numeric < 0.95, so source:"match" falls through to suggested
+      expect(item.confidence).to eq("suggested")
+    end
   end
 end
