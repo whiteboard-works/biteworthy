@@ -260,6 +260,58 @@ RSpec.describe ExtractMenuJob, type: :job do
     end
   end
 
+  describe "empty text content detection" do
+    it "fails the run when text/html input is empty or near-empty" do
+      # SinglePlatform and other JS-rendered sites return HTML shells with no menu text
+      empty_html = "<!DOCTYPE html><html><head></head><body></body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(empty_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.failed?).to be true
+      expect(run.failure_message).to eq("no_menu_text")
+    end
+
+    it "succeeds when text/html input has sufficient content" do
+      menu_html = "<html><body><h1>Menu</h1><p>Tacos $5</p><p>Burritos $7</p>" +
+                  "<p>Quesadilla $6</p><p>Guacamole $4</p><p>Salsa $3</p>" +
+                  "<p>Chips $2</p><p>Beans $3</p></body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(menu_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+    end
+
+    it "does not block image inputs" do
+      # Empty text check only applies to text content types
+      attach_fake_input! # JPEG input
+
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+    end
+  end
+
   describe "Anthropic API error" do
     before do
       attach_fake_input!
