@@ -115,6 +115,11 @@ RSpec.describe "Admin tools authorization" do
 
       context "as anonymous user" do
         it "refuses the call with tool not found or unauthorized" do
+          # Force evaluation of let blocks before capturing counts
+          restaurant
+          scan
+          item
+          
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
@@ -142,6 +147,11 @@ RSpec.describe "Admin tools authorization" do
 
       context "as non-admin user" do
         it "refuses the call with tool not found or forbidden" do
+          # Force evaluation of let blocks before capturing counts
+          restaurant
+          scan
+          item
+          
           initial_restaurant_count = Restaurant.count
           initial_scan_count = IngestionRun.count
 
