@@ -226,7 +226,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(prompts.length).to eq(2)
       expect(prompts.first).to include("[0] Caesar Salad", "[14] Mystery Dish 13")
       expect(prompts.first).not_to include("Mystery Dish 14")
-      expect(prompts.last).to include("[0] Mystery Dish 14", "[12] Mystery Dish 25")
+      expect(prompts.last).to include("[0] Mystery Dish 14", "[11] Mystery Dish 25")
 
       # index 0 of each response lands on that slice's first item, not the run's.
       expect(gap_item.reload.ingredients_payload)
