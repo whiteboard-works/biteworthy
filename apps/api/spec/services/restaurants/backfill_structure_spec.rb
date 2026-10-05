@@ -83,7 +83,7 @@ RSpec.describe Restaurants::BackfillStructure do
 
         expect(item.reload.item_variants.count).to eq(2)
         expect(item.item_variants.order(:position).pluck(:size, :price_cents))
-          .to eq([ ["small", 450], ["large", 750] ])
+          .to eq([ [ "small", 450 ], [ "large", 750 ] ])
         expect(result[:variants_added].first[:count]).to eq(2)
       end
 
@@ -94,7 +94,7 @@ RSpec.describe Restaurants::BackfillStructure do
                ingestion_run: run,
                decision: "accepted",
                item: item,
-               prices_payload: [{ "size" => "large", "price_cents" => 800 }])
+               prices_payload: [ { "size" => "large", "price_cents" => 800 } ])
 
         result = described_class.new(restaurant: restaurant).call
 
@@ -139,7 +139,7 @@ RSpec.describe Restaurants::BackfillStructure do
                decision: "accepted",
                item: item,
                section_name: "Tacos",
-               prices_payload: [{ "size" => "small", "price_cents" => 450 }])
+               prices_payload: [ { "size" => "small", "price_cents" => 450 } ])
 
         result = described_class.new(restaurant: restaurant, dry_run: true).call
 
