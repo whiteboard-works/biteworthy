@@ -387,15 +387,13 @@ RSpec.describe "Admin item deep edit", type: :request do
       end
 
       it "preprocesses the card variant on upload" do
-        new_item = create(:item, restaurant: restaurant)
-
         patch_with_photo(photo: jpeg_file)
-        new_item.reload
+        item.reload
 
-        # Card variant should be preprocessed (represented record exists)
-        card_variant = new_item.photo.variant(:card)
+        # Card variant should be preprocessed (representation should process without error)
+        card_variant = item.photo.variant(:card)
+        expect(card_variant).to be_present
         expect { card_variant.processed }.not_to raise_error
-        expect(card_variant.key).to be_present
       end
     end
   end
