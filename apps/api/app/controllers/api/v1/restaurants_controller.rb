@@ -30,7 +30,7 @@ module Api
       INDEX_LIMIT = 100
 
       def index
-        scope = Restaurant.published.includes(:city, :addresses)
+        scope = Restaurant.published.includes(:city, :addresses, :hours)
         q = params[:q].to_s.strip
         if q.present?
           scope = scope.where(
@@ -43,7 +43,7 @@ module Api
       end
 
       def show
-        restaurant = Restaurant.published.includes(:city).find_by_id_or_slug!(params[:id])
+        restaurant = Restaurant.published.includes(:city, :hours).find_by_id_or_slug!(params[:id])
         # `favorited` seeds the detail page's save button. Anonymous → false.
         render json: serialize(restaurant).merge(favorited: current_user_favorited_restaurant?(restaurant))
       end
@@ -73,7 +73,8 @@ module Api
 
       # Lighter than #serialize — list rows don't need claim fields,
       # but the home screen wants an address line + coords (the
-      # near-me sort lands with expo-location in a followup).
+      # near-me sort lands with expo-location in a followup). Hours
+      # are included so cards can show open/closed badges.
       def serialize_summary(r)
         first_address = r.addresses.first
         {
@@ -85,7 +86,15 @@ module Api
           city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
           street:    first_address&.street,
           latitude:  first_address&.latitude&.to_f,
-          longitude: first_address&.longitude&.to_f
+          longitude: first_address&.longitude&.to_f,
+          time_zone: r.city.time_zone,
+          hours: r.hours.map { |h|
+            {
+              day_of_week: h.day_of_week,
+              opens_at:    h.opens_at&.strftime("%H:%M"),
+              closes_at:   h.closes_at&.strftime("%H:%M")
+            }
+          }
         }
       end
 
@@ -116,6 +125,18 @@ module Api
             slug:   r.city.slug,
             name:   r.city.name,
             region: r.city.region
+          },
+          # Restaurant hours (sorted by day_of_week, then opens_at) and timezone
+          # for computing open/closed status. Multiple intervals per day support
+          # split shifts (lunch 11-14, dinner 17-21). Null opens_at/closes_at
+          # means closed that day.
+          time_zone: r.city.time_zone,
+          hours: r.hours.map { |h|
+            {
+              day_of_week: h.day_of_week,
+              opens_at:    h.opens_at&.strftime("%H:%M"),
+              closes_at:   h.closes_at&.strftime("%H:%M")
+            }
           }
         }
       end
