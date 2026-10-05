@@ -31,6 +31,7 @@ module Api
           email:        user.email,
           handle:       user.handle,
           display_name: user.display_name,
+          bio:          user.bio,
           provider:     user.provider,
           created_at:   user.created_at.iso8601
         }

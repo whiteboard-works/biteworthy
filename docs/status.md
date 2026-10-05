@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-05 (UTC) — **Public bio on profiles.** New nullable `users.bio` (trimmed, blank → NULL, max 300), writable through `PATCH /api/v1/me` beside `handle`, returned in the user payload, the public `/users/:handle` payload, and the account export. Web: an "About you" field under Public profile in settings that says up front it is public; `/u/<handle>` shows it under the name. The OpenAPI regen also picked up the restaurant `time_zone`/`hours` fields #774 shipped without exporting. Mobile is a follow-up.
+
 2026-10-02 (UTC) — **Web chat stops yanking a phone reader to the bottom; site nav folds on phones.** The transcript now follows new content only while the reader is within 48px of the bottom (sending, opening a chat, or a parked confirmation re-pins it), and it scrolls the transcript's own `scrollTop` instead of `scrollIntoView`, which also scrolled the page. The signed-in admin nav was 477px wide on a 390px phone and pushed the whole page sideways; under `md` it now collapses behind a menu button.
 
 2026-10-01 (UTC) — **Phone photo uploads no longer 413.** Uploads go through Vercel functions, which refuse request bodies over 4.5 MB before Rails sees them, so a full-size phone photo failed with a bare "Request failed (413)". `lib/shrink-image.ts` re-encodes any image over 1.5 MB to a 2000px JPEG on the device (bitmap decode, `<img>` fallback for Safari HEIC) before the chat attachment, scan, and review-photo uploads; the scan page shrinks on pick so its batch limits judge the bytes actually sent. Anything still over 4 MB (a big PDF) is refused up front with a clear message. Larger files would need direct-to-R2 uploads.

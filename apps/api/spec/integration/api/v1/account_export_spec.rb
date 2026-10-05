@@ -16,12 +16,13 @@ RSpec.describe "account/export", type: :request do
                  exported_at: { type: :string, format: "date-time" },
                  account: {
                    type: :object,
-                   required: %w[id email handle display_name provider created_at],
+                   required: %w[id email handle display_name bio provider created_at],
                    properties: {
                      id:           { type: :string, format: :uuid },
                      email:        { type: :string },
                      handle:       { type: :string },
                      display_name: { type: :string, nullable: true },
+                     bio:          { type: :string, nullable: true },
                      provider:     { type: :string, nullable: true },
                      created_at:   { type: :string, format: "date-time" }
                    }

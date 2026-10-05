@@ -26,7 +26,13 @@ import {
   type McpTokenWithSecret,
 } from '../../../lib/mcp-tokens';
 import { listConnectedApps, disconnectApp, type ConnectedApp } from '../../../lib/connected-apps';
-import { fetchMe, updateMyHandle, HandleValidationError } from '../../../lib/me';
+import {
+  fetchMe,
+  updateMyHandle,
+  updateMyBio,
+  HandleValidationError,
+  BIO_MAX_LENGTH,
+} from '../../../lib/me';
 import type { UserPayload } from '@biteworthy/api-types';
 import {
   fetchDietaryProfiles,
@@ -177,9 +183,88 @@ function PublicProfileSection() {
               </a>
             </p>
           )}
+          <BioEditor user={user} onSaved={setUser} />
         </>
       )}
     </section>
+  );
+}
+
+function BioEditor({ user, onSaved }: { user: UserPayload; onSaved: (user: UserPayload) => void }) {
+  const router = useRouter();
+  const [bio, setBio] = useState(user.bio ?? '');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const dirty = bio.trim() !== (user.bio ?? '');
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setSaved(false);
+      const updated = await updateMyBio(bio);
+      onSaved(updated);
+      setBio(updated.bio ?? '');
+      setSaved(true);
+    } catch (e) {
+      if (e instanceof NotSignedInError) {
+        router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+        return;
+      }
+      setSaveError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-bw-6">
+      <label htmlFor="bio" className="text-bw-sm font-semibold text-zinc-900">
+        About you
+      </label>
+      <p className="mt-bw-1 text-bw-sm text-zinc-500" data-testid="bio-public-note">
+        A line or two for your public profile. Anyone can read it, so leave out anything you
+        wouldn&apos;t post publicly — your dietary settings stay private either way.
+      </p>
+      <textarea
+        id="bio"
+        value={bio}
+        onChange={(e) => {
+          setBio(e.target.value);
+          setSaved(false);
+        }}
+        maxLength={BIO_MAX_LENGTH}
+        rows={3}
+        placeholder="Taco hunter. Always asking about the fryer."
+        className="mt-bw-2 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
+      />
+      <div className="mt-bw-2 flex items-center justify-between gap-bw-2">
+        <span className="text-bw-xs text-zinc-500">
+          {bio.length}/{BIO_MAX_LENGTH}
+        </span>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+          data-testid="bio-save"
+          className="rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
+        >
+          Save
+        </button>
+      </div>
+      {saveError ? (
+        <p role="alert" className="mt-bw-2 text-bw-sm text-danger" data-testid="bio-error">
+          {saveError}
+        </p>
+      ) : null}
+      {saved ? (
+        <p className="mt-bw-2 text-bw-sm text-ok" data-testid="bio-saved">
+          Saved.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

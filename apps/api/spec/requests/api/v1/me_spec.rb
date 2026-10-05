@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # PATCH /api/v1/me — self-service account editing. The contract that
-# matters: `handle` is the ONLY writable field. The payload rides the
+# matters: `handle` and `bio` are the ONLY writable fields. The payload rides the
 # same params hash as everything else, so an unpermitted `is_admin` or
 # `email` must fall on the floor rather than escalate the caller.
 RSpec.describe "Me endpoint", type: :request do
@@ -58,6 +58,34 @@ RSpec.describe "Me endpoint", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body["errors"]).to have_key("base")
+    end
+
+    it "sets the public bio, trimmed, and returns it in the payload" do
+      patch "/api/v1/me", params: { bio: "  Gluten-free in Durango.  " }, headers: auth_headers_for(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig("user", "bio")).to eq("Gluten-free in Durango.")
+      expect(user.reload.bio).to eq("Gluten-free in Durango.")
+    end
+
+    it "clears the bio when sent blank, leaving the handle alone" do
+      user.update!(bio: "old words")
+      handle = user.handle
+
+      patch "/api/v1/me", params: { bio: "   " }, headers: auth_headers_for(user)
+
+      expect(response).to have_http_status(:ok)
+      user.reload
+      expect(user.bio).to be_nil
+      expect(user.handle).to eq(handle)
+    end
+
+    it "422s a bio over the length cap rather than truncating it" do
+      patch "/api/v1/me", params: { bio: "a" * (User::BIO_MAX_LENGTH + 1) }, headers: auth_headers_for(user)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["errors"]).to have_key("bio")
+      expect(user.reload.bio).to be_nil
     end
 
     it "401s without a token" do

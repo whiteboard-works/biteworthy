@@ -34,6 +34,16 @@ RSpec.describe "GET /api/v1/users/:handle", type: :request do
     )
   end
 
+  it "shows the bio the user wrote, and null when they wrote none" do
+    user.update!(bio: "Celiac. Will drive for a dedicated fryer.")
+    get "/api/v1/users/#{user.handle}"
+    expect(response.parsed_body["bio"]).to eq("Celiac. Will drive for a dedicated fryer.")
+
+    user.update!(bio: nil)
+    get "/api/v1/users/#{user.handle}"
+    expect(response.parsed_body).to include("bio" => nil)
+  end
+
   it "never leaks sensitive fields (no email, no dietary profile, no jti)" do
     create(:review, user: user, item: item, rating: 5)
 
@@ -41,7 +51,7 @@ RSpec.describe "GET /api/v1/users/:handle", type: :request do
 
     body = response.parsed_body
     expect(body.keys).to contain_exactly(
-      "handle", "display_name", "member_since",
+      "handle", "display_name", "bio", "member_since",
       "reviews_count", "restaurants_reviewed_count", "recent_reviews"
     )
     serialized = response.body

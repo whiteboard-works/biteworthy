@@ -3,7 +3,7 @@ module Api
     # Phase 4.7 — public user profile lookup by handle.
     #
     # GET /api/v1/users/:handle returns a small *public* payload —
-    # display_name, handle, member_since, recent (visible) reviews
+    # display_name, handle, bio, member_since, recent (visible) reviews
     # and a count of restaurants they've reviewed at. Sensitive
     # fields (email, dietary profile, overrides, jti, sign_in
     # timestamps) are intentionally absent.
@@ -31,6 +31,7 @@ module Api
         render json: {
           handle:                     user.handle,
           display_name:               user.display_name,
+          bio:                        user.bio,
           member_since:               user.created_at,
           reviews_count:              user.reviews.visible.count,
           restaurants_reviewed_count: restaurants_reviewed_count,
