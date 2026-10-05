@@ -154,7 +154,7 @@ export function TopPicksRow({
               >
                 {(item.photo_urls?.card || item.photo_url) && (
                   <img
-                    src={item.photo_urls?.card || item.photo_url}
+                    src={item.photo_urls?.card || item.photo_url || undefined}
                     srcSet={
                       item.photo_urls
                         ? `${item.photo_urls.thumb} 200w, ${item.photo_urls.card} 600w`

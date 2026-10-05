@@ -58,7 +58,7 @@ export function ItemRow({
         // varies per env; loader config would have to learn each one.
         // Use WebP card variant with fallback to original.
         <img
-          src={item.photo_urls?.card || item.photo_url}
+          src={item.photo_urls?.card || item.photo_url || undefined}
           srcSet={
             item.photo_urls
               ? `${item.photo_urls.thumb} 200w, ${item.photo_urls.card} 600w`
