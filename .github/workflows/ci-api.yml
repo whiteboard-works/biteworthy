@@ -65,9 +65,10 @@ jobs:
       # MiniMagick which shells out to `magick`/`identify`. The
       # ubuntu-latest runner ships ImageMagick today but be explicit
       # so a future runner image change doesn't silently break us.
-      # libvips for ActiveStorage variant processing (WebP generation).
+      # libvips-dev for ActiveStorage variant processing (WebP generation).
+      # libwebp-dev required for WebP format support in libvips.
       - name: Install ImageMagick and libvips
-        run: sudo apt-get update -y && sudo apt-get install -y imagemagick libvips42
+        run: sudo apt-get update -y && sudo apt-get install -y imagemagick libvips-dev libwebp-dev
 
       - uses: ruby/setup-ruby@v1
         with:
