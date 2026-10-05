@@ -186,6 +186,7 @@ RSpec.configure do |config|
               email:        { type: :string, format: :email },
               handle:       { type: :string },
               display_name: { type: :string, nullable: true },
+              bio:          { type: :string, nullable: true },
               is_admin:     { type: :boolean },
               is_super_admin: {
                 type: :boolean,

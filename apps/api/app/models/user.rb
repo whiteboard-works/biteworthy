@@ -64,6 +64,13 @@ class User < ApplicationRecord
   validates :handle, presence: true, uniqueness: { case_sensitive: false },
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
 
+  # The public bio on /u/:handle. Plain text, capped so it stays a line
+  # or two under the name; a blank one is stored as NULL so "no bio"
+  # has one spelling.
+  BIO_MAX_LENGTH = 300
+  normalizes :bio, with: ->(bio) { bio.strip.presence }
+  validates :bio, length: { maximum: BIO_MAX_LENGTH }
+
   # Mirrors the `super_admin_implies_admin` CHECK constraint so the
   # invariant surfaces as a 422 rather than a PG::CheckViolation 500.
   # The database is still the enforcement; this is the error message.

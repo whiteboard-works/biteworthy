@@ -25,7 +25,7 @@ RSpec.describe "me", type: :request do
       end
     end
 
-    patch("Update the caller's own account (handle)") do
+    patch("Update the caller's own account (handle, bio)") do
       tags "Auth"
       consumes "application/json"
       produces "application/json"
@@ -38,7 +38,9 @@ RSpec.describe "me", type: :request do
           # Any case in, stored lowercase (the response carries the
           # canonical spelling). The old handle frees up immediately
           # and /u/<old> stops resolving.
-          handle: { type: :string, pattern: "^[A-Za-z0-9_]{3,30}$" }
+          handle: { type: :string, pattern: "^[A-Za-z0-9_]{3,30}$" },
+          # Public, shown on /u/<handle>. Trimmed; blank clears it.
+          bio:    { type: :string, nullable: true, maxLength: 300 }
         }
       }
 

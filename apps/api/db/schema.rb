@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -701,6 +701,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "age_confirmed_at"
+    t.text "bio"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
     t.string "display_name"

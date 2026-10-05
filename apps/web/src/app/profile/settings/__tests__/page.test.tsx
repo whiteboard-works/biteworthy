@@ -62,6 +62,7 @@ vi.mock('../../../../lib/cities', () => ({
 
 const mockFetchMe = vi.fn();
 const mockUpdateMyHandle = vi.fn();
+const mockUpdateMyBio = vi.fn();
 vi.mock('../../../../lib/me', () => {
   class HandleValidationError extends Error {
     constructor(public readonly messages: string[]) {
@@ -72,6 +73,8 @@ vi.mock('../../../../lib/me', () => {
   return {
     fetchMe: (...a: unknown[]) => mockFetchMe(...a),
     updateMyHandle: (...a: unknown[]) => mockUpdateMyHandle(...a),
+    updateMyBio: (...a: unknown[]) => mockUpdateMyBio(...a),
+    BIO_MAX_LENGTH: 300,
     HandleValidationError,
   };
 });
@@ -114,6 +117,7 @@ const ME = {
   email: 'sky@example.com',
   handle: 'diner_ab12cd34',
   display_name: 'Sky',
+  bio: null as string | null,
   is_admin: false,
   is_super_admin: false,
 };
@@ -146,6 +150,9 @@ beforeEach(() => {
   mockRevokeToken.mockReset().mockResolvedValue(undefined);
   mockFetchMe.mockReset().mockResolvedValue(structuredClone(ME));
   mockUpdateMyHandle.mockReset().mockResolvedValue({ ...structuredClone(ME), handle: 'chosen_name' });
+  mockUpdateMyBio.mockReset().mockImplementation((bio: string) =>
+    Promise.resolve({ ...structuredClone(ME), bio: bio.trim() || null }),
+  );
 });
 
 afterEach(() => localStorage.clear());
@@ -619,6 +626,51 @@ describe('ProfileSettingsPage — public profile (username)', () => {
     expect(await screen.findByTestId('handle-error')).toHaveTextContent(
       'Username has already been taken.',
     );
+  });
+});
+
+describe('ProfileSettingsPage — public profile (about)', () => {
+  it('prefills the saved bio and only enables Save once it changes', async () => {
+    mockFetchMe.mockResolvedValue({ ...structuredClone(ME), bio: 'Celiac in Durango.' });
+    render(<ProfileSettingsPage />);
+
+    const textarea = await screen.findByLabelText('About you');
+    expect(textarea).toHaveValue('Celiac in Durango.');
+    expect(screen.getByTestId('bio-save')).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: 'Celiac in Durango. Taco hunter.' } });
+    expect(screen.getByTestId('bio-save')).toBeEnabled();
+  });
+
+  it('saves the bio and confirms, without touching the username', async () => {
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('About you'), {
+      target: { value: 'Vegetarian, dessert first.' },
+    });
+    fireEvent.click(screen.getByTestId('bio-save'));
+
+    await waitFor(() => expect(mockUpdateMyBio).toHaveBeenCalledWith('Vegetarian, dessert first.'));
+    expect(await screen.findByTestId('bio-saved')).toBeInTheDocument();
+    expect(mockUpdateMyHandle).not.toHaveBeenCalled();
+  });
+
+  // The bio is public, and the dietary profile is health data that must
+  // never be public (legal E13). The field says so before anyone types.
+  it('warns that the bio is public', async () => {
+    render(<ProfileSettingsPage />);
+    await screen.findByLabelText('About you');
+    expect(screen.getByTestId('bio-public-note')).toHaveTextContent(/anyone/i);
+  });
+
+  it('shows a failed save inline', async () => {
+    mockUpdateMyBio.mockRejectedValue(new Error('Bio is too long'));
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('About you'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByTestId('bio-save'));
+
+    expect(await screen.findByTestId('bio-error')).toHaveTextContent('Bio is too long');
   });
 });
 
