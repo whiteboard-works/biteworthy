@@ -119,7 +119,7 @@ class GapFillResolveJob < ApplicationJob
       # Capture detailed error info for admin visibility
       error_summary = "#{e.class.name}: #{e.message}"
       Rails.logger.error("GapFillResolveJob final failure for run #{run.id}: #{error_summary}")
-      
+
       IngestionRun.where(id: run.id, enrichment_status: "pending")
                   .update_all(
                     enrichment_status: "failed",

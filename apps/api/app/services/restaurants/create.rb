@@ -59,7 +59,7 @@ module Restaurants
         # Use a higher threshold when comparing restaurants with different
         # street addresses to avoid false positives from generic terms.
         threshold = DUPLICATE_SIMILARITY_THRESHOLD
-        
+
         candidates = Restaurant
           .kept
           .where(city: city)
@@ -69,7 +69,7 @@ module Restaurants
                           )))
           .limit(MAX_DUPLICATE_CANDIDATES)
           .includes(:addresses)
-        
+
         # If the incoming request has a street address, filter out candidates
         # with different streets unless they meet the higher similarity threshold
         if street.present?
@@ -91,7 +91,7 @@ module Restaurants
             end
           end
         end
-        
+
         candidates.map { |r| candidate_row(r, creator) }
       end
 
