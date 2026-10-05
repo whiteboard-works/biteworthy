@@ -107,6 +107,25 @@ export function updateAdminItem(
   return patchAdminJson(`/api/admin/items/${encodeURIComponent(id)}`, body, fetchImpl);
 }
 
+/**
+ * Update an item with multipart form data (for photo uploads).
+ */
+export async function updateAdminItemMultipart(
+  id: string,
+  formData: FormData,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdminItemRow> {
+  const res = await fetchImpl(`/api/admin/items/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new AdminError(res.status, body);
+  }
+  return res.json();
+}
+
 /** Human copy for the deep-edit endpoint's structured refusals. */
 export function itemEditErrorCopy(err: unknown): string | null {
   if (!(err instanceof AdminError)) return null;
