@@ -274,32 +274,35 @@ class IngestionItem < ApplicationRecord
   end
 
   # Map numeric confidence + source → Item confidence enum, capped/promoted by who accepted.
+  #
+  # Community accept: no join is ever "confirmed"; all capped at "suggested" or "inferred".
+  # Admin/owner accept:
+  #   - source "match" (or nil → "match") → "confirmed" (human reviewed)
+  #   - source "derived" → "suggested" (implied keyword like pizza → wheat)
+  #   - source "ai" → "suggested" if numeric ≥ 0.8, else "inferred"
+  #
+  # Source provenance (verified 2026-10-05):
+  #   - IngredientMatcher.scan (deterministic): source="match" (ingredient_matcher.rb:64)
+  #   - DeterministicResolver implied_rows: source="derived" (deterministic_resolver.rb:170)
+  #   - GapFillResolveJob AI enrichment: source="ai" (gap_fill_resolve_job.rb:207,247)
+  #   - Human edits via tools: source="human" (edit_staged_item.rb:129, item_editor.rb:100,115)
+  #   - DB default for joins: source="human"
   def map_confidence(numeric, source, accept_cap)
-    # DeterministicResolver's IngredientMatcher produces rows without a source field
-    # (only implied_rows adds source:"derived", gap-fill adds source:"ai").
-    # Treat nil source as "match" — it came from menu text.
+    # Treat nil source as "match" (IngredientMatcher produces rows without source)
     source = "match" if source.nil?
-    # Treat nil numeric as below threshold (0) so it maps to suggested.
+    # Treat nil numeric as 0 for threshold comparisons
     numeric = numeric&.to_f || 0.0
 
-    # Derived and AI rows honor their intrinsic confidence regardless of who accepted
-    # (a pizza's implied wheat stays "suggested" even when an admin accepts the dish)
-    if source == "derived"
-      return "suggested"
-    elsif source == "ai"
-      return numeric >= 0.8 ? "suggested" : "inferred"
-    end
+    # Derived: always "suggested" regardless of acceptor
+    return "suggested" if source == "derived"
 
-    # Explicit menu text (source="match"):
-    # - Admin/owner accept: promote all non-zero numeric to confirmed (nil→0 stays suggested)
-    # - Community accept: derive from numeric threshold, cap at suggested
-    if accept_cap == "confirmed"
-      numeric > 0 ? "confirmed" : "suggested"
-    elsif numeric >= 0.95
-      "suggested" # community accept caps confirmed → suggested
-    else
-      "suggested"
-    end
+    # AI: based on numeric, regardless of acceptor
+    return numeric >= 0.8 ? "suggested" : "inferred" if source == "ai"
+
+    # Match (explicit menu text):
+    # - Admin/owner: "confirmed" (human reviewed, trusts the match)
+    # - Community: "suggested" (cap; no community row becomes confirmed)
+    accept_cap == "confirmed" ? "confirmed" : "suggested"
   end
 
   # Item confidence is the weakest link: if any join is inferred, the item
