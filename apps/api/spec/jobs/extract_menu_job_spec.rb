@@ -281,9 +281,18 @@ RSpec.describe ExtractMenuJob, type: :job do
     end
 
     it "succeeds when text/html input has sufficient content" do
-      menu_html = "<html><body><h1>Menu</h1><p>Tacos $5</p><p>Burritos $7</p>" +
-                  "<p>Quesadilla $6</p><p>Guacamole $4</p><p>Salsa $3</p>" +
-                  "<p>Chips $2</p><p>Beans $3</p></body></html>"
+      # Create content that's well over 200 chars to pass the MIN_TEXT_LENGTH check
+      menu_html = "<html><body><h1>Restaurant Menu</h1>" +
+                  "<h2>Appetizers</h2>" +
+                  "<p>Tacos al Pastor - Marinated pork with pineapple, onions, and cilantro $5.99</p>" +
+                  "<p>Burritos Supreme - Large flour tortilla filled with beans, rice, cheese $7.99</p>" +
+                  "<p>Quesadilla Grande - Grilled cheese quesadilla with sour cream $6.50</p>" +
+                  "<h2>Sides</h2>" +
+                  "<p>Guacamole Fresco - Fresh avocado dip with lime and cilantro $4.25</p>" +
+                  "<p>Salsa Roja - Homemade red salsa $3.00</p>" +
+                  "<p>Chips and Queso - Tortilla chips with cheese dip $2.50</p>" +
+                  "<p>Refried Beans - Traditional Mexican beans $3.25</p>" +
+                  "</body></html>"
       run.inputs.attach(
         io:           StringIO.new(menu_html),
         filename:     "menu.html",

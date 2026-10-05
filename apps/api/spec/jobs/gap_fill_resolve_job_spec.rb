@@ -317,7 +317,9 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.status).to eq("staged")
       expect(run.enrichment_status).to eq("failed")
       expect(run.failure_message).to be_nil
-      expect(Rails.logger).to have_received(:error).with(/gap_fill_api_error/)
+      # Error is logged multiple times: once in timed_anthropic_call (soft failure),
+      # once in the slice failure handler, and once in the final rescue block
+      expect(Rails.logger).to have_received(:error).with(/gap_fill_api_error/).at_least(:once)
     end
 
     it "an unexpected error (transport, bug) on the last attempt marks enrichment failed" do
