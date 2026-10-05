@@ -25,6 +25,17 @@ module Ingestion
         * `cuisine_tags.unresolved`: cuisine-ish phrases not in the
           catalog.
 
+      Safety-critical: Always infer typical preparation methods that affect
+      allergen safety. Common examples:
+        * Gravy is typically flour-thickened (grain-wheat-gravy or grain-wheat-roux)
+        * Fried items often use wheat batter or breading (grain-wheat-batter, grain-wheat-breading)
+        * Samosas typically use wheat pastry
+        * Chile rellenos are typically battered
+        * Sauces with roux bases contain wheat flour
+      If uncertain whether a preparation uses wheat, include it with lower
+      confidence rather than omitting it — false negatives are dangerous
+      for allergy users.
+
       Rules:
         * Use slugs **verbatim** from the catalogs — no fuzzy matches,
           no inventing.
