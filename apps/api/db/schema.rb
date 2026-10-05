@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -69,6 +69,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_190000) do
     t.string "name", null: false
     t.string "region"
     t.string "slug", null: false
+    t.string "time_zone"
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_cities_on_slug", unique: true
   end
