@@ -155,10 +155,16 @@ module Biteworthy
         input_kind: input_kind_for(menu_source),
         source_url: menu_source.start_with?("http") ? menu_source : nil
       )
+
       attach_input!(run, menu_source)
       run.transition_to!(:extracting)
       ExtractMenuJob.perform_later(run.id)
       run
+    rescue StandardError => e
+      # Attach or extraction setup failed — mark the run so the error
+      # surfaces in /admin rather than leaving it stuck in :queued.
+      run&.fail!(e.message) if run&.persisted?
+      raise
     end
 
     def input_kind_for(menu_source)

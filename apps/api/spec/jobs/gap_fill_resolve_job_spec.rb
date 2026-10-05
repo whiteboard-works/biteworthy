@@ -336,6 +336,31 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.enrichment_failure_message).to match(/\d+s/)
     end
 
+    it "clears enrichment_failure_message on successful retry after a failure" do
+      calls = 0
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create) do
+        calls += 1
+        if calls == 1
+          raise Faraday::TimeoutError
+        else
+          response
+        end
+      end
+      allow(Rails.logger).to receive(:error)
+
+      # First attempt fails and sets enrichment_failure_message
+      described_class.perform_now(run.id)
+      run.reload
+      expect(run.enrichment_status).to eq("pending")
+      expect(run.enrichment_failure_message).to include("timeout")
+
+      # Retry succeeds and clears the failure message
+      described_class.perform_now(run.id)
+      run.reload
+      expect(run.enrichment_status).to eq("completed")
+      expect(run.enrichment_failure_message).to be_nil
+    end
+
     it "ValidationError still accrues the billed usage" do
       usage = { "input_tokens" => 10_000, "output_tokens" => 100,
                 "cache_read_input_tokens" => 0, "cache_creation_input_tokens" => 0 }
