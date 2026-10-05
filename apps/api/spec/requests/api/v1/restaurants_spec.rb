@@ -69,6 +69,74 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "hours and timezone in response" do
+    let(:denver_city) { create(:city, slug: "denver", region: "Colorado", time_zone: "America/Denver") }
+    let(:restaurant_with_hours) { create(:restaurant, :published, city: denver_city) }
+
+    it "includes timezone from city" do
+      get "/api/v1/restaurants/#{restaurant_with_hours.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["time_zone"]).to eq("America/Denver")
+    end
+
+    it "includes empty hours array when no hours exist" do
+      get "/api/v1/restaurants/#{restaurant_with_hours.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["hours"]).to eq([])
+    end
+
+    it "includes hours sorted by day and opening time" do
+      # Dinner shift Monday
+      restaurant_with_hours.hours.create!(day_of_week: 1, opens_at: "17:00", closes_at: "21:00")
+      # Lunch shift Monday (added second to test sorting)
+      restaurant_with_hours.hours.create!(day_of_week: 1, opens_at: "11:00", closes_at: "14:00")
+      # Sunday
+      restaurant_with_hours.hours.create!(day_of_week: 0, opens_at: "12:00", closes_at: "20:00")
+
+      get "/api/v1/restaurants/#{restaurant_with_hours.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["hours"]).to eq([
+        { "day_of_week" => 0, "opens_at" => "12:00", "closes_at" => "20:00" },
+        { "day_of_week" => 1, "opens_at" => "11:00", "closes_at" => "14:00" },
+        { "day_of_week" => 1, "opens_at" => "17:00", "closes_at" => "21:00" }
+      ])
+    end
+
+    it "handles overnight shifts that close after midnight" do
+      restaurant_with_hours.hours.create!(day_of_week: 5, opens_at: "22:00", closes_at: "02:00")
+
+      get "/api/v1/restaurants/#{restaurant_with_hours.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["hours"].first).to include(
+        "day_of_week" => 5,
+        "opens_at" => "22:00",
+        "closes_at" => "02:00"
+      )
+    end
+
+    it "handles closed days with null times" do
+      restaurant_with_hours.hours.create!(day_of_week: 2, opens_at: nil, closes_at: nil)
+
+      get "/api/v1/restaurants/#{restaurant_with_hours.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["hours"].first).to eq(
+        "day_of_week" => 2,
+        "opens_at" => nil,
+        "closes_at" => nil
+      )
+    end
+  end
 end
 
 # Phase 7.2 — list/search backing the mobile home screen. The :index

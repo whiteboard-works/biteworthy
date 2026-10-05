@@ -13,6 +13,8 @@ const summary = (slug: string, name: string, city = 'Durango'): RestaurantSummar
   street: null,
   latitude: null,
   longitude: null,
+  time_zone: null,
+  hours: [],
 });
 
 const LIST = [
