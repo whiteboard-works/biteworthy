@@ -375,6 +375,9 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`find_restaurants`** — search by name or city, with filters for status
   (draft/published/closed) and archived state. Unlike public search, this
   shows everything.
+- **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
+  with candidate matches if the name looks like an existing one in that city;
+  call again with force: true after reviewing. New restaurants land as draft.
 - **`update_restaurant`** — edit name, about, website, phone, and address.
   Address is a wholesale replacement when any address field is provided.
   Reuses `Places::Writer` validation.

@@ -87,6 +87,7 @@ module Tools
       ],
       admin: [
         "Admin::FindRestaurants",
+        "Admin::CreateRestaurant",
         "Admin::UpdateRestaurant",
         "Admin::SetRestaurantHours",
         "Admin::StartScan",

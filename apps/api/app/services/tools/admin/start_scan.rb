@@ -10,14 +10,14 @@ module Tools
       tool_name "start_scan"
       title "Scan a menu (admin)"
       description <<~TEXT
-        Start extracting a restaurant's menu from a URL, pasted text, an
-        uploaded photo/PDF, OR base64-encoded content. Provide exactly one
-        source.
+        Start extracting a restaurant's menu from a URL, raw text, an uploaded
+        photo/PDF, OR base64-encoded content. Provide exactly one source.
 
-        This is the admin version of start_menu_scan: it accepts
-        base64_pdf/base64_image for captcha-blocked or manually-supplied menus
-        that cannot be fetched by URL. The base64 content is decoded and
-        processed the same way as an uploaded file.
+        This is the admin version of start_menu_scan: it accepts base64_pdf
+        and base64_image for captcha-blocked or manually-supplied menus that
+        cannot be fetched by URL, plus source_text for pasted/typed menu
+        content. The base64 content is decoded and processed the same way as
+        an uploaded file.
 
         Returns immediately — extraction takes 20-60 seconds. Poll get_scan
         with the returned scan_id.
