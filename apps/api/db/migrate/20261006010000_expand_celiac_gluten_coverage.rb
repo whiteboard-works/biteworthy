@@ -40,7 +40,7 @@ class ExpandCeliacGlutenCoverage < ActiveRecord::Migration[8.0]
       tamari.assign_attributes(
         name: "Tamari",
         path: "soy.tamari",
-        aliases: ["gluten free soy sauce"],
+        aliases: [ "gluten free soy sauce" ],
         allergen: false
       )
       tamari.save!
