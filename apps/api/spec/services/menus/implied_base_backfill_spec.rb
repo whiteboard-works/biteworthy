@@ -148,9 +148,28 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(item.reload.denormalized_ingredient_ids).to include(breading.id)
     end
 
-    it "skips a dish that already has wheat" do
-      create(:item, :published, name: "Country Gravy", ingredients: [ wheat ])
+    # Avoiding gravy expands down the tree, not up: a generic wheat row
+    # does not hide a gravy dish from someone avoiding gravy itself.
+    it "adds the specific row even when generic wheat is already there" do
+      item = create(:item, :published, name: "Biscuits and Country Gravy", ingredients: [ wheat ])
+      run
+      expect(item.reload.denormalized_ingredient_ids).to include(gravy.id)
+    end
+
+    it "skips a match whose node is already there" do
+      create(:item, :published, name: "Country Gravy", ingredients: [ gravy ])
       expect(run.changes).to be_empty
+    end
+
+    # "biscuit" was a #638 name keyword, so a September biscuit got wheat
+    # then. No wheat now means a person removed it, and #766's biscuit
+    # ingredient must not put it back.
+    it "leaves alone a dish whose old name keyword was live and whose wheat is gone" do
+      create(:ingredient, slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit")
+      created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))
+      result = run
+      expect(result.changes).to be_empty
+      expect(result.reviews).to be_empty
     end
 
     it "respects a gluten-free claim in the name" do

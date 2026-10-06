@@ -97,11 +97,16 @@ module Menus
     private
 
     def change_for(item)
-      existing = item.denormalized_ingredient_ids.filter_map { |id| { path: @paths[id] } if @paths[id] }
+      existing  = item.denormalized_ingredient_ids.filter_map { |id| { path: @paths[id] } if @paths[id] }
+      has_wheat = existing.any? { |e| e[:path].start_with?("grain.wheat") }
+
+      # A name keyword live when the dish was promoted gave it wheat then.
+      # No wheat now means a person removed it; no rule may put it back.
+      name_cutoff = name_cutoff(item.name)
+      return nil if name_cutoff && item.created_at >= name_cutoff && !has_wheat
 
       text = item.created_at < LIVE_SINCE_766 ? text_rows(item, existing) : []
-      name_cutoff = live_since(item.name)
-      implied = item.created_at < name_cutoff ? @resolver.implied_rows_for_name(item.name, existing + text) : []
+      implied = name_cutoff && item.created_at < name_cutoff ? @resolver.implied_rows_for_name(item.name, existing + text) : []
       rows = text + implied
       return nil if rows.empty?
 
@@ -110,20 +115,24 @@ module Menus
                                            .select { |slug| @tag_ids.key?(slug) }
                                            .reject { |slug| item.denormalized_tag_ids.include?(@tag_ids[slug]) }
 
+      # Every rule that matched counts, even one whose row turned out
+      # redundant: a "Biscuit" from September had #638's rule, so an
+      # edit since then may be a correction, whatever #766 adds.
+      cutoff = [ name_cutoff, (LIVE_SINCE_766 if text.any?) ].compact.min
+
       Change.new(item_id: item.id, item_name: item.name,
                  restaurant_id: item.restaurant_id, restaurant_name: item.restaurant&.name,
-                 ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags,
-                 cutoff: implied.any? ? name_cutoff : LIVE_SINCE_766)
+                 ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags, cutoff:)
     end
 
     # What a scan today would match for #766's ingredients, with the
     # resolver's rule for claims: a name's own "gluten-free" beats a match
     # in that name, while a description that lists breading is not
-    # gluten-free whatever the name says. Nothing to add when the dish
-    # already carries wheat; the filter hides it either way.
+    # gluten-free whatever the name says. A generic wheat row does not
+    # cover these: avoiding gravy expands down the tree, not up, so a
+    # dish needs the gravy row itself. Skipped only when that node or one
+    # below it is already there.
     def text_rows(item, existing)
-      return [] if existing.any? { |e| e[:path].start_with?("grain.wheat") }
-
       claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
       in_name = @matcher.scan(item.name).first.reject do |m|
         Ingestion::DietClaims.contradicted?(claims, slug: m[:slug], path: m[:path])
@@ -133,7 +142,12 @@ module Menus
       (in_name + in_description)
         .select { |m| TEXT_SLUGS_SINCE_766.include?(m[:slug]) && @ids.key?(m[:slug]) }
         .uniq { |m| m[:slug] }
+        .reject { |m| covered?(m[:path].to_s, existing) }
         .map { |m| { slug: m[:slug], path: m[:path].to_s, confidence: m[:confidence], source: "derived" } }
+    end
+
+    def covered?(path, existing)
+      existing.any? { |e| e[:path] == path || e[:path].start_with?("#{path}.") }
     end
 
     # `updated_at` moves on any ingredient change (the array resync
@@ -145,16 +159,17 @@ module Menus
       item.updated_at >= change.cutoff
     end
 
-    # The earliest keyword the name hits decides: every keyword here
-    # implies the same base, so once any of them was live the dish got
-    # that base at promotion, and a missing row means a person removed
-    # it. A "Chile Relleno Burrito" from September got wheat from
-    # "burrito" even though "relleno" came later.
-    def live_since(name)
+    # The earliest keyword the name hits decides, nil when it hits none:
+    # every keyword here implies the same base, so once any of them was
+    # live the dish got that base at promotion. A "Chile Relleno Burrito"
+    # from September got wheat from "burrito" even though "relleno" came
+    # later.
+    def name_cutoff(name)
       segments = Ingestion::MenuText.segments(name)
-      earlier  = Ingestion::TagDeriver.keyword_hits(segments, EARLIER_TERMS, confidence: 1.0)
-      later    = Ingestion::TagDeriver.keyword_hits(segments, LATER_TERMS, confidence: 1.0)
-      later.any? && earlier.none? ? LIVE_SINCE_766 : LIVE_SINCE_638
+      return LIVE_SINCE_638 if Ingestion::TagDeriver.keyword_hits(segments, EARLIER_TERMS, confidence: 1.0).any?
+      return LIVE_SINCE_766 if Ingestion::TagDeriver.keyword_hits(segments, LATER_TERMS, confidence: 1.0).any?
+
+      nil
     end
 
     def add!(item, change)
