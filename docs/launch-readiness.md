@@ -259,7 +259,7 @@ provider up again on a new box:
 Dishes promoted before #638, #766, or #794 lack the gluten rows those rules add. Run the dry run, read the list, then apply:
 
 - `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"`
-- `kamal app exec --reuse --roles web --env APPLY:1 "bin/rails biteworthy:menus:backfill_implied_bases"`
+- `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases" --env APPLY:1`
 
 Add-only and idempotent. It never writes over what may be a person's decision: a dish missing a base that a rule live at its promotion should have added, or a dish edited since a rule went live, is listed under "to review by hand" with its admin restaurant link instead. Any FAILED line is a dish to fix by hand in admin, and the task then exits 1.
 
