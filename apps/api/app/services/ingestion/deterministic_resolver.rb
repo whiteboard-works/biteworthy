@@ -109,6 +109,14 @@ module Ingestion
       end
     end
 
+    # The implied-base rows a dish name alone earns, given what is already
+    # matched. Public for Menus::ImpliedBaseBackfill, which applies this
+    # table to dishes promoted before it grew.
+    def implied_rows_for_name(name, matches)
+      segments = MenuText.segments(name)
+      implied_rows(implied_base_hits(segments), matches, DietClaims.claims_in(segments))
+    end
+
     private
 
     # The description is the ingredient authority: its leftovers always

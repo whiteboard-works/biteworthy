@@ -78,6 +78,24 @@ namespace :biteworthy do
       puts "== Done =="
     end
 
+    # The fix the audit above only reports. Dry run by default: it lists
+    # every dish it would change. APPLY=1 writes the rows. Add-only and
+    # idempotent, so a second run after an apply lists nothing.
+    #
+    #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"
+    #   kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"
+    desc "Add the base ingredient a dish name implies (Samosa -> wheat) to dishes that lack it. APPLY=1 writes."
+    task backfill_implied_bases: :environment do
+      apply   = ENV["APPLY"] == "1"
+      changes = Menus::ImpliedBaseBackfill.call(apply: apply)
+
+      puts "== #{apply ? 'Applied' : 'Dry run'}: #{changes.size} dishes =="
+      changes.each do |c|
+        puts "  #{c.restaurant_name} — #{c.item_name}: + #{c.slugs.join(', ')}"
+      end
+      puts "Re-run with APPLY=1 to write these rows." if !apply && changes.any?
+    end
+
     desc "Re-extract all items in a restaurant's most recent ingestion run"
     task :reextract_restaurant, [ :restaurant_id ] => :environment do |_t, args|
       restaurant_id = args[:restaurant_id]

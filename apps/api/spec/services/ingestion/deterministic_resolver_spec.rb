@@ -22,6 +22,24 @@ RSpec.describe Ingestion::DeterministicResolver do
 
   def resolve(*items) = described_class.call(items, matcher: matcher)
 
+  describe "#implied_rows_for_name" do
+    let(:resolver) { described_class.new(matcher: matcher) }
+
+    it "returns the base a dish name implies, as a derived row" do
+      rows = resolver.implied_rows_for_name("Margherita Pizza", [])
+      expect(rows).to contain_exactly(include(slug: "grain-wheat", source: "derived"))
+    end
+
+    it "skips a base already covered by a match in its subtree" do
+      existing = [{ slug: "grain-wheat-pasta", path: "grain.wheat.pasta" }]
+      expect(resolver.implied_rows_for_name("Pasta Primavera", existing)).to be_empty
+    end
+
+    it "lets the name's diet claim win" do
+      expect(resolver.implied_rows_for_name("Gluten-Free Pizza", [])).to be_empty
+    end
+  end
+
   it "writes string-keyed payload rows with slug/confidence/source" do
     result = resolve(StubItem.new("id-1", "Taco", "Grilled steak, cilantro, lime", "Tacos")).first
 
