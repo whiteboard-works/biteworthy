@@ -54,10 +54,28 @@ module Ingestion
         bread toast crostini bruschetta bruschettas bruschette flatbread
         naan pita pitas cornbread bagel croissant biscuit pretzel
         pancake waffle crepe tempura
-        dumpling gyoza potsticker wonton noodle ramen udon
+        dumpling gyoza potsticker wonton ramen udon
         cake pie tart brownie cookie donut churro
         samosa relleno
-      ] + ["lo mein", "chow mein", "gulab jamun"]
+        battered breaded crusted panko
+        roti chapati paratha puri momo
+        empanada schnitzel katsu croquette
+        seitan couscous bulgur farro orzo
+        gravy hotcake
+      ] + [
+        "lo mein", "chow mein", "gulab jamun",
+        "egg roll", "spring roll", "soy sauce", "malt vinegar"
+      ]
+    }.freeze
+
+    # Matches that sit outside the gluten grain trees but almost always
+    # carry wheat or barley. Union the grain so Celiac path-avoids hide
+    # them; DietClaims still suppresses the union when the NAME says GF.
+    GLUTEN_IMPLICATIONS = {
+      "soy-soy-sauce" => "grain-wheat",
+      "soy-teriyaki" => "grain-wheat",
+      "condiment-sauces-gravy" => "grain-wheat",
+      "condiment-malt-vinegar" => "grain-barley"
     }.freeze
 
     # Plural bridge, same idea as IngredientMatcher#singularize_last:
@@ -83,6 +101,7 @@ module Ingestion
       items.map do |item|
         name_claims = DietClaims.claims_in(MenuText.segments(item.name))
         matches, gap_phrases = match_item(item, name_claims)
+        matches += implied_from_matches(matches, name_claims)
         name_hits = implied_base_hits(MenuText.segments(item.name))
         matches += implied_rows(name_hits, matches, name_claims)
 
@@ -161,13 +180,26 @@ module Ingestion
     # contradicts the base. Every hit still routes the item to gap-fill.
     def implied_rows(hits, matches, name_claims)
       hits.filter_map do |hit|
-        path = @matcher.path_for(hit[:slug])
-        next if path.nil?
-        next if matches.any? { |m| TagDeriver.under_any?(m[:path].to_s, [path]) }
-        next if DietClaims.contradicted?(name_claims, slug: hit[:slug], path: path)
-
-        { slug: hit[:slug], path: path, confidence: hit[:confidence], source: "derived" }
+        derive_row(hit[:slug], matches, name_claims, confidence: hit[:confidence])
       end.uniq
+    end
+
+    def implied_from_matches(matches, name_claims)
+      matches.filter_map do |match|
+        implied_slug = GLUTEN_IMPLICATIONS[match[:slug]]
+        next unless implied_slug
+
+        derive_row(implied_slug, matches, name_claims, confidence: IMPLIED_BASE_CONFIDENCE)
+      end.uniq
+    end
+
+    def derive_row(slug, matches, name_claims, confidence:)
+      path = @matcher.path_for(slug)
+      return if path.nil?
+      return if matches.any? { |m| TagDeriver.under_any?(m[:path].to_s, [path]) }
+      return if DietClaims.contradicted?(name_claims, slug: slug, path: path)
+
+      { slug: slug, path: path, confidence: confidence, source: "derived" }
     end
 
     def payload_row(row)

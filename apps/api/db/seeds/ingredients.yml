@@ -122,12 +122,12 @@
   allergen: false
 - slug: alcohol-ipa
   name: IPA
-  path: alcohol.ipa
+  path: alcohol.beer.ipa
   aliases: []
   allergen: false
 - slug: alcohol-lager
   name: Lager
-  path: alcohol.lager
+  path: alcohol.beer.lager
   aliases: []
   allergen: false
 - slug: alcohol-madeira
@@ -150,9 +150,20 @@
   path: alcohol.mirin
   aliases: []
   allergen: false
+- slug: alcohol-pilsner
+  name: Pilsner
+  path: alcohol.beer.pilsner
+  aliases:
+  - pils
+  allergen: false
 - slug: alcohol-port
   name: Port
   path: alcohol.port
+  aliases: []
+  allergen: false
+- slug: alcohol-porter
+  name: Porter
+  path: alcohol.beer.porter
   aliases: []
   allergen: false
 - slug: alcohol-red-wine
@@ -197,7 +208,7 @@
   allergen: false
 - slug: alcohol-stout
   name: Stout
-  path: alcohol.stout
+  path: alcohol.beer.stout
   aliases: []
   allergen: false
 - slug: alcohol-tequila
@@ -2370,6 +2381,7 @@
   aliases:
   - malt extract
   - barley malt
+  - malted
   allergen: true
 - slug: grain-buckwheat
   name: Buckwheat
@@ -2645,6 +2657,12 @@
   path: grain.wheat.bread.brioche
   aliases: []
   allergen: true
+- slug: grain-wheat-bread-chapati
+  name: Chapati
+  path: grain.wheat.bread.chapati
+  aliases:
+  - chapatti
+  allergen: true
 - slug: grain-wheat-bread-ciabatta
   name: Ciabatta
   path: grain.wheat.bread.ciabatta
@@ -2686,11 +2704,27 @@
   path: grain.wheat.bread.naan
   aliases: []
   allergen: true
+- slug: grain-wheat-bread-paratha
+  name: Paratha
+  path: grain.wheat.bread.paratha
+  aliases: []
+  allergen: true
 - slug: grain-wheat-bread-pita
   name: Pita
   path: grain.wheat.bread.pita
   aliases:
   - pita bread
+  allergen: true
+- slug: grain-wheat-bread-puri
+  name: Puri
+  path: grain.wheat.bread.puri
+  aliases:
+  - poori
+  allergen: true
+- slug: grain-wheat-bread-roti
+  name: Roti
+  path: grain.wheat.bread.roti
+  aliases: []
   allergen: true
 - slug: grain-wheat-bread-sourdough
   name: Sourdough
@@ -2704,6 +2738,13 @@
   aliases:
   - panko
   allergen: true
+- slug: grain-wheat-bulgur
+  name: Bulgur
+  path: grain.wheat.bulgur
+  aliases:
+  - bulgur wheat
+  - burghul
+  allergen: true
 - slug: grain-wheat-couscous
   name: Couscous
   path: grain.wheat.couscous
@@ -2714,6 +2755,45 @@
   path: grain.wheat.cracker
   aliases:
   - crackers
+  allergen: true
+- slug: grain-wheat-croquette
+  name: Croquette
+  path: grain.wheat.croquette
+  aliases: []
+  allergen: true
+- slug: grain-wheat-dumpling
+  name: Dumpling
+  path: grain.wheat.dumpling
+  aliases:
+  - dumpling wrapper
+  allergen: true
+- slug: grain-wheat-dumpling-momo
+  name: Momo
+  path: grain.wheat.dumpling.momo
+  aliases:
+  - momos
+  allergen: true
+- slug: grain-wheat-egg-roll
+  name: Egg Roll
+  path: grain.wheat.egg_roll
+  aliases:
+  - egg roll wrapper
+  allergen: true
+- slug: grain-wheat-empanada
+  name: Empanada
+  path: grain.wheat.empanada
+  aliases: []
+  allergen: true
+- slug: grain-wheat-farro
+  name: Farro
+  path: grain.wheat.farro
+  aliases:
+  - emmer
+  allergen: true
+- slug: grain-wheat-katsu
+  name: Katsu
+  path: grain.wheat.katsu
+  aliases: []
   allergen: true
 - slug: grain-wheat-noodle-chow-mein
   name: Chow Mein
@@ -2734,7 +2814,8 @@
 - slug: grain-wheat-noodle-ramen
   name: Ramen Noodle
   path: grain.wheat.noodle.ramen
-  aliases: []
+  aliases:
+  - ramen
   allergen: true
 - slug: grain-wheat-noodle-udon
   name: Udon
@@ -2802,6 +2883,11 @@
   path: grain.wheat.pasta.spaghetti
   aliases: []
   allergen: true
+- slug: grain-wheat-schnitzel
+  name: Schnitzel
+  path: grain.wheat.schnitzel
+  aliases: []
+  allergen: true
 - slug: grain-wheat-seitan
   name: Seitan
   path: grain.wheat.seitan
@@ -2815,6 +2901,11 @@
   aliases:
   - buckwheat noodle
   allergen: true
+- slug: grain-wheat-spring-roll
+  name: Spring Roll
+  path: grain.wheat.spring_roll
+  aliases: []
+  allergen: true
 - slug: grain-wheat-waffle
   name: Waffle
   path: grain.wheat.waffle
@@ -2826,6 +2917,8 @@
   aliases:
   - wheat batter
   - flour batter
+  - battered
+  - tempura batter
   allergen: true
 - slug: grain-wheat-breading
   name: Breading
@@ -2833,6 +2926,8 @@
   aliases:
   - breaded
   - bread coating
+  - crusted
+  - panko crusted
   allergen: true
 - slug: grain-wheat-roux
   name: Roux
@@ -2856,6 +2951,12 @@
   aliases:
   - flour
   - all-purpose flour
+  allergen: true
+- slug: grain-wheat-wonton
+  name: Wonton
+  path: grain.wheat.wonton
+  aliases:
+  - wonton wrapper
   allergen: true
 - slug: grain-wild-rice
   name: Wild rice
@@ -4428,7 +4529,6 @@
   path: soy.soy_sauce
   aliases:
   - Shoyu
-  - Tamari
   allergen: true
 - slug: soy-soybean
   name: Soybean
@@ -4443,6 +4543,7 @@
   path: soy.tamari
   aliases:
   - tamari sauce
+  - gluten free soy sauce
   allergen: true
 - slug: soy-tempeh
   name: Tempeh
