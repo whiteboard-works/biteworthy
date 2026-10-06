@@ -51,6 +51,38 @@ namespace :biteworthy do
       end
     end
 
+    # The fix the audit above only reports. Dry run by default: it lists
+    # every dish it would change. APPLY=1 writes the rows. Add-only and
+    # idempotent, so a second run after an apply lists nothing.
+    #
+    #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"
+    #   kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"
+    desc "Add the gluten rows today's rules imply (Samosa, breaded, soy sauce) to dishes promoted before those rules. APPLY=1 writes."
+    task backfill_implied_bases: :environment do
+      apply = ENV["APPLY"] == "1"
+      $stdout.sync = true
+
+      puts "== #{apply ? 'Applying' : 'Dry run'} =="
+      result = Menus::ImpliedBaseBackfill.call(apply: apply) do |c|
+        added = (c.ingredient_slugs + c.tag_slugs).join(", ")
+        puts "  #{c.restaurant_name} — #{c.item_name}: + #{added}"
+      end
+
+      if result.reviews.any?
+        puts "== Not written: edited since the rule went live, so a person may have removed the row on purpose. Check each in admin =="
+        result.reviews.each do |c|
+          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
+          puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
+        end
+      end
+      result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
+      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
+           "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
+      puts "Re-run with APPLY=1 to write these rows." if !apply && result.changes.any?
+      # Failed dishes are still unprotected; a zero exit would read as done.
+      exit 1 if result.failures.any?
+    end
+
     desc "Re-extract a restaurant's menu from its latest inputs (creates a new scan, no auto-accept)"
     task :reextract_restaurant, [ :restaurant_uuid ] => :environment do |_t, args|
       restaurant_uuid = args[:restaurant_uuid]

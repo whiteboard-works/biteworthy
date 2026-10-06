@@ -252,6 +252,17 @@ provider up again on a new box:
 - Send 7 days before public launch. Follow up after 3 days (5 for KSUT).
 - Day-of: stage the `launch-day.md` social posts.
 
+### 10. Backfill gluten rows on dishes promoted before the gluten rules — open (2026-10-06)
+
+**Unlocks:** Celiac users stop seeing old samosas, katsu, breaded or gravied dishes, soy-sauce stir fries, and similar as safe.
+
+Dishes promoted before #638, #766, or #794 lack the gluten rows those rules add. Run the dry run, read the list, then apply:
+
+- `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"`
+- `kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"`
+
+Add-only and idempotent. It never writes over what may be a person's decision: a dish missing a base that a rule live at its promotion should have added, or a dish edited since a rule went live, is listed under "to review by hand" with its admin restaurant link instead. Any FAILED line is a dish to fix by hand in admin, and the task then exits 1.
+
 ## CI status
 
 - `ci-api.yml` — runs on every PR touching `apps/api/`. Postgres 16, ImageMagick installed, full rspec, Brakeman + Rubocop (both blocking).
