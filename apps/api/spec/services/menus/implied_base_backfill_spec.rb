@@ -6,67 +6,107 @@ require "rails_helper"
 # wrong wheat row hides a dish with a reason a person can fix, while a
 # missing one fails silently, which is the failure this exists to stop.
 RSpec.describe Menus::ImpliedBaseBackfill do
+  include ActiveSupport::Testing::TimeHelpers
+
   let!(:wheat)       { create(:ingredient, slug: "grain-wheat", name: "Wheat", path: "grain.wheat") }
   let!(:wheat_bread) { create(:ingredient, slug: "grain-wheat-bread", name: "Bread", path: "grain.wheat.bread") }
   let!(:potato)      { create(:ingredient, slug: "veg-potato", name: "Potato", path: "veg.potato") }
+  let!(:gluten_tag)  { create(:tag, slug: "contains-gluten", name: "Contains Gluten", family: "allergen") }
 
-  def wheat_ids(item) = item.reload.denormalized_ingredient_ids
+  # Every dish here predates the cutoff unless a test says otherwise.
+  around { |ex| travel_to(described_class::PROMOTED_BEFORE - 1.day) { ex.run } }
 
-  it "adds a derived, suggested wheat row to a samosa that has none" do
+  def run(apply: true) = described_class.call(apply: apply)
+
+  it "adds a derived, suggested wheat row and the gluten tag to a samosa" do
     samosa = create(:item, :published, :confirmed, name: "Vegetable Samosa", ingredients: [ potato ])
 
-    changes = described_class.call(apply: true)
+    result = run
 
-    expect(changes.map(&:item_id)).to eq([ samosa.id ])
-    row = samosa.item_ingredients.find_by!(ingredient: wheat)
-    expect(row).to have_attributes(source: "derived", confidence: "suggested")
-    # The filter reads the denormalized array; this is what hides it.
-    expect(wheat_ids(samosa)).to include(wheat.id)
+    expect(result.changes.map(&:item_id)).to eq([ samosa.id ])
+    expect(samosa.item_ingredients.find_by!(ingredient: wheat))
+      .to have_attributes(source: "derived", confidence: "suggested")
+    samosa.reload
+    # The filter reads the denormalized arrays; this is what hides it.
+    expect(samosa.denormalized_ingredient_ids).to include(wheat.id)
+    expect(samosa.denormalized_tag_ids).to include(gluten_tag.id)
   end
 
   # Item confidence is the weakest link. A confirmed dish with a
   # suggested row is no longer confirmed, so Strict mode hides it too.
-  it "lowers a confirmed dish to suggested" do
-    samosa = create(:item, :published, :confirmed, name: "Samosa", ingredients: [ potato ])
-    described_class.call(apply: true)
-    expect(samosa.reload.confidence).to eq("suggested")
+  it "lowers a confirmed dish to suggested, and never raises an inferred one" do
+    confirmed = create(:item, :published, :confirmed, name: "Samosa")
+    inferred  = create(:item, :published, name: "Chile Relleno", confidence: "inferred")
+
+    run
+
+    expect(confirmed.reload.confidence).to eq("suggested")
+    expect(inferred.reload.confidence).to eq("inferred")
   end
 
-  it "never raises an inferred dish's confidence" do
-    samosa = create(:item, :published, name: "Samosa", confidence: "inferred")
-    described_class.call(apply: true)
-    expect(samosa.reload.confidence).to eq("inferred")
-  end
-
-  it "changes nothing on a dry run" do
+  it "changes nothing on a dry run, but still lists the dish" do
     samosa = create(:item, :published, name: "Samosa", ingredients: [ potato ])
 
-    changes = described_class.call(apply: false)
-
-    expect(changes.map(&:item_id)).to eq([ samosa.id ])
-    expect(wheat_ids(samosa)).not_to include(wheat.id)
+    expect(run(apply: false).changes.map(&:item_id)).to eq([ samosa.id ])
+    expect(samosa.reload.denormalized_ingredient_ids).not_to include(wheat.id)
   end
 
   it "leaves a dish alone when wheat or a wheat child is already there" do
     create(:item, :published, name: "Garlic Naan", ingredients: [ wheat_bread ])
     create(:item, :published, name: "Cheese Pizza", ingredients: [ wheat ])
 
-    expect(described_class.call(apply: true)).to be_empty
+    expect(run.changes).to be_empty
   end
 
   it "respects a gluten-free claim in the dish name" do
     create(:item, :published, name: "Gluten-Free Pizza")
-    expect(described_class.call(apply: true)).to be_empty
+    expect(run.changes).to be_empty
   end
 
   it "ignores names that imply no base" do
     create(:item, :published, name: "Saag Paneer")
-    expect(described_class.call(apply: true)).to be_empty
+    expect(run.changes).to be_empty
+  end
+
+  it "only touches published dishes" do
+    create(:item, name: "Samosa", status: "draft")
+    expect(run.changes).to be_empty
+  end
+
+  # A dish promoted after the cutoff went through the current table, so
+  # missing wheat there means a person removed it. A rerun must not
+  # undo that.
+  it "skips dishes promoted after the cutoff" do
+    create(:item, :published, name: "Samosa").update_columns(created_at: described_class::PROMOTED_BEFORE + 1.day)
+    expect(run.changes).to be_empty
   end
 
   it "is idempotent" do
     create(:item, :published, name: "Samosa")
-    described_class.call(apply: true)
-    expect(described_class.call(apply: true)).to be_empty
+    run
+    expect(run.changes).to be_empty
+  end
+
+  it "reports a failing dish and carries on with the rest" do
+    bad  = create(:item, :published, name: "Samosa")
+    good = create(:item, :published, name: "Chile Relleno")
+    allow(ItemIngredient).to receive(:create!).and_wrap_original do |original, **attrs|
+      raise ActiveRecord::RecordInvalid if attrs[:item].id == bad.id
+
+      original.call(**attrs)
+    end
+
+    result = run
+
+    expect(result.failures.map(&:item_id)).to eq([ bad.id ])
+    expect(result.changes.map(&:item_id)).to eq([ good.id ])
+    expect(bad.reload.denormalized_ingredient_ids).not_to include(wheat.id)
+  end
+
+  it "yields each change as it is made" do
+    create(:item, :published, name: "Samosa")
+    seen = []
+    described_class.call(apply: true) { |change| seen << change.item_name }
+    expect(seen).to eq([ "Samosa" ])
   end
 end

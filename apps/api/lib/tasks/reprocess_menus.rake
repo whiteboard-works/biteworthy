@@ -86,14 +86,18 @@ namespace :biteworthy do
     #   kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"
     desc "Add the base ingredient a dish name implies (Samosa -> wheat) to dishes that lack it. APPLY=1 writes."
     task backfill_implied_bases: :environment do
-      apply   = ENV["APPLY"] == "1"
-      changes = Menus::ImpliedBaseBackfill.call(apply: apply)
+      apply = ENV["APPLY"] == "1"
+      $stdout.sync = true
 
-      puts "== #{apply ? 'Applied' : 'Dry run'}: #{changes.size} dishes =="
-      changes.each do |c|
-        puts "  #{c.restaurant_name} — #{c.item_name}: + #{c.slugs.join(', ')}"
+      puts "== #{apply ? 'Applying' : 'Dry run'} =="
+      result = Menus::ImpliedBaseBackfill.call(apply: apply) do |c|
+        added = (c.ingredient_slugs + c.tag_slugs).join(", ")
+        puts "  #{c.restaurant_name} — #{c.item_name}: + #{added}"
       end
-      puts "Re-run with APPLY=1 to write these rows." if !apply && changes.any?
+
+      result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
+      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, #{result.failures.size} failed =="
+      puts "Re-run with APPLY=1 to write these rows." if !apply && result.changes.any?
     end
 
     desc "Re-extract all items in a restaurant's most recent ingestion run"
