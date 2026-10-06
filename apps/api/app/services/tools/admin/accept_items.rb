@@ -17,7 +17,7 @@ module Tools
         is the confidence promotion that makes dishes safe to show.
 
         Pass item_ids for specific dishes, or all: true to accept every
-        pending dish. Prefer item_ids unless the user explicitly asked for all.
+        pending and edited dish. Prefer item_ids unless the user explicitly asked for all.
 
         This uses the same 80% publish threshold as the regular flow: when
         enough dishes are accepted, the restaurant auto-publishes.

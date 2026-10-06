@@ -37,6 +37,17 @@ RSpec.describe "restaurants/show", type: :request do
                      region: { type: :string, nullable: true }
                    }
                  },
+                 address: {
+                   type: :object,
+                   nullable: true,
+                   properties: {
+                     street:      { type: :string, nullable: true },
+                     city:        { type: :string, nullable: true },
+                     region:      { type: :string, nullable: true },
+                     postal_code: { type: :string, nullable: true },
+                     country:     { type: :string, nullable: true }
+                   }
+                 },
                  time_zone: { type: :string, nullable: true, description: "IANA timezone (e.g. America/Denver)" },
                  hours: {
                    type: :array,

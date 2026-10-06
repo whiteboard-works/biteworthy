@@ -77,7 +77,8 @@ RSpec.describe Ingestion::DeterministicResolver do
       # The implied base must feed allergen derivation, or the filter
       # still can't hide the pizza from gluten-free users.
       expect(result.tags).to include(
-        { "slug" => "contains-gluten", "confidence" => 0.8, "source" => "derived" }
+        { "slug" => "contains-gluten", "confidence" => 0.8,
+          "source" => "ingredient_derived", "from_source" => "derived" }
       )
       expect(result.gap?).to be(true)
       expect(result.gap_phrases).to be_empty

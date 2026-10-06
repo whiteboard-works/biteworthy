@@ -262,6 +262,35 @@ RSpec.describe "Admin MCP tools" do
         expect(burger["ingredients"][0]["name"]).to eq("Beef")
         expect(burger["ingredients"][0]["confidence"]).to eq("confirmed")
       end
+
+      it "includes edited_count and remaining_count" do
+        create(:ingestion_item, ingestion_run: run, name: "Edited Item", decision: "edited")
+        create(:ingestion_item, ingestion_run: run, name: "Rejected Item", decision: "rejected")
+
+        mcp_call("get_scan", { scan_id: run.id }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["pending_count"]).to eq(1)
+        expect(content["edited_count"]).to eq(1)
+        expect(content["rejected_count"]).to eq(1)
+        expect(content["remaining_count"]).to eq(2) # pending + edited
+      end
+
+      it "includes prices in items" do
+        item_with_price = create(:ingestion_item, ingestion_run: run, name: "Priced Item",
+                                 prices_payload: [ { "size" => "large", "price_cents" => 1299, "currency" => "USD" } ])
+
+        mcp_call("get_scan", { scan_id: run.id }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        priced_item = content["items"].find { |i| i["name"].include?("Priced Item") }
+        expect(priced_item["prices"].size).to eq(1)
+        expect(priced_item["prices"][0]["size"]).to eq("large")
+        expect(priced_item["prices"][0]["price_cents"]).to eq(1299)
+        expect(priced_item["prices"][0]["currency"]).to eq("USD")
+      end
     end
 
     context "as non-admin non-owner" do

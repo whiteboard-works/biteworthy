@@ -195,6 +195,7 @@ Rails.application.routes.draw do
             post :confirm_community
             post :restore
             post :backfill_structure
+            post :backfill_confidence
           end
           resources :items, only: [:index]
           resources :menus, only: [:index, :create]

@@ -2,7 +2,7 @@ class ItemIngredient < ApplicationRecord
   include SyncsDenormalizedIds
 
   CONFIDENCE = %w[confirmed suggested inferred].freeze
-  SOURCES    = %w[human ai owner derived].freeze
+  SOURCES    = %w[human ai owner match derived ingredient_derived].freeze
 
   belongs_to :item
   belongs_to :ingredient

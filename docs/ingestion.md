@@ -228,13 +228,15 @@ ingredients_payload: [
   { slug: "fish-anchovy", confidence: 0.85, source: "ai"    },  # gap-fill
 ],
 tags_payload: [
-  { slug: "contains-fish", confidence: 0.85, source: "ai"      }, # derived from the AI ingredient
+  { slug: "contains-fish", confidence: 0.85, source: "ingredient_derived", from_source: "ai" },
   { slug: "grilled",       confidence: 0.9,  source: "match"   },
 ]
 ```
 
-(`source: "derived"` marks a tag derived from a deterministic
-ingredient's ancestry.) Matched items serialize a `match` block
+(`source: "derived"` is name/keyword inference — pizza → wheat.
+`source: "ingredient_derived"` is an allergen tag inherited from an
+ingredient, with `from_source` carrying that ingredient's provenance.)
+Matched items serialize a `match` block
 (existing item + a serialize-time diff: description, prices, added
 ingredients/tags); accepting one applies the diff to the existing Item —
 see "Update flow (re-scan)" below.
@@ -291,6 +293,14 @@ of creating a duplicate (`IngestionItem#apply_update!`):
 
 When the run hits ≥80% accepted (configurable per city/restaurant), the
 restaurant flips to `status = 'published'` and shows up in search.
+
+Admin repair: `POST /api/v1/admin/restaurants/:id/backfill_structure`
+rebuilds missing sections and variants from accepted payloads. It
+defaults to `dry_run=true`; send `dry_run=false` to write. `reorder=true`
+rewrites `menu_sections.position` and `items.position` from source-menu
+order (latest accepted `IngestionItem` per dish, `position` NULLS LAST
+then `created_at`) without moving a dish or creating/renaming sections.
+Sections with no ingestion source stay after the sourced ones.
 
 ## Honest disclosure
 
