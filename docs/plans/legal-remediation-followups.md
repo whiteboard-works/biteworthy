@@ -87,9 +87,11 @@ follow-up list is complete; the canonical entries live in
     now names chat messages, the dietary profile, saved chat notes (#781),
     the caller's own reviews (hidden ones included), and public reviews any
     user's chat reads (#786 and its follow-up).
-    Still open for counsel: transcript retention, the special-category
-    consent question, and whether Anthropic's no-training commitment
-    covers the chat surface — see
+    Still open for counsel: how specifically chat data must be disclosed,
+    transcript retention (a stored transcript keeps, and re-sends on later
+    turns, a review that has since been hidden or deleted), the
+    special-category consent question, and whether Anthropic's
+    no-training commitment covers the chat surface — see
     [`chat-privacy-l1-brief.md`](./chat-privacy-l1-brief.md).
 - **L2 — Register a DMCA designated agent** with the U.S. Copyright
   Office (~$6) for §512 safe harbor, and stand up the repeat-infringer
