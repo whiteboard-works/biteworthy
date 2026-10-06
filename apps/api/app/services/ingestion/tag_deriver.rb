@@ -79,6 +79,10 @@ module Ingestion
       # Cross-root oddballs the subtree map can't see. Coconut counts as
       # a tree nut per FDA labeling guidance.
       SLUG_TAGS = {
+        "soy-soy-sauce"                 => %w[contains-gluten],
+        "soy-teriyaki"                  => %w[contains-gluten],
+        "condiment-sauces-gravy"        => %w[contains-gluten],
+        "condiment-malt-vinegar"        => %w[contains-gluten],
         "condiment-oyster-sauce"        => %w[contains-shellfish],
         "oil-and-fat-toasted-sesame-oil" => %w[contains-sesame],
         "fruit-coconut"                 => %w[contains-tree-nut],
