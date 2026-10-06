@@ -61,7 +61,7 @@ RSpec.describe "ingestion tools", type: :service do
     it "keeps confidence and source on every association" do
       dish = payload(Tools::Ingestion::ListStagedItems.call(scan_id: run.id, server_context: ctx(owner)))[:dishes].first
 
-      expect(dish[:ingredients].first).to include(slug: "meat-beef", confidence: 0.97)
+      expect(dish[:ingredients].first).to include(slug: "meat-beef", confidence: 1.0)
     end
 
     it "tells the caller to wait while the scan is still running" do

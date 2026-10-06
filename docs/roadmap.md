@@ -130,8 +130,8 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 the merge / review / status rules.
 
 **Launch gates** (human, not the loop): the L1–L5 legal gates (remove
-`/privacy` + `/terms` DRAFT banners, lawyer sign-off, DMCA agent
-registration) in `docs/plans/legal-remediation-followups.md`, alongside
+the `/terms` DRAFT banner — `/privacy`'s came off 2026-10-05 at the
+owner's call — lawyer sign-off, DMCA agent registration) in `docs/plans/legal-remediation-followups.md`, alongside
 the credential-gated wiring below. `docs/launch-readiness.md` is the
 linear human path from "code complete" to launch.
 

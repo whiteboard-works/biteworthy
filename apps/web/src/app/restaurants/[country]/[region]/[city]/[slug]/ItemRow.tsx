@@ -15,14 +15,55 @@ import { HiddenReasonChip } from './SectionList';
  *
  * Renders as a card. The dish name links to the detail page; a photo,
  * when one exists, sits above the text. Photo-less items render as
- * compact text cards — a media block has to be earned by a real photo.
+ * compact text cards, unless `photoPlaceholder` is set: in a grid where
+ * other dishes have photos, a lone text card breaks the rows up, so it
+ * gets a same-height placeholder tile instead. A grid with no photos at
+ * all stays compact rather than becoming a wall of empty tiles, and so
+ * does the single-column phone layout, where there are no rows to align.
  */
+export function hasDishPhoto(item: RestaurantItem): boolean {
+  return Boolean(item.photo_urls?.card || item.photo_url);
+}
+
+/** Decorative stand-in for a missing dish photo: a plate, set for a meal. */
+export function DishPhotoPlaceholder({
+  className,
+  testId,
+}: {
+  className: string;
+  testId: string;
+}): ReactElement {
+  return (
+    <div
+      aria-hidden="true"
+      data-testid={testId}
+      className={`items-center justify-center bg-zinc-100 text-zinc-300 ${className}`}
+    >
+      <svg
+        viewBox="0 0 48 48"
+        className="h-12 w-12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <circle cx="24" cy="24" r="11" />
+        <circle cx="24" cy="24" r="6" />
+        <path d="M6 12v8a3 3 0 0 0 3 3v13M9 12v8M12 12v8" />
+        <path d="M40 12c-2 0-3 4-3 9h3v15" />
+      </svg>
+    </div>
+  );
+}
+
 export interface ItemRowProps {
   item: RestaurantItem;
   basePath: string;
   /** Carried onto the item link so the diet survives the hop + back. */
   presetSlug?: string | null;
   hidden?: boolean;
+  /** Show a placeholder tile when this dish has no photo. */
+  photoPlaceholder?: boolean;
   overridden: boolean;
   onToggleOverride: (itemId: string) => void;
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
@@ -33,6 +74,7 @@ export function ItemRow({
   basePath,
   presetSlug = null,
   hidden = false,
+  photoPlaceholder = false,
   overridden,
   onToggleOverride,
   onSetPersistentOverride,
@@ -52,11 +94,17 @@ export function ItemRow({
         hidden ? 'opacity-60' : '',
       ].join(' ')}
     >
-      {(item.photo_urls?.card || item.photo_url) && (
+      {!hasDishPhoto(item) && photoPlaceholder && (
+        <DishPhotoPlaceholder
+          className="hidden h-40 w-full sm:flex"
+          testId={`item-photo-placeholder-${item.id}`}
+        />
+      )}
+      {hasDishPhoto(item) && (
         // Cropped dish photo from the source menu page. Plain <img> (not
         // next/image) since the URL is a Rails signed blob URL whose host
         // varies per env; loader config would have to learn each one.
-        // Use WebP card variant with fallback to original.
+        // Use WebP card variant with fallback to original on error.
         <img
           src={item.photo_urls?.card || item.photo_url || undefined}
           srcSet={
@@ -69,6 +117,13 @@ export function ItemRow({
           loading="lazy"
           data-testid={`item-photo-${item.id}`}
           className="h-40 w-full object-cover"
+          onError={(e) => {
+            // Fall back to original photo_url if variant fails
+            if (item.photo_url && e.currentTarget.src !== item.photo_url) {
+              e.currentTarget.src = item.photo_url;
+              e.currentTarget.srcset = '';
+            }
+          }}
         />
       )}
       <div className="flex flex-1 flex-col p-bw-3">

@@ -38,6 +38,8 @@ gem "image_processing", "~> 2.2"
 # image_processing 2.0 dropped mini_magick as a hard dependency, but
 # Ingestion::DishPhotoCropper requires it directly — keep it explicit.
 gem "mini_magick", "~> 5.4"
+# ruby-vips required for ActiveStorage variant processing with vips processor
+gem "ruby-vips", "~> 2.2"
 gem "aws-sdk-s3", require: false
 
 # --- AI ingestion ------------------------------------------------------------

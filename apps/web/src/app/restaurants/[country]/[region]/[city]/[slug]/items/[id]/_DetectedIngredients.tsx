@@ -88,7 +88,12 @@ function AssociationChip({
   // `source` must be perceivable without hover — touch screens and
   // screen readers never see a title tooltip. Non-human sources get a
   // visible word; the aria-label always carries the full provenance.
-  const sourceWord = row.source === 'human' ? null : row.source === 'ai' ? 'AI' : 'owner';
+  const sourceWord =
+    row.source === 'human' || row.source === 'derived'
+      ? null
+      : row.source === 'ai'
+        ? 'AI'
+        : 'owner';
   const provenance = `${row.confidence} — ${CONFIDENCE_GLOSS[row.confidence]} · source: ${row.source}`;
   return (
     <span

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { hiddenReasonLabel, type HideReason, type ItemSection } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../../../../../lib/restaurants';
-import { ItemRow } from './ItemRow';
+import { ItemRow, hasDishPhoto } from './ItemRow';
 
 /**
  * Extracted from RestaurantClient (menu-page hierarchy pass) — the
@@ -41,6 +41,10 @@ export function SectionBlock({
   onSetPersistentOverride: (itemId: string, next: boolean) => void;
 }) {
   const [hiddenOpen, setHiddenOpen] = useState(false);
+  // Placeholders only where they line a grid up: a grid with at least one
+  // real photo. Each list is its own grid, so each decides for itself.
+  const visiblePlaceholders = section.visible.some(hasDishPhoto);
+  const hiddenPlaceholders = section.hidden.some(hasDishPhoto);
   return (
     // When the heading is suppressed the aria-label keeps the region
     // reachable by landmark for screen-reader users.
@@ -55,6 +59,7 @@ export function SectionBlock({
             item={item}
             basePath={basePath}
             presetSlug={presetSlug}
+            photoPlaceholder={visiblePlaceholders}
             overridden={shownAnyway.has(item.id) || item.overridden_by_user === true}
             onToggleOverride={onToggleOverride}
             onSetPersistentOverride={onSetPersistentOverride}
@@ -92,6 +97,7 @@ export function SectionBlock({
               basePath={basePath}
               presetSlug={presetSlug}
               hidden
+              photoPlaceholder={hiddenPlaceholders}
               overridden={false}
               onToggleOverride={onToggleOverride}
               onSetPersistentOverride={onSetPersistentOverride}

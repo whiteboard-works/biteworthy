@@ -87,12 +87,12 @@ class Restaurant < ApplicationRecord
                              .update_all(confidence: "confirmed")
 
       # Only items whose EVERY association is now confirmed graduate —
-      # an item still carrying an ai-suggested join must stay
-      # `suggested`, or strict mode would show it while an untrusted
-      # association remains (6.4.1 — codex).
-      items_n = items.where(confidence: "suggested")
-                     .where.not(id: ItemIngredient.where(confidence: "suggested").select(:item_id))
-                     .where.not(id: ItemTag.where(confidence: "suggested").select(:item_id))
+      # an item still carrying a non-confirmed join (suggested or inferred)
+      # must stay at its weakest link, or strict mode would show it while
+      # an unverified association remains (6.4.1 — codex).
+      items_n = items.where(confidence: %w[suggested inferred])
+                     .where.not(id: ItemIngredient.where(confidence: %w[suggested inferred]).select(:item_id))
+                     .where.not(id: ItemTag.where(confidence: %w[suggested inferred]).select(:item_id))
                      .update_all(confidence: "confirmed")
 
       { items: items_n, ingredients: ingredients_n, tags: tags_n }
