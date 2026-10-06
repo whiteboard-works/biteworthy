@@ -1,0 +1,1 @@
+Screenshots attached to pull requests by bin/ship-shot.
