@@ -55,6 +55,7 @@ RSpec.describe "Admin dish photo submissions", type: :request do
       expect(response).to have_http_status(:ok)
       expect(item.reload.photo.blob.id).to eq(original)
       expect(item.photo_submission_id).to be_nil
+      expect(response.parsed_body["status"]).to eq("approve_keep")
     end
   end
 

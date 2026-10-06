@@ -74,9 +74,10 @@ module Tools
         ok(
           photo_submission_id: submission.id,
           status: submission.status,
-          rejection_reason: submission.rejection_reason,
+          reason: submission.rejection_reason,
           item_id: submission.item_id,
-          replace_item_photo: action == "approve_and_set"
+          replace_item_photo: action == "approve_and_set",
+          credit_name: untrusted(submission.credit_name)
         )
       rescue DishPhotos::Moderate::NotPending => e
         raise Errors::InvalidArgument, e.message

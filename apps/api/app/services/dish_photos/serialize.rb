@@ -23,6 +23,7 @@ module DishPhotos
       item = submission.item
       restaurant = item.restaurant
       diner_row(submission, host:).merge(
+        photo_url: variant_url(submission.photo, :thumb, host:),
         user: {
           id:           submission.user&.id,
           handle:       submission.user&.handle,
@@ -31,7 +32,7 @@ module DishPhotos
         item: {
           id:   item.id,
           name: item.name,
-          photo_url: item_photo_url(item, host:),
+          photo_url: variant_url(item.photo, :thumb, host:),
           restaurant: {
             id:   restaurant.id,
             name: restaurant.name,
@@ -48,11 +49,17 @@ module DishPhotos
       Rails.application.routes.url_helpers.rails_blob_url(record.photo, host: host)
     end
 
-    def item_photo_url(item, host:)
+    def variant_url(attachment, variant, host:)
       return nil if host.blank?
-      return nil unless item.photo.attached?
+      return nil unless attachment.attached?
 
-      Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: host)
+      if attachment.variable?
+        Rails.application.routes.url_helpers.rails_representation_url(
+          attachment.variant(variant), host: host
+        )
+      else
+        Rails.application.routes.url_helpers.rails_blob_url(attachment, host: host)
+      end
     end
   end
 end

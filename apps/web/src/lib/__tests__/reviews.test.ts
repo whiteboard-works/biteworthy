@@ -155,6 +155,14 @@ describe('createReview', () => {
     );
   });
 
+  it('maps a photo-upload error code to diner-facing copy', async () => {
+    const fetchImpl = fakeFetch(422, { error: 'pending_limit', message: 'pending_limit' });
+    const photo = new File(['x'], 'a.jpg', { type: 'image/jpeg' });
+    await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
+      /3 photos of this dish/i,
+    );
+  });
+
   it('surfaces a 401 ReviewError with the right status (caller bounces to /login)', async () => {
     const fetchImpl = fakeFetch(401, { error: 'Not signed in' });
     await expect(createReview('item-1', { rating: 5 }, { fetchImpl })).rejects.toMatchObject({

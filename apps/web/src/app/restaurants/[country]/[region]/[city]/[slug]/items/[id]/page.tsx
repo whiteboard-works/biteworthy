@@ -1,4 +1,4 @@
-import { notFound, permanentRedirect } from 'next/navigation';
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
@@ -74,6 +74,11 @@ export default async function ItemDetailPage({
   // canonical one, so a dish has one indexable address.
   if (!isCanonicalPath(restaurant.web_path, { country, region, city, slug })) {
     permanentRedirect(`${restaurant.web_path}/items/${id}${toQueryString(search)}` as Route);
+  }
+
+  if (addPhoto && currentUserId == null) {
+    const next = `${restaurant.web_path}/items/${id}?addPhoto=1`;
+    redirect(`/login?next=${encodeURIComponent(next)}` as Route);
   }
 
   return (
@@ -155,6 +160,7 @@ function Page({
         returnPath={`${restaurant.web_path}/items/${item.id}?addPhoto=1`}
         signedIn={currentUserId != null}
         startOpen={addPhoto}
+        hasPhoto={Boolean(photoSrc)}
       />
 
       <ReviewsClient

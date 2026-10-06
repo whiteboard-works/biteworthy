@@ -20,10 +20,12 @@ module Tools
       TEXT
 
       STATUSES = {
-        "pending"  => :pending,
-        "approved" => :approved,
-        "rejected" => :rejected,
-        "all"      => :all
+        "pending"      => :pending,
+        "approved"     => :accepted,
+        "approve_keep" => :approve_keep,
+        "rejected"     => :rejected,
+        "withdrawn"    => :withdrawn,
+        "all"          => :all
       }.freeze
 
       input_schema(
@@ -69,12 +71,15 @@ module Tools
 
       def self.queue_row(submission, host:)
         item = submission.item
-        DishPhotos::Serialize.diner_row(submission, host:).merge(
-          author: untrusted(submission.user&.handle || submission.credit_name),
+        row = DishPhotos::Serialize.diner_row(submission, host:)
+        row.merge(
+          credit_name: untrusted(row[:credit_name]),
+          photo_url:   untrusted(row[:photo_url]),
+          author:      untrusted(submission.user&.handle || submission.credit_name),
           dish: {
             id: item.id,
             name: untrusted(item.name),
-            restaurant: item.restaurant.name,
+            restaurant: untrusted(item.restaurant.name),
             has_photo: item.photo.attached?
           }
         )

@@ -6,7 +6,8 @@ RSpec.describe "Dish photo submissions API", type: :request do
   let(:headers)    { auth_headers_for(user) }
   let(:restaurant) { create(:restaurant, :published) }
   let(:item)       { create(:item, :published, restaurant: restaurant) }
-  let(:photo) do
+
+  def jpeg_upload
     fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
   end
 
@@ -14,7 +15,7 @@ RSpec.describe "Dish photo submissions API", type: :request do
     it "creates a pending submission when the diner confirms they took the photo" do
       expect {
         post "/api/v1/items/#{item.id}/photo_submissions",
-             params: { photo: photo, owns_rights: true },
+             params: { photo: jpeg_upload, owns_rights: true },
              headers: headers
       }.to change(DishPhotoSubmission, :count).by(1)
 
@@ -30,9 +31,18 @@ RSpec.describe "Dish photo submissions API", type: :request do
       expect(item.reload.photo).not_to be_attached
     end
 
-    it "422s without owns_rights" do
+    it "422s a garbage owns_rights value instead of treating it as true" do
       post "/api/v1/items/#{item.id}/photo_submissions",
-           params: { photo: photo, owns_rights: false },
+           params: { photo: jpeg_upload, owns_rights: "banana" },
+           headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(DishPhotoSubmission.count).to eq(0)
+    end
+
+    it "422s owns_rights false" do
+      post "/api/v1/items/#{item.id}/photo_submissions",
+           params: { photo: jpeg_upload, owns_rights: false },
            headers: headers
 
       expect(response).to have_http_status(:unprocessable_entity)
@@ -41,7 +51,7 @@ RSpec.describe "Dish photo submissions API", type: :request do
 
     it "401s anonymously" do
       post "/api/v1/items/#{item.id}/photo_submissions",
-           params: { photo: photo, owns_rights: true }
+           params: { photo: jpeg_upload, owns_rights: true }
 
       expect(response).to have_http_status(:unauthorized)
     end
@@ -49,7 +59,7 @@ RSpec.describe "Dish photo submissions API", type: :request do
     it "404s on an unpublished dish" do
       draft = create(:item, restaurant: restaurant)
       post "/api/v1/items/#{draft.id}/photo_submissions",
-           params: { photo: photo, owns_rights: true },
+           params: { photo: jpeg_upload, owns_rights: true },
            headers: headers
 
       expect(response).to have_http_status(:not_found)
@@ -58,13 +68,13 @@ RSpec.describe "Dish photo submissions API", type: :request do
     it "429s a fourth pending photo of the same dish" do
       3.times do
         post "/api/v1/items/#{item.id}/photo_submissions",
-             params: { photo: photo, owns_rights: true },
+             params: { photo: jpeg_upload, owns_rights: true },
              headers: headers
         expect(response).to have_http_status(:created)
       end
 
       post "/api/v1/items/#{item.id}/photo_submissions",
-           params: { photo: photo, owns_rights: true },
+           params: { photo: jpeg_upload, owns_rights: true },
            headers: headers
 
       expect(response).to have_http_status(:too_many_requests)
@@ -86,13 +96,14 @@ RSpec.describe "Dish photo submissions API", type: :request do
   end
 
   describe "DELETE /api/v1/photo_submissions/:id" do
-    it "lets the diner withdraw a pending submission" do
+    it "lets the diner withdraw a pending submission without resetting the daily count" do
       submission = create(:dish_photo_submission, user: user, item: item)
 
       delete "/api/v1/photo_submissions/#{submission.id}", headers: headers
 
       expect(response).to have_http_status(:no_content)
-      expect(DishPhotoSubmission.exists?(submission.id)).to be(false)
+      expect(submission.reload).to be_withdrawn
+      expect(submission.photo).not_to be_attached
     end
 
     it "does not let them delete an approved submission" do

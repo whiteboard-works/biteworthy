@@ -3,40 +3,55 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { PhotoSubmissionError, submitDishPhoto } from '../../../../../../../../lib/photo-submissions';
+import { friendlyPhotoError } from '../../../../../../../../lib/photo-errors';
 
 /**
  * Unobtrusive diner photo offer on the dish page. Signed-out visitors
  * bounce to login and come back here. The file input is `accept="image/*"`
  * with no `capture` attribute so a phone offers camera *and* library
  * (forcing `capture="environment"` hid the library — see 2026-10-01).
+ *
+ * Menu cards hide this once the dish has a photo. The dish page keeps a
+ * quieter "Suggest a better photo" link in that case.
  */
 export function DishPhotoOffer({
   itemId,
   returnPath,
   signedIn,
   startOpen = false,
+  hasPhoto = false,
 }: {
   itemId: string;
   returnPath: string;
   signedIn: boolean;
   startOpen?: boolean;
+  hasPhoto?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(startOpen);
+  const [open, setOpen] = useState(Boolean(startOpen && signedIn));
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [previewOk, setPreviewOk] = useState(true);
   const [ownsRights, setOwnsRights] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (startOpen && !signedIn) {
+      router.replace(`/login?next=${encodeURIComponent(returnPath)}`);
+    }
+  }, [startOpen, signedIn, returnPath, router]);
+
+  useEffect(() => {
     if (!photo) {
       setPreview(null);
+      setPreviewOk(true);
       return;
     }
     const url = URL.createObjectURL(photo);
     setPreview(url);
+    setPreviewOk(true);
     return () => URL.revokeObjectURL(url);
   }, [photo]);
 
@@ -57,11 +72,11 @@ export function DishPhotoOffer({
     e.preventDefault();
     setError(null);
     if (!photo) {
-      setError('Pick a photo first.');
+      setError(friendlyPhotoError('photo_required'));
       return;
     }
     if (!ownsRights) {
-      setError('Please confirm you took this photo.');
+      setError(friendlyPhotoError('owns_rights'));
       return;
     }
     try {
@@ -96,9 +111,13 @@ export function DishPhotoOffer({
           type="button"
           onClick={onAddClick}
           data-testid="add-dish-photo"
-          className="text-bw-sm font-semibold text-bite hover:text-bite-dark"
+          className={
+            hasPhoto
+              ? 'text-bw-sm font-semibold text-zinc-600 underline decoration-zinc-300 underline-offset-2 hover:text-bite-dark'
+              : 'text-bw-sm font-semibold text-bite hover:text-bite-dark'
+          }
         >
-          Add a photo
+          {hasPhoto ? 'Suggest a better photo' : 'Add a photo'}
         </button>
       </p>
     );
@@ -110,7 +129,9 @@ export function DishPhotoOffer({
       className="mt-bw-4 rounded-bw-md border border-zinc-200 p-bw-4"
       data-testid="dish-photo-form"
     >
-      <p className="text-bw-sm font-semibold text-zinc-700">Add a photo of this dish</p>
+      <p className="text-bw-sm font-semibold text-zinc-700">
+        {hasPhoto ? 'Suggest a better photo of this dish' : 'Add a photo of this dish'}
+      </p>
       <p className="mt-1 text-bw-xs text-zinc-500">
         A moderator looks at it before it appears as the dish photo. Location data is
         stripped from the file.
@@ -125,14 +146,23 @@ export function DishPhotoOffer({
           className="mt-1 block w-full text-bw-sm"
         />
       </label>
-      {preview && (
+      {preview && previewOk && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={preview}
           alt="Preview of the photo you picked"
           data-testid="dish-photo-preview"
           className="mt-bw-3 max-h-64 w-full rounded-bw-md object-cover"
+          onError={() => setPreviewOk(false)}
         />
+      )}
+      {preview && !previewOk && (
+        <p
+          data-testid="preview-unavailable"
+          className="mt-bw-3 rounded-bw-md bg-zinc-100 px-bw-3 py-bw-2 text-bw-sm text-zinc-600"
+        >
+          Preview unavailable
+        </p>
       )}
       <label className="mt-bw-3 flex items-start gap-bw-2 text-bw-sm text-zinc-700">
         <input

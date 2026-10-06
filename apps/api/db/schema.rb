@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -177,8 +177,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_180000) do
     t.index ["status"], name: "index_dish_photo_submissions_on_status"
     t.index ["user_id", "created_at"], name: "index_dish_photo_submissions_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_dish_photo_submissions_on_user_id"
-    t.check_constraint "rejection_reason IS NULL OR (rejection_reason::text = ANY (ARRAY['not_this_dish'::character varying, 'low_quality'::character varying, 'inappropriate'::character varying, 'not_food'::character varying, 'duplicate'::character varying]::text[]))", name: "dish_photo_submissions_rejection_reason_valid"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])", name: "dish_photo_submissions_status_valid"
+    t.check_constraint "rejection_reason IS NULL OR (rejection_reason::text = ANY (ARRAY['not_this_dish'::character varying::text, 'low_quality'::character varying::text, 'inappropriate'::character varying::text, 'not_food'::character varying::text, 'duplicate'::character varying::text]))", name: "dish_photo_submissions_rejection_reason_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'withdrawn'::character varying, 'approve_keep'::character varying]::text[])", name: "dish_photo_submissions_status_valid"
   end
 
   create_table "dmca_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

@@ -22,6 +22,8 @@ vi.mock('next/navigation', () => ({
 beforeEach(() => {
   mockSubmit.mockReset();
   mockReplace.mockReset();
+  URL.createObjectURL ??= (() => 'blob:preview') as typeof URL.createObjectURL;
+  URL.revokeObjectURL ??= (() => undefined) as typeof URL.revokeObjectURL;
 });
 
 describe('DishPhotoOffer', () => {
@@ -34,6 +36,21 @@ describe('DishPhotoOffer', () => {
       />,
     );
     fireEvent.click(screen.getByTestId('add-dish-photo'));
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/login?next=%2Frestaurants%2Fusa%2Fcolorado%2Fdurango%2Fnini%2Fitems%2Fitem-1%3FaddPhoto%3D1',
+    );
+    expect(screen.queryByTestId('dish-photo-form')).not.toBeInTheDocument();
+  });
+
+  it('redirects a signed-out addPhoto=1 deep link before the form opens', () => {
+    render(
+      <DishPhotoOffer
+        itemId="item-1"
+        returnPath="/restaurants/usa/colorado/durango/nini/items/item-1?addPhoto=1"
+        signedIn={false}
+        startOpen
+      />,
+    );
     expect(mockReplace).toHaveBeenCalledWith(
       '/login?next=%2Frestaurants%2Fusa%2Fcolorado%2Fdurango%2Fnini%2Fitems%2Fitem-1%3FaddPhoto%3D1',
     );
@@ -57,5 +74,14 @@ describe('DishPhotoOffer', () => {
       'Thanks, a moderator will review it.',
     );
     expect(mockSubmit).toHaveBeenCalledWith('item-1', file);
+  });
+
+  it('shows Preview unavailable when the browser cannot decode the file', () => {
+    render(<DishPhotoOffer itemId="item-1" returnPath="/x" signedIn startOpen />);
+    const file = new File(['not-an-image'], 'weird.webp', { type: 'image/webp' });
+    fireEvent.change(screen.getByLabelText('dish-photo'), { target: { files: [file] } });
+    fireEvent.error(screen.getByTestId('dish-photo-preview'));
+    expect(screen.getByTestId('preview-unavailable')).toHaveTextContent('Preview unavailable');
+    expect(screen.queryByTestId('dish-photo-preview')).not.toBeInTheDocument();
   });
 });

@@ -83,14 +83,14 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Reviews:</strong> the rating, body, and optional photo you submit on a dish.
-              Reviews are public — see “What’s public” below. Photos are stored on Cloudflare R2
-              (see “Where data lives”).
+              Reviews are public — see “What’s public” below. Location and other camera metadata
+              (EXIF/GPS) is stripped from the photo before it is saved.
             </li>
             <li>
               <strong>Dish photos:</strong> if you submit a photo of a dish (from the dish page, or
               by offering a review photo), we store the image and whether you confirmed you took it.
-              Location and other camera metadata (EXIF/GPS) is stripped before the file is saved. A
-              moderator reviews every submission before it can appear as the dish photo.
+              Location metadata is stripped the same way as review photos. A moderator reviews
+              every submission before it can appear as the dish photo.
             </li>
             <li>
               <strong>Restaurant visits:</strong> when you open a filtered restaurant page while
@@ -146,9 +146,10 @@ export default function PrivacyPage(): ReactElement {
               <strong>Hetzner</strong> (Ashburn, USA): the servers that run the API.
             </li>
             <li>
-              <strong>Cloudflare R2</strong>: review photos, diner-submitted dish photos (metadata
-              stripped; unpublished until a moderator approves them), and the cropped per-dish
-              photos that the ingestion pipeline extracts from menu images.
+              <strong>Cloudflare R2</strong>: review photos and diner-submitted dish photos
+              (metadata stripped; dish submissions unpublished until a moderator approves them),
+              and the cropped per-dish photos that the ingestion pipeline extracts from menu
+              images.
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
@@ -182,9 +183,10 @@ export default function PrivacyPage(): ReactElement {
               you delete your account we delete or anonymize them.
             </li>
             <li>
-              <strong>Dish photo submissions:</strong> pending ones are deleted with your account.
-              An approved photo that became the dish photo stays on the menu (the byline is already
-              stored as a name, not a live link to your account).
+              <strong>Dish photo submissions:</strong> pending, rejected, withdrawn, and
+              accepted-but-not-used-as-the-dish-photo submissions are deleted with your account
+              (including the stored image). An approved photo that is still the dish photo stays
+              on the menu; the byline is anonymized to “a diner”.
             </li>
             <li>
               <strong>Restaurant-visit history:</strong> kept for as long as your account is open.

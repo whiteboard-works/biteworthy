@@ -4,6 +4,7 @@
  * storing, and nothing is public until a moderator approves it.
  */
 import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
+import { friendlyPhotoError } from './photo-errors';
 
 export class PhotoSubmissionError extends Error {
   constructor(
@@ -18,7 +19,7 @@ export class PhotoSubmissionError extends Error {
 export interface PhotoSubmissionPayload {
   id: string;
   item_id: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'approve_keep';
   rejection_reason: string | null;
   owns_rights: boolean;
   review_id: string | null;
@@ -47,20 +48,16 @@ export async function submitDishPhoto(
     body: form,
   });
   if (res.status === 413) throw new PhotoSubmissionError(413, TOO_LARGE_MESSAGE);
-  if (!res.ok) throw await photoError(res, `submitDishPhoto ${itemId}`);
+  if (!res.ok) throw await photoError(res);
   return (await res.json()) as PhotoSubmissionPayload;
 }
 
-async function photoError(res: Response, label: string): Promise<PhotoSubmissionError> {
+async function photoError(res: Response): Promise<PhotoSubmissionError> {
   let body: { error?: string; message?: string } | null = null;
   try {
     body = (await res.json()) as { error?: string; message?: string };
   } catch {
     // ignore
   }
-  const detail = body?.message || body?.error;
-  return new PhotoSubmissionError(
-    res.status,
-    `${label} failed: ${res.status}${detail ? ` — ${detail}` : ''}`,
-  );
+  return new PhotoSubmissionError(res.status, friendlyPhotoError(body?.error, body?.message));
 }

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "vips"
 
 RSpec.describe "Reviews API", type: :request do
   let(:owner)      { create(:user) }
@@ -72,7 +73,7 @@ RSpec.describe "Reviews API", type: :request do
     end
 
     it "accepts a multipart photo upload and returns a photo_url" do
-      photo = upload_fixture(filename: "menu.png", type: "image/png")
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
 
       expect {
         post "/api/v1/items/#{item.id}/reviews",
@@ -83,6 +84,21 @@ RSpec.describe "Reviews API", type: :request do
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["photo_url"]).to be_present
       expect(Review.last.photo).to be_attached
+    end
+
+    it "strips GPS EXIF from the stored review photo" do
+      gps_file = JpegWithGps.tempfile
+      photo = Rack::Test::UploadedFile.new(gps_file.path, "image/jpeg")
+
+      post "/api/v1/items/#{item.id}/reviews",
+           params: { rating: 4, photo: photo },
+           headers: headers
+
+      expect(response).to have_http_status(:created)
+      stored = Vips::Image.new_from_buffer(Review.last.photo.download, "")
+      expect(stored.get_fields.grep(/gps/i)).to be_empty
+    ensure
+      gps_file&.close!
     end
 
     it "creates a pending dish-photo submission when the diner offers the review photo" do
@@ -101,6 +117,32 @@ RSpec.describe "Reviews API", type: :request do
       expect(submission.review_id).to eq(Review.last.id)
       expect(submission).to be_pending
       expect(item.reload.photo).not_to be_attached
+    end
+
+    it "keeps the review when the dish-photo offer hits the daily limit" do
+      DishPhotoSubmission::DAILY_LIMIT_PER_USER.times do
+        DishPhotos::Submit.call(
+          item: create(:item, :published, restaurant: restaurant),
+          user: owner,
+          photo: fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg"),
+          owns_rights: true
+        )
+      end
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+
+      expect {
+        post "/api/v1/items/#{item.id}/reviews",
+             params: { rating: 4, body: "See pic.", photo: photo,
+                       offer_as_dish_photo: true, owns_rights: true },
+             headers: headers
+      }.to change(Review, :count).by(1)
+       .and change(DishPhotoSubmission, :count).by(0)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["photo_offer"]).to include(
+        "status" => "rate_limited",
+        "code" => "daily_limit"
+      )
     end
 
     it "does not offer a review as the dish photo without owns_rights" do
@@ -161,7 +203,8 @@ RSpec.describe "Reviews API", type: :request do
            params: { rating: 4, photo: big },
            headers: headers
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body["error"]).to match(/MB or smaller/i)
+      expect(response.parsed_body["error"]).to eq("too_large")
+      expect(response.parsed_body["message"]).to match(/MB or smaller/i)
     end
 
     it "rejects disallowed photo types" do
@@ -171,7 +214,8 @@ RSpec.describe "Reviews API", type: :request do
            params: { rating: 4, photo: pdf },
            headers: headers
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body["error"]).to match(/must be one of/i)
+      expect(response.parsed_body["error"]).to eq("unsupported_type")
+      expect(response.parsed_body["message"]).to match(/must be one of/i)
     end
 
     it "401s anonymously" do
@@ -193,7 +237,22 @@ RSpec.describe "Reviews API", type: :request do
       expect(review.body).to eq("Actually amazing.")
     end
 
-    it "purges the photo when given an empty value" do
+    it "strips GPS when the owner replaces the review photo" do
+      gps_file = JpegWithGps.tempfile
+      photo = Rack::Test::UploadedFile.new(gps_file.path, "image/jpeg")
+
+      patch "/api/v1/reviews/#{review.id}",
+            params: { photo: photo },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      stored = Vips::Image.new_from_buffer(review.reload.photo.download, "")
+      expect(stored.get_fields.grep(/gps/i)).to be_empty
+    ensure
+      gps_file&.close!
+    end
+
+    it "purges the photo when the owner sends an empty photo" do
       review.photo.attach(upload_fixture(filename: "old.png", type: "image/png"))
       review.save!
       expect(review.reload.photo).to be_attached

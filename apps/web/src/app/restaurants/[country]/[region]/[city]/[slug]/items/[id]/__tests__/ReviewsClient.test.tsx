@@ -165,4 +165,30 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
       offerAsDishPhoto: true,
     });
   });
+
+  it('posts the review and shows a note when the dish-photo offer is rate-limited', async () => {
+    mockCreate.mockResolvedValue({
+      ...review(),
+      photo_offer: { status: 'rate_limited', code: 'daily_limit' },
+    });
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('open-composer'));
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('offer-as-dish-photo'));
+    fireEvent.click(screen.getByTestId('star-5'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+    expect(await screen.findByTestId('photo-offer-note')).toHaveTextContent(/10 dish photos today/i);
+    expect(screen.getByText('Decent.')).toBeInTheDocument();
+  });
 });

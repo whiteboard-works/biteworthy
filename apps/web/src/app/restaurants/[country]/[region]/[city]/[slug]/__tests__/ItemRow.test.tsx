@@ -86,6 +86,7 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
     renderRow({ photo_url: null });
     const link = screen.getByTestId('add-photo-item-1');
     expect(link).toHaveTextContent('Add a photo');
+    expect(link).toHaveClass('min-h-[44px]');
     expect(link).toHaveAttribute(
       'href',
       '/restaurants/usa/colorado/durango/cream-bean-berry/items/item-1?addPhoto=1',

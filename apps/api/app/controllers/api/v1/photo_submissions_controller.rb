@@ -7,7 +7,9 @@ module Api
     #   DELETE /api/v1/photo_submissions/:id              pending + owner only
     #
     # The photo is stripped of EXIF/GPS before it is stored. Nothing here
-    # becomes Item#photo until an admin approves it.
+    # becomes Item#photo until an admin approves it. DELETE is a
+    # withdrawal (status=withdrawn, bytes purged) so it still counts
+    # toward the daily limit.
     class PhotoSubmissionsController < BaseController
       before_action :load_item, only: [ :create ]
       before_action :load_own_submission, only: [ :destroy ]
@@ -42,7 +44,10 @@ module Api
       rescue DishPhotos::Submit::RateLimited => e
         render json: { error: e.code, message: e.message }, status: :too_many_requests
       rescue Images::StripMetadata::Unprocessable => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render json: { error: e.code, message: e.message }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: "invalid", message: e.record.errors.full_messages.join(", ") },
+               status: :unprocessable_entity
       end
 
       def destroy
@@ -52,7 +57,7 @@ module Api
           return
         end
 
-        @submission.destroy!
+        @submission.withdraw!
         head :no_content
       end
 

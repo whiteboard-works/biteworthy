@@ -12,6 +12,7 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../../../../../../../../lib/reviews';
+import { friendlyPhotoError } from '../../../../../../../../lib/photo-errors';
 import { useTracker } from '../../../../../../../_PostHogProvider';
 
 /**
@@ -68,10 +69,18 @@ export function ReviewsClient({
     }
   };
 
+  const [offerNote, setOfferNote] = useState<string | null>(null);
+
   const onPosted = (saved: ReviewPayload) => {
     setReviews((prev) => [saved, ...prev]);
     setTotal((n) => n + 1);
     setComposerOpen(false);
+    const offer = saved.photo_offer;
+    if (offer && offer.status !== 'pending') {
+      setOfferNote(friendlyPhotoError(offer.code, offer.message));
+    } else {
+      setOfferNote(null);
+    }
   };
 
   return (
@@ -92,16 +101,13 @@ export function ReviewsClient({
         )}
       </div>
 
-      {composerOpen && (
-        <Composer
-          itemId={itemId}
-          restaurantSlug={restaurantSlug}
-          onCancel={() => setComposerOpen(false)}
-          onPosted={onPosted}
-          onUnauthenticated={() => {
-            router.replace(`/login?next=${encodeURIComponent(`${restaurantPath}/items/${itemId}`)}`);
-          }}
-        />
+      {offerNote && (
+        <p
+          data-testid="photo-offer-note"
+          className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+        >
+          Your review was posted. {offerNote}
+        </p>
       )}
 
       <ul className="mt-bw-4 divide-y divide-zinc-100">

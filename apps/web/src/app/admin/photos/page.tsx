@@ -43,8 +43,8 @@ export default function AdminPhotosPage() {
     <main data-testid="admin-photos">
       <h1 className="text-bw-2xl font-bold text-zinc-900">Dish photos</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-600">
-        Diners submit these. Approve-and-set copies the image onto the dish; approve-without-replacing
-        keeps the current photo when the dish already has one.
+        Diners submit these. Approve-and-set copies the image onto the dish; approve without
+        replacing keeps the current photo when the dish already has one.
       </p>
 
       <div className="mt-bw-4 flex flex-wrap items-center gap-bw-2 text-bw-sm">
@@ -144,9 +144,9 @@ function PhotoModRow({
   return (
     <li
       data-testid={`photo-mod-${row.id}`}
-      className="rounded-bw-lg border border-zinc-200 bg-white p-bw-4"
+      className="rounded-bw-lg border border-zinc-200 bg-white p-bw-3"
     >
-      <div className="flex flex-wrap items-start justify-between gap-bw-3">
+      <div className="flex flex-wrap items-start justify-between gap-bw-2">
         <div className="min-w-0">
           <p className="text-bw-sm text-zinc-500">
             <span className="font-semibold text-zinc-900">
@@ -156,41 +156,49 @@ function PhotoModRow({
             {row.item?.restaurant?.name && <> at {row.item.restaurant.name}</>}
           </p>
         </div>
-        <StatusBadge
-          tone={row.status === 'approved' ? 'ok' : row.status === 'rejected' ? 'danger' : 'warn'}
-          label={row.status === 'rejected' ? `rejected: ${row.rejection_reason ?? '?'}` : row.status}
-        />
+        <div className="flex flex-wrap items-center gap-bw-2">
+          {!hasCurrentPhoto && (
+            <span
+              data-testid={`photo-no-current-${row.id}`}
+              className="rounded-bw-pill bg-zinc-100 px-bw-2 py-0.5 text-bw-xs font-semibold text-zinc-600"
+            >
+              No dish photo
+            </span>
+          )}
+          <StatusBadge
+            tone={
+              row.status === 'approved' || row.status === 'approve_keep'
+                ? 'ok'
+                : row.status === 'rejected'
+                  ? 'danger'
+                  : 'warn'
+            }
+            label={row.status === 'rejected' ? `rejected: ${row.rejection_reason ?? '?'}` : row.status}
+          />
+        </div>
       </div>
 
-      <div className="mt-bw-3 grid gap-bw-3 sm:grid-cols-2">
-        <figure>
-          {row.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={row.photo_url}
-              alt="Submitted dish photo"
-              className="max-h-64 w-full rounded-bw-md object-cover"
-            />
-          ) : (
-            <p className="text-bw-sm text-zinc-500">No submitted photo URL.</p>
-          )}
-          <figcaption className="mt-1 text-bw-xs text-zinc-500">Submitted</figcaption>
-        </figure>
-        <figure>
-          {hasCurrentPhoto ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={row.item!.photo_url!}
-              alt="Current dish photo"
-              className="max-h-64 w-full rounded-bw-md object-cover"
-            />
-          ) : (
-            <div className="flex h-40 items-center justify-center rounded-bw-md bg-zinc-100 text-bw-sm text-zinc-500">
-              Dish has no photo yet
-            </div>
-          )}
-          <figcaption className="mt-1 text-bw-xs text-zinc-500">Current dish photo</figcaption>
-        </figure>
+      <div className="mt-bw-2 flex items-start gap-bw-3">
+        {row.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={row.photo_url}
+            alt="Submitted dish photo"
+            className="h-20 w-20 shrink-0 rounded-bw-md object-cover"
+          />
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-bw-md bg-zinc-100 text-bw-xs text-zinc-500">
+            Gone
+          </div>
+        )}
+        {hasCurrentPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={row.item!.photo_url!}
+            alt="Current dish photo"
+            className="h-20 w-20 shrink-0 rounded-bw-md object-cover"
+          />
+        ) : null}
       </div>
 
       {pending && (

@@ -13,11 +13,19 @@ import { api, type ApiOptions } from './api';
 
 import { API_BASE } from './api-base';
 import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
+import { friendlyPhotoError } from './photo-errors';
 
 export interface ReviewAuthor {
   id: string;
   handle: string | null;
   display_name: string | null;
+}
+
+export interface PhotoOffer {
+  status: 'pending' | 'rate_limited' | 'failed';
+  code?: string;
+  message?: string;
+  id?: string;
 }
 
 export interface ReviewPayload {
@@ -29,6 +37,7 @@ export interface ReviewPayload {
   photo_url: string | null;
   created_at: string;
   updated_at: string;
+  photo_offer?: PhotoOffer;
 }
 
 export interface ReviewsResponse {
@@ -186,15 +195,17 @@ export async function reportReview(
 }
 
 async function reviewError(res: Response, label: string): Promise<ReviewError> {
-  let body: { error?: string } | null = null;
+  let body: { error?: string; message?: string } | null = null;
   try {
-    body = (await res.json()) as { error?: string };
+    body = (await res.json()) as { error?: string; message?: string };
   } catch {
     // ignore
   }
+  const photoCopy = body?.error ? friendlyPhotoError(body.error, '') : '';
+  const detail = photoCopy || body?.message || body?.error;
   return new ReviewError(
     res.status,
-    `${label} failed: ${res.status}${body?.error ? ` — ${body.error}` : ''}`,
+    detail || `${label} failed: ${res.status}`,
   );
 }
 

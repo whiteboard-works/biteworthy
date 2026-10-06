@@ -56,6 +56,8 @@ describe('AdminPhotosPage', () => {
     expect(mockFetch).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
     expect(within(card).getByTestId('photo-approve-set-sub-1')).toBeInTheDocument();
     expect(within(card).queryByTestId('photo-approve-keep-sub-1')).not.toBeInTheDocument();
+    expect(within(card).getByTestId('photo-no-current-sub-1')).toHaveTextContent('No dish photo');
+    expect(card).not.toHaveTextContent('Dish has no photo yet');
   });
 
   it('offers approve-without-replacing only when the dish already has a photo', async () => {

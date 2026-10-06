@@ -1,4 +1,5 @@
 require "rails_helper"
+require "vips"
 
 # Reviews are the one place a stranger's free text reaches both the
 # public feed and, through the tool result, the model's context. These
@@ -21,6 +22,23 @@ RSpec.describe "review tools" do
       expect(review.user_id).to eq(author.id)
       expect(review.rating).to eq(5)
       expect(review.body).to eq("Best taco in town.")
+    end
+
+    it "strips GPS from a photo attached via attachment_id" do
+      gps_file = JpegWithGps.tempfile
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: gps_file,
+        filename: "phone.jpg",
+        content_type: "image/jpeg",
+        metadata: { "uploaded_by_user_id" => author.id }
+      )
+
+      call(described_class, author, item_id: item.id, rating: 4, attachment_id: blob.signed_id)
+
+      stored = Vips::Image.new_from_buffer(Review.last.photo.download, "")
+      expect(stored.get_fields.grep(/gps/i)).to be_empty
+    ensure
+      gps_file&.close!
     end
 
     # The body is a stranger's writing arriving in an agent's context.
@@ -74,6 +92,23 @@ RSpec.describe "review tools" do
 
       expect(review.reload.rating).to eq(5)
       expect(review.body).to eq("ok")
+    end
+
+    it "strips GPS when replacing the photo" do
+      gps_file = JpegWithGps.tempfile
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: gps_file,
+        filename: "phone.jpg",
+        content_type: "image/jpeg",
+        metadata: { "uploaded_by_user_id" => author.id }
+      )
+
+      call(described_class, author, review_id: review.id, attachment_id: blob.signed_id)
+
+      stored = Vips::Image.new_from_buffer(review.reload.photo.download, "")
+      expect(stored.get_fields.grep(/gps/i)).to be_empty
+    ensure
+      gps_file&.close!
     end
 
     it "refuses someone else's review" do

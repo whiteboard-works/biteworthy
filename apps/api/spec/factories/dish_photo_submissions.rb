@@ -22,11 +22,23 @@ FactoryBot.define do
       association :reviewed_by, factory: [ :user, :admin ]
     end
 
+    trait :approve_keep do
+      status { "approve_keep" }
+      reviewed_at { Time.current }
+      association :reviewed_by, factory: [ :user, :admin ]
+    end
+
     trait :rejected do
       status { "rejected" }
       rejection_reason { "low_quality" }
       reviewed_at { Time.current }
       association :reviewed_by, factory: [ :user, :admin ]
+      after(:create) { |row| row.photo.purge if row.photo.attached? }
+    end
+
+    trait :withdrawn do
+      status { "withdrawn" }
+      after(:create) { |row| row.photo.purge if row.photo.attached? }
     end
   end
 end

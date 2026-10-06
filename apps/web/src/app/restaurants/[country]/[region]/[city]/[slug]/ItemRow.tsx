@@ -148,12 +148,23 @@ export function ItemRow({
           </p>
         )}
         {!hasDishPhoto(item) && (
-          <p className="mt-1">
+          <p className="mt-2">
             <a
               href={`${itemHref}${itemHref.includes('?') ? '&' : '?'}addPhoto=1`}
               data-testid={`add-photo-${item.id}`}
-              className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-bw-md border border-zinc-200 bg-white px-3 text-bw-sm font-semibold text-bite hover:border-bite hover:text-bite-dark"
             >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M4 7h3l2-2h6l2 2h3v12H4z" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
               Add a photo
             </a>
           </p>

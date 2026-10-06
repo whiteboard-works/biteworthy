@@ -373,8 +373,10 @@ Diner dish photos sit in the `moderation` domain, admin-only like the review
 queue: **`list_photo_submissions`** (defaults to pending) and
 **`moderate_photo_submission`** (`approve_and_set` copies onto the dish through
 the same attach path as a staff PATCH so WebP variants generate; `approve_keep`
-marks it approved without replacing an existing photo; `reject` needs a reason).
-Stored images are rewritten through libvips with metadata stripped (no GPS).
+marks it accepted without replacing an existing photo; `reject` needs a
+`reason`). Stored images are rewritten through libvips with metadata stripped
+(no GPS). Output fences `credit_name`, `photo_url`, and other diner-controlled
+strings.
 
 ### Restaurant curation tools (admin domain)
 

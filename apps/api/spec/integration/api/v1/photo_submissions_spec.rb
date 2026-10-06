@@ -12,7 +12,7 @@ RSpec.describe "photo_submissions", type: :request do
     properties: {
       id:               { type: :string, format: :uuid },
       item_id:          { type: :string, format: :uuid },
-      status:           { type: :string, enum: %w[pending approved rejected] },
+      status:           { type: :string, enum: %w[pending approved rejected withdrawn approve_keep] },
       rejection_reason: { type: :string, nullable: true,
                           enum: %w[not_this_dish low_quality inappropriate not_food duplicate] },
       owns_rights:      { type: :boolean },
@@ -145,7 +145,7 @@ RSpec.describe "photo_submissions", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true,
                 description: "Bearer <jwt> for a user with is_admin"
       parameter name: :status, in: :query, type: :string, required: false,
-                schema: { type: :string, enum: %w[pending approved rejected all] }
+                schema: { type: :string, enum: %w[pending approved approve_keep rejected withdrawn all] }
       parameter name: :item_id, in: :query, type: :string, required: false
       parameter name: :limit, in: :query, type: :integer, required: false
       parameter name: :offset, in: :query, type: :integer, required: false

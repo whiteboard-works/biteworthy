@@ -127,16 +127,21 @@ RSpec.describe User do
       expect { user.destroy! }.to change(Conversation, :count).by(-1)
     end
 
-    it "destroys pending dish photos and keeps approved ones without an owner" do
+    it "destroys uncredited dish photos and anonymizes one still used as the dish photo" do
       user = create(:user)
       item = create(:item, :published)
       pending = create(:dish_photo_submission, user: user, item: item)
-      approved = create(:dish_photo_submission, :approved, user: user, item: item)
+      kept = create(:dish_photo_submission, :approved, user: user, item: item)
+      item.update_columns(photo_submission_id: kept.id)
+      rejected = create(:dish_photo_submission, :rejected, user: user, item: item)
 
       user.destroy!
 
       expect(DishPhotoSubmission.exists?(pending.id)).to be(false)
-      expect(DishPhotoSubmission.find(approved.id).user_id).to be_nil
+      expect(DishPhotoSubmission.exists?(rejected.id)).to be(false)
+      kept.reload
+      expect(kept.user_id).to be_nil
+      expect(kept.credit_name).to eq(DishPhotoSubmission::ANONYMOUS_CREDIT)
     end
   end
 end

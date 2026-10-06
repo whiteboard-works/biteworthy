@@ -11,10 +11,12 @@ module Api
         MAX_LIMIT     = 100
 
         STATUS_SCOPES = {
-          "pending"  => :pending,
-          "approved" => :approved,
-          "rejected" => :rejected,
-          "all"      => :all
+          "pending"      => :pending,
+          "approved"     => :accepted,
+          "approve_keep" => :approve_keep,
+          "rejected"     => :rejected,
+          "withdrawn"    => :withdrawn,
+          "all"          => :all
         }.freeze
 
         def index

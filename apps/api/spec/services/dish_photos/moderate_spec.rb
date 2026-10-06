@@ -25,15 +25,16 @@ RSpec.describe DishPhotos::Moderate do
 
     described_class.new(submission, reviewer: admin).approve!(replace_item_photo: false)
 
-    expect(submission.reload).to be_approved
+    expect(submission.reload).to be_approve_keep
     expect(item.reload.photo.blob.id).to eq(original_blob)
     expect(item.photo_submission_id).to be_nil
   end
 
-  it "records a rejection reason" do
+  it "purges the stored image on reject so the old link stops working" do
     described_class.new(submission, reviewer: admin).reject!(reason: "not_this_dish")
 
     expect(submission.reload).to be_rejected
+    expect(submission.photo).not_to be_attached
     expect(submission.rejection_reason).to eq("not_this_dish")
     expect(item.reload.photo).not_to be_attached
   end

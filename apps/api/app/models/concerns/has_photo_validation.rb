@@ -1,9 +1,9 @@
 # Shared upload guards for models with a single `:photo` attachment
 # (Item, Review, DishPhotoSubmission). Each model still declares its own
 # `has_one_attached :photo`; this centralises the size + content-type
-# limits so they can't drift apart. Diner submissions are also rewritten
-# through Images::StripMetadata before attach so stored bytes carry no
-# EXIF/GPS.
+# limits so they can't drift apart. Diner-facing uploads (reviews and
+# dish submissions) are rewritten through Images::StripMetadata *before*
+# attach — raw size and pixel bounds first, then EXIF/GPS stripped.
 module HasPhotoValidation
   extend ActiveSupport::Concern
 

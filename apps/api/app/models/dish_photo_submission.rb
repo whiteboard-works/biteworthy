@@ -6,10 +6,13 @@
 class DishPhotoSubmission < ApplicationRecord
   include HasPhotoValidation
 
-  STATUSES = %w[pending approved rejected].freeze
+  STATUSES = %w[pending approved rejected withdrawn approve_keep].freeze
   REJECTION_REASONS = %w[not_this_dish low_quality inappropriate not_food duplicate].freeze
+  # Statuses that have no stored image (purged on the way in).
+  PHOTOLESS = %w[rejected withdrawn].freeze
   DAILY_LIMIT_PER_USER = 10
   PENDING_PER_ITEM_LIMIT = 3
+  ANONYMOUS_CREDIT = "a diner"
 
   belongs_to :item
   belongs_to :user, optional: true
@@ -18,7 +21,9 @@ class DishPhotoSubmission < ApplicationRecord
   has_many :credited_items, class_name: "Item", foreign_key: :photo_submission_id,
            dependent: :nullify, inverse_of: :photo_submission
 
-  has_one_attached :photo
+  has_one_attached :photo do |attachable|
+    attachable.variant :thumb, resize_to_limit: [ 400, 400 ], format: :webp
+  end
 
   validates :status, inclusion: { in: STATUSES }
   validates :rejection_reason, inclusion: { in: REJECTION_REASONS }, allow_nil: true
@@ -28,10 +33,13 @@ class DishPhotoSubmission < ApplicationRecord
   validate :rejection_reason_matches_status
   validate :review_belongs_to_same_item_and_user
 
-  scope :pending,  -> { where(status: "pending") }
-  scope :approved, -> { where(status: "approved") }
-  scope :rejected, -> { where(status: "rejected") }
-  scope :newest_first, -> { order(created_at: :desc) }
+  scope :pending,       -> { where(status: "pending") }
+  scope :approved,      -> { where(status: "approved") }
+  scope :approve_keep,  -> { where(status: "approve_keep") }
+  scope :accepted,      -> { where(status: %w[approved approve_keep]) }
+  scope :rejected,      -> { where(status: "rejected") }
+  scope :withdrawn,     -> { where(status: "withdrawn") }
+  scope :newest_first,  -> { order(created_at: :desc) }
 
   def pending?
     status == "pending"
@@ -41,13 +49,38 @@ class DishPhotoSubmission < ApplicationRecord
     status == "approved"
   end
 
+  def approve_keep?
+    status == "approve_keep"
+  end
+
   def rejected?
     status == "rejected"
+  end
+
+  def withdrawn?
+    status == "withdrawn"
+  end
+
+  def credited?
+    Item.exists?(photo_submission_id: id)
+  end
+
+  # Soft-delete: the row stays so it still counts toward the daily
+  # limit, but the bytes go away.
+  def withdraw!
+    raise ActiveRecord::RecordInvalid, self unless pending?
+
+    transaction do
+      update!(status: "withdrawn")
+      photo.purge if photo.attached?
+    end
   end
 
   private
 
   def photo_is_attached
+    return if PHOTOLESS.include?(status)
+
     errors.add(:photo, "must be attached") unless photo.attached?
   end
 
