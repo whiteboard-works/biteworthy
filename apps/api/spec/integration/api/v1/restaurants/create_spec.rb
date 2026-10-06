@@ -34,6 +34,17 @@ RSpec.describe "restaurants", type: :request do
                        street:    { type: :string, nullable: true },
                        latitude:  { type: :number, nullable: true },
                        longitude: { type: :number, nullable: true },
+                       address: {
+                         type: :object,
+                         nullable: true,
+                         properties: {
+                           street:      { type: :string, nullable: true },
+                           city:        { type: :string, nullable: true },
+                           region:      { type: :string, nullable: true },
+                           postal_code: { type: :string, nullable: true },
+                           country:     { type: :string, nullable: true }
+                         }
+                       },
                        city: {
                          type: :object,
                          required: %w[slug name],

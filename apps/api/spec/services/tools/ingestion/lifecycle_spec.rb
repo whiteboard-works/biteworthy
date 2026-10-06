@@ -314,8 +314,10 @@ RSpec.describe "ingestion tools", type: :service do
 
         before do
           # Existing item has old ingredients
-          create(:item_ingredient, item: existing, ingredient: beef)
-          create(:item_ingredient, item: existing, ingredient: old_ingredient)
+          ItemIngredient.create!(item: existing, ingredient: beef,
+                                 confidence: "confirmed", source: "human")
+          ItemIngredient.create!(item: existing, ingredient: old_ingredient,
+                                 confidence: "confirmed", source: "human")
 
           # Edit the staged item with new ingredients
           item.update!(
@@ -324,7 +326,7 @@ RSpec.describe "ingestion tools", type: :service do
             ingredients_payload: [
               { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "human" },
               { "slug" => "fruit-lime", "confidence" => 1.0, "source" => "human" }
-            ].to_json
+            ]
           )
         end
 
@@ -348,18 +350,15 @@ RSpec.describe "ingestion tools", type: :service do
 
         it "derives allergen tags from the new ingredients" do
           # Create allergen-bearing ingredient
-          shellfish = create(:ingredient, name: "Shrimp", slug: "shellfish-shrimp", path: "shellfish.shrimp")
+          create(:ingredient, name: "Shrimp", slug: "shellfish-shrimp", path: "shellfish.shrimp")
           shellfish_tag = create(:tag, name: "Contains shellfish", slug: "contains-shellfish",
                                  family: "allergen", path: "allergen.contains_shellfish")
 
           item.update!(
             ingredients_payload: [
               { "slug" => "shellfish-shrimp", "confidence" => 1.0, "source" => "human" }
-            ].to_json
+            ]
           )
-
-          # Mock the TagDeriver to return shellfish allergen
-          allow(::Ingestion::TagDeriver).to receive(:call).and_return(["contains-shellfish"])
 
           Tools::Ingestion::AcceptStagedItems.call(
             scan_id: run.id, item_ids: [item.id], server_context: ctx(admin)
@@ -367,11 +366,37 @@ RSpec.describe "ingestion tools", type: :service do
 
           existing.reload
           expect(existing.denormalized_tag_ids).to include(shellfish_tag.id)
+          allergen_join = existing.item_tags.find_by(tag: shellfish_tag)
+          expect(allergen_join.source).to eq("derived")
+          expect(allergen_join.confidence).to eq("suggested")
+        end
+
+        it "maps derived and AI replacement rows through map_confidence" do
+          item.update!(
+            ingredients_payload: [
+              { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "derived" },
+              { "slug" => "fruit-lime", "confidence" => 0.5, "source" => "ai" }
+            ]
+          )
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(admin)
+          )
+
+          existing.reload
+          cilantro_join = existing.item_ingredients.find_by(ingredient: cilantro)
+          lime_join = existing.item_ingredients.find_by(ingredient: lime)
+          expect(cilantro_join.source).to eq("derived")
+          expect(cilantro_join.confidence).to eq("suggested")
+          expect(lime_join.source).to eq("ai")
+          expect(lime_join.confidence).to eq("inferred")
         end
 
         it "can be undone to restore the original name and ingredients" do
+          existing.reload
           original_name = existing.name
           original_ingredient_ids = existing.denormalized_ingredient_ids
+          expect(original_ingredient_ids).to contain_exactly(beef.id, old_ingredient.id)
 
           Tools::Ingestion::AcceptStagedItems.call(
             scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
@@ -392,7 +417,8 @@ RSpec.describe "ingestion tools", type: :service do
 
         before do
           # Existing item has beef
-          create(:item_ingredient, item: existing, ingredient: beef)
+          ItemIngredient.create!(item: existing, ingredient: beef,
+                                 confidence: "confirmed", source: "human")
 
           # Auto-scanned item (decision: pending) adds cilantro
           item.update!(
@@ -400,7 +426,7 @@ RSpec.describe "ingestion tools", type: :service do
             name: "Different Name",
             ingredients_payload: [
               { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "ai" }
-            ].to_json
+            ]
           )
         end
 

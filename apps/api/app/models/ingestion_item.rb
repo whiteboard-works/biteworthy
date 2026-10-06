@@ -170,12 +170,10 @@ class IngestionItem < ApplicationRecord
     old_confidence = target.confidence
 
     if edited?
-      # Edited by human: replace ingredients/tags completely
-      # Delete existing joins first, then insert new ones through confidence mapping
+      # Edited by human: replace ingredients/tags completely, then re-insert
+      # through master's confidence mapping so derived/AI rows stay unconfirmed.
       replace_joins_with_payload!(ItemIngredient, target, Ingredient, ingredients_payload, accept_confidence, snapshot)
       replace_joins_with_payload!(ItemTag, target, Tag, tags_payload, accept_confidence, snapshot)
-
-      # Recompute allergen tags after ingredient changes
       derive_allergen_tags!(target, accept_confidence, snapshot)
     else
       # Auto-scanned: append-only
@@ -316,92 +314,45 @@ class IngestionItem < ApplicationRecord
   end
 
   # Replace all joins of this type on the target item with the new set.
-  # Used when a human explicitly edited the associations. Uses master's
-  # confidence mapping to respect source and numeric confidence.
+  # Used when a human explicitly edited the associations. Inserts through
+  # insert_joins_with_payload! so confidence/source stay on master's mapping.
   def replace_joins_with_payload!(model, target, node_model, payload, accept_confidence, snapshot)
     foreign_key = model.denormalized_foreign_key
     snapshot_key = "replaced_#{model.table_name.singularize}_ids"
 
-    # Capture existing joins for undo
     existing_joins = model.where(item_id: target.id).pluck(:id, foreign_key, :confidence, :source)
     snapshot[snapshot_key] = existing_joins.map do |id, node_id, conf, src|
       { "id" => id, foreign_key => node_id, "confidence" => conf, "source" => src }
     end
 
-    # Delete all existing joins
     Item.defer_denormalization do
       model.where(item_id: target.id).destroy_all
     end
 
-    # Insert new joins through confidence mapping
-    return if Array(payload).empty?
-
-    payload_rows = Ingestion::AssociationPayload.load_all(payload)
-    by_slug = node_model.where(slug: payload_rows.map(&:slug).compact.uniq).pluck(:slug, :id).to_h
-
-    rows_to_insert = payload_rows.filter_map do |row|
-      node_id = by_slug[row.slug]
-      next if node_id.nil?
-
-      join_confidence = map_confidence(row.confidence, row.source, accept_confidence)
-      join_source = case row.source
-      when "match" then "human"
-      when "derived" then "derived"
-      when "ai" then "ai"
-      when "owner" then "owner"
-      else "human"
-      end
-
-      { :item_id => target.id, foreign_key => node_id,
-        :confidence => join_confidence, :source => join_source }
-    end
-
-    if rows_to_insert.any?
-      model.insert_all(rows_to_insert)
-      model.resync_denormalized_ids([target.id])
-    end
+    created_ids = insert_joins_with_payload!(model, target, node_model, payload, accept_confidence)
+    created_key = "created_#{model.table_name.singularize}_ids"
+    snapshot[created_key] = created_ids if created_ids.any?
   end
 
-  # Derive allergen tags from ingredients after a replace operation.
-  # Uses the same derivation logic as the ingestion pipeline and respects
-  # master's confidence mapping.
+  # Recompute allergen tags from the replacement ingredient set using the
+  # same Allergen strategy the resolve pass uses, then map each row through
+  # map_confidence so a derived tag never becomes confirmed.
   def derive_allergen_tags!(target, accept_confidence, snapshot)
-    # Get current ingredient IDs from the item
-    ingredient_ids = target.reload.denormalized_ingredient_ids
+    resolved = ItemIngredient.where(item_id: target.id).includes(:ingredient).filter_map do |join|
+      ingredient = join.ingredient
+      next unless ingredient
 
-    # Derive allergen tags using the existing TagDeriver
-    derived_tag_slugs = ::Ingestion::TagDeriver.call(
-      ingredient_ids: ingredient_ids.map(&:to_s),
-      existing_tag_slugs: []
-    )
-
-    # Resolve derived tag slugs to IDs
-    derived_tags = Tag.where(slug: derived_tag_slugs, family: "allergen")
-
-    # Insert derived allergen tags through confidence mapping
-    if derived_tags.any?
-      existing_allergen_tag_ids = ItemTag.joins(:tag)
-                                         .where(item_id: target.id, tags: { family: "allergen" })
-                                         .pluck(:tag_id)
-      new_allergen_tags = derived_tags.where.not(id: existing_allergen_tag_ids)
-
-      if new_allergen_tags.any?
-        # Derived tags always get source="derived" and run through confidence mapping
-        rows_to_insert = new_allergen_tags.map do |tag|
-          join_confidence = map_confidence(1.0, "derived", accept_confidence)
-          { item_id: target.id, tag_id: tag.id, confidence: join_confidence, source: "derived" }
-        end
-
-        ItemTag.insert_all(rows_to_insert)
-        ItemTag.resync_denormalized_ids([target.id])
-
-        # Track in snapshot for undo
-        snapshot["derived_allergen_tag_ids"] = ItemTag.joins(:tag)
-                                                      .where(item_id: target.id,
-                                                             tags: { family: "allergen", id: new_allergen_tags.map(&:id) })
-                                                      .pluck(:id)
-      end
+      { slug: ingredient.slug, path: ingredient.path.to_s, confidence: 1.0, source: join.source }
     end
+
+    derived = Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved })
+    return if derived.empty?
+
+    payload = derived.map { |row|
+      { "slug" => row[:slug], "confidence" => row[:confidence], "source" => row[:source] }
+    }
+    created_ids = insert_joins_with_payload!(ItemTag, target, Tag, payload, accept_confidence)
+    snapshot["derived_allergen_tag_ids"] = created_ids if created_ids.any?
   end
 
   # Map numeric confidence + source → Item confidence enum, capped/promoted by who accepted.

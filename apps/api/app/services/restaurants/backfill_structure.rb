@@ -32,33 +32,35 @@ module Restaurants
         m.position = 0
       end
 
-      # Track sections by name to assign positions based on first appearance
+      # First appearance in source-menu order (ingestion_items.position).
       section_positions = {}
       next_position = 0
+      section_item_counts = Hash.new(0)
 
-      accepted_items.each_with_index do |ingestion_item, item_index|
+      accepted_items.each do |ingestion_item|
         next if ingestion_item.section_name.blank?
 
-        # Assign section position based on first appearance in source order
+        item = ingestion_item.item
+        # Manual curation wins: never move a dish that already has a section.
+        next if item.menu_section_id.present?
+
         unless section_positions.key?(ingestion_item.section_name)
           section_positions[ingestion_item.section_name] = next_position
           next_position += 1
         end
 
+        desired = section_positions[ingestion_item.section_name]
         section = MenuSection.find_or_create_by!(menu: menu, name: ingestion_item.section_name) do |s|
-          s.position = section_positions[ingestion_item.section_name]
+          s.position = desired
         end
+        section.update!(position: desired) if section.position != desired
 
-        # Update section position if it already exists (idempotent)
-        section.update!(position: section_positions[ingestion_item.section_name]) if section.position != section_positions[ingestion_item.section_name]
+        item_position = section_item_counts[section.id]
+        section_item_counts[section.id] += 1
 
-        # Count items in this section so far to set position
-        section_item_count = accepted_items[0..item_index].count { |ii| ii.section_name == ingestion_item.section_name && ii.item_id }
-        item_position = section_item_count - 1
-
-        ingestion_item.item.update!(menu_section_id: section.id, position: item_position)
+        item.update!(menu_section_id: section.id, position: item_position)
         @changes[:sections_created] << {
-          item_id: ingestion_item.item_id,
+          item_id: item.id,
           section_name: section.name
         }
       end
@@ -108,6 +110,7 @@ module Restaurants
                           .where(items: { restaurant_id: @restaurant.id, status: "published" })
                           .where(decision: "accepted")
                           .includes(:item)
+                          .order(Arel.sql("ingestion_items.position ASC NULLS LAST, ingestion_items.created_at ASC"))
     end
   end
 end

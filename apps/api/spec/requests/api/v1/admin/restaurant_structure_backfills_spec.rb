@@ -182,7 +182,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
 
     it "does not overwrite manually edited variant prices by default" do
       item = create(:item, restaurant: restaurant, status: "published")
-      create(:item_variant, item: item, price_cents: 999)
+      ItemVariant.create!(item: item, size: "regular", price_cents: 999, position: 0)
 
       create(:ingestion_item,
              ingestion_run: run,
@@ -202,7 +202,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
 
     it "overwrites prices when overwrite_prices is true" do
       item = create(:item, restaurant: restaurant, status: "published")
-      create(:item_variant, item: item, price_cents: 999)
+      ItemVariant.create!(item: item, size: "regular", price_cents: 999, position: 0)
 
       create(:ingestion_item,
              ingestion_run: run,

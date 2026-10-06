@@ -84,6 +84,10 @@ module Api
           status: r.status,
           web_path: r.web_path,
           city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
+          # Keep the original street/coords fields — the OpenAPI contract and
+          # web RestaurantSummary still read them — and add the full address
+          # object so admin/MCP callers can see city/region/postal/country.
+          street:    first_address&.street,
           address: first_address && {
             street:      first_address.street,
             city:        first_address.city,

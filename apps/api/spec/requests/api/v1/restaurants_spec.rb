@@ -189,6 +189,7 @@ RSpec.describe "Restaurants index API", type: :request do
     expect(rows.first).to include(
       "street" => "Main Ave 101", "latitude" => 37.27, "longitude" => -107.88
     )
+    expect(rows.first["address"]).to include("street" => "Main Ave 101")
     expect(rows.first["city"]).to include("slug" => "durango")
   end
 
