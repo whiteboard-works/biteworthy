@@ -252,10 +252,10 @@ provider up again on a new box:
 - Send 7 days before public launch. Follow up after 3 days (5 for KSUT).
 - Day-of: stage the `launch-day.md` social posts.
 
-### 10. Backfill gluten rows on dishes promoted before the gluten rules — applied 2026-10-06, **review list still open**
+### 10. Backfill gluten rows on dishes promoted before the gluten rules — ✅ **DONE 2026-10-06**
 
 - [x] Apply run (owner, 2026-10-06).
-- [ ] **Work every dish on the apply run's "review by hand" list in admin.** Until then those dishes are unchanged and can still show as safe to Celiac users. Keep that run's output as the checklist: a rerun cannot tell a dish someone checked and left without wheat on purpose from one nobody looked at, so it lists both every time.
+- [x] Every dish on that run's "review by hand" list checked in admin (owner, 2026-10-06).
 
 **Unlocks:** Celiac users stop seeing old samosas, katsu, breaded or gravied dishes, soy-sauce stir fries, and similar as safe.
 
