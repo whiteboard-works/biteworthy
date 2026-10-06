@@ -1,14 +1,16 @@
 /**
  * Phase 8.4 — mobile Top Picks row. Same contract as the web row
  * (Phase 8.3): renders only from server-provided taste_score /
- * taste_reasons via filter-engine's shared selector; anonymous
- * payloads (null scores) render nothing so the screen is unchanged.
+ * taste_reasons via filter-engine's shared selector. When there are
+ * no picks it says why — sign in, start rating, or rate a few more —
+ * matching the web row's empty states.
  */
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => mockPush(...args),
-    replace: jest.fn(),
+    replace: (...args: unknown[]) => mockReplace(...args),
     back: jest.fn(),
   },
   Link: 'Link',
@@ -50,12 +52,13 @@ const threePicks: RestaurantItem[] = [
 describe('TopPicksRow (mobile, Phase 8.4)', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    mockReplace.mockClear();
   });
 
   it('renders cards + the "because you like…" line at ≥3 positive scores', () => {
-    render(<TopPicksRow items={threePicks} />);
+    render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
 
-    expect(screen.getByText('Top picks for you')).toBeTruthy();
+    expect(screen.getByText('Your best bets here')).toBeTruthy();
     expect(screen.getByTestId('pick-reason-curry').props.children).toBe(
       'Because you like Spicy & Basil',
     );
@@ -69,35 +72,46 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
       { ...threePicks[0]!, photo_url: 'https://example.com/c.jpg' },
       ...threePicks.slice(1),
     ];
-    const { rerender } = render(<TopPicksRow items={withPhoto} />);
+    const { rerender } = render(<TopPicksRow items={withPhoto} restaurantId="rest-1" signedIn />);
     // Decorative and hidden from screen readers, so the query has to opt in.
     const hidden = { includeHiddenElements: true };
     expect(screen.getByTestId('pick-photo-placeholder-pad', hidden)).toBeTruthy();
     expect(screen.queryByTestId('pick-photo-placeholder-curry', hidden)).toBeNull();
 
-    rerender(<TopPicksRow items={threePicks} />);
+    rerender(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
     expect(screen.queryByTestId('pick-photo-placeholder-pad', hidden)).toBeNull();
   });
 
-  it('renders nothing below the 3-pick threshold', () => {
-    render(<TopPicksRow items={threePicks.slice(0, 2)} />);
+  it('below the 3-pick threshold, a signed-in user gets a quiet "rate a few more" nudge', () => {
+    render(<TopPicksRow items={threePicks.slice(0, 2)} restaurantId="rest-1" signedIn />);
     expect(screen.queryByTestId('top-picks')).toBeNull();
+    expect(screen.getByTestId('top-picks-almost')).toBeTruthy();
   });
 
-  it('renders nothing for an anonymous payload (null scores) — screen unchanged', () => {
-    const anonymous = threePicks.map((i) => ({ ...i, taste_score: null, taste_reasons: [] }));
-    render(<TopPicksRow items={anonymous} />);
+  it('signed in with no taste signal at all: points them at rating dishes', () => {
+    const unscored = threePicks.map((i) => ({ ...i, taste_score: null, taste_reasons: [] }));
+    render(<TopPicksRow items={unscored} restaurantId="rest-1" signedIn />);
     expect(screen.queryByTestId('top-picks')).toBeNull();
+    expect(screen.getByTestId('top-picks-no-signals')).toBeTruthy();
+  });
+
+  it('signed out: sign-in link returns to this restaurant afterwards', () => {
+    const anonymous = threePicks.map((i) => ({ ...i, taste_score: null, taste_reasons: [] }));
+    render(<TopPicksRow items={anonymous} restaurantId="rest-1" signedIn={false} />);
+    expect(screen.queryByTestId('top-picks')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Sign in to see your best bets here'));
+    // replace, so Back after signing in can't reveal the stale signed-out screen.
+    expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Frestaurants%2Frest-1');
   });
 
   it('tapping a card opens the item screen', () => {
-    render(<TopPicksRow items={threePicks} />);
+    render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
     fireEvent.press(screen.getByLabelText('top-pick-curry'));
     expect(mockPush).toHaveBeenCalledWith('/items/curry');
   });
 
   it('"Why these?" toggles the taste-≠-safety explainer', () => {
-    render(<TopPicksRow items={threePicks} />);
+    render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
 
     expect(screen.queryByTestId('why-these-explainer')).toBeNull();
     fireEvent.press(screen.getByLabelText('why-these'));
