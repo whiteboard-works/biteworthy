@@ -12,7 +12,7 @@ RSpec.describe "restaurants/items", type: :request do
       slug:       { type: :string, nullable: true },
       name:       { type: :string, nullable: true },
       confidence: { type: :string, enum: %w[confirmed suggested inferred] },
-      source:     { type: :string, enum: %w[human ai owner] }
+      source:     { type: :string, enum: %w[human ai owner derived] }
     }
   }.freeze
   path "/api/v1/restaurants/{restaurant_id}/items" do
