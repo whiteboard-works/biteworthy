@@ -403,10 +403,17 @@ reusing the same business logic and validation as the REST admin endpoints:
   slugs for editing), tags, variants, and modifiers.
 - **`update_published_item`** — edit a live menu item: name, description,
   status (including `removed` = admin unpublish), section, position,
-  ingredients (by slug), tags (by slug), variants, modifiers. Reuses
-  `Admin::ItemEditor` so validation and join-sync logic stay shared with
-  the REST endpoint. `confidence` is NOT editable — it only moves through
-  `promote!` and `confirm_restaurant_data`.
+  ingredients (by slug), tags (by slug), variants, modifiers, and optional
+  `added_confidence` (`confirmed` | `suggested` | `inferred`, default
+  `confirmed`). Reuses `Admin::ItemEditor` so validation and join-sync
+  logic stay shared with the REST endpoint. New rows default to
+  `confirmed`/`human`; `suggested`/`inferred` write `source: derived` on
+  only the rows added in that call so ConfidenceMapper's trusted-source
+  allow-list will not remap them to confirmed. Kept rows are untouched.
+  After a join sync the dish confidence is re-derived from the weakest
+  current join (downgrade only). Dish-level `confidence` is not settable
+  directly — it still graduates through `promote!` and
+  `confirm_restaurant_data`.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 

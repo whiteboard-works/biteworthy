@@ -413,6 +413,23 @@ RSpec.describe "Admin MCP tools" do
         expect(result.dig("content", 0, "text")).to include("Unknown")
       end
 
+      it "marks added rows suggested/derived when added_confidence is suggested" do
+        gluten = create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                              family: "allergen", path: "allergen.contains_gluten")
+        item.update!(confidence: "confirmed")
+
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          tag_slugs: [ "contains-gluten" ],
+          added_confidence: "suggested"
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_tags.find_by!(tag: gluten))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        expect(item.reload.confidence).to eq("suggested")
+      end
+
       it "validates price_cents as non-negative integer" do
         mcp_call("update_published_item", {
           item_id: item.id,

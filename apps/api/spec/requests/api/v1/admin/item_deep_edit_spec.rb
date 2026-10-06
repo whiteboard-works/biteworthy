@@ -3,10 +3,13 @@ require "rails_helper"
 # Admin deep-edit is the "fix it at the source" counterpart to verify
 # editing: once a dish is live, this is the only way to correct what it
 # claims. The rules that protect allergy users are the point —
-# admin-set joins land `confirmed`/`human` (so strict mode trusts
-# them), removals go row-by-row so the denormalized arrays the filter
-# query reads stay in sync, and `confidence` itself is unreachable
-# from here.
+# admin-set joins default to `confirmed`/`human` (so strict mode trusts
+# them), an optional `added_confidence` marks only newly added rows as
+# a cautionary guess (`derived`, so the trusted-source allow-list will
+# not remap them to confirmed), removals go row-by-row so the
+# denormalized arrays the filter query reads stay in sync, and
+# dish-level `confidence` is re-derived from the weakest join rather
+# than being settable here.
 RSpec.describe "Admin item deep edit", type: :request do
   let(:admin)      { create(:user, :admin) }
   let(:restaurant) { create(:restaurant, :published) }
@@ -108,6 +111,95 @@ RSpec.describe "Admin item deep edit", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(item.reload.confidence).to eq("suggested")
+    end
+
+    # A curator adding "this American-Chinese sauce likely has wheat soy
+    # sauce" must not land as verified. Default stays confirmed/human so
+    # existing admin edits still outrank a future scan.
+    describe "added_confidence" do
+      let!(:gluten) do
+        create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                     family: "allergen", path: "allergen.contains_gluten")
+      end
+
+      it "defaults omitted added_confidence to confirmed/human" do
+        patch_item(ingredient_slugs: %w[meat-beef], added_confidence: nil)
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_ingredients.pluck(:confidence, :source)).to eq([%w[confirmed human]])
+      end
+
+      it "marks only newly added rows suggested/derived and leaves kept rows alone" do
+        ItemIngredient.create!(item: item, ingredient: beef, confidence: "confirmed", source: "human")
+        ItemTag.create!(item: item, tag: vegan, confidence: "confirmed", source: "human")
+
+        patch_item(
+          ingredient_slugs: %w[meat-beef soy-tofu],
+          tag_slugs: %w[diet-vegan contains-gluten],
+          added_confidence: "suggested"
+        )
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_ingredients.find_by!(ingredient: beef))
+          .to have_attributes(confidence: "confirmed", source: "human")
+        expect(item.item_ingredients.find_by!(ingredient: tofu))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        expect(item.item_tags.find_by!(tag: vegan))
+          .to have_attributes(confidence: "confirmed", source: "human")
+        expect(item.item_tags.find_by!(tag: gluten))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        # derived is the point of the source pick: TRUSTED_SOURCES is
+        # match/human/owner, so a later admin remap cannot confirm these.
+        expect(Ingestion::ConfidenceMapper::TRUSTED_SOURCES).not_to include("derived")
+        expect(Ingestion::ConfidenceMapper.map_confidence(1.0, "derived", "confirmed"))
+          .to eq("suggested")
+      end
+
+      # The point of the marking: a cautionary allergen tag must pull the
+      # dish off confirmed so strict mode no longer treats it as verified.
+      it "re-derives dish confidence from the weakest current join row" do
+        item.update!(confidence: "confirmed")
+        ItemIngredient.create!(item: item, ingredient: beef, confidence: "confirmed", source: "human")
+
+        patch_item(tag_slugs: %w[contains-gluten], added_confidence: "suggested")
+
+        expect(response).to have_http_status(:ok)
+        expect(item.reload.confidence).to eq("suggested")
+      end
+
+      # The filter reads denormalized tag_ids, not join confidence — a
+      # suggested contains-gluten still has to hide the dish from someone
+      # avoiding gluten, or the cautionary mark would be decoration.
+      it "still hides a dish with a suggested contains-gluten tag from an avoid list" do
+        item.update!(confidence: "confirmed", status: "published")
+
+        patch_item(tag_slugs: %w[contains-gluten], added_confidence: "suggested")
+        expect(response).to have_http_status(:ok)
+
+        filter = Menus::Filter.new(
+          avoid_ingredient_ids: [],
+          avoid_tag_ids:        [gluten.id],
+          strictness:           "balanced",
+          source:               "user_profile",
+          preset_slug:          nil
+        )
+        dish = item.reload
+        reasons = filter.reasons_for(dish, Menus::Labels.for_filter([dish], filter))
+
+        expect(reasons).to include(hash_including(kind: "avoid_tag", tag_id: gluten.id))
+      end
+
+      it "422s an unknown added_confidence and writes nothing" do
+        patch_item(ingredient_slugs: %w[meat-beef], added_confidence: "pretty-sure")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to eq(
+          "error" => "invalid_added_confidence",
+          "value" => "pretty-sure",
+          "allowed" => %w[confirmed suggested inferred]
+        )
+        expect(item.reload.item_ingredients).to be_empty
+      end
     end
   end
 
