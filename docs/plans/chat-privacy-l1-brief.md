@@ -8,7 +8,8 @@ data flows rather than the current copy.
 
 **Update 2026-10-05:** the false sentence quoted below is gone. The live
 Anthropic entry now discloses chat messages, the dietary profile, saved chat
-notes, and public reviews read by any user's chat. "The problem in one line"
+notes, the caller's own reviews (hidden ones included), and public reviews
+read by any user's chat. "The problem in one line"
 and question 3 are kept as the history; questions 1, 2, 4, and 5 are still
 open.
 

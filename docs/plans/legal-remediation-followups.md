@@ -85,7 +85,8 @@ follow-up list is complete; the canonical entries live in
     Policy said "We do not send your reviews or profile to Anthropic"
     and never mentioned chat (found 2026-08-14, #608). Its Anthropic entry
     now names chat messages, the dietary profile, saved chat notes (#781),
-    and public reviews any user's chat reads (#786 and its follow-up).
+    the caller's own reviews (hidden ones included), and public reviews any
+    user's chat reads (#786 and its follow-up).
     Still open for counsel: transcript retention, the special-category
     consent question, and whether Anthropic's no-training commitment
     covers the chat surface — see

@@ -140,8 +140,9 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
               Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. When you use the chat, your messages, your dietary profile, and
-              any notes you saved for the assistant are sent to Anthropic so it can answer. Reviews
+              to train the model. When you use the chat, your messages, your dietary profile, any
+              notes you saved for the assistant, and your own reviews when you ask about them
+              (including any hidden by moderation) are sent to Anthropic so it can answer. Reviews
               are public, so when anyone asks the chat about a dish, the reviews on it (with the
               reviewer&apos;s username and display name) can be sent to Anthropic too.
             </li>
