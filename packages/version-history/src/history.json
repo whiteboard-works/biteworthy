@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.6.3",
+    "date": "2026-10-06",
+    "notes": [
+      "In the app, your best bets on a restaurant page are roomier and match the website, and when there are no picks yet it tells you why: sign in, start rating dishes, or rate a couple more."
+    ]
+  },
+  {
     "version": "2026.10.6.2",
     "date": "2026-10-06",
     "notes": [
