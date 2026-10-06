@@ -68,6 +68,7 @@ RSpec.describe "restaurants/items", type: :request do
                        confidence:     { type: :string, enum: %w[confirmed suggested inferred] },
                        ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
                        tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
+                       position:       { type: :integer, description: "Dish order within its menu section" },
                        status:         { type: :string, enum: %w[visible hidden] },
                        reasons: {
                          type: :array,
@@ -172,6 +173,8 @@ RSpec.describe "restaurants/items", type: :request do
                  tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
                  menu_section_id:   { type: :string, format: :uuid, nullable: true },
                  menu_section_name: { type: :string, nullable: true },
+                 menu_section_position: { type: :integer, nullable: true },
+                 position:       { type: :integer, description: "Dish order within its menu section" },
                  status:         { type: :string, enum: %w[visible hidden] },
                  # Full per-kind reason shape documented on the index
                  # endpoint above; kept generic here to avoid a drifting

@@ -4847,6 +4847,8 @@ export interface paths {
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 ingredient_ids: string[];
                                 tag_ids: string[];
+                                /** @description Dish order within its menu section */
+                                position?: number;
                                 /** @enum {string} */
                                 status: "visible" | "hidden";
                                 reasons: {
@@ -4967,6 +4969,9 @@ export interface paths {
                             /** Format: uuid */
                             menu_section_id?: string | null;
                             menu_section_name?: string | null;
+                            menu_section_position?: number | null;
+                            /** @description Dish order within its menu section */
+                            position?: number;
                             /** @enum {string} */
                             status: "visible" | "hidden";
                             reasons: Record<string, never>[];

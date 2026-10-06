@@ -9,8 +9,9 @@ module Menus
   # must always be able to say why — so it has to survive the query.
   #
   # Ranking is separate. With taste signals the response is re-sorted by
-  # `taste_score`; otherwise the order is `name ASC`. Score never hides
-  # anything; it only reorders and highlights.
+  # `taste_score`; otherwise the order is section position (nulls last),
+  # then item position, then name. Score never hides anything; it only
+  # reorders and highlights.
   #
   # The order used to read `popularity DESC, name ASC`, which was `name
   # ASC` wearing a hat: nothing ever wrote `items.popularity`, so every
@@ -68,8 +69,20 @@ module Menus
     def load_items
       @restaurant.items.published
                  .includes(:menu_section, :item_variants, photo_attachment: :blob)
-                 .order(name: :asc)
                  .to_a
+                 .sort_by { |item| menu_order_key(item) }
+    end
+
+    # Unsectioned dishes sort after every numbered section. Within a
+    # section (or among the unsectioned), `items.position` then name.
+    def menu_order_key(item)
+      section_position = item.menu_section&.position
+      [
+        section_position.nil? ? 1 : 0,
+        section_position || 0,
+        item.position,
+        item.name.to_s
+      ]
     end
 
     def serialize_all(items)
@@ -108,6 +121,7 @@ module Menus
         menu_section_id:    section&.id,
         menu_section_name:  section&.name,
         menu_section_position: section&.position,
+        position:           item.position,
         variants:           item.item_variants.sort_by(&:position).map do |v|
           { size: v.size, price_cents: v.price_cents, currency: v.currency }
         end,

@@ -121,6 +121,11 @@ module Admin
         if existing
           next unless should_rewrite?(existing, mapped)
 
+          # Capture before update — apply mode would otherwise report
+          # the post-save source/confidence as the old values.
+          old_source = existing.source
+          old_confidence = existing.confidence
+
           unless @dry_run
             existing.update!(source: mapped[:source], confidence: mapped[:confidence])
           end
@@ -130,9 +135,9 @@ module Admin
             type: :updated,
             model: model.name,
             slug: payload_row.slug,
-            old_source: existing.source,
+            old_source: old_source,
             new_source: mapped[:source],
-            old_confidence: existing.confidence,
+            old_confidence: old_confidence,
             new_confidence: mapped[:confidence]
           }
         elsif allowed_add?(model, node, payload_row.slug)
