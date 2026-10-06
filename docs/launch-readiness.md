@@ -237,7 +237,7 @@ provider up again on a new box:
 **Unlocks:** the app on phones.
 
 - Sign up for Apple Developer Program ($99/yr) + Google Play Console ($25 one-time).
-- **Lawyer reviews + signs off on `/privacy` + `/terms`.** `/terms` still renders a DRAFT banner; remove it once approved. The `/privacy` banner was dropped 2026-10-05 at the owner's call, ahead of that review — the review itself is still open.
+- **Lawyer reviews + signs off on `/privacy` + `/terms`.** Both DRAFT banners came off at the owner's call ahead of that review (`/privacy` 2026-10-05, `/terms` 2026-10-06); the review itself is still open.
 - Replace `apps/mobile/eas.json` placeholders (`REPLACE_WITH_APPLE_ID@bite-worthy.com`, `REPLACE_WITH_ASC_APP_ID`, `REPLACE_WITH_TEAM_ID`) with real values.
 - Commit `play-service-account.json` (gitignored) for Google Play submit.
 - Generate binary assets — see `apps/mobile/assets/README.md` for sizes + the `sharp` render pipeline. The SVG source needs to be designed first.

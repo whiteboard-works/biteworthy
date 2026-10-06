@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **`/terms` DRAFT banner off.** Removed at the owner's call, ahead of the L1 attorney review, which is still open; both legal pages now render without a banner. The launch trackers (launch-readiness, launch plan, roadmap, strategy, legal follow-ups) say so.
+
 2026-10-06 (UTC) — **Gluten backfill judges each base on its own.** A dish whose wheat may have been removed by a person no longer holds back a barley row no rule ever added (Codex on #799): `Menus::ImpliedBaseBackfill` now yields one change per gluten base, writes the clear ones, and lists only the ambiguous ones for review. The shared `contains-gluten` tag is found-or-created so two bases on one dish do not collide.
 
 2026-10-06 (UTC) — **Admin unverified join adds.** `PATCH /api/v1/admin/items/:id` and `update_published_item` accept optional `added_confidence` (`confirmed`|`suggested`|`inferred`, default `confirmed`). New rows still default to `confirmed`/`human`; `suggested`/`inferred` write `source: derived` on only the rows added in that request so ConfidenceMapper's trusted-source allow-list (`match`/`human`/`owner`) will not remap them to confirmed. Kept rows are untouched. After a join sync the dish confidence is re-derived from the weakest current join (ingredients and tags, downgrade only), so a suggested `contains-gluten` tag pulls a confirmed dish down to suggested and the avoid-list filter still hides it.

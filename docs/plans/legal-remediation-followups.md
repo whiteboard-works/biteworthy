@@ -77,10 +77,9 @@ follow-up list is complete; the canonical entries live in
 
 - **L1 — Licensed Colorado attorney review** of the finalized Privacy +
   ToS, including the warranty/liability/indemnity/arbitration clauses.
-  Only after this does the `/terms` **DRAFT banner** (and the source-file
-  DRAFT comments on `privacy/page.tsx` + `terms/page.tsx`) come off. The
-  `/privacy` banner came off early, 2026-10-05, at the owner's call (#785);
-  the review itself is still open. Launch gate.
+  Both **DRAFT banners** came off early at the owner's call (`/privacy`
+  2026-10-05 #785, `/terms` 2026-10-06); the review itself is still
+  open. Launch gate.
   - **L1a — chat data flows to Anthropic.** Until 2026-10-05 the Privacy
     Policy said "We do not send your reviews or profile to Anthropic"
     and never mentioned chat (found 2026-08-14, #608). Its Anthropic entry

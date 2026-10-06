@@ -90,7 +90,7 @@ longer the product's identity; they're a guarantee underneath it. See §7.
 
 ### Month 1 (June) — Unblock launch. *No new product code.*
 
-- [ ] **L1 attorney sign-off** on `/privacy` + `/terms` → remove the `/terms` DRAFT banner (hard gate; `/privacy`'s came off 2026-10-05 at the owner's call)
+- [ ] **L1 attorney sign-off** on `/privacy` + `/terms` (hard gate; both DRAFT banners came off ahead of it at the owner's call, 2026-10-05/06)
 - [ ] **L3 dish-photo liability** — counsel ruling on auto-cropping third-party menu photos; decide now (opt-in-upload fallback exists)
 - [x] Provision in dependency order: Hetzner cpx21 → Neon → GHCR PAT → Kamal deploy — done
 - [x] Resend SMTP (Devise reset, claim verification, waitlist) — live 2026-08-14, smoke delivered to inbox
