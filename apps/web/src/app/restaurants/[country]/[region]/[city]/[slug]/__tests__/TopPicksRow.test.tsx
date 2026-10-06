@@ -115,6 +115,29 @@ describe('TopPicksRow', () => {
     );
   });
 
+  it('gives photo-less picks a placeholder only when another pick has a photo', () => {
+    const { rerender } = render(
+      <TopPicksRow
+        items={[
+          { ...threePicks[0]!, photo_url: 'https://example.com/c.jpg' },
+          ...threePicks.slice(1),
+        ]}
+        basePath="/restaurants/usa/colorado/durango/ninis"
+        signedIn
+      />,
+    );
+    expect(screen.getByTestId('pick-photo-placeholder-pad')).toBeInTheDocument();
+
+    rerender(
+      <TopPicksRow
+        items={threePicks}
+        basePath="/restaurants/usa/colorado/durango/ninis"
+        signedIn
+      />,
+    );
+    expect(screen.queryByTestId('pick-photo-placeholder-pad')).not.toBeInTheDocument();
+  });
+
   it('"Why these?" toggles the explainer (taste ≠ safety copy)', () => {
     render(
       <TopPicksRow
