@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../../../../../lib/restaurants';
+import { DishPhotoPlaceholder, hasDishPhoto } from './ItemRow';
 
 /**
  * Phase 8.3 — "Your best bets here", rendered above the menu sections.
@@ -95,6 +96,7 @@ export function TopPicksRow({
 }) {
   const [whyOpen, setWhyOpen] = useState(false);
   const picks = topPicksFromScores(items);
+  const pickPlaceholders = picks.some(hasDishPhoto);
   if (picks.length === 0) {
     // Sign-in must bring them back to the menu as they were viewing it —
     // dropping the diet or share filter would show dishes it hid.
@@ -152,7 +154,13 @@ export function TopPicksRow({
                 href={`${basePath}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
                 className="block"
               >
-                {(item.photo_urls?.card || item.photo_url) && (
+                {!hasDishPhoto(item) && pickPlaceholders && (
+                  <DishPhotoPlaceholder
+                    className="mb-bw-2 h-28 w-full rounded-bw-md"
+                    testId={`pick-photo-placeholder-${item.id}`}
+                  />
+                )}
+                {hasDishPhoto(item) && (
                   <img
                     src={item.photo_urls?.card || item.photo_url || undefined}
                     srcSet={
