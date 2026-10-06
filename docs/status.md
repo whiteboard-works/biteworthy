@@ -17,7 +17,7 @@ the Phase 5 pause) are archived in
 
 ---
 
-2026-10-06 (UTC) — **Gluten backfill review finished.** The owner worked every dish on the apply run's "review by hand" list in admin, closing `docs/launch-readiness.md` §10. A future rerun will list those dishes again (nothing records a review), so treat its review list as already handled unless a dish was added or edited since.
+2026-10-06 (UTC) — **Gluten backfill review finished.** The owner worked every dish on the apply run's "review by hand" list in admin, closing `docs/launch-readiness.md` §10. A future rerun will list those dishes again, since nothing records a review. Do not wave that list through: a new rule set or ingredient can give the same dish a new row, so check each listed row against what changed since 2026-10-06.
 
 2026-10-06 (UTC) — **Gluten backfill applied in production.** The owner ran `biteworthy:menus:backfill_implied_bases` with `--env APPLY:1` after a dry run; dishes promoted before #638/#766/#794 and not edited since now carry the rows those rules add. Its "review by hand" list (dishes edited since a rule went live, or missing a base a live rule should have added) is **still open**: those dishes are unchanged until someone checks each in admin (`docs/launch-readiness.md` §10). A rerun lists reviewed and unreviewed dishes alike, so that run's output is the checklist. Released as 2026.10.6.1.
 
