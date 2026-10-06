@@ -58,16 +58,39 @@ RSpec.describe Menus::Query, "serialization" do
       item_data = result[:items].find { |i| i[:id] == item.id }
       expect(item_data[:menu_section_name]).to eq("Appetizers")
       expect(item_data[:menu_section_position]).to eq(2)
+      expect(item_data[:position]).to eq(0)
     end
 
-    it "returns nil position when item has no section" do
-      item = create(:item, restaurant: restaurant, name: "Special", status: "published")
+    it "returns nil section position when item has no section" do
+      item = create(:item, restaurant: restaurant, name: "Special", status: "published", position: 3)
 
       query = described_class.new(restaurant: restaurant, filter: filter)
       result = query.call
 
       item_data = result[:items].find { |i| i[:id] == item.id }
       expect(item_data[:menu_section_position]).to be_nil
+      expect(item_data[:position]).to eq(3)
+    end
+
+    it "sorts by section position (nulls last), then item position, then name" do
+      menu = Menu.create!(restaurant: restaurant, name: "Main")
+      later = MenuSection.create!(menu: menu, name: "Mains", position: 1)
+      earlier = MenuSection.create!(menu: menu, name: "Starters", position: 0)
+
+      create(:item, restaurant: restaurant, name: "Zebra", status: "published",
+                    menu_section: earlier, position: 1)
+      create(:item, restaurant: restaurant, name: "Apple", status: "published",
+                    menu_section: earlier, position: 0)
+      create(:item, restaurant: restaurant, name: "Mango", status: "published",
+                    menu_section: later, position: 0)
+      create(:item, restaurant: restaurant, name: "Lone Special", status: "published",
+                    position: 0)
+
+      result = described_class.new(restaurant: restaurant, filter: filter).call
+      expect(result[:items].map { |i| i[:name] }).to eq(
+        [ "Apple", "Zebra", "Mango", "Lone Special" ]
+      )
+      expect(result[:items].map { |i| i[:position] }).to eq([ 0, 1, 0, 0 ])
     end
   end
 

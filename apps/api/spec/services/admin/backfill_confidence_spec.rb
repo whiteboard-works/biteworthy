@@ -59,6 +59,27 @@ RSpec.describe Admin::BackfillConfidence do
     expect(item.reload.confidence).to eq("inferred")
   end
 
+  it "reports the pre-update source and confidence in apply mode" do
+    accepted_item(
+      name: "Pancakes",
+      ingredients_payload: [
+        { "slug" => "dairy-cheddar", "confidence" => 0.5, "source" => "ai" }
+      ]
+    )
+
+    result = described_class.call(restaurant: restaurant, dry_run: false)
+    expect(result[:dry_run]).to be false
+
+    change = result[:items].first[:changes].find { |row| row[:type] == :updated }
+    expect(change).to include(
+      slug: "dairy-cheddar",
+      old_source: "human",
+      old_confidence: "confirmed",
+      new_source: "ai",
+      new_confidence: "inferred"
+    )
+  end
+
   it "adds missing wheat/gluten rows and never raises confidence" do
     item, = accepted_item(
       name: "Pizza",

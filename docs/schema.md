@@ -130,9 +130,9 @@ score = 2.0 * |tag_ids ∩ liked_tag_ids|
 ```
 
 It only runs for a signed-in user with taste signals; everyone else
-keeps the plain `name ASC` order. Scores reorder and
-highlight — they never hide. Note that `user_profiles.prefer_tag_ids`
-is **not** an input to any of this.
+keeps section position (nulls last), then item position, then name.
+Scores reorder and highlight — they never hide. Note that
+`user_profiles.prefer_tag_ids` is **not** an input to any of this.
 
 The array-overlap SQL the schema is shaped for does exist, one level
 up: `Cities::RestaurantRanking` ranks a city's restaurants by how many

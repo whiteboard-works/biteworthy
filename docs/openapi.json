@@ -8268,6 +8268,10 @@
                               "format": "uuid"
                             }
                           },
+                          "position": {
+                            "type": "integer",
+                            "description": "Dish order within its menu section"
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -8505,6 +8509,14 @@
                     "menu_section_name": {
                       "type": "string",
                       "nullable": true
+                    },
+                    "menu_section_position": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "position": {
+                      "type": "integer",
+                      "description": "Dish order within its menu section"
                     },
                     "status": {
                       "type": "string",
