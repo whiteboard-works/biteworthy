@@ -273,7 +273,7 @@ class IngestionItem < ApplicationRecord
                     when "ai" then "ai"
                     when "owner" then "owner"
                     else "human"
-                    end
+      end
 
       { :item_id => target.id, foreign_key => node_id,
         :confidence => join_confidence, :source => join_source }

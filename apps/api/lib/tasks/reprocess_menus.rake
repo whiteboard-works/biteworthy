@@ -79,7 +79,7 @@ namespace :biteworthy do
     end
 
     desc "Re-extract all items in a restaurant's most recent ingestion run"
-    task :reextract_restaurant, [:restaurant_id] => :environment do |_t, args|
+    task :reextract_restaurant, [ :restaurant_id ] => :environment do |_t, args|
       restaurant_id = args[:restaurant_id]
 
       unless restaurant_id

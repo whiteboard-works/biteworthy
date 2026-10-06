@@ -16,28 +16,28 @@ class UpsertCeliacSafetyIngredients < ActiveRecord::Migration[8.1]
   INGREDIENTS = [
     # Pancake: add "hotcake" alias
     { slug: "grain-wheat-pancake", name: "Pancake", path: "grain.wheat.pancake",
-      aliases: ["flapjack", "hotcake"], allergen: true },
+      aliases: [ "flapjack", "hotcake" ], allergen: true },
 
     # New wheat-based bread entries
     { slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit",
-      aliases: ["buttermilk biscuit"], allergen: true },
+      aliases: [ "buttermilk biscuit" ], allergen: true },
     { slug: "grain-wheat-bread-english-muffin", name: "English Muffin",
-      path: "grain.wheat.bread.english_muffin", aliases: ["muffin"], allergen: true },
+      path: "grain.wheat.bread.english_muffin", aliases: [ "muffin" ], allergen: true },
 
     # New wheat-based preparation entries
     { slug: "grain-wheat-batter", name: "Batter", path: "grain.wheat.batter",
-      aliases: ["wheat batter", "flour batter"], allergen: true },
+      aliases: [ "wheat batter", "flour batter" ], allergen: true },
     { slug: "grain-wheat-breading", name: "Breading", path: "grain.wheat.breading",
-      aliases: ["breaded", "bread coating"], allergen: true },
+      aliases: [ "breaded", "bread coating" ], allergen: true },
     { slug: "grain-wheat-roux", name: "Roux", path: "grain.wheat.roux",
-      aliases: ["flour roux"], allergen: true },
+      aliases: [ "flour roux" ], allergen: true },
     { slug: "grain-wheat-gravy", name: "Wheat-Based Gravy", path: "grain.wheat.gravy",
-      aliases: ["country gravy", "sausage gravy", "white gravy", "cream gravy", "flour gravy"],
+      aliases: [ "country gravy", "sausage gravy", "white gravy", "cream gravy", "flour gravy" ],
       allergen: true },
 
     # Papadum (lentil-based, NOT wheat — prevents false positive)
     { slug: "legume-papadum", name: "Papadum", path: "legume.papadum",
-      aliases: ["poppadom", "papad", "appalam"], allergen: false }
+      aliases: [ "poppadom", "papad", "appalam" ], allergen: false }
   ].freeze
 
   def up

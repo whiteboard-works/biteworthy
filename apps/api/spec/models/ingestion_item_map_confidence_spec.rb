@@ -9,7 +9,7 @@ RSpec.describe IngestionItem, "#map_confidence", type: :model do
   # source: nil (→"match"), "match", "derived", "ai"
   # numeric: nil, 0, 0.5, 0.79, 0.8, 0.93, 0.95, 1.0
   # accept_cap: "suggested" (community), "confirmed" (admin/owner)
-  
+
   describe "community accept (accept_cap='suggested')" do
     let(:accept_cap) { "suggested" }
 

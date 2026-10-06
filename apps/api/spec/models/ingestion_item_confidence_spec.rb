@@ -132,7 +132,7 @@ RSpec.describe IngestionItem, "confidence assignment" do
   describe "realistic hotcake example" do
     it "marks explicit 'hotcake' match as confirmed but item as suggested due to derived wheat" do
       # "hotcake" is now an alias for grain-wheat-pancake, so it matches explicitly
-      Ingredient.find_by(slug: "grain-wheat-pancake")&.update!(aliases: ["hotcake", "flapjack"])
+      Ingredient.find_by(slug: "grain-wheat-pancake")&.update!(aliases: [ "hotcake", "flapjack" ])
 
       ing_item = run.ingestion_items.create!(
         name: "Buttermilk Hotcake",
