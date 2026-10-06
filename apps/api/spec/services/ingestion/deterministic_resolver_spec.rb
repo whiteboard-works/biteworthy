@@ -17,6 +17,12 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["grain-wheat-flour-tortilla", "Flour Tortilla", "grain.wheat.flour_tortilla", []],
       ["grain-wheat-pasta", "Pasta",          "grain.wheat.pasta",       []],
       ["grain-corn-tortilla", "Corn Tortilla", "grain.corn.tortilla",    []],
+      ["grain-barley",      "Barley",         "grain.barley",            []],
+      ["soy-soy-sauce",     "Soy Sauce",      "soy.soy_sauce",           %w[shoyu]],
+      ["soy-teriyaki",      "Teriyaki Sauce", "soy.teriyaki",            %w[teriyaki]],
+      ["soy-tamari",        "Tamari",         "soy.tamari",              []],
+      ["condiment-sauces-gravy", "Gravy",     "condiment.sauces.gravy",  ["brown gravy"]],
+      ["condiment-malt-vinegar", "Malt Vinegar", "condiment.malt_vinegar", []],
     ])
   end
 
@@ -89,7 +95,8 @@ RSpec.describe Ingestion::DeterministicResolver do
       # The implied base must feed allergen derivation, or the filter
       # still can't hide the pizza from gluten-free users.
       expect(result.tags).to include(
-        { "slug" => "contains-gluten", "confidence" => 0.8, "source" => "derived" }
+        { "slug" => "contains-gluten", "confidence" => 0.8,
+          "source" => "ingredient_derived", "from_source" => "derived" }
       )
       expect(result.gap?).to be(true)
       expect(result.gap_phrases).to be_empty
@@ -168,6 +175,38 @@ RSpec.describe Ingestion::DeterministicResolver do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
       expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+    end
+
+    it "implies wheat from soy sauce, teriyaki, and gravy matches" do
+      soy, teriyaki, gravy = resolve(
+        StubItem.new("a", "Stir Fry", "vegetables with soy sauce", nil),
+        StubItem.new("b", "Chicken Teriyaki", "chicken", nil),
+        StubItem.new("c", "Pot Roast", "beef with gravy", nil)
+      )
+
+      expect(soy.ingredients.map { |r| r["slug"] }).to include("soy-soy-sauce", "grain-wheat")
+      expect(teriyaki.ingredients.map { |r| r["slug"] }).to include("soy-teriyaki", "grain-wheat")
+      expect(gravy.ingredients.map { |r| r["slug"] }).to include("condiment-sauces-gravy", "grain-wheat")
+    end
+
+    it "implies barley from malt vinegar" do
+      result = resolve(StubItem.new("id-1", "Fish and Chips", "malt vinegar", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] })
+        .to include("condiment-malt-vinegar", "grain-barley")
+    end
+
+    it "does not imply wheat from tamari" do
+      result = resolve(StubItem.new("id-1", "Tamari Glazed Salmon", "salmon with tamari", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("soy-tamari")
+      expect(result.ingredients.map { |r| r["slug"] }).not_to include("grain-wheat")
+    end
+
+    it "suppresses implied wheat from gravy when the name claims gluten-free" do
+      result = resolve(StubItem.new("id-1", "GF Gravy", "brown gravy", nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).not_to include("grain-wheat")
     end
 
     it "matches plural, identity-plural, and multi-word dish-name keywords" do

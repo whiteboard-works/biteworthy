@@ -43,7 +43,13 @@ module Tools
           website:  record.website,
           claimed:  !record.claimed_at.nil?,
           city:     { slug: record.city.slug, name: record.city.name, region: record.city.region },
-          street:   address&.street,
+          address:  address && {
+            street:      address.street,
+            city:        address.city,
+            region:      address.region,
+            postal_code: address.postal_code,
+            country:     address.country
+          },
           saved_by_caller: context.signed_in? &&
             FavoriteRestaurant.exists?(user_id: context.user.id, restaurant_id: record.id)
         )

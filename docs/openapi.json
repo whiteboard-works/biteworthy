@@ -1247,7 +1247,7 @@
             }
           },
           "422": {
-            "description": "invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section",
+            "description": "invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, invalid_added_confidence, or foreign_menu_section",
             "content": {
               "application/json": {
                 "schema": {
@@ -1273,7 +1273,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "Deep-edit a live dish. Absent keys are left alone; an explicit empty array clears that facet. Ingredient/tag joins are synced from slug lists and land confidence: confirmed, source: human (an admin IS the trusted source). `confidence` itself and the denormalized id arrays are deliberately not accepted — confidence stays on the promote/confirm_community rails.",
+                "description": "Deep-edit a live dish. Absent keys are left alone; an explicit empty array clears that facet. Ingredient/tag joins are synced from slug lists. New rows default to confidence: confirmed, source: human (an admin IS the trusted source). Pass added_confidence: suggested or inferred to mark only the rows ADDED in this request as a cautionary guess — those land source: derived so ConfidenceMapper's trusted-source allow-list (match/human/owner) will not remap them to confirmed. Kept rows are untouched. After a join sync the dish confidence is re-derived from the weakest current join row (downgrade only). `confidence` itself and the denormalized id arrays are deliberately not accepted.",
                 "properties": {
                   "name": {
                     "type": "string"
@@ -1313,6 +1313,15 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "added_confidence": {
+                    "type": "string",
+                    "enum": [
+                      "confirmed",
+                      "suggested",
+                      "inferred"
+                    ],
+                    "description": "Confidence for rows ADDED in this request only. Default confirmed (source: human). suggested/inferred write source: derived so they stay unverified."
                   },
                   "variants": {
                     "type": "array",
@@ -2652,6 +2661,296 @@
                         },
                         "tags": {
                           "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not an admin, or unknown restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/backfill_confidence": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Rewrite join-row source/confidence from accepted ingestion items",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Re-applies the locked confidence rules to published items that have an accepted ingestion item. Defaults to dry_run=true. May only lower confidence or add wheat/gluten rows.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "description": "When omitted, defaults to true",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "per-item dry-run or applied rewrite report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "dry_run",
+                    "restaurant_id",
+                    "restaurant_name",
+                    "items_processed",
+                    "items"
+                  ],
+                  "properties": {
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "restaurant_name": {
+                      "type": "string"
+                    },
+                    "items_processed": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "item_id",
+                          "item_name",
+                          "old_confidence",
+                          "new_confidence",
+                          "rows_changed",
+                          "allergen_rows_added"
+                        ],
+                        "properties": {
+                          "item_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item_name": {
+                            "type": "string"
+                          },
+                          "old_confidence": {
+                            "type": "string"
+                          },
+                          "new_confidence": {
+                            "type": "string"
+                          },
+                          "rows_changed": {
+                            "type": "integer"
+                          },
+                          "allergen_rows_added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not an admin, or unknown restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/restaurants/{id}/backfill_structure": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Backfill sections, prices, and optional source-menu order",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Rebuilds missing menu sections and item variants from accepted ingestion payloads. Defaults to dry_run — send dry_run=false to write. reorder=true rewrites menu_sections.position and items.position from source-menu order (latest accepted ingestion item per dish) without moving a dish or creating/renaming sections. Unsourced sections stay after sourced ones in their current relative order.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "description": "Preview only. Defaults to true; send false to persist.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "reorder",
+            "in": "query",
+            "required": false,
+            "description": "Rewrite section and item positions from source-menu order.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "overwrite_prices",
+            "in": "query",
+            "required": false,
+            "description": "Replace existing item variants from the latest accepted prices.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "backfill preview or applied changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "restaurant_id",
+                    "dry_run",
+                    "reorder",
+                    "sections_created",
+                    "variants_added",
+                    "sections_reordered",
+                    "items_reordered"
+                  ],
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "reorder": {
+                      "type": "boolean"
+                    },
+                    "sections_created": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "variants_added": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "sections_reordered": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "old_position": {
+                            "type": "integer"
+                          },
+                          "new_position": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "items_reordered": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "section_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "old_position": {
+                            "type": "integer"
+                          },
+                          "new_position": {
+                            "type": "integer"
+                          }
                         }
                       }
                     }
@@ -7561,6 +7860,32 @@
                             "type": "number",
                             "nullable": true
                           },
+                          "address": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "street": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "city": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "region": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "postal_code": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "country": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          },
                           "city": {
                             "type": "object",
                             "required": [
@@ -7952,6 +8277,10 @@
                               "format": "uuid"
                             }
                           },
+                          "position": {
+                            "type": "integer",
+                            "description": "Dish order within its menu section"
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -8190,6 +8519,14 @@
                       "type": "string",
                       "nullable": true
                     },
+                    "menu_section_position": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "position": {
+                      "type": "integer",
+                      "description": "Dish order within its menu section"
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -8260,7 +8597,9 @@
                               "human",
                               "ai",
                               "owner",
-                              "derived"
+                              "match",
+                              "derived",
+                              "ingredient_derived"
                             ]
                           },
                           "allergen": {
@@ -8302,7 +8641,9 @@
                               "human",
                               "ai",
                               "owner",
-                              "derived"
+                              "match",
+                              "derived",
+                              "ingredient_derived"
                             ]
                           }
                         }
@@ -8440,6 +8781,32 @@
                           "type": "string"
                         },
                         "region": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "address": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "street": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "city": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "region": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "postal_code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "country": {
                           "type": "string",
                           "nullable": true
                         }

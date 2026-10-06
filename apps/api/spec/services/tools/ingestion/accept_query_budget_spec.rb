@@ -17,10 +17,10 @@ RSpec.describe Tools::Ingestion::AcceptStagedItems, "query budget" do
   let(:tag_slugs)        { TAG_SAMPLES.first(4).map { |s| s[:slug] } }
 
   dishes = 50
-  # Base ~10 statements per dish, plus section find_or_create (~1-2 queries per unique
-  # section), plus confidence derivation (2 pluck queries per item for weakest-link).
-  # Actual: 764/50 = 15.28 queries per dish. Budget allows headroom for variation.
-  budget_per_dish = 16
+  # Dish confidence is computed from the mapped ingredient rows already
+  # in memory at create time, so the old 2-3 extra plucks per dish are
+  # gone. Fence toward 13; leave a little headroom for section create.
+  budget_per_dish = 13
 
   before do
     ingredient_slugs.each { |slug| create(:ingredient, slug: slug) }

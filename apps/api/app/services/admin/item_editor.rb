@@ -4,16 +4,24 @@
 # reach through the web /admin item panel lands here so the safety
 # rules live in one place:
 #
-#   - Ingredient/tag joins are synced from slug lists. New rows are
-#     `confidence: "confirmed", source: "human"` (an admin IS the
-#     trusted source — same convention SuggestionResolver#apply! uses);
-#     removals go row-by-row so ItemIngredient/ItemTag's after_destroy
-#     callbacks keep the denormalized items.ingredient_ids/tag_ids
-#     arrays honest (rebuilt once for the whole edit, not once per row —
-#     see Item.defer_denormalization). Never delete_all.
-#   - `confidence` on the Item itself is NOT settable here. It moves
-#     only through promote! and confirm_community_associations! —
-#     strict-mode visibility must stay on those rails.
+#   - Ingredient/tag joins are synced from slug lists. New rows default
+#     to `confidence: "confirmed", source: "human"` (an admin IS the
+#     trusted source — same convention SuggestionResolver#apply! uses).
+#     Pass `added_confidence: "suggested"` or `"inferred"` to mark only
+#     the rows ADDED in that request as a cautionary guess. Those land
+#     `source: "derived"` so ConfidenceMapper's TRUSTED_SOURCES
+#     (match/human/owner) will never remap them to confirmed — `derived`
+#     is the existing check-constraint value for name/keyword inference,
+#     and map_confidence always keeps it at suggested. Kept rows are
+#     left untouched. Removals go row-by-row so ItemIngredient/ItemTag's
+#     after_destroy callbacks keep the denormalized items.ingredient_ids/
+#     tag_ids arrays honest (rebuilt once for the whole edit, not once
+#     per row — see Item.defer_denormalization). Never delete_all.
+#   - `confidence` on the Item itself is NOT settable here. After a join
+#     sync it is re-derived from the weakest current join row (ingredients
+#     AND tags, only ever downgraded) so a suggested contains-gluten tag
+#     pulls a confirmed dish down to suggested. Graduation still belongs
+#     to promote! / confirm_community_associations!.
 #   - Variants and modifiers are replaced wholesale from the payload
 #     (array order becomes position); they carry no callbacks, so a
 #     destroy + recreate inside the transaction is safe.
@@ -36,6 +44,21 @@ module Admin
 
     class ForeignSection < StandardError; end
 
+    class InvalidAddedConfidence < StandardError
+      attr_reader :value
+
+      def initialize(value)
+        @value = value
+        super("invalid added_confidence: #{value}")
+      end
+    end
+
+    # Unverified admin adds use `derived`, not `human`. TRUSTED_SOURCES
+    # is match/human/owner — a later remap of a human row would confirm
+    # it. `derived` is already on the join check constraints and is the
+    # PR 793 source for a name/keyword guess (pizza → wheat).
+    UNVERIFIED_SOURCE = "derived"
+
     def initialize(item)
       @item = item
     end
@@ -44,16 +67,26 @@ module Admin
     # untouched (a PATCH must be able to rename without restating the
     # whole menu row).
     def call(attrs)
+      added_confidence = resolve_added_confidence(attrs[:added_confidence])
+
       @item.transaction do
         assign_scalars(attrs)
         assign_section(attrs[:menu_section_id]) if attrs.key?(:menu_section_id)
         handle_photo(attrs)
         @item.save!
 
+        synced = false
         Item.defer_denormalization do
-          sync_ingredients(attrs[:ingredient_slugs]) if attrs.key?(:ingredient_slugs)
-          sync_tags(attrs[:tag_slugs])               if attrs.key?(:tag_slugs)
+          if attrs.key?(:ingredient_slugs)
+            sync_ingredients(attrs[:ingredient_slugs], added_confidence)
+            synced = true
+          end
+          if attrs.key?(:tag_slugs)
+            sync_tags(attrs[:tag_slugs], added_confidence)
+            synced = true
+          end
         end
+        rederive_item_confidence! if synced
         replace_variants(attrs[:variants])         if attrs.key?(:variants)
         replace_modifiers(attrs[:modifiers])       if attrs.key?(:modifiers)
       end
@@ -126,7 +159,7 @@ module Admin
       end
     end
 
-    def sync_ingredients(slugs)
+    def sync_ingredients(slugs, added_confidence)
       wanted = Ingredient.where(slug: Array(slugs).map(&:to_s).uniq)
       assert_all_found!(:ingredient, slugs, wanted)
 
@@ -135,12 +168,12 @@ module Admin
       (wanted.map(&:slug) - current.keys).each do |slug|
         ItemIngredient.create!(
           item: @item, ingredient: wanted.find { |i| i.slug == slug },
-          confidence: "confirmed", source: "human"
+          **added_join_attrs(added_confidence)
         )
       end
     end
 
-    def sync_tags(slugs)
+    def sync_tags(slugs, added_confidence)
       wanted = Tag.where(slug: Array(slugs).map(&:to_s).uniq)
       assert_all_found!(:tag, slugs, wanted)
 
@@ -149,9 +182,45 @@ module Admin
       (wanted.map(&:slug) - current.keys).each do |slug|
         ItemTag.create!(
           item: @item, tag: wanted.find { |t| t.slug == slug },
-          confidence: "confirmed", source: "human"
+          **added_join_attrs(added_confidence)
         )
       end
+    end
+
+    def resolve_added_confidence(value)
+      return "confirmed" if value.nil? || value.to_s.strip.empty?
+
+      confidence = value.to_s
+      raise InvalidAddedConfidence, confidence unless Item::CONFIDENCE.include?(confidence)
+
+      confidence
+    end
+
+    def added_join_attrs(added_confidence)
+      if added_confidence == "confirmed"
+        { confidence: "confirmed", source: "human" }
+      else
+        { confidence: added_confidence, source: UNVERIFIED_SOURCE }
+      end
+    end
+
+    # Weakest current join row, ingredients AND tags. Empty lists stay
+    # suggested. Only ever lowers — graduation is confirm_community.
+    # Tags count here (unlike promote's ingredient-only dish score)
+    # because an admin-added cautionary allergen tag is why this path
+    # exists: a suggested contains-gluten must unconfirm the dish.
+    def rederive_item_confidence!
+      rows = @item.item_ingredients.reload.pluck(:confidence) +
+             @item.item_tags.reload.pluck(:confidence)
+      weakest = if rows.empty?
+        "suggested"
+      else
+        rows.max_by { |c| Item::CONFIDENCE.index(c) || -1 }
+      end
+
+      current_idx = Item::CONFIDENCE.index(@item.confidence) || 1
+      weakest_idx = Item::CONFIDENCE.index(weakest) || 1
+      @item.update!(confidence: weakest) if weakest_idx > current_idx
     end
 
     def assert_all_found!(kind, requested, found)

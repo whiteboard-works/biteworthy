@@ -15,13 +15,21 @@ module Tools
 
         Ingredients and tags are edited by slug (use search_taxonomy to
         resolve names). An explicit empty array clears that facet; omitting
-        the field leaves it alone.
+        the field leaves it alone. New rows default to confirmed / human.
+        Pass added_confidence: "suggested" (or "inferred") when a slug is a
+        cautionary guess — e.g. tagging an American-Chinese sauced dish
+        contains-gluten because it likely has wheat soy sauce. Only rows
+        ADDED in that call get the marking; kept rows stay as they are.
+        Unverified adds land source: derived so a later remap cannot treat
+        them as confirmed. The dish's own confidence is then re-derived
+        from the weakest current join (a suggested contains-gluten tag
+        pulls a confirmed dish down to suggested).
 
         status: "removed" is the admin unpublish — the item stays in the
         database with its reviews, but is hidden from the public menu.
 
-        Confidence is NOT editable here — it only moves through promote! and
-        confirm_restaurant_data, because strict-mode visibility rides on it.
+        Dish-level confidence is NOT settable here — it only moves through
+        that weakest-row re-derive, promote!, and confirm_restaurant_data.
       TEXT
 
       input_schema(
@@ -54,6 +62,15 @@ module Tools
             type: "array",
             items: { type: "string" },
             description: "Tag slugs. Replaces current list. Empty array = clear."
+          },
+          added_confidence: {
+            type: "string",
+            enum: Item::CONFIDENCE,
+            description: "Confidence for rows ADDED in this call only " \
+                         "(confirmed|suggested|inferred). Default confirmed, " \
+                         "which keeps the existing human-verified marking. " \
+                         "suggested/inferred write source derived so they stay " \
+                         "unverified under the confidence mapper."
           },
           variants: {
             type: "array",
@@ -107,6 +124,9 @@ module Tools
         ok(serialize_item(item))
       rescue ::Admin::ItemEditor::UnknownSlug => e
         raise Errors::InvalidArgument, "Unknown #{e.kind} slugs: #{e.slugs.join(', ')}"
+      rescue ::Admin::ItemEditor::InvalidAddedConfidence => e
+        raise Errors::InvalidArgument,
+              "Invalid added_confidence: #{e.value}. Allowed: #{Item::CONFIDENCE.join(', ')}"
       rescue ::Admin::ItemEditor::ForeignSection
         raise Errors::InvalidArgument, "menu_section_id must belong to the same restaurant"
       end

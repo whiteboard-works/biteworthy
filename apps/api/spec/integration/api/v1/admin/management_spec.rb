@@ -272,10 +272,16 @@ RSpec.describe "admin/management", type: :request do
         type: :object,
         description: "Deep-edit a live dish. Absent keys are left alone; an explicit " \
                      "empty array clears that facet. Ingredient/tag joins are synced " \
-                     "from slug lists and land confidence: confirmed, source: human " \
-                     "(an admin IS the trusted source). `confidence` itself and the " \
-                     "denormalized id arrays are deliberately not accepted — " \
-                     "confidence stays on the promote/confirm_community rails.",
+                     "from slug lists. New rows default to confidence: confirmed, " \
+                     "source: human (an admin IS the trusted source). Pass " \
+                     "added_confidence: suggested or inferred to mark only the rows " \
+                     "ADDED in this request as a cautionary guess — those land " \
+                     "source: derived so ConfidenceMapper's trusted-source allow-list " \
+                     "(match/human/owner) will not remap them to confirmed. Kept rows " \
+                     "are untouched. After a join sync the dish confidence is " \
+                     "re-derived from the weakest current join row (downgrade only). " \
+                     "`confidence` itself and the denormalized id arrays are " \
+                     "deliberately not accepted.",
         properties: {
           name:            { type: :string },
           description:     { type: :string, nullable: true,
@@ -291,6 +297,13 @@ RSpec.describe "admin/management", type: :request do
             items: { type: :string }
           },
           tag_slugs: { type: :array, items: { type: :string } },
+          added_confidence: {
+            type: :string,
+            enum: %w[confirmed suggested inferred],
+            description: "Confidence for rows ADDED in this request only. " \
+                         "Default confirmed (source: human). suggested/inferred " \
+                         "write source: derived so they stay unverified."
+          },
           variants: {
             type: :array,
             description: "Replaced wholesale; array order becomes position. A row may " \
@@ -329,7 +342,7 @@ RSpec.describe "admin/management", type: :request do
         run_test!
       end
 
-      response(422, "invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section") do
+      response(422, "invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, invalid_added_confidence, or foreign_menu_section") do
         schema type: :object,
                properties: {
                  error: { type: :string },

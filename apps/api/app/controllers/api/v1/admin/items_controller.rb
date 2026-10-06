@@ -7,7 +7,8 @@ module Api
       #     statuses (the public endpoint filters to published).
       #   PATCH /api/v1/admin/items/:id — name / description / status,
       #     plus the deep edits an admin needs to fix a live dish:
-      #     ingredient_slugs / tag_slugs (join sync), variants,
+      #     ingredient_slugs / tag_slugs (join sync), added_confidence
+      #     (optional; marks only newly added joins), variants,
       #     modifiers, and menu_section_id. `status: "removed"` is the
       #     admin unpublish.
       #
@@ -56,6 +57,10 @@ module Api
           render json: e.record.errors.as_json, status: :unprocessable_entity
         rescue ::Admin::ItemEditor::UnknownSlug => e
           render json: { error: "unknown_#{e.kind}_slugs", slugs: e.slugs },
+                 status: :unprocessable_entity
+        rescue ::Admin::ItemEditor::InvalidAddedConfidence => e
+          render json: { error: "invalid_added_confidence", value: e.value,
+                         allowed: Item::CONFIDENCE },
                  status: :unprocessable_entity
         rescue ::Admin::ItemEditor::ForeignSection
           render json: { error: "foreign_menu_section" }, status: :unprocessable_entity
@@ -106,7 +111,7 @@ module Api
         def edit_attrs
           permitted = params.permit(
             :name, :description, :status, :menu_section_id, :position,
-            :photo, :photo_signed_id, :remove_photo,
+            :photo, :photo_signed_id, :remove_photo, :added_confidence,
             ingredient_slugs: [],
             tag_slugs:        [],
             variants:  [:size, :price_cents, :currency],

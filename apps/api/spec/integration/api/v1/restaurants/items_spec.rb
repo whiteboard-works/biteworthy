@@ -12,7 +12,7 @@ RSpec.describe "restaurants/items", type: :request do
       slug:       { type: :string, nullable: true },
       name:       { type: :string, nullable: true },
       confidence: { type: :string, enum: %w[confirmed suggested inferred] },
-      source:     { type: :string, enum: %w[human ai owner derived] }
+      source:     { type: :string, enum: %w[human ai owner match derived ingredient_derived] }
     }
   }.freeze
   path "/api/v1/restaurants/{restaurant_id}/items" do
@@ -68,6 +68,7 @@ RSpec.describe "restaurants/items", type: :request do
                        confidence:     { type: :string, enum: %w[confirmed suggested inferred] },
                        ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
                        tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
+                       position:       { type: :integer, description: "Dish order within its menu section" },
                        status:         { type: :string, enum: %w[visible hidden] },
                        reasons: {
                          type: :array,
@@ -172,6 +173,8 @@ RSpec.describe "restaurants/items", type: :request do
                  tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
                  menu_section_id:   { type: :string, format: :uuid, nullable: true },
                  menu_section_name: { type: :string, nullable: true },
+                 menu_section_position: { type: :integer, nullable: true },
+                 position:       { type: :integer, description: "Dish order within its menu section" },
                  status:         { type: :string, enum: %w[visible hidden] },
                  # Full per-kind reason shape documented on the index
                  # endpoint above; kept generic here to avoid a drifting

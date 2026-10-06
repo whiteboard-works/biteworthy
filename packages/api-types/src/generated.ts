@@ -680,6 +680,11 @@ export interface paths {
                         /** @description Complete list; unknown slugs 422 with the offenders. */
                         ingredient_slugs?: string[];
                         tag_slugs?: string[];
+                        /**
+                         * @description Confidence for rows ADDED in this request only. Default confirmed (source: human). suggested/inferred write source: derived so they stay unverified.
+                         * @enum {string}
+                         */
+                        added_confidence?: "confirmed" | "suggested" | "inferred";
                         /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
                         variants?: {
                             size?: string | null;
@@ -750,7 +755,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
+                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, invalid_added_confidence, or foreign_menu_section */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1445,6 +1450,167 @@ export interface paths {
                                 ingredients: number;
                                 tags: number;
                             };
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/backfill_confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rewrite join-row source/confidence from accepted ingestion items
+         * @description Re-applies the locked confidence rules to published items that have an accepted ingestion item. Defaults to dry_run=true. May only lower confidence or add wheat/gluten rows.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description When omitted, defaults to true */
+                    dry_run?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description per-item dry-run or applied rewrite report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            dry_run: boolean;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            restaurant_name: string;
+                            items_processed: number;
+                            items: {
+                                /** Format: uuid */
+                                item_id: string;
+                                item_name: string;
+                                old_confidence: string;
+                                new_confidence: string;
+                                rows_changed: number;
+                                allergen_rows_added: string[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/backfill_structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backfill sections, prices, and optional source-menu order
+         * @description Rebuilds missing menu sections and item variants from accepted ingestion payloads. Defaults to dry_run — send dry_run=false to write. reorder=true rewrites menu_sections.position and items.position from source-menu order (latest accepted ingestion item per dish) without moving a dish or creating/renaming sections. Unsourced sections stay after sourced ones in their current relative order.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description Preview only. Defaults to true; send false to persist. */
+                    dry_run?: boolean;
+                    /** @description Rewrite section and item positions from source-menu order. */
+                    reorder?: boolean;
+                    /** @description Replace existing item variants from the latest accepted prices. */
+                    overwrite_prices?: boolean;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description backfill preview or applied changes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            dry_run: boolean;
+                            reorder: boolean;
+                            sections_created: Record<string, never>[];
+                            variants_added: Record<string, never>[];
+                            sections_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
+                            items_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** Format: uuid */
+                                section_id?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
                         };
                     };
                 };
@@ -4491,6 +4657,13 @@ export interface paths {
                                 street: string | null;
                                 latitude: number | null;
                                 longitude: number | null;
+                                address?: {
+                                    street?: string | null;
+                                    city?: string | null;
+                                    region?: string | null;
+                                    postal_code?: string | null;
+                                    country?: string | null;
+                                } | null;
                                 city: {
                                     slug: string;
                                     name: string;
@@ -4679,6 +4852,8 @@ export interface paths {
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 ingredient_ids: string[];
                                 tag_ids: string[];
+                                /** @description Dish order within its menu section */
+                                position?: number;
                                 /** @enum {string} */
                                 status: "visible" | "hidden";
                                 reasons: {
@@ -4799,6 +4974,9 @@ export interface paths {
                             /** Format: uuid */
                             menu_section_id?: string | null;
                             menu_section_name?: string | null;
+                            menu_section_position?: number | null;
+                            /** @description Dish order within its menu section */
+                            position?: number;
                             /** @enum {string} */
                             status: "visible" | "hidden";
                             reasons: Record<string, never>[];
@@ -4814,7 +4992,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner" | "derived";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                                 allergen: boolean;
                             }[];
                             detected_tags: {
@@ -4823,7 +5001,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner" | "derived";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                             }[];
                         };
                     };
@@ -4908,6 +5086,13 @@ export interface paths {
                                 name: string;
                                 region: string | null;
                             };
+                            address?: {
+                                street?: string | null;
+                                city?: string | null;
+                                region?: string | null;
+                                postal_code?: string | null;
+                                country?: string | null;
+                            } | null;
                             /** @description IANA timezone (e.g. America/Denver) */
                             time_zone: string | null;
                             /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */
