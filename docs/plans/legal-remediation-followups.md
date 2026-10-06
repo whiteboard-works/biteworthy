@@ -81,19 +81,16 @@ follow-up list is complete; the canonical entries live in
   DRAFT comments on `privacy/page.tsx` + `terms/page.tsx`) come off. The
   `/privacy` banner came off early, 2026-10-05, at the owner's call (#785);
   the review itself is still open. Launch gate.
-  - **L1a — chat is undisclosed, and one sentence about it is false.**
-    The Privacy Policy says "We do not send your reviews or profile to
-    Anthropic"; `Chat::SystemPrompt` embeds the caller's strictness and
-    named avoid-lists in every turn's system prompt, and
-    `Tools::Reviews::ListReviews` can put review text in the context.
-    Neither document mentions chat at all. Data flows, retention, and the
-    questions for counsel are written up in
-    [`chat-privacy-l1-brief.md`](./chat-privacy-l1-brief.md) — take that
-    into the L1 pass. Found 2026-08-14 (#608). **Partly fixed
-    2026-10-05:** the false sentence is gone, and the Anthropic entry now
-    names chat messages, the dietary profile, saved chat notes (#781), and
-    reviews the chat reads or writes. Retention and the brief's counsel
-    questions are still open.
+  - **L1a — chat data flows to Anthropic.** Until 2026-10-05 the Privacy
+    Policy said "We do not send your reviews or profile to Anthropic"
+    and never mentioned chat (found 2026-08-14, #608). Its Anthropic entry
+    now names chat messages, the dietary profile, saved chat notes (#781),
+    the caller's own reviews (hidden ones included), and public reviews any
+    user's chat reads (#786 and its follow-up).
+    Still open for counsel: transcript retention, the special-category
+    consent question, and whether Anthropic's no-training commitment
+    covers the chat surface — see
+    [`chat-privacy-l1-brief.md`](./chat-privacy-l1-brief.md).
 - **L2 — Register a DMCA designated agent** with the U.S. Copyright
   Office (~$6) for §512 safe harbor, and stand up the repeat-infringer
   review process over the `dmca_notices` table that E10 created. Wire the
