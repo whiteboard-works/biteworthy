@@ -232,7 +232,7 @@ class GapFillResolveJob < ApplicationJob
   # future "human") is a human-authored row and must survive rebuilds —
   # Undo returns an edited item to `pending` WITHOUT resetting payloads,
   # so a pending item can carry human tags (e.g. an added allergen).
-  MACHINE_SOURCES = %w[match derived ai].freeze
+  MACHINE_SOURCES = %w[match derived ai ingredient_derived].freeze
 
   def rebuild_tags(item, merged_ingredients, ai_cuisine_rows, ingredient_paths, cuisine_slugs)
     resolved = merged_ingredients.map do |r|

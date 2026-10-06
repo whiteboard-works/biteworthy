@@ -1465,6 +1465,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/restaurants/{id}/backfill_confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rewrite join-row source/confidence from accepted ingestion items
+         * @description Re-applies the locked confidence rules to published items that have an accepted ingestion item. Defaults to dry_run=true. May only lower confidence or add wheat/gluten rows.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description When omitted, defaults to true */
+                    dry_run?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description per-item dry-run or applied rewrite report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            dry_run: boolean;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            restaurant_name: string;
+                            items_processed: number;
+                            items: {
+                                /** Format: uuid */
+                                item_id: string;
+                                item_name: string;
+                                old_confidence: string;
+                                new_confidence: string;
+                                rows_changed: number;
+                                allergen_rows_added: string[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/reviews": {
         parameters: {
             query?: never;
@@ -4814,7 +4888,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner" | "derived";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                                 allergen: boolean;
                             }[];
                             detected_tags: {
@@ -4823,7 +4897,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner" | "derived";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                             }[];
                         };
                     };

@@ -293,31 +293,12 @@ class IngestionItem < ApplicationRecord
     { "confirmed" => 3, "suggested" => 2, "inferred" => 1 }[conf] || 0
   end
 
-  # One INSERT per join table, then one recompute of the denormalized array.
-  # Returns the ids actually created, which is what undo replays.
-  #
-  # insert_all skips validations, so `confidence` (the accept-confidence the
-  # trust model decided) and `source: "human"` are written verbatim — the DB
-  # CHECK constraints are the remaining guard. It also skips the callbacks
-  # that keep items.ingredient_ids/tag_ids honest, hence the explicit resync.
-  #
-  # ON CONFLICT DO NOTHING (via unique_by) is what makes the append path
-  # append-only: a slug already joined to this item is left exactly as it is,
-  # confidence and all, and never comes back in the created list. That also
-  # covers the concurrent-append race the old row-by-row rescue handled.
-  def insert_joins!(model, target, node_ids, confidence)
-    return [] if node_ids.empty?
-
-    foreign_key = model.denormalized_foreign_key
-    created = model.insert_all(
-      node_ids.map do |node_id|
-        { :item_id => target.id, foreign_key => node_id, :confidence => confidence, :source => "human" }
-      end,
-      unique_by: [:item_id, foreign_key],
-      returning: %i[id]
-    )
-    model.resync_denormalized_ids([target.id])
-    created.rows.flatten
+  # 766's table-driven contract. Delegates to ConfidenceMapper so the
+  # existing spec/models/ingestion_item_map_confidence_spec.rb still
+  # exercises the locked rules (community never confirms, derived is
+  # suggested, AI thresholds, nil numeric on match).
+  def map_confidence(numeric, source, accept_cap)
+    Ingestion::ConfidenceMapper.map_confidence(numeric, source, accept_cap)
   end
 
   # Restore what apply_update! changed, then release the link. Restore

@@ -2673,6 +2673,132 @@
         }
       }
     },
+    "/api/v1/admin/restaurants/{id}/backfill_confidence": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Rewrite join-row source/confidence from accepted ingestion items",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Re-applies the locked confidence rules to published items that have an accepted ingestion item. Defaults to dry_run=true. May only lower confidence or add wheat/gluten rows.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "description": "When omitted, defaults to true",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "per-item dry-run or applied rewrite report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "dry_run",
+                    "restaurant_id",
+                    "restaurant_name",
+                    "items_processed",
+                    "items"
+                  ],
+                  "properties": {
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "restaurant_name": {
+                      "type": "string"
+                    },
+                    "items_processed": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "item_id",
+                          "item_name",
+                          "old_confidence",
+                          "new_confidence",
+                          "rows_changed",
+                          "allergen_rows_added"
+                        ],
+                        "properties": {
+                          "item_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item_name": {
+                            "type": "string"
+                          },
+                          "old_confidence": {
+                            "type": "string"
+                          },
+                          "new_confidence": {
+                            "type": "string"
+                          },
+                          "rows_changed": {
+                            "type": "integer"
+                          },
+                          "allergen_rows_added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not an admin, or unknown restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/reviews": {
       "get": {
         "summary": "Review moderation queue",
@@ -8260,7 +8386,9 @@
                               "human",
                               "ai",
                               "owner",
-                              "derived"
+                              "match",
+                              "derived",
+                              "ingredient_derived"
                             ]
                           },
                           "allergen": {
@@ -8302,7 +8430,9 @@
                               "human",
                               "ai",
                               "owner",
-                              "derived"
+                              "match",
+                              "derived",
+                              "ingredient_derived"
                             ]
                           }
                         }

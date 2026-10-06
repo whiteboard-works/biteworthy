@@ -1,58 +1,83 @@
 # frozen_string_literal: true
 
 module Ingestion
-  # Maps (source, numeric_confidence) from resolver output to the (source, confidence) that
-  # gets written into ItemIngredient / ItemTag join rows, following the locked confidence rules.
+  # Maps (source, numeric_confidence) from resolver output to the
+  # (source, confidence) written onto ItemIngredient / ItemTag join rows.
   #
-  # Locked rules (must hold):
+  # Locked rules:
   # - Community accepts never produce "confirmed"
-  # - Admin accept with a menu-text source (match/human/owner/nil) gives confirmed for any numeric,
-  #   and a nil numeric doesn't crash
-  # - Source "derived" (name or keyword inference, e.g. pizza implies wheat) gives suggested
-  # - Source "ai" gives suggested at >= 0.8, and inferred below 0.8 or when nil
-  # - A dish takes its weakest ingredient's confidence; inference never raises it
+  # - Admin accept with a menu-text source (match/human/owner/nil) gives
+  #   confirmed for any numeric, and a nil numeric doesn't crash
+  # - Source "derived" (name or keyword inference) gives suggested
+  # - Source "ai" gives suggested at >= 0.8, and inferred below 0.8 or nil
+  # - Source "ingredient_derived" takes the parent ingredient's mapped
+  #   confidence (via from_source) and keeps source ingredient_derived
+  # - A dish takes its weakest ingredient's confidence; inference never
+  #   raises it
   # - A dish with zero ingredient rows is suggested
-  #
-  # Unknown sources fail closed: only match/human/owner/nil are trusted; anything else maps to inferred.
+  # - Unknown sources fail closed to inferred
   module ConfidenceMapper
     TRUSTED_SOURCES = %w[match human owner].freeze
-    INFERRED_SOURCES = %w[derived ai].freeze
+    KNOWN_SOURCES = %w[match human owner derived ai ingredient_derived].freeze
 
-    # Map one payload row's (source, numeric) to (source, confidence) for the join table.
-    # decided_by determines the accept confidence ("confirmed" for admin, "suggested" for community).
+    def self.accept_cap_for(decided_by)
+      decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
+    end
+
+    # 766's table-driven contract. accept_cap is "confirmed" (admin) or
+    # "suggested" (community). from_source is the parent ingredient source
+    # when mapping an allergen tag stamped ingredient_derived.
+    def self.map_confidence(numeric, source, accept_cap, from_source: nil)
+      source = source.to_s
+      source = "match" if source.blank?
+
+      if source == "ingredient_derived"
+        parent = from_source.presence || "unknown"
+        return map_confidence(numeric, parent, accept_cap)
+      end
+
+      return "inferred" unless KNOWN_SOURCES.include?(source)
+      return "suggested" if source == "derived"
+
+      if source == "ai"
+        n = numeric.nil? ? 0.0 : numeric.to_f
+        return n >= 0.8 ? "suggested" : "inferred"
+      end
+
+      accept_cap == "confirmed" ? "confirmed" : "suggested"
+    end
+
     def self.map_row(payload_row, decided_by:)
+      accept_cap = accept_cap_for(decided_by)
       source = payload_row.source.to_s
-      numeric = payload_row.confidence
-      accept_confidence = decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
+      source = "match" if source.blank?
+      from_source = payload_row.respond_to?(:from_source) ? payload_row.from_source : nil
 
-      # Fail closed: unknown sources become inferred
-      unless TRUSTED_SOURCES.include?(source) || INFERRED_SOURCES.include?(source) || source.blank?
+      unless KNOWN_SOURCES.include?(source)
         return { source: "derived", confidence: "inferred" }
       end
 
-      # Menu-text sources (match/human/owner/nil) → accept confidence
-      if TRUSTED_SOURCES.include?(source) || source.blank?
-        return { source: source.presence || "match", confidence: accept_confidence }
-      end
-
-      # Derived (name/keyword inference) → suggested, always
-      if source == "derived"
-        return { source: "derived", confidence: "suggested" }
-      end
-
-      # AI → suggested at >= 0.8, inferred otherwise (including nil)
-      if source == "ai"
-        conf = (numeric.to_f >= 0.8) ? "suggested" : "inferred"
-        return { source: "ai", confidence: conf }
-      end
-
-      # Fallback (should never reach here due to the fail-closed check above)
-      { source: "derived", confidence: "inferred" }
+      {
+        source: join_source_for(source),
+        confidence: map_confidence(
+          payload_row.confidence, source, accept_cap, from_source: from_source
+        )
+      }
     end
 
-    # Compute the dish confidence from its ingredient rows (NOT tags).
-    # Zero ingredients → suggested.
-    # Otherwise → weakest ingredient confidence.
+    def self.join_source_for(source)
+      case source
+      when "match", "human", "" then "human"
+      when "owner" then "owner"
+      when "derived" then "derived"
+      when "ai" then "ai"
+      when "ingredient_derived" then "ingredient_derived"
+      else "derived"
+      end
+    end
+
+    # Dish confidence from INGREDIENT rows only (not tags).
+    # Zero ingredients → suggested. Otherwise → weakest ingredient.
     def self.dish_confidence_from_ingredients(ingredient_rows)
       return "suggested" if ingredient_rows.empty?
 

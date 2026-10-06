@@ -32,4 +32,16 @@ RSpec.describe Ingestion::AssociationPayload do
   it "survives a row that is not a hash at all" do
     expect(described_class.load(nil).slug).to be_nil
   end
+
+  it "keeps from_source only when an allergen tag inherited a parent ingredient source" do
+    dumped = described_class.dump(
+      slug: "contains-gluten", confidence: 0.8,
+      source: "ingredient_derived", from_source: "derived"
+    )
+    expect(dumped).to eq(
+      "slug" => "contains-gluten", "confidence" => 0.8,
+      "source" => "ingredient_derived", "from_source" => "derived"
+    )
+    expect(described_class.load(dumped).from_source).to eq("derived")
+  end
 end
