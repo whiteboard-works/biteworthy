@@ -154,32 +154,42 @@ class IngestionItem < ApplicationRecord
   # overwritten only when the scan carries one and it differs (absence
   # of evidence never blanks data); variants replaced only when the
   # scanned price set is non-empty and differs; ingredients/tags are
-  # append-only — existing joins are never removed or downgraded, so a
-  # human-confirmed association can't be undone by a re-scan. Name,
-  # modifiers, and photo are deliberately untouched (v1 non-goals — see
-  # docs/ingestion.md). Section is set only when missing. Every change
-  # lands in the applied_changes snapshot for undo!.
+  # replaced when the staged item was explicitly edited by a human,
+  # otherwise append-only. Name is applied only when explicitly edited.
+  # Existing joins are never removed or downgraded on auto-scanned
+  # items, so a human-confirmed association can't be undone by a
+  # re-scan. Modifiers and photo are deliberately untouched (v1
+  # non-goals — see docs/ingestion.md). Section is set only when
+  # missing. Every change lands in the applied_changes snapshot for undo!.
   def apply_update!(target, decided_by:)
     snapshot = {}
 
+    apply_name!(target, snapshot)
     apply_description!(target, snapshot)
     apply_section!(target, snapshot)
     apply_variants!(target, snapshot)
 
-    ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
-    created_ingredient_ids = insert_joins_with_confidence!(ItemIngredient, target, ingredient_rows)
+    old_confidence = target.confidence
 
-    tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
-    created_tag_ids = insert_joins_with_confidence!(ItemTag, target, tag_rows)
+    if edited?
+      # Human edit: replace joins, then re-derive allergen tags through
+      # ConfidenceMapper so derived/AI/ingredient_derived stay unconfirmed
+      # unless the parent ingredient itself mapped to confirmed.
+      replace_joins_with_confidence!(ItemIngredient, target, Ingredient, ingredients_payload, decided_by, snapshot)
+      replace_joins_with_confidence!(ItemTag, target, Tag, tags_payload, decided_by, snapshot)
+      derive_allergen_tags!(target, decided_by, snapshot)
+    else
+      ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
+      created_ingredient_ids = insert_joins_with_confidence!(ItemIngredient, target, ingredient_rows)
+      tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
+      created_tag_ids = insert_joins_with_confidence!(ItemTag, target, tag_rows)
+      snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
+      snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
+    end
 
-    snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
-    snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
-
-    # Re-derive dish confidence after adding new ingredients.
-    # May only lower confidence, never raise it.
-    if created_ingredient_ids.any?
-      old_confidence = target.confidence
-      target.reload # refresh denormalized arrays
+    if (snapshot["created_item_ingredient_ids"] || []).any? ||
+       (snapshot["replaced_item_ingredient_ids"] || []).any?
+      target.reload
       new_confidence = derive_item_confidence!(target)
       if new_confidence != old_confidence
         snapshot["confidence"] = [old_confidence, new_confidence]
@@ -203,6 +213,17 @@ class IngestionItem < ApplicationRecord
 
     snapshot["description"] = [target.description, description]
     target.update!(description: description)
+  end
+
+  def apply_name!(target, snapshot)
+    # Only apply name when explicitly edited by a human
+    return unless edited?
+
+    scanned = name.to_s.strip
+    return if scanned.blank? || scanned == target.name.to_s.strip
+
+    snapshot["name"] = [target.name, name]
+    target.update!(name: name)
   end
 
   def apply_section!(target, snapshot)
@@ -271,6 +292,56 @@ class IngestionItem < ApplicationRecord
     created.rows.flatten
   end
 
+  # Replace all joins of this type on the target item with the new set.
+  # Used when a human explicitly edited the associations. Inserts through
+  # ConfidenceMapper so derived/AI rows stay unconfirmed.
+  def replace_joins_with_confidence!(model, target, node_model, payload, decided_by, snapshot)
+    foreign_key = model.denormalized_foreign_key
+    snapshot_key = "replaced_#{model.table_name.singularize}_ids"
+
+    existing_joins = model.where(item_id: target.id).pluck(:id, foreign_key, :confidence, :source)
+    snapshot[snapshot_key] = existing_joins.map do |id, node_id, conf, src|
+      { "id" => id, foreign_key => node_id, "confidence" => conf, "source" => src }
+    end
+
+    Item.defer_denormalization do
+      model.where(item_id: target.id).destroy_all
+    end
+
+    rows = map_joins_with_confidence(node_model, payload, decided_by: decided_by)
+    created_ids = insert_joins_with_confidence!(model, target, rows)
+    created_key = "created_#{model.table_name.singularize}_ids"
+    snapshot[created_key] = created_ids if created_ids.any?
+  end
+
+  # Recompute allergen tags from the replacement ingredient set. The
+  # Allergen strategy stamps ingredient_derived + from_source so
+  # ConfidenceMapper can inherit the parent ingredient's mapped
+  # confidence — a derived wheat row still produces suggested gluten.
+  def derive_allergen_tags!(target, decided_by, snapshot)
+    resolved = ItemIngredient.where(item_id: target.id).includes(:ingredient).filter_map do |join|
+      ingredient = join.ingredient
+      next unless ingredient
+
+      { slug: ingredient.slug, path: ingredient.path.to_s,
+        confidence: join.confidence == "inferred" ? 0.5 : 1.0,
+        source: join.source }
+    end
+
+    derived = Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved })
+    return if derived.empty?
+
+    payload = derived.map { |row|
+      Ingestion::AssociationPayload.dump(
+        slug: row[:slug], confidence: row[:confidence],
+        source: row[:source], from_source: row[:from_source]
+      )
+    }
+    rows = map_joins_with_confidence(Tag, payload, decided_by: decided_by)
+    created_ids = insert_joins_with_confidence!(ItemTag, target, rows)
+    snapshot["derived_allergen_tag_ids"] = created_ids if created_ids.any?
+  end
+
   # Compute dish confidence from the item's current ingredient joins (not tags).
   # Only lowers confidence, never raises it.
   def derive_item_confidence!(item)
@@ -312,6 +383,9 @@ class IngestionItem < ApplicationRecord
     target = Item.lock.find_by(id: item_id)
 
     if target
+      if (change = changes["name"])
+        target.update!(name: change[0])
+      end
       if (change = changes["description"])
         target.update!(description: change[0])
       end
@@ -331,6 +405,25 @@ class IngestionItem < ApplicationRecord
       Item.defer_denormalization do
         ItemIngredient.where(id: changes["created_item_ingredient_ids"] || []).find_each(&:destroy)
         ItemTag.where(id: changes["created_item_tag_ids"] || []).find_each(&:destroy)
+        ItemTag.where(id: changes["derived_allergen_tag_ids"] || []).find_each(&:destroy)
+
+        # Restore replaced joins
+        if (rows = changes["replaced_item_ingredient_ids"])
+          rows.each do |row|
+            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: row["ingredient_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
+        if (rows = changes["replaced_item_tag_ids"])
+          rows.each do |row|
+            ItemTag.find_or_create_by!(item_id: target.id, tag_id: row["tag_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
       end
     end
 
