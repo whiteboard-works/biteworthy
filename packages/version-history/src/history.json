@@ -1,5 +1,15 @@
 [
   {
+    "version": "2026.10.5.1",
+    "date": "2026-10-05",
+    "notes": [
+      "The Celiac filter catches more hidden gluten, like biscuits, breading, roux, and samosas, and Strict mode now hides dishes whose gluten was inferred rather than stated on the menu.",
+      "Dish photos load again after the faster photo sizes broke them, and fall back to the original photo if a resized one fails.",
+      "Dishes without a photo get a placeholder tile when the rest of their section has photos, so menu rows line up on wider screens.",
+      "The privacy policy now spells out what the chat sends to Anthropic: your messages, dietary profile, saved notes, and the reviews it reads."
+    ]
+  },
+  {
     "version": "2026.10.5",
     "date": "2026-10-05",
     "notes": [
