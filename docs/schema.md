@@ -74,6 +74,19 @@ and you must ship a migration widening the constraint in the same PR**.
 ## Reviews + community
 
 - `reviews` — per-item, 1–5 + body. Unique on `[user_id, item_id]`.
+- `dish_photo_submissions` — diner photos of a dish, pending until an
+  admin approves. Approve-and-set (`status=approved`) prepares a copy of
+  the diner bytes, then under an item row lock (then the submission lock)
+  attaches that copy, sets `items.photo_submission_id` for the
+  "Photo by …" credit, and marks the row approved in one transaction. A
+  failure leaves the submission pending and the item unchanged; the
+  previous item photo is purged after the new blob is stored. WebP
+  variants generate from those bytes. `approve_keep` accepts without
+  replacing the current photo. Withdrawals are `withdrawn` (bytes purged)
+  so they still count toward the 10/day limit. Rejected rows purge their
+  blob. Stored images are rewritten through libvips with metadata stripped
+  (no EXIF/GPS) after a raw-size and pixel-dimension bound. Rate-limited
+  to 10 per user per day and 3 pending per diner per dish.
 - `suggestions` — polymorphic edit proposals queue. Replaces the 2020
   points/levels gamification with a real moderation pipeline.
 

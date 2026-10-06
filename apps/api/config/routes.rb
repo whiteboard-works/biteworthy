@@ -108,9 +108,11 @@ Rails.application.routes.draw do
           delete :favorite, to: "favorite_items#destroy"
         end
         resources :reviews, only: [:index, :create]
+        resources :photo_submissions, only: [:create]
         # Phase 4.10 — anyone can suggest a fix.
         resources :suggestions, only: [:create]
       end
+      resources :photo_submissions, only: [:index, :destroy]
       resources :reviews, only: [:update, :destroy] do
         # Legal remediation E8 — readers report a review into the
         # moderation queue.
@@ -217,6 +219,12 @@ Rails.application.routes.draw do
           member do
             post :hide
             post :unhide
+          end
+        end
+        resources :photo_submissions, only: [:index] do
+          member do
+            post :approve
+            post :reject
           end
         end
         resources :suggestions, only: [:index, :destroy]

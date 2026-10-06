@@ -183,6 +183,14 @@ RSpec.describe "restaurants/items", type: :request do
                  overridden_by_user: { type: :boolean },
                  reviews_count:  { type: :integer },
                  photo_url:      { type: :string, nullable: true },
+                 photo_credit:   {
+                   type: :object,
+                   nullable: true,
+                   required: %w[display_name],
+                   properties: {
+                     display_name: { type: :string }
+                   }
+                 },
                  taste_score:    { type: :number, nullable: true },
                  taste_reasons:  { type: :array, items: { type: :object } },
                  favorited:      { type: :boolean },

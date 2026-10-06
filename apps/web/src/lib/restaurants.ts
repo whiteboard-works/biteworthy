@@ -115,6 +115,11 @@ export interface RestaurantItem extends FilterableItem {
     full: string;
   } | null;
   /**
+   * Present on the dish detail payload when the current photo came
+   * from an approved diner submission.
+   */
+  photo_credit?: { display_name: string } | null;
+  /**
    * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
    * caller's profile carries taste signals (Phase 8.1 arrays).
    */

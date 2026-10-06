@@ -81,6 +81,22 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
     expect(screen.getByTestId('item-photo-item-1')).toBeInTheDocument();
     expect(screen.queryByTestId('item-photo-placeholder-item-1')).not.toBeInTheDocument();
   });
+
+  it('offers Add a photo on a photo-less card, linking to the dish with addPhoto=1', () => {
+    renderRow({ photo_url: null });
+    const link = screen.getByTestId('add-photo-item-1');
+    expect(link).toHaveTextContent('Add a photo');
+    expect(link).toHaveClass('min-h-[44px]');
+    expect(link).toHaveAttribute(
+      'href',
+      '/restaurants/usa/colorado/durango/cream-bean-berry/items/item-1?addPhoto=1',
+    );
+  });
+
+  it('does not offer Add a photo when the dish already has one', () => {
+    renderRow({ photo_url: 'https://example.com/dish.jpg' });
+    expect(screen.queryByTestId('add-photo-item-1')).not.toBeInTheDocument();
+  });
 });
 
 describe('ItemRow — name + description + open link', () => {

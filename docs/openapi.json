@@ -40,6 +40,7 @@
                     "account",
                     "profile",
                     "reviews",
+                    "photo_submissions",
                     "suggestions",
                     "restaurant_visits"
                   ],
@@ -93,6 +94,12 @@
                       "nullable": true
                     },
                     "reviews": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "photo_submissions": {
                       "type": "array",
                       "items": {
                         "type": "object"
@@ -417,7 +424,8 @@
                         "flagged_reviews",
                         "pending_suggestions",
                         "community_published_restaurants",
-                        "staged_runs"
+                        "staged_runs",
+                        "pending_photo_submissions"
                       ],
                       "properties": {
                         "flagged_reviews": {
@@ -430,6 +438,9 @@
                           "type": "integer"
                         },
                         "staged_runs": {
+                          "type": "integer"
+                        },
+                        "pending_photo_submissions": {
                           "type": "integer"
                         }
                       }
@@ -6694,6 +6705,346 @@
         }
       }
     },
+    "/api/v1/items/{item_id}/reviews": {
+      "parameters": [
+        {
+          "name": "item_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Create a review of this dish",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the new review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "rating",
+                    "created_at",
+                    "user"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "handle"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "handle": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "rating": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "photo_offer": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "rate_limited",
+                            "failed"
+                          ]
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rating"
+                ],
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "description": "1 to 5."
+                  },
+                  "body": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, WebP, or HEIC. Required when offer_as_dish_photo is true. EXIF/GPS is stripped."
+                  },
+                  "offer_as_dish_photo": {
+                    "type": "boolean",
+                    "description": "When true, also queue the review photo as a pending dish-photo submission. Requires photo and owns_rights."
+                  },
+                  "owns_rights": {
+                    "type": "boolean",
+                    "description": "Required when offer_as_dish_photo is true. Must be true, 'true', or '1'."
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/reviews/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Update the caller's own review",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated review, including a replacement photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "rating",
+                    "created_at",
+                    "user"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "handle"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "handle": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "rating": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "photo_offer": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "rate_limited",
+                            "failed"
+                          ]
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          },
+          "422": {
+            "description": "unreadable or disallowed replacement photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "too_large, too_many_pixels, unsupported_type, or unprocessable_image."
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "description": "1 to 5."
+                  },
+                  "body": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Replacement photo. EXIF/GPS is stripped. Send an empty value to remove."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mcp_tokens": {
       "get": {
         "summary": "List the caller's active MCP tokens",
@@ -6971,6 +7322,902 @@
                     "type": "string",
                     "nullable": true,
                     "maxLength": 300
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/items/{item_id}/photo_submissions": {
+      "parameters": [
+        {
+          "name": "item_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Submit a diner photo of this dish",
+        "tags": [
+          "Photo submissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "pending submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "status",
+                    "owns_rights",
+                    "credit_name",
+                    "created_at"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
+                      ]
+                    },
+                    "rejection_reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "not_this_dish",
+                        "low_quality",
+                        "inappropriate",
+                        "not_food",
+                        "duplicate"
+                      ]
+                    },
+                    "owns_rights": {
+                      "type": "boolean"
+                    },
+                    "review_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "credit_name": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reviewed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "photo",
+                  "owns_rights"
+                ],
+                "properties": {
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
+                  },
+                  "owns_rights": {
+                    "type": "boolean",
+                    "description": "Must be true, 'true', or '1' — the diner confirms they took the photo."
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/photo_submissions": {
+      "get": {
+        "summary": "The caller's own dish-photo submissions",
+        "tags": [
+          "Photo submissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the caller's submissions newest-first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "photo_submissions",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "photo_submissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "item_id",
+                          "status",
+                          "owns_rights",
+                          "credit_name",
+                          "created_at"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected",
+                              "withdrawn",
+                              "approve_keep"
+                            ]
+                          },
+                          "rejection_reason": {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              "not_this_dish",
+                              "low_quality",
+                              "inappropriate",
+                              "not_food",
+                              "duplicate"
+                            ]
+                          },
+                          "owns_rights": {
+                            "type": "boolean"
+                          },
+                          "review_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "photo_url": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "credit_name": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "reviewed_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/photo_submissions/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "Withdraw a pending submission",
+        "tags": [
+          "Photo submissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "withdrawn"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/photo_submissions": {
+      "get": {
+        "summary": "Admin dish-photo moderation queue",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer <jwt> for a user with is_admin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "approve_keep",
+                "rejected",
+                "withdrawn",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "submissions newest-first + pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "photo_submissions",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "photo_submissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "item_id",
+                          "status",
+                          "owns_rights",
+                          "credit_name",
+                          "created_at",
+                          "user",
+                          "item"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "item_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected",
+                              "withdrawn",
+                              "approve_keep"
+                            ]
+                          },
+                          "rejection_reason": {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              "not_this_dish",
+                              "low_quality",
+                              "inappropriate",
+                              "not_food",
+                              "duplicate"
+                            ]
+                          },
+                          "owns_rights": {
+                            "type": "boolean"
+                          },
+                          "review_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "photo_url": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "credit_name": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "reviewed_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "nullable": true
+                              },
+                              "handle": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "display_name": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          },
+                          "item": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "restaurant"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "photo_url": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "restaurant": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "slug": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "authenticated but not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/photo_submissions/{id}/approve": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Approve a diner photo, optionally setting it as the dish photo",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the approved submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "status",
+                    "owns_rights",
+                    "credit_name",
+                    "created_at",
+                    "user",
+                    "item"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
+                      ]
+                    },
+                    "rejection_reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "not_this_dish",
+                        "low_quality",
+                        "inappropriate",
+                        "not_food",
+                        "duplicate"
+                      ]
+                    },
+                    "owns_rights": {
+                      "type": "boolean"
+                    },
+                    "review_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "credit_name": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reviewed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        },
+                        "handle": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "item": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "restaurant"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "photo_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "restaurant": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "slug": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "replace_item_photo": {
+                    "type": "boolean",
+                    "description": "Copy onto Item#photo. Defaults to true when the dish has no photo."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/photo_submissions/{id}/reject": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Reject a diner photo with a reason",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the rejected submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "status",
+                    "owns_rights",
+                    "credit_name",
+                    "created_at",
+                    "user",
+                    "item"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
+                      ]
+                    },
+                    "rejection_reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        "not_this_dish",
+                        "low_quality",
+                        "inappropriate",
+                        "not_food",
+                        "duplicate"
+                      ]
+                    },
+                    "owns_rights": {
+                      "type": "boolean"
+                    },
+                    "review_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "credit_name": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reviewed_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        },
+                        "handle": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "item": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "restaurant"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "photo_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "restaurant": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "slug": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "not_this_dish",
+                      "low_quality",
+                      "inappropriate",
+                      "not_food",
+                      "duplicate"
+                    ]
                   }
                 }
               }
@@ -8549,6 +9796,18 @@
                     "photo_url": {
                       "type": "string",
                       "nullable": true
+                    },
+                    "photo_credit": {
+                      "type": "object",
+                      "nullable": true,
+                      "required": [
+                        "display_name"
+                      ],
+                      "properties": {
+                        "display_name": {
+                          "type": "string"
+                        }
+                      }
                     },
                     "taste_score": {
                       "type": "number",

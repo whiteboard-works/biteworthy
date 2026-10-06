@@ -10,6 +10,11 @@ module Api
     # Index is public (anonymous browsers see reviews on the item
     # detail page); create/update/destroy require auth and gate on
     # the review's `user_id == current_user.id`.
+    #
+    # Review photos (and dish-photo offers) are rewritten through
+    # Images::StripMetadata before attach — no EXIF/GPS on the public
+    # blob. Offering the photo as the dish photo is best-effort: a
+    # rate-limit on the offer does not roll back the review.
     class ReviewsController < BaseController
       skip_before_action :authenticate_user!, only: [:index]
       before_action :load_item,    only: [:index, :create]
@@ -36,21 +41,48 @@ module Api
       end
 
       def create
+        offering = offering_dish_photo?
+        if offering && !photo_upload?(params[:photo])
+          render json: { error: "photo_required",
+                         message: "A photo is required to offer it as the dish photo" },
+                 status: :unprocessable_entity
+          return
+        end
+        if offering && !DishPhotos::OwnsRights.accepted?(params[:owns_rights])
+          render json: { error: "owns_rights",
+                         message: "You must confirm you took this photo to offer it as the dish photo" },
+                 status: :unprocessable_entity
+          return
+        end
+
         review = @item.reviews.build(review_params)
         review.user = current_user
-        if review.save
-          render json: serialize(review), status: :created
-        else
+        Images::AttachPhoto.call(review, params[:photo]) if photo_upload?(params[:photo])
+
+        unless review.save
           render json: { error: review.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          return
         end
+
+        payload = serialize(review)
+        payload[:photo_offer] = offer_dish_photo(review) if offering
+        render json: payload, status: :created
+      rescue Images::StripMetadata::Unprocessable => e
+        render json: { error: e.code, message: e.message }, status: :unprocessable_entity
       end
 
       def update
-        if @review.update(review_params.except(:photo).merge(allowed_photo_update))
-          render json: serialize(@review)
-        else
-          render json: { error: @review.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        Review.transaction do
+          @review.assign_attributes(review_params)
+          @review.validate!
+          apply_photo_change!
+          @review.save!
         end
+        render json: serialize(@review)
+      rescue ActiveRecord::RecordInvalid
+        render json: { error: @review.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      rescue Images::StripMetadata::Unprocessable => e
+        render json: { error: e.code, message: e.message }, status: :unprocessable_entity
       end
 
       def destroy
@@ -87,21 +119,40 @@ module Api
       end
 
       def review_params
-        params.permit(:rating, :body, :photo)
+        params.permit(:rating, :body)
       end
 
-      # Treat an explicit `photo: ""` in PATCH as "remove the photo".
-      # Anything else only sets photo if the file param was uploaded.
-      def allowed_photo_update
-        return {} unless params.key?(:photo)
-        if params[:photo].is_a?(ActionDispatch::Http::UploadedFile)
-          { photo: params[:photo] }
-        elsif params[:photo].blank?
-          @review.photo.purge_later if @review.photo.attached?
-          {}
-        else
-          {}
+      def apply_photo_change!
+        if photo_upload?(params[:photo])
+          Images::AttachPhoto.call(@review, params[:photo])
+        elsif params.key?(:photo) && params[:photo].blank?
+          @review.photo.purge if @review.photo.attached?
         end
+      end
+
+      def photo_upload?(value)
+        value.respond_to?(:tempfile)
+      end
+
+      def offering_dish_photo?
+        ActiveModel::Type::Boolean.new.cast(params[:offer_as_dish_photo])
+      end
+
+      def offer_dish_photo(review)
+        submission = DishPhotos::Submit.call(
+          item: @item,
+          user: current_user,
+          photo: params[:photo],
+          owns_rights: params[:owns_rights],
+          review: review
+        )
+        { status: "pending", id: submission.id }
+      rescue DishPhotos::Submit::RateLimited => e
+        { status: "rate_limited", code: e.code, message: e.message }
+      rescue Images::StripMetadata::Unprocessable => e
+        { status: "failed", code: e.code, message: e.message }
+      rescue ActiveRecord::RecordInvalid => e
+        { status: "failed", code: "invalid", message: e.record.errors.full_messages.join(", ") }
       end
 
       def serialize(review)

@@ -176,6 +176,11 @@ Other than that workstream and the exploration follow-ups below, **no
 remaining loop-shippable work.** Every loop-shippable launch piece is on
 master; the rest of the queue is human-credential-gated.
 
+## Diner dish photos (shipped 2026-10-06)
+
+- [x] Diners submit a photo of a dish; admins approve before it becomes `Item#photo`. Web UI on the dish page and photo-less menu cards, review-form opt-in, `/admin/photos` queue, MCP `list_photo_submissions` / `moderate_photo_submission`, EXIF/GPS stripped. Attribution: "Photo by \<display name\>".
+- [ ] Mobile (Expo) — same upload + credit on the dish screen; left as a follow-up.
+
 ## Open follow-ups
 
 Loop-surfaced tasks that don't belong to a shipped phase. Humans triage

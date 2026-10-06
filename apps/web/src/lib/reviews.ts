@@ -12,12 +12,20 @@
 import { api, type ApiOptions } from './api';
 
 import { API_BASE } from './api-base';
-import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
+import { shrinkForUpload } from './shrink-image';
+import { PHOTO_MAX_BYTES, friendlyPhotoError } from './photo-errors';
 
 export interface ReviewAuthor {
   id: string;
   handle: string | null;
   display_name: string | null;
+}
+
+export interface PhotoOffer {
+  status: 'pending' | 'rate_limited' | 'failed';
+  code?: string;
+  message?: string;
+  id?: string;
 }
 
 export interface ReviewPayload {
@@ -29,6 +37,7 @@ export interface ReviewPayload {
   photo_url: string | null;
   created_at: string;
   updated_at: string;
+  photo_offer?: PhotoOffer;
 }
 
 export interface ReviewsResponse {
@@ -93,6 +102,8 @@ export interface NewReview {
    * omit for text-only reviews (sends JSON).
    */
   photo?: File | null;
+  /** Unchecked-by-default: also queue the photo as a diner dish photo. */
+  offerAsDishPhoto?: boolean;
 }
 
 export async function createReview(
@@ -106,11 +117,15 @@ export async function createReview(
   const headers: Record<string, string> = {};
   if (review.photo) {
     const photo = await shrinkForUpload(review.photo);
-    if (tooLargeToUpload(photo)) throw new ReviewError(413, TOO_LARGE_MESSAGE);
+    if (photo.size > PHOTO_MAX_BYTES) throw new ReviewError(413, friendlyPhotoError('too_large'));
     const form = new FormData();
     form.append('rating', String(review.rating));
     if (review.body != null) form.append('body', review.body);
     form.append('photo', photo, photo.name);
+    if (review.offerAsDishPhoto) {
+      form.append('offer_as_dish_photo', 'true');
+      form.append('owns_rights', 'true');
+    }
     body = form;
     // No Content-Type — fetch sets the multipart boundary.
   } else {
@@ -124,7 +139,7 @@ export async function createReview(
     body,
   });
   // Refused by the web server's body limit, before the API sees it.
-  if (res.status === 413) throw new ReviewError(413, TOO_LARGE_MESSAGE);
+  if (res.status === 413) throw new ReviewError(413, friendlyPhotoError('too_large'));
   if (!res.ok) throw await reviewError(res, `createReview ${itemId}`);
   return (await res.json()) as ReviewPayload;
 }
@@ -180,15 +195,17 @@ export async function reportReview(
 }
 
 async function reviewError(res: Response, label: string): Promise<ReviewError> {
-  let body: { error?: string } | null = null;
+  let body: { error?: string; message?: string } | null = null;
   try {
-    body = (await res.json()) as { error?: string };
+    body = (await res.json()) as { error?: string; message?: string };
   } catch {
     // ignore
   }
+  const photoCopy = body?.error ? friendlyPhotoError(body.error, '') : '';
+  const detail = photoCopy || body?.message || body?.error;
   return new ReviewError(
     res.status,
-    `${label} failed: ${res.status}${body?.error ? ` — ${body.error}` : ''}`,
+    detail || `${label} failed: ${res.status}`,
   );
 }
 

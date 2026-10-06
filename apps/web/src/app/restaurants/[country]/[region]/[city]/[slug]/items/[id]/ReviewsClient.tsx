@@ -12,6 +12,7 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../../../../../../../../lib/reviews';
+import { friendlyPhotoError } from '../../../../../../../../lib/photo-errors';
 import { useTracker } from '../../../../../../../_PostHogProvider';
 
 /**
@@ -68,10 +69,18 @@ export function ReviewsClient({
     }
   };
 
+  const [offerNote, setOfferNote] = useState<string | null>(null);
+
   const onPosted = (saved: ReviewPayload) => {
     setReviews((prev) => [saved, ...prev]);
     setTotal((n) => n + 1);
     setComposerOpen(false);
+    const offer = saved.photo_offer;
+    if (offer && offer.status !== 'pending') {
+      setOfferNote(friendlyPhotoError(offer.code, offer.message));
+    } else {
+      setOfferNote(null);
+    }
   };
 
   return (
@@ -99,9 +108,20 @@ export function ReviewsClient({
           onCancel={() => setComposerOpen(false)}
           onPosted={onPosted}
           onUnauthenticated={() => {
-            router.replace(`/login?next=${encodeURIComponent(`${restaurantPath}/items/${itemId}`)}`);
+            router.replace(
+              `/login?next=${encodeURIComponent(`${restaurantPath}/items/${itemId}`)}`,
+            );
           }}
         />
+      )}
+
+      {offerNote && (
+        <p
+          data-testid="photo-offer-note"
+          className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark"
+        >
+          Your review was posted. {offerNote}
+        </p>
       )}
 
       <ul className="mt-bw-4 divide-y divide-zinc-100">
@@ -416,6 +436,7 @@ function Composer({
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
+  const [offerAsDishPhoto, setOfferAsDishPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -432,6 +453,7 @@ function Composer({
         rating,
         body: body.trim() || undefined,
         photo,
+        offerAsDishPhoto: photo != null && offerAsDishPhoto,
       });
       tracker.track('review_posted', {
         item_slug: itemId,
@@ -486,12 +508,27 @@ function Composer({
         Photo (optional)
         <input
           type="file"
-          accept="image/jpeg,image/png,image/heic,image/heif,image/webp"
-          onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          accept="image/*"
+          onChange={(e) => {
+            setPhoto(e.target.files?.[0] ?? null);
+            setOfferAsDishPhoto(false);
+          }}
           aria-label="photo"
           className="mt-1 block w-full text-bw-sm"
         />
       </label>
+      {photo && (
+        <label className="mt-bw-2 flex items-start gap-bw-2 text-bw-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={offerAsDishPhoto}
+            onChange={(e) => setOfferAsDishPhoto(e.target.checked)}
+            data-testid="offer-as-dish-photo"
+            className="mt-1"
+          />
+          <span>Offer this photo as the dish photo. I took this photo.</span>
+        </label>
+      )}
 
       {error && (
         <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">

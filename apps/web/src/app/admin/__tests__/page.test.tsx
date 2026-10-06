@@ -48,6 +48,7 @@ function payload(overrides: Partial<AdminDashboardPayload> = {}): AdminDashboard
       pending_suggestions: 5,
       community_published_restaurants: 1,
       staged_runs: 4,
+      pending_photo_submissions: 3,
     },
     ...overrides,
   };
@@ -113,6 +114,7 @@ describe('AdminHomePage', () => {
     expect(screen.getByTestId('queue-pending_suggestions')).toHaveTextContent('5');
     expect(screen.getByTestId('queue-community_published_restaurants')).toHaveTextContent('1');
     expect(screen.getByTestId('queue-staged_runs')).toHaveTextContent('4');
+    expect(screen.getByTestId('queue-pending_photo_submissions')).toHaveTextContent('3');
   });
 
   it('shows the friendly access-lost copy on a 404 (mid-session demotion)', async () => {

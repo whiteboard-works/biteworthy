@@ -14,6 +14,13 @@ class User < ApplicationRecord
 
   has_one  :profile, class_name: "UserProfile", dependent: :destroy
   has_many :reviews, dependent: :destroy
+  has_many :dish_photo_submissions, dependent: :nullify
+  has_many :reviewed_photo_submissions, class_name: "DishPhotoSubmission",
+           foreign_key: :reviewed_by_id, inverse_of: :reviewed_by, dependent: :nullify
+  # Must run before `dependent: :nullify` clears user_id. Uncredited
+  # submissions (and their blobs) die with the account; a photo that
+  # became the dish photo stays, with an anonymized byline.
+  before_destroy :discard_uncredited_photo_submissions, prepend: true
   has_many :mcp_tokens, dependent: :destroy
   # Doorkeeper's tables reference `users` by `resource_owner_id` and
   # ship no association of their own, so deleting a member who had
@@ -167,5 +174,20 @@ class User < ApplicationRecord
 
   def ensure_profile
     create_profile! unless profile
+  end
+
+  def discard_uncredited_photo_submissions
+    dish_photo_submissions.find_each do |submission|
+      if submission.credited?
+        submission.update_columns(
+          user_id: nil,
+          credit_name: DishPhotoSubmission::ANONYMOUS_CREDIT,
+          updated_at: Time.current
+        )
+      else
+        submission.photo.purge if submission.photo.attached?
+        submission.destroy!
+      end
+    end
   end
 end

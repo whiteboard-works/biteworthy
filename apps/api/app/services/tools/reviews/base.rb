@@ -22,6 +22,17 @@ module Tools
           raise Errors::Forbidden, "Only the review's author can edit or delete it."
         end
 
+        def attach_review_photo!(review, signed_id, user)
+          return if signed_id.blank?
+
+          blob = ActiveStorage::Blob.find_signed(signed_id)
+          unless blob && blob.metadata["uploaded_by_user_id"].to_s == user.id.to_s
+            raise Errors::InvalidArgument, "Photo not found."
+          end
+
+          Images::AttachPhoto.call(review, blob)
+        end
+
         def review_row(review, include_hidden_state: false)
           row = {
             id:         review.id,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -158,6 +158,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
     t.index ["slug"], name: "index_dietary_profiles_on_slug", unique: true
   end
 
+  create_table "dish_photo_submissions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "item_id", null: false
+    t.uuid "user_id"
+    t.uuid "review_id"
+    t.string "status", default: "pending", null: false
+    t.string "rejection_reason"
+    t.uuid "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.boolean "owns_rights", default: false, null: false
+    t.string "credit_name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["item_id", "status"], name: "index_dish_photo_submissions_on_item_id_and_status"
+    t.index ["item_id"], name: "index_dish_photo_submissions_on_item_id"
+    t.index ["review_id"], name: "index_dish_photo_submissions_on_review_id"
+    t.index ["reviewed_by_id"], name: "index_dish_photo_submissions_on_reviewed_by_id"
+    t.index ["status"], name: "index_dish_photo_submissions_on_status"
+    t.index ["user_id", "created_at"], name: "index_dish_photo_submissions_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_dish_photo_submissions_on_user_id"
+    t.check_constraint "rejection_reason IS NULL OR (rejection_reason::text = ANY (ARRAY['not_this_dish'::character varying::text, 'low_quality'::character varying::text, 'inappropriate'::character varying::text, 'not_food'::character varying::text, 'duplicate'::character varying::text]))", name: "dish_photo_submissions_rejection_reason_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'withdrawn'::character varying, 'approve_keep'::character varying]::text[])", name: "dish_photo_submissions_status_valid"
+  end
+
   create_table "dmca_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "accuracy_sworn", default: false, null: false
     t.string "complainant_email", null: false
@@ -288,7 +311,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
     t.index ["item_id", "ingredient_id"], name: "index_item_ingredients_on_item_id_and_ingredient_id", unique: true
     t.index ["item_id"], name: "index_item_ingredients_on_item_id"
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_ingredients_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying, 'match'::character varying, 'derived'::character varying, 'ingredient_derived'::character varying]::text[])", name: "item_ingredients_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text, 'match'::character varying::text, 'derived'::character varying::text, 'ingredient_derived'::character varying::text])", name: "item_ingredients_source_valid"
   end
 
   create_table "item_modifiers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -317,7 +340,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
     t.index ["item_id"], name: "index_item_tags_on_item_id"
     t.index ["tag_id"], name: "index_item_tags_on_tag_id"
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "item_tags_confidence_valid"
-    t.check_constraint "source::text = ANY (ARRAY['human'::character varying, 'ai'::character varying, 'owner'::character varying, 'match'::character varying, 'derived'::character varying, 'ingredient_derived'::character varying]::text[])", name: "item_tags_source_valid"
+    t.check_constraint "source::text = ANY (ARRAY['human'::character varying::text, 'ai'::character varying::text, 'owner'::character varying::text, 'match'::character varying::text, 'derived'::character varying::text, 'ingredient_derived'::character varying::text])", name: "item_tags_source_valid"
   end
 
   create_table "item_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -344,11 +367,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
     t.string "status", default: "draft", null: false
     t.uuid "tag_ids", default: [], null: false, array: true
     t.datetime "updated_at", null: false
+    t.uuid "photo_submission_id"
     t.index ["created_by_user_id"], name: "index_items_on_created_by_user_id"
     t.index ["ingredient_ids"], name: "index_items_on_ingredient_ids", using: :gin
     t.index ["menu_section_id", "position"], name: "index_items_on_menu_section_id_and_position"
     t.index ["menu_section_id"], name: "index_items_on_menu_section_id"
     t.index ["name"], name: "index_items_on_name", opclass: :gin_trgm_ops, using: :gin
+    t.index ["photo_submission_id"], name: "index_items_on_photo_submission_id"
     t.index ["restaurant_id", "status"], name: "index_items_on_restaurant_id_and_status"
     t.index ["restaurant_id"], name: "index_items_on_restaurant_id"
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
@@ -751,6 +776,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
   add_foreign_key "dietary_profile_ingredients", "ingredients"
   add_foreign_key "dietary_profile_tags", "dietary_profiles"
   add_foreign_key "dietary_profile_tags", "tags"
+  add_foreign_key "dish_photo_submissions", "items", on_delete: :cascade
+  add_foreign_key "dish_photo_submissions", "reviews", on_delete: :nullify
+  add_foreign_key "dish_photo_submissions", "users", column: "reviewed_by_id", on_delete: :nullify
+  add_foreign_key "dish_photo_submissions", "users", on_delete: :nullify
   add_foreign_key "favorite_items", "items"
   add_foreign_key "favorite_items", "users"
   add_foreign_key "favorite_restaurants", "restaurants"
@@ -767,6 +796,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_010000) do
   add_foreign_key "item_tags", "items"
   add_foreign_key "item_tags", "tags"
   add_foreign_key "item_variants", "items"
+  add_foreign_key "items", "dish_photo_submissions", column: "photo_submission_id", on_delete: :nullify
   add_foreign_key "items", "menu_sections"
   add_foreign_key "items", "restaurants"
   add_foreign_key "items", "users", column: "created_by_user_id"

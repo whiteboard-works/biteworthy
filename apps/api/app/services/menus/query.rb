@@ -60,7 +60,10 @@ module Menus
           association_row(ii, ii.ingredient).merge(allergen: ii.ingredient&.allergen || false)
         end.sort_by { |row| [row[:allergen] ? 0 : 1, row[:name].to_s] },
         detected_tags: item.item_tags.map { |it| association_row(it, it.tag) }
-                           .sort_by { |row| row[:name].to_s }
+                           .sort_by { |row| row[:name].to_s },
+        # Only on the detail payload. A diner-sourced photo is attributed
+        # on the dish page; the menu list does not carry the byline.
+        photo_credit: photo_credit_for(item)
       )
     end
 
@@ -180,6 +183,13 @@ module Menus
       return Set.new if ids.empty?
 
       Set.new(UserItemOverride.where(user_id: @user.id, item_id: ids, never_hide: true).pluck(:item_id))
+    end
+
+    def photo_credit_for(item)
+      submission = item.photo_submission
+      return nil unless submission
+
+      { display_name: submission.credit_name }
     end
 
     def photo_url_for(item)

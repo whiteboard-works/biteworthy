@@ -27,7 +27,7 @@ module Tools
       structure: "Menus, sections, address, and hours. Admin.",
       items:     "Deep-edit one live dish. Admin.",
       taxonomy:  "The ingredient and tag trees the filter reads. Admin.",
-      moderation: "The review queue. Admin.",
+      moderation: "The review and diner dish-photo queues. Admin.",
       users:     "The roster and who is an admin. Admin.",
       admin:     "Restaurant curation workflow: find, create, update restaurants, scan menus, accept items, edit published items. Admin."
     }.freeze
@@ -126,9 +126,10 @@ module Tools
       {
         name: "Moderate",
         audience: :admin,
-        steps: %w[list_moderation_queue moderate_review list_users set_user_role],
+        steps: %w[list_moderation_queue moderate_review list_photo_submissions moderate_photo_submission list_users set_user_role],
         note: "Flagged is not guilty; the heuristic trips on any URL. Hiding is reversible " \
-              "and recorded; only an author can delete their own review."
+              "and recorded; only an author can delete their own review. Diner dish photos " \
+              "are unpublished until approve_and_set copies them onto the dish."
       }
     ].freeze
 
