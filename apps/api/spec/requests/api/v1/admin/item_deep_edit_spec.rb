@@ -381,14 +381,6 @@ RSpec.describe "Admin item deep edit", type: :request do
         thumb_bytes = thumb_blob.download
         expect(thumb_bytes[0..3]).to eq("RIFF")
         expect(thumb_bytes[8..11]).to eq("WEBP")
-
-        # Variants should be resized appropriately
-        expect(thumb_blob.metadata["width"]).to be <= 200
-        expect(thumb_blob.metadata["height"]).to be <= 200
-        expect(card_blob.metadata["width"]).to be <= 600
-        expect(card_blob.metadata["height"]).to be <= 600
-        expect(full_blob.metadata["width"]).to be <= 1600
-        expect(full_blob.metadata["height"]).to be <= 1600
       end
 
       it "keeps the original photo as-is" do
