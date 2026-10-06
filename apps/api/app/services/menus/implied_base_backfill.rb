@@ -115,28 +115,28 @@ module Menus
       failures = []
 
       scope.includes(:restaurant).find_each do |item|
-        change = begin
-          found = change_for(item)
-          # Edited since a rule that produced these rows went live: maybe
-          # a person removed one of them. Nothing records a removal, so
-          # list it for a person rather than write over a decision or
-          # drop it silently.
-          if found && (found.force_review || item.updated_at >= found.cutoff)
-            reviews << found
-            found = nil
+        written = begin
+          # One change per gluten base, so a possible wheat correction
+          # never holds back a new barley row on the same dish.
+          to_write, to_review = changes_for(item).partition do |c|
+            # Edited since a rule that produced these rows went live: maybe
+            # a person removed one of them. Nothing records a removal, so
+            # list it for a person rather than write over a decision or
+            # drop it silently.
+            !c.force_review && item.updated_at < c.cutoff
           end
-          add!(item, found) if found && apply
-          found
+          reviews.concat(to_review)
+          to_write.each { |c| add!(item, c) } if apply
+          to_write
         rescue StandardError => e
           failures << Failure.new(item_id: item.id, item_name: item.name, error: "#{e.class}: #{e.message}")
-          nil
+          []
         end
-        next if change.nil?
 
-        changes << change
+        changes.concat(written)
         # Outside the rescue: a reporting failure must stop the run, not
         # mark a dish that was written as failed.
-        yield change if block_given?
+        written.each { |c| yield c } if block_given?
       end
 
       Result.new(changes:, reviews:, failures:)
@@ -148,7 +148,7 @@ module Menus
     # which ones it may.
     Candidate = Data.define(:slug, :path, :kind, :live_since)
 
-    def change_for(item)
+    def changes_for(item)
       existing = item.denormalized_ingredient_ids.filter_map { |id| @by_id[id] }
       claims   = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
       in_name  = @matcher.scan(item.name).first
@@ -168,14 +168,13 @@ module Menus
 
       kept = found.select { |c| corrected.include?(root_of(c.path)) || c.live_since > item.created_at }
                   .reject { |c| c.kind != :description && contradicted?(claims, c) }
-      rows = dedupe(kept, existing)
-      return nil if rows.empty?
-
-      Change.new(item_id: item.id, item_name: item.name,
-                 restaurant_id: item.restaurant_id, restaurant_name: item.restaurant&.name,
-                 ingredient_slugs: rows.map(&:slug), tag_slugs: tags_for(item, rows),
-                 cutoff: rows.map(&:live_since).min,
-                 force_review: rows.any? { |c| corrected.include?(root_of(c.path)) })
+      dedupe(kept, existing).group_by { |c| root_of(c.path) }.map do |root, rows|
+        Change.new(item_id: item.id, item_name: item.name,
+                   restaurant_id: item.restaurant_id, restaurant_name: item.restaurant&.name,
+                   ingredient_slugs: rows.map(&:slug), tag_slugs: tags_for(item, rows),
+                   cutoff: rows.map(&:live_since).min,
+                   force_review: corrected.include?(root))
+      end
     end
 
     def candidates(item, existing, in_name, in_desc)
@@ -232,15 +231,21 @@ module Menus
           ItemIngredient.create!(item: item, ingredient_id: @ids.fetch(slug),
                                  confidence: "suggested", source: "derived")
         end
+        # Wheat and barley both derive contains-gluten, and each base is
+        # its own change, so the second one finds the tag already there.
         change.tag_slugs.each do |slug|
-          ItemTag.create!(item: item, tag_id: @tag_ids.fetch(slug),
-                          confidence: "suggested", source: "ingredient_derived")
+          ItemTag.find_or_create_by!(item: item, tag_id: @tag_ids.fetch(slug)) do |row|
+            row.confidence = "suggested"
+            row.source     = "ingredient_derived"
+          end
         end
         # Weakest link, never an upgrade: confirmed drops to suggested,
         # inferred stays inferred. update_columns, because this changes
         # one enum and must not trip unrelated validations (a legacy
         # photo) on a dish it was never asked to judge.
-        item.update_columns(confidence: "suggested", updated_at: Time.current) if item.confidence == "confirmed"
+        # Not updated_at: the dish's other bases are judged against it, and
+        # this write is not a person's edit.
+        item.update_columns(confidence: "suggested") if item.confidence == "confirmed"
       end
     end
   end
