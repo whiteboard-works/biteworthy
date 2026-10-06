@@ -11,7 +11,10 @@ module Ingestion
   # Allowed seeds stay restaurant-owned sites, same-origin PDFs, user
   # paste, app uploads, and partner APIs. Forbidden as automated product
   # behaviour: DoorDash / order.online, Google Maps photo galleries, and
-  # Toast ordering HTML.
+  # Toast ordering HTML — including a DoorDash/Toast white-label on a
+  # custom domain (fingerprint after fetch: storefront cookies, headers,
+  # or CDN asset hosts). A restaurant site that only *links* to DoorDash
+  # stays allowed.
   class HostPolicy
     MESSAGE = "We cannot fetch menus from DoorDash, order.online, Google Maps, " \
               "or Toast ordering pages."
@@ -30,6 +33,24 @@ module Ingestion
       toasttab.com
       googleusercontent.com
     ].freeze
+
+    # Script / stylesheet / iframe hosts that mean the page *is* a
+    # DoorDash or Toast storefront, not a restaurant site that mentions
+    # them. `cdn4dd.com` is DoorDash's CDN.
+    STOREFRONT_ASSET_SUFFIXES = %w[
+      doordash.com
+      cdn4dd.com
+      toasttab.com
+      toastcdn.net
+    ].freeze
+
+    STOREFRONT_COOKIE = /\b(?:dd[_-][\w-]*|ddweb[_-]?[\w-]*|doordash[\w-]*|toast[_-][\w-]*)=/i
+    STOREFRONT_HEADER = /\A(?:x-dd-|x-toast-)/i
+    ASSET_TAG = /
+      <(?:script|link|iframe)\b
+      [^>]*?
+      \b(?:src|href)\s*=\s*["']([^"']+)["']
+    /ix
 
     class << self
       def forbidden?(url)
@@ -58,6 +79,16 @@ module Ingestion
           message:   MESSAGE,
           next_step: NEXT_STEP
         }
+      end
+
+      # Post-fetch fingerprint for a DoorDash/Toast white-label sitting
+      # on a custom domain. UrlFetcher calls this on HTML 2xx so we
+      # never parse the storefront. Outbound `<a href>` links are not
+      # an asset tag and do not match.
+      def storefront?(headers, body)
+        storefront_headers?(headers) ||
+          storefront_cookies?(headers) ||
+          storefront_assets?(body)
       end
 
       private
@@ -92,6 +123,35 @@ module Ingestion
       def google_host?(host)
         host == "google.com" || host.end_with?(".google.com") ||
           host.match?(/\A(?:www\.)?google\.[a-z.]+(?:\.[a-z]{2})?\z/)
+      end
+
+      def storefront_headers?(headers)
+        return false unless headers
+
+        headers.each do |name, _|
+          return true if name.to_s.match?(STOREFRONT_HEADER)
+        end
+        false
+      end
+
+      def storefront_cookies?(headers)
+        return false unless headers
+
+        values = Array(headers["set-cookie"]) + Array(headers["Set-Cookie"])
+        STOREFRONT_COOKIE.match?(values.join("\n"))
+      end
+
+      def storefront_assets?(body)
+        body.to_s.scan(ASSET_TAG).flatten.any? { |href| storefront_asset_host?(href) }
+      end
+
+      def storefront_asset_host?(href)
+        host = normalize_host(URI.parse(href.to_s).host)
+        return false if host.blank?
+
+        STOREFRONT_ASSET_SUFFIXES.any? { |suffix| host == suffix || host.end_with?(".#{suffix}") }
+      rescue URI::InvalidURIError
+        false
       end
     end
   end

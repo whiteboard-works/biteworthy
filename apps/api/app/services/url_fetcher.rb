@@ -105,6 +105,10 @@ class UrlFetcher
 
       content_type = detect_content_type(response, body)
 
+      if html_content?(content_type) && Ingestion::HostPolicy.storefront?(response.headers, body)
+        raise FetchError.new("forbidden_host")
+      end
+
       # Detect bot challenges or interstitials AFTER content-type detection,
       # so we know whether the response is HTML when we expect something else.
       expected_type = expected_content_type_for(current_url)
@@ -223,6 +227,10 @@ class UrlFetcher
 
   # Infer what content type a URL *should* return based on its extension.
   # Returns nil if we have no expectation (e.g., a generic /menu path).
+  def html_content?(content_type)
+    content_type.to_s.include?("html")
+  end
+
   def expected_content_type_for(url)
     path = URI.parse(url).path.to_s.downcase
     return "application/pdf" if path.end_with?(".pdf")

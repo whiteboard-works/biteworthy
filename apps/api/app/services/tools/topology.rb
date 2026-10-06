@@ -86,7 +86,8 @@ module Tools
               "menu URL. One Restaurant row per physical spot (distinct names when the " \
               "brand repeats). Scan and accept once when menus match, then clone_menu " \
               "onto empty siblings (a published source publishes the sibling). Hours, " \
-              "phone, and website go on create_restaurant."
+              "phone, and website go on create_restaurant. If a Locations page has no " \
+              "addresses, ask the user — do not rediscover the same page."
       },
       {
         # Public because all three steps are. Leaving it at :user would

@@ -116,6 +116,30 @@ RSpec.describe UrlFetcher do
       expect(a_request(:get, /toasttab/)).not_to have_been_made
     end
 
+    it "rejects a DoorDash white-label on a custom domain after fetch" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cx_js=1; Path=/" },
+        body: '<html><script src="https://cdn.doordash.com/storefront.js"></script></html>'
+      )
+
+      expect { described_class.fetch(url) }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+    end
+
+    it "still fetches a restaurant page that only links out to DoorDash" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: '<html><body><a href="https://www.doordash.com/store/x">Order</a></body></html>'
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+      expect(result.io.read).to include("Order")
+    end
+
     it "infers a sensible filename from the URL path" do
       stub_request(:get, "https://example.com/menus/dinner.pdf").to_return(
         status: 200,

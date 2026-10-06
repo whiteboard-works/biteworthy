@@ -40,4 +40,30 @@ RSpec.describe Ingestion::HostPolicy do
     expect(refusal[:next_step]).to include("own website")
     expect(refusal[:next_step]).to include("paste")
   end
+
+  describe ".storefront?" do
+    it "flags a DoorDash CDN script as a storefront" do
+      body = '<script src="https://web-static.cdn4dd.com/app.js"></script>'
+
+      expect(described_class.storefront?({}, body)).to be(true)
+    end
+
+    it "flags a Toast storefront cookie" do
+      headers = { "set-cookie" => "toast_session=abc; Path=/" }
+
+      expect(described_class.storefront?(headers, "<html></html>")).to be(true)
+    end
+
+    it "flags an x-dd- response header" do
+      headers = { "x-dd-bff" => "storefront" }
+
+      expect(described_class.storefront?(headers, "<html></html>")).to be(true)
+    end
+
+    it "does not flag a restaurant page that only links to DoorDash" do
+      body = '<a href="https://www.doordash.com/store/caracas">Order on DoorDash</a>'
+
+      expect(described_class.storefront?({}, body)).to be(false)
+    end
+  end
 end
