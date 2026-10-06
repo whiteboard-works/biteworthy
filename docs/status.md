@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **Diner dish-photo submissions.** Signed-in diners can upload a photo of a dish (`POST /api/v1/items/:id/photo_submissions`) or opt in from the review form. libvips rewrites the file with `strip: true` (and autorot) before attach so stored bytes have no EXIF/GPS. Rate limits: 10/user/UTC day and 3 pending per diner per dish. Nothing is public until an admin approves at `/admin/photos` (or MCP `list_photo_submissions` / `moderate_photo_submission`); approve-and-set copies onto `Item#photo` through `Admin::ItemEditor` so WebP variants generate, and `items.photo_submission_id` supplies the dish-page "Photo by …" credit. Pending rows die with the account; approved ones keep the snapshot name. Web only — Expo is a follow-up.
+
 2026-10-06 (UTC) — **Gluten backfill applied in production.** The owner ran `biteworthy:menus:backfill_implied_bases` with `--env APPLY:1` after a dry run; dishes promoted before #638/#766/#794 and not edited since now carry the rows those rules add. Its "review by hand" list (dishes edited since a rule went live, or missing a base a live rule should have added) is **still open**: those dishes are unchanged until someone checks each in admin (`docs/launch-readiness.md` §10). A rerun lists reviewed and unreviewed dishes alike, so that run's output is the checklist. Released as 2026.10.6.1.
 
 2026-10-06 (UTC) — **`/terms` DRAFT banner off.** Removed at the owner's call, ahead of the L1 attorney review, which is still open; both legal pages now render without a banner. The launch trackers (launch-readiness, launch plan, roadmap, strategy, legal follow-ups) say so.

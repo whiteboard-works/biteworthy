@@ -7,11 +7,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
  * ownership, so these tests assert the UI gating + that the wired
  * update/delete calls fire.
  */
+const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 const mockReport = vi.fn();
 vi.mock('../../../../../../../../../lib/reviews', () => ({
-  createReview: vi.fn(),
+  createReview: (...a: unknown[]) => mockCreate(...a),
   fetchReviews: vi.fn(),
   reportReview: (...a: unknown[]) => mockReport(...a),
   updateReview: (...a: unknown[]) => mockUpdate(...a),
@@ -44,6 +45,7 @@ const initial = (reviews: ReturnType<typeof review>[]) => ({
 });
 
 beforeEach(() => {
+  mockCreate.mockReset();
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockReport.mockReset();
@@ -128,5 +130,39 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('rev-1'));
     expect(screen.queryByTestId('review-rev-1')).toBeNull();
+  });
+
+  it('keeps Offer this photo as the dish photo off until the diner checks it', async () => {
+    mockCreate.mockResolvedValue(review({ photo_url: 'https://example.com/r.jpg' }));
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('open-composer'));
+    expect(screen.queryByTestId('offer-as-dish-photo')).not.toBeInTheDocument();
+
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    const offer = screen.getByTestId('offer-as-dish-photo');
+    expect(offer).not.toBeChecked();
+
+    fireEvent.click(screen.getByTestId('star-4'));
+    fireEvent.click(offer);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0]![1]).toMatchObject({
+      rating: 4,
+      photo: file,
+      offerAsDishPhoto: true,
+    });
   });
 });

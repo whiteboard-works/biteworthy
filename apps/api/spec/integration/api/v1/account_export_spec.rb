@@ -11,7 +11,7 @@ RSpec.describe "account/export", type: :request do
 
       response(200, "the personal-data archive") do
         schema type: :object,
-               required: %w[exported_at account profile reviews suggestions restaurant_visits],
+               required: %w[exported_at account profile reviews photo_submissions suggestions restaurant_visits],
                properties: {
                  exported_at: { type: :string, format: "date-time" },
                  account: {
@@ -29,6 +29,7 @@ RSpec.describe "account/export", type: :request do
                  },
                  profile: { type: :object, nullable: true },
                  reviews: { type: :array, items: { type: :object } },
+                 photo_submissions: { type: :array, items: { type: :object } },
                  suggestions: { type: :array, items: { type: :object } },
                  restaurant_visits: { type: :array, items: { type: :object } }
                }

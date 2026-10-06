@@ -30,6 +30,10 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * reviews are never sent; the chat's review tools read and write them,
  * for any user's chat, not only the author's.
  *
+ * 2026-10-06: diner dish-photo submissions — stored without EXIF/GPS,
+ * unpublished until a moderator approves them, then optionally credited
+ * on the dish page.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -44,7 +48,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-05';
+const LAST_UPDATED = '2026-10-06';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -83,6 +87,12 @@ export default function PrivacyPage(): ReactElement {
               (see “Where data lives”).
             </li>
             <li>
+              <strong>Dish photos:</strong> if you submit a photo of a dish (from the dish page, or
+              by offering a review photo), we store the image and whether you confirmed you took it.
+              Location and other camera metadata (EXIF/GPS) is stripped before the file is saved. A
+              moderator reviews every submission before it can appear as the dish photo.
+            </li>
+            <li>
               <strong>Restaurant visits:</strong> when you open a filtered restaurant page while
               signed in, we record one row per (user, restaurant, day) so you can find it again in{' '}
               <em>My filtered menus</em>. Anonymous browsing creates no such row.
@@ -103,7 +113,7 @@ export default function PrivacyPage(): ReactElement {
           <ul>
             <li>Real name (unless you put it in your display handle).</li>
             <li>Phone number.</li>
-            <li>Address or GPS coordinates.</li>
+            <li>Address or GPS coordinates (we strip location metadata from photos you upload).</li>
             <li>Device fingerprints, advertising IDs, or cross-app tracking signals.</li>
           </ul>
         </Section>
@@ -111,7 +121,9 @@ export default function PrivacyPage(): ReactElement {
         <Section title="What's public">
           <p>
             Your reviews — the rating, text, and any photo — appear publicly next to your display
-            handle on the dish page and on your profile at <em>/u/your-handle</em>. Your{' '}
+            handle on the dish page and on your profile at <em>/u/your-handle</em>. If a moderator
+            approves a dish photo you submitted, it can appear as that dish&apos;s photo with a
+            small &ldquo;Photo by &lt;your display name&gt;&rdquo; credit. Your{' '}
             <strong>dietary profile is never shown publicly</strong>: what you avoid, your presets,
             your strictness, and your taste signals stay private to your account. Be aware that a
             pattern of public reviews can let someone infer your preferences.
@@ -134,8 +146,9 @@ export default function PrivacyPage(): ReactElement {
               <strong>Hetzner</strong> (Ashburn, USA): the servers that run the API.
             </li>
             <li>
-              <strong>Cloudflare R2</strong>: review photos and the cropped per-dish photos that the
-              ingestion pipeline extracts from menu images.
+              <strong>Cloudflare R2</strong>: review photos, diner-submitted dish photos (metadata
+              stripped; unpublished until a moderator approves them), and the cropped per-dish
+              photos that the ingestion pipeline extracts from menu images.
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
@@ -167,6 +180,11 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Reviews & suggested edits:</strong> kept as part of the shared menu graph; if
               you delete your account we delete or anonymize them.
+            </li>
+            <li>
+              <strong>Dish photo submissions:</strong> pending ones are deleted with your account.
+              An approved photo that became the dish photo stays on the menu (the byline is already
+              stored as a name, not a live link to your account).
             </li>
             <li>
               <strong>Restaurant-visit history:</strong> kept for as long as your account is open.

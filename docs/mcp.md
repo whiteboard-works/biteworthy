@@ -48,7 +48,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/structure/` | Menus, sections, address, hours (admin) |
 | `app/services/tools/items/` | Deep-editing a live dish (admin) |
 | `app/services/tools/taxonomy/` | The ingredient and tag trees (admin) |
-| `app/services/tools/moderation/` | The review queue (admin) |
+| `app/services/tools/moderation/` | The review queue and diner dish-photo queue (admin) |
 | `app/services/tools/users/` | The roster and the admin bit (admin) |
 | `app/controllers/mcp_controller.rb` | Transport adapter. No domain logic |
 
@@ -366,6 +366,15 @@ Everything under `audience :admin` descends from `Tools::AdminBase`, which
 is the only place that audience is declared. `Registry.for(context)` drops
 them wholesale for non-admins, so a normal caller's `tools/list` never
 mentions them.
+
+### Dish photo moderation (moderation domain)
+
+Diner dish photos sit in the `moderation` domain, admin-only like the review
+queue: **`list_photo_submissions`** (defaults to pending) and
+**`moderate_photo_submission`** (`approve_and_set` copies onto the dish through
+the same attach path as a staff PATCH so WebP variants generate; `approve_keep`
+marks it approved without replacing an existing photo; `reject` needs a reason).
+Stored images are rewritten through libvips with metadata stripped (no GPS).
 
 ### Restaurant curation tools (admin domain)
 

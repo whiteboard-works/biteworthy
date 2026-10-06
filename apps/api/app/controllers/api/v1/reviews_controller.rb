@@ -36,13 +36,43 @@ module Api
       end
 
       def create
+        offer = ActiveModel::Type::Boolean.new.cast(params[:offer_as_dish_photo])
+        if offer
+          unless params[:photo].respond_to?(:tempfile)
+            render json: { error: "A photo is required to offer it as the dish photo" },
+                   status: :unprocessable_entity
+            return
+          end
+          unless ActiveModel::Type::Boolean.new.cast(params[:owns_rights])
+            render json: { error: "You must confirm you took this photo to offer it as the dish photo" },
+                   status: :unprocessable_entity
+            return
+          end
+        end
+
         review = @item.reviews.build(review_params)
         review.user = current_user
-        if review.save
-          render json: serialize(review), status: :created
-        else
-          render json: { error: review.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        Review.transaction do
+          if review.save
+            # Pass the original upload, not review.photo: ActiveStorage
+            # does not write the blob until after commit, so downloading
+            # the attachment inside this transaction 500s.
+            DishPhotos::Submit.call(
+              item: @item,
+              user: current_user,
+              photo: params[:photo],
+              owns_rights: true,
+              review: review
+            ) if offer
+            render json: serialize(review), status: :created
+          else
+            render json: { error: review.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          end
         end
+      rescue DishPhotos::Submit::RateLimited => e
+        render json: { error: e.code, message: e.message }, status: :too_many_requests
+      rescue Images::StripMetadata::Unprocessable => e
+        render json: { error: e.message }, status: :unprocessable_entity
       end
 
       def update

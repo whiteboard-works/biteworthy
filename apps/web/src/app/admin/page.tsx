@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   fetchDashboard,
   type AdminDashboardPayload,
@@ -41,6 +42,7 @@ const QUEUE_LABELS: Record<keyof AdminDashboardPayload['queues'], string> = {
   pending_suggestions: 'Pending suggestions',
   community_published_restaurants: 'Community-published restaurants',
   staged_runs: 'Staged ingestion runs',
+  pending_photo_submissions: 'Pending dish photos',
 };
 
 export default function AdminHomePage() {
@@ -144,7 +146,15 @@ export default function AdminHomePage() {
                   data-testid={`queue-${key}`}
                   className="flex items-center justify-between rounded-bw-md border border-zinc-200 bg-white px-bw-3 py-bw-2 text-bw-sm"
                 >
-                  <span className="text-zinc-700">{QUEUE_LABELS[key]}</span>
+                  <span className="text-zinc-700">
+                    {key === 'pending_photo_submissions' ? (
+                      <Link href="/admin/photos" className="hover:text-bite">
+                        {QUEUE_LABELS[key]}
+                      </Link>
+                    ) : (
+                      QUEUE_LABELS[key]
+                    )}
+                  </span>
                   <span className="font-bold text-zinc-900">{data.queues[key]}</span>
                 </li>
               ))}

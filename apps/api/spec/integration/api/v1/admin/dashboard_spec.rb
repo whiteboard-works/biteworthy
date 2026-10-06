@@ -51,12 +51,14 @@ RSpec.describe "admin/dashboard", type: :request do
                  queues: {
                    type: :object,
                    required: %w[flagged_reviews pending_suggestions
-                                community_published_restaurants staged_runs],
+                                community_published_restaurants staged_runs
+                                pending_photo_submissions],
                    properties: {
                      flagged_reviews:                 { type: :integer },
                      pending_suggestions:             { type: :integer },
                      community_published_restaurants: { type: :integer },
-                     staged_runs:                     { type: :integer }
+                     staged_runs:                     { type: :integer },
+                     pending_photo_submissions:       { type: :integer }
                    }
                  }
                }

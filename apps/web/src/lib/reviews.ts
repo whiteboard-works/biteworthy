@@ -93,6 +93,8 @@ export interface NewReview {
    * omit for text-only reviews (sends JSON).
    */
   photo?: File | null;
+  /** Unchecked-by-default: also queue the photo as a diner dish photo. */
+  offerAsDishPhoto?: boolean;
 }
 
 export async function createReview(
@@ -111,6 +113,10 @@ export async function createReview(
     form.append('rating', String(review.rating));
     if (review.body != null) form.append('body', review.body);
     form.append('photo', photo, photo.name);
+    if (review.offerAsDishPhoto) {
+      form.append('offer_as_dish_photo', 'true');
+      form.append('owns_rights', 'true');
+    }
     body = form;
     // No Content-Type — fetch sets the multipart boundary.
   } else {

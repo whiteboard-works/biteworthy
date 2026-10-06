@@ -46,4 +46,29 @@ RSpec.describe "GET /api/v1/restaurants/:restaurant_id/items/:id", type: :reques
       "confidence" => "confirmed", "source" => "human"
     )
   end
+
+  it "credits a diner when the dish photo came from an approved submission" do
+    diner = create(:user, display_name: "Pat Diner")
+    submission = create(:dish_photo_submission, :approved, user: diner, item: taco)
+    taco.photo.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+      filename: "dish.jpg",
+      content_type: "image/jpeg"
+    )
+    taco.update!(photo_submission: submission)
+
+    get show_path
+    expect(response.parsed_body["photo_credit"]).to eq("display_name" => "Pat Diner")
+  end
+
+  it "omits photo_credit when the dish photo was not a diner submission" do
+    taco.photo.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+      filename: "staff.jpg",
+      content_type: "image/jpeg"
+    )
+
+    get show_path
+    expect(response.parsed_body["photo_credit"]).to be_nil
+  end
 end

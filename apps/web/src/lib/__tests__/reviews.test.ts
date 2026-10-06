@@ -103,6 +103,22 @@ describe('createReview', () => {
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect(init.body).toBeInstanceOf(FormData);
     expect((init.headers as Record<string, string> | undefined)?.['Content-Type']).toBeUndefined();
+    const form = init.body as FormData;
+    expect(form.get('offer_as_dish_photo')).toBeNull();
+  });
+
+  it('offers the review photo as a dish photo only when the diner opts in', async () => {
+    const fetchImpl = fakeFetch(201, sampleReview);
+    const photo = new File(['fake'], 'photo.jpg', { type: 'image/jpeg' });
+    await createReview(
+      'item-1',
+      { rating: 4, photo, offerAsDishPhoto: true },
+      { fetchImpl },
+    );
+
+    const form = (fetchImpl.mock.calls[0]![1] as RequestInit).body as FormData;
+    expect(form.get('offer_as_dish_photo')).toBe('true');
+    expect(form.get('owns_rights')).toBe('true');
   });
 
   // A full-size phone photo is over the 4.5 MB the web server accepts.

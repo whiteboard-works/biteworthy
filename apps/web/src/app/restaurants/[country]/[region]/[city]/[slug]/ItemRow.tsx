@@ -147,6 +147,17 @@ export function ItemRow({
             </a>
           </p>
         )}
+        {!hasDishPhoto(item) && (
+          <p className="mt-1">
+            <a
+              href={`${itemHref}${itemHref.includes('?') ? '&' : '?'}addPhoto=1`}
+              data-testid={`add-photo-${item.id}`}
+              className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
+            >
+              Add a photo
+            </a>
+          </p>
+        )}
 
         {showChips && item.reasons.length > 0 && (
           <div className="mt-bw-2 flex flex-wrap gap-bw-1">

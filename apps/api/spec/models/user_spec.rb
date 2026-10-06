@@ -126,5 +126,17 @@ RSpec.describe User do
 
       expect { user.destroy! }.to change(Conversation, :count).by(-1)
     end
+
+    it "destroys pending dish photos and keeps approved ones without an owner" do
+      user = create(:user)
+      item = create(:item, :published)
+      pending = create(:dish_photo_submission, user: user, item: item)
+      approved = create(:dish_photo_submission, :approved, user: user, item: item)
+
+      user.destroy!
+
+      expect(DishPhotoSubmission.exists?(pending.id)).to be(false)
+      expect(DishPhotoSubmission.find(approved.id).user_id).to be_nil
+    end
   end
 end

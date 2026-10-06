@@ -46,6 +46,7 @@ export interface paths {
                             };
                             profile: Record<string, never> | null;
                             reviews: Record<string, never>[];
+                            photo_submissions: Record<string, never>[];
                             suggestions: Record<string, never>[];
                             restaurant_visits: Record<string, never>[];
                         };
@@ -225,6 +226,7 @@ export interface paths {
                                 pending_suggestions: number;
                                 community_published_restaurants: number;
                                 staged_runs: number;
+                                pending_photo_submissions: number;
                             };
                         };
                     };
@@ -4144,6 +4146,450 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/items/{item_id}/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a diner photo of this dish */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    item_id: string;
+                };
+                cookie?: never;
+            };
+            /** @description JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage. */
+            requestBody: {
+                content: {
+                    "multipart/form-data": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description pending submission */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own dish-photo submissions */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the caller's submissions newest-first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            photo_submissions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                item_id: string;
+                                /** @enum {string} */
+                                status: "pending" | "approved" | "rejected";
+                                /** @enum {string|null} */
+                                rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                                owns_rights: boolean;
+                                /** Format: uuid */
+                                review_id?: string | null;
+                                photo_url?: string | null;
+                                credit_name: string;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                reviewed_at?: string | null;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photo_submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw a pending submission */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description withdrawn */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin dish-photo moderation queue */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "approved" | "rejected" | "all";
+                    item_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description submissions newest-first + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            photo_submissions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                item_id: string;
+                                /** @enum {string} */
+                                status: "pending" | "approved" | "rejected";
+                                /** @enum {string|null} */
+                                rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                                owns_rights: boolean;
+                                /** Format: uuid */
+                                review_id?: string | null;
+                                photo_url?: string | null;
+                                credit_name: string;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                reviewed_at?: string | null;
+                                user: {
+                                    /** Format: uuid */
+                                    id?: string | null;
+                                    handle?: string | null;
+                                    display_name?: string | null;
+                                };
+                                item: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    photo_url?: string | null;
+                                    restaurant: {
+                                        /** Format: uuid */
+                                        id?: string;
+                                        name?: string;
+                                        slug?: string;
+                                    };
+                                };
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a diner photo, optionally setting it as the dish photo */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Copy onto Item#photo. Defaults to true when the dish has no photo. */
+                        replace_item_photo?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the approved submission */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string | null;
+                                handle?: string | null;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                photo_url?: string | null;
+                                restaurant: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a diner photo with a reason */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        reason: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate";
+                    };
+                };
+            };
+            responses: {
+                /** @description the rejected submission */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string | null;
+                                handle?: string | null;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                photo_url?: string | null;
+                                restaurant: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profile/favorites": {
         parameters: {
             query?: never;
@@ -4983,6 +5429,9 @@ export interface paths {
                             overridden_by_user?: boolean;
                             reviews_count?: number;
                             photo_url?: string | null;
+                            photo_credit?: {
+                                display_name: string;
+                            } | null;
                             taste_score?: number | null;
                             taste_reasons?: Record<string, never>[];
                             favorited: boolean;

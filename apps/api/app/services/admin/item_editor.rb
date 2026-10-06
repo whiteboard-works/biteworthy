@@ -130,6 +130,7 @@ module Admin
       if attrs[:remove_photo].to_s == "true"
         # Use purge_later to avoid blocking the transaction
         @item.photo.purge_later if @item.photo.attached?
+        @item.photo_submission_id = nil
         return
       end
 
@@ -140,9 +141,11 @@ module Admin
           filename:     attrs[:photo].original_filename.presence || "dish.jpg",
           content_type: attrs[:photo].content_type.presence
         )
+        @item.photo_submission_id = nil
         preprocess = true
       elsif attrs[:photo_signed_id].present?
         @item.photo.attach(attrs[:photo_signed_id])
+        @item.photo_submission_id = nil
         # Skip preprocessing for signed_id - the blob is already stored and
         # variants will be generated on first access
       end

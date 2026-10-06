@@ -14,6 +14,7 @@ const TABS = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/runs', label: 'Runs' },
   { href: '/admin/reviews', label: 'Reviews' },
+  { href: '/admin/photos', label: 'Photos' },
   { href: '/admin/suggestions', label: 'Suggestions' },
   // `match` widens the active state to sibling sub-pages (tags).
   { href: '/admin/taxonomy/ingredients', label: 'Taxonomy', match: '/admin/taxonomy' },

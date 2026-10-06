@@ -15,6 +15,7 @@ import { toQueryString } from '../../../../../../../../lib/query-string';
 import { isCanonicalPath } from '../../../../../../../../lib/restaurant-path';
 import FavoriteDishButton from './_FavoriteDishButton';
 import DetectedIngredients from './_DetectedIngredients';
+import { DishPhotoOffer } from './_DishPhotoOffer';
 import { ReviewsClient } from './ReviewsClient';
 import { SuggestFixClient } from './SuggestFixClient';
 
@@ -28,7 +29,7 @@ import { SuggestFixClient } from './SuggestFixClient';
  * static parts.
  */
 type Params = { country: string; region: string; city: string; slug: string; id: string };
-type Search = { profile?: string | string[]; strictness?: string | string[] };
+type Search = { profile?: string | string[]; strictness?: string | string[]; addPhoto?: string | string[] };
 
 const STRICTNESS: readonly Strictness[] = ['relaxed', 'balanced', 'strict'];
 function parseStrictness(raw: string | string[] | undefined): Strictness | null {
@@ -47,8 +48,9 @@ export default async function ItemDetailPage({
   // Carried from the menu page's item links so the back-link can return
   // to the same filtered view instead of silently unfiltering.
   const search = await searchParams;
-  const { profile, strictness: rawStrictness } = search;
+  const { profile, strictness: rawStrictness, addPhoto: rawAddPhoto } = search;
   const presetSlug = (Array.isArray(profile) ? profile[0] : profile) ?? null;
+  const addPhoto = (Array.isArray(rawAddPhoto) ? rawAddPhoto[0] : rawAddPhoto) === '1';
   // The chat's results pane links here under the strictness the assistant
   // read the menu with; the server decides status under the same one.
   const strictness = parseStrictness(rawStrictness);
@@ -81,6 +83,7 @@ export default async function ItemDetailPage({
       initialReviews={initialReviews ?? emptyReviews(id)}
       currentUserId={currentUserId}
       presetSlug={presetSlug}
+      addPhoto={addPhoto}
     />
   );
 }
@@ -91,13 +94,16 @@ function Page({
   initialReviews,
   currentUserId,
   presetSlug,
+  addPhoto,
 }: {
   restaurant: Restaurant;
   item: RestaurantItem;
   initialReviews: ReviewsResponse;
   currentUserId: string | null;
   presetSlug: string | null;
+  addPhoto: boolean;
 }) {
+  const photoSrc = item.photo_urls?.full || item.photo_url;
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
@@ -113,6 +119,26 @@ function Page({
       <h1 className="mt-bw-2 text-bw-3xl font-bold">{item.name}</h1>
       {item.description && <p className="mt-bw-2 text-bw-base text-zinc-700">{item.description}</p>}
 
+      {photoSrc && (
+        <figure className="mt-bw-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoSrc}
+            alt={item.name}
+            data-testid="dish-photo"
+            className="max-h-[28rem] w-full rounded-bw-lg object-cover"
+          />
+          {item.photo_credit?.display_name && (
+            <figcaption
+              className="mt-bw-1 text-bw-xs text-zinc-500"
+              data-testid="dish-photo-credit"
+            >
+              Photo by {item.photo_credit.display_name}
+            </figcaption>
+          )}
+        </figure>
+      )}
+
       {currentUserId && (
         <div className="mt-bw-4">
           <FavoriteDishButton itemId={item.id} initialFavorited={item.favorited ?? false} />
@@ -122,6 +148,13 @@ function Page({
       <DetectedIngredients
         ingredients={item.detected_ingredients ?? []}
         tags={item.detected_tags ?? []}
+      />
+
+      <DishPhotoOffer
+        itemId={item.id}
+        returnPath={`${restaurant.web_path}/items/${item.id}?addPhoto=1`}
+        signedIn={currentUserId != null}
+        startOpen={addPhoto}
       />
 
       <ReviewsClient

@@ -42,8 +42,8 @@ module Api
           ingestion_spend + chat_spend
         end
 
-        # All four are cheap indexed counts (partial index on flagged
-        # reviews, status columns elsewhere).
+        # Cheap indexed counts (partial index on flagged reviews,
+        # status columns elsewhere).
         def queue_counts
           {
             flagged_reviews: Review.awaiting_moderation.count,
@@ -52,7 +52,8 @@ module Api
             # `.kept` — this is a queue depth, and an archived run is
             # one an admin has already dealt with. Spend figures above
             # deliberately do not filter: archiving does not refund.
-            staged_runs: IngestionRun.kept.where(status: "staged").count
+            staged_runs: IngestionRun.kept.where(status: "staged").count,
+            pending_photo_submissions: DishPhotoSubmission.pending.count
           }
         end
       end

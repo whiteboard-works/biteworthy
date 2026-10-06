@@ -85,6 +85,36 @@ RSpec.describe "Reviews API", type: :request do
       expect(Review.last.photo).to be_attached
     end
 
+    it "creates a pending dish-photo submission when the diner offers the review photo" do
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+
+      expect {
+        post "/api/v1/items/#{item.id}/reviews",
+             params: { rating: 4, body: "See pic.", photo: photo,
+                       offer_as_dish_photo: true, owns_rights: true },
+             headers: headers
+      }.to change(Review, :count).by(1)
+       .and change(DishPhotoSubmission, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      submission = DishPhotoSubmission.last
+      expect(submission.review_id).to eq(Review.last.id)
+      expect(submission).to be_pending
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "does not offer a review as the dish photo without owns_rights" do
+      photo = upload_fixture(filename: "dish.jpg", type: "image/jpeg")
+
+      post "/api/v1/items/#{item.id}/reviews",
+           params: { rating: 4, body: "See pic.", photo: photo, offer_as_dish_photo: true },
+           headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Review.count).to eq(0)
+      expect(DishPhotoSubmission.count).to eq(0)
+    end
+
     # The unique index has always enforced one review per person per
     # dish. With no validation to catch it first this raised
     # RecordNotUnique, which Api::V1::BaseController did not rescue — so

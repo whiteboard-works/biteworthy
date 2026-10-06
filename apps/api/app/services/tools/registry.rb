@@ -79,7 +79,9 @@ module Tools
       ],
       moderation: [
         "Moderation::ListModerationQueue",
-        "Moderation::ModerateReview"
+        "Moderation::ModerateReview",
+        "Moderation::ListPhotoSubmissions",
+        "Moderation::ModeratePhotoSubmission"
       ],
       users: [
         "Users::ListUsers",

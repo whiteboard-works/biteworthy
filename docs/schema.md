@@ -74,6 +74,13 @@ and you must ship a migration widening the constraint in the same PR**.
 ## Reviews + community
 
 - `reviews` — per-item, 1–5 + body. Unique on `[user_id, item_id]`.
+- `dish_photo_submissions` — diner photos of a dish, pending until an
+  admin approves. Approve-and-set copies the image onto `Item#photo`
+  (the same attach path as a staff PATCH, so WebP variants generate)
+  and sets `items.photo_submission_id` for the "Photo by …" credit.
+  Stored images are rewritten through libvips with metadata stripped
+  (no EXIF/GPS). Rate-limited to 10 per user per day and 3 pending
+  per diner per dish.
 - `suggestions` — polymorphic edit proposals queue. Replaces the 2020
   points/levels gamification with a real moderation pipeline.
 

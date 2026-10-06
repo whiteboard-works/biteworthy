@@ -35,6 +35,8 @@ class Item < ApplicationRecord
   has_many :item_tags,        dependent: :destroy
   has_many :tags,        through: :item_tags
   has_many :reviews,          dependent: :destroy
+  has_many :photo_submissions, class_name: "DishPhotoSubmission", dependent: :destroy
+  belongs_to :photo_submission, class_name: "DishPhotoSubmission", optional: true
   has_many :user_item_overrides, dependent: :destroy
   has_many :favorite_items,   dependent: :destroy
   # Destroying a promoted item used to raise InvalidForeignKey —
