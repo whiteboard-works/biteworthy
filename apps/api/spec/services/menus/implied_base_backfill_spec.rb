@@ -116,8 +116,19 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(run.changes.map(&:item_id)).to eq([ pizza.id ])
     end
 
-    it "leaves a pizza promoted after #638 alone (a person removed its wheat)" do
-      created_at!(create(:item, :published, name: "Margherita Pizza"), september)
+    # #638 was live, so this pizza should have wheat. It does not: a
+    # person removed it, or the dish never went through the resolver
+    # (added by hand). Nothing says which, so a person decides.
+    it "sends a pizza promoted after #638 with no wheat to review, never writes it" do
+      pizza = created_at!(create(:item, :published, name: "Margherita Pizza"), september)
+      result = run
+      expect(result.changes).to be_empty
+      expect(result.reviews.map(&:item_id)).to eq([ pizza.id ])
+      expect(pizza.reload.denormalized_ingredient_ids).not_to include(wheat.id)
+    end
+
+    it "says nothing about a gluten-free pizza promoted after #638" do
+      created_at!(create(:item, :published, name: "Gluten-Free Pizza"), september)
       result = run
       expect(result.changes).to be_empty
       expect(result.reviews).to be_empty
@@ -128,13 +139,13 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(run.changes.map(&:item_id)).to eq([ samosa.id ])
     end
 
-    # "burrito" was live in September, so this dish got wheat then;
-    # missing wheat now is a correction, whatever "relleno" says.
+    # "burrito" was live in September, so this dish should have wheat
+    # already, whatever "relleno" says; missing wheat goes to a person.
     it "lets the earliest rule decide when a name hits an old and a new keyword" do
-      created_at!(create(:item, :published, name: "Chile Relleno Burrito"), september)
+      burrito = created_at!(create(:item, :published, name: "Chile Relleno Burrito"), september)
       result = run
       expect(result.changes).to be_empty
-      expect(result.reviews).to be_empty
+      expect(result.reviews.map(&:item_id)).to eq([ burrito.id ])
     end
 
     it "leaves a samosa promoted after #766 alone" do
@@ -188,15 +199,16 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(run.changes).to be_empty
     end
 
-    # "biscuit" was a #638 name keyword, so a September biscuit got wheat
-    # then. No wheat now means a person removed it, and #766's biscuit
-    # ingredient must not put it back.
-    it "leaves alone a dish whose old name rule was live and whose wheat is gone" do
+    # "biscuit" was a #638 name keyword, so a September biscuit should
+    # have wheat. #766's biscuit ingredient must not write it back over
+    # what may be a person's removal.
+    it "sends a dish whose old name rule was live and whose wheat is gone to review" do
       create(:ingredient, slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit")
-      created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))
+      biscuit = created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))
       result = run
       expect(result.changes).to be_empty
-      expect(result.reviews).to be_empty
+      expect(result.reviews.map(&:item_id)).to eq([ biscuit.id ])
+      expect(biscuit.reload.denormalized_ingredient_ids).to be_empty
     end
 
     # Same correction, but the description names something the removal
@@ -210,7 +222,7 @@ RSpec.describe Menus::ImpliedBaseBackfill do
 
       expect(result.changes).to be_empty
       expect(result.reviews.map(&:item_id)).to eq([ sandwich.id ])
-      expect(result.reviews.first.ingredient_slugs).to eq([ "grain-wheat-breading" ])
+      expect(result.reviews.first.ingredient_slugs).to include("grain-wheat-breading")
       expect(sandwich.reload.denormalized_ingredient_ids).not_to include(breading.id)
     end
   end

@@ -79,6 +79,8 @@ namespace :biteworthy do
       puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
            "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
       puts "Re-run with APPLY=1 to write these rows." if !apply && result.changes.any?
+      # Failed dishes are still unprotected; a zero exit would read as done.
+      exit 1 if result.failures.any?
     end
 
     desc "Re-extract a restaurant's menu from its latest inputs (creates a new scan, no auto-accept)"

@@ -31,12 +31,14 @@ module Menus
       end
     end
 
-    # live_since is the merge time plus a deploy margin. A new keyword,
+    # live_since is when that PR's deploy-api run finished (gh run list
+    # --workflow deploy-api.yml); a dish promoted after it went through the
+    # rule. A new keyword,
     # ingredient, or implication in the resolver needs a row here, or old
     # dishes never get it; the spec checks the keyword list stays in step.
     RULE_SETS = [
       RuleSet.new(
-        pr: 638, live_since: Time.utc(2026, 8, 18),
+        pr: 638, live_since: Time.utc(2026, 8, 17, 23, 16),
         name_keywords: %w[
           pizza pizzetta pizzeta pizzette pizzettas pizzetas calzone stromboli focaccia
           focaccias focacce panini sandwich burger hamburger cheeseburger slider hoagie sub
@@ -49,7 +51,7 @@ module Menus
         text_slugs: [], implications: {}
       ),
       RuleSet.new(
-        pr: 766, live_since: Time.utc(2026, 10, 6, 2),
+        pr: 766, live_since: Time.utc(2026, 10, 6, 0, 46),
         name_keywords: [ "samosa", "relleno", "gulab jamun" ],
         text_slugs: %w[
           grain-wheat-pancake grain-wheat-bread-biscuit grain-wheat-bread-english-muffin
@@ -58,7 +60,7 @@ module Menus
         implications: {}
       ),
       RuleSet.new(
-        pr: 794, live_since: Time.utc(2026, 10, 6, 4),
+        pr: 794, live_since: Time.utc(2026, 10, 6, 2, 42),
         name_keywords: %w[
           battered breaded crusted panko roti chapati paratha puri momo empanada schnitzel
           katsu croquette seitan couscous bulgur farro orzo gravy hotcake
@@ -83,7 +85,7 @@ module Menus
 
     # `cutoff` is the earliest go-live among the rules that produced these
     # rows; an edit after it may be a person's correction. `force_review`
-    # marks rows that would land where a person already removed the base.
+    # marks rows under a base a live rule should already have added.
     Change = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name,
                          :ingredient_slugs, :tag_slugs, :cutoff, :force_review)
     Failure = Data.define(:item_id, :item_name, :error)
@@ -104,6 +106,7 @@ module Menus
       @paths     = nodes.to_h { |slug, _, path| [ slug, path.to_s ] }
       @tag_ids   = Tag.pluck(:slug, :id).to_h
       @matcher   = Ingestion::IngredientMatcher.new
+      @terms     = RULE_SETS.to_h { |rs| [ rs.pr, rs.name_terms ] }
     end
 
     def call(apply:, scope:)
@@ -152,18 +155,18 @@ module Menus
       in_desc  = @matcher.scan(item.description).first
       found    = candidates(item, existing, in_name, in_desc)
 
-      # A rule live when the dish was promoted already put its base there.
-      # That base missing now means a person removed it: nothing the name
-      # or an implication says may put it back. The description can still
-      # name something else under it (a bunless sandwich that is still
-      # "breaded"); those rows go to review, never written.
+      # A rule live when the dish was promoted should already have put its
+      # base there. The base missing now usually means a person removed it,
+      # but not always: a dish added by hand or by an admin tool never went
+      # through the resolver. Nothing records which, so every row under
+      # that base goes to review: never written over a decision, never
+      # dropped without a word.
       corrected = GLUTEN_ROOTS.select do |root|
         found.any? { |c| root_of(c.path) == root && c.live_since <= item.created_at } &&
           existing.none? { |e| under?(e[:path], root) }
       end
 
-      kept = found.select { |c| c.live_since > item.created_at }
-                  .reject { |c| corrected.include?(root_of(c.path)) && c.kind != :description }
+      kept = found.select { |c| corrected.include?(root_of(c.path)) || c.live_since > item.created_at }
                   .reject { |c| c.kind != :description && contradicted?(claims, c) }
       rows = dedupe(kept, existing)
       return nil if rows.empty?
@@ -180,7 +183,7 @@ module Menus
       present = (existing.map { |e| e[:slug] } + (in_name + in_desc).map { |m| m[:slug] }).to_set
 
       RULE_SETS.flat_map do |rs|
-        hits = Ingestion::TagDeriver.keyword_hits(name_segments, rs.name_terms, confidence: 1.0)
+        hits = Ingestion::TagDeriver.keyword_hits(name_segments, @terms.fetch(rs.pr), confidence: 1.0)
         by_name = hits.map { |h| candidate(h[:slug], :name, rs) }
         text = in_name.select { |m| rs.text_slugs.include?(m[:slug]) }.map { |m| candidate(m[:slug], :name_text, rs) } +
                in_desc.select { |m| rs.text_slugs.include?(m[:slug]) }.map { |m| candidate(m[:slug], :description, rs) }
