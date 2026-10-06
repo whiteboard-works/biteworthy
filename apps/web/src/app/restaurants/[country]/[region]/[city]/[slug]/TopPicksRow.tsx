@@ -164,6 +164,13 @@ export function TopPicksRow({
                     alt={item.name}
                     loading="lazy"
                     className="mb-bw-2 h-28 w-full rounded-bw-md object-cover"
+                    onError={(e) => {
+                      // Fall back to original photo_url if variant fails
+                      if (item.photo_url && e.currentTarget.src !== item.photo_url) {
+                        e.currentTarget.src = item.photo_url;
+                        e.currentTarget.srcset = '';
+                      }
+                    }}
                   />
                 )}
                 <p className="text-bw-base font-bold text-zinc-900">{item.name}</p>
