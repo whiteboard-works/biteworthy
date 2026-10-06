@@ -17,7 +17,7 @@ the Phase 5 pause) are archived in
 
 ---
 
-2026-10-06 (UTC) — **Gluten backfill applied in production.** The owner ran `biteworthy:menus:backfill_implied_bases` with `--env APPLY:1` after a dry run; dishes promoted before #638/#766/#794 now carry the rows those rules add. Its "review by hand" list (dishes edited since a rule went live) is worked in admin. Released as 2026.10.6.1.
+2026-10-06 (UTC) — **Gluten backfill applied in production.** The owner ran `biteworthy:menus:backfill_implied_bases` with `--env APPLY:1` after a dry run; dishes promoted before #638/#766/#794 and not edited since now carry the rows those rules add. Its "review by hand" list (dishes edited since a rule went live, or missing a base a live rule should have added) is **still open**: those dishes are unchanged until someone checks each in admin (`docs/launch-readiness.md` §10). A rerun lists reviewed and unreviewed dishes alike, so that run's output is the checklist. Released as 2026.10.6.1.
 
 2026-10-06 (UTC) — **`/terms` DRAFT banner off.** Removed at the owner's call, ahead of the L1 attorney review, which is still open; both legal pages now render without a banner. The launch trackers (launch-readiness, launch plan, roadmap, strategy, legal follow-ups) say so.
 
