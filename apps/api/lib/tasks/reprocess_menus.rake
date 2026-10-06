@@ -95,8 +95,16 @@ namespace :biteworthy do
         puts "  #{c.restaurant_name} — #{c.item_name}: + #{added}"
       end
 
+      if result.reviews.any?
+        puts "== Not written: edited since the keyword went live, so a person may have removed the base on purpose. Check each in admin =="
+        result.reviews.each do |c|
+          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{c.ingredient_slugs.join(', ')}"
+          puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
+        end
+      end
       result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
-      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, #{result.failures.size} failed =="
+      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
+           "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
       puts "Re-run with APPLY=1 to write these rows." if !apply && result.changes.any?
     end
 

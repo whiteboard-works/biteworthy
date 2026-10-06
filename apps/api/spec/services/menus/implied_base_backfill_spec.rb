@@ -102,6 +102,19 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     end
   end
 
+  # Nothing records a person removing an ingredient, so a dish edited
+  # since its keyword went live might be exactly that correction.
+  it "lists a dish edited since its keyword went live for review instead of writing it" do
+    pizza = create(:item, :published, name: "Corn Quesadilla")
+    pizza.update_columns(updated_at: Time.utc(2026, 9, 1))
+
+    result = run
+
+    expect(result.changes).to be_empty
+    expect(result.reviews.map(&:item_id)).to eq([ pizza.id ])
+    expect(pizza.reload.denormalized_ingredient_ids).not_to include(wheat.id)
+  end
+
   it "reports a dish as written even when the progress callback fails" do
     samosa = create(:item, :published, name: "Samosa")
     expect { described_class.call(apply: true) { raise IOError, "stdout closed" } }.to raise_error(IOError)

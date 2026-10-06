@@ -27,9 +27,9 @@ module Menus
       terms.select { |t| KEYWORDS_SINCE_766.any? { |k| t.start_with?(k) } }
     end.freeze
 
-    Change = Data.define(:item_id, :item_name, :restaurant_name, :ingredient_slugs, :tag_slugs)
+    Change = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name, :ingredient_slugs, :tag_slugs)
     Failure = Data.define(:item_id, :item_name, :error)
-    Result = Data.define(:changes, :failures)
+    Result = Data.define(:changes, :reviews, :failures)
 
     def self.default_scope = Item.published.where(created_at: ...LIVE_SINCE_766)
 
@@ -49,11 +49,19 @@ module Menus
 
     def call(apply:, scope:)
       changes  = []
+      reviews  = []
       failures = []
 
       scope.includes(:restaurant).find_each do |item|
         change = begin
           found = change_for(item)
+          # Edited since its keyword went live: maybe a person removed
+          # this very base. Nothing records a removal, so list it for a
+          # person rather than write over a decision or drop it silently.
+          if found && touched_since_live?(item)
+            reviews << found
+            found = nil
+          end
           add!(item, found) if found && apply
           found
         rescue StandardError => e
@@ -68,7 +76,7 @@ module Menus
         yield change if block_given?
       end
 
-      Result.new(changes:, failures:)
+      Result.new(changes:, reviews:, failures:)
     end
 
     private
@@ -85,8 +93,18 @@ module Menus
                                            .select { |slug| @tag_ids.key?(slug) }
                                            .reject { |slug| item.denormalized_tag_ids.include?(@tag_ids[slug]) }
 
-      Change.new(item_id: item.id, item_name: item.name, restaurant_name: item.restaurant&.name,
+      Change.new(item_id: item.id, item_name: item.name,
+                 restaurant_id: item.restaurant_id, restaurant_name: item.restaurant&.name,
                  ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags)
+    end
+
+    # `updated_at` moves on any ingredient change (the array resync
+    # stamps it) and on unrelated ones like a photo, so this is
+    # conservative: it sends some dishes to review that were never
+    # corrected. That costs a person a look; the other way costs a
+    # person's correction.
+    def touched_since_live?(item)
+      item.updated_at >= live_since(item.name)
     end
 
     # The newest keyword the name hits decides: a pizza promoted in
