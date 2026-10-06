@@ -245,7 +245,7 @@ export default function RestaurantScreen() {
 
       <AllergenNotice />
 
-      <TopPicksRow items={rawItems} />
+      <TopPicksRow items={rawItems} restaurantId={id} signedIn={!!jwt} />
 
       {overriddenSections.map((section) => (
         <SectionBlock
