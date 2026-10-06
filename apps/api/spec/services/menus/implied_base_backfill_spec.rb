@@ -1,24 +1,48 @@
 require "rails_helper"
 
-# Dishes published before the implied-base table grew (#638, #766) never
-# got the wheat their names imply, so a Celiac filter still shows them.
-# The backfill applies today's table to them. It must only ever add: a
-# wrong wheat row hides a dish with a reason a person can fix, while a
-# missing one fails silently, which is the failure this exists to stop.
+# Dishes promoted before a gluten rule existed (#638, #766, #794) never
+# got the row it adds, so a Celiac filter still shows them. The backfill
+# applies today's rules to them. It must only ever add: a wrong wheat
+# row hides a dish with a reason a person can fix, while a missing one
+# fails silently, which is the failure this exists to stop. And it must
+# never put back a row a person removed.
 RSpec.describe Menus::ImpliedBaseBackfill do
   include ActiveSupport::Testing::TimeHelpers
 
   let!(:wheat)       { create(:ingredient, slug: "grain-wheat", name: "Wheat", path: "grain.wheat") }
+  let!(:barley)      { create(:ingredient, slug: "grain-barley", name: "Barley", path: "grain.barley") }
   let!(:wheat_bread) { create(:ingredient, slug: "grain-wheat-bread", name: "Bread", path: "grain.wheat.bread") }
   let!(:potato)      { create(:ingredient, slug: "veg-potato", name: "Potato", path: "veg.potato") }
-  let!(:gluten_tag)  { create(:tag, slug: "contains-gluten", name: "Contains Gluten", family: "allergen") }
+  let!(:gravy) do
+    create(:ingredient, slug: "grain-wheat-gravy", name: "Wheat-Based Gravy",
+                        path: "grain.wheat.gravy", aliases: [ "country gravy" ])
+  end
+  let!(:breading) do
+    create(:ingredient, slug: "grain-wheat-breading", name: "Breading",
+                        path: "grain.wheat.breading", aliases: [ "breaded" ])
+  end
+  let!(:gluten_tag) { create(:tag, slug: "contains-gluten", name: "Contains Gluten", family: "allergen") }
 
-  # Every dish here predates both keyword tables unless a test says otherwise.
-  around { |ex| travel_to(described_class::LIVE_SINCE_638 - 1.day) { ex.run } }
+  def live(pr) = described_class::RULE_SETS.find { |rs| rs.pr == pr }.live_since
 
-  def created_at!(item, time) = item.tap { |i| i.update_columns(created_at: time) }
+  # Every dish here predates all three rule sets unless a test says otherwise.
+  around { |ex| travel_to(live(638) - 1.day) { ex.run } }
 
+  def created_at!(item, time) = item.tap { |i| i.update_columns(created_at: time, updated_at: time) }
   def run(apply: true) = described_class.call(apply: apply)
+
+  # A keyword added to the resolver without a rule set here would never
+  # reach old dishes.
+  it "covers every implied-base keyword the resolver knows, in exactly one rule set" do
+    listed = described_class::RULE_SETS.flat_map(&:name_keywords)
+    expect(listed).to match_array(Ingestion::DeterministicResolver::IMPLIED_BASE_KEYWORDS.fetch("grain-wheat"))
+    expect(Ingestion::DeterministicResolver::IMPLIED_BASE_KEYWORDS.keys).to eq([ "grain-wheat" ])
+  end
+
+  it "covers every gluten implication the resolver knows" do
+    listed = described_class::RULE_SETS.map(&:implications).reduce({}, :merge)
+    expect(listed).to eq(Ingestion::DeterministicResolver::GLUTEN_IMPLICATIONS)
+  end
 
   it "adds a derived, suggested wheat row and the gluten tag to a samosa" do
     samosa = create(:item, :published, :confirmed, name: "Vegetable Samosa", ingredients: [ potato ])
@@ -28,6 +52,8 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     expect(result.changes.map(&:item_id)).to eq([ samosa.id ])
     expect(samosa.item_ingredients.find_by!(ingredient: wheat))
       .to have_attributes(source: "derived", confidence: "suggested")
+    expect(samosa.item_tags.find_by!(tag: gluten_tag))
+      .to have_attributes(source: "ingredient_derived", confidence: "suggested")
     samosa.reload
     # The filter reads the denormalized arrays; this is what hides it.
     expect(samosa.denormalized_ingredient_ids).to include(wheat.id)
@@ -62,10 +88,11 @@ RSpec.describe Menus::ImpliedBaseBackfill do
 
   it "respects a gluten-free claim in the dish name" do
     create(:item, :published, name: "Gluten-Free Pizza")
+    create(:item, :published, name: "Gluten-Free Country Gravy")
     expect(run.changes).to be_empty
   end
 
-  it "ignores names that imply no base" do
+  it "ignores names that imply nothing" do
     create(:item, :published, name: "Saag Paneer")
     expect(run.changes).to be_empty
   end
@@ -75,66 +102,66 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     expect(run.changes).to be_empty
   end
 
-  # A dish promoted after its keyword went live already went through
-  # it, so missing wheat there means a person removed it. A rerun must
-  # not undo that.
-  describe "per-keyword cutoffs" do
+  it "is idempotent" do
+    create(:item, :published, name: "Samosa")
+    run
+    expect(run.changes).to be_empty
+  end
+
+  describe "per-rule cutoffs" do
     let(:september) { Time.utc(2026, 9, 15) }
 
-    it "adds wheat to a pizza promoted before #638's table went live" do
+    it "adds wheat to a pizza promoted before #638's rules went live" do
       pizza = create(:item, :published, name: "Margherita Pizza")
       expect(run.changes.map(&:item_id)).to eq([ pizza.id ])
     end
 
     it "leaves a pizza promoted after #638 alone (a person removed its wheat)" do
       created_at!(create(:item, :published, name: "Margherita Pizza"), september)
-      expect(run.changes).to be_empty
+      result = run
+      expect(result.changes).to be_empty
+      expect(result.reviews).to be_empty
     end
 
-    it "still adds wheat to a samosa promoted in September, before #766 went live" do
+    it "still adds wheat to a samosa promoted in September, before #766" do
       samosa = created_at!(create(:item, :published, name: "Samosa"), september)
       expect(run.changes.map(&:item_id)).to eq([ samosa.id ])
     end
 
     # "burrito" was live in September, so this dish got wheat then;
     # missing wheat now is a correction, whatever "relleno" says.
-    it "uses the earliest keyword when a name hits an old and a new one" do
+    it "lets the earliest rule decide when a name hits an old and a new keyword" do
       created_at!(create(:item, :published, name: "Chile Relleno Burrito"), september)
-      expect(run.changes).to be_empty
-      expect(run.reviews).to be_empty
+      result = run
+      expect(result.changes).to be_empty
+      expect(result.reviews).to be_empty
     end
 
     it "leaves a samosa promoted after #766 alone" do
-      created_at!(create(:item, :published, name: "Samosa"), described_class::LIVE_SINCE_766 + 1.hour)
+      created_at!(create(:item, :published, name: "Samosa"), live(766) + 1.hour)
       expect(run.changes).to be_empty
+    end
+
+    it "adds wheat to a katsu promoted between #766 and #794" do
+      katsu = created_at!(create(:item, :published, name: "Chicken Katsu"), live(766) + 1.minute)
+      expect(run.changes.map(&:item_id)).to eq([ katsu.id ])
     end
   end
 
   # Nothing records a person removing an ingredient, so a dish edited
-  # since its keyword went live might be exactly that correction.
-  it "lists a dish edited since its keyword went live for review instead of writing it" do
-    pizza = create(:item, :published, name: "Corn Quesadilla")
-    pizza.update_columns(updated_at: Time.utc(2026, 9, 1))
+  # since a rule went live might be exactly that correction.
+  it "lists a dish edited since its rule went live for review instead of writing it" do
+    quesadilla = create(:item, :published, name: "Corn Quesadilla")
+    quesadilla.update_columns(updated_at: Time.utc(2026, 9, 1))
 
     result = run
 
     expect(result.changes).to be_empty
-    expect(result.reviews.map(&:item_id)).to eq([ pizza.id ])
-    expect(pizza.reload.denormalized_ingredient_ids).not_to include(wheat.id)
+    expect(result.reviews.map(&:item_id)).to eq([ quesadilla.id ])
+    expect(quesadilla.reload.denormalized_ingredient_ids).not_to include(wheat.id)
   end
 
-  # #766 also added wheat ingredients that scans match from the dish
-  # text, not the name table. Old dishes never met them.
-  describe "#766's text-matched wheat ingredients" do
-    let!(:gravy) do
-      create(:ingredient, slug: "grain-wheat-gravy", name: "Wheat-Based Gravy",
-                          path: "grain.wheat.gravy", aliases: [ "country gravy" ])
-    end
-    let!(:breading) do
-      create(:ingredient, slug: "grain-wheat-breading", name: "Breading",
-                          path: "grain.wheat.breading", aliases: [ "breaded" ])
-    end
-
+  describe "text-matched ingredients" do
     it "adds the matched ingredient from the name" do
       item = create(:item, :published, name: "Chicken Fried Steak with Country Gravy")
       run
@@ -164,12 +191,20 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     # "biscuit" was a #638 name keyword, so a September biscuit got wheat
     # then. No wheat now means a person removed it, and #766's biscuit
     # ingredient must not put it back.
+    it "leaves alone a dish whose old name rule was live and whose wheat is gone" do
+      create(:ingredient, slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit")
+      created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))
+      result = run
+      expect(result.changes).to be_empty
+      expect(result.reviews).to be_empty
+    end
+
     # Same correction, but the description names something the removal
     # did not cover. Not written over the correction, not dropped either.
     it "sends a corrected dish's description matches to review, never writes them" do
-      sandwich = created_at!(create(:item, :published, name: "Chicken Sandwich", description: "Breaded chicken, no bun."),
+      sandwich = created_at!(create(:item, :published, name: "Chicken Sandwich",
+                                                       description: "Breaded chicken, no bun."),
                              Time.utc(2026, 9, 15))
-      sandwich.update_columns(updated_at: Time.utc(2026, 9, 20))
 
       result = run
 
@@ -178,36 +213,26 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(result.reviews.first.ingredient_slugs).to eq([ "grain-wheat-breading" ])
       expect(sandwich.reload.denormalized_ingredient_ids).not_to include(breading.id)
     end
-
-    it "leaves alone a dish whose old name keyword was live and whose wheat is gone" do
-      create(:ingredient, slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit")
-      created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))
-      result = run
-      expect(result.changes).to be_empty
-      expect(result.reviews).to be_empty
-    end
-
-    it "respects a gluten-free claim in the name" do
-      create(:item, :published, name: "Gluten-Free Country Gravy")
-      expect(run.changes).to be_empty
-    end
-
-    it "leaves a dish promoted after #766 alone" do
-      created_at!(create(:item, :published, name: "Country Gravy"), described_class::LIVE_SINCE_766 + 1.hour)
-      expect(run.changes).to be_empty
-    end
   end
 
-  it "reports a dish as written even when the progress callback fails" do
-    samosa = create(:item, :published, name: "Samosa")
-    expect { described_class.call(apply: true) { raise IOError, "stdout closed" } }.to raise_error(IOError)
-    expect(samosa.reload.denormalized_ingredient_ids).to include(wheat.id)
-  end
+  # #794: an ingredient that is not a grain but almost always carries one.
+  describe "gluten implications" do
+    let!(:soy_sauce)    { create(:ingredient, slug: "soy-soy-sauce", name: "Soy Sauce", path: "soy.soy_sauce") }
+    let!(:malt_vinegar) { create(:ingredient, slug: "condiment-malt-vinegar", name: "Malt Vinegar", path: "condiment.malt_vinegar") }
 
-  it "is idempotent" do
-    create(:item, :published, name: "Samosa")
-    run
-    expect(run.changes).to be_empty
+    it "adds wheat to an old dish that already carries soy sauce" do
+      stir_fry = create(:item, :published, name: "Vegetable Stir Fry", ingredients: [ soy_sauce ])
+      run
+      expect(stir_fry.reload.denormalized_ingredient_ids).to include(wheat.id)
+    end
+
+    # The base is barley here, not wheat: a dish can need barley whatever
+    # happened to its wheat.
+    it "adds barley for malt vinegar" do
+      chips = create(:item, :published, name: "Fish and Chips", description: "Malt vinegar on the side.")
+      run
+      expect(chips.reload.denormalized_ingredient_ids).to include(barley.id)
+    end
   end
 
   it "reports a failing dish and carries on with the rest" do
@@ -231,5 +256,11 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     seen = []
     described_class.call(apply: true) { |change| seen << change.item_name }
     expect(seen).to eq([ "Samosa" ])
+  end
+
+  it "reports a dish as written even when the progress callback fails" do
+    samosa = create(:item, :published, name: "Samosa")
+    expect { described_class.call(apply: true) { raise IOError, "stdout closed" } }.to raise_error(IOError)
+    expect(samosa.reload.denormalized_ingredient_ids).to include(wheat.id)
   end
 end

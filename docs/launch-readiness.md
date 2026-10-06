@@ -252,16 +252,16 @@ provider up again on a new box:
 - Send 7 days before public launch. Follow up after 3 days (5 for KSUT).
 - Day-of: stage the `launch-day.md` social posts.
 
-### 10. Backfill implied wheat on dishes published before #766 — open (2026-10-05)
+### 10. Backfill gluten rows on dishes promoted before the gluten rules — open (2026-10-06)
 
-**Unlocks:** Celiac users stop seeing old samosas, rellenos, biscuits, gravies, breaded dishes, and similar as safe.
+**Unlocks:** Celiac users stop seeing old samosas, katsu, breaded or gravied dishes, soy-sauce stir fries, and similar as safe.
 
-Dishes promoted before the implied-base table grew lack the wheat their names imply. Run the dry run, read the list, then apply:
+Dishes promoted before #638, #766, or #794 lack the gluten rows those rules add. Run the dry run, read the list, then apply:
 
 - `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"`
 - `kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"`
 
-Add-only and idempotent; it touches only published dishes promoted before the keyword they match went live (2026-08-18 for #638's table, 2026-10-06 for samosa, relleno, and gulab jamun), so it never re-adds wheat a person removed from a dish scanned since. A dish edited since its keyword went live is not written either: it is listed under "to review by hand" with its admin restaurant link, because nothing records a person removing an ingredient. Any FAILED line is a dish to fix by hand in admin.
+Add-only and idempotent. A rule already live when a dish was promoted is never re-applied to it, so wheat a person removed stays removed. A dish edited since a rule went live is listed under "to review by hand" with its admin restaurant link instead of written. Any FAILED line is a dish to fix by hand in admin.
 
 ## CI status
 

@@ -57,7 +57,7 @@ namespace :biteworthy do
     #
     #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"
     #   kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"
-    desc "Add the base ingredient a dish name implies (Samosa -> wheat) to dishes that lack it. APPLY=1 writes."
+    desc "Add the gluten rows today's rules imply (Samosa, breaded, soy sauce) to dishes promoted before those rules. APPLY=1 writes."
     task backfill_implied_bases: :environment do
       apply = ENV["APPLY"] == "1"
       $stdout.sync = true
@@ -69,7 +69,7 @@ namespace :biteworthy do
       end
 
       if result.reviews.any?
-        puts "== Not written: edited since the keyword went live, so a person may have removed the base on purpose. Check each in admin =="
+        puts "== Not written: edited since the rule went live, so a person may have removed the row on purpose. Check each in admin =="
         result.reviews.each do |c|
           puts "  #{c.restaurant_name} — #{c.item_name}: would add #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
           puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
