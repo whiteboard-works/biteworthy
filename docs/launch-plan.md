@@ -131,7 +131,7 @@ Hetzner + Neon + GHCR + DNS ─┐
                              ├─► first `kamal deploy` ─► Resend / R2 / Vercel+domain
 Anthropic billing ─► cassette┘                        └─► seed 30 ─► screenshots ─► eas submit
 Anthropic billing ─► seed 30                                          │
-L1 attorney ─► remove DRAFT banners ─► (store requires signed docs) ──┘ ─► press
+L1 attorney ─► remove /terms DRAFT banner ─► (signed docs) ───────────┘ ─► press
 Apple + Google accounts + icon.svg ─────────────────────────────────► eas submit
 ```
 

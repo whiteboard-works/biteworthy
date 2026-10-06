@@ -6,6 +6,12 @@ policy. It exists because the live Privacy Policy makes a statement about
 Anthropic that the chat feature contradicts, and the attorney needs the real
 data flows rather than the current copy.
 
+**Update 2026-10-05:** the false sentence quoted below is gone. The live
+Anthropic entry now discloses chat messages, the dietary profile, saved chat
+notes, and public reviews read by any user's chat. "The problem in one line"
+and question 3 are kept as the history; questions 1, 2, 4, and 5 are still
+open.
+
 **Written:** 2026-08-14, from the code at `1d8e21f6`. Every claim below cites a
 file; re-verify before relying on it, because chat is under active development
 (`docs/plans/chat-engine.md`).
@@ -126,8 +132,9 @@ mechanism.
    construction (celiac, allergy presets). Does sending it to a processor change
    the consent posture versus storing it ourselves? E7 treated this category as
    the thing to protect hardest.
-3. **The false sentence.** It is live now. Does it need correcting ahead of the
-   full L1 pass, or is the DRAFT banner sufficient cover in the interim?
+3. **The false sentence.** *(Resolved 2026-10-05: corrected on the live page.)*
+   It was live then. Does it need correcting ahead of the full L1 pass, or is
+   the DRAFT banner sufficient cover in the interim?
 4. **Retention.** Is indefinite transcript retention defensible, and does the
    deletion right in the CCPA section need to name chat explicitly?
 5. **Anthropic's terms.** The ingestion copy asserts inputs are not used for

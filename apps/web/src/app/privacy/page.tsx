@@ -27,7 +27,8 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * 2026-10-05: the Anthropic entry used to say the profile is never
  * sent. The chat has sent it with every turn since M4, and now sends
  * the user's saved chat notes too, so the entry says so. It also said
- * reviews are never sent; the chat's review tools read and write them.
+ * reviews are never sent; the chat's review tools read and write them,
+ * for any user's chat, not only the author's.
  *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
@@ -139,9 +140,10 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
               Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. When you use the chat, your messages, your dietary profile, any
-              notes you saved for the assistant, and any reviews the chat reads or writes for you
-              are sent to Anthropic so it can answer.
+              to train the model. When you use the chat, your messages, your dietary profile, and
+              any notes you saved for the assistant are sent to Anthropic so it can answer. Reviews
+              are public, so when anyone asks the chat about a dish, the reviews on it (with the
+              reviewer&apos;s username and display name) can be sent to Anthropic too.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The
