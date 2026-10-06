@@ -96,6 +96,14 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(run.changes.map(&:item_id)).to eq([ samosa.id ])
     end
 
+    # "burrito" was live in September, so this dish got wheat then;
+    # missing wheat now is a correction, whatever "relleno" says.
+    it "uses the earliest keyword when a name hits an old and a new one" do
+      created_at!(create(:item, :published, name: "Chile Relleno Burrito"), september)
+      expect(run.changes).to be_empty
+      expect(run.reviews).to be_empty
+    end
+
     it "leaves a samosa promoted after #766 alone" do
       created_at!(create(:item, :published, name: "Samosa"), described_class::LIVE_SINCE_766 + 1.hour)
       expect(run.changes).to be_empty

@@ -26,6 +26,9 @@ module Menus
     LATER_TERMS = Ingestion::DeterministicResolver::IMPLIED_BASE_TERMS.transform_values do |terms|
       terms.select { |t| KEYWORDS_SINCE_766.any? { |k| t.start_with?(k) } }
     end.freeze
+    EARLIER_TERMS = Ingestion::DeterministicResolver::IMPLIED_BASE_TERMS.to_h do |slug, terms|
+      [ slug, terms - LATER_TERMS.fetch(slug) ]
+    end.freeze
 
     Change = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name, :ingredient_slugs, :tag_slugs)
     Failure = Data.define(:item_id, :item_name, :error)
@@ -107,11 +110,16 @@ module Menus
       item.updated_at >= live_since(item.name)
     end
 
-    # The newest keyword the name hits decides: a pizza promoted in
-    # September already had #638's table, a samosa promoted then did not.
+    # The earliest keyword the name hits decides: every keyword here
+    # implies the same base, so once any of them was live the dish got
+    # that base at promotion, and a missing row means a person removed
+    # it. A "Chile Relleno Burrito" from September got wheat from
+    # "burrito" even though "relleno" came later.
     def live_since(name)
-      later = Ingestion::TagDeriver.keyword_hits(Ingestion::MenuText.segments(name), LATER_TERMS, confidence: 1.0)
-      later.any? ? LIVE_SINCE_766 : LIVE_SINCE_638
+      segments = Ingestion::MenuText.segments(name)
+      earlier  = Ingestion::TagDeriver.keyword_hits(segments, EARLIER_TERMS, confidence: 1.0)
+      later    = Ingestion::TagDeriver.keyword_hits(segments, LATER_TERMS, confidence: 1.0)
+      later.any? && earlier.none? ? LIVE_SINCE_766 : LIVE_SINCE_638
     end
 
     def add!(item, change)
