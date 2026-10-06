@@ -56,7 +56,7 @@ namespace :biteworthy do
     # idempotent, so a second run after an apply lists nothing.
     #
     #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"
-    #   kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"
+    #   kamal app exec --reuse --roles web --env APPLY:1 "bin/rails biteworthy:menus:backfill_implied_bases"
     desc "Add the gluten rows today's rules imply (Samosa, breaded, soy sauce) to dishes promoted before those rules. APPLY=1 writes."
     task backfill_implied_bases: :environment do
       apply = ENV["APPLY"] == "1"
@@ -78,7 +78,9 @@ namespace :biteworthy do
       result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
       puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
            "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
-      puts "Re-run with APPLY=1 to write these rows." if !apply && result.changes.any?
+      # Through kamal the variable needs --env: docker exec runs no shell,
+      # so a leading APPLY=1 is taken as the program name.
+      puts "Re-run with APPLY=1 to write these rows (kamal: --env APPLY:1)." if !apply && result.changes.any?
       # Failed dishes are still unprotected; a zero exit would read as done.
       exit 1 if result.failures.any?
     end
