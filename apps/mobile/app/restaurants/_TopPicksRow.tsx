@@ -22,6 +22,9 @@ export function TopPicksRow({ items }: { items: RestaurantItem[] }) {
   const [whyOpen, setWhyOpen] = useState(false);
   const picks = topPicksFromScores(items);
   if (picks.length === 0) return null;
+  // Same rule as web: a tile only where it lines the strip up, so a
+  // strip with no photos at all keeps its compact cards.
+  const placeholders = picks.some((p) => p.photo_url);
 
   return (
     <View style={styles.wrap} testID="top-picks">
@@ -57,6 +60,13 @@ export function TopPicksRow({ items }: { items: RestaurantItem[] }) {
             >
               {item.photo_url ? (
                 <Image source={{ uri: item.photo_url }} style={styles.photo} />
+              ) : placeholders ? (
+                <View
+                  style={styles.photo}
+                  testID={`pick-photo-placeholder-${item.id}`}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
               ) : null}
               <Text style={styles.name} numberOfLines={2}>
                 {item.name}

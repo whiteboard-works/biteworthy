@@ -1,5 +1,5 @@
 /**
- * The caller's own account — read + handle edit. Mirrors
+ * The caller's own account — read, handle edit, and the public bio. Mirrors
  * apps/web/src/lib/me.ts against the same GET/PATCH /api/v1/me pair.
  *
  * A 422 comes back per-field ({ errors: { handle: [...] } }); it is
@@ -64,6 +64,41 @@ export async function updateMyHandle(
     throw new MeValidationError(body?.errors?.handle ?? []);
   }
   if (!res.ok) throw new MeError(res.status, `updateMyHandle failed: ${res.status}`);
+  const body = (await res.json()) as { user: UserPayload };
+  return body.user;
+}
+
+/** Mirrors `User::BIO_MAX_LENGTH` in the API. */
+export const BIO_MAX_LENGTH = 300;
+
+/**
+ * Sets the public bio shown on /users/<handle>; blank clears it. Sends
+ * the bio alone, so a stale handle never rides along with it.
+ */
+export async function updateMyBio(
+  bio: string,
+  jwt: string,
+  opts: FetchOptions = {},
+): Promise<UserPayload> {
+  const { fetchImpl = fetch } = opts;
+  const res = await fetchImpl(`${API_BASE}/api/v1/me`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ bio }),
+  });
+  if (res.status === 422) {
+    let body: { errors?: Record<string, string[]> } | null = null;
+    try {
+      body = (await res.json()) as { errors?: Record<string, string[]> };
+    } catch {
+      // non-JSON body — fall through to the empty-messages error
+    }
+    throw new MeValidationError(body?.errors?.bio ?? []);
+  }
+  if (!res.ok) throw new MeError(res.status, `updateMyBio failed: ${res.status}`);
   const body = (await res.json()) as { user: UserPayload };
   return body.user;
 }

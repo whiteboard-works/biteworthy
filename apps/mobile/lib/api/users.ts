@@ -23,6 +23,7 @@ export interface UserReview {
 export interface PublicUserProfile {
   handle: string;
   display_name: string | null;
+  bio: string | null;
   member_since: string;
   reviews_count: number;
   restaurants_reviewed_count: number;

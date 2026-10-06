@@ -61,6 +61,24 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
     );
   });
 
+  // A card without a photo beside cards with one sits shorter in the
+  // strip. A same-size tile lines them up; with no photos at all the
+  // cards stay compact.
+  it('gives photo-less picks a placeholder only when another pick has a photo', () => {
+    const withPhoto = [
+      { ...threePicks[0]!, photo_url: 'https://example.com/c.jpg' },
+      ...threePicks.slice(1),
+    ];
+    const { rerender } = render(<TopPicksRow items={withPhoto} />);
+    // Decorative and hidden from screen readers, so the query has to opt in.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('pick-photo-placeholder-pad', hidden)).toBeTruthy();
+    expect(screen.queryByTestId('pick-photo-placeholder-curry', hidden)).toBeNull();
+
+    rerender(<TopPicksRow items={threePicks} />);
+    expect(screen.queryByTestId('pick-photo-placeholder-pad', hidden)).toBeNull();
+  });
+
   it('renders nothing below the 3-pick threshold', () => {
     render(<TopPicksRow items={threePicks.slice(0, 2)} />);
     expect(screen.queryByTestId('top-picks')).toBeNull();
