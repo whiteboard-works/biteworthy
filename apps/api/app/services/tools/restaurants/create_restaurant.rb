@@ -38,7 +38,7 @@ module Tools
           opens_at:    { type: "string", description: "24-hour HH:MM. Omit both times for a closed day." },
           closes_at:   { type: "string", description: "24-hour HH:MM." }
         },
-        required: ["day_of_week"]
+        required: [ "day_of_week" ]
       }.freeze
 
       input_schema(

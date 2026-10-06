@@ -81,13 +81,13 @@ module Tools
         end
 
         hint = case failure.reason
-               when "bot_challenge"
-                 "The site blocked automated fetching. Ask the user to paste the menu, " \
-                 "upload a PDF or photos, or try a same-origin menu PDF."
-               else
-                 "That URL could not be fetched. Ask for a same-origin menu PDF, " \
-                 "a photo/PDF upload, or pasted menu text."
-               end
+        when "bot_challenge"
+          "The site blocked automated fetching. Ask the user to paste the menu, " \
+          "upload a PDF or photos, or try a same-origin menu PDF."
+        else
+          "That URL could not be fetched. Ask for a same-origin menu PDF, " \
+          "a photo/PDF upload, or pasted menu text."
+        end
         error(hint, code: "url_fetch_failed", reason: failure.reason, next_step: hint)
       end
       private_class_method :fetch_failure

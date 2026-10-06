@@ -178,8 +178,12 @@ module Ingestion
     end
 
     def hours_from(spec)
-      rows = Array(spec).flat_map { |row| hour_rows(row) }
-      rows.uniq { |row| [ row[:day_of_week], row[:opens_at], row[:closes_at] ] }
+      return [] if spec.nil?
+
+      # Array(hash) is [[k, v], …] — wrap a single JSON-LD object ourselves.
+      list = spec.is_a?(Array) ? spec : [ spec ]
+      list.flat_map { |row| hour_rows(row) }
+          .uniq { |row| [ row[:day_of_week], row[:opens_at], row[:closes_at] ] }
     end
 
     def hour_rows(row)

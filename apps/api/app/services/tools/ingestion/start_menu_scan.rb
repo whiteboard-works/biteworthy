@@ -66,7 +66,7 @@ module Tools
         forbidden_restaurant: "You can only scan restaurants that are published, or drafts you created yourself.",
         no_inputs:            "Provide one of source_url, source_text, or attachment_ids.",
         url_fetch_failed:     "That URL could not be fetched.",
-        forbidden_host:       Ingestion::HostPolicy::MESSAGE,
+        forbidden_host:       ::Ingestion::HostPolicy::MESSAGE,
         quota_exceeded:       "Daily scan limit reached for this account. Try again tomorrow.",
         cost_ceiling_reached: "Scanning is paused — the service hit its daily processing budget. Try again tomorrow.",
         too_many_files:       "Too many files in one scan.",

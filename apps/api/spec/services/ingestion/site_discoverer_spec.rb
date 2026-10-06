@@ -29,7 +29,7 @@ RSpec.describe Ingestion::SiteDiscoverer do
       "https://caracasgrillutah.com/menus/lunch.pdf"
     )
     expect(result.menu_candidates.find { |c| c[:url].end_with?(".pdf") }[:kind]).to eq("pdf")
-    expect(result.location_pages.map { |c| c[:url] }).to eq(["https://caracasgrillutah.com/locations"])
+    expect(result.location_pages.map { |c| c[:url] }).to eq([ "https://caracasgrillutah.com/locations" ])
   end
 
   it "reads location candidates from JSON-LD and does not invent extras" do
