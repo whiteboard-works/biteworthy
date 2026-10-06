@@ -14,11 +14,12 @@ RSpec.describe "users", type: :request do
 
       response(200, "public profile + recent visible reviews") do
         schema type: :object,
-               required: %w[handle display_name member_since reviews_count
+               required: %w[handle display_name bio member_since reviews_count
                             restaurants_reviewed_count recent_reviews],
                properties: {
                  handle:                     { type: :string },
                  display_name:               { type: :string, nullable: true },
+                 bio:                        { type: :string, nullable: true },
                  member_since:               { type: :string, format: "date-time" },
                  reviews_count:              { type: :integer },
                  restaurants_reviewed_count: { type: :integer },

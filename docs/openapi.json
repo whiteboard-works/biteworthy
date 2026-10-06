@@ -55,6 +55,7 @@
                         "email",
                         "handle",
                         "display_name",
+                        "bio",
                         "provider",
                         "created_at"
                       ],
@@ -70,6 +71,10 @@
                           "type": "string"
                         },
                         "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "bio": {
                           "type": "string",
                           "nullable": true
                         },
@@ -6608,7 +6613,7 @@
         }
       },
       "patch": {
-        "summary": "Update the caller's own account (handle)",
+        "summary": "Update the caller's own account (handle, bio)",
         "tags": [
           "Auth"
         ],
@@ -6662,6 +6667,11 @@
                   "handle": {
                     "type": "string",
                     "pattern": "^[A-Za-z0-9_]{3,30}$"
+                  },
+                  "bio": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 300
                   }
                 }
               }
@@ -7249,6 +7259,12 @@
                     "type": "string",
                     "nullable": true,
                     "description": "A city slug from GET /cities sets the home city; null or blank clears it."
+                  },
+                  "chat_notes": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500,
+                    "description": "Private notes added to every chat's context. Never read by the filter. Trimmed; null or blank clears them."
                   },
                   "acknowledge_disclaimer": {
                     "type": "boolean",
@@ -8356,6 +8372,8 @@
                     "claimed_at",
                     "claimed_by_user_id",
                     "city",
+                    "time_zone",
+                    "hours",
                     "favorited"
                   ],
                   "properties": {
@@ -8424,6 +8442,39 @@
                         "region": {
                           "type": "string",
                           "nullable": true
+                        }
+                      }
+                    },
+                    "time_zone": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "IANA timezone (e.g. America/Denver)"
+                    },
+                    "hours": {
+                      "type": "array",
+                      "description": "Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day.",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "day_of_week",
+                          "opens_at",
+                          "closes_at"
+                        ],
+                        "properties": {
+                          "day_of_week": {
+                            "type": "integer",
+                            "description": "0=Sunday, 6=Saturday"
+                          },
+                          "opens_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+                          },
+                          "closes_at": {
+                            "type": "string",
+                            "nullable": true,
+                            "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+                          }
                         }
                       }
                     },
@@ -8818,6 +8869,7 @@
                   "required": [
                     "handle",
                     "display_name",
+                    "bio",
                     "member_since",
                     "reviews_count",
                     "restaurants_reviewed_count",
@@ -8828,6 +8880,10 @@
                       "type": "string"
                     },
                     "display_name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "bio": {
                       "type": "string",
                       "nullable": true
                     },
@@ -9307,6 +9363,10 @@
             "type": "string"
           },
           "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "bio": {
             "type": "string",
             "nullable": true
           },
@@ -10325,6 +10385,7 @@
           "strictness",
           "primary_dietary_profile",
           "home_city",
+          "chat_notes",
           "disclaimer_acknowledged_at"
         ],
         "properties": {
@@ -10466,6 +10527,10 @@
                 "type": "string"
               }
             }
+          },
+          "chat_notes": {
+            "type": "string",
+            "nullable": true
           },
           "disclaimer_acknowledged_at": {
             "type": "string",

@@ -33,6 +33,12 @@ export interface RestaurantCity {
   region: string;
 }
 
+export interface HourInterval {
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  opens_at: string | null; // "HH:MM" or null for closed
+  closes_at: string | null; // "HH:MM" or null for closed
+}
+
 export interface Restaurant {
   id: string;
   slug: string;
@@ -54,6 +60,10 @@ export interface Restaurant {
   city: RestaurantCity;
   /** Set by GET show when the caller is authed; false anonymously. */
   favorited?: boolean;
+  /** IANA timezone (e.g. America/Denver) from the restaurant's city. */
+  time_zone: string | null;
+  /** Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day. */
+  hours: HourInterval[];
 }
 
 /** The lighter shape `GET /api/v1/restaurants` returns for browse/discovery. */
@@ -68,6 +78,8 @@ export interface RestaurantSummary {
   street: string | null;
   latitude: number | null;
   longitude: number | null;
+  time_zone: string | null;
+  hours: HourInterval[];
 }
 
 /**
@@ -92,6 +104,16 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /**
+   * WebP variants of the dish photo at different sizes. Uses
+   * `rails_representation_url` for lazy generation. Null when no
+   * photo is attached.
+   */
+  photo_urls?: {
+    thumb: string;
+    card: string;
+    full: string;
+  } | null;
   /**
    * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
    * caller's profile carries taste signals (Phase 8.1 arrays).

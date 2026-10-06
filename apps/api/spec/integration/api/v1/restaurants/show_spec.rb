@@ -15,7 +15,7 @@ RSpec.describe "restaurants/show", type: :request do
       response(200, "the restaurant") do
         schema type: :object,
                required: %w[id slug name about phone website status web_path
-                            claimed_at claimed_by_user_id city favorited],
+                            claimed_at claimed_by_user_id city time_zone hours favorited],
                properties: {
                  id:                 { type: :string, format: :uuid },
                  slug:               { type: :string },
@@ -37,10 +37,26 @@ RSpec.describe "restaurants/show", type: :request do
                      region: { type: :string, nullable: true }
                    }
                  },
+                 time_zone: { type: :string, nullable: true, description: "IANA timezone (e.g. America/Denver)" },
+                 hours: {
+                   type: :array,
+                   description: "Opening hours sorted by day_of_week then opens_at. " \
+                                "Supports multiple shifts per day (lunch/dinner). " \
+                                "Null times mean closed that day.",
+                   items: {
+                     type: :object,
+                     required: %w[day_of_week opens_at closes_at],
+                     properties: {
+                       day_of_week: { type: :integer, description: "0=Sunday, 6=Saturday" },
+                       opens_at:    { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" },
+                       closes_at:   { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" }
+                     }
+                   }
+                 },
                  favorited: { type: :boolean, description: "Always false for an anonymous caller." }
                }
 
-        let(:city) { create(:city, slug: "durango", name: "Durango", region: "Colorado") }
+        let(:city) { create(:city, slug: "durango", name: "Durango", region: "Colorado", time_zone: "America/Denver") }
         let(:restaurant) do
           create(:restaurant, :published, slug: "ninis", name: "Ninis Taqueria", city: city)
         end
@@ -50,6 +66,8 @@ RSpec.describe "restaurants/show", type: :request do
           body = JSON.parse(response.body)
           expect(body["web_path"]).to eq("/restaurants/usa/colorado/durango/ninis")
           expect(body["favorited"]).to eq(false)
+          expect(body["time_zone"]).to eq("America/Denver")
+          expect(body["hours"]).to be_an(Array)
         end
       end
 

@@ -31,6 +31,7 @@ module Api
           email:        user.email,
           handle:       user.handle,
           display_name: user.display_name,
+          bio:          user.bio,
           provider:     user.provider,
           created_at:   user.created_at.iso8601
         }
@@ -47,6 +48,7 @@ module Api
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
           strictness:              profile.strictness,
+          chat_notes:              profile.chat_notes,
           primary_dietary_profile_slug: profile.primary_dietary_profile&.slug,
           home_city_slug:          profile.home_city&.slug
         }

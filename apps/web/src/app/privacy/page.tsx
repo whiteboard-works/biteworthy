@@ -24,6 +24,10 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * processor is the one drift here with legal weight, so the
  * LAST_UPDATED date moves with it.
  *
+ * 2026-10-05: the Anthropic entry used to say the profile is never
+ * sent. The chat has sent it with every turn since M4, and now sends
+ * the user's saved chat notes too, so the entry says so.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -38,7 +42,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-09-26';
+const LAST_UPDATED = '2026-10-05';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -47,7 +51,6 @@ export default function PrivacyPage(): ReactElement {
       <h1 className="mt-bw-3 text-bw-3xl font-bold text-zinc-900 md:text-bw-4xl">Privacy Policy</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
-      <DraftBanner />
 
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="The short version">
@@ -68,8 +71,9 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dietary profile:</strong> the ingredients and tags you mark “avoid,” the
               dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, and any
-              taste signals (ingredients/tags you like or dislike) you add to improve your picks.
-              Stored against your account so it follows you across devices.
+              taste signals (ingredients/tags you like or dislike) you add to improve your picks,
+              and any notes you save for the chat assistant. Stored against your account so it
+              follows you across devices.
             </li>
             <li>
               <strong>Reviews:</strong> the rating, body, and optional photo you submit on a dish.
@@ -134,7 +138,9 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
               Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. We do not send your reviews or profile to Anthropic.
+              to train the model. When you use the chat, your messages, your dietary profile, and
+              any notes you saved for the assistant are sent to Anthropic so it can answer. We do
+              not send your reviews to Anthropic.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The
@@ -236,20 +242,6 @@ export default function PrivacyPage(): ReactElement {
         </Section>
       </article>
     </main>
-  );
-}
-
-function DraftBanner(): ReactElement {
-  return (
-    <div
-      role="note"
-      className="mt-bw-6 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-4 text-bw-sm text-zinc-800"
-      data-testid="draft-banner"
-    >
-      <strong>Draft.</strong> This template fills the App Privacy disclosures with BiteWorthy’s
-      actual data flows but has not yet had final lawyer review. The launch checklist (Phase 5.9)
-      requires that pass before App Store / Play Store submission.
-    </div>
   );
 }
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_240000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -69,6 +69,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
     t.string "name", null: false
     t.string "region"
     t.string "slug", null: false
+    t.string "time_zone"
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_cities_on_slug", unique: true
   end
@@ -680,6 +681,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
   create_table "user_profiles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "avoid_ingredient_ids", default: [], null: false, array: true
     t.uuid "avoid_tag_ids", default: [], null: false, array: true
+    t.text "chat_notes"
     t.datetime "created_at", null: false
     t.datetime "disclaimer_acknowledged_at"
     t.uuid "disliked_ingredient_ids", default: [], null: false, array: true
@@ -700,6 +702,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "age_confirmed_at"
+    t.text "bio"
     t.datetime "confirmed_at"
     t.datetime "created_at", null: false
     t.string "display_name"

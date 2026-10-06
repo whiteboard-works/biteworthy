@@ -194,6 +194,7 @@ Rails.application.routes.draw do
           member do
             post :confirm_community
             post :restore
+            post :backfill_structure
           end
           resources :items, only: [:index]
           resources :menus, only: [:index, :create]

@@ -11,6 +11,7 @@ import {
   fetchMyReviews,
   fetchMyFavorites,
   NotSignedInError,
+  CHAT_NOTES_MAX_LENGTH,
   type ProfilePatch,
   type ProfilePayload,
   type MyReview,
@@ -26,7 +27,13 @@ import {
   type McpTokenWithSecret,
 } from '../../../lib/mcp-tokens';
 import { listConnectedApps, disconnectApp, type ConnectedApp } from '../../../lib/connected-apps';
-import { fetchMe, updateMyHandle, HandleValidationError } from '../../../lib/me';
+import {
+  fetchMe,
+  updateMyHandle,
+  updateMyBio,
+  HandleValidationError,
+  BIO_MAX_LENGTH,
+} from '../../../lib/me';
 import type { UserPayload } from '@biteworthy/api-types';
 import {
   fetchDietaryProfiles,
@@ -52,6 +59,7 @@ export default function ProfileSettingsPage() {
       <h1 className="text-bw-2xl font-bold text-zinc-900">Account</h1>
       <PublicProfileSection />
       <PreferencesSection />
+      <ChatNotesSection />
       <FavoritesSection />
       <MyReviewsSection />
       <ConnectedAppsSection />
@@ -177,6 +185,203 @@ function PublicProfileSection() {
               </a>
             </p>
           )}
+          <BioEditor user={user} onSaved={setUser} />
+        </>
+      )}
+    </section>
+  );
+}
+
+function BioEditor({ user, onSaved }: { user: UserPayload; onSaved: (user: UserPayload) => void }) {
+  const router = useRouter();
+  const [bio, setBio] = useState(user.bio ?? '');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const dirty = bio.trim() !== (user.bio ?? '');
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setSaved(false);
+      const updated = await updateMyBio(bio);
+      onSaved(updated);
+      setBio(updated.bio ?? '');
+      setSaved(true);
+    } catch (e) {
+      if (e instanceof NotSignedInError) {
+        router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+        return;
+      }
+      setSaveError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-bw-6">
+      <label htmlFor="bio" className="text-bw-sm font-semibold text-zinc-900">
+        About you
+      </label>
+      <p className="mt-bw-1 text-bw-sm text-zinc-500" data-testid="bio-public-note">
+        A line or two for your public profile. Anyone can read it, so leave out anything you
+        wouldn&apos;t post publicly — your dietary settings stay private either way.
+      </p>
+      <textarea
+        id="bio"
+        value={bio}
+        onChange={(e) => {
+          setBio(e.target.value);
+          setSaved(false);
+        }}
+        maxLength={BIO_MAX_LENGTH}
+        rows={3}
+        placeholder="Taco hunter. Always asking about the fryer."
+        className="mt-bw-2 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
+      />
+      <div className="mt-bw-2 flex items-center justify-between gap-bw-2">
+        <span className="text-bw-xs text-zinc-500">
+          {bio.length}/{BIO_MAX_LENGTH}
+        </span>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+          data-testid="bio-save"
+          className="rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
+        >
+          Save
+        </button>
+      </div>
+      {saveError ? (
+        <p role="alert" className="mt-bw-2 text-bw-sm text-danger" data-testid="bio-error">
+          {saveError}
+        </p>
+      ) : null}
+      {saved ? (
+        <p className="mt-bw-2 text-bw-sm text-ok" data-testid="bio-saved">
+          Saved.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Free text every chat starts knowing, so it isn't retyped per
+ * conversation. Private, and context only: the server never filters on
+ * it, which the help text says before anyone writes an allergy here.
+ * Patches `chat_notes` alone so it can't clobber the avoid lists.
+ */
+function ChatNotesSection() {
+  const router = useRouter();
+  const [saved, setSaved] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchProfile()
+      .then((p) => {
+        setSaved(p.chat_notes);
+        setNotes(p.chat_notes ?? '');
+        setLoaded(true);
+      })
+      .catch((e) => {
+        if (e instanceof NotSignedInError) {
+          router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+          return;
+        }
+        setLoadError((e as Error).message);
+      });
+  }, [router]);
+
+  const dirty = notes.trim() !== (saved ?? '');
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setJustSaved(false);
+      const updated = await updateProfile({ chat_notes: notes });
+      setSaved(updated.chat_notes);
+      setNotes(updated.chat_notes ?? '');
+      setJustSaved(true);
+    } catch (e) {
+      if (e instanceof NotSignedInError) {
+        router.replace(`/login?next=${encodeURIComponent('/profile/settings')}`);
+        return;
+      }
+      setSaveError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="mt-bw-8" data-testid="chat-notes">
+      <h2 className="text-bw-lg font-bold text-zinc-900">
+        <label htmlFor="chat-notes">Notes for the assistant</label>
+      </h2>
+      <p className="mt-bw-1 text-bw-sm text-zinc-600" data-testid="chat-notes-help">
+        Anything every chat should know about you, like who you&apos;re cooking for or how spicy you
+        like it. Private to you. Notes don&apos;t hide dishes — add allergies to the avoid list
+        above so the menu filter catches them.
+      </p>
+      {loadError ? (
+        <p className="mt-bw-3 rounded-bw-md bg-bite-light px-bw-3 py-bw-2 text-bw-sm text-bite-dark">
+          Could not load your notes — {loadError}
+        </p>
+      ) : !loaded ? (
+        <p className="mt-bw-3 text-bw-sm text-zinc-500">Loading…</p>
+      ) : (
+        <>
+          <textarea
+            id="chat-notes"
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setJustSaved(false);
+            }}
+            maxLength={CHAT_NOTES_MAX_LENGTH}
+            rows={4}
+            placeholder="Cooking for two kids. Mild spice only. Pregnant, so no raw fish."
+            className="mt-bw-3 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base"
+          />
+          <div className="mt-bw-2 flex items-center justify-between gap-bw-2">
+            <span className="text-bw-xs text-zinc-500">
+              {notes.length}/{CHAT_NOTES_MAX_LENGTH}
+            </span>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving || !dirty}
+              data-testid="chat-notes-save"
+              className="rounded-bw-md bg-bite px-bw-4 py-bw-2 text-bw-sm font-bold text-white disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+          {saveError ? (
+            <p
+              role="alert"
+              className="mt-bw-2 text-bw-sm text-danger"
+              data-testid="chat-notes-error"
+            >
+              {saveError}
+            </p>
+          ) : null}
+          {justSaved ? (
+            <p className="mt-bw-2 text-bw-sm text-ok" data-testid="chat-notes-saved">
+              Saved. New messages in chat will use them.
+            </p>
+          ) : null}
         </>
       )}
     </section>

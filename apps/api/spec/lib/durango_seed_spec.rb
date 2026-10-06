@@ -153,6 +153,28 @@ RSpec.describe Biteworthy::DurangoSeed do
       expect(logger.string).to include("[FAIL]")
     end
 
+    it "marks the run failed when URL fetch fails, so the error appears in /admin" do
+      csv = write_csv([
+        "Blocked,blocked,1 Main,,,https://blocked.example/menu,Downtown"
+      ])
+      fetcher = FakeFetcher.new(
+        "https://blocked.example/menu" => UrlFetcher::FetchError.new("bot_challenge", status: 403)
+      )
+
+      result = described_class.new(
+        csv_path:     csv,
+        wait_seconds: 0,
+        url_fetcher:  fetcher,
+        logger:       logger
+      ).run
+
+      expect(result.failed).to eq(1)
+      run = IngestionRun.joins(:restaurant).find_by(restaurant: { slug: "blocked" })
+      expect(run).to be_present
+      expect(run.status).to eq("failed")
+      expect(run.failure_message).to include("bot_challenge")
+    end
+
     it "tallies created / skipped / failed in the summary line" do
       csv = write_csv([
         "Tacos,tacos,1 Main,,,https://tacos.example/menu,Downtown"

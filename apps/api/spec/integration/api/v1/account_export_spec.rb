@@ -16,12 +16,13 @@ RSpec.describe "account/export", type: :request do
                  exported_at: { type: :string, format: "date-time" },
                  account: {
                    type: :object,
-                   required: %w[id email handle display_name provider created_at],
+                   required: %w[id email handle display_name bio provider created_at],
                    properties: {
                      id:           { type: :string, format: :uuid },
                      email:        { type: :string },
                      handle:       { type: :string },
                      display_name: { type: :string, nullable: true },
+                     bio:          { type: :string, nullable: true },
                      provider:     { type: :string, nullable: true },
                      created_at:   { type: :string, format: "date-time" }
                    }
@@ -52,7 +53,7 @@ RSpec.describe "account/export", type: :request do
           expect(json["reviews"].first["body"]).to eq("Loved it")
           expect(json["suggestions"].map { |s| s["id"] }).to contain_exactly(suggestion.id)
           expect(json["restaurant_visits"].map { |v| v["id"] }).to contain_exactly(visit.id)
-          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug")
+          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug", "chat_notes")
           # No password hash, no JWT secret — only the user's own data.
           expect(response.body).not_to include("encrypted_password")
         end

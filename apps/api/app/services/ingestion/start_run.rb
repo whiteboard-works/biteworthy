@@ -108,7 +108,16 @@ module Ingestion
         begin
           fetched = UrlFetcher.fetch(@source_url)
         rescue UrlFetcher::FetchError => e
-          return failure(:url_fetch_failed, reason: e.reason, status: e.status)
+          # Add helpful guidance for common fetch failures
+          message = case e.status
+                    when 403
+                      "URL blocked (403 Forbidden). Upload the menu as a PDF or photos, or paste the menu text."
+                    when 404
+                      "URL not found (404)."
+                    else
+                      e.reason.to_s
+                    end
+          return failure(:url_fetch_failed, reason: e.reason, status: e.status, message: message)
         end
       end
 

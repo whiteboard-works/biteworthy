@@ -26,6 +26,40 @@ RSpec.describe IngestionItem, type: :model do
       expect(promoted.confidence).to eq("confirmed")
     end
 
+    it "sets menu_section from section_name when present" do
+      item.update!(section_name: "Tacos")
+
+      promoted = item.promote!
+
+      expect(promoted.menu_section).to be_present
+      expect(promoted.menu_section.name).to eq("Tacos")
+      expect(promoted.menu_section.menu.restaurant).to eq(restaurant)
+    end
+
+    it "creates Menu for restaurant if missing" do
+      expect { item.update!(section_name: "Appetizers") && item.promote! }
+        .to change { restaurant.reload.menus.count }.by(1)
+    end
+
+    it "reuses existing Menu and MenuSection on subsequent promotes" do
+      item.update!(section_name: "Entrees")
+      first = item.promote!
+
+      other_item = create(:ingestion_item, ingestion_run: run, name: "Second Dish", section_name: "Entrees")
+      second = other_item.promote!
+
+      expect(second.menu_section).to eq(first.menu_section)
+      expect(restaurant.reload.menus.count).to eq(1)
+    end
+
+    it "leaves menu_section nil when section_name is blank" do
+      item.update!(section_name: nil)
+
+      promoted = item.promote!
+
+      expect(promoted.menu_section).to be_nil
+    end
+
     it "creates ItemIngredient rows for every resolvable slug in ingredients_payload" do
       promoted = item.promote!
 

@@ -1,5 +1,17 @@
 [
   {
+    "version": "2026.10.5",
+    "date": "2026-10-05",
+    "notes": [
+      "Profiles can carry a short public bio, shown on your public profile page.",
+      "Save notes in settings that the chat assistant starts every conversation with, like who you're cooking for.",
+      "Restaurant pages show opening hours.",
+      "Admins can upload, replace, and remove dish photos.",
+      "Menu scans resolve ingredients more reliably, and adding a restaurant gives fewer false \"already exists\" warnings.",
+      "Fixed a blank chat that could appear when opening chats quickly, a sign-out race, and safety and layout issues on the settings and onboarding pages."
+    ]
+  },
+  {
     "version": "2026.10.2",
     "date": "2026-10-02",
     "notes": [

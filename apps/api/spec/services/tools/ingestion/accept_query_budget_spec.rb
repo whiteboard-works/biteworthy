@@ -17,9 +17,9 @@ RSpec.describe Tools::Ingestion::AcceptStagedItems, "query budget" do
   let(:tag_slugs)        { TAG_SAMPLES.first(4).map { |s| s[:slug] } }
 
   dishes = 50
-  # 13 statements per dish after confidence derivation (2 pluck queries per item
-  # to gather all join confidences for weakest-link derivation). Headroom is for
-  # incidental additions, not for another per-association layer.
+  # Base ~10 statements per dish, plus section find_or_create (~1 query per unique
+  # section), plus confidence derivation (2 pluck queries per item for weakest-link).
+  # Headroom is for incidental additions, not for another per-association layer.
   budget_per_dish = 14
 
   before do

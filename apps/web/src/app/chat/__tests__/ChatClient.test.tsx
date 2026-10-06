@@ -1671,6 +1671,133 @@ describe('ChatClient', () => {
       expect(screen.queryByTestId('queued-messages')).toBeNull();
     });
 
+    it('retires a blank chat when two opens overlap', async () => {
+      // Reproduce the exact scenario from #733: start a reply in chat A (turn running),
+      // open blank chat and type (queues message), click two chats quickly so the first
+      // open is still pending when the second starts. The blank chat's queued message
+      // should be retired, not stranded.
+      listConversations.mockResolvedValue({
+        conversations: [busy, other],
+      });
+      getConversation.mockResolvedValue({ ...busy, messages: [] });
+      let finish: () => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+
+      render(<ChatClient />);
+      // Start a reply in chat A (turn is now running)
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('start a turn');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      // Open blank chat and type (message is queued because turn is running)
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('in blank');
+      expect(await screen.findByTestId('queued-messages')).toHaveTextContent('in blank');
+
+      // Click two chats quickly - first open hangs, second succeeds
+      let openFirst: () => void = () => {};
+      getConversation
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              openFirst = () => resolve({ ...busy, messages: [] });
+            }),
+        )
+        .mockResolvedValue({ ...other, messages: [] });
+      fireEvent.click(screen.getByText('Busy chat'));
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+
+      // First open completes late
+      openFirst();
+      // Turn completes
+      finish();
+
+      // Blank chat message should be retired, not stranded
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('in blank'),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('does not strand a later blank chat when leftBlankKey is stale', async () => {
+      // Repro: have a turn running (so messages queue), type in blank A (queues message,
+      // sets leftBlankKey), try to open another chat but it fails (leftBlankKey stuck at
+      // blank:0), start new blank B and type (queues with blank:1), then open another chat.
+      // Blank B's message must not be stranded by the stale leftBlankKey pointing at blank:0.
+      listConversations.mockResolvedValue({
+        conversations: [busy, other],
+      });
+      getConversation.mockResolvedValue({ ...busy, messages: [] });
+      let finish: () => void = () => {};
+      watchTurn.mockImplementation(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+
+      render(<ChatClient />);
+      // Start a turn in busy chat so messages will queue
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Busy chat' });
+      await type('start a turn');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      // Open blank chat A and type (queues message, sets leftBlankKey to blank:0)
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      await type('in blank A');
+      expect(await screen.findByTestId('queued-messages')).toHaveTextContent('in blank A');
+
+      // Try to open another chat but it fails (leftBlankKey stuck at blank:0)
+      let failOpen: () => void = () => {};
+      getConversation.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failOpen = () => reject(new Error('Could not open'));
+          }),
+      );
+      fireEvent.click(screen.getByText('Other chat'));
+      failOpen();
+      await screen.findByTestId('chat-error');
+
+      // Start new blank chat B (increments blank.current to 1, should clear leftBlankKey)
+      fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+      // Type in blank chat B (message gets conversationId blank:1)
+      await type('in blank B');
+      await waitFor(() => {
+        const chips = screen.getByTestId('queued-messages');
+        expect(chips).toHaveTextContent('in blank B');
+        expect(chips).not.toHaveTextContent('in blank A');
+      });
+
+      // Open another chat successfully
+      getConversation.mockResolvedValue({ ...other, messages: [] });
+      fireEvent.click(screen.getByText('Other chat'));
+      await screen.findByRole('heading', { level: 1, name: 'Other chat' });
+
+      // Turn completes
+      finish();
+
+      // Blank B's message should be retired (not stranded by stale leftBlankKey)
+      await waitFor(() => expect(screen.queryByTestId('queued-messages')).toBeNull());
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('in blank'),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
     it('sends a message typed while a chat is opening to that chat once it arrives', async () => {
       let arrive: () => void = () => {};
       render(<ChatClient />);

@@ -103,6 +103,8 @@ describe('RestaurantContactLine', () => {
     claimed_at: null,
     claimed_by_user_id: null,
     city: { id: 'c-1', slug: 'durango', name: 'Durango', region: 'Colorado' },
+    time_zone: null,
+    hours: [],
     ...over,
   });
 

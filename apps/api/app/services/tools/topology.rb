@@ -28,7 +28,8 @@ module Tools
       items:     "Deep-edit one live dish. Admin.",
       taxonomy:  "The ingredient and tag trees the filter reads. Admin.",
       moderation: "The review queue. Admin.",
-      users:     "The roster and who is an admin. Admin."
+      users:     "The roster and who is an admin. Admin.",
+      admin:     "Restaurant curation workflow: find, create, update restaurants, scan menus, accept items, edit published items. Admin."
     }.freeze
 
     CONVENTIONS = [

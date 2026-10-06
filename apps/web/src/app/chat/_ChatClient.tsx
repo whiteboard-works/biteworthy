@@ -118,6 +118,10 @@ export function ChatClient(): ReactElement {
   // have a create in flight.
   const blank = useRef(0);
   const creating = useRef(new Set<string>());
+  // The blank key captured when leaving a blank chat, so overlapping opens
+  // can all retire it once any one succeeds. Set when any open sees that
+  // active is null (blank chat on screen); cleared when any open wins.
+  const leftBlankKey = useRef<string | null>(null);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -195,6 +199,9 @@ export function ChatClient(): ReactElement {
   const leaveBlank = () => {
     const key = blankKey();
     blank.current += 1;
+    // Clear any stale leftBlankKey so a later blank chat's queue cannot
+    // be stranded by an earlier open that set it but never cleared it.
+    leftBlankKey.current = null;
     if (creating.current.has(key)) return;
     queue.current = queue.current.filter((message) => message.conversationId !== key);
     setQueued(queue.current);
@@ -240,6 +247,9 @@ export function ChatClient(): ReactElement {
 
   const open = async (id: string) => {
     const fromBlank = viewing.current === null;
+    if (fromBlank && leftBlankKey.current === null) {
+      leftBlankKey.current = blankKey();
+    }
     following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
@@ -259,7 +269,26 @@ export function ChatClient(): ReactElement {
     // chat" does — nothing can navigate back to a chat with no id. Only
     // once the open worked: a failed one puts the blank chat back on
     // screen, and what was queued in it has to still be there.
-    if (opened && fromBlank) leaveBlank();
+    //
+    // Any open winning retires the blank chat left behind, even when the
+    // open that first saw it is still pending — overlapping opens would
+    // otherwise leave it stranded.
+    if (opened) {
+      const retire = leftBlankKey.current;
+      if (retire !== null) {
+        leftBlankKey.current = null;
+        // Increment blank counter so a failed creation can tell it's been
+        // left behind (draft !== blankKey()).
+        blank.current += 1;
+        // Only retire the queue if the blank chat is not still being
+        // created — if it is, its creation will either succeed (and re-tag
+        // the messages) or fail (and drop them in the catch block).
+        if (!creating.current.has(retire)) {
+          queue.current = queue.current.filter((message) => message.conversationId !== retire);
+          setQueued(queue.current);
+        }
+      }
+    }
     if (!opened && viewing.current === id) {
       viewing.current = current.current?.id ?? null;
       // That chat is on screen again, so its queue is drainable again.
@@ -626,6 +655,11 @@ export function ChatClient(): ReactElement {
         removed.current.add(draft);
         queue.current = queue.current.filter((message) => message.conversationId !== draft);
         setQueued(queue.current);
+        // If this failed blank chat was the one left behind, clear it so
+        // future opens don't try to retire it.
+        if (leftBlankKey.current === draft) {
+          leftBlankKey.current = null;
+        }
       }
       release();
       // Nothing else will drain what the person queued in the chat they

@@ -127,11 +127,12 @@ class IngestionItem < ApplicationRecord
 
   def create_item!(accept_confidence)
     created = Item.create!(
-      restaurant: promotion_run.restaurant,
-      name:        name,
-      description: description.presence,
-      status:      "published",
-      confidence:  "confirmed" # temporary, derived below after joins exist
+      restaurant:   promotion_run.restaurant,
+      menu_section: find_or_create_section,
+      name:         name,
+      description:  description.presence,
+      status:       "published",
+      confidence:   "confirmed" # temporary, derived below after joins exist
     )
 
     insert_joins_with_payload!(ItemIngredient, created, Ingredient, ingredients_payload, accept_confidence)
@@ -154,12 +155,13 @@ class IngestionItem < ApplicationRecord
   # append-only at accept-confidence — existing joins are never removed
   # or downgraded, so a human-confirmed association can't be undone by
   # a re-scan. Name, modifiers, and photo are deliberately untouched
-  # (v1 non-goals — see docs/ingestion.md). Every change lands in the
-  # applied_changes snapshot for undo!.
+  # (v1 non-goals — see docs/ingestion.md). Section is set only when
+  # missing. Every change lands in the applied_changes snapshot for undo!.
   def apply_update!(target, accept_confidence)
     snapshot = {}
 
     apply_description!(target, snapshot)
+    apply_section!(target, snapshot)
     apply_variants!(target, snapshot)
 
     old_confidence = target.confidence
@@ -199,6 +201,17 @@ class IngestionItem < ApplicationRecord
 
     snapshot["description"] = [target.description, description]
     target.update!(description: description)
+  end
+
+  def apply_section!(target, snapshot)
+    return if target.menu_section_id.present?
+    return if section_name.blank?
+
+    section = find_or_create_section
+    return if section.nil?
+
+    snapshot["menu_section_id"] = [nil, section.id]
+    target.update!(menu_section_id: section.id)
   end
 
   def apply_variants!(target, snapshot)
@@ -412,5 +425,18 @@ class IngestionItem < ApplicationRecord
     Rails.logger.warn(
       "IngestionItem##{id} promote! photo attach skipped: #{e.class} #{e.message}"
     )
+  end
+
+  def find_or_create_section
+    return nil if section_name.blank?
+
+    menu = Menu.find_or_create_by!(restaurant: promotion_run.restaurant) do |m|
+      m.name = "Main"
+      m.position = 0
+    end
+
+    MenuSection.find_or_create_by!(menu: menu, name: section_name) do |s|
+      s.position = menu.menu_sections.maximum(:position).to_i + 1
+    end
   end
 end

@@ -26,7 +26,8 @@ module Api
           restaurant = Restaurant.find(params[:restaurant_id])
           scope = Item.where(restaurant_id: restaurant.id)
                       .order(:menu_section_id, :position, :created_at, :id)
-                      .includes(:item_variants, :item_modifiers, :ingredients, :tags)
+                      .includes(:item_variants, :item_modifiers, :ingredients, :tags,
+                                photo_attachment: :blob)
           scope = scope.where(status: params[:status]) if Item::STATUSES.include?(params[:status].to_s)
 
           total  = scope.count
@@ -40,7 +41,7 @@ module Api
         end
 
         def update
-          item = Item.find(params[:id])
+          item = Item.includes(photo_attachment: :blob).find(params[:id])
 
           if params.key?(:status) && !Item::STATUSES.include?(params[:status].to_s)
             render json: { error: "invalid_status", allowed: Item::STATUSES },
@@ -51,6 +52,8 @@ module Api
 
           ::Admin::ItemEditor.new(item).call(edit_attrs)
           render json: serialize_item(item)
+        rescue ActiveRecord::RecordInvalid => e
+          render json: e.record.errors.as_json, status: :unprocessable_entity
         rescue ::Admin::ItemEditor::UnknownSlug => e
           render json: { error: "unknown_#{e.kind}_slugs", slugs: e.slugs },
                  status: :unprocessable_entity
@@ -103,6 +106,7 @@ module Api
         def edit_attrs
           permitted = params.permit(
             :name, :description, :status, :menu_section_id, :position,
+            :photo, :photo_signed_id, :remove_photo,
             ingredient_slugs: [],
             tag_slugs:        [],
             variants:  [:size, :price_cents, :currency],
@@ -137,7 +141,29 @@ module Api
             variants: item.item_variants.sort_by { |v| v.position.to_i }.map do |v|
               { id: v.id, size: v.size, price_cents: v.price_cents, currency: v.currency }
             end,
-            created_at: item.created_at
+            photo_url:    admin_photo_url_for(item),
+            photo_urls:   admin_photo_urls_for(item),
+            created_at:   item.created_at
+          }
+        end
+
+        def admin_photo_url_for(item)
+          return nil unless item.photo.attached?
+          Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: request.base_url)
+        end
+
+        def admin_photo_urls_for(item)
+          return nil unless item.photo.attached?
+          {
+            thumb: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:thumb), host: request.base_url
+            ),
+            card: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:card), host: request.base_url
+            ),
+            full: Rails.application.routes.url_helpers.rails_representation_url(
+              item.photo.variant(:full), host: request.base_url
+            )
           }
         end
       end

@@ -52,16 +52,30 @@ export function ItemRow({
         hidden ? 'opacity-60' : '',
       ].join(' ')}
     >
-      {item.photo_url && (
+      {(item.photo_urls?.card || item.photo_url) && (
         // Cropped dish photo from the source menu page. Plain <img> (not
         // next/image) since the URL is a Rails signed blob URL whose host
         // varies per env; loader config would have to learn each one.
+        // Use WebP card variant with fallback to original on error.
         <img
-          src={item.photo_url}
+          src={item.photo_urls?.card || item.photo_url || undefined}
+          srcSet={
+            item.photo_urls
+              ? `${item.photo_urls.thumb} 200w, ${item.photo_urls.card} 600w`
+              : undefined
+          }
+          sizes="(max-width: 640px) 100vw, 600px"
           alt={item.name}
           loading="lazy"
           data-testid={`item-photo-${item.id}`}
           className="h-40 w-full object-cover"
+          onError={(e) => {
+            // Fall back to original photo_url if variant fails
+            if (item.photo_url && e.currentTarget.src !== item.photo_url) {
+              e.currentTarget.src = item.photo_url;
+              e.currentTarget.srcset = '';
+            }
+          }}
         />
       )}
       <div className="flex flex-1 flex-col p-bw-3">

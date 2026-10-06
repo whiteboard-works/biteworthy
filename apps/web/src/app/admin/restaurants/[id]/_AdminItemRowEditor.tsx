@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   itemEditErrorCopy,
   updateAdminItem,
+  updateAdminItemMultipart,
   type AdminItemEdits,
   type AdminItemRow,
 } from '../../../../lib/admin/management';
@@ -16,6 +17,8 @@ import {
   type ItemDraft,
   draftFromItem,
   editsFromDraft,
+  hasPhotoChanges,
+  formDataFromDraft,
 } from './_ItemDeepEditPanel';
 
 /**
@@ -81,6 +84,31 @@ export function AdminItemRowEditor({
       setError(itemEditErrorCopy(e) ?? friendlyAdminError(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveWithPhoto = async (formData: FormData, thenClose = false) => {
+    setBusy(true);
+    setError(null);
+    try {
+      onUpdated(await updateAdminItemMultipart(item.id, formData));
+      if (thenClose) {
+        setDraft(null);
+        setBaseline(null);
+      }
+    } catch (e) {
+      setError(itemEditErrorCopy(e) ?? friendlyAdminError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAll = async () => {
+    if (!draft || !baseline) return;
+    if (hasPhotoChanges(draft)) {
+      await saveWithPhoto(formDataFromDraft(draft, baseline), true);
+    } else {
+      await save(editsFromDraft(draft, baseline), true);
     }
   };
 
@@ -213,7 +241,7 @@ export function AdminItemRowEditor({
           busy={busy}
           onChange={setDraft}
           onCancel={closeEditor}
-          onSave={() => void save(editsFromDraft(draft, baseline), true)}
+          onSave={() => void saveAll()}
         />
       )}
 

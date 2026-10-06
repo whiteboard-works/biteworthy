@@ -35,6 +35,7 @@ vi.mock('../../../../lib/profile', () => {
     fetchMyReviews: (...a: unknown[]) => mockFetchMyReviews(...a),
     fetchMyFavorites: (...a: unknown[]) => mockFetchMyFavorites(...a),
     NotSignedInError,
+    CHAT_NOTES_MAX_LENGTH: 500,
   };
 });
 import { NotSignedInError } from '../../../../lib/profile';
@@ -62,6 +63,7 @@ vi.mock('../../../../lib/cities', () => ({
 
 const mockFetchMe = vi.fn();
 const mockUpdateMyHandle = vi.fn();
+const mockUpdateMyBio = vi.fn();
 vi.mock('../../../../lib/me', () => {
   class HandleValidationError extends Error {
     constructor(public readonly messages: string[]) {
@@ -72,6 +74,8 @@ vi.mock('../../../../lib/me', () => {
   return {
     fetchMe: (...a: unknown[]) => mockFetchMe(...a),
     updateMyHandle: (...a: unknown[]) => mockUpdateMyHandle(...a),
+    updateMyBio: (...a: unknown[]) => mockUpdateMyBio(...a),
+    BIO_MAX_LENGTH: 300,
     HandleValidationError,
   };
 });
@@ -104,6 +108,7 @@ const PROFILE: ProfilePayload = {
   disliked_ingredients: [],
   disliked_tags: [],
   strictness: 'balanced',
+  chat_notes: null,
   primary_dietary_profile: { id: 'dp-vegan', slug: 'vegan', name: 'Vegan' },
   home_city: null,
   disclaimer_acknowledged_at: '2026-07-01T00:00:00Z',
@@ -114,6 +119,7 @@ const ME = {
   email: 'sky@example.com',
   handle: 'diner_ab12cd34',
   display_name: 'Sky',
+  bio: null as string | null,
   is_admin: false,
   is_super_admin: false,
 };
@@ -146,6 +152,9 @@ beforeEach(() => {
   mockRevokeToken.mockReset().mockResolvedValue(undefined);
   mockFetchMe.mockReset().mockResolvedValue(structuredClone(ME));
   mockUpdateMyHandle.mockReset().mockResolvedValue({ ...structuredClone(ME), handle: 'chosen_name' });
+  mockUpdateMyBio.mockReset().mockImplementation((bio: string) =>
+    Promise.resolve({ ...structuredClone(ME), bio: bio.trim() || null }),
+  );
 });
 
 afterEach(() => localStorage.clear());
@@ -619,6 +628,92 @@ describe('ProfileSettingsPage — public profile (username)', () => {
     expect(await screen.findByTestId('handle-error')).toHaveTextContent(
       'Username has already been taken.',
     );
+  });
+});
+
+describe('ProfileSettingsPage — notes for the assistant', () => {
+  it('prefills saved notes and only enables Save once they change', async () => {
+    mockFetchProfile.mockResolvedValue({ ...structuredClone(PROFILE), chat_notes: 'Pregnant.' });
+    render(<ProfileSettingsPage />);
+
+    const textarea = await screen.findByLabelText('Notes for the assistant');
+    expect(textarea).toHaveValue('Pregnant.');
+    expect(screen.getByTestId('chat-notes-save')).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: 'Pregnant. Mild spice only.' } });
+    expect(screen.getByTestId('chat-notes-save')).toBeEnabled();
+  });
+
+  // Only the notes go up: a PATCH carrying avoid arrays rebuilt from
+  // the mount-time load could drop an allergen another client added.
+  it('patches only chat_notes and confirms', async () => {
+    mockUpdateProfile.mockImplementation((patch: { chat_notes?: string }) =>
+      Promise.resolve({ ...structuredClone(PROFILE), chat_notes: patch.chat_notes ?? null }),
+    );
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Notes for the assistant'), {
+      target: { value: 'Cooking for two kids.' },
+    });
+    fireEvent.click(screen.getByTestId('chat-notes-save'));
+
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ chat_notes: 'Cooking for two kids.' }),
+    );
+    expect(await screen.findByTestId('chat-notes-saved')).toBeInTheDocument();
+  });
+
+  // The notes never filter anything. Someone who writes "peanut allergy"
+  // here must be told it hides nothing until it is on the avoid list.
+  it('says the notes do not filter dishes', async () => {
+    render(<ProfileSettingsPage />);
+    await screen.findByLabelText('Notes for the assistant');
+    expect(screen.getByTestId('chat-notes-help')).toHaveTextContent(/don.t hide dishes/i);
+  });
+});
+
+describe('ProfileSettingsPage — public profile (about)', () => {
+  it('prefills the saved bio and only enables Save once it changes', async () => {
+    mockFetchMe.mockResolvedValue({ ...structuredClone(ME), bio: 'Celiac in Durango.' });
+    render(<ProfileSettingsPage />);
+
+    const textarea = await screen.findByLabelText('About you');
+    expect(textarea).toHaveValue('Celiac in Durango.');
+    expect(screen.getByTestId('bio-save')).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: 'Celiac in Durango. Taco hunter.' } });
+    expect(screen.getByTestId('bio-save')).toBeEnabled();
+  });
+
+  it('saves the bio and confirms, without touching the username', async () => {
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('About you'), {
+      target: { value: 'Vegetarian, dessert first.' },
+    });
+    fireEvent.click(screen.getByTestId('bio-save'));
+
+    await waitFor(() => expect(mockUpdateMyBio).toHaveBeenCalledWith('Vegetarian, dessert first.'));
+    expect(await screen.findByTestId('bio-saved')).toBeInTheDocument();
+    expect(mockUpdateMyHandle).not.toHaveBeenCalled();
+  });
+
+  // The bio is public, and the dietary profile is health data that must
+  // never be public (legal E13). The field says so before anyone types.
+  it('warns that the bio is public', async () => {
+    render(<ProfileSettingsPage />);
+    await screen.findByLabelText('About you');
+    expect(screen.getByTestId('bio-public-note')).toHaveTextContent(/anyone/i);
+  });
+
+  it('shows a failed save inline', async () => {
+    mockUpdateMyBio.mockRejectedValue(new Error('Bio is too long'));
+    render(<ProfileSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText('About you'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByTestId('bio-save'));
+
+    expect(await screen.findByTestId('bio-error')).toHaveTextContent('Bio is too long');
   });
 });
 

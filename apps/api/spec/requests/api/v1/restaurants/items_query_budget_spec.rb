@@ -47,12 +47,12 @@ RSpec.describe "GET /api/v1/restaurants/:id/items query budget", type: :request 
     expect(response.parsed_body["items"].size).to eq(30)
   end
 
-  # restaurant, items, sections, photos, review counts. The parent `menus`
-  # row used to be preloaded too and nothing read it.
+  # restaurant, items, sections, variants, photos, review counts.
+  # The parent `menus` row used to be preloaded too and nothing read it.
   it "reads only what the anonymous menu renders" do
     add_dishes(3)
 
-    expect(menu_queries).to be <= 5
+    expect(menu_queries).to be <= 6
   end
 
   it "costs the same for a long menu as a short one, signed in with avoids and taste" do

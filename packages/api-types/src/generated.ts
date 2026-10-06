@@ -39,6 +39,7 @@ export interface paths {
                                 email: string;
                                 handle: string;
                                 display_name: string | null;
+                                bio: string | null;
                                 provider: string | null;
                                 /** Format: date-time */
                                 created_at: string;
@@ -3928,7 +3929,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update the caller's own account (handle) */
+        /** Update the caller's own account (handle, bio) */
         patch: {
             parameters: {
                 query?: never;
@@ -3943,6 +3944,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         handle?: string;
+                        bio?: string | null;
                     };
                 };
             };
@@ -4259,6 +4261,8 @@ export interface paths {
                         dietary_profile_slug?: string;
                         /** @description A city slug from GET /cities sets the home city; null or blank clears it. */
                         home_city_slug?: string | null;
+                        /** @description Private notes added to every chat's context. Never read by the filter. Trimmed; null or blank clears them. */
+                        chat_notes?: string | null;
                         /** @description When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding. */
                         acknowledge_disclaimer?: boolean;
                     };
@@ -4904,6 +4908,15 @@ export interface paths {
                                 name: string;
                                 region: string | null;
                             };
+                            /** @description IANA timezone (e.g. America/Denver) */
+                            time_zone: string | null;
+                            /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */
+                            hours: {
+                                /** @description 0=Sunday, 6=Saturday */
+                                day_of_week: number;
+                                opens_at: string | null;
+                                closes_at: string | null;
+                            }[];
                             /** @description Always false for an anonymous caller. */
                             favorited: boolean;
                         };
@@ -5241,6 +5254,7 @@ export interface paths {
                         "application/json": {
                             handle: string;
                             display_name: string | null;
+                            bio: string | null;
                             /** Format: date-time */
                             member_since: string;
                             reviews_count: number;
@@ -5397,6 +5411,7 @@ export interface components {
             email: string;
             handle: string;
             display_name?: string | null;
+            bio?: string | null;
             is_admin: boolean;
             /** @description UI gating only. The tier above admin: no spend ceilings, no tool-round cap, no request throttle. Granted from the server (admin:grant_super), never over HTTP, so no endpoint can set it. Rails re-checks the column on every request that acts on it. */
             is_super_admin: boolean;
@@ -5719,6 +5734,7 @@ export interface components {
                 region: string | null;
                 country: string;
             } | null;
+            chat_notes: string | null;
             /** Format: date-time */
             disclaimer_acknowledged_at: string | null;
         };
