@@ -95,8 +95,9 @@ can launch without, or fast-follow.
       80%-published threshold. ~$15. **HARD — coverage *is* the day-one product.**
 - [ ] **Set PostHog keys** — `NEXT_PUBLIC_POSTHOG_KEY` (Vercel) +
       `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
-- [ ] **Remove DRAFT banners** from `apps/web/src/app/privacy/page.tsx` +
-      `terms/page.tsx` (+ source DRAFT comments) — **only after L1 sign-off.**
+- [ ] **Remove the DRAFT banner** from `apps/web/src/app/terms/page.tsx`
+      (+ source DRAFT comments) — **only after L1 sign-off.** The
+      `/privacy` banner came off 2026-10-05 at the owner's call (#785).
 - [x] *(loop-shippable)* Phase 5.1.1-wiring — **DONE.** `deploy-api.yml` runs
       `kamal deploy` on merges touching `apps/api/**`, including auto-merged PRs
       (that needs `AUTOMERGE_TOKEN`, not `GITHUB_TOKEN`, or the merge commit
@@ -130,7 +131,7 @@ Hetzner + Neon + GHCR + DNS ─┐
                              ├─► first `kamal deploy` ─► Resend / R2 / Vercel+domain
 Anthropic billing ─► cassette┘                        └─► seed 30 ─► screenshots ─► eas submit
 Anthropic billing ─► seed 30                                          │
-L1 attorney ─► remove DRAFT banners ─► (store requires signed docs) ──┘ ─► press
+L1 attorney ─► remove /terms DRAFT banner ─► (signed docs) ───────────┘ ─► press
 Apple + Google accounts + icon.svg ─────────────────────────────────► eas submit
 ```
 
@@ -251,7 +252,7 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 - [ ] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ (all done) · **PostHog** key wiring
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
-- [ ] **Remove DRAFT banners** (post-L1)
+- [ ] **Remove the `/terms` DRAFT banner** (post-L1)
 - [ ] **For QR Phase 2:** capture the **Apple Team ID + Android signing SHA-256**
       when setting up the store accounts
 

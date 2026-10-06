@@ -51,4 +51,30 @@ describe('SectionBlock — heading', () => {
     renderSection({ id: 's-1', name: 'Entrees', visible: [item({})], hidden: [] }, true);
     expect(screen.getByRole('heading', { name: 'Entrees' })).toBeInTheDocument();
   });
+
+  describe('photo placeholders', () => {
+    const photo = 'https://example.com/dish.jpg';
+
+    it('gives photo-less dishes a placeholder when the section has a photo', () => {
+      renderSection(
+        {
+          id: 's-1',
+          name: 'Naan',
+          visible: [item({ id: 'a', photo_url: photo }), item({ id: 'b' })],
+          hidden: [],
+        },
+        true,
+      );
+      expect(screen.getByTestId('item-photo-placeholder-b')).toBeInTheDocument();
+    });
+
+    it('keeps compact text cards when no dish in the section has a photo', () => {
+      renderSection(
+        { id: 's-1', name: 'Sides', visible: [item({ id: 'a' }), item({ id: 'b' })], hidden: [] },
+        true,
+      );
+      expect(screen.queryByTestId('item-photo-placeholder-a')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('item-photo-placeholder-b')).not.toBeInTheDocument();
+    });
+  });
 });

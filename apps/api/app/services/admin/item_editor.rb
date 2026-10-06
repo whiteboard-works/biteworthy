@@ -95,30 +95,33 @@ module Admin
     # Preprocess the card variant after attachment for faster first load.
     def handle_photo(attrs)
       if attrs[:remove_photo].to_s == "true"
-        @item.photo.purge if @item.photo.attached?
+        # Use purge_later to avoid blocking the transaction
+        @item.photo.purge_later if @item.photo.attached?
         return
       end
 
-      photo_attached = false
+      preprocess = false
       if attrs[:photo].respond_to?(:tempfile)
         @item.photo.attach(
           io:           attrs[:photo].tempfile,
           filename:     attrs[:photo].original_filename.presence || "dish.jpg",
           content_type: attrs[:photo].content_type.presence
         )
-        photo_attached = true
+        preprocess = true
       elsif attrs[:photo_signed_id].present?
         @item.photo.attach(attrs[:photo_signed_id])
-        photo_attached = true
+        # Skip preprocessing for signed_id - the blob is already stored and
+        # variants will be generated on first access
       end
 
-      # Preprocess the card variant for faster menu page loads (swallow errors
-      # in environments where variant processing is unavailable, e.g. test).
-      if photo_attached && @item.photo.attached?
+      # Preprocess the card variant for faster menu page loads. Only for direct
+      # uploads since signed_id blobs are already stored. Rescue all errors since
+      # preprocessing is optional (it just speeds up first access).
+      if preprocess && @item.photo.attached?
         begin
           @item.photo.variant(:card).processed
-        rescue StandardError => e
-          Rails.logger.warn("Variant preprocessing failed: #{e.message}")
+        rescue => e
+          Rails.logger.warn("Variant preprocessing failed: #{e.class} #{e.message}")
         end
       end
     end

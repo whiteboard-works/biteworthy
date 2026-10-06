@@ -4814,7 +4814,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner";
+                                source: "human" | "ai" | "owner" | "derived";
                                 allergen: boolean;
                             }[];
                             detected_tags: {
@@ -4823,7 +4823,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner";
+                                source: "human" | "ai" | "owner" | "derived";
                             }[];
                         };
                     };

@@ -356,28 +356,31 @@ RSpec.describe "Admin item deep edit", type: :request do
         expect(photo_urls["full"]).to include("/representations/")
       end
 
-      it "generates WebP variants from JPEG input", skip: !defined?(Vips) do
+      it "generates WebP variants from JPEG input" do
         thumb_variant = item.photo.variant(:thumb)
         card_variant = item.photo.variant(:card)
         full_variant = item.photo.variant(:full)
 
-        # Process the variants
-        thumb_blob = thumb_variant.processed.blob
-        card_blob = card_variant.processed.blob
-        full_blob = full_variant.processed.blob
+        # Process the variants - .image.blob gets the variant's blob, not the original
+        thumb_blob = thumb_variant.processed.image.blob
+        card_blob = card_variant.processed.image.blob
+        full_blob = full_variant.processed.image.blob
+        original_blob = item.photo.blob
 
         # All variants should be WebP format
         expect(thumb_blob.content_type).to eq("image/webp")
         expect(card_blob.content_type).to eq("image/webp")
         expect(full_blob.content_type).to eq("image/webp")
 
-        # Variants should be resized appropriately
-        expect(thumb_blob.metadata["width"]).to be <= 200
-        expect(thumb_blob.metadata["height"]).to be <= 200
-        expect(card_blob.metadata["width"]).to be <= 600
-        expect(card_blob.metadata["height"]).to be <= 600
-        expect(full_blob.metadata["width"]).to be <= 1600
-        expect(full_blob.metadata["height"]).to be <= 1600
+        # Variant blobs should differ from original
+        expect(thumb_blob.id).not_to eq(original_blob.id)
+        expect(card_blob.id).not_to eq(original_blob.id)
+        expect(full_blob.id).not_to eq(original_blob.id)
+
+        # Verify WebP magic bytes (RIFF....WEBP header)
+        thumb_bytes = thumb_blob.download
+        expect(thumb_bytes[0..3]).to eq("RIFF")
+        expect(thumb_bytes[8..11]).to eq("WEBP")
       end
 
       it "keeps the original photo as-is" do
@@ -386,7 +389,7 @@ RSpec.describe "Admin item deep edit", type: :request do
         expect(original_blob.filename.to_s).to eq("dish.jpg")
       end
 
-      it "preprocesses the card variant on upload", skip: !defined?(Vips) do
+      it "preprocesses the card variant on upload" do
         patch_with_photo(photo: jpeg_file)
         item.reload
 

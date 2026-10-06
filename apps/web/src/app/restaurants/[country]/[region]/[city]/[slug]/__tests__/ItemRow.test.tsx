@@ -27,11 +27,12 @@ const baseItem: RestaurantItem = {
   photo_url: null,
 };
 
-function renderRow(item: Partial<RestaurantItem>) {
+function renderRow(item: Partial<RestaurantItem>, opts: { photoPlaceholder?: boolean } = {}) {
   return render(
     <ul>
       <ItemRow
         item={{ ...baseItem, ...item }}
+        photoPlaceholder={opts.photoPlaceholder}
         basePath="/restaurants/usa/colorado/durango/cream-bean-berry"
         overridden={false}
         onToggleOverride={vi.fn()}
@@ -58,10 +59,27 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
   });
 
   it('renders no media block at all when photo_url is null', () => {
-    // No placeholder tile either: a media block has to be earned by a
-    // real photo, so photo-less cards stay compact.
+    // A section with no photos at all keeps compact text cards.
     const { container } = renderRow({ photo_url: null });
     expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByTestId('item-photo-placeholder-item-1')).not.toBeInTheDocument();
+  });
+
+  // In a section where other dishes have photos, a photo-less card
+  // gets a same-height tile so the grid lines up.
+  it('renders a decorative placeholder when asked and there is no photo', () => {
+    renderRow({ photo_url: null }, { photoPlaceholder: true });
+    const tile = screen.getByTestId('item-photo-placeholder-item-1');
+    expect(tile).toHaveAttribute('aria-hidden', 'true');
+    // One column on phones: nothing to line up, so the tile only shows
+    // from `sm` up, where the grid has rows.
+    expect(tile).toHaveClass('hidden', 'sm:flex');
+  });
+
+  it('prefers the real photo over the placeholder', () => {
+    renderRow({ photo_url: 'https://example.com/dish.jpg' }, { photoPlaceholder: true });
+    expect(screen.getByTestId('item-photo-item-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('item-photo-placeholder-item-1')).not.toBeInTheDocument();
   });
 });
 
