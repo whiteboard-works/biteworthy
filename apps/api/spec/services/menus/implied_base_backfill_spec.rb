@@ -238,6 +238,28 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(stir_fry.reload.denormalized_ingredient_ids).to include(wheat.id)
     end
 
+    # A possible wheat correction must not hold back a barley row that no
+    # rule ever added: each base is judged on its own.
+    it "writes a new barley row even when the dish's wheat goes to review" do
+      sandwich = created_at!(create(:item, :published, name: "Fish Sandwich",
+                                                       description: "Malt vinegar on the side."),
+                             Time.utc(2026, 9, 15))
+
+      result = run
+
+      expect(result.reviews.map(&:ingredient_slugs)).to eq([ [ "grain-wheat" ] ])
+      expect(result.changes.map(&:ingredient_slugs)).to eq([ [ "grain-barley" ] ])
+      expect(sandwich.reload.denormalized_ingredient_ids).to include(barley.id)
+      expect(sandwich.denormalized_ingredient_ids).not_to include(wheat.id)
+    end
+
+    it "writes wheat and barley on one dish without tripping over the shared tag" do
+      plate = create(:item, :published, name: "Fish Sandwich", description: "Malt vinegar on the side.")
+      expect(run.failures).to be_empty
+      expect(plate.reload.denormalized_ingredient_ids).to include(wheat.id, barley.id)
+      expect(plate.item_tags.where(tag: gluten_tag).count).to eq(1)
+    end
+
     # The base is barley here, not wheat: a dish can need barley whatever
     # happened to its wheat.
     it "adds barley for malt vinegar" do
