@@ -1,4 +1,4 @@
-import { fetchMe, MeError, MeValidationError, updateMyHandle } from '../../lib/api/me';
+import { fetchMe, MeError, MeValidationError, updateMyBio, updateMyHandle } from '../../lib/api/me';
 
 const sampleUser = {
   id: 'u-1',
@@ -75,5 +75,26 @@ describe('updateMyHandle (mobile)', () => {
     await expect(updateMyHandle('fine_name', 'jwt-123', { fetchImpl })).rejects.toBeInstanceOf(
       MeError,
     );
+  });
+});
+
+describe('updateMyBio (mobile)', () => {
+  it('PATCHes only the bio and returns the server payload', async () => {
+    const fetchImpl = fakeFetch(200, { user: { ...sampleUser, bio: 'Taco hunter.' } });
+    const out = await updateMyBio('Taco hunter.', 'jwt-123', { fetchImpl });
+
+    expect(out.bio).toBe('Taco hunter.');
+    const init = fetchImpl.mock.calls[0]![1] as { method: string; body: string };
+    expect(init.method).toBe('PATCH');
+    // Bio alone: a stale handle riding along could undo a rename.
+    expect(JSON.parse(init.body)).toEqual({ bio: 'Taco hunter.' });
+  });
+
+  it('rethrows a 422 as MeValidationError with the bio messages', async () => {
+    const fetchImpl = fakeFetch(422, { errors: { bio: ['is too long (maximum is 300 characters)'] } });
+    await expect(updateMyBio('x'.repeat(301), 'jwt-123', { fetchImpl })).rejects.toMatchObject({
+      name: 'MeValidationError',
+      messages: ['is too long (maximum is 300 characters)'],
+    });
   });
 });

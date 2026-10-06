@@ -21,6 +21,7 @@ jest.mock('../../lib/auth', () => ({
 
 const mockFetchMe = jest.fn();
 const mockUpdateMyHandle = jest.fn();
+const mockUpdateMyBio = jest.fn();
 jest.mock('../../lib/api/me', () => {
   // Plain field assignment, not a TS parameter property — the hoist
   // checker rejects the desugared reference unless it is mock-prefixed.
@@ -43,11 +44,32 @@ jest.mock('../../lib/api/me', () => {
   return {
     fetchMe: (...args: unknown[]) => mockFetchMe(...args),
     updateMyHandle: (...args: unknown[]) => mockUpdateMyHandle(...args),
+    updateMyBio: (...args: unknown[]) => mockUpdateMyBio(...args),
+    BIO_MAX_LENGTH: 300,
     MeError,
     MeValidationError,
   };
 });
 import { MeError, MeValidationError } from '../../lib/api/me';
+
+const mockFetchChatNotes = jest.fn();
+const mockSaveChatNotes = jest.fn();
+jest.mock('../../lib/api/profile', () => {
+  class ProfileError extends Error {
+    readonly status: number;
+    constructor(mockStatus: number, message: string) {
+      super(message);
+      this.name = 'ProfileError';
+      this.status = mockStatus;
+    }
+  }
+  return {
+    fetchChatNotes: (...args: unknown[]) => mockFetchChatNotes(...args),
+    saveChatNotes: (...args: unknown[]) => mockSaveChatNotes(...args),
+    CHAT_NOTES_MAX_LENGTH: 500,
+    ProfileError,
+  };
+});
 
 import { act, configure, fireEvent, render, screen } from '@testing-library/react-native';
 import AccountSettingsScreen from '../../app/settings/account';
@@ -66,6 +88,7 @@ const ME = {
   email: 'sky@example.com',
   handle: 'diner_ab12cd34',
   display_name: 'Sky',
+  bio: null as string | null,
   is_admin: false,
   is_super_admin: false,
 };
@@ -76,6 +99,13 @@ beforeEach(() => {
   mockGetJwt.mockReset().mockResolvedValue('jwt-123');
   mockFetchMe.mockReset().mockResolvedValue({ ...ME });
   mockUpdateMyHandle.mockReset().mockResolvedValue({ ...ME, handle: 'chosen_name' });
+  mockUpdateMyBio
+    .mockReset()
+    .mockImplementation((bio: string) => Promise.resolve({ ...ME, bio: bio.trim() || null }));
+  mockFetchChatNotes.mockReset().mockResolvedValue(null);
+  mockSaveChatNotes
+    .mockReset()
+    .mockImplementation((notes: string) => Promise.resolve(notes.trim() || null));
 });
 
 describe('AccountSettingsScreen', () => {
@@ -151,5 +181,79 @@ describe('AccountSettingsScreen', () => {
 
     fireEvent.press(screen.getByLabelText('view-public-profile'));
     expect(mockPush).toHaveBeenCalledWith('/users/diner_ab12cd34');
+  });
+
+  describe('about you (public bio)', () => {
+    it('prefills the bio and saves only the bio', async () => {
+      mockFetchMe.mockResolvedValue({ ...ME, bio: 'Celiac in Durango.' });
+      render(<AccountSettingsScreen />);
+
+      const input = await screen.findByLabelText('bio');
+      expect(input.props.value).toBe('Celiac in Durango.');
+
+      fireEvent.changeText(input, 'Taco hunter.');
+      await act(async () => {
+        fireEvent.press(screen.getByLabelText('bio-save'));
+      });
+
+      expect(mockUpdateMyBio).toHaveBeenCalledWith('Taco hunter.', 'jwt-123');
+      expect(mockUpdateMyHandle).not.toHaveBeenCalled();
+      expect(screen.getByTestId('bio-saved')).toBeTruthy();
+    });
+
+    // The bio is public and the dietary profile is health data that
+    // must never be (legal E13). The field says so before anyone types.
+    it('warns that the bio is public', async () => {
+      render(<AccountSettingsScreen />);
+      await screen.findByLabelText('bio');
+      expect(screen.getByTestId('bio-public-note')).toHaveTextContent(/anyone/i);
+    });
+
+    it('shows a rejected bio inline', async () => {
+      mockUpdateMyBio.mockRejectedValue(new MeValidationError(['is too long']));
+      render(<AccountSettingsScreen />);
+
+      fireEvent.changeText(await screen.findByLabelText('bio'), 'x');
+      await act(async () => {
+        fireEvent.press(screen.getByLabelText('bio-save'));
+      });
+
+      expect(screen.getByTestId('bio-error')).toHaveTextContent('Bio is too long.');
+    });
+  });
+
+  describe('notes for the assistant (private)', () => {
+    it('prefills saved notes and saves them', async () => {
+      mockFetchChatNotes.mockResolvedValue('Pregnant.');
+      render(<AccountSettingsScreen />);
+
+      const input = await screen.findByLabelText('chat-notes');
+      expect(input.props.value).toBe('Pregnant.');
+
+      fireEvent.changeText(input, 'Pregnant. Mild spice only.');
+      await act(async () => {
+        fireEvent.press(screen.getByLabelText('chat-notes-save'));
+      });
+
+      expect(mockSaveChatNotes).toHaveBeenCalledWith('Pregnant. Mild spice only.', 'jwt-123');
+      expect(screen.getByTestId('chat-notes-saved')).toBeTruthy();
+    });
+
+    // The notes never filter anything. Someone who writes "peanut
+    // allergy" here must be told it hides nothing until it is on the
+    // avoid list.
+    it('says the notes do not hide dishes', async () => {
+      render(<AccountSettingsScreen />);
+      await screen.findByLabelText('chat-notes');
+      expect(screen.getByTestId('chat-notes-help')).toHaveTextContent(/don.t hide dishes/i);
+    });
+
+    it('keeps the rest of the screen working when the notes fail to load', async () => {
+      mockFetchChatNotes.mockRejectedValue(new Error('fetchChatNotes failed: 500'));
+      render(<AccountSettingsScreen />);
+
+      expect(await screen.findByLabelText('username')).toBeTruthy();
+      expect(await screen.findByTestId('chat-notes-load-error')).toBeTruthy();
+    });
   });
 });

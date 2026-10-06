@@ -28,11 +28,11 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
-## Profile: about + chat notes (in progress, 2026-10-05)
+## Profile: about + chat notes (shipped 2026-10-06)
 
 - [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.
 - [x] Chat notes — `user_profiles.chat_notes` (500 chars, private), edited under "Notes for the assistant" in settings via `PATCH /profile`, fenced into the chat prompt's caller section as data the filter never reads (kept out of tool results, which are stored), and included in the account export. The privacy page now says the chat sends the profile and notes to Anthropic.
-- [ ] Mobile — edit the bio and chat notes, show the bio on `users/[handle]`.
+- [x] Mobile — Settings → Account edits the bio and the chat notes, and `users/[handle]` shows the bio.
 
 ## MVP speed + UI pass (shipped 2026-09-27, #695–#707)
 
