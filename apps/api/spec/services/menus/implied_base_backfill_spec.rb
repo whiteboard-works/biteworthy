@@ -164,6 +164,21 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     # "biscuit" was a #638 name keyword, so a September biscuit got wheat
     # then. No wheat now means a person removed it, and #766's biscuit
     # ingredient must not put it back.
+    # Same correction, but the description names something the removal
+    # did not cover. Not written over the correction, not dropped either.
+    it "sends a corrected dish's description matches to review, never writes them" do
+      sandwich = created_at!(create(:item, :published, name: "Chicken Sandwich", description: "Breaded chicken, no bun."),
+                             Time.utc(2026, 9, 15))
+      sandwich.update_columns(updated_at: Time.utc(2026, 9, 20))
+
+      result = run
+
+      expect(result.changes).to be_empty
+      expect(result.reviews.map(&:item_id)).to eq([ sandwich.id ])
+      expect(result.reviews.first.ingredient_slugs).to eq([ "grain-wheat-breading" ])
+      expect(sandwich.reload.denormalized_ingredient_ids).not_to include(breading.id)
+    end
+
     it "leaves alone a dish whose old name keyword was live and whose wheat is gone" do
       create(:ingredient, slug: "grain-wheat-bread-biscuit", name: "Biscuit", path: "grain.wheat.bread.biscuit")
       created_at!(create(:item, :published, name: "Biscuit"), Time.utc(2026, 9, 15))

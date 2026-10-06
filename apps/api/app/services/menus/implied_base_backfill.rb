@@ -101,12 +101,16 @@ module Menus
       has_wheat = existing.any? { |e| e[:path].start_with?("grain.wheat") }
 
       # A name keyword live when the dish was promoted gave it wheat then.
-      # No wheat now means a person removed it; no rule may put it back.
+      # No wheat now means a person removed it, so nothing the name says
+      # may put it back. The description can still name something else
+      # (a bunless sandwich that is still "breaded"); those rows go out
+      # with the old cutoff, which lands them on the review list, since
+      # the dish has been edited since. A person decides; nothing writes.
       name_cutoff = name_cutoff(item.name)
-      return nil if name_cutoff && item.created_at >= name_cutoff && !has_wheat
+      corrected = name_cutoff && item.created_at >= name_cutoff && !has_wheat
 
-      text = item.created_at < LIVE_SINCE_766 ? text_rows(item, existing) : []
-      implied = name_cutoff && item.created_at < name_cutoff ? @resolver.implied_rows_for_name(item.name, existing + text) : []
+      text = item.created_at < LIVE_SINCE_766 ? text_rows(item, existing, description_only: corrected) : []
+      implied = !corrected && name_cutoff && item.created_at < name_cutoff ? @resolver.implied_rows_for_name(item.name, existing + text) : []
       rows = text + implied
       return nil if rows.empty?
 
@@ -132,9 +136,9 @@ module Menus
     # cover these: avoiding gravy expands down the tree, not up, so a
     # dish needs the gravy row itself. Skipped only when that node or one
     # below it is already there.
-    def text_rows(item, existing)
+    def text_rows(item, existing, description_only: false)
       claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
-      in_name = @matcher.scan(item.name).first.reject do |m|
+      in_name = description_only ? [] : @matcher.scan(item.name).first.reject do |m|
         Ingestion::DietClaims.contradicted?(claims, slug: m[:slug], path: m[:path])
       end
       in_description = @matcher.scan(item.description).first
