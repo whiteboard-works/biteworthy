@@ -119,20 +119,20 @@ export function TopPicksRow({
         <h2 className="text-bw-xl font-bold leading-tight text-bite-dark sm:text-bw-2xl">
           Your best bets here
         </h2>
-        <div className="flex items-baseline gap-bw-4 whitespace-nowrap sm:flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-bw-4 sm:flex-1">
           <button
             type="button"
             data-testid="why-these"
             aria-expanded={whyOpen}
             onClick={() => setWhyOpen((v) => !v)}
-            className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
+            className="py-bw-1 text-bw-xs font-semibold text-bite hover:text-bite-dark"
           >
             Why these?
           </button>
           <a
             href="/onboarding?step=taste"
             data-testid="improve-picks"
-            className="ml-auto text-bw-xs font-semibold text-bite hover:text-bite-dark"
+            className="ml-auto py-bw-1 text-bw-xs font-semibold text-bite hover:text-bite-dark"
           >
             Improve my picks
           </a>
@@ -145,7 +145,7 @@ export function TopPicksRow({
           to enjoy.
         </p>
       )}
-      <ul className="-mx-bw-4 mt-bw-4 flex snap-x snap-mandatory scroll-px-bw-4 gap-bw-3 overflow-x-auto px-bw-4 pb-bw-2">
+      <ul className="-mx-bw-4 mt-bw-4 flex snap-x snap-proximity scroll-px-bw-4 gap-bw-3 overflow-x-auto px-bw-4 pb-bw-2">
         {picks.map((item) => {
           const reason = tasteReasonLine(item.taste_reasons);
           return (
@@ -172,7 +172,7 @@ export function TopPicksRow({
                         ? `${item.photo_urls.thumb} 200w, ${item.photo_urls.card} 600w`
                         : undefined
                     }
-                    sizes="200px"
+                    sizes="(min-width: 640px) 168px, 152px"
                     alt={item.name}
                     loading="lazy"
                     className="mb-bw-2 h-24 w-full rounded-bw-md object-cover sm:h-28"
