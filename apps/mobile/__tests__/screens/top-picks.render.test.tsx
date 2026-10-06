@@ -6,10 +6,11 @@
  * matching the web row's empty states.
  */
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => mockPush(...args),
-    replace: jest.fn(),
+    replace: (...args: unknown[]) => mockReplace(...args),
     back: jest.fn(),
   },
   Link: 'Link',
@@ -51,6 +52,7 @@ const threePicks: RestaurantItem[] = [
 describe('TopPicksRow (mobile, Phase 8.4)', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    mockReplace.mockClear();
   });
 
   it('renders cards + the "because you like…" line at ≥3 positive scores', () => {
@@ -97,8 +99,9 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
     const anonymous = threePicks.map((i) => ({ ...i, taste_score: null, taste_reasons: [] }));
     render(<TopPicksRow items={anonymous} restaurantId="rest-1" signedIn={false} />);
     expect(screen.queryByTestId('top-picks')).toBeNull();
-    fireEvent.press(screen.getByLabelText('top-picks-sign-in'));
-    expect(mockPush).toHaveBeenCalledWith('/login?next=%2Frestaurants%2Frest-1');
+    fireEvent.press(screen.getByLabelText('Sign in to see your best bets here'));
+    // replace, so Back after signing in can't reveal the stale signed-out screen.
+    expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Frestaurants%2Frest-1');
   });
 
   it('tapping a card opens the item screen', () => {

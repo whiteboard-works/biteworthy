@@ -34,21 +34,22 @@ function EmptyState({
 }) {
   if (!signedIn) {
     return (
-      <View style={styles.banner} testID="top-picks-signed-out">
+      <Pressable
+        style={styles.banner}
+        testID="top-picks-signed-out"
+        accessibilityRole="link"
+        accessibilityLabel="Sign in to see your best bets here"
+        // replace, not push: login replaces itself with `next`, so a push
+        // would leave this signed-out screen underneath for Back to reveal.
+        onPress={() =>
+          router.replace(`/login?next=${encodeURIComponent(`/restaurants/${restaurantId}`)}`)
+        }
+      >
         <Text style={styles.bannerText}>
-          <Text
-            accessibilityRole="link"
-            accessibilityLabel="top-picks-sign-in"
-            onPress={() =>
-              router.push(`/login?next=${encodeURIComponent(`/restaurants/${restaurantId}`)}`)
-            }
-            style={styles.bannerLink}
-          >
-            Sign in
-          </Text>{' '}
-          and save a few dishes you like to see your best bets here.
+          <Text style={styles.bannerLink}>Sign in</Text> and save a few dishes you like to see your
+          best bets here.
         </Text>
-      </View>
+      </Pressable>
     );
   }
 
@@ -260,6 +261,6 @@ const styles = StyleSheet.create({
   almost: {
     marginTop: space['4'],
     fontSize: fontSize.xs,
-    color: colors.hide,
+    color: colors.textMuted,
   },
 });
