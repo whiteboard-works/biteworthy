@@ -338,9 +338,16 @@ the fetch door — `start_menu_scan` and discover both return `forbidden_host`
 with a next_step naming own-site / paste / upload. Community
 `create_restaurant` accepts optional website, phone, and hours so import
 does not need admin `edit_place`. `clone_menu` copies published dishes
-(joins, prices, confidence/source as-is) onto an empty restaurant the
-caller created; it never writes `items.ingredient_ids` / `tag_ids`
-directly.
+(joins, prices) onto an empty restaurant the caller created; it never
+writes `items.ingredient_ids` / `tag_ids` directly. Community clones
+write item and join confidence at `suggested` (never higher than the
+source) — the same trust as a community accept — so a confirmed dish
+at location A is not treated as human-confirmed at location B. Admin
+clones keep confidence as-is. A published source publishes the sibling
+(clone has no ingestion run, so `maybe_publish!` would never fire).
+Photos are copied as new blobs so a later replace/purge on either
+item cannot delete the other's file. The copy is one transaction: a
+mid-clone failure leaves the target empty so retry is not blocked.
 
 Two properties the tools enforce rather than trust the model with:
 

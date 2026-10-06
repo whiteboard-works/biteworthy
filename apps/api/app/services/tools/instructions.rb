@@ -114,8 +114,11 @@ module Tools
 
       When the menus match: create the chosen locations, `start_menu_scan`
       the shared own-site source on the first, review and accept, then
-      `clone_menu` onto each empty sibling. If the site says menus differ
-      per location, scan each from its own source instead of cloning.
+      `clone_menu` onto each empty sibling. A published source publishes
+      the sibling so it appears in search; a community clone writes
+      confidence as suggested, not confirmed. If the site says menus
+      differ per location, scan each from its own source instead of
+      cloning.
     MARKDOWN
 
     def self.text = TEXT

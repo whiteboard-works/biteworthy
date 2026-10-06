@@ -20,9 +20,11 @@ module Tools
         they differ, start_menu_scan each location from its own source
         instead.
 
-        The target must have no dishes yet. Confidence and source on
-        every ingredient and tag are copied as-is — this does not
-        re-extract and does not confirm unverified data.
+        The target must have no dishes yet. This does not re-extract.
+        A community clone writes item and join confidence at suggested
+        (never higher than the source) — the same trust as a community
+        accept. Admin clones keep confidence as-is. A published source
+        publishes the sibling so it can appear in search.
       TEXT
 
       input_schema(
@@ -59,11 +61,24 @@ module Tools
           sections_cloned: result.sections_cloned,
           source:          result.source,
           target:          result.target,
-          next_step:       "Hours and address stay on each restaurant. Scan a sibling separately if its menu differs."
+          next_step:       next_step_for(result)
         )
       rescue ::Menus::Clone::Error => e
         raise Errors::InvalidArgument, e.message
       end
+
+      def self.next_step_for(result)
+        visibility =
+          if result.target[:status] == "published"
+            "The sibling is now published with the cloned menu."
+          else
+            "The sibling stays a draft because the source is not published, " \
+              "so it will not appear in search yet."
+          end
+        "#{visibility} Hours and address stay on each restaurant. " \
+          "Scan a sibling separately if its menu differs."
+      end
+      private_class_method :next_step_for
     end
   end
 end

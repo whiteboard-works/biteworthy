@@ -85,7 +85,8 @@ module Tools
               "ordering pages are refused. Discover first; ask which locations and which " \
               "menu URL. One Restaurant row per physical spot (distinct names when the " \
               "brand repeats). Scan and accept once when menus match, then clone_menu " \
-              "onto empty siblings. Hours, phone, and website go on create_restaurant."
+              "onto empty siblings (a published source publishes the sibling). Hours, " \
+              "phone, and website go on create_restaurant."
       },
       {
         # Public because all three steps are. Leaving it at :user would

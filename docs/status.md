@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **clone_menu review fixes (#817).** Community clones now write item/join confidence at `suggested` (never higher than the source) so a confirmed dish cannot be laundered onto an unverified location. The copy is one transaction (mid-failure leaves the target empty). A published source publishes the sibling — clone has no ingestion run, so `maybe_publish!` would never fire. Photos are copied as new blobs so a later replace/purge cannot delete the other's file.
+
 2026-10-06 (UTC) — **Chat website-seed import (ToS-safe, multi-location).** Pasting a restaurant's own site can now discover same-origin menu URLs and JSON-LD locations (`discover_restaurant_site`), create each physical spot with website/phone/hours on `create_restaurant`, scan once, and `clone_menu` accepted dishes onto empty siblings. `Ingestion::HostPolicy` refuses DoorDash / order.online, Google Maps, and Toast ordering HTML at UrlFetcher + start_menu_scan with a next_step naming own-site / paste / upload. Topology + instructions teach the flow. No brand-parent schema; Caracas curated rows are not touched.
 
 2026-10-06 (UTC) — **Mobile: Top Picks matches the web best-bets row.** `_TopPicksRow` now says "Your best bets here" in the tinted bordered box, puts Why these? / Improve my picks on their own row, bleeds the card strip to the box edge with snap scrolling, and uses the web card sizing. With no picks it shows the web empty states instead of nothing: signed out → Sign in (returns to `/restaurants/<id>`), signed in with no taste scores → start rating, some scores but under 3 picks → quiet nudge. Web side was #801.

@@ -7,13 +7,29 @@ module Menus
   #
   # Joins are written as join rows (never `items.ingredient_ids` /
   # `items.tag_ids` directly) so SyncsDenormalizedIds keeps the arrays
-  # honest. Confidence and source are copied as-is: a confirmed Caracas
-  # dish stays confirmed; a community-accepted suggested dish stays
-  # suggested.
+  # honest.
+  #
+  # Trust matches a community accept: a non-admin clone writes item and
+  # join confidence at `suggested`, never higher than the source. A
+  # confirmed dish at location A is not human-confirmed at location B.
+  # Admin clones keep confidence as-is.
+  #
+  # The whole copy runs in one transaction so a mid-clone failure cannot
+  # leave the target half-filled (the empty-menu guard would then block
+  # retry). Photos are copied as new blobs — sharing one blob would let
+  # a later purge/replace on either item delete the other's file.
+  #
+  # A published source publishes the target. Clone has no ingestion run,
+  # so `IngestionRun#maybe_publish!` would never fire and a community
+  # sibling would stay draft (invisible in search) forever.
   class Clone
     class Error < StandardError; end
 
     Result = Struct.new(:items_cloned, :sections_cloned, :source, :target, keyword_init: true)
+
+    # Weaker first. A community clone may keep `inferred` but must not
+    # write anything stronger than `suggested`.
+    CONFIDENCE_RANK = { "inferred" => 0, "suggested" => 1, "confirmed" => 2 }.freeze
 
     def self.call(source:, target:, actor:)
       new(source: source, target: target, actor: actor).call
@@ -29,26 +45,33 @@ module Menus
       authorize!
       dishes = source_dishes
       raise Error, "The source restaurant has no published dishes to clone." if dishes.empty?
-      if @target.items.exists?
-        raise Error, "The target restaurant already has dishes. Clone only onto an empty menu."
-      end
 
-      items_cloned = 0
-      section_map  = {}
-
-      Item.defer_denormalization do
-        dishes.each do |item|
-          clone_item!(item, section_for(item.menu_section, section_map))
-          items_cloned += 1
+      result = nil
+      ActiveRecord::Base.transaction do
+        if @target.items.exists?
+          raise Error, "The target restaurant already has dishes. Clone only onto an empty menu."
         end
-      end
 
-      Result.new(
-        items_cloned:    items_cloned,
-        sections_cloned: section_map.size,
-        source:          { id: @source.id, slug: @source.slug, name: @source.name },
-        target:          { id: @target.id, slug: @target.slug, name: @target.name }
-      )
+        items_cloned = 0
+        section_map  = {}
+
+        Item.defer_denormalization do
+          dishes.each do |item|
+            clone_item!(item, section_for(item.menu_section, section_map))
+            items_cloned += 1
+          end
+        end
+
+        publish_target_if_source_live!
+
+        result = Result.new(
+          items_cloned:    items_cloned,
+          sections_cloned: section_map.size,
+          source:          restaurant_payload(@source),
+          target:          restaurant_payload(@target.reload)
+        )
+      end
+      result
     end
 
     private
@@ -74,7 +97,9 @@ module Menus
 
     def source_dishes
       @source.items.published
-             .includes(:item_ingredients, :item_tags, :item_variants, :item_modifiers, menu_section: :menu)
+             .with_attached_photo
+             .includes(:item_ingredients, :item_tags, :item_variants, :item_modifiers,
+                       menu_section: :menu)
              .order(:position, :name)
              .to_a
     end
@@ -94,13 +119,14 @@ module Menus
     end
 
     def clone_item!(item, section)
+      confidence = clone_confidence(item.confidence)
       clone = Item.create!(
         restaurant:         @target,
         menu_section:       section,
         name:               item.name,
         description:        item.description,
         status:             item.status,
-        confidence:         item.confidence,
+        confidence:         confidence,
         position:           item.position,
         created_by_user_id: @actor&.id
       )
@@ -108,13 +134,13 @@ module Menus
       item.item_ingredients.each do |join|
         ItemIngredient.create!(
           item: clone, ingredient_id: join.ingredient_id,
-          confidence: join.confidence, source: join.source
+          confidence: clone_confidence(join.confidence), source: join.source
         )
       end
       item.item_tags.each do |join|
         ItemTag.create!(
           item: clone, tag_id: join.tag_id,
-          confidence: join.confidence, source: join.source
+          confidence: clone_confidence(join.confidence), source: join.source
         )
       end
       item.item_variants.each do |variant|
@@ -130,8 +156,39 @@ module Menus
           ingredient_ids: modifier.ingredient_ids, tag_ids: modifier.tag_ids
         )
       end
-      clone.photo.attach(item.photo.blob) if item.photo.attached?
+      copy_photo!(item, clone)
       clone
+    end
+
+    def clone_confidence(value)
+      return value if @actor&.is_admin?
+
+      [ value, "suggested" ].min_by { |confidence| CONFIDENCE_RANK.fetch(confidence, -1) }
+    end
+
+    # New blob, same bytes. `attach(blob)` would share one file, and
+    # ItemEditor / DishPhotos::Moderate purge the replaced blob without
+    # checking other attachments (`purge_later` / `dependent: :purge_later`).
+    def copy_photo!(item, clone)
+      return unless item.photo.attached?
+
+      blob = item.photo.blob
+      clone.photo.attach(
+        io:           StringIO.new(item.photo.download),
+        filename:     blob.filename,
+        content_type: blob.content_type
+      )
+    end
+
+    def publish_target_if_source_live!
+      return unless @source.status == "published"
+      return if @target.status == "published"
+
+      @target.update!(status: "published")
+    end
+
+    def restaurant_payload(restaurant)
+      { id: restaurant.id, slug: restaurant.slug, name: restaurant.name, status: restaurant.status }
     end
   end
 end
