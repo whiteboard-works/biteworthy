@@ -254,7 +254,7 @@ provider up again on a new box:
 
 ### 10. Backfill implied wheat on dishes published before #766 — open (2026-10-05)
 
-**Unlocks:** Celiac users stop seeing old samosas, rellenos, biscuits, and similar dishes as safe.
+**Unlocks:** Celiac users stop seeing old samosas, rellenos, biscuits, gravies, breaded dishes, and similar as safe.
 
 Dishes promoted before the implied-base table grew lack the wheat their names imply. Run the dry run, read the list, then apply:
 

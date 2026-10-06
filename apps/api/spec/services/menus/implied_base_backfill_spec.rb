@@ -123,6 +123,47 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     expect(pizza.reload.denormalized_ingredient_ids).not_to include(wheat.id)
   end
 
+  # #766 also added wheat ingredients that scans match from the dish
+  # text, not the name table. Old dishes never met them.
+  describe "#766's text-matched wheat ingredients" do
+    let!(:gravy) do
+      create(:ingredient, slug: "grain-wheat-gravy", name: "Wheat-Based Gravy",
+                          path: "grain.wheat.gravy", aliases: [ "country gravy" ])
+    end
+    let!(:breading) do
+      create(:ingredient, slug: "grain-wheat-breading", name: "Breading",
+                          path: "grain.wheat.breading", aliases: [ "breaded" ])
+    end
+
+    it "adds the matched ingredient from the name" do
+      item = create(:item, :published, name: "Chicken Fried Steak with Country Gravy")
+      run
+      expect(item.reload.denormalized_ingredient_ids).to include(gravy.id)
+      expect(item.denormalized_tag_ids).to include(gluten_tag.id)
+    end
+
+    it "adds the matched ingredient from the description" do
+      item = create(:item, :published, name: "Fish Plate", description: "Breaded cod, fries.")
+      run
+      expect(item.reload.denormalized_ingredient_ids).to include(breading.id)
+    end
+
+    it "skips a dish that already has wheat" do
+      create(:item, :published, name: "Country Gravy", ingredients: [ wheat ])
+      expect(run.changes).to be_empty
+    end
+
+    it "respects a gluten-free claim in the name" do
+      create(:item, :published, name: "Gluten-Free Country Gravy")
+      expect(run.changes).to be_empty
+    end
+
+    it "leaves a dish promoted after #766 alone" do
+      created_at!(create(:item, :published, name: "Country Gravy"), described_class::LIVE_SINCE_766 + 1.hour)
+      expect(run.changes).to be_empty
+    end
+  end
+
   it "reports a dish as written even when the progress callback fails" do
     samosa = create(:item, :published, name: "Samosa")
     expect { described_class.call(apply: true) { raise IOError, "stdout closed" } }.to raise_error(IOError)

@@ -23,6 +23,14 @@ module Menus
     LIVE_SINCE_638 = Time.utc(2026, 8, 18)      # #638, the original table
     LIVE_SINCE_766 = Time.utc(2026, 10, 6, 2)   # #766, the three above
 
+    # #766 also added wheat ingredients that a scan matches from the dish
+    # text (name and description), not from the name table: "Country
+    # Gravy", "breaded cod". Old dishes never met them.
+    TEXT_SLUGS_SINCE_766 = %w[
+      grain-wheat-pancake grain-wheat-bread-biscuit grain-wheat-bread-english-muffin
+      grain-wheat-batter grain-wheat-breading grain-wheat-roux grain-wheat-gravy
+    ].freeze
+
     LATER_TERMS = Ingestion::DeterministicResolver::IMPLIED_BASE_TERMS.transform_values do |terms|
       terms.select { |t| KEYWORDS_SINCE_766.any? { |k| t.start_with?(k) } }
     end.freeze
@@ -30,7 +38,10 @@ module Menus
       [ slug, terms - LATER_TERMS.fetch(slug) ]
     end.freeze
 
-    Change = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name, :ingredient_slugs, :tag_slugs)
+    # `cutoff` is when the earliest rule that produced these rows went
+    # live; an edit after it may be a person's correction.
+    Change = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name,
+                         :ingredient_slugs, :tag_slugs, :cutoff)
     Failure = Data.define(:item_id, :item_name, :error)
     Result = Data.define(:changes, :reviews, :failures)
 
@@ -47,7 +58,8 @@ module Menus
       @ids       = nodes.to_h { |slug, id, _| [ slug, id ] }
       @paths     = nodes.to_h { |_, id, path| [ id, path.to_s ] }
       @tag_ids   = Tag.pluck(:slug, :id).to_h
-      @resolver  = Ingestion::DeterministicResolver.new
+      @matcher   = Ingestion::IngredientMatcher.new
+      @resolver  = Ingestion::DeterministicResolver.new(matcher: @matcher)
     end
 
     def call(apply:, scope:)
@@ -61,7 +73,7 @@ module Menus
           # Edited since its keyword went live: maybe a person removed
           # this very base. Nothing records a removal, so list it for a
           # person rather than write over a decision or drop it silently.
-          if found && touched_since_live?(item)
+          if found && touched_since_live?(item, found)
             reviews << found
             found = nil
           end
@@ -85,20 +97,43 @@ module Menus
     private
 
     def change_for(item)
-      return nil unless item.created_at < live_since(item.name)
-
       existing = item.denormalized_ingredient_ids.filter_map { |id| { path: @paths[id] } if @paths[id] }
-      rows = @resolver.implied_rows_for_name(item.name, existing)
+
+      text = item.created_at < LIVE_SINCE_766 ? text_rows(item, existing) : []
+      name_cutoff = live_since(item.name)
+      implied = item.created_at < name_cutoff ? @resolver.implied_rows_for_name(item.name, existing + text) : []
+      rows = text + implied
       return nil if rows.empty?
 
       tags = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: rows)
-                                           .map { |t| t[:slug] }
+                                           .map { |t| t[:slug] }.uniq
                                            .select { |slug| @tag_ids.key?(slug) }
                                            .reject { |slug| item.denormalized_tag_ids.include?(@tag_ids[slug]) }
 
       Change.new(item_id: item.id, item_name: item.name,
                  restaurant_id: item.restaurant_id, restaurant_name: item.restaurant&.name,
-                 ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags)
+                 ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags,
+                 cutoff: implied.any? ? name_cutoff : LIVE_SINCE_766)
+    end
+
+    # What a scan today would match for #766's ingredients, with the
+    # resolver's rule for claims: a name's own "gluten-free" beats a match
+    # in that name, while a description that lists breading is not
+    # gluten-free whatever the name says. Nothing to add when the dish
+    # already carries wheat; the filter hides it either way.
+    def text_rows(item, existing)
+      return [] if existing.any? { |e| e[:path].start_with?("grain.wheat") }
+
+      claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
+      in_name = @matcher.scan(item.name).first.reject do |m|
+        Ingestion::DietClaims.contradicted?(claims, slug: m[:slug], path: m[:path])
+      end
+      in_description = @matcher.scan(item.description).first
+
+      (in_name + in_description)
+        .select { |m| TEXT_SLUGS_SINCE_766.include?(m[:slug]) && @ids.key?(m[:slug]) }
+        .uniq { |m| m[:slug] }
+        .map { |m| { slug: m[:slug], path: m[:path].to_s, confidence: m[:confidence], source: "derived" } }
     end
 
     # `updated_at` moves on any ingredient change (the array resync
@@ -106,8 +141,8 @@ module Menus
     # conservative: it sends some dishes to review that were never
     # corrected. That costs a person a look; the other way costs a
     # person's correction.
-    def touched_since_live?(item)
-      item.updated_at >= live_since(item.name)
+    def touched_since_live?(item, change)
+      item.updated_at >= change.cutoff
     end
 
     # The earliest keyword the name hits decides: every keyword here
