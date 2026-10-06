@@ -361,15 +361,26 @@ RSpec.describe "Admin item deep edit", type: :request do
         card_variant = item.photo.variant(:card)
         full_variant = item.photo.variant(:full)
 
-        # Process the variants
-        thumb_blob = thumb_variant.processed.blob
-        card_blob = card_variant.processed.blob
-        full_blob = full_variant.processed.blob
+        # Process the variants - .image.blob gets the variant's blob, not the original
+        thumb_blob = thumb_variant.processed.image.blob
+        card_blob = card_variant.processed.image.blob
+        full_blob = full_variant.processed.image.blob
+        original_blob = item.photo.blob
 
         # All variants should be WebP format
         expect(thumb_blob.content_type).to eq("image/webp")
         expect(card_blob.content_type).to eq("image/webp")
         expect(full_blob.content_type).to eq("image/webp")
+
+        # Variant blobs should differ from original
+        expect(thumb_blob.id).not_to eq(original_blob.id)
+        expect(card_blob.id).not_to eq(original_blob.id)
+        expect(full_blob.id).not_to eq(original_blob.id)
+
+        # Verify WebP magic bytes (RIFF....WEBP header)
+        thumb_bytes = thumb_blob.download
+        expect(thumb_bytes[0..3]).to eq("RIFF")
+        expect(thumb_bytes[8..11]).to eq("WEBP")
 
         # Variants should be resized appropriately
         expect(thumb_blob.metadata["width"]).to be <= 200

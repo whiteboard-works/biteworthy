@@ -59,25 +59,10 @@ class Item < ApplicationRecord
   has_many :suggestions, as: :subject, dependent: :destroy
 
   has_one_attached :photo do |attachable|
-    # WebP format conversion with explicit loader + saver options
-    attachable.variant :thumb, {
-      resize_to_limit: [ 200, 200 ],
-      format: :webp,
-      loader: { autorotate: true },
-      saver: { Q: 80, strip: true }
-    }
-    attachable.variant :card, {
-      resize_to_limit: [ 600, 600 ],
-      format: :webp,
-      loader: { autorotate: true },
-      saver: { Q: 80, strip: true }
-    }
-    attachable.variant :full, {
-      resize_to_limit: [ 1600, 1600 ],
-      format: :webp,
-      loader: { autorotate: true },
-      saver: { Q: 80, strip: true }
-    }
+    # format: :webp converts variants to WebP using the vips processor
+    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp
+    attachable.variant :card, resize_to_limit: [ 600, 600 ], format: :webp
+    attachable.variant :full, resize_to_limit: [ 1600, 1600 ], format: :webp
   end
 
   validates :name, presence: true
