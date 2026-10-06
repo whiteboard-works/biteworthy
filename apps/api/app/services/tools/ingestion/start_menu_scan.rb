@@ -13,6 +13,12 @@ module Tools
         Start extracting a restaurant's menu from a URL, pasted text, or an
         uploaded photo/PDF. Provide exactly one source.
 
+        Prefer the restaurant's own site or a same-origin menu PDF. DoorDash,
+        order.online, Google Maps, and Toast ordering pages are refused —
+        ask for the own-site URL, a photo/PDF upload, or pasted menu text
+        instead. Use `discover_restaurant_site` first when the user pasted a
+        homepage.
+
         This returns as soon as the scan is queued — it does NOT wait for the
         result. Extraction takes roughly 20-60 seconds. Poll `get_scan_status`
         with the returned scan_id, then call `list_staged_items` once it
@@ -33,7 +39,8 @@ module Tools
           },
           source_url: {
             type: "string",
-            description: "URL of a menu page or PDF to fetch and read."
+            description: "URL of a menu page or PDF on the restaurant's own site. " \
+                         "DoorDash, order.online, Google Maps, and Toast ordering pages are refused."
           },
           source_text: {
             type: "string",
@@ -59,6 +66,7 @@ module Tools
         forbidden_restaurant: "You can only scan restaurants that are published, or drafts you created yourself.",
         no_inputs:            "Provide one of source_url, source_text, or attachment_ids.",
         url_fetch_failed:     "That URL could not be fetched.",
+        forbidden_host:       Ingestion::HostPolicy::MESSAGE,
         quota_exceeded:       "Daily scan limit reached for this account. Try again tomorrow.",
         cost_ceiling_reached: "Scanning is paused — the service hit its daily processing budget. Try again tomorrow.",
         too_many_files:       "Too many files in one scan.",
@@ -100,6 +108,15 @@ module Tools
       end
 
       def self.failure(result)
+        if result.error == :forbidden_host
+          detail = result.detail || {}
+          return error(
+            detail[:message] || ERROR_MESSAGES[:forbidden_host],
+            code: "forbidden_host",
+            next_step: detail[:next_step] || ::Ingestion::HostPolicy::NEXT_STEP
+          )
+        end
+
         message = ERROR_MESSAGES.fetch(result.error, "Could not start the scan.")
         detail  = result.detail.presence
         error([message, detail&.to_json].compact.join(" "), code: result.error.to_s)

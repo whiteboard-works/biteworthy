@@ -26,6 +26,29 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(restaurant.addresses.sole).to have_attributes(street: "123 Main Ave", city: "Durango", region: "CO")
   end
 
+  # Community import cannot call admin edit_place, so website / phone /
+  # hours have to land on create or they never get stored.
+  it "stores website, phone, and hours on the new draft" do
+    response = call(
+      name: "Caracas Grill — Riverton", city_slug: "durango",
+      website: "https://caracasgrillutah.com", phone: "801-555-0100",
+      hours: [ { day_of_week: 1, opens_at: "11:00", closes_at: "21:00" } ]
+    )
+
+    restaurant = Restaurant.find(payload(response)[:restaurant][:id])
+    expect(restaurant).to have_attributes(website: "https://caracasgrillutah.com", phone: "801-555-0100")
+    expect(restaurant.hours.sole).to have_attributes(day_of_week: 1)
+    expect(restaurant.hours.sole.opens_at.strftime("%H:%M")).to eq("11:00")
+    expect(payload(response)[:restaurant]).to include(website: "https://caracasgrillutah.com")
+  end
+
+  it "rejects a website that is not an http(s) URL" do
+    response = call(name: "Ninis", city_slug: "durango", website: "javascript:alert(1)")
+
+    expect(payload(response)[:error]).to eq("invalid_argument")
+    expect(Restaurant.where(name: "Ninis")).to be_empty
+  end
+
   it "stops at a likely duplicate and creates nothing" do
     create(:restaurant, name: "Marias Taco", slug: "marias-taco", city: city)
 

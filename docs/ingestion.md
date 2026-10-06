@@ -21,7 +21,7 @@ See `docs/mcp.md`.
 | Input | Source |
 |---|---|
 | Photo | Mobile camera, multi-page capture |
-| URL | Restaurant menu page on the web |
+| URL | Restaurant's own menu page or same-origin PDF. DoorDash / order.online, Google Maps, and Toast ordering HTML are refused (`Ingestion::HostPolicy`) — ask for the own-site URL, a paste, or an upload. |
 | PDF | Upload from web or mobile |
 
 All three end up as ActiveStorage blobs attached to an `IngestionRun`.

@@ -3,7 +3,7 @@
 module Tools
   # What the tools are FOR, as opposed to what each one does.
   #
-  # Forty-three tool descriptions tell a model what each call means in
+  # Tool descriptions tell a model what each call means in
   # isolation. They do not say that fixing a wrong ingredient means
   # `search_taxonomy` → `suggest_correction` → someone else resolving it,
   # or that `accept_staged_items` is the only step in the whole scan flow
@@ -22,7 +22,8 @@ module Tools
       suggestions: "Propose a fix to somebody else's menu data, and — if you own the restaurant — decide one.",
       claims:    "Prove you run a restaurant, which unlocks its correction queue.",
       history:   "The caller's own visits and saves. Private.",
-      ingestion: "Turn a photo, URL, or pasted menu into staged dishes, then verify them.",
+      ingestion: "Turn a photo, URL, or pasted menu into staged dishes, then verify them. " \
+                 "discover_restaurant_site lists own-site menu and location candidates first.",
       restaurants: "Add a restaurant we do not have. Admins also add cities, and edit and verify restaurants.",
       structure: "Menus, sections, address, and hours. Admin.",
       items:     "Deep-edit one live dish. Admin.",
@@ -68,7 +69,23 @@ module Tools
         ],
         note: "create_restaurant only if search_restaurants found nothing. Extraction is " \
               "async — poll get_scan_status. accept_staged_items is the ONLY step that " \
-              "publishes; everything before it stays in staging."
+              "publishes; everything before it stays in staging. For a homepage URL with " \
+              "more than one location, use \"Import a restaurant from its website\" instead."
+      },
+      {
+        name: "Import a restaurant from its website",
+        audience: :user,
+        arguments: %i[restaurant city],
+        steps: %w[
+          discover_restaurant_site list_cities create_restaurant start_menu_scan
+          get_scan_status list_staged_items edit_staged_item accept_staged_items
+          clone_menu
+        ],
+        note: "Own-site URLs only — DoorDash, order.online, Google Maps, and Toast " \
+              "ordering pages are refused. Discover first; ask which locations and which " \
+              "menu URL. One Restaurant row per physical spot (distinct names when the " \
+              "brand repeats). Scan and accept once when menus match, then clone_menu " \
+              "onto empty siblings. Hours, phone, and website go on create_restaurant."
       },
       {
         # Public because all three steps are. Leaving it at :user would
