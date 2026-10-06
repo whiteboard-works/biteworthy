@@ -260,6 +260,21 @@ RSpec.describe Menus::ImpliedBaseBackfill do
       expect(plate.item_tags.where(tag: gluten_tag).count).to eq(1)
     end
 
+    it "undoes a dish's first base when its second fails, so a rerun retries both" do
+      plate = create(:item, :published, name: "Fish Sandwich", description: "Malt vinegar on the side.")
+      allow(ItemIngredient).to receive(:create!).and_wrap_original do |original, **attrs|
+        raise ActiveRecord::StatementInvalid, "boom" if attrs[:ingredient_id] == barley.id
+
+        original.call(**attrs)
+      end
+
+      expect(run.failures.map(&:item_id)).to eq([ plate.id ])
+      expect(plate.reload.denormalized_ingredient_ids).not_to include(wheat.id)
+
+      allow(ItemIngredient).to receive(:create!).and_call_original
+      expect(run.changes.flat_map(&:ingredient_slugs)).to contain_exactly("grain-wheat", "grain-barley")
+    end
+
     # The base is barley here, not wheat: a dish can need barley whatever
     # happened to its wheat.
     it "adds barley for malt vinegar" do

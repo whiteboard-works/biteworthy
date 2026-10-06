@@ -126,7 +126,10 @@ module Menus
             !c.force_review && item.updated_at < c.cutoff
           end
           reviews.concat(to_review)
-          to_write.each { |c| add!(item, c) } if apply
+          # One transaction per dish: a failure on its second base must
+          # undo the first, or the resync's updated_at bump would send the
+          # missing base to review on the rerun instead of retrying it.
+          Item.transaction { to_write.each { |c| add!(item, c) } } if apply
           to_write
         rescue StandardError => e
           failures << Failure.new(item_id: item.id, item_name: item.name, error: "#{e.class}: #{e.message}")
