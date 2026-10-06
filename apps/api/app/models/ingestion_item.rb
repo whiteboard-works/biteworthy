@@ -149,31 +149,49 @@ class IngestionItem < ApplicationRecord
   # overwritten only when the scan carries one and it differs (absence
   # of evidence never blanks data); variants replaced only when the
   # scanned price set is non-empty and differs; ingredients/tags are
-  # append-only at accept-confidence — existing joins are never removed
-  # or downgraded, so a human-confirmed association can't be undone by
-  # a re-scan. Name, modifiers, and photo are deliberately untouched
+  # replaced when the staged item was explicitly edited by a human,
+  # otherwise append-only at accept-confidence; name is applied when
+  # explicitly edited. Existing joins are never removed or downgraded
+  # on auto-scanned items, so a human-confirmed association can't be
+  # undone by a re-scan. Modifiers and photo are deliberately untouched
   # (v1 non-goals — see docs/ingestion.md). Section is set only when
   # missing. Every change lands in the applied_changes snapshot for undo!.
   def apply_update!(target, confidence)
     snapshot = {}
 
+    apply_name!(target, snapshot)
     apply_description!(target, snapshot)
     apply_section!(target, snapshot)
     apply_variants!(target, snapshot)
 
-    created_ingredient_ids =
-      insert_joins!(ItemIngredient, target, resolve_node_ids(Ingredient, ingredients_payload), confidence)
-    created_tag_ids =
-      insert_joins!(ItemTag, target, resolve_node_ids(Tag, tags_payload), confidence)
-    snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
-    snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
+    if edited?
+      # Edited by human: replace ingredients/tags completely
+      replace_joins!(ItemIngredient, target, resolve_node_ids(Ingredient, ingredients_payload), confidence, snapshot)
+      replace_joins!(ItemTag, target, resolve_node_ids(Tag, tags_payload), confidence, snapshot)
+
+      # Recompute allergen tags after ingredient changes
+      derive_allergen_tags!(target, confidence, snapshot)
+    else
+      # Auto-scanned: append-only
+      created_ingredient_ids =
+        insert_joins!(ItemIngredient, target, resolve_node_ids(Ingredient, ingredients_payload), confidence)
+      created_tag_ids =
+        insert_joins!(ItemTag, target, resolve_node_ids(Tag, tags_payload), confidence)
+      snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
+      snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
+    end
 
     # A community accept that adds unconfirmed data to a fully-confirmed
     # Item must knock it back to suggested, or strict-mode users would
     # see an item whose newest (possibly allergen-bearing) association
     # nobody trusted yet. Never upgraded here — graduation stays with
     # Restaurant#confirm_community_associations!.
-    if (created_ingredient_ids.any? || created_tag_ids.any?) &&
+    created_count = (snapshot["created_item_ingredient_ids"] || []).size +
+                    (snapshot["created_item_tag_ids"] || []).size +
+                    (snapshot["replaced_item_ingredient_ids"] || []).size +
+                    (snapshot["replaced_item_tag_ids"] || []).size
+
+    if created_count.positive? &&
        confidence == "suggested" && target.confidence == "confirmed"
       snapshot["confidence"] = [target.confidence, "suggested"]
       target.update!(confidence: "suggested")
@@ -196,6 +214,17 @@ class IngestionItem < ApplicationRecord
 
     snapshot["description"] = [target.description, description]
     target.update!(description: description)
+  end
+
+  def apply_name!(target, snapshot)
+    # Only apply name when explicitly edited by a human
+    return unless edited?
+
+    scanned = name.to_s.strip
+    return if scanned.blank? || scanned == target.name.to_s.strip
+
+    snapshot["name"] = [target.name, name]
+    target.update!(name: name)
   end
 
   def apply_section!(target, snapshot)
@@ -265,6 +294,72 @@ class IngestionItem < ApplicationRecord
     created.rows.flatten
   end
 
+  # Replace all joins of this type on the target item with the new set.
+  # Used when a human explicitly edited the associations. Snapshots the
+  # replaced IDs for undo.
+  def replace_joins!(model, target, node_ids, confidence, snapshot)
+    foreign_key = model.denormalized_foreign_key
+    snapshot_key = "replaced_#{model.table_name.singularize}_ids"
+
+    # Capture existing joins for undo
+    existing_joins = model.where(item_id: target.id).pluck(:id, foreign_key)
+    snapshot[snapshot_key] = existing_joins.map { |id, node_id| { "id" => id, foreign_key => node_id } }
+
+    # Delete all existing joins
+    Item.defer_denormalization do
+      model.where(item_id: target.id).destroy_all
+    end
+
+    # Insert new joins
+    if node_ids.any?
+      model.insert_all(
+        node_ids.map do |node_id|
+          { :item_id => target.id, foreign_key => node_id, :confidence => confidence, :source => "human" }
+        end
+      )
+    end
+
+    model.resync_denormalized_ids([target.id])
+  end
+
+  # Derive allergen tags from ingredients after a replace operation.
+  # Uses the same derivation logic as the ingestion pipeline.
+  def derive_allergen_tags!(target, confidence, snapshot)
+    # Get current ingredient IDs from the item
+    ingredient_ids = target.reload.denormalized_ingredient_ids
+
+    # Derive allergen tags using the existing TagDeriver
+    derived_tag_slugs = ::Ingestion::TagDeriver.call(
+      ingredient_ids: ingredient_ids.map(&:to_s),
+      existing_tag_slugs: []
+    )
+
+    # Resolve derived tag slugs to IDs
+    derived_tag_ids = Tag.where(slug: derived_tag_slugs, family: "allergen").pluck(:id)
+
+    # Insert derived allergen tags
+    if derived_tag_ids.any?
+      existing_allergen_tag_ids = ItemTag.joins(:tag)
+                                         .where(item_id: target.id, tags: { family: "allergen" })
+                                         .pluck(:tag_id)
+      new_allergen_ids = derived_tag_ids - existing_allergen_tag_ids
+
+      if new_allergen_ids.any?
+        ItemTag.insert_all(
+          new_allergen_ids.map do |tag_id|
+            { item_id: target.id, tag_id: tag_id, confidence: confidence, source: "derived" }
+          end
+        )
+        ItemTag.resync_denormalized_ids([target.id])
+
+        # Track in snapshot for undo
+        snapshot["derived_allergen_tag_ids"] = ItemTag.joins(:tag)
+                                                      .where(item_id: target.id, tags: { family: "allergen", id: new_allergen_ids })
+                                                      .pluck(:id)
+      end
+    end
+  end
+
   # Restore what apply_update! changed, then release the link. Restore
   # is last-writer-wins over any manual edits made since the accept
   # (documented v1 caveat); matched_item_id survives so the card comes
@@ -276,6 +371,9 @@ class IngestionItem < ApplicationRecord
     target = Item.lock.find_by(id: item_id)
 
     if target
+      if (change = changes["name"])
+        target.update!(name: change[0])
+      end
       if (change = changes["description"])
         target.update!(description: change[0])
       end
@@ -294,6 +392,25 @@ class IngestionItem < ApplicationRecord
       Item.defer_denormalization do
         ItemIngredient.where(id: changes["created_item_ingredient_ids"] || []).find_each(&:destroy)
         ItemTag.where(id: changes["created_item_tag_ids"] || []).find_each(&:destroy)
+        ItemTag.where(id: changes["derived_allergen_tag_ids"] || []).find_each(&:destroy)
+
+        # Restore replaced joins
+        if (rows = changes["replaced_item_ingredient_ids"])
+          rows.each do |row|
+            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: row["ingredient_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
+        if (rows = changes["replaced_item_tag_ids"])
+          rows.each do |row|
+            ItemTag.find_or_create_by!(item_id: target.id, tag_id: row["tag_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
       end
     end
 
