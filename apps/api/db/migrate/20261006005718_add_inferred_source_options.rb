@@ -47,7 +47,8 @@ class AddInferredSourceOptions < ActiveRecord::Migration[8.1]
   end
 
   def down
-    # Revert to the original constraints
+    # Revert to the constraints from 20261005224000_add_derived_source_to_joins
+    # (don't undo that migration's work)
     execute <<~SQL.squish
       ALTER TABLE item_ingredients
       DROP CONSTRAINT IF EXISTS item_ingredients_source_valid
@@ -61,13 +62,13 @@ class AddInferredSourceOptions < ActiveRecord::Migration[8.1]
     execute <<~SQL.squish
       ALTER TABLE item_ingredients
       ADD CONSTRAINT item_ingredients_source_valid
-      CHECK (source IN ('human', 'ai', 'owner'))
+      CHECK (source IN ('human', 'ai', 'owner', 'derived'))
     SQL
 
     execute <<~SQL.squish
       ALTER TABLE item_tags
       ADD CONSTRAINT item_tags_source_valid
-      CHECK (source IN ('human', 'ai', 'owner'))
+      CHECK (source IN ('human', 'ai', 'owner', 'derived'))
     SQL
   end
 end
