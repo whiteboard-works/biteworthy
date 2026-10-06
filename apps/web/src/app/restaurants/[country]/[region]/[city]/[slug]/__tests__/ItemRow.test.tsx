@@ -71,6 +71,9 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
     renderRow({ photo_url: null }, { photoPlaceholder: true });
     const tile = screen.getByTestId('item-photo-placeholder-item-1');
     expect(tile).toHaveAttribute('aria-hidden', 'true');
+    // One column on phones: nothing to line up, so the tile only shows
+    // from `sm` up, where the grid has rows.
+    expect(tile).toHaveClass('hidden', 'sm:flex');
   });
 
   it('prefers the real photo over the placeholder', () => {

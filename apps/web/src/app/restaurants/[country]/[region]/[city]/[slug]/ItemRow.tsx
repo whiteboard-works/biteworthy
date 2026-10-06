@@ -18,7 +18,8 @@ import { HiddenReasonChip } from './SectionList';
  * compact text cards, unless `photoPlaceholder` is set: in a grid where
  * other dishes have photos, a lone text card breaks the rows up, so it
  * gets a same-height placeholder tile instead. A grid with no photos at
- * all stays compact rather than becoming a wall of empty tiles.
+ * all stays compact rather than becoming a wall of empty tiles, and so
+ * does the single-column phone layout, where there are no rows to align.
  */
 export function hasDishPhoto(item: RestaurantItem): boolean {
   return Boolean(item.photo_urls?.card || item.photo_url);
@@ -36,7 +37,7 @@ export function DishPhotoPlaceholder({
     <div
       aria-hidden="true"
       data-testid={testId}
-      className={`flex items-center justify-center bg-zinc-100 text-zinc-300 ${className}`}
+      className={`items-center justify-center bg-zinc-100 text-zinc-300 ${className}`}
     >
       <svg
         viewBox="0 0 48 48"
@@ -95,7 +96,7 @@ export function ItemRow({
     >
       {!hasDishPhoto(item) && photoPlaceholder && (
         <DishPhotoPlaceholder
-          className="h-40 w-full"
+          className="hidden h-40 w-full sm:flex"
           testId={`item-photo-placeholder-${item.id}`}
         />
       )}
