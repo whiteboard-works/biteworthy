@@ -332,10 +332,21 @@ discover_restaurant_site  →  list_cities / create_restaurant (one row per spot
 
 `discover_restaurant_site` fetches the page through `UrlFetcher` (so the
 host policy applies) and extracts same-origin menu links plus JSON-LD
-location candidates. It does not start a scan. `Ingestion::HostPolicy`
-refuses DoorDash / order.online, Google Maps, and Toast ordering HTML at
-the fetch door — `start_menu_scan` and discover both return `forbidden_host`
-with a next_step naming own-site / paste / upload. Community
+location candidates. A single-string JSON-LD address is split
+best-effort (street / city / region / postal) and the raw string is
+kept. Same-origin `onclick` / `data-href` / `location.href` paths are
+picked up without running JS; if the HTML is empty, same-origin
+`sitemap.xml` paths are used when robots.txt allows. It does not start
+a scan. `next_step` asks the user for addresses when already on a
+Locations/Contact page with none (no loop), and asks for a menu page /
+PDF / upload / paste when menus and locations are both empty.
+`Ingestion::HostPolicy` refuses DoorDash / order.online, Google Maps,
+and Toast ordering HTML at the fetch door, plus a DoorDash/Toast
+white-label on a custom domain (`script`/`link` CDN hosts or
+`x-dd-`/`x-toast-` headers — not an outbound DoorDash link, a Toast
+order iframe, or a Datadog `dd_*` cookie).
+`start_menu_scan` and discover both return `forbidden_host` with a
+next_step naming own-site / paste / upload. Community
 `create_restaurant` accepts optional website, phone, and hours so import
 does not need admin `edit_place`. `clone_menu` copies published dishes
 (joins, prices) onto an empty restaurant the caller created; it never

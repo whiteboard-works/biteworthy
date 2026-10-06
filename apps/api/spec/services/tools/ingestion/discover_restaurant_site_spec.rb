@@ -45,4 +45,83 @@ RSpec.describe Tools::Ingestion::DiscoverRestaurantSite do
 
     expect(payload(response)[:error]).to eq("unauthorized")
   end
+
+  it "asks the user for addresses instead of looping on a locations page with none" do
+    stub_request(:get, "https://ziataqueria.com/hours-locations").to_return(
+      status: 200,
+      headers: { "Content-Type" => "text/html" },
+      body: <<~HTML
+        <html><body>
+          <a href="/hours-locations">Hours & Locations</a>
+          <a href="/contact">Contact</a>
+          <p>Come visit us.</p>
+        </body></html>
+      HTML
+    )
+
+    response = call(url: "https://ziataqueria.com/hours-locations")
+    data = payload(response)
+
+    expect(data[:location_candidates]).to eq([])
+    expect(data[:next_step]).to include("Ask the user for the street address")
+    expect(data[:next_step]).not_to include("Call discover_restaurant_site")
+    expect(data[:next_step]).not_to include("hours-locations")
+  end
+
+  it "still points at a Locations page from the homepage when addresses are missing" do
+    stub_request(:get, "https://ziataqueria.com/").to_return(
+      status: 200,
+      headers: { "Content-Type" => "text/html" },
+      body: <<~HTML
+        <html><body><a href="/hours-locations">Hours & Locations</a></body></html>
+      HTML
+    )
+
+    data = payload(call(url: "https://ziataqueria.com/"))
+
+    expect(data[:next_step]).to include("Call discover_restaurant_site")
+    expect(data[:location_pages].first[:url]).to eq("https://ziataqueria.com/hours-locations")
+  end
+
+  it "does not tell the model to show menu URLs when none were found" do
+    stub_request(:get, "https://serioustexasbbq.com/").to_return(
+      status: 200,
+      headers: { "Content-Type" => "text/html" },
+      body: "<html><body><h1>Serious Texas</h1></body></html>"
+    )
+    stub_request(:get, "https://serioustexasbbq.com/robots.txt").to_return(
+      status: 200, body: "User-agent: *\nDisallow: /\n"
+    )
+
+    data = payload(call(url: "https://serioustexasbbq.com/"))
+
+    expect(data[:menu_candidates]).to eq([])
+    expect(data[:location_candidates]).to eq([])
+    expect(data[:next_step]).to include("menu page URL")
+    expect(data[:next_step]).to include("pasted menu text")
+    expect(data[:next_step]).not_to include("Show the user the menu URLs")
+  end
+
+  it "refuses a DoorDash white-label on a custom domain without parsing it" do
+    stub_request(:get, "https://caracasgrillutah.com/").to_return(
+      status: 200,
+      headers: { "Content-Type" => "text/html" },
+      body: <<~HTML
+        <html><head>
+          <script src="https://web-static.cdn4dd.com/storefront.js"></script>
+          <script type="application/ld+json">
+            {"@type":"Restaurant","name":"Should not be parsed","address":"1 Main"}
+          </script>
+        </head><body>Order pickup</body></html>
+      HTML
+    )
+
+    response = call(url: "https://caracasgrillutah.com/")
+    data = payload(response)
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(data[:error]).to eq("forbidden_host")
+    expect(data[:next_step]).to include("own website")
+    expect(data[:location_candidates]).to be_nil
+  end
 end

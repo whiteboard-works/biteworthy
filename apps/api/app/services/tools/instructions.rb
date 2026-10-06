@@ -101,9 +101,17 @@ module Tools
       location the site did not list.
 
       If the host is refused (DoorDash, order.online, Google Maps, Toast
-      ordering pages), ask for the restaurant's own site, a PDF or photo
-      upload, or pasted menu text. Never fetch those hosts and never fall
-      through to scraping them.
+      ordering pages, or a DoorDash/Toast white-label on a custom domain),
+      ask for the restaurant's own site, a PDF or photo upload, or pasted
+      menu text. Never fetch those hosts and never fall through to
+      scraping them.
+
+      If discover returns a Locations or Contact page, call it once on
+      that URL. If that page still has no addresses, ask the user for
+      them — do not call discover on the same page again. If menus and
+      locations both come back empty, ask for a menu page URL, a PDF,
+      an upload, or pasted text. Do not say "show the menu URLs" when
+      the list is empty.
 
       Multi-location brands are one Restaurant row per physical spot. Include
       a neighborhood or street in the name when the brand would collide.

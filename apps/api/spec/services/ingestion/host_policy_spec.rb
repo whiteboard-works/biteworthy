@@ -40,4 +40,42 @@ RSpec.describe Ingestion::HostPolicy do
     expect(refusal[:next_step]).to include("own website")
     expect(refusal[:next_step]).to include("paste")
   end
+
+  describe ".storefront?" do
+    it "flags a DoorDash CDN script as a storefront" do
+      body = '<script src="https://web-static.cdn4dd.com/app.js"></script>'
+
+      expect(described_class.storefront?({}, body)).to be(true)
+    end
+
+    it "flags an x-dd- response header" do
+      headers = { "x-dd-bff" => "storefront" }
+
+      expect(described_class.storefront?(headers, "<html></html>")).to be(true)
+    end
+
+    it "does not flag a restaurant page that only links to DoorDash" do
+      body = '<a href="https://www.doordash.com/store/caracas">Order on DoorDash</a>'
+
+      expect(described_class.storefront?({}, body)).to be(false)
+    end
+
+    it "allows an own-site page that embeds a Toast ordering iframe" do
+      body = <<~HTML
+        <html><body>
+          <h1>Dinner menu</h1>
+          <p>Tacos, burritos, salsa.</p>
+          <iframe src="https://www.toasttab.com/local-taqueria/v3"></iframe>
+        </body></html>
+      HTML
+
+      expect(described_class.storefront?({}, body)).to be(false)
+    end
+
+    it "does not treat a Datadog dd_cookie_test cookie as a storefront" do
+      headers = { "set-cookie" => "dd_cookie_test_x=1; Path=/" }
+
+      expect(described_class.storefront?(headers, "<html><body>Menu</body></html>")).to be(false)
+    end
+  end
 end

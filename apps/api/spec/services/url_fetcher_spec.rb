@@ -116,6 +116,60 @@ RSpec.describe UrlFetcher do
       expect(a_request(:get, /toasttab/)).not_to have_been_made
     end
 
+    it "rejects a DoorDash white-label on a custom domain after fetch" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cx_js=1; Path=/" },
+        body: '<html><script src="https://cdn.doordash.com/storefront.js"></script></html>'
+      )
+
+      expect { described_class.fetch(url) }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+    end
+
+    it "still fetches a restaurant page that only links out to DoorDash" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: '<html><body><a href="https://www.doordash.com/store/x">Order</a></body></html>'
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+      expect(result.io.read).to include("Order")
+    end
+
+    it "still fetches an own-site page that embeds a Toast ordering iframe" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: <<~HTML
+          <html><body>
+            <h1>Dinner menu</h1>
+            <p>Brisket plate, beans, slaw.</p>
+            <iframe src="https://www.toasttab.com/serious-texas/v3"></iframe>
+          </body></html>
+        HTML
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Dinner menu")
+    end
+
+    it "still fetches a page that only sets a Datadog dd_cookie_test cookie" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cookie_test_x=1; Path=/" },
+        body: "<html><body>Menu</body></html>"
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Menu")
+    end
+
     it "infers a sensible filename from the URL path" do
       stub_request(:get, "https://example.com/menus/dinner.pdf").to_return(
         status: 200,

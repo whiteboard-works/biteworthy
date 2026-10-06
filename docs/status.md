@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **discover_restaurant_site live fixes.** Locations/Contact pages with no addresses now ask the user (no discover loop). Empty HTML gets its own next_step (menu URL / PDF / upload / paste) plus cheap `data-href`/`location.href` and robots-allowed sitemap pickup. JSON-LD single-string addresses split street/city/region/postal and keep `raw`. UrlFetcher fingerprints DoorDash/Toast white-labels on custom domains (`script`/`link` CDN hosts or `x-dd-`/`x-toast-` headers) as `forbidden_host`. Outbound DoorDash links, Toast/DoorDash order iframes, and Datadog `dd_*` cookies stay allowed.
+
 2026-10-06 (UTC) — **clone_menu review fixes (#817).** Community clones now write item/join confidence at `suggested` (never higher than the source) so a confirmed dish cannot be laundered onto an unverified location. The copy is one transaction (mid-failure leaves the target empty). A published source publishes the sibling — clone has no ingestion run, so `maybe_publish!` would never fire. Photos are copied as new blobs so a later replace/purge cannot delete the other's file.
 
 2026-10-06 (UTC) — **Chat website-seed import (ToS-safe, multi-location).** Pasting a restaurant's own site can now discover same-origin menu URLs and JSON-LD locations (`discover_restaurant_site`), create each physical spot with website/phone/hours on `create_restaurant`, scan once, and `clone_menu` accepted dishes onto empty siblings. `Ingestion::HostPolicy` refuses DoorDash / order.online, Google Maps, and Toast ordering HTML at UrlFetcher + start_menu_scan with a next_step naming own-site / paste / upload. Topology + instructions teach the flow. No brand-parent schema; Caracas curated rows are not touched.

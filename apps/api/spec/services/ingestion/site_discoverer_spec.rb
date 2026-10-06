@@ -92,4 +92,87 @@ RSpec.describe Ingestion::SiteDiscoverer do
       .to raise_error(UrlFetcher::FetchError, /forbidden_host/)
     expect(a_request(:get, /doordash/)).not_to have_been_made
   end
+
+  it "picks up same-origin menu and location paths from data-href and location.href" do
+    stub_page(home, <<~HTML)
+      <html><body>
+        <button data-href="/menu">View menu</button>
+        <button onclick="location.href='/hours-locations'">Hours & Locations</button>
+      </body></html>
+    HTML
+
+    result = described_class.call(home)
+
+    expect(result.menu_candidates.map { |c| c[:url] }).to eq([ "https://caracasgrillutah.com/menu" ])
+    expect(result.location_pages.map { |c| c[:url] }).to eq(
+      [ "https://caracasgrillutah.com/hours-locations" ]
+    )
+    expect(a_request(:get, "https://caracasgrillutah.com/robots.txt")).not_to have_been_made
+  end
+
+  it "reads menu and location paths from sitemap.xml when the HTML is empty and robots allows" do
+    stub_page(home, "<html><body>Welcome</body></html>")
+    stub_page("https://caracasgrillutah.com/robots.txt", "User-agent: *\nAllow: /\n")
+    stub_page("https://caracasgrillutah.com/sitemap.xml", <<~XML, content_type: "application/xml")
+      <?xml version="1.0"?>
+      <urlset>
+        <url><loc>https://caracasgrillutah.com/menu</loc></url>
+        <url><loc>https://caracasgrillutah.com/locations</loc></url>
+      </urlset>
+    XML
+
+    result = described_class.call(home)
+
+    expect(result.menu_candidates.map { |c| c[:url] }).to eq([ "https://caracasgrillutah.com/menu" ])
+    expect(result.location_pages.map { |c| c[:url] }).to eq([ "https://caracasgrillutah.com/locations" ])
+  end
+
+  it "does not fetch sitemap.xml when robots.txt disallows it" do
+    stub_page(home, "<html><body>Welcome</body></html>")
+    stub_page("https://caracasgrillutah.com/robots.txt", "User-agent: *\nDisallow: /\n")
+
+    result = described_class.call(home)
+
+    expect(result.menu_candidates).to be_empty
+    expect(result.location_pages).to be_empty
+    expect(a_request(:get, "https://caracasgrillutah.com/sitemap.xml")).not_to have_been_made
+  end
+
+  it "splits a single-string JSON-LD address and keeps the raw string" do
+    stub_page(home, <<~HTML)
+      <html><head>
+        <script type="application/ld+json">
+          {"@type":"Restaurant","name":"Chimayo","address":"123 Canyon Rd, Santa Fe, NM 87501"}
+        </script>
+      </head><body></body></html>
+    HTML
+
+    spot = described_class.call(home).location_candidates.sole
+
+    expect(spot).to include(
+      name: "Chimayo", street: "123 Canyon Rd", city: "Santa Fe",
+      region: "NM", postal_code: "87501", raw: "123 Canyon Rd, Santa Fe, NM 87501"
+    )
+  end
+
+  it "splits a PostalAddress that stuffed the whole line into streetAddress" do
+    stub_page(home, <<~HTML)
+      <html><head>
+        <script type="application/ld+json">
+          {
+            "@type":"Restaurant","name":"Chimayo",
+            "address":{"@type":"PostalAddress","streetAddress":"123 Canyon Rd, Santa Fe, NM 87501, USA"}
+          }
+        </script>
+      </head><body></body></html>
+    HTML
+
+    spot = described_class.call(home).location_candidates.sole
+
+    expect(spot).to include(
+      street: "123 Canyon Rd", city: "Santa Fe", region: "NM",
+      postal_code: "87501", country: "USA",
+      raw: "123 Canyon Rd, Santa Fe, NM 87501, USA"
+    )
+  end
 end

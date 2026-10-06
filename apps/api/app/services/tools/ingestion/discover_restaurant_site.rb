@@ -21,8 +21,13 @@ module Tools
         the site did not list.
 
         If the page only links to a Locations or Contact page, call this
-        again on that same-origin URL. If menus clearly differ per
-        location, scan each from its own source instead of cloning.
+        once on that same-origin URL. If that page still has no
+        addresses, ask the user for them — do not call this on the same
+        page again. If nothing useful is found, ask for a menu page URL,
+        a PDF, an upload, or pasted text.
+
+        If menus clearly differ per location, scan each from its own
+        source instead of cloning.
 
         DoorDash, order.online, Google Maps, and Toast ordering pages
         are refused — ask for the restaurant's own site, a PDF/photo
@@ -92,20 +97,43 @@ module Tools
       end
       private_class_method :fetch_failure
 
+      ASK_ADDRESSES = "This page did not list addresses. Ask the user for the " \
+                      "street address of each location (or paste them), then " \
+                      "create_restaurant with those. Do not call " \
+                      "discover_restaurant_site on this page again."
+
+      ASK_MENU_SOURCE = "No menu or location URLs were found on this page. Ask " \
+                        "the user for a same-origin menu page URL, a menu PDF, " \
+                        "a photo or PDF upload, or pasted menu text."
+
       def self.next_step_for(result)
         if result.location_candidates.many?
           "Show the user these locations and ask which to import. Create one " \
           "restaurant per chosen spot (distinct names if the brand repeats), " \
           "scan the shared menu once, then clone_menu to siblings."
-        elsif result.location_candidates.empty? && result.location_pages.any?
+        elsif result.location_candidates.empty? && on_location_page?(result.url)
+          ASK_ADDRESSES
+        elsif result.location_candidates.empty? && other_location_pages(result).any?
           "This page did not list addresses. Call discover_restaurant_site on a " \
           "same-origin Locations or Contact URL, then ask which spots to add."
-        else
+        elsif result.menu_candidates.any? || result.location_candidates.any?
           "Show the user the menu URLs (and any location). Create the restaurant " \
           "if we do not have it, then start_menu_scan on the menu URL they confirm."
+        else
+          ASK_MENU_SOURCE
         end
       end
-      private_class_method :next_step_for
+
+      def self.on_location_page?(url)
+        ::Ingestion::SiteDiscoverer.location_oriented?(url)
+      end
+
+      def self.other_location_pages(result)
+        result.location_pages.reject { |page|
+          ::Ingestion::SiteDiscoverer.same_page?(page[:url], result.url)
+        }
+      end
+      private_class_method :next_step_for, :on_location_page?, :other_location_pages
 
       def self.fence_rows(rows, *keys)
         rows.map { |row| row.merge(keys.index_with { |key| untrusted(row[key]) }) }
@@ -116,7 +144,8 @@ module Tools
         rows.map do |row|
           row.merge(
             name:   untrusted(row[:name]),
-            street: untrusted(row[:street])
+            street: untrusted(row[:street]),
+            raw:    untrusted(row[:raw])
           ).compact
         end
       end
