@@ -98,7 +98,7 @@ namespace :biteworthy do
       if result.reviews.any?
         puts "== Not written: edited since the keyword went live, so a person may have removed the base on purpose. Check each in admin =="
         result.reviews.each do |c|
-          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{c.ingredient_slugs.join(', ')}"
+          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
           puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
         end
       end
