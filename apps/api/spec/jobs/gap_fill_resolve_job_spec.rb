@@ -90,7 +90,8 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       tags = gap_item.reload.tags_payload
       expect(tags).to include(
-        { "slug" => "contains-fish", "confidence" => 0.85, "source" => "ai" },
+        { "slug" => "contains-fish", "confidence" => 0.85,
+          "source" => "ingredient_derived", "from_source" => "ai" },
         { "slug" => "italian", "confidence" => 0.8, "source" => "ai" }
       )
       # The fake slug AND the real-but-wrong-channel allergen slug are gone.

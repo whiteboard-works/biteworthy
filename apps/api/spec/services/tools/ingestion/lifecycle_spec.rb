@@ -367,8 +367,33 @@ RSpec.describe "ingestion tools", type: :service do
           existing.reload
           expect(existing.denormalized_tag_ids).to include(shellfish_tag.id)
           allergen_join = existing.item_tags.find_by(tag: shellfish_tag)
-          expect(allergen_join.source).to eq("derived")
-          expect(allergen_join.confidence).to eq("suggested")
+          expect(allergen_join.source).to eq("ingredient_derived")
+          # Human-edited parent + admin accept → the allergen inherits confirmed.
+          expect(allergen_join.confidence).to eq("confirmed")
+        end
+
+        it "keeps keyword-to-wheat replacement rows derived/suggested on admin accept" do
+          wheat = create(:ingredient, name: "Wheat", slug: "grain-wheat", path: "grain.wheat")
+          gluten = create(:tag, name: "Contains gluten", slug: "contains-gluten",
+                          family: "allergen", path: "allergen.contains_gluten")
+
+          item.update!(
+            ingredients_payload: [
+              { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "derived" }
+            ]
+          )
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(admin)
+          )
+
+          wheat_join = existing.reload.item_ingredients.find_by(ingredient: wheat)
+          expect(wheat_join.source).to eq("derived")
+          expect(wheat_join.confidence).to eq("suggested")
+          gluten_join = existing.item_tags.find_by(tag: gluten)
+          expect(gluten_join.source).to eq("ingredient_derived")
+          expect(gluten_join.confidence).to eq("suggested")
+          expect(existing.confidence).to eq("suggested")
         end
 
         it "maps derived and AI replacement rows through map_confidence" do

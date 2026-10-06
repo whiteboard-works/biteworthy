@@ -176,5 +176,17 @@ RSpec.describe IngestionItem, "#map_confidence", type: :model do
         expect(item.send(:map_confidence, 1.0, "ai", accept_cap)).to eq("suggested")
       end
     end
+
+    context "unknown source (fail closed)" do
+      it "maps to inferred" do
+        expect(item.send(:map_confidence, 1.0, "mystery", accept_cap)).to eq("inferred")
+      end
+    end
+
+    context "source 'ingredient_derived' without from_source (fail closed)" do
+      it "maps to inferred rather than treating the allergen as a menu-text match" do
+        expect(item.send(:map_confidence, 1.0, "ingredient_derived", accept_cap)).to eq("inferred")
+      end
+    end
   end
 end

@@ -228,13 +228,15 @@ ingredients_payload: [
   { slug: "fish-anchovy", confidence: 0.85, source: "ai"    },  # gap-fill
 ],
 tags_payload: [
-  { slug: "contains-fish", confidence: 0.85, source: "ai"      }, # derived from the AI ingredient
+  { slug: "contains-fish", confidence: 0.85, source: "ingredient_derived", from_source: "ai" },
   { slug: "grilled",       confidence: 0.9,  source: "match"   },
 ]
 ```
 
-(`source: "derived"` marks a tag derived from a deterministic
-ingredient's ancestry.) Matched items serialize a `match` block
+(`source: "derived"` is name/keyword inference — pizza → wheat.
+`source: "ingredient_derived"` is an allergen tag inherited from an
+ingredient, with `from_source` carrying that ingredient's provenance.)
+Matched items serialize a `match` block
 (existing item + a serialize-time diff: description, prices, added
 ingredients/tags); accepting one applies the diff to the existing Item —
 see "Update flow (re-scan)" below.

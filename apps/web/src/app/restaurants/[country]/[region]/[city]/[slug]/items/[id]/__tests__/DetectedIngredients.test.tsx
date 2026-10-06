@@ -54,6 +54,31 @@ describe('DetectedIngredients', () => {
     expect(basilChip.className).not.toContain('border-bite');
   });
 
+  it('labels inferred, AI, and derived rows so they do not look human-verified', () => {
+    const derivedWheat: DetectedIngredient = {
+      slug: 'grain-wheat',
+      name: 'Wheat',
+      confidence: 'suggested',
+      source: 'derived',
+      allergen: true,
+    };
+    const inferredGluten: DetectedAssociation = {
+      slug: 'contains-gluten',
+      name: 'Contains gluten',
+      confidence: 'suggested',
+      source: 'ingredient_derived',
+    };
+
+    render(<DetectedIngredients ingredients={[derivedWheat]} tags={[inferredGluten]} />);
+
+    const wheatChip = screen.getByTitle('suggested — extracted, awaiting review · source: derived');
+    expect(wheatChip).toHaveTextContent('inferred');
+    const glutenChip = screen.getByTitle(
+      'suggested — extracted, awaiting review · source: ingredient_derived',
+    );
+    expect(glutenChip).toHaveTextContent('inferred');
+  });
+
   it('says so when no data is recorded rather than rendering nothing', () => {
     render(<DetectedIngredients ingredients={[]} tags={[]} />);
     expect(screen.getByText(/no ingredient data recorded/i)).toBeInTheDocument();

@@ -23,7 +23,11 @@ module Ingestion
   # [{slug:, path:, confidence:, source:}].
   class TagDeriver
     def self.derive(segments:, resolved_ingredients:, section_segments: [])
-      ctx = { segments:, section_segments:, resolved_ingredients: }
+      ctx = {
+        segments: Array(segments),
+        section_segments: Array(section_segments),
+        resolved_ingredients: Array(resolved_ingredients)
+      }
       FAMILY_STRATEGIES.flat_map do |family, strategy|
         strategy.call(ctx)
       rescue StandardError => e
@@ -93,12 +97,22 @@ module Ingestion
       def self.call(ctx)
         best = {}
         ctx[:resolved_ingredients].each do |ing|
+          next unless ing.respond_to?(:[])
+
           tag_slugs = Array(SLUG_TAGS[ing[:slug]]) +
                       SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [prefix]) }
-          source = ing[:source] == "ai" ? "ai" : "derived"
+          # Allergen tags inferred from an ingredient keep that ingredient's
+          # numeric confidence and original source (from_source) so promote
+          # can map them to the same join confidence. Distinct from
+          # "derived", which is name/keyword inference (pizza → wheat).
           tag_slugs.uniq.each do |tag_slug|
-            row = { slug: tag_slug, confidence: ing[:confidence], source: }
-            best[tag_slug] = row if best[tag_slug].nil? || row[:confidence] > best[tag_slug][:confidence]
+            row = {
+              slug: tag_slug,
+              confidence: ing[:confidence] || 0.0,
+              source: "ingredient_derived",
+              from_source: ing[:source]
+            }
+            best[tag_slug] = row if best[tag_slug].nil? || row[:confidence].to_f > best[tag_slug][:confidence].to_f
           end
         end
         best.values
@@ -138,7 +152,7 @@ module Ingestion
         hits = TagDeriver.keyword_hits(ctx[:segments], KEYWORDS, confidence: 0.9)
         return hits if hits.empty?
 
-        paths = ctx[:resolved_ingredients].map { |i| i[:path].to_s }
+        paths = ctx[:resolved_ingredients].filter_map { |i| i[:path].to_s if i.respond_to?(:[]) }
         animal = paths.any? { |p| TagDeriver.under_any?(p, ANIMAL_PREFIXES) }
         animal_product = animal || paths.any? { |p| TagDeriver.under_any?(p, VEGAN_ONLY_PREFIXES) }
         allergens = Allergen.call(ctx).map { |t| t[:slug] }

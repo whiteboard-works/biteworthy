@@ -40,11 +40,23 @@ RSpec.describe Ingestion::TagDeriver do
       expect(tag_slugs(tags)).to include("contains-shellfish", "contains-tree-nut")
     end
 
+    it "is nil-safe when ingredients or paths are missing" do
+      expect { derive(ingredients: nil) }.not_to raise_error
+      expect(derive(ingredients: nil)).to eq([])
+      expect { derive(ingredients: [ { slug: nil, path: nil } ]) }.not_to raise_error
+    end
+
     it "carries the ingredient's confidence and marks provenance" do
       derived = derive(ingredients: [ing("egg", "egg", confidence: 0.8)])
       ai      = derive(ingredients: [ing("egg", "egg", confidence: 0.7, source: "ai")])
-      expect(derived.first).to include(slug: "contains-egg", confidence: 0.8, source: "derived")
-      expect(ai.first).to include(slug: "contains-egg", confidence: 0.7, source: "ai")
+      expect(derived.first).to include(
+        slug: "contains-egg", confidence: 0.8,
+        source: "ingredient_derived", from_source: "match"
+      )
+      expect(ai.first).to include(
+        slug: "contains-egg", confidence: 0.7,
+        source: "ingredient_derived", from_source: "ai"
+      )
     end
 
     it "keeps the best confidence when two ingredients derive the same tag" do

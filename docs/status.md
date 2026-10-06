@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **Celiac-confidence follow-up (#793).** Zero-ingredient dishes stay suggested (confirm-all included). Allergen tags inferred from an ingredient use source `ingredient_derived` and inherit that ingredient's mapped confidence; name/keyword inference stays `derived`/`suggested`. Unknown sources fail closed to inferred. `Admin::BackfillConfidence` rewrites pre-766 human/confirmed AI rows (dry-run default) via rake and `POST /api/v1/admin/restaurants/:id/backfill_confidence`. Re-extract rake now starts a fresh scan from `inputs`. Edited accept-onto-existing (#790) replaces joins through ConfidenceMapper, so pizza→wheat stays `derived`/`suggested`.
+
 2026-10-06 (UTC) — **Backfill can reorder sections that already exist.** `POST /api/v1/admin/restaurants/:id/backfill_structure` now defaults to `dry_run=true` (send `dry_run=false` to write). `reorder=true` rewrites `menu_sections.position` and `items.position` from source-menu order using the latest accepted ingestion item per dish, without moving a dish or creating/renaming sections. Unsourced sections stay after the sourced ones. The dry-run payload lists old/new positions.
 
 2026-10-06 (UTC) — **Admin MCP / backfill curation bugs (#790).** Merged master (PR 766 confidence mapping) into the admin-bug-fixes branch. Edited accept-onto-existing now replaces ingredient/tag joins through `insert_joins_with_payload!` / `map_confidence` so derived and AI rows stay unconfirmed, then re-derives allergen tags. Backfill no longer overwrites an existing `menu_section_id`, orders sections by source `position`, and keeps latest-accepted prices unless `overwrite_prices`. Restaurant index still returns top-level `street` plus the nested address object.

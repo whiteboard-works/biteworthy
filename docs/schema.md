@@ -55,8 +55,10 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
   `kind: "addition"` rows on accept.
 
 Each join row carries `confidence` (`confirmed | suggested | inferred`)
-and `source` (`human | ai | owner`). This powers strict-mode honest
-disclosure: *we know X, we suspect Y, we inferred Z*.
+and `source` (`human | ai | owner | match | derived | ingredient_derived`).
+`derived` is name/keyword inference (pizza → wheat); `ingredient_derived`
+is an allergen tag inherited from an ingredient. This powers strict-mode
+honest disclosure: *we know X, we suspect Y, we inferred Z*.
 
 ## Enum columns
 
