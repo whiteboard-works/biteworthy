@@ -68,27 +68,33 @@ module Admin
     # whole menu row).
     def call(attrs)
       added_confidence = resolve_added_confidence(attrs[:added_confidence])
+      prepared_blob = prepare_photo_blob(attrs)
 
-      @item.transaction do
-        assign_scalars(attrs)
-        assign_section(attrs[:menu_section_id]) if attrs.key?(:menu_section_id)
-        handle_photo(attrs)
-        @item.save!
+      begin
+        @item.with_lock do
+          assign_scalars(attrs)
+          assign_section(attrs[:menu_section_id]) if attrs.key?(:menu_section_id)
+          handle_photo(attrs, prepared_blob)
+          @item.save!
 
-        synced = false
-        Item.defer_denormalization do
-          if attrs.key?(:ingredient_slugs)
-            sync_ingredients(attrs[:ingredient_slugs], added_confidence)
-            synced = true
+          synced = false
+          Item.defer_denormalization do
+            if attrs.key?(:ingredient_slugs)
+              sync_ingredients(attrs[:ingredient_slugs], added_confidence)
+              synced = true
+            end
+            if attrs.key?(:tag_slugs)
+              sync_tags(attrs[:tag_slugs], added_confidence)
+              synced = true
+            end
           end
-          if attrs.key?(:tag_slugs)
-            sync_tags(attrs[:tag_slugs], added_confidence)
-            synced = true
-          end
+          rederive_item_confidence! if synced
+          replace_variants(attrs[:variants])         if attrs.key?(:variants)
+          replace_modifiers(attrs[:modifiers])       if attrs.key?(:modifiers)
         end
-        rederive_item_confidence! if synced
-        replace_variants(attrs[:variants])         if attrs.key?(:variants)
-        replace_modifiers(attrs[:modifiers])       if attrs.key?(:modifiers)
+        preprocess_photo_variant if prepared_blob
+      ensure
+        prepared_blob&.purge unless blob_still_attached?(prepared_blob)
       end
       @item.reload
     end
@@ -123,43 +129,61 @@ module Admin
     end
 
     # Photo can be attached via direct upload (multipart file), signed blob
-    # id (from POST /attachments), or removed with a flag. Attach before
-    # save! so validation errors surface as 422 instead of silently failing.
-    # Preprocess the card variant after attachment for faster first load.
-    def handle_photo(attrs)
+    # id (from POST /attachments), or removed with a flag. Direct uploads are
+    # stored as a blob *before* the item lock so attach inside with_lock is
+    # a DB row, not an after_commit tempfile upload. Attach before save! so
+    # validation errors surface as 422 instead of silently failing.
+    def handle_photo(attrs, prepared_blob)
       if attrs[:remove_photo].to_s == "true"
-        # Use purge_later to avoid blocking the transaction
         @item.photo.purge_later if @item.photo.attached?
         @item.photo_submission_id = nil
         return
       end
 
-      preprocess = false
-      if attrs[:photo].respond_to?(:tempfile)
-        @item.photo.attach(
-          io:           attrs[:photo].tempfile,
-          filename:     attrs[:photo].original_filename.presence || "dish.jpg",
-          content_type: attrs[:photo].content_type.presence
-        )
+      if prepared_blob
+        attach_photo_exclusively!(prepared_blob)
         @item.photo_submission_id = nil
-        preprocess = true
       elsif attrs[:photo_signed_id].present?
-        @item.photo.attach(attrs[:photo_signed_id])
+        attach_photo_exclusively!(attrs[:photo_signed_id])
         @item.photo_submission_id = nil
-        # Skip preprocessing for signed_id - the blob is already stored and
-        # variants will be generated on first access
       end
+    end
 
-      # Preprocess the card variant for faster menu page loads. Only for direct
-      # uploads since signed_id blobs are already stored. Rescue all errors since
-      # preprocessing is optional (it just speeds up first access).
-      if preprocess && @item.photo.attached?
-        begin
-          @item.photo.variant(:card).processed
-        rescue => e
-          Rails.logger.warn("Variant preprocessing failed: #{e.class} #{e.message}")
-        end
-      end
+    def prepare_photo_blob(attrs)
+      file = attrs[:photo]
+      return unless file.respond_to?(:tempfile)
+
+      bytes = file.tempfile.binmode.read
+      file.tempfile.rewind
+      ActiveStorage::Blob.create_and_upload!(
+        io:           StringIO.new(bytes),
+        filename:     file.original_filename.presence || "dish.jpg",
+        content_type: file.content_type.presence
+      )
+    end
+
+    def attach_photo_exclusively!(attachable)
+      old_blob_ids = ActiveStorage::Attachment.where(record: @item, name: "photo").pluck(:blob_id)
+      @item.photo.attach(attachable)
+      keeper_id = @item.photo.blob&.id
+      return unless keeper_id
+
+      ActiveStorage::Attachment.where(record: @item, name: "photo")
+                               .where.not(blob_id: keeper_id)
+                               .delete_all
+      ActiveStorage::Blob.where(id: old_blob_ids - [ keeper_id ]).find_each(&:purge_later)
+    end
+
+    def blob_still_attached?(blob)
+      blob && ActiveStorage::Attachment.exists?(blob_id: blob.id)
+    end
+
+    def preprocess_photo_variant
+      return unless @item.photo.attached?
+
+      @item.photo.variant(:card).processed
+    rescue StandardError => e
+      Rails.logger.warn("Variant preprocessing failed: #{e.class} #{e.message}")
     end
 
     def sync_ingredients(slugs, added_confidence)

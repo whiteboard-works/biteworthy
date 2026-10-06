@@ -84,4 +84,16 @@ describe('DishPhotoOffer', () => {
     expect(screen.getByTestId('preview-unavailable')).toHaveTextContent('Preview unavailable');
     expect(screen.queryByTestId('dish-photo-preview')).not.toBeInTheDocument();
   });
+
+  it('clears the rights checkbox when the diner picks a different file', () => {
+    render(<DishPhotoOffer itemId="item-1" returnPath="/x" signedIn startOpen />);
+    const first = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    const second = new File(['img2'], 'burrito.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('dish-photo'), { target: { files: [first] } });
+    fireEvent.click(screen.getByTestId('owns-rights'));
+    expect(screen.getByTestId('owns-rights')).toBeChecked();
+
+    fireEvent.change(screen.getByLabelText('dish-photo'), { target: { files: [second] } });
+    expect(screen.getByTestId('owns-rights')).not.toBeChecked();
+  });
 });

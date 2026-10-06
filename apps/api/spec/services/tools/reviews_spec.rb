@@ -111,6 +111,33 @@ RSpec.describe "review tools" do
       gps_file&.close!
     end
 
+    it "does not replace the photo when a field edit is invalid" do
+      review.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+        filename: "old.jpg",
+        content_type: "image/jpeg"
+      )
+      original_blob = review.photo.blob.id
+      replacement = ActiveStorage::Blob.create_and_upload!(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "new.jpg",
+        content_type: "image/jpeg",
+        metadata: { "uploaded_by_user_id" => author.id }
+      )
+
+      expect {
+        described_class.perform(
+          context: Tools::Context.new({ user_id: author.id }),
+          review_id: review.id,
+          rating: 6,
+          attachment_id: replacement.signed_id
+        )
+      }.to raise_error(ActiveRecord::RecordInvalid)
+
+      expect(review.reload.rating).to eq(3)
+      expect(review.photo.blob.id).to eq(original_blob)
+    end
+
     it "refuses someone else's review" do
       response = call(described_class, stranger, review_id: review.id, rating: 1)
 

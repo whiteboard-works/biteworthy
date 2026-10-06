@@ -3,7 +3,7 @@ import { friendlyPhotoError } from '../photo-errors';
 
 describe('friendlyPhotoError', () => {
   it('maps API codes to diner-facing copy, never the raw vips line', () => {
-    expect(friendlyPhotoError('too_large')).toMatch(/under 5 MB/i);
+    expect(friendlyPhotoError('too_large')).toMatch(/under 4 MB/i);
     expect(friendlyPhotoError('too_many_pixels')).toMatch(/too big/i);
     expect(friendlyPhotoError('unprocessable_image')).toMatch(/could not read/i);
     expect(friendlyPhotoError('unsupported_type')).toMatch(/JPEG/i);

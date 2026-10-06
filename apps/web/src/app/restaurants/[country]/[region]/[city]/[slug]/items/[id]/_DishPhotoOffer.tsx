@@ -57,6 +57,7 @@ export function DishPhotoOffer({
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
     setPhoto(e.target.files?.[0] ?? null);
+    setOwnsRights(false);
     setSubmitted(false);
   };
 

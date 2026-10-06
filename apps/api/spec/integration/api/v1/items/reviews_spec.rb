@@ -15,10 +15,19 @@ RSpec.describe "items/reviews", type: :request do
 
   review_schema = {
     type: :object,
-    required: %w[id item_id rating created_at],
+    required: %w[id item_id rating created_at user],
     properties: {
       id:         { type: :string, format: :uuid },
       item_id:    { type: :string, format: :uuid },
+      user: {
+        type: :object,
+        required: %w[id handle],
+        properties: {
+          id:           { type: :string, format: :uuid },
+          handle:       { type: :string },
+          display_name: { type: :string, nullable: true }
+        }
+      },
       rating:     { type: :integer },
       body:       { type: :string, nullable: true },
       photo_url:  { type: :string, nullable: true },

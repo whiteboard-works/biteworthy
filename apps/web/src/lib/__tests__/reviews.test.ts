@@ -10,7 +10,7 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../reviews';
-import { shrinkForUpload } from '../shrink-image';
+import { shrinkForUpload, MAX_UPLOAD_BYTES } from '../shrink-image';
 
 vi.mock('../shrink-image', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../shrink-image')>();
@@ -139,11 +139,11 @@ describe('createReview', () => {
 
   it('refuses a photo still too large, with a message that says so, before sending it', async () => {
     const fetchImpl = fakeFetch(201, sampleReview);
-    const photo = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'odd.bmp', { type: 'image/bmp' });
+    const photo = new File([new Uint8Array(MAX_UPLOAD_BYTES + 1)], 'odd.bmp', { type: 'image/bmp' });
     vi.mocked(shrinkForUpload).mockResolvedValueOnce(photo);
 
     await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
-      /under 5 MB/,
+      /under 4 MB/,
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });

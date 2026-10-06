@@ -43,6 +43,9 @@ RSpec.describe "account/export", type: :request do
         let!(:review)     { create(:review, user: account, body: "Loved it") }
         let!(:suggestion) { create(:item_suggestion_pending, user: account) }
         let!(:visit)      { create(:restaurant_visit, user: account) }
+        let!(:photo_submission) do
+          create(:dish_photo_submission, user: account, credit_name: "Pat Diner")
+        end
         # A record belonging to someone else must never leak into the export.
         let!(:other_review) { create(:review, body: "Not mine") }
 
@@ -52,6 +55,11 @@ RSpec.describe "account/export", type: :request do
           expect(json["account"]["email"]).to eq(account.email)
           expect(json["reviews"].map { |r| r["id"] }).to contain_exactly(review.id)
           expect(json["reviews"].first["body"]).to eq("Loved it")
+          expect(json["photo_submissions"].map { |s| s["id"] }).to contain_exactly(photo_submission.id)
+          expect(json["photo_submissions"].first).to include(
+            "owns_rights" => true,
+            "credit_name" => "Pat Diner"
+          )
           expect(json["suggestions"].map { |s| s["id"] }).to contain_exactly(suggestion.id)
           expect(json["restaurant_visits"].map { |v| v["id"] }).to contain_exactly(visit.id)
           expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug", "chat_notes")

@@ -3970,6 +3970,12 @@ export interface paths {
                             id: string;
                             /** Format: uuid */
                             item_id: string;
+                            user: {
+                                /** Format: uuid */
+                                id: string;
+                                handle: string;
+                                display_name?: string | null;
+                            };
                             rating: number;
                             body?: string | null;
                             photo_url?: string | null;
@@ -4058,6 +4064,12 @@ export interface paths {
                             id: string;
                             /** Format: uuid */
                             item_id: string;
+                            user: {
+                                /** Format: uuid */
+                                id: string;
+                                handle: string;
+                                display_name?: string | null;
+                            };
                             rating: number;
                             body?: string | null;
                             photo_url?: string | null;

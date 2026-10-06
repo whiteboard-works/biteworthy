@@ -73,6 +73,8 @@ module Api
           status:           submission.status,
           rejection_reason: submission.rejection_reason,
           review_id:        submission.review_id,
+          owns_rights:      submission.owns_rights,
+          credit_name:      submission.credit_name,
           created_at:       submission.created_at.iso8601
         }
       end

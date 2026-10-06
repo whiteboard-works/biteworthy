@@ -44,8 +44,12 @@ module Tools
           raise Errors::InvalidArgument, "Pass rating, body, a photo, or both."
         end
 
-        attach_review_photo!(review, attachment_id, context.user)
-        review.update!(attrs) if attrs.any?
+        Review.transaction do
+          review.assign_attributes(attrs)
+          review.validate!
+          attach_review_photo!(review, attachment_id, context.user)
+          review.save!
+        end
         ok(review_row(review.reload).merge(flagged_for_moderation: review.flagged?))
       rescue Images::StripMetadata::Unprocessable => e
         raise Errors::InvalidArgument, e.message

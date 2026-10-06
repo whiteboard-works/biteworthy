@@ -372,8 +372,9 @@ mentions them.
 Diner dish photos sit in the `moderation` domain, admin-only like the review
 queue: **`list_photo_submissions`** (defaults to pending) and
 **`moderate_photo_submission`** (`approve_and_set` copies the stored diner
-bytes onto a new `Item#photo` blob after the moderation lock commits so
-WebP variants generate from bytes on disk; `approve_keep` marks it
+bytes onto a new `Item#photo` blob under an item lock (then the
+submission lock) so attach, credit, and `approved` commit together;
+`approve_keep` marks it
 accepted without replacing an existing photo; `reject` needs a `reason`).
 Stored images are rewritten
 through libvips with metadata stripped (no GPS). Output fences

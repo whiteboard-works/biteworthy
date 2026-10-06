@@ -6748,7 +6748,8 @@
                     "id",
                     "item_id",
                     "rating",
-                    "created_at"
+                    "created_at",
+                    "user"
                   ],
                   "properties": {
                     "id": {
@@ -6758,6 +6759,26 @@
                     "item_id": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "handle"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "handle": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
                     },
                     "rating": {
                       "type": "integer"
@@ -6892,7 +6913,8 @@
                     "id",
                     "item_id",
                     "rating",
-                    "created_at"
+                    "created_at",
+                    "user"
                   ],
                   "properties": {
                     "id": {
@@ -6902,6 +6924,26 @@
                     "item_id": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "handle"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "handle": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
                     },
                     "rating": {
                       "type": "integer"

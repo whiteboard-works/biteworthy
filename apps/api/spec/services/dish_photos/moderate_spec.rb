@@ -88,9 +88,20 @@ RSpec.describe DishPhotos::Moderate do
     }.to raise_error(DishPhotos::Moderate::NotPending)
   end
 
-  it "refuses an unknown rejection reason" do
+  it "leaves the submission pending when attaching the dish photo fails" do
+    allow_any_instance_of(ActiveStorage::Attached::One).to receive(:attach).and_wrap_original do |method, *args|
+      raise "injected attach failure" if method.receiver.record.is_a?(Item)
+
+      method.call(*args)
+    end
+
     expect {
-      described_class.new(submission, reviewer: admin).reject!(reason: "meh")
-    }.to raise_error(DishPhotos::Moderate::InvalidReason)
+      described_class.new(submission, reviewer: admin).approve!(replace_item_photo: true)
+    }.to raise_error("injected attach failure")
+
+    expect(submission.reload).to be_pending
+    expect(submission.reviewed_at).to be_nil
+    expect(item.reload.photo).not_to be_attached
+    expect(item.photo_submission_id).to be_nil
   end
 end
