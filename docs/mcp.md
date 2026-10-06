@@ -342,8 +342,9 @@ Locations/Contact page with none (no loop), and asks for a menu page /
 PDF / upload / paste when menus and locations are both empty.
 `Ingestion::HostPolicy` refuses DoorDash / order.online, Google Maps,
 and Toast ordering HTML at the fetch door, plus a DoorDash/Toast
-white-label on a custom domain (storefront cookies, `x-dd-`/`x-toast-`
-headers, or CDN asset hosts — not an outbound DoorDash link).
+white-label on a custom domain (`script`/`link` CDN hosts or
+`x-dd-`/`x-toast-` headers — not an outbound DoorDash link, a Toast
+order iframe, or a Datadog `dd_*` cookie).
 `start_menu_scan` and discover both return `forbidden_host` with a
 next_step naming own-site / paste / upload. Community
 `create_restaurant` accepts optional website, phone, and hours so import

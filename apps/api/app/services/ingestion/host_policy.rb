@@ -12,9 +12,11 @@ module Ingestion
   # paste, app uploads, and partner APIs. Forbidden as automated product
   # behaviour: DoorDash / order.online, Google Maps photo galleries, and
   # Toast ordering HTML — including a DoorDash/Toast white-label on a
-  # custom domain (fingerprint after fetch: storefront cookies, headers,
-  # or CDN asset hosts). A restaurant site that only *links* to DoorDash
-  # stays allowed.
+  # custom domain (fingerprint after fetch: `script`/`link` CDN hosts
+  # or `x-dd-`/`x-toast-` headers). An own-site page that only *links*
+  # to DoorDash, or embeds a Toast/DoorDash order `<iframe>`, stays
+  # allowed. Cookies are not a standalone signal (`dd_cookie_test_*`
+  # is Datadog).
   class HostPolicy
     MESSAGE = "We cannot fetch menus from DoorDash, order.online, Google Maps, " \
               "or Toast ordering pages."
@@ -34,9 +36,9 @@ module Ingestion
       googleusercontent.com
     ].freeze
 
-    # Script / stylesheet / iframe hosts that mean the page *is* a
-    # DoorDash or Toast storefront, not a restaurant site that mentions
-    # them. `cdn4dd.com` is DoorDash's CDN.
+    # Script / stylesheet hosts that mean the page *is* a DoorDash or
+    # Toast storefront. `cdn4dd.com` is DoorDash's CDN. `<iframe>` is
+    # not included — many own-site pages embed an ordering widget.
     STOREFRONT_ASSET_SUFFIXES = %w[
       doordash.com
       cdn4dd.com
@@ -44,10 +46,9 @@ module Ingestion
       toastcdn.net
     ].freeze
 
-    STOREFRONT_COOKIE = /\b(?:dd[_-][\w-]*|ddweb[_-]?[\w-]*|doordash[\w-]*|toast[_-][\w-]*)=/i
     STOREFRONT_HEADER = /\A(?:x-dd-|x-toast-)/i
     ASSET_TAG = /
-      <(?:script|link|iframe)\b
+      <(?:script|link)\b
       [^>]*?
       \b(?:src|href)\s*=\s*["']([^"']+)["']
     /ix
@@ -83,12 +84,10 @@ module Ingestion
 
       # Post-fetch fingerprint for a DoorDash/Toast white-label sitting
       # on a custom domain. UrlFetcher calls this on HTML 2xx so we
-      # never parse the storefront. Outbound `<a href>` links are not
-      # an asset tag and do not match.
+      # never parse the storefront. Outbound `<a href>` links and order
+      # `<iframe>`s are not a `script`/`link` asset and do not match.
       def storefront?(headers, body)
-        storefront_headers?(headers) ||
-          storefront_cookies?(headers) ||
-          storefront_assets?(body)
+        storefront_headers?(headers) || storefront_assets?(body)
       end
 
       private
@@ -132,13 +131,6 @@ module Ingestion
           return true if name.to_s.match?(STOREFRONT_HEADER)
         end
         false
-      end
-
-      def storefront_cookies?(headers)
-        return false unless headers
-
-        values = Array(headers["set-cookie"]) + Array(headers["Set-Cookie"])
-        STOREFRONT_COOKIE.match?(values.join("\n"))
       end
 
       def storefront_assets?(body)

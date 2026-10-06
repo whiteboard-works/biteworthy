@@ -140,6 +140,36 @@ RSpec.describe UrlFetcher do
       expect(result.io.read).to include("Order")
     end
 
+    it "still fetches an own-site page that embeds a Toast ordering iframe" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: <<~HTML
+          <html><body>
+            <h1>Dinner menu</h1>
+            <p>Brisket plate, beans, slaw.</p>
+            <iframe src="https://www.toasttab.com/serious-texas/v3"></iframe>
+          </body></html>
+        HTML
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Dinner menu")
+    end
+
+    it "still fetches a page that only sets a Datadog dd_cookie_test cookie" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cookie_test_x=1; Path=/" },
+        body: "<html><body>Menu</body></html>"
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Menu")
+    end
+
     it "infers a sensible filename from the URL path" do
       stub_request(:get, "https://example.com/menus/dinner.pdf").to_return(
         status: 200,
