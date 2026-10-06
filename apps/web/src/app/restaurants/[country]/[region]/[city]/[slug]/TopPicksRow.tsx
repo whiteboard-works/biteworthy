@@ -115,40 +115,44 @@ export function TopPicksRow({
       data-testid="top-picks"
       className="mt-bw-6 rounded-bw-lg border-2 border-bite bg-bite-light/50 p-bw-4"
     >
-      <div className="flex items-baseline gap-bw-2">
-        <h2 className="text-bw-2xl font-bold text-bite-dark">Your best bets here</h2>
-        <button
-          type="button"
-          data-testid="why-these"
-          aria-expanded={whyOpen}
-          onClick={() => setWhyOpen((v) => !v)}
-          className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
-        >
-          Why these?
-        </button>
-        <a
-          href="/onboarding?step=taste"
-          data-testid="improve-picks"
-          className="ml-auto text-bw-xs font-semibold text-bite hover:text-bite-dark"
-        >
-          Improve my picks
-        </a>
+      <div className="flex flex-col gap-bw-1 sm:flex-row sm:items-baseline sm:gap-bw-3">
+        <h2 className="text-bw-xl font-bold leading-tight text-bite-dark sm:text-bw-2xl">
+          Your best bets here
+        </h2>
+        <div className="flex items-baseline gap-bw-4 whitespace-nowrap sm:flex-1">
+          <button
+            type="button"
+            data-testid="why-these"
+            aria-expanded={whyOpen}
+            onClick={() => setWhyOpen((v) => !v)}
+            className="text-bw-xs font-semibold text-bite hover:text-bite-dark"
+          >
+            Why these?
+          </button>
+          <a
+            href="/onboarding?step=taste"
+            data-testid="improve-picks"
+            className="ml-auto text-bw-xs font-semibold text-bite hover:text-bite-dark"
+          >
+            Improve my picks
+          </a>
+        </div>
       </div>
       {whyOpen && (
-        <p data-testid="why-these-explainer" className="mt-bw-1 text-bw-sm text-bite-dark/80">
+        <p data-testid="why-these-explainer" className="mt-bw-2 text-bw-sm text-bite-dark/80">
           Ranked from the tags and ingredients you said you love in your taste profile. Everything
           below passed your dietary filter too — these are just the dishes you&rsquo;re most likely
           to enjoy.
         </p>
       )}
-      <ul className="mt-bw-3 flex gap-bw-3 overflow-x-auto pb-bw-2">
+      <ul className="-mx-bw-4 mt-bw-4 flex snap-x snap-mandatory scroll-px-bw-4 gap-bw-3 overflow-x-auto px-bw-4 pb-bw-2">
         {picks.map((item) => {
           const reason = tasteReasonLine(item.taste_reasons);
           return (
             <li
               key={item.id}
               data-testid={`top-pick-${item.id}`}
-              className="w-48 shrink-0 rounded-bw-lg border border-bite bg-white p-bw-3 shadow-sm"
+              className="w-44 shrink-0 snap-start rounded-bw-lg border border-bite/40 bg-white p-bw-3 shadow-sm sm:w-48"
             >
               <a
                 href={`${basePath}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`}
@@ -156,7 +160,7 @@ export function TopPicksRow({
               >
                 {!hasDishPhoto(item) && pickPlaceholders && (
                   <DishPhotoPlaceholder
-                    className="mb-bw-2 flex h-28 w-full rounded-bw-md"
+                    className="mb-bw-2 flex h-24 w-full rounded-bw-md sm:h-28"
                     testId={`pick-photo-placeholder-${item.id}`}
                   />
                 )}
@@ -171,7 +175,7 @@ export function TopPicksRow({
                     sizes="200px"
                     alt={item.name}
                     loading="lazy"
-                    className="mb-bw-2 h-28 w-full rounded-bw-md object-cover"
+                    className="mb-bw-2 h-24 w-full rounded-bw-md object-cover sm:h-28"
                     onError={(e) => {
                       // Fall back to original photo_url if variant fails
                       if (item.photo_url && e.currentTarget.src !== item.photo_url) {
@@ -181,7 +185,9 @@ export function TopPicksRow({
                     }}
                   />
                 )}
-                <p className="text-bw-base font-bold text-zinc-900">{item.name}</p>
+                <p className="text-bw-sm font-bold leading-snug text-zinc-900 sm:text-bw-base">
+                  {item.name}
+                </p>
                 {reason && (
                   <p
                     data-testid={`pick-reason-${item.id}`}
