@@ -7,7 +7,7 @@ RSpec.describe DishPhotos::Submit do
 
   def jpeg_upload
     Rack::Test::UploadedFile.new(
-      Rails.root.join("spec/fixtures/files/test-image.jpg"),
+      Rails.root.join("spec/fixtures/files/clean-photo.jpg"),
       "image/jpeg"
     )
   end
@@ -72,7 +72,7 @@ RSpec.describe DishPhotos::Submit do
   it "copies a review photo into its own stripped blob" do
     review = create(:review, user: user, item: item)
     review.photo.attach(
-      io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+      io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
       filename: "review.jpg",
       content_type: "image/jpeg"
     )

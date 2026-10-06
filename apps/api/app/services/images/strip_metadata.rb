@@ -114,12 +114,17 @@ module Images
       end
     end
 
-    # `:truncated` still rejects corrupt/cut-off files. `:error` is too
-    # strict: phone JPEGs with quirky progressive scans fail even though
-    # they decode and display fine.
     def open_image(path, access: nil)
-      opts = { fail_on: :truncated }
+      opts = { unlimited: false }
       opts[:access] = access if access
+      # Default fail-on is :none. :truncated/:error reject ordinary phone
+      # JPEGs (quirky progressive scans) and trip libvips' process-wide
+      # warning cap (64), after which every later decode 422s.
+      Vips::Image.new_from_file(path, **opts)
+    rescue Vips::Error => e
+      raise unless e.message.include?("No such option")
+
+      opts.delete(:unlimited)
       Vips::Image.new_from_file(path, **opts)
     end
 

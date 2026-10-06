@@ -67,7 +67,7 @@ RSpec.describe "photo_submissions", type: :request do
       parameter name: :photo, in: :formData, type: :file, required: true,
                 description: "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
       parameter name: :owns_rights, in: :formData, type: :boolean, required: true,
-                description: "Must be true — the diner confirms they took the photo."
+                description: "Must be true, 'true', or '1' — the diner confirms they took the photo."
 
       response(201, "pending submission") do
         schema diner_schema
@@ -76,7 +76,7 @@ RSpec.describe "photo_submissions", type: :request do
         let(:item_id) { create(:item, :published, restaurant: create(:restaurant, :published)).id }
         let(:photo) do
           Rack::Test::UploadedFile.new(
-            Rails.root.join("spec/fixtures/files/test-image.jpg"),
+            Rails.root.join("spec/fixtures/files/clean-photo.jpg"),
             "image/jpeg"
           )
         end

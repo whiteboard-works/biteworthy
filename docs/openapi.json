@@ -6705,6 +6705,144 @@
         }
       }
     },
+    "/api/v1/items/{item_id}/reviews": {
+      "parameters": [
+        {
+          "name": "item_id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Create a review of this dish",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the new review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "rating",
+                    "created_at"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "rating": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "photo_offer": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "rate_limited",
+                            "failed"
+                          ]
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rating"
+                ],
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "description": "1 to 5."
+                  },
+                  "body": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "offer_as_dish_photo": {
+                    "type": "boolean",
+                    "description": "When true, also queue the review photo as a pending dish-photo submission. Requires a multipart photo and owns_rights."
+                  },
+                  "owns_rights": {
+                    "type": "boolean",
+                    "description": "Required when offer_as_dish_photo is true. Must be true, 'true', or '1'."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mcp_tokens": {
       "get": {
         "summary": "List the caller's active MCP tokens",
@@ -7052,7 +7190,9 @@
                       "enum": [
                         "pending",
                         "approved",
-                        "rejected"
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
                       ]
                     },
                     "rejection_reason": {
@@ -7187,7 +7327,9 @@
                             "enum": [
                               "pending",
                               "approved",
-                              "rejected"
+                              "rejected",
+                              "withdrawn",
+                              "approve_keep"
                             ]
                           },
                           "rejection_reason": {
@@ -7309,7 +7451,9 @@
               "enum": [
                 "pending",
                 "approved",
+                "approve_keep",
                 "rejected",
+                "withdrawn",
                 "all"
               ]
             }
@@ -7379,7 +7523,9 @@
                             "enum": [
                               "pending",
                               "approved",
-                              "rejected"
+                              "rejected",
+                              "withdrawn",
+                              "approve_keep"
                             ]
                           },
                           "rejection_reason": {
@@ -7558,7 +7704,9 @@
                       "enum": [
                         "pending",
                         "approved",
-                        "rejected"
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
                       ]
                     },
                     "rejection_reason": {
@@ -7736,7 +7884,9 @@
                       "enum": [
                         "pending",
                         "approved",
-                        "rejected"
+                        "rejected",
+                        "withdrawn",
+                        "approve_keep"
                       ]
                     },
                     "rejection_reason": {

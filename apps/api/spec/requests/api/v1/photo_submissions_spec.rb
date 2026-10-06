@@ -8,7 +8,7 @@ RSpec.describe "Dish photo submissions API", type: :request do
   let(:item)       { create(:item, :published, restaurant: restaurant) }
 
   def jpeg_upload
-    fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+    fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
   end
 
   describe "POST /api/v1/items/:item_id/photo_submissions" do

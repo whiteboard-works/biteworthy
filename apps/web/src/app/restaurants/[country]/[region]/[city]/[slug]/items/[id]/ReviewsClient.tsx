@@ -101,6 +101,20 @@ export function ReviewsClient({
         )}
       </div>
 
+      {composerOpen && (
+        <Composer
+          itemId={itemId}
+          restaurantSlug={restaurantSlug}
+          onCancel={() => setComposerOpen(false)}
+          onPosted={onPosted}
+          onUnauthenticated={() => {
+            router.replace(
+              `/login?next=${encodeURIComponent(`${restaurantPath}/items/${itemId}`)}`,
+            );
+          }}
+        />
+      )}
+
       {offerNote && (
         <p
           data-testid="photo-offer-note"

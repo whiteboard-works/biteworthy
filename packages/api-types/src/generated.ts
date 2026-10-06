@@ -3915,6 +3915,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{item_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a review of this dish */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    item_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description 1 to 5. */
+                        rating: number;
+                        body?: string | null;
+                        /** @description When true, also queue the review photo as a pending dish-photo submission. Requires a multipart photo and owns_rights. */
+                        offer_as_dish_photo?: boolean;
+                        /** @description Required when offer_as_dish_photo is true. Must be true, 'true', or '1'. */
+                        owns_rights?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the new review */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            updated_at?: string;
+                            photo_offer?: {
+                                /** @enum {string} */
+                                status?: "pending" | "rate_limited" | "failed";
+                                code?: string;
+                                message?: string;
+                                /** Format: uuid */
+                                id?: string;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp_tokens": {
         parameters: {
             query?: never;
@@ -4190,7 +4273,7 @@ export interface paths {
                             /** Format: uuid */
                             item_id: string;
                             /** @enum {string} */
-                            status: "pending" | "approved" | "rejected";
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
                             /** @enum {string|null} */
                             rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
                             owns_rights: boolean;
@@ -4255,7 +4338,7 @@ export interface paths {
                                 /** Format: uuid */
                                 item_id: string;
                                 /** @enum {string} */
-                                status: "pending" | "approved" | "rejected";
+                                status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
                                 /** @enum {string|null} */
                                 rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
                                 owns_rights: boolean;
@@ -4335,7 +4418,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    status?: "pending" | "approved" | "rejected" | "all";
+                    status?: "pending" | "approved" | "approve_keep" | "rejected" | "withdrawn" | "all";
                     item_id?: string;
                     limit?: number;
                     offset?: number;
@@ -4362,7 +4445,7 @@ export interface paths {
                                 /** Format: uuid */
                                 item_id: string;
                                 /** @enum {string} */
-                                status: "pending" | "approved" | "rejected";
+                                status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
                                 /** @enum {string|null} */
                                 rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
                                 owns_rights: boolean;
@@ -4462,7 +4545,7 @@ export interface paths {
                             /** Format: uuid */
                             item_id: string;
                             /** @enum {string} */
-                            status: "pending" | "approved" | "rejected";
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
                             /** @enum {string|null} */
                             rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
                             owns_rights: boolean;
@@ -4549,7 +4632,7 @@ export interface paths {
                             /** Format: uuid */
                             item_id: string;
                             /** @enum {string} */
-                            status: "pending" | "approved" | "rejected";
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
                             /** @enum {string|null} */
                             rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
                             owns_rights: boolean;

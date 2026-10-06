@@ -73,7 +73,7 @@ RSpec.describe "Reviews API", type: :request do
     end
 
     it "accepts a multipart photo upload and returns a photo_url" do
-      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
 
       expect {
         post "/api/v1/items/#{item.id}/reviews",
@@ -102,7 +102,7 @@ RSpec.describe "Reviews API", type: :request do
     end
 
     it "creates a pending dish-photo submission when the diner offers the review photo" do
-      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
 
       expect {
         post "/api/v1/items/#{item.id}/reviews",
@@ -124,11 +124,11 @@ RSpec.describe "Reviews API", type: :request do
         DishPhotos::Submit.call(
           item: create(:item, :published, restaurant: restaurant),
           user: owner,
-          photo: fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg"),
+          photo: fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg"),
           owns_rights: true
         )
       end
-      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/test-image.jpg"), "image/jpeg")
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
 
       expect {
         post "/api/v1/items/#{item.id}/reviews",

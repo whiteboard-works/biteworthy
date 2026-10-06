@@ -42,7 +42,7 @@ RSpec.describe "Admin dish photo submissions", type: :request do
 
     it "can approve without replacing an existing dish photo" do
       item.photo.attach(
-        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
         filename: "staff.jpg",
         content_type: "image/jpeg"
       )
