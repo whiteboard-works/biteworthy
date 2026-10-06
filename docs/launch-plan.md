@@ -30,8 +30,8 @@ They converge at launch. The move: **you take Track A; the loop takes Track B.**
 1. **First `kamal deploy`** — unblocks email, storage, web, seed, screenshots,
    press. Nothing public exists until this runs.
 2. **L1 attorney sign-off** (Privacy + ToS) — long lead time (external party);
-   blocks DRAFT-banner removal *and* mobile store submission. Start day one even
-   though it finishes late.
+   blocks mobile store submission (the DRAFT banners already came off at the
+   owner's call, 2026-10-05/06). Start day one even though it finishes late.
 3. **Anthropic billing** — cheap, but unblocks both the AI cassette and the
    30-restaurant seed.
 
