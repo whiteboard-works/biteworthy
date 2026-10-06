@@ -1465,6 +1465,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/restaurants/{id}/backfill_structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backfill sections, prices, and optional source-menu order
+         * @description Rebuilds missing menu sections and item variants from accepted ingestion payloads. Defaults to dry_run — send dry_run=false to write. reorder=true rewrites menu_sections.position and items.position from source-menu order (latest accepted ingestion item per dish) without moving a dish or creating/renaming sections. Unsourced sections stay after sourced ones in their current relative order.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description Preview only. Defaults to true; send false to persist. */
+                    dry_run?: boolean;
+                    /** @description Rewrite section and item positions from source-menu order. */
+                    reorder?: boolean;
+                    /** @description Replace existing item variants from the latest accepted prices. */
+                    overwrite_prices?: boolean;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description backfill preview or applied changes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            dry_run: boolean;
+                            reorder: boolean;
+                            sections_created: Record<string, never>[];
+                            variants_added: Record<string, never>[];
+                            sections_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
+                            items_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** Format: uuid */
+                                section_id?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/reviews": {
         parameters: {
             query?: never;

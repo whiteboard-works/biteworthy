@@ -28,6 +28,25 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["dry_run"]).to be true
+    end
+
+    it "defaults to dry_run and does not write unless dry_run=false" do
+      item = create(:item, restaurant: restaurant, status: "published")
+      create(:ingestion_item,
+             ingestion_run: create(:ingestion_run, restaurant: restaurant, status: "staged"),
+             decision: "accepted",
+             item: item,
+             section_name: "Tacos")
+
+      post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           headers: headers_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["dry_run"]).to be true
+      expect(body["sections_created"].size).to eq(1)
+      expect(item.reload.menu_section).to be_nil
     end
   end
 
@@ -44,6 +63,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              prices_payload: [ { "size" => "small", "price_cents" => 450 } ])
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -82,6 +102,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              position: 2)
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -119,6 +140,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              position: 2)
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -138,10 +160,12 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
 
       # Run twice
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
       expect(response).to have_http_status(:ok)
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
       expect(response).to have_http_status(:ok)
 
@@ -169,6 +193,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              created_at: 1.day.ago)
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -191,6 +216,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              prices_payload: [ { "size" => "small", "price_cents" => 450 } ])
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -211,7 +237,7 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
              prices_payload: [ { "size" => "small", "price_cents" => 450 } ])
 
       post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
-           params: { overwrite_prices: true },
+           params: { overwrite_prices: true, dry_run: false },
            headers: headers_for(admin)
 
       expect(response).to have_http_status(:ok)
@@ -270,6 +296,65 @@ RSpec.describe "POST /api/v1/admin/restaurants/:restaurant_id/backfill_structure
       expect(body["sections_created"].size).to eq(1)
 
       expect(item.reload.menu_section).to be_nil
+    end
+
+    it "reorders existing sections and items when reorder=true and dry_run=false" do
+      menu = Menu.create!(restaurant: restaurant, name: "Main")
+      chicken = MenuSection.create!(menu: menu, name: "CHICKEN & LAMB", position: 0)
+      starters = MenuSection.create!(menu: menu, name: "STARTERS", position: 1)
+
+      item_a = create(:item, restaurant: restaurant, status: "published",
+                             menu_section: starters, position: 0, name: "Samosa")
+      item_b = create(:item, restaurant: restaurant, status: "published",
+                             menu_section: chicken, position: 0, name: "Tikka")
+      item_c = create(:item, restaurant: restaurant, status: "published",
+                             menu_section: starters, position: 0, name: "Pakora")
+
+      create(:ingestion_item, ingestion_run: run, decision: "accepted",
+             item: item_a, section_name: "STARTERS", position: 0)
+      create(:ingestion_item, ingestion_run: run, decision: "accepted",
+             item: item_b, section_name: "CHICKEN & LAMB", position: 1)
+      create(:ingestion_item, ingestion_run: run, decision: "accepted",
+             item: item_c, section_name: "STARTERS", position: 2)
+
+      post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { reorder: true, dry_run: false },
+           headers: headers_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(starters.reload.position).to eq(0)
+      expect(chicken.reload.position).to eq(1)
+      expect(item_a.reload.position).to eq(0)
+      expect(item_c.reload.position).to eq(1)
+      expect(item_a.menu_section).to eq(starters)
+      expect(item_b.reload.menu_section).to eq(chicken)
+    end
+
+    it "preview-reorders on dry_run without writing positions" do
+      menu = Menu.create!(restaurant: restaurant, name: "Main")
+      chicken = MenuSection.create!(menu: menu, name: "CHICKEN & LAMB", position: 0)
+      starters = MenuSection.create!(menu: menu, name: "STARTERS", position: 1)
+      item = create(:item, restaurant: restaurant, status: "published",
+                           menu_section: starters, position: 0, name: "Samosa")
+      create(:ingestion_item, ingestion_run: run, decision: "accepted",
+             item: item, section_name: "STARTERS", position: 0)
+
+      post "/api/v1/admin/restaurants/#{restaurant.id}/backfill_structure",
+           params: { reorder: true },
+           headers: headers_for(admin)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["dry_run"]).to be true
+      expect(body["reorder"]).to be true
+      expect(body["sections_reordered"]).to include(
+        hash_including("name" => "STARTERS", "old_position" => 1, "new_position" => 0)
+      )
+      expect(body["items_reordered"]).to include(
+        hash_including("name" => "Samosa", "old_position" => 0, "new_position" => 0)
+      )
+      expect(starters.reload.position).to eq(1)
+      expect(chicken.reload.position).to eq(0)
     end
 
     it "returns 404 for nonexistent restaurant" do
