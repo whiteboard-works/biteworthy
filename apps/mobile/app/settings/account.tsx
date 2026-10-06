@@ -117,6 +117,9 @@ export default function AccountSettingsScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      // The bio and notes fields sit at the bottom of a long screen; on
+      // iOS the keyboard would otherwise cover them and their Save.
+      automaticallyAdjustKeyboardInsets
     >
       <Text style={styles.headline}>Account</Text>
       <Text style={styles.body}>
