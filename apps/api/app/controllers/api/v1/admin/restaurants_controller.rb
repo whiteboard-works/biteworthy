@@ -125,26 +125,41 @@ module Api
 
         # POST /api/v1/admin/restaurants/:id/backfill_structure — rebuild
         # menu sections and item variants from accepted ingestion payloads.
+        # Defaults to dry_run: an explicit dry_run=false is required to write.
+        # reorder=true rewrites section/item positions from source-menu order
+        # without moving dishes or creating sections.
         def backfill_structure
           restaurant = Restaurant.find(params[:id])
-          dry_run    = ActiveModel::Type::Boolean.new.cast(params[:dry_run]) || false
-          overwrite_prices = ActiveModel::Type::Boolean.new.cast(params[:overwrite_prices]) || false
+          dry_run    = boolean_param(:dry_run, default: true)
+          overwrite_prices = boolean_param(:overwrite_prices, default: false)
+          reorder = boolean_param(:reorder, default: false)
 
           result = Restaurants::BackfillStructure.new(
             restaurant: restaurant,
             dry_run:    dry_run,
-            overwrite_prices: overwrite_prices
+            overwrite_prices: overwrite_prices,
+            reorder: reorder
           ).call
 
           render json: {
             restaurant_id:     restaurant.id,
             dry_run:           dry_run,
+            reorder:           reorder,
             sections_created:  result[:sections_created],
-            variants_added:    result[:variants_added]
+            variants_added:    result[:variants_added],
+            sections_reordered: result[:sections_reordered],
+            items_reordered:    result[:items_reordered]
           }
         end
 
         private
+
+        def boolean_param(name, default:)
+          return default unless params.key?(name)
+
+          value = ActiveModel::Type::Boolean.new.cast(params[name])
+          value.nil? ? default : value
+        end
 
         def serialize_restaurant(restaurant)
           {

@@ -292,6 +292,14 @@ of creating a duplicate (`IngestionItem#apply_update!`):
 When the run hits ≥80% accepted (configurable per city/restaurant), the
 restaurant flips to `status = 'published'` and shows up in search.
 
+Admin repair: `POST /api/v1/admin/restaurants/:id/backfill_structure`
+rebuilds missing sections and variants from accepted payloads. It
+defaults to `dry_run=true`; send `dry_run=false` to write. `reorder=true`
+rewrites `menu_sections.position` and `items.position` from source-menu
+order (latest accepted `IngestionItem` per dish, `position` NULLS LAST
+then `created_at`) without moving a dish or creating/renaming sections.
+Sections with no ingestion source stay after the sourced ones.
+
 ## Honest disclosure
 
 This is the rule that keeps us safe for allergy users:

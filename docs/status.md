@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-06 (UTC) — **Backfill can reorder sections that already exist.** `POST /api/v1/admin/restaurants/:id/backfill_structure` now defaults to `dry_run=true` (send `dry_run=false` to write). `reorder=true` rewrites `menu_sections.position` and `items.position` from source-menu order using the latest accepted ingestion item per dish, without moving a dish or creating/renaming sections. Unsourced sections stay after the sourced ones. The dry-run payload lists old/new positions.
+
 2026-10-06 (UTC) — **Admin MCP / backfill curation bugs (#790).** Merged master (PR 766 confidence mapping) into the admin-bug-fixes branch. Edited accept-onto-existing now replaces ingredient/tag joins through `insert_joins_with_payload!` / `map_confidence` so derived and AI rows stay unconfirmed, then re-derives allergen tags. Backfill no longer overwrites an existing `menu_section_id`, orders sections by source `position`, and keeps latest-accepted prices unless `overwrite_prices`. Restaurant index still returns top-level `street` plus the nested address object.
 
 2026-10-05 (UTC) — **Placeholder tiles for photo-less dishes, in grids that have photos.** A section mixing photo cards with compact text cards broke into uneven rows. `ItemRow` takes `photoPlaceholder`: when any dish in a grid (a section's visible list, its hidden list, or Top Picks) has a photo, the dishes without one get a same-height plate tile. Grids with no photos at all keep the compact text cards described in the 2026-08-17 entries, and so does the single-column phone layout (the menu tile shows from `sm` up; Top Picks scrolls sideways, so it keeps the tile at every width). Order is untouched, so the taste ranking still decides it.

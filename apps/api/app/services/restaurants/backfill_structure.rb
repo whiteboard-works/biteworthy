@@ -7,18 +7,31 @@ module Restaurants
   #
   # Used to repair production data after bugs that dropped section_name or
   # prices_payload at promote, without re-scanning the menu.
+  #
+  # `reorder: true` is a second, narrower pass for restaurants whose dishes
+  # already have sections (the earlier backfill assigned them in processing
+  # order, so every section position and every item position is wrong). It
+  # rewrites `menu_sections.position` and `items.position` from source-menu
+  # order and never moves a dish, creates a section, or renames one.
   class BackfillStructure
-    def initialize(restaurant:, dry_run: false, overwrite_prices: false)
+    def initialize(restaurant:, dry_run: false, overwrite_prices: false, reorder: false)
       @restaurant = restaurant
       @dry_run    = dry_run
       @overwrite_prices = overwrite_prices
-      @changes    = { sections_created: [], variants_added: [] }
+      @reorder = reorder
+      @changes    = {
+        sections_created: [],
+        variants_added: [],
+        sections_reordered: [],
+        items_reordered: []
+      }
     end
 
     def call
       ActiveRecord::Base.transaction do
         backfill_sections!
         backfill_variants!
+        reorder_positions! if @reorder
         raise ActiveRecord::Rollback if @dry_run
       end
       @changes
@@ -67,11 +80,7 @@ module Restaurants
     end
 
     def backfill_variants!
-      # Group ingestion items by item_id and pick the latest accepted one per item
-      latest_items = accepted_items.group_by(&:item_id)
-                                   .transform_values { |items| items.max_by(&:created_at) }
-
-      latest_items.each_value do |ingestion_item|
+      latest_accepted_per_item.each_value do |ingestion_item|
         # Skip if item already has variants and we're not overwriting
         next if ingestion_item.item.item_variants.any? && !@overwrite_prices
         next if ingestion_item.prices_payload.blank?
@@ -102,6 +111,79 @@ module Restaurants
           }
         end
       end
+    end
+
+    # Rewrite section and item positions from source-menu order. The walk
+    # uses the latest accepted IngestionItem per dish; the section a dish
+    # already belongs to is the one that counts (never the payload name).
+    def reorder_positions!
+      sourced_section_ids = []
+      sourced_items_by_section = Hash.new { |h, k| h[k] = [] }
+      seen_item_ids = Set.new
+
+      source_ordered_latest_items.each do |ingestion_item|
+        item = ingestion_item.item
+        next if item.menu_section_id.blank?
+
+        section_id = item.menu_section_id
+        sourced_section_ids << section_id unless sourced_section_ids.include?(section_id)
+        next if seen_item_ids.include?(item.id)
+
+        sourced_items_by_section[section_id] << item
+        seen_item_ids << item.id
+      end
+
+      Menu.where(restaurant: @restaurant).includes(:menu_sections).find_each do |menu|
+        sections = menu.menu_sections.sort_by { |section| [ section.position.to_i, section.created_at ] }
+        sourced = sourced_section_ids.filter_map { |id| sections.find { |section| section.id == id } }
+        unsourced = sections - sourced
+
+        (sourced + unsourced).each_with_index do |section, index|
+          old_position = section.position
+          section.update!(position: index) if old_position != index
+          @changes[:sections_reordered] << {
+            id: section.id,
+            name: section.name,
+            old_position: old_position,
+            new_position: index
+          }
+        end
+      end
+
+      published_in_sections = Item
+                              .where(restaurant_id: @restaurant.id, status: "published")
+                              .where.not(menu_section_id: nil)
+                              .order(:position, :created_at)
+                              .to_a
+
+      published_in_sections.group_by(&:menu_section_id).each do |section_id, items|
+        sourced = sourced_items_by_section[section_id] || []
+        sourced_ids = sourced.map(&:id)
+        unsourced = items.reject { |item| sourced_ids.include?(item.id) }
+
+        (sourced + unsourced).each_with_index do |item, index|
+          old_position = item.position
+          item.update!(position: index) if old_position != index
+          @changes[:items_reordered] << {
+            id: item.id,
+            name: item.name,
+            section_id: section_id,
+            old_position: old_position,
+            new_position: index
+          }
+        end
+      end
+    end
+
+    def source_ordered_latest_items
+      latest_accepted_per_item.values.sort_by do |ingestion_item|
+        [ ingestion_item.position.nil? ? 1 : 0, ingestion_item.position.to_i, ingestion_item.created_at ]
+      end
+    end
+
+    def latest_accepted_per_item
+      @latest_accepted_per_item ||= accepted_items.group_by(&:item_id)
+                                                  .transform_values { |rows| rows.max_by(&:created_at) }
     end
 
     def accepted_items
