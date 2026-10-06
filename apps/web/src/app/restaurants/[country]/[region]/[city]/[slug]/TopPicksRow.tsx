@@ -156,7 +156,7 @@ export function TopPicksRow({
               >
                 {!hasDishPhoto(item) && pickPlaceholders && (
                   <DishPhotoPlaceholder
-                    className="mb-bw-2 h-28 w-full rounded-bw-md"
+                    className="mb-bw-2 flex h-28 w-full rounded-bw-md"
                     testId={`pick-photo-placeholder-${item.id}`}
                   />
                 )}
