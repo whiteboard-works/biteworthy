@@ -142,6 +142,19 @@ module Api
           }
         end
 
+        # POST /api/v1/admin/restaurants/:id/backfill_confidence — rewrite
+        # source and confidence for published items from accepted ingestion payloads.
+        # Defaults to dry_run=true for safety.
+        def backfill_confidence
+          restaurant = Restaurant.find(params[:id])
+          # Default to true for safety — must explicitly pass dry_run=false to apply changes
+          dry_run = params.key?(:dry_run) ? ActiveModel::Type::Boolean.new.cast(params[:dry_run]) : true
+
+          result = ::Admin::BackfillConfidence.call(restaurant: restaurant, dry_run: dry_run)
+
+          render json: result
+        end
+
         private
 
         def serialize_restaurant(restaurant)

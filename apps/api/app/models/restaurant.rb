@@ -90,7 +90,9 @@ class Restaurant < ApplicationRecord
       # an item still carrying an ai-suggested join must stay
       # `suggested`, or strict mode would show it while an untrusted
       # association remains (6.4.1 — codex).
+      # Zero-ingredient dishes stay suggested regardless of tags.
       items_n = items.where(confidence: "suggested")
+                     .where("EXISTS (SELECT 1 FROM item_ingredients WHERE item_ingredients.item_id = items.id)")
                      .where.not(id: ItemIngredient.where(confidence: "suggested").select(:item_id))
                      .where.not(id: ItemTag.where(confidence: "suggested").select(:item_id))
                      .update_all(confidence: "confirmed")

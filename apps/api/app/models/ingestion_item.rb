@@ -48,14 +48,15 @@ class IngestionItem < ApplicationRecord
   # UI (Phase 2.5) once a human has accepted (or edited then accepted)
   # the AI's suggestion.
   #
-  # Phase 6.3 trust model: WHO verified decides the confidence level.
-  # Admin (or legacy no-arg call sites — Avo is admin-gated) →
-  # `confirmed`; a community scanner verifying their own run →
-  # `suggested`. Either way `source: human` — a human signed off, the
-  # question is whether strict-mode users should trust them yet.
-  # Strict mode only shows fully-confirmed items, so community menus
-  # are live for relaxed/balanced users and invisible to strict users
-  # until an admin confirms (Phase 6.4's confirm-all action).
+  # Confidence model: each ingredient/tag row's (source, confidence) is
+  # mapped from the payload under the locked confidence rules (see
+  # Ingestion::ConfidenceMapper). The dish's own confidence is the
+  # weakest of its INGREDIENTS (not tags): zero ingredients → suggested;
+  # otherwise min(ingredient confidences). Admin acceptors can produce
+  # confirmed joins; community acceptors cap at suggested. Strict mode
+  # only shows fully-confirmed items, so community menus are live for
+  # relaxed/balanced users and invisible to strict users until an admin
+  # confirms (Phase 6.4's confirm-all action).
   #
   # Re-scan flow: when the resolve pass matched this staged row to an
   # existing Item (matched_item_id), accept APPLIES the scan as an
@@ -73,8 +74,6 @@ class IngestionItem < ApplicationRecord
     return item if item.present?
     raise "IngestionRun ##{ingestion_run_id} has no restaurant" if promotion_run.restaurant_id.blank?
 
-    confidence = decided_by.nil? || decided_by.is_admin? ? "confirmed" : "suggested"
-
     # requires_new: callers (ResolveItemsJob's batch promote) rescue a
     # failed promote and keep going inside their own transaction — a
     # savepoint makes this promote's partial writes roll back instead of
@@ -90,7 +89,7 @@ class IngestionItem < ApplicationRecord
       raise "Staged dish was rejected; undo it before accepting" if rejected?
 
       target = locked_update_target
-      target ? apply_update!(target, confidence) : create_item!(confidence)
+      target ? apply_update!(target, decided_by: decided_by) : create_item!(decided_by: decided_by)
     end
   end
 
@@ -125,18 +124,24 @@ class IngestionItem < ApplicationRecord
     @promotion_run ||= ingestion_run
   end
 
-  def create_item!(confidence)
+  def create_item!(decided_by:)
+    # Compute dish confidence from ingredients only (not tags).
+    # Zero ingredients → suggested. Otherwise → weakest ingredient confidence.
+    ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
+    dish_confidence = Ingestion::ConfidenceMapper.dish_confidence_from_ingredients(ingredient_rows)
+
     created = Item.create!(
       restaurant:     promotion_run.restaurant,
       menu_section:   find_or_create_section,
       name:           name,
       description:    description.presence,
       status:         "published",
-      confidence:     confidence
+      confidence:     dish_confidence
     )
 
-    insert_joins!(ItemIngredient, created, resolve_node_ids(Ingredient, ingredients_payload), confidence)
-    insert_joins!(ItemTag,        created, resolve_node_ids(Tag,        tags_payload),        confidence)
+    insert_joins_with_confidence!(ItemIngredient, created, ingredient_rows)
+    tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
+    insert_joins_with_confidence!(ItemTag, created, tag_rows)
     create_modifiers!(created)
     create_variants!(created)
     attach_dish_photo!(created)
@@ -149,34 +154,36 @@ class IngestionItem < ApplicationRecord
   # overwritten only when the scan carries one and it differs (absence
   # of evidence never blanks data); variants replaced only when the
   # scanned price set is non-empty and differs; ingredients/tags are
-  # append-only at accept-confidence — existing joins are never removed
-  # or downgraded, so a human-confirmed association can't be undone by
-  # a re-scan. Name, modifiers, and photo are deliberately untouched
-  # (v1 non-goals — see docs/ingestion.md). Section is set only when
-  # missing. Every change lands in the applied_changes snapshot for undo!.
-  def apply_update!(target, confidence)
+  # append-only — existing joins are never removed or downgraded, so a
+  # human-confirmed association can't be undone by a re-scan. Name,
+  # modifiers, and photo are deliberately untouched (v1 non-goals — see
+  # docs/ingestion.md). Section is set only when missing. Every change
+  # lands in the applied_changes snapshot for undo!.
+  def apply_update!(target, decided_by:)
     snapshot = {}
 
     apply_description!(target, snapshot)
     apply_section!(target, snapshot)
     apply_variants!(target, snapshot)
 
-    created_ingredient_ids =
-      insert_joins!(ItemIngredient, target, resolve_node_ids(Ingredient, ingredients_payload), confidence)
-    created_tag_ids =
-      insert_joins!(ItemTag, target, resolve_node_ids(Tag, tags_payload), confidence)
+    ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
+    created_ingredient_ids = insert_joins_with_confidence!(ItemIngredient, target, ingredient_rows)
+
+    tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
+    created_tag_ids = insert_joins_with_confidence!(ItemTag, target, tag_rows)
+
     snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
     snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
 
-    # A community accept that adds unconfirmed data to a fully-confirmed
-    # Item must knock it back to suggested, or strict-mode users would
-    # see an item whose newest (possibly allergen-bearing) association
-    # nobody trusted yet. Never upgraded here — graduation stays with
-    # Restaurant#confirm_community_associations!.
-    if (created_ingredient_ids.any? || created_tag_ids.any?) &&
-       confidence == "suggested" && target.confidence == "confirmed"
-      snapshot["confidence"] = [target.confidence, "suggested"]
-      target.update!(confidence: "suggested")
+    # Re-derive dish confidence after adding new ingredients.
+    # May only lower confidence, never raise it.
+    if created_ingredient_ids.any?
+      old_confidence = target.confidence
+      target.reload # refresh denormalized arrays
+      new_confidence = derive_item_confidence!(target)
+      if new_confidence != old_confidence
+        snapshot["confidence"] = [old_confidence, new_confidence]
+      end
     end
 
     update!(item: target, decision: "accepted", decided_at: Time.current,
@@ -226,16 +233,64 @@ class IngestionItem < ApplicationRecord
     create_variants!(target)
   end
 
-  # One lookup for the whole payload instead of one per row. Unknown slugs
-  # are dropped on purpose — the extractor's noise must not fail a promotion
-  # (Admin::ItemEditor does the opposite, because an admin who typed a bad
-  # slug deserves to hear about it).
-  def resolve_node_ids(model, payload)
-    slugs = Ingestion::AssociationPayload.load_all(payload).filter_map { |row| row.slug.presence }.uniq
-    return [] if slugs.empty?
+  # Map payload rows to {node_id, confidence, source} for insertion.
+  # Drops unknown slugs (extractor noise must not fail promotion).
+  # Each row's source and confidence are mapped per the locked confidence rules.
+  def map_joins_with_confidence(model, payload, decided_by:)
+    payload_rows = Ingestion::AssociationPayload.load_all(payload)
+    return [] if payload_rows.empty?
 
+    # One lookup for all slugs
+    slugs = payload_rows.filter_map { |row| row.slug.presence }.uniq
     by_slug = model.where(slug: slugs).pluck(:slug, :id).to_h
-    slugs.filter_map { |slug| by_slug[slug] }
+
+    payload_rows.filter_map do |row|
+      node_id = by_slug[row.slug]
+      next if node_id.nil?
+
+      mapped = Ingestion::ConfidenceMapper.map_row(row, decided_by: decided_by)
+      { node_id: node_id, confidence: mapped[:confidence], source: mapped[:source] }
+    end
+  end
+
+  # Insert join rows with per-row source and confidence.
+  # ON CONFLICT DO NOTHING makes it append-only.
+  def insert_joins_with_confidence!(model, target, rows)
+    return [] if rows.empty?
+
+    foreign_key = model.denormalized_foreign_key
+    created = model.insert_all(
+      rows.map do |row|
+        { item_id: target.id, foreign_key => row[:node_id],
+          confidence: row[:confidence], source: row[:source] }
+      end,
+      unique_by: [:item_id, foreign_key],
+      returning: %i[id]
+    )
+    model.resync_denormalized_ids([target.id])
+    created.rows.flatten
+  end
+
+  # Compute dish confidence from the item's current ingredient joins (not tags).
+  # Only lowers confidence, never raises it.
+  def derive_item_confidence!(item)
+    ingredient_confidences = item.item_ingredients.pluck(:confidence)
+    new_confidence = Ingestion::ConfidenceMapper.dish_confidence_from_ingredients(
+      ingredient_confidences.map { |c| { confidence: c } }
+    )
+
+    # Never upgrade — a re-scan with better data can't make an item safer
+    # than manual review said it was.
+    if confidence_rank(new_confidence) < confidence_rank(item.confidence)
+      item.update!(confidence: new_confidence)
+      new_confidence
+    else
+      item.confidence
+    end
+  end
+
+  def confidence_rank(conf)
+    { "confirmed" => 3, "suggested" => 2, "inferred" => 1 }[conf] || 0
   end
 
   # One INSERT per join table, then one recompute of the denormalized array.
@@ -279,6 +334,7 @@ class IngestionItem < ApplicationRecord
       if (change = changes["description"])
         target.update!(description: change[0])
       end
+      # Restore ANY confidence change, not just downgrades from confirmed
       if (change = changes["confidence"])
         target.update!(confidence: change[0])
       end

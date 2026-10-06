@@ -95,10 +95,12 @@ module Ingestion
         ctx[:resolved_ingredients].each do |ing|
           tag_slugs = Array(SLUG_TAGS[ing[:slug]]) +
                       SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [prefix]) }
-          source = ing[:source] == "ai" ? "ai" : "derived"
+          # Allergen tags derived from ingredients take the ingredient's mapped confidence.
+          # Use "ingredient_derived" source to distinguish from name/keyword inference ("derived").
+          # This lets an admin-confirmed ingredient flow through to a confirmed allergen tag.
           tag_slugs.uniq.each do |tag_slug|
-            row = { slug: tag_slug, confidence: ing[:confidence], source: }
-            best[tag_slug] = row if best[tag_slug].nil? || row[:confidence] > best[tag_slug][:confidence]
+            row = { slug: tag_slug, confidence: ing[:confidence] || 0.0, source: "ingredient_derived" }
+            best[tag_slug] = row if best[tag_slug].nil? || row[:confidence].to_f > best[tag_slug][:confidence].to_f
           end
         end
         best.values
