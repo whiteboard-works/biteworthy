@@ -64,10 +64,25 @@ RSpec.describe "photo_submissions", type: :request do
       produces "application/json"
       security [ bearerAuth: [] ]
       parameter name: :Authorization, in: :header, type: :string, required: true
-      parameter name: :photo, in: :formData, type: :file, required: true,
-                description: "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
-      parameter name: :owns_rights, in: :formData, type: :boolean, required: true,
-                description: "Must be true, 'true', or '1' — the diner confirms they took the photo."
+      # Object schema first so OAS3 requestBody keeps both fields; formData
+      # lets still drive run_test (params[:photo], params[:owns_rights]).
+      parameter name: :submission, in: :body, required: true, schema: {
+        type: :object,
+        required: %w[photo owns_rights],
+        properties: {
+          photo: {
+            type: :string,
+            format: :binary,
+            description: "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
+          },
+          owns_rights: {
+            type: :boolean,
+            description: "Must be true, 'true', or '1' — the diner confirms they took the photo."
+          }
+        }
+      }
+      parameter name: :photo, in: :formData, type: :file, required: true
+      parameter name: :owns_rights, in: :formData, type: :boolean, required: true
 
       response(201, "pending submission") do
         schema diner_schema

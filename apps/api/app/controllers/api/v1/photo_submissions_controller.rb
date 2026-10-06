@@ -51,14 +51,11 @@ module Api
       end
 
       def destroy
-        unless @submission.pending?
-          render json: { error: "Only a pending submission can be withdrawn" },
-                 status: :unprocessable_entity
-          return
-        end
-
         @submission.withdraw!
         head :no_content
+      rescue ActiveRecord::RecordInvalid
+        render json: { error: "Only a pending submission can be withdrawn" },
+               status: :unprocessable_entity
       end
 
       private

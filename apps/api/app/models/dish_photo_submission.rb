@@ -66,11 +66,15 @@ class DishPhotoSubmission < ApplicationRecord
   end
 
   # Soft-delete: the row stays so it still counts toward the daily
-  # limit, but the bytes go away.
+  # limit, but the bytes go away. Locked so a concurrent approve cannot
+  # be overwritten with withdrawn.
   def withdraw!
-    raise ActiveRecord::RecordInvalid, self unless pending?
+    with_lock do
+      unless pending?
+        errors.add(:base, "Only a pending submission can be withdrawn")
+        raise ActiveRecord::RecordInvalid, self
+      end
 
-    transaction do
       update!(status: "withdrawn")
       photo.purge if photo.attached?
     end

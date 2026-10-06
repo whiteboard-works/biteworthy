@@ -237,6 +237,25 @@ RSpec.describe "Reviews API", type: :request do
       expect(review.body).to eq("Actually amazing.")
     end
 
+    it "does not replace the photo when another field is invalid" do
+      review.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+        filename: "old.jpg",
+        content_type: "image/jpeg"
+      )
+      review.save!
+      original_blob = review.photo.blob.id
+      replacement = fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
+
+      patch "/api/v1/reviews/#{review.id}",
+            params: { rating: 6, photo: replacement },
+            headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(review.reload.rating).to eq(3)
+      expect(review.photo.blob.id).to eq(original_blob)
+    end
+
     it "strips GPS when the owner replaces the review photo" do
       gps_file = JpegWithGps.tempfile
       photo = Rack::Test::UploadedFile.new(gps_file.path, "image/jpeg")

@@ -55,4 +55,18 @@ RSpec.describe DishPhotoSubmission, type: :model do
     expect(submission).not_to be_valid
     expect(submission.errors[:review]).to include("must be of the same dish")
   end
+
+  it "does not overwrite an approved row when withdraw was loaded as pending" do
+    submission = create(:dish_photo_submission, user: user, item: item)
+    stale = described_class.find(submission.id)
+    expect(stale).to be_pending
+
+    DishPhotos::Moderate.new(submission, reviewer: create(:user, :admin))
+                        .approve!(replace_item_photo: true)
+
+    expect { stale.withdraw! }.to raise_error(ActiveRecord::RecordInvalid)
+    expect(stale.reload).to be_approved
+    expect(item.reload.photo).to be_attached
+    expect(item.photo.download.bytesize).to be > 32
+  end
 end

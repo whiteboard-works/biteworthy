@@ -12,8 +12,8 @@
 import { api, type ApiOptions } from './api';
 
 import { API_BASE } from './api-base';
-import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
-import { friendlyPhotoError } from './photo-errors';
+import { shrinkForUpload } from './shrink-image';
+import { PHOTO_MAX_BYTES, friendlyPhotoError } from './photo-errors';
 
 export interface ReviewAuthor {
   id: string;
@@ -117,7 +117,7 @@ export async function createReview(
   const headers: Record<string, string> = {};
   if (review.photo) {
     const photo = await shrinkForUpload(review.photo);
-    if (tooLargeToUpload(photo)) throw new ReviewError(413, TOO_LARGE_MESSAGE);
+    if (photo.size > PHOTO_MAX_BYTES) throw new ReviewError(413, friendlyPhotoError('too_large'));
     const form = new FormData();
     form.append('rating', String(review.rating));
     if (review.body != null) form.append('body', review.body);
@@ -139,7 +139,7 @@ export async function createReview(
     body,
   });
   // Refused by the web server's body limit, before the API sees it.
-  if (res.status === 413) throw new ReviewError(413, TOO_LARGE_MESSAGE);
+  if (res.status === 413) throw new ReviewError(413, friendlyPhotoError('too_large'));
   if (!res.ok) throw await reviewError(res, `createReview ${itemId}`);
   return (await res.json()) as ReviewPayload;
 }

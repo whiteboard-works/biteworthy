@@ -3,8 +3,8 @@
  * proxy so the cookie JWT is attached; the API strips EXIF/GPS before
  * storing, and nothing is public until a moderator approves it.
  */
-import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
-import { friendlyPhotoError } from './photo-errors';
+import { shrinkForUpload } from './shrink-image';
+import { PHOTO_MAX_BYTES, friendlyPhotoError } from './photo-errors';
 
 export class PhotoSubmissionError extends Error {
   constructor(
@@ -36,7 +36,9 @@ export async function submitDishPhoto(
 ): Promise<PhotoSubmissionPayload> {
   const { fetchImpl = fetch } = opts;
   const shrunk = await shrinkForUpload(photo);
-  if (tooLargeToUpload(shrunk)) throw new PhotoSubmissionError(413, TOO_LARGE_MESSAGE);
+  if (shrunk.size > PHOTO_MAX_BYTES) {
+    throw new PhotoSubmissionError(413, friendlyPhotoError('too_large'));
+  }
 
   const form = new FormData();
   form.append('photo', shrunk, shrunk.name);
@@ -47,7 +49,7 @@ export async function submitDishPhoto(
     credentials: 'same-origin',
     body: form,
   });
-  if (res.status === 413) throw new PhotoSubmissionError(413, TOO_LARGE_MESSAGE);
+  if (res.status === 413) throw new PhotoSubmissionError(413, friendlyPhotoError('too_large'));
   if (!res.ok) throw await photoError(res);
   return (await res.json()) as PhotoSubmissionPayload;
 }

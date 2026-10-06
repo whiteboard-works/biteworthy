@@ -1,18 +1,58 @@
 require "rails_helper"
+require "vips"
 
 RSpec.describe DishPhotos::Moderate do
   let(:admin) { create(:user, :admin) }
   let(:item)  { create(:item, :published) }
   let(:submission) { create(:dish_photo_submission, item: item) }
 
-  it "copies the diner photo onto the dish through ItemEditor so variants exist" do
+  def expect_downloadable_photo(attachment)
+    expect(attachment).to be_attached
+    bytes = attachment.download
+    expect(bytes.bytesize).to be > 32
+    image = Vips::Image.new_from_buffer(bytes, "")
+    expect(image.width).to be > 0
+    expect(image.height).to be > 0
+  end
+
+  def expect_processed_variants(attachment)
+    %i[thumb card full].each do |name|
+      bytes = attachment.variant(name).processed.download
+      expect(bytes.bytesize).to be > 0
+      expect(bytes[0, 4]).to eq("RIFF".b)
+    end
+  end
+
+  it "copies the diner photo onto a photo-less dish and stores real image bytes" do
     described_class.new(submission, reviewer: admin).approve!(replace_item_photo: true)
 
     expect(submission.reload).to be_approved
     expect(submission.reviewed_by).to eq(admin)
-    expect(item.reload.photo).to be_attached
+    expect(item.reload.photo_submission_id).to eq(submission.id)
+    expect_downloadable_photo(item.photo)
+    expect(item.photo.blob_id).not_to eq(submission.photo.blob_id)
+    expect(item.photo.download).to eq(submission.photo.download)
+    expect_processed_variants(item.photo)
+  end
+
+  it "replaces an existing staff photo only after the diner blob is already stored" do
+    item.photo.attach(
+      io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+      filename: "staff.jpg",
+      content_type: "image/jpeg"
+    )
+    original_blob_id = item.photo.blob.id
+    expect_downloadable_photo(item.photo)
+
+    described_class.new(submission, reviewer: admin).approve!(replace_item_photo: true)
+
+    item.reload
+    expect(item.photo.blob.id).not_to eq(original_blob_id)
+    expect(item.photo.blob_id).not_to eq(submission.photo.blob_id)
     expect(item.photo_submission_id).to eq(submission.id)
-    expect(item.photo.variant(:card)).to be_present
+    expect_downloadable_photo(item.photo)
+    expect(item.photo.download).to eq(submission.photo.download)
+    expect_processed_variants(item.photo)
   end
 
   it "can approve without replacing an existing dish photo" do
@@ -28,6 +68,7 @@ RSpec.describe DishPhotos::Moderate do
     expect(submission.reload).to be_approve_keep
     expect(item.reload.photo.blob.id).to eq(original_blob)
     expect(item.photo_submission_id).to be_nil
+    expect_downloadable_photo(item.photo)
   end
 
   it "purges the stored image on reject so the old link stops working" do

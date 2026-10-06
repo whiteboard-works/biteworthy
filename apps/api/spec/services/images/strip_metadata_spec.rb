@@ -1,5 +1,6 @@
 require "rails_helper"
 require "zlib"
+require "vips"
 
 RSpec.describe Images::StripMetadata do
   def gps_fields(bytes)
@@ -69,5 +70,23 @@ RSpec.describe Images::StripMetadata do
     }.to raise_error(Images::StripMetadata::Unprocessable)
   ensure
     tmp&.close!
+  end
+
+  it "re-encodes until the stored bytes fit 5 MB instead of 422ing after rewrite" do
+    noise = Vips::Image.gaussnoise(3200, 3200, mean: 128, sigma: 60)
+    source = noise.write_to_buffer(".jpg", Q: 40)
+    expect(source.bytesize).to be <= HasPhotoValidation::MAX_PHOTO_BYTES
+    expect(source.bytesize).to be > 100_000
+
+    result = described_class.call(
+      StringIO.new(source),
+      filename: "noisy.jpg",
+      content_type: "image/jpeg"
+    )
+    stored = result.io.read
+    expect(stored.bytesize).to be <= HasPhotoValidation::MAX_PHOTO_BYTES
+    expect(stored.bytesize).to be > 32
+    decoded = Vips::Image.new_from_buffer(stored, "")
+    expect(decoded.width).to be > 0
   end
 end

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "vips"
 
 # The admin tools write to data other people's safety decisions rest on.
 # Two classes of property here: the audience gate (nothing below is
@@ -443,6 +444,10 @@ RSpec.describe "admin tools" do
       expect(submission.reload).to be_approved
       expect(item.reload.photo).to be_attached
       expect(item.photo_submission_id).to eq(submission.id)
+      bytes = item.photo.download
+      expect(bytes.bytesize).to be > 32
+      Vips::Image.new_from_buffer(bytes, "")
+      expect(item.photo.variant(:card).processed.download.bytesize).to be > 0
     end
 
     it "rejects with a recorded reason" do

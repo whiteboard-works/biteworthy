@@ -75,9 +75,10 @@ and you must ship a migration widening the constraint in the same PR**.
 
 - `reviews` — per-item, 1–5 + body. Unique on `[user_id, item_id]`.
 - `dish_photo_submissions` — diner photos of a dish, pending until an
-  admin approves. Approve-and-set (`status=approved`) copies the image
-  onto `Item#photo` (the same attach path as a staff PATCH, so WebP
-  variants generate) and sets `items.photo_submission_id` for the
+  admin approves. Approve-and-set (`status=approved`) copies the stored
+  diner bytes onto a new `Item#photo` blob after the moderation lock
+  commits (WebP variants generate from those bytes) and sets
+  `items.photo_submission_id` for the
   "Photo by …" credit. `approve_keep` accepts without replacing the
   current photo. Withdrawals are `withdrawn` (bytes purged) so they
   still count toward the 10/day limit. Rejected rows purge their blob.

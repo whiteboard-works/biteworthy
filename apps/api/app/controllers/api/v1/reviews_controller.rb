@@ -72,17 +72,15 @@ module Api
       end
 
       def update
-        if photo_upload?(params[:photo])
-          Images::AttachPhoto.call(@review, params[:photo])
-        elsif params.key?(:photo) && params[:photo].blank?
-          @review.photo.purge_later if @review.photo.attached?
+        Review.transaction do
+          @review.assign_attributes(review_params)
+          @review.validate!
+          apply_photo_change!
+          @review.save!
         end
-
-        if @review.update(review_params)
-          render json: serialize(@review)
-        else
-          render json: { error: @review.errors.full_messages.join(", ") }, status: :unprocessable_entity
-        end
+        render json: serialize(@review)
+      rescue ActiveRecord::RecordInvalid
+        render json: { error: @review.errors.full_messages.join(", ") }, status: :unprocessable_entity
       rescue Images::StripMetadata::Unprocessable => e
         render json: { error: e.code, message: e.message }, status: :unprocessable_entity
       end
@@ -122,6 +120,14 @@ module Api
 
       def review_params
         params.permit(:rating, :body)
+      end
+
+      def apply_photo_change!
+        if photo_upload?(params[:photo])
+          Images::AttachPhoto.call(@review, params[:photo])
+        elsif params.key?(:photo) && params[:photo].blank?
+          @review.photo.purge if @review.photo.attached?
+        end
       end
 
       def photo_upload?(value)

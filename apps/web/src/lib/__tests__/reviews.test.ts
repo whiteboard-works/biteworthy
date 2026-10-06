@@ -139,11 +139,11 @@ describe('createReview', () => {
 
   it('refuses a photo still too large, with a message that says so, before sending it', async () => {
     const fetchImpl = fakeFetch(201, sampleReview);
-    const photo = new File([new Uint8Array(5 * 1024 * 1024)], 'odd.bmp', { type: 'image/bmp' });
+    const photo = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'odd.bmp', { type: 'image/bmp' });
     vi.mocked(shrinkForUpload).mockResolvedValueOnce(photo);
 
     await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
-      /too large/,
+      /under 5 MB/,
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "vips"
 
 RSpec.describe "Admin dish photo submissions", type: :request do
   let(:admin) { create(:user, :admin) }
@@ -38,6 +39,39 @@ RSpec.describe "Admin dish photo submissions", type: :request do
       expect(response.parsed_body["status"]).to eq("approved")
       expect(item.reload.photo).to be_attached
       expect(item.photo_submission_id).to eq(submission.id)
+      bytes = item.photo.download
+      expect(bytes.bytesize).to be > 32
+      Vips::Image.new_from_buffer(bytes, "")
+      card = item.photo.variant(:card).processed.download
+      expect(card.bytesize).to be > 0
+      expect(http_image_status(item.photo)).to eq(200)
+      expect(http_image_status(item.photo, :thumb)).to eq(200)
+      expect(http_image_status(item.photo, :card)).to eq(200)
+      expect(http_image_status(item.photo, :full)).to eq(200)
+    end
+
+    it "replaces an existing dish photo with stored diner bytes" do
+      item.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+        filename: "staff.jpg",
+        content_type: "image/jpeg"
+      )
+      original = item.photo.blob.id
+
+      post "/api/v1/admin/photo_submissions/#{submission.id}/approve",
+           params: { replace_item_photo: true }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      item.reload
+      expect(item.photo.blob.id).not_to eq(original)
+      expect(item.photo.download.bytesize).to be > 32
+      expect(item.photo.variant(:thumb).processed.download.bytesize).to be > 0
+      expect(item.photo.variant(:full).processed.download.bytesize).to be > 0
+      expect(http_image_status(item.photo)).to eq(200)
+      expect(http_image_status(item.photo, :thumb)).to eq(200)
+      expect(http_image_status(item.photo, :card)).to eq(200)
+      expect(http_image_status(item.photo, :full)).to eq(200)
     end
 
     it "can approve without replacing an existing dish photo" do
@@ -81,5 +115,17 @@ RSpec.describe "Admin dish photo submissions", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body["allowed"]).to eq(DishPhotoSubmission::REJECTION_REASONS)
     end
+  end
+
+  def http_image_status(attachment, variant = nil)
+    path = if variant
+      rails_representation_path(attachment.variant(variant))
+    else
+      rails_blob_path(attachment)
+    end
+    get path
+    follow_redirect! while response.redirect?
+    expect(response.body.bytesize).to be > 0 if response.status == 200
+    response.status
   end
 end

@@ -6813,7 +6813,7 @@
         },
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
@@ -6828,13 +6828,173 @@
                     "type": "string",
                     "nullable": true
                   },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, WebP, or HEIC. Required when offer_as_dish_photo is true. EXIF/GPS is stripped."
+                  },
                   "offer_as_dish_photo": {
                     "type": "boolean",
-                    "description": "When true, also queue the review photo as a pending dish-photo submission. Requires a multipart photo and owns_rights."
+                    "description": "When true, also queue the review photo as a pending dish-photo submission. Requires photo and owns_rights."
                   },
                   "owns_rights": {
                     "type": "boolean",
                     "description": "Required when offer_as_dish_photo is true. Must be true, 'true', or '1'."
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/reviews/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "format": "uuid",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "summary": "Update the caller's own review",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the updated review, including a replacement photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "item_id",
+                    "rating",
+                    "created_at"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "item_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "rating": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "photo_url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "photo_offer": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "rate_limited",
+                            "failed"
+                          ]
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid bearer token"
+          },
+          "422": {
+            "description": "unreadable or disallowed replacement photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "too_large, too_many_pixels, unsupported_type, or unprocessable_image."
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "description": "1 to 5."
+                  },
+                  "body": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Replacement photo. EXIF/GPS is stripped. Send an empty value to remove."
                   }
                 }
               }
@@ -7243,12 +7403,26 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "file"
+                "type": "object",
+                "required": [
+                  "photo",
+                  "owns_rights"
+                ],
+                "properties": {
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
+                  },
+                  "owns_rights": {
+                    "type": "boolean",
+                    "description": "Must be true, 'true', or '1' — the diner confirms they took the photo."
+                  }
+                }
               }
             }
           },
-          "required": true,
-          "description": "JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage."
+          "required": true
         }
       }
     },

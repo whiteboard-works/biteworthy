@@ -10,7 +10,7 @@ FactoryBot.define do
       next if submission.photo.attached?
 
       submission.photo.attach(
-        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+        io: StringIO.new(File.binread(Rails.root.join("spec/fixtures/files/clean-photo.jpg"))),
         filename: "dish.jpg",
         content_type: "image/jpeg"
       )

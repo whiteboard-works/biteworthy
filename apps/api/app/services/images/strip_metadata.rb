@@ -10,7 +10,9 @@ module Images
   #
   # Bounds run *before* a full decode: raw byte size, then width/height
   # from a sequential header read. A huge compressed image must not be
-  # able to exhaust memory by expanding inside write_to_buffer.
+  # able to exhaust memory by expanding inside write_to_buffer. After
+  # rewrite, if quality-90 still exceeds 5 MB, quality drops and the
+  # image is downscaled until it fits — that is not a diner-facing 422.
   #
   # Autorotate runs so a phone photo taken in portrait still displays
   # upright after the orientation tag is stripped. HEIC/HEIF is decoded
@@ -70,13 +72,7 @@ module Images
         check_dimensions!(header)
         image = open_image(path)
         image = image.autorot
-        ext, out_type, write_opts = write_format
-        buffer = image.write_to_buffer(ext, **write_opts.merge(strip: true))
-        Result.new(
-          io: StringIO.new(buffer),
-          filename: generated_filename(ext),
-          content_type: out_type
-        )
+        encode_within_size(image)
       end
     rescue TooLarge, TooManyPixels
       raise
@@ -112,6 +108,36 @@ module Images
       if width > MAX_EDGE || height > MAX_EDGE || (width * height) > MAX_PIXELS
         raise TooManyPixels
       end
+    end
+
+    # Raw size already passed. A Q90 rewrite can still exceed 5 MB
+    # (noisy phone photos). Lower quality, then downscale, until the
+    # stored bytes fit — do not 422 the diner for that.
+    def encode_within_size(image)
+      ext, out_type, write_opts = write_format
+      working = image
+      quality = write_opts[:Q]
+
+      12.times do
+        opts = { strip: true }
+        opts[:Q] = quality if quality
+        buffer = working.write_to_buffer(ext, **opts)
+        if buffer.bytesize <= HasPhotoValidation::MAX_PHOTO_BYTES
+          return Result.new(
+            io: StringIO.new(buffer),
+            filename: generated_filename(ext),
+            content_type: out_type
+          )
+        end
+
+        if quality && quality > 45
+          quality -= 15
+        else
+          working = working.resize(0.7)
+        end
+      end
+
+      raise TooLarge
     end
 
     def open_image(path, access: nil)

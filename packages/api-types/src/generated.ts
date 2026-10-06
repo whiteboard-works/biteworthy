@@ -3940,13 +3940,18 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
-                    "application/json": {
+                    "multipart/form-data": {
                         /** @description 1 to 5. */
                         rating: number;
                         body?: string | null;
-                        /** @description When true, also queue the review photo as a pending dish-photo submission. Requires a multipart photo and owns_rights. */
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC. Required when offer_as_dish_photo is true. EXIF/GPS is stripped.
+                         */
+                        photo?: string;
+                        /** @description When true, also queue the review photo as a pending dish-photo submission. Requires photo and owns_rights. */
                         offer_as_dish_photo?: boolean;
                         /** @description Required when offer_as_dish_photo is true. Must be true, 'true', or '1'. */
                         owns_rights?: boolean;
@@ -3996,6 +4001,103 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update the caller's own review */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** @description 1 to 5. */
+                        rating?: number;
+                        body?: string | null;
+                        /**
+                         * Format: binary
+                         * @description Replacement photo. EXIF/GPS is stripped. Send an empty value to remove.
+                         */
+                        photo?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated review, including a replacement photo */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            updated_at?: string;
+                            photo_offer?: {
+                                /** @enum {string} */
+                                status?: "pending" | "rate_limited" | "failed";
+                                code?: string;
+                                message?: string;
+                                /** Format: uuid */
+                                id?: string;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description unreadable or disallowed replacement photo */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description too_large, too_many_pixels, unsupported_type, or unprocessable_image. */
+                            error: string;
+                            message?: string;
+                        };
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/mcp_tokens": {
@@ -4254,10 +4356,17 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            /** @description JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage. */
             requestBody: {
                 content: {
-                    "multipart/form-data": Record<string, never>;
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage.
+                         */
+                        photo: string;
+                        /** @description Must be true, 'true', or '1' — the diner confirms they took the photo. */
+                        owns_rights: boolean;
+                    };
                 };
             };
             responses: {
