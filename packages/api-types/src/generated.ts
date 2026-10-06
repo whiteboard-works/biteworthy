@@ -680,6 +680,11 @@ export interface paths {
                         /** @description Complete list; unknown slugs 422 with the offenders. */
                         ingredient_slugs?: string[];
                         tag_slugs?: string[];
+                        /**
+                         * @description Confidence for rows ADDED in this request only. Default confirmed (source: human). suggested/inferred write source: derived so they stay unverified.
+                         * @enum {string}
+                         */
+                        added_confidence?: "confirmed" | "suggested" | "inferred";
                         /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
                         variants?: {
                             size?: string | null;
@@ -750,7 +755,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
+                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, invalid_added_confidence, or foreign_menu_section */
                 422: {
                     headers: {
                         [name: string]: unknown;
