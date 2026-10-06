@@ -16,8 +16,9 @@ module Tools
         11:00-14:00 plus dinner 17:00-21:00 is two rows with the same
         day_of_week.
 
-        A day with both fields blank = closed that day. A day with one blank
-        and one filled is invalid. A day can be omitted from the list = closed.
+        A day with both fields blank = explicitly closed. A day omitted from
+        the list = closed (no hours stored). Either approach results in a
+        closed day. A day with one field blank and one filled is invalid.
 
         All times are validated as HH:MM (24-hour) before saving.
       TEXT

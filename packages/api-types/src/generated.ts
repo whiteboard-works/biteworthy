@@ -4491,6 +4491,13 @@ export interface paths {
                                 street: string | null;
                                 latitude: number | null;
                                 longitude: number | null;
+                                address?: {
+                                    street?: string | null;
+                                    city?: string | null;
+                                    region?: string | null;
+                                    postal_code?: string | null;
+                                    country?: string | null;
+                                } | null;
                                 city: {
                                     slug: string;
                                     name: string;
@@ -4908,6 +4915,13 @@ export interface paths {
                                 name: string;
                                 region: string | null;
                             };
+                            address?: {
+                                street?: string | null;
+                                city?: string | null;
+                                region?: string | null;
+                                postal_code?: string | null;
+                                country?: string | null;
+                            } | null;
                             /** @description IANA timezone (e.g. America/Denver) */
                             time_zone: string | null;
                             /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */

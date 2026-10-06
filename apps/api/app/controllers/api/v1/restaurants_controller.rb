@@ -43,7 +43,7 @@ module Api
       end
 
       def show
-        restaurant = Restaurant.published.includes(:city, :hours).find_by_id_or_slug!(params[:id])
+        restaurant = Restaurant.published.includes(:city, :addresses, :hours).find_by_id_or_slug!(params[:id])
         # `favorited` seeds the detail page's save button. Anonymous → false.
         render json: serialize(restaurant).merge(favorited: current_user_favorited_restaurant?(restaurant))
       end
@@ -84,7 +84,17 @@ module Api
           status: r.status,
           web_path: r.web_path,
           city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
+          # Keep the original street/coords fields — the OpenAPI contract and
+          # web RestaurantSummary still read them — and add the full address
+          # object so admin/MCP callers can see city/region/postal/country.
           street:    first_address&.street,
+          address: first_address && {
+            street:      first_address.street,
+            city:        first_address.city,
+            region:      first_address.region,
+            postal_code: first_address.postal_code,
+            country:     first_address.country
+          },
           latitude:  first_address&.latitude&.to_f,
           longitude: first_address&.longitude&.to_f,
           time_zone: r.city.time_zone,
@@ -105,6 +115,7 @@ module Api
       end
 
       def serialize(r)
+        first_address = r.addresses.first
         {
           id:                 r.id,
           slug:               r.slug,
@@ -125,6 +136,13 @@ module Api
             slug:   r.city.slug,
             name:   r.city.name,
             region: r.city.region
+          },
+          address: first_address && {
+            street:      first_address.street,
+            city:        first_address.city,
+            region:      first_address.region,
+            postal_code: first_address.postal_code,
+            country:     first_address.country
           },
           # Restaurant hours (sorted by day_of_week, then opens_at) and timezone
           # for computing open/closed status. Multiple intervals per day support

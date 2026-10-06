@@ -152,32 +152,48 @@ class IngestionItem < ApplicationRecord
   # overwritten only when the scan carries one and it differs (absence
   # of evidence never blanks data); variants replaced only when the
   # scanned price set is non-empty and differs; ingredients/tags are
-  # append-only at accept-confidence — existing joins are never removed
-  # or downgraded, so a human-confirmed association can't be undone by
-  # a re-scan. Name, modifiers, and photo are deliberately untouched
+  # replaced when the staged item was explicitly edited by a human,
+  # otherwise append-only at accept-confidence; name is applied when
+  # explicitly edited. Existing joins are never removed or downgraded
+  # on auto-scanned items, so a human-confirmed association can't be
+  # undone by a re-scan. Modifiers and photo are deliberately untouched
   # (v1 non-goals — see docs/ingestion.md). Section is set only when
   # missing. Every change lands in the applied_changes snapshot for undo!.
   def apply_update!(target, accept_confidence)
     snapshot = {}
 
+    apply_name!(target, snapshot)
     apply_description!(target, snapshot)
     apply_section!(target, snapshot)
     apply_variants!(target, snapshot)
 
     old_confidence = target.confidence
-    created_ingredient_ids =
-      insert_joins_with_payload!(ItemIngredient, target, Ingredient, ingredients_payload, accept_confidence)
-    created_tag_ids =
-      insert_joins_with_payload!(ItemTag, target, Tag, tags_payload, accept_confidence)
-    snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
-    snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
+
+    if edited?
+      # Edited by human: replace ingredients/tags completely, then re-insert
+      # through master's confidence mapping so derived/AI rows stay unconfirmed.
+      replace_joins_with_payload!(ItemIngredient, target, Ingredient, ingredients_payload, accept_confidence, snapshot)
+      replace_joins_with_payload!(ItemTag, target, Tag, tags_payload, accept_confidence, snapshot)
+      derive_allergen_tags!(target, accept_confidence, snapshot)
+    else
+      # Auto-scanned: append-only
+      created_ingredient_ids =
+        insert_joins_with_payload!(ItemIngredient, target, Ingredient, ingredients_payload, accept_confidence)
+      created_tag_ids =
+        insert_joins_with_payload!(ItemTag, target, Tag, tags_payload, accept_confidence)
+      snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
+      snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?
+    end
 
     # A community accept that adds unconfirmed data to a fully-confirmed
     # Item must knock it back to suggested, or strict-mode users would
     # see an item whose newest (possibly allergen-bearing) association
     # nobody trusted yet. Never upgraded here — graduation stays with
     # Restaurant#confirm_community_associations!.
-    if created_ingredient_ids.any? || created_tag_ids.any?
+    if (snapshot["created_item_ingredient_ids"] || []).any? ||
+       (snapshot["created_item_tag_ids"] || []).any? ||
+       (snapshot["replaced_item_ingredient_ids"] || []).any? ||
+       (snapshot["replaced_item_tag_ids"] || []).any?
       derive_item_confidence!(target.reload)
       if old_confidence == "confirmed" && target.confidence != "confirmed"
         snapshot["confidence"] = [old_confidence, target.confidence]
@@ -201,6 +217,17 @@ class IngestionItem < ApplicationRecord
 
     snapshot["description"] = [target.description, description]
     target.update!(description: description)
+  end
+
+  def apply_name!(target, snapshot)
+    # Only apply name when explicitly edited by a human
+    return unless edited?
+
+    scanned = name.to_s.strip
+    return if scanned.blank? || scanned == target.name.to_s.strip
+
+    snapshot["name"] = [target.name, name]
+    target.update!(name: name)
   end
 
   def apply_section!(target, snapshot)
@@ -286,6 +313,48 @@ class IngestionItem < ApplicationRecord
     created.rows.flatten
   end
 
+  # Replace all joins of this type on the target item with the new set.
+  # Used when a human explicitly edited the associations. Inserts through
+  # insert_joins_with_payload! so confidence/source stay on master's mapping.
+  def replace_joins_with_payload!(model, target, node_model, payload, accept_confidence, snapshot)
+    foreign_key = model.denormalized_foreign_key
+    snapshot_key = "replaced_#{model.table_name.singularize}_ids"
+
+    existing_joins = model.where(item_id: target.id).pluck(:id, foreign_key, :confidence, :source)
+    snapshot[snapshot_key] = existing_joins.map do |id, node_id, conf, src|
+      { "id" => id, foreign_key => node_id, "confidence" => conf, "source" => src }
+    end
+
+    Item.defer_denormalization do
+      model.where(item_id: target.id).destroy_all
+    end
+
+    created_ids = insert_joins_with_payload!(model, target, node_model, payload, accept_confidence)
+    created_key = "created_#{model.table_name.singularize}_ids"
+    snapshot[created_key] = created_ids if created_ids.any?
+  end
+
+  # Recompute allergen tags from the replacement ingredient set using the
+  # same Allergen strategy the resolve pass uses, then map each row through
+  # map_confidence so a derived tag never becomes confirmed.
+  def derive_allergen_tags!(target, accept_confidence, snapshot)
+    resolved = ItemIngredient.where(item_id: target.id).includes(:ingredient).filter_map do |join|
+      ingredient = join.ingredient
+      next unless ingredient
+
+      { slug: ingredient.slug, path: ingredient.path.to_s, confidence: 1.0, source: join.source }
+    end
+
+    derived = Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved })
+    return if derived.empty?
+
+    payload = derived.map { |row|
+      { "slug" => row[:slug], "confidence" => row[:confidence], "source" => row[:source] }
+    }
+    created_ids = insert_joins_with_payload!(ItemTag, target, Tag, payload, accept_confidence)
+    snapshot["derived_allergen_tag_ids"] = created_ids if created_ids.any?
+  end
+
   # Map numeric confidence + source → Item confidence enum, capped/promoted by who accepted.
   #
   # Community accept: no join is ever "confirmed"; all capped at "suggested" or "inferred".
@@ -359,6 +428,9 @@ class IngestionItem < ApplicationRecord
     target = Item.lock.find_by(id: item_id)
 
     if target
+      if (change = changes["name"])
+        target.update!(name: change[0])
+      end
       if (change = changes["description"])
         target.update!(description: change[0])
       end
@@ -377,6 +449,25 @@ class IngestionItem < ApplicationRecord
       Item.defer_denormalization do
         ItemIngredient.where(id: changes["created_item_ingredient_ids"] || []).find_each(&:destroy)
         ItemTag.where(id: changes["created_item_tag_ids"] || []).find_each(&:destroy)
+        ItemTag.where(id: changes["derived_allergen_tag_ids"] || []).find_each(&:destroy)
+
+        # Restore replaced joins
+        if (rows = changes["replaced_item_ingredient_ids"])
+          rows.each do |row|
+            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: row["ingredient_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
+        if (rows = changes["replaced_item_tag_ids"])
+          rows.each do |row|
+            ItemTag.find_or_create_by!(item_id: target.id, tag_id: row["tag_id"]) do |join|
+              join.confidence = row["confidence"] || "confirmed"
+              join.source = row["source"] || "human"
+            end
+          end
+        end
       end
     end
 

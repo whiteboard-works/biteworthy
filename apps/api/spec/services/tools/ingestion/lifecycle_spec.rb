@@ -113,6 +113,38 @@ RSpec.describe "ingestion tools", type: :service do
       expect(payload(response)[:dishes].map { |d| d[:name] })
         .to contain_exactly(a_string_matching(/Secret Sauce Bowl/))
     end
+
+    it "supports offset pagination" do
+      20.times { |i| create(:ingestion_item, ingestion_run: run, name: "Item #{i}", position: i) }
+
+      response = Tools::Ingestion::ListStagedItems.call(
+        scan_id: run.id, limit: 5, offset: 10, server_context: ctx(owner)
+      )
+
+      result = payload(response)
+      expect(result[:returned]).to eq(5)
+      expect(result[:total_dishes]).to eq(21) # 20 + original item
+      expect(result[:offset]).to eq(10)
+      expect(result[:has_more]).to be(true)
+    end
+
+    it "indicates when no more items remain" do
+      response = Tools::Ingestion::ListStagedItems.call(
+        scan_id: run.id, limit: 50, offset: 0, server_context: ctx(owner)
+      )
+
+      result = payload(response)
+      expect(result[:has_more]).to be(false)
+    end
+
+    it "accepts up to 500 items per page" do
+      response = Tools::Ingestion::ListStagedItems.call(
+        scan_id: run.id, limit: 500, server_context: ctx(owner)
+      )
+
+      expect(response.to_h[:isError]).to be_falsey
+      expect(payload(response)[:limit]).to eq(500)
+    end
   end
 
   describe "edit_staged_item" do
@@ -204,6 +236,38 @@ RSpec.describe "ingestion tools", type: :service do
       }.to change(Item, :count).by(2)
     end
 
+    it "accepts pending and edited dishes under all: true" do
+      pending_item = create(:ingestion_item, ingestion_run: run, name: "Pollo Burrito", decision: "pending")
+      edited_item = create(:ingestion_item, ingestion_run: run, name: "Veggie Bowl", decision: "edited")
+
+      expect {
+        Tools::Ingestion::AcceptStagedItems.call(scan_id: run.id, all: true, server_context: ctx(owner))
+      }.to change(Item, :count).by(3)
+
+      expect(pending_item.reload.item).to be_present
+      expect(edited_item.reload.item).to be_present
+    end
+
+    it "does not accept rejected dishes with all: true" do
+      rejected_item = create(:ingestion_item, ingestion_run: run, name: "Rejected Taco", decision: "rejected")
+
+      Tools::Ingestion::AcceptStagedItems.call(scan_id: run.id, all: true, server_context: ctx(owner))
+
+      expect(rejected_item.reload.item).to be_nil
+    end
+
+    it "returns remaining_pending count including edited dishes" do
+      create(:ingestion_item, ingestion_run: run, name: "Pending Burrito", decision: "pending")
+      create(:ingestion_item, ingestion_run: run, name: "Edited Bowl", decision: "edited")
+
+      response = Tools::Ingestion::AcceptStagedItems.call(
+        scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+      )
+
+      # Should count 1 pending + 1 edited = 2 remaining
+      expect(payload(response)[:remaining_pending]).to eq(2)
+    end
+
     it "names the ids it could not find rather than silently accepting the rest" do
       response = Tools::Ingestion::AcceptStagedItems.call(
         scan_id: run.id, item_ids: [item.id, SecureRandom.uuid], server_context: ctx(owner)
@@ -241,6 +305,149 @@ RSpec.describe "ingestion tools", type: :service do
         )
 
         expect(payload(response)[:accepted].first[:updated_existing]).to be(true)
+      end
+
+      context "when the staged item was explicitly edited" do
+        let!(:cilantro) { create(:ingredient, name: "Cilantro", slug: "herb-cilantro", path: "herb.cilantro") }
+        let!(:lime) { create(:ingredient, name: "Lime", slug: "fruit-lime", path: "fruit.lime") }
+        let!(:old_ingredient) { create(:ingredient, name: "Pepper", slug: "herb-pepper", path: "herb.pepper") }
+
+        before do
+          # Existing item has old ingredients
+          ItemIngredient.create!(item: existing, ingredient: beef,
+                                 confidence: "confirmed", source: "human")
+          ItemIngredient.create!(item: existing, ingredient: old_ingredient,
+                                 confidence: "confirmed", source: "human")
+
+          # Edit the staged item with new ingredients
+          item.update!(
+            decision: "edited",
+            name: "Baja Style Fish Tacos",
+            ingredients_payload: [
+              { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "human" },
+              { "slug" => "fruit-lime", "confidence" => 1.0, "source" => "human" }
+            ]
+          )
+        end
+
+        it "applies the edited name to the existing item" do
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+
+          expect(existing.reload.name).to eq("Baja Style Fish Tacos")
+        end
+
+        it "replaces ingredients instead of merging them" do
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+
+          existing.reload
+          expect(existing.denormalized_ingredient_ids).to contain_exactly(cilantro.id, lime.id)
+          expect(existing.denormalized_ingredient_ids).not_to include(beef.id, old_ingredient.id)
+        end
+
+        it "derives allergen tags from the new ingredients" do
+          # Create allergen-bearing ingredient
+          create(:ingredient, name: "Shrimp", slug: "shellfish-shrimp", path: "shellfish.shrimp")
+          shellfish_tag = create(:tag, name: "Contains shellfish", slug: "contains-shellfish",
+                                 family: "allergen", path: "allergen.contains_shellfish")
+
+          item.update!(
+            ingredients_payload: [
+              { "slug" => "shellfish-shrimp", "confidence" => 1.0, "source" => "human" }
+            ]
+          )
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(admin)
+          )
+
+          existing.reload
+          expect(existing.denormalized_tag_ids).to include(shellfish_tag.id)
+          allergen_join = existing.item_tags.find_by(tag: shellfish_tag)
+          expect(allergen_join.source).to eq("derived")
+          expect(allergen_join.confidence).to eq("suggested")
+        end
+
+        it "maps derived and AI replacement rows through map_confidence" do
+          item.update!(
+            ingredients_payload: [
+              { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "derived" },
+              { "slug" => "fruit-lime", "confidence" => 0.5, "source" => "ai" }
+            ]
+          )
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(admin)
+          )
+
+          existing.reload
+          cilantro_join = existing.item_ingredients.find_by(ingredient: cilantro)
+          lime_join = existing.item_ingredients.find_by(ingredient: lime)
+          expect(cilantro_join.source).to eq("derived")
+          expect(cilantro_join.confidence).to eq("suggested")
+          expect(lime_join.source).to eq("ai")
+          expect(lime_join.confidence).to eq("inferred")
+        end
+
+        it "can be undone to restore the original name and ingredients" do
+          existing.reload
+          original_name = existing.name
+          original_ingredient_ids = existing.denormalized_ingredient_ids
+          expect(original_ingredient_ids).to contain_exactly(beef.id, old_ingredient.id)
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+
+          expect(existing.reload.name).not_to eq(original_name)
+
+          # Undo
+          item.undo!
+
+          expect(existing.reload.name).to eq(original_name)
+          expect(existing.denormalized_ingredient_ids).to match_array(original_ingredient_ids)
+        end
+      end
+
+      context "when the staged item was auto-scanned (not edited)" do
+        let!(:cilantro) { create(:ingredient, name: "Cilantro", slug: "herb-cilantro", path: "herb.cilantro") }
+
+        before do
+          # Existing item has beef
+          ItemIngredient.create!(item: existing, ingredient: beef,
+                                 confidence: "confirmed", source: "human")
+
+          # Auto-scanned item (decision: pending) adds cilantro
+          item.update!(
+            decision: "pending",
+            name: "Different Name",
+            ingredients_payload: [
+              { "slug" => "herb-cilantro", "confidence" => 1.0, "source" => "ai" }
+            ]
+          )
+        end
+
+        it "does not change the name" do
+          original_name = existing.name
+
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+
+          expect(existing.reload.name).to eq(original_name)
+        end
+
+        it "appends ingredients instead of replacing them" do
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+
+          existing.reload
+          expect(existing.denormalized_ingredient_ids).to include(beef.id, cilantro.id)
+        end
       end
     end
   end

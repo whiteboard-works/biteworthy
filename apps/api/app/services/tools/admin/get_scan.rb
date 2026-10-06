@@ -40,6 +40,12 @@ module Tools
         items = run.ingestion_items.includes(:matched_item).order(:position, :created_at).to_a
         taxonomy_names = load_taxonomy_names(items)
 
+        pending_count = items.count { |i| i.decision == "pending" }
+        accepted_count = items.count { |i| i.decision == "accepted" }
+        rejected_count = items.count { |i| i.decision == "rejected" }
+        edited_count = items.count { |i| i.decision == "edited" }
+        remaining_count = pending_count + edited_count
+
         ok(
           scan_id: run.id,
           status: run.status,
@@ -49,9 +55,11 @@ module Tools
           enrichment_status: run.enrichment_status,
           restaurant: { id: run.restaurant_id, slug: run.restaurant&.slug, name: run.restaurant&.name },
           dish_count: items.size,
-          pending_count: items.count { |i| i.decision == "pending" },
-          accepted_count: items.count { |i| i.decision == "accepted" },
-          rejected_count: items.count { |i| i.decision == "rejected" },
+          pending_count: pending_count,
+          accepted_count: accepted_count,
+          rejected_count: rejected_count,
+          edited_count: edited_count,
+          remaining_count: remaining_count,
           items: items.map { |item| serialize_item(item, taxonomy_names) }
         )
       end
@@ -59,14 +67,25 @@ module Tools
       def self.serialize_item(item, taxonomy_names)
         ingredients = ::Ingestion::AssociationPayload.load_all(item.ingredients_payload)
         tags = ::Ingestion::AssociationPayload.load_all(item.tags_payload)
+        prices = Array(item.prices_payload).filter_map do |row|
+          row = row.with_indifferent_access
+          next if row[:price_cents].blank?
+          {
+            size: row[:size],
+            price_cents: row[:price_cents],
+            currency: row[:currency] || "USD"
+          }
+        end
 
         {
           id: item.id,
           name: untrusted(item.name),
           description: untrusted(item.description),
           section: item.section_name,
+          position: item.position,
           decision: item.decision,
           needs_attention: item.needs_attention?,
+          prices: prices,
           ingredients: ingredients.map { |row|
             {
               slug: row.slug,
