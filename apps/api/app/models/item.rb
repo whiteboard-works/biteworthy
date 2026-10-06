@@ -59,9 +59,27 @@ class Item < ApplicationRecord
   has_many :suggestions, as: :subject, dependent: :destroy
 
   has_one_attached :photo do |attachable|
-    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp, saver: { Q: 80 }
-    attachable.variant :card, resize_to_limit: [ 600, 600 ], format: :webp, saver: { Q: 80 }
-    attachable.variant :full, resize_to_limit: [ 1600, 1600 ], format: :webp, saver: { Q: 80 }
+    attachable.variant :thumb, preprocessor: ->(file) {
+      ImageProcessing::Vips
+        .source(file)
+        .resize_to_limit(200, 200)
+        .convert("webp")
+        .saver(Q: 80)
+    }
+    attachable.variant :card, preprocessor: ->(file) {
+      ImageProcessing::Vips
+        .source(file)
+        .resize_to_limit(600, 600)
+        .convert("webp")
+        .saver(Q: 80)
+    }
+    attachable.variant :full, preprocessor: ->(file) {
+      ImageProcessing::Vips
+        .source(file)
+        .resize_to_limit(1600, 1600)
+        .convert("webp")
+        .saver(Q: 80)
+    }
   end
 
   validates :name, presence: true
