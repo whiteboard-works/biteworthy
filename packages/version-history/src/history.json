@@ -1,5 +1,14 @@
 [
   {
+    "version": "2026.10.6",
+    "date": "2026-10-06",
+    "notes": [
+      "Restaurant menus list dishes in the restaurant's own menu order instead of alphabetically.",
+      "Your best bets on a restaurant page are less cramped on phones: the heading fits on one line, the links get their own row, and the dish cards scroll edge to edge.",
+      "Admins can add new tags and ingredients marked as unverified."
+    ]
+  },
+  {
     "version": "2026.10.5.1",
     "date": "2026-10-05",
     "notes": [
