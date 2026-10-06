@@ -261,7 +261,7 @@ Dishes promoted before the implied-base table grew lack the wheat their names im
 - `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases"`
 - `kamal app exec --reuse --roles web "APPLY=1 bin/rails biteworthy:menus:backfill_implied_bases"`
 
-Add-only and idempotent; it touches only published dishes promoted before 2026-10-07. Any FAILED line is a dish to fix by hand in admin.
+Add-only and idempotent; it touches only published dishes promoted before the keyword they match went live (2026-08-18 for #638's table, 2026-10-06 for samosa, relleno, and gulab jamun), so it never re-adds wheat a person removed from a dish scanned since. Any FAILED line is a dish to fix by hand in admin.
 
 ## CI status
 

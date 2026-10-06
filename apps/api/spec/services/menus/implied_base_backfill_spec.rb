@@ -13,8 +13,10 @@ RSpec.describe Menus::ImpliedBaseBackfill do
   let!(:potato)      { create(:ingredient, slug: "veg-potato", name: "Potato", path: "veg.potato") }
   let!(:gluten_tag)  { create(:tag, slug: "contains-gluten", name: "Contains Gluten", family: "allergen") }
 
-  # Every dish here predates the cutoff unless a test says otherwise.
-  around { |ex| travel_to(described_class::PROMOTED_BEFORE - 1.day) { ex.run } }
+  # Every dish here predates both keyword tables unless a test says otherwise.
+  around { |ex| travel_to(described_class::LIVE_SINCE_638 - 1.day) { ex.run } }
+
+  def created_at!(item, time) = item.tap { |i| i.update_columns(created_at: time) }
 
   def run(apply: true) = described_class.call(apply: apply)
 
@@ -73,12 +75,37 @@ RSpec.describe Menus::ImpliedBaseBackfill do
     expect(run.changes).to be_empty
   end
 
-  # A dish promoted after the cutoff went through the current table, so
-  # missing wheat there means a person removed it. A rerun must not
-  # undo that.
-  it "skips dishes promoted after the cutoff" do
-    create(:item, :published, name: "Samosa").update_columns(created_at: described_class::PROMOTED_BEFORE + 1.day)
-    expect(run.changes).to be_empty
+  # A dish promoted after its keyword went live already went through
+  # it, so missing wheat there means a person removed it. A rerun must
+  # not undo that.
+  describe "per-keyword cutoffs" do
+    let(:september) { Time.utc(2026, 9, 15) }
+
+    it "adds wheat to a pizza promoted before #638's table went live" do
+      pizza = create(:item, :published, name: "Margherita Pizza")
+      expect(run.changes.map(&:item_id)).to eq([ pizza.id ])
+    end
+
+    it "leaves a pizza promoted after #638 alone (a person removed its wheat)" do
+      created_at!(create(:item, :published, name: "Margherita Pizza"), september)
+      expect(run.changes).to be_empty
+    end
+
+    it "still adds wheat to a samosa promoted in September, before #766 went live" do
+      samosa = created_at!(create(:item, :published, name: "Samosa"), september)
+      expect(run.changes.map(&:item_id)).to eq([ samosa.id ])
+    end
+
+    it "leaves a samosa promoted after #766 alone" do
+      created_at!(create(:item, :published, name: "Samosa"), described_class::LIVE_SINCE_766 + 1.hour)
+      expect(run.changes).to be_empty
+    end
+  end
+
+  it "reports a dish as written even when the progress callback fails" do
+    samosa = create(:item, :published, name: "Samosa")
+    expect { described_class.call(apply: true) { raise IOError, "stdout closed" } }.to raise_error(IOError)
+    expect(samosa.reload.denormalized_ingredient_ids).to include(wheat.id)
   end
 
   it "is idempotent" do

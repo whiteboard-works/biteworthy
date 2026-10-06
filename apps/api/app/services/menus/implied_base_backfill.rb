@@ -14,16 +14,24 @@ module Menus
   # row hides a dish with a reason a person can fix, a missing one shows
   # it as safe. A name's own diet claim ("Gluten-Free Pizza") still wins.
   class ImpliedBaseBackfill
-    # Dishes promoted after this went through the current table, so a
-    # missing base there is a person's decision (they removed it), not a
-    # gap. Scoping to older dishes keeps a rerun from undoing that fix.
-    PROMOTED_BEFORE = Time.utc(2026, 10, 7)
+    # When each keyword went live (merge time plus a deploy margin). A dish
+    # promoted after a keyword went live already went through it, so a
+    # base missing there is a person's decision (they removed it), not a
+    # gap, and a rerun must not undo it. A dish qualifies only if one of
+    # the keywords its name hits is newer than the dish.
+    KEYWORDS_SINCE_766 = [ "samosa", "relleno", "gulab jamun" ].freeze
+    LIVE_SINCE_638 = Time.utc(2026, 8, 18)      # #638, the original table
+    LIVE_SINCE_766 = Time.utc(2026, 10, 6, 2)   # #766, the three above
+
+    LATER_TERMS = Ingestion::DeterministicResolver::IMPLIED_BASE_TERMS.transform_values do |terms|
+      terms.select { |t| KEYWORDS_SINCE_766.any? { |k| t.start_with?(k) } }
+    end.freeze
 
     Change = Data.define(:item_id, :item_name, :restaurant_name, :ingredient_slugs, :tag_slugs)
     Failure = Data.define(:item_id, :item_name, :error)
     Result = Data.define(:changes, :failures)
 
-    def self.default_scope = Item.published.where(created_at: ...PROMOTED_BEFORE)
+    def self.default_scope = Item.published.where(created_at: ...LIVE_SINCE_766)
 
     # Yields each change as it is made, so a long run that dies partway
     # still shows what it wrote.
@@ -44,14 +52,20 @@ module Menus
       failures = []
 
       scope.includes(:restaurant).find_each do |item|
-        change = change_for(item)
+        change = begin
+          found = change_for(item)
+          add!(item, found) if found && apply
+          found
+        rescue StandardError => e
+          failures << Failure.new(item_id: item.id, item_name: item.name, error: "#{e.class}: #{e.message}")
+          nil
+        end
         next if change.nil?
 
-        add!(item, change) if apply
         changes << change
+        # Outside the rescue: a reporting failure must stop the run, not
+        # mark a dish that was written as failed.
         yield change if block_given?
-      rescue StandardError => e
-        failures << Failure.new(item_id: item.id, item_name: item.name, error: "#{e.class}: #{e.message}")
       end
 
       Result.new(changes:, failures:)
@@ -60,6 +74,8 @@ module Menus
     private
 
     def change_for(item)
+      return nil unless item.created_at < live_since(item.name)
+
       existing = item.denormalized_ingredient_ids.filter_map { |id| { path: @paths[id] } if @paths[id] }
       rows = @resolver.implied_rows_for_name(item.name, existing)
       return nil if rows.empty?
@@ -71,6 +87,13 @@ module Menus
 
       Change.new(item_id: item.id, item_name: item.name, restaurant_name: item.restaurant&.name,
                  ingredient_slugs: rows.map { |r| r[:slug] }, tag_slugs: tags)
+    end
+
+    # The newest keyword the name hits decides: a pizza promoted in
+    # September already had #638's table, a samosa promoted then did not.
+    def live_since(name)
+      later = Ingestion::TagDeriver.keyword_hits(Ingestion::MenuText.segments(name), LATER_TERMS, confidence: 1.0)
+      later.any? ? LIVE_SINCE_766 : LIVE_SINCE_638
     end
 
     def add!(item, change)
