@@ -30,6 +30,7 @@ module Tools
         "Profile::SaveItem"
       ],
       ingestion: [
+        "Ingestion::DiscoverRestaurantSite",
         "Ingestion::StartMenuScan",
         "Ingestion::GetScanStatus",
         "Ingestion::ListStagedItems",
@@ -61,6 +62,7 @@ module Tools
       restaurants: [
         "Restaurants::CreateCity",
         "Restaurants::CreateRestaurant",
+        "Restaurants::CloneMenu",
         "Restaurants::EditRestaurant",
         "Restaurants::ConfirmRestaurantData"
       ],

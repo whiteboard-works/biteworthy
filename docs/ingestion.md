@@ -21,7 +21,7 @@ See `docs/mcp.md`.
 | Input | Source |
 |---|---|
 | Photo | Mobile camera, multi-page capture |
-| URL | Restaurant menu page on the web |
+| URL | Restaurant's own menu page or same-origin PDF. DoorDash / order.online, Google Maps, and Toast ordering HTML are refused (`Ingestion::HostPolicy`) — ask for the own-site URL, a paste, or an upload. |
 | PDF | Upload from web or mobile |
 
 All three end up as ActiveStorage blobs attached to an `IngestionRun`.
@@ -254,8 +254,12 @@ A conversation, driven by these tools:
 | `undo_staged_item` | Back to pending, reversing what an accept did to the live menu. |
 
 Confidence on promotion follows who accepted: admin → `confirmed`,
-community contributor on their own run → `suggested`. See "Honest
-disclosure" below.
+community contributor on their own run → `suggested`. `clone_menu`
+uses the same rule: a community clone writes item and join confidence
+at `suggested` (never higher than the source); an admin clone keeps
+confidence as-is. A published source publishes the sibling — clone
+has no ingestion run, so `maybe_publish!` would never fire. See
+"Honest disclosure" below.
 
 On a MATCHED (re-scan) dish, `edit_staged_item` can still change add-ons but
 `apply_update!` leaves modifiers alone, so the change won't reach the live

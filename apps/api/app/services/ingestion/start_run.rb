@@ -108,6 +108,12 @@ module Ingestion
         begin
           fetched = UrlFetcher.fetch(@source_url)
         rescue UrlFetcher::FetchError => e
+          # A redirect hop can land on a ToS-forbidden host after the
+          # pre-check above passed. Same refusal as the direct case.
+          if e.reason == "forbidden_host"
+            return failure(:forbidden_host, message: HostPolicy::MESSAGE, next_step: HostPolicy::NEXT_STEP)
+          end
+
           # Add helpful guidance for common fetch failures
           message = case e.status
                     when 403
@@ -136,6 +142,9 @@ module Ingestion
     def check_preconditions
       return failure(:forbidden_restaurant) unless can_target_restaurant?
       return failure(:no_inputs) if @files.empty? && @source_url.nil? && @source_text.nil?
+      if @source_url && HostPolicy.forbidden?(@source_url)
+        return failure(:forbidden_host, message: HostPolicy::MESSAGE, next_step: HostPolicy::NEXT_STEP)
+      end
 
       validate_files || validate_source_text ||
         # Cheap unlocked pre-check so an over-quota caller can't make us do

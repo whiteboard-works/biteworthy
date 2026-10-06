@@ -31,7 +31,8 @@ module Restaurants
     end
 
     class << self
-      def call(name:, city_slug:, creator:, street: nil, postal_code: nil, force: false)
+      def call(name:, city_slug:, creator:, street: nil, postal_code: nil, force: false,
+               website: nil, phone: nil, hours: nil)
         clean = name.to_s.strip
         raise ArgumentError, "name required" if clean.blank?
 
@@ -43,12 +44,19 @@ module Restaurants
           return Result.new(candidates: candidates) if candidates.any?
         end
 
-        restaurant = Restaurant.create!(
-          name: clean, slug: unique_slug_for(clean, city), city: city,
-          status: "draft", created_by_user_id: creator.id
-        )
-        attach_address!(restaurant, city, street, postal_code)
+        restaurant = nil
+        Restaurant.transaction do
+          restaurant = Restaurant.create!(
+            name: clean, slug: unique_slug_for(clean, city), city: city,
+            status: "draft", created_by_user_id: creator.id,
+            website: normalize_website(website), phone: phone.to_s.strip.presence
+          )
+          attach_address!(restaurant, city, street, postal_code)
+          apply_hours!(restaurant, hours)
+        end
         Result.new(restaurant: restaurant, candidates: [])
+      rescue Places::Writer::InvalidInput => e
+        raise ArgumentError, hours_message(e)
       end
 
       # `scannable` lets the client offer a scan only where the scan door
@@ -152,6 +160,24 @@ module Restaurants
         n = 2
         n += 1 while Restaurant.exists?(slug: "#{base}-#{n}")
         "#{base}-#{n}"
+      end
+
+      def normalize_website(value)
+        text = value.to_s.strip
+        return nil if text.blank?
+        return text if text.match?(/\Ahttps?:\/\//i)
+        raise ArgumentError, "website must be an http(s) URL"
+      end
+
+      def apply_hours!(restaurant, hours)
+        return if hours.nil?
+
+        Places::Writer.replace_hours!(restaurant, hours)
+      end
+
+      def hours_message(error)
+        base = error.error.to_s.tr("_", " ")
+        error.values.any? ? "#{base}: #{error.values.join(', ')}" : base
       end
 
       def attach_address!(restaurant, city, street, postal_code)

@@ -38,7 +38,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/meta/` | `describe_capabilities`, for clients that don't read resources |
 | `app/services/tools/discovery/` | Public read tools |
 | `app/services/tools/profile/` | The caller's own avoid lists, strictness, saves |
-| `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in |
+| `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in. `discover_restaurant_site` is the website-seed prelude (no run) |
 | `app/services/tools/reviews/` | Per-dish reviews. Reading is public, writing is not |
 | `app/services/tools/suggestions/` | The correction queue; owner- or admin-gated to resolve |
 | `app/services/tools/claims/` | Restaurant ownership, by emailed token |
@@ -320,6 +320,35 @@ start_menu_scan   →  get_scan_status (poll until ready)
                   →  undo_staged_item   (if that was wrong)
 ```
 
+**Website-seed import** (own-site URL, including multi-location brands) is a
+separate topology workflow, generated from `Tools::Topology` like the rest:
+
+```
+discover_restaurant_site  →  list_cities / create_restaurant (one row per spot)
+                          →  start_menu_scan on the confirmed own-site menu URL
+                          →  review / accept on the first location
+                          →  clone_menu onto empty siblings when menus match
+```
+
+`discover_restaurant_site` fetches the page through `UrlFetcher` (so the
+host policy applies) and extracts same-origin menu links plus JSON-LD
+location candidates. It does not start a scan. `Ingestion::HostPolicy`
+refuses DoorDash / order.online, Google Maps, and Toast ordering HTML at
+the fetch door — `start_menu_scan` and discover both return `forbidden_host`
+with a next_step naming own-site / paste / upload. Community
+`create_restaurant` accepts optional website, phone, and hours so import
+does not need admin `edit_place`. `clone_menu` copies published dishes
+(joins, prices) onto an empty restaurant the caller created; it never
+writes `items.ingredient_ids` / `tag_ids` directly. Community clones
+write item and join confidence at `suggested` (never higher than the
+source) — the same trust as a community accept — so a confirmed dish
+at location A is not treated as human-confirmed at location B. Admin
+clones keep confidence as-is. A published source publishes the sibling
+(clone has no ingestion run, so `maybe_publish!` would never fire).
+Photos are copied as new blobs so a later replace/purge on either
+item cannot delete the other's file. The copy is one transaction: a
+mid-clone failure leaves the target empty so retry is not blocked.
+
 Two properties the tools enforce rather than trust the model with:
 
 - **Run scoping.** Every ingestion tool resolves the run and checks the
@@ -391,6 +420,8 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
   with candidate matches if the name looks like an existing one in that city;
   call again with force: true after reviewing. New restaurants land as draft.
+  Optional website, phone, and hours (full week) so a community website
+  import does not need admin `edit_place`.
 - **`update_restaurant`** — edit name, about, website, phone, and address.
   Address is a wholesale replacement when any address field is provided.
   Reuses `Places::Writer` validation.

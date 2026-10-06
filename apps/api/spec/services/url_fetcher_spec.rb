@@ -100,6 +100,22 @@ RSpec.describe UrlFetcher do
         .to raise_error(UrlFetcher::FetchError, /invalid_url/)
     end
 
+    it "rejects DoorDash without making a request" do
+      expect { described_class.fetch("https://www.doordash.com/store/x") }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+      expect(a_request(:get, /doordash/)).not_to have_been_made
+    end
+
+    it "rejects a redirect onto a Toast ordering host" do
+      stub_request(:get, url).to_return(
+        status: 302, headers: { "Location" => "https://www.toasttab.com/place/v3" }
+      )
+
+      expect { described_class.fetch(url) }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+      expect(a_request(:get, /toasttab/)).not_to have_been_made
+    end
+
     it "infers a sensible filename from the URL path" do
       stub_request(:get, "https://example.com/menus/dinner.pdf").to_return(
         status: 200,

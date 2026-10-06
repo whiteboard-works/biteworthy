@@ -80,6 +80,8 @@ class UrlFetcher
 
     loop do
       raise FetchError.new("invalid_url") unless current_url.match?(/\Ahttps?:\/\//)
+      # ToS hosts are refused before DNS or the GET, including redirect hops.
+      Ingestion::HostPolicy.check!(current_url)
       validate_safe_url!(current_url)
 
       response = @conn.get(current_url)
