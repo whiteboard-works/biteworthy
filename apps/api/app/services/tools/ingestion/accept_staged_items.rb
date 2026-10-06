@@ -16,7 +16,7 @@ module Tools
         dish already on the menu instead of adding a new one.
 
         Pass `item_ids` for specific dishes, or `all: true` to accept every
-        still-pending dish in the scan. Prefer `item_ids` unless the user
+        pending and edited dish in the scan. Prefer `item_ids` unless the user
         explicitly asked for all of them; `all: true` on a scan they have not
         reviewed publishes unverified data.
 
@@ -81,12 +81,12 @@ module Tools
           accepted:  accepted,
           failed:    failed.presence,
           restaurant_published: Restaurant.published.exists?(id: run.restaurant_id),
-          remaining_pending: run.ingestion_items.where(decision: "pending").count
+          remaining_pending: run.ingestion_items.where(decision: %w[pending edited]).count
         )
       end
 
       def self.select_items(run, item_ids, all)
-        return run.ingestion_items.where(decision: "pending").order(:position).to_a if all
+        return run.ingestion_items.where(decision: %w[pending edited]).order(:position).to_a if all
 
         ids = Array(item_ids).map(&:to_s).reject(&:blank?)
         return [] if ids.empty?

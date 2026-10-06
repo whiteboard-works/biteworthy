@@ -8,9 +8,10 @@ module Restaurants
   # Used to repair production data after bugs that dropped section_name or
   # prices_payload at promote, without re-scanning the menu.
   class BackfillStructure
-    def initialize(restaurant:, dry_run: false)
+    def initialize(restaurant:, dry_run: false, overwrite_prices: false)
       @restaurant = restaurant
       @dry_run    = dry_run
+      @overwrite_prices = overwrite_prices
       @changes    = { sections_created: [], variants_added: [] }
     end
 
@@ -31,15 +32,31 @@ module Restaurants
         m.position = 0
       end
 
-      accepted_items.each do |ingestion_item|
-        next if ingestion_item.section_name.blank?
-        next if ingestion_item.item.menu_section_id.present?
+      # Track sections by name to assign positions based on first appearance
+      section_positions = {}
+      next_position = 0
 
-        section = MenuSection.find_or_create_by!(menu: menu, name: ingestion_item.section_name) do |s|
-          s.position = menu.menu_sections.maximum(:position).to_i + 1
+      accepted_items.each_with_index do |ingestion_item, item_index|
+        next if ingestion_item.section_name.blank?
+
+        # Assign section position based on first appearance in source order
+        unless section_positions.key?(ingestion_item.section_name)
+          section_positions[ingestion_item.section_name] = next_position
+          next_position += 1
         end
 
-        ingestion_item.item.update!(menu_section_id: section.id)
+        section = MenuSection.find_or_create_by!(menu: menu, name: ingestion_item.section_name) do |s|
+          s.position = section_positions[ingestion_item.section_name]
+        end
+
+        # Update section position if it already exists (idempotent)
+        section.update!(position: section_positions[ingestion_item.section_name]) if section.position != section_positions[ingestion_item.section_name]
+
+        # Count items in this section so far to set position
+        section_item_count = accepted_items[0..item_index].count { |ii| ii.section_name == ingestion_item.section_name && ii.item_id }
+        item_position = section_item_count - 1
+
+        ingestion_item.item.update!(menu_section_id: section.id, position: item_position)
         @changes[:sections_created] << {
           item_id: ingestion_item.item_id,
           section_name: section.name
@@ -48,8 +65,13 @@ module Restaurants
     end
 
     def backfill_variants!
-      accepted_items.each do |ingestion_item|
-        next if ingestion_item.item.item_variants.any?
+      # Group ingestion items by item_id and pick the latest accepted one per item
+      latest_items = accepted_items.group_by(&:item_id)
+                                   .transform_values { |items| items.max_by(&:created_at) }
+
+      latest_items.each_value do |ingestion_item|
+        # Skip if item already has variants and we're not overwriting
+        next if ingestion_item.item.item_variants.any? && !@overwrite_prices
         next if ingestion_item.prices_payload.blank?
 
         rows = Array(ingestion_item.prices_payload).each_with_index.filter_map do |row, index|
@@ -66,10 +88,15 @@ module Restaurants
         end
 
         if rows.any?
-          ItemVariant.insert_all(rows)
+          # If overwriting, delete existing variants first
+          ingestion_item.item.item_variants.destroy_all if @overwrite_prices
+
+          ItemVariant.insert_all(rows) if rows.any?
           @changes[:variants_added] << {
             item_id: ingestion_item.item_id,
-            count: rows.size
+            item_name: ingestion_item.item.name,
+            count: rows.size,
+            variants: rows.map { |r| { size: r[:size], price_cents: r[:price_cents], currency: r[:currency] } }
           }
         end
       end

@@ -70,6 +70,38 @@ RSpec.describe "GET /api/v1/restaurants/:id", type: :request do
     end
   end
 
+  describe "address in response" do
+    it "includes full address when available" do
+      restaurant.addresses.create!(
+        street: "123 Main St",
+        city: "Durango",
+        region: "CO",
+        postal_code: "81301",
+        country: "USA"
+      )
+
+      get "/api/v1/restaurants/#{restaurant.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["address"]).to include(
+        "street"      => "123 Main St",
+        "city"        => "Durango",
+        "region"      => "CO",
+        "postal_code" => "81301",
+        "country"     => "USA"
+      )
+    end
+
+    it "returns null address when none exists" do
+      get "/api/v1/restaurants/#{restaurant.id}"
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["address"]).to be_nil
+    end
+  end
+
   describe "hours and timezone in response" do
     let(:denver_city) { create(:city, slug: "denver", region: "Colorado", time_zone: "America/Denver") }
     let(:restaurant_with_hours) { create(:restaurant, :published, city: denver_city) }

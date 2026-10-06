@@ -128,10 +128,12 @@ module Api
         def backfill_structure
           restaurant = Restaurant.find(params[:id])
           dry_run    = ActiveModel::Type::Boolean.new.cast(params[:dry_run]) || false
+          overwrite_prices = ActiveModel::Type::Boolean.new.cast(params[:overwrite_prices]) || false
 
           result = Restaurants::BackfillStructure.new(
             restaurant: restaurant,
-            dry_run:    dry_run
+            dry_run:    dry_run,
+            overwrite_prices: overwrite_prices
           ).call
 
           render json: {
