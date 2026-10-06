@@ -59,11 +59,25 @@ class Item < ApplicationRecord
   has_many :suggestions, as: :subject, dependent: :destroy
 
   has_one_attached :photo do |attachable|
-    # Note: format: :webp tells ActiveStorage to generate WebP variants
-    # when using the vips processor (configured in config/application.rb)
-    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp
-    attachable.variant :card, resize_to_limit: [ 600, 600 ], format: :webp
-    attachable.variant :full, resize_to_limit: [ 1600, 1600 ], format: :webp
+    # WebP format conversion with explicit loader + saver options
+    attachable.variant :thumb, {
+      resize_to_limit: [ 200, 200 ],
+      format: :webp,
+      loader: { autorotate: true },
+      saver: { Q: 80, strip: true }
+    }
+    attachable.variant :card, {
+      resize_to_limit: [ 600, 600 ],
+      format: :webp,
+      loader: { autorotate: true },
+      saver: { Q: 80, strip: true }
+    }
+    attachable.variant :full, {
+      resize_to_limit: [ 1600, 1600 ],
+      format: :webp,
+      loader: { autorotate: true },
+      saver: { Q: 80, strip: true }
+    }
   end
 
   validates :name, presence: true
