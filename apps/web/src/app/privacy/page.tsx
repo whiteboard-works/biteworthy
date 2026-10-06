@@ -26,7 +26,9 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  *
  * 2026-10-05: the Anthropic entry used to say the profile is never
  * sent. The chat has sent it with every turn since M4, and now sends
- * the user's saved chat notes too, so the entry says so.
+ * the user's saved chat notes too, so the entry says so. It also said
+ * reviews are never sent; the chat's review tools read and write them,
+ * for any user's chat, not only the author's.
  *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
@@ -51,7 +53,6 @@ export default function PrivacyPage(): ReactElement {
       <h1 className="mt-bw-3 text-bw-3xl font-bold text-zinc-900 md:text-bw-4xl">Privacy Policy</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
-      <DraftBanner />
 
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="The short version">
@@ -139,9 +140,11 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
               Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. When you use the chat, your messages, your dietary profile, and
-              any notes you saved for the assistant are sent to Anthropic so it can answer. We do
-              not send your reviews to Anthropic.
+              to train the model. When you use the chat, your messages, your dietary profile, any
+              notes you saved for the assistant, and your own reviews when you ask about them
+              (including any hidden by moderation) are sent to Anthropic so it can answer. Reviews
+              are public, so when anyone asks the chat about a dish, the reviews on it (with the
+              reviewer&apos;s username and display name) can be sent to Anthropic too.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The
@@ -243,20 +246,6 @@ export default function PrivacyPage(): ReactElement {
         </Section>
       </article>
     </main>
-  );
-}
-
-function DraftBanner(): ReactElement {
-  return (
-    <div
-      role="note"
-      className="mt-bw-6 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-4 text-bw-sm text-zinc-800"
-      data-testid="draft-banner"
-    >
-      <strong>Draft.</strong> This template fills the App Privacy disclosures with BiteWorthy’s
-      actual data flows but has not yet had final lawyer review. The launch checklist (Phase 5.9)
-      requires that pass before App Store / Play Store submission.
-    </div>
   );
 }
 

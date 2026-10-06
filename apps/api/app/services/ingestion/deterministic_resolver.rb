@@ -56,7 +56,8 @@ module Ingestion
         pancake waffle crepe tempura
         dumpling gyoza potsticker wonton noodle ramen udon
         cake pie tart brownie cookie donut churro
-      ] + ["lo mein", "chow mein"]
+        samosa relleno
+      ] + ["lo mein", "chow mein", "gulab jamun"]
     }.freeze
 
     # Plural bridge, same idea as IngredientMatcher#singularize_last:

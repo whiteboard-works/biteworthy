@@ -2634,6 +2634,12 @@
   aliases:
   - french bread
   allergen: true
+- slug: grain-wheat-bread-biscuit
+  name: Biscuit
+  path: grain.wheat.bread.biscuit
+  aliases:
+  - buttermilk biscuit
+  allergen: true
 - slug: grain-wheat-bread-brioche
   name: Brioche
   path: grain.wheat.bread.brioche
@@ -2653,6 +2659,12 @@
   name: Croutons
   path: grain.wheat.bread.crouton
   aliases: []
+  allergen: true
+- slug: grain-wheat-bread-english-muffin
+  name: English Muffin
+  path: grain.wheat.bread.english_muffin
+  aliases:
+  - muffin
   allergen: true
 - slug: grain-wheat-bread-flatbread
   name: Flatbread
@@ -2734,6 +2746,7 @@
   path: grain.wheat.pancake
   aliases:
   - flapjack
+  - hotcake
   allergen: true
 - slug: grain-wheat-pasta
   name: Pasta
@@ -2806,6 +2819,36 @@
   name: Waffle
   path: grain.wheat.waffle
   aliases: []
+  allergen: true
+- slug: grain-wheat-batter
+  name: Batter
+  path: grain.wheat.batter
+  aliases:
+  - wheat batter
+  - flour batter
+  allergen: true
+- slug: grain-wheat-breading
+  name: Breading
+  path: grain.wheat.breading
+  aliases:
+  - breaded
+  - bread coating
+  allergen: true
+- slug: grain-wheat-roux
+  name: Roux
+  path: grain.wheat.roux
+  aliases:
+  - flour roux
+  allergen: true
+- slug: grain-wheat-gravy
+  name: Wheat-Based Gravy
+  path: grain.wheat.gravy
+  aliases:
+  - country gravy
+  - sausage gravy
+  - white gravy
+  - cream gravy
+  - flour gravy
   allergen: true
 - slug: grain-wheat-wheat-flour
   name: Wheat Flour
@@ -3537,6 +3580,14 @@
   aliases:
   - yellow split pea
   - dal
+  allergen: false
+- slug: legume-papadum
+  name: Papadum
+  path: legume.papadum
+  aliases:
+  - poppadom
+  - papad
+  - appalam
   allergen: false
 - slug: meat
   name: Meat
