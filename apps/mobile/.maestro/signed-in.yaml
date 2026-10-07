@@ -1,3 +1,5 @@
+# Tapping the help text (not the "About you" title, which the input also
+# carries as its label) closes the keyboard before each Save.
 # Signed-in test: bio and assistant notes save, and the bio shows on the
 # public profile. Uses the QA account; pass its credentials, never commit them:
 #   maestro --device <id> test -e EMAIL=qa+mobile@bite-worthy.com \
@@ -28,7 +30,8 @@ appId: app.biteworthy.mobile
 - tapOn:
     id: "bio"
 - inputText: "QA bio: testing the app build."
-- tapOn: "About you"
+- tapOn:
+    id: "bio-public-note"
 - tapOn:
     id: "bio-save"
 - extendedWaitUntil:
@@ -42,7 +45,8 @@ appId: app.biteworthy.mobile
 - tapOn:
     id: "chat-notes"
 - inputText: "QA notes: mild spice only."
-- tapOn: "Notes for the assistant"
+- tapOn:
+    id: "chat-notes-help"
 - scrollUntilVisible:
     element:
       id: "chat-notes-save"
@@ -77,7 +81,8 @@ appId: app.biteworthy.mobile
     id: "bio"
 - eraseText:
     charactersToErase: 60
-- tapOn: "About you"
+- tapOn:
+    id: "bio-public-note"
 - tapOn:
     id: "bio-save"
 - extendedWaitUntil:
@@ -92,7 +97,8 @@ appId: app.biteworthy.mobile
     id: "chat-notes"
 - eraseText:
     charactersToErase: 60
-- tapOn: "Notes for the assistant"
+- tapOn:
+    id: "chat-notes-help"
 - scrollUntilVisible:
     element:
       id: "chat-notes-save"

@@ -244,6 +244,7 @@ function ReviewCard({
               testID={`edit-star-${review.id}-${n}`}
               accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
               accessibilityRole="button"
+              accessibilityState={{ selected: draftRating === n }}
               onPress={() => setDraftRating(n)}
             >
               <Text style={styles.editStar}>{draftRating >= n ? '★' : '☆'}</Text>
@@ -386,6 +387,7 @@ function ReviewComposer({
             testID={`star-${n}`}
             accessibilityLabel={`Rate ${n} star${n === 1 ? '' : 's'}`}
             accessibilityRole="button"
+            accessibilityState={{ selected: rating === n }}
             onPress={() => setRating(n)}
             style={styles.starTouch}
           >

@@ -260,7 +260,7 @@ function BioEditor({
       <Text style={styles.counter}>
         {bio.length}/{BIO_MAX_LENGTH}
       </Text>
-      <SaveButton label="bio-save" busy={submitting} disabled={!dirty} onPress={onSave} />
+      <SaveButton testID="bio-save" label="Save bio" busy={submitting} disabled={!dirty} onPress={onSave} />
       {error ? (
         <Text style={styles.error} testID="bio-error">
           {error}
@@ -366,7 +366,10 @@ function ChatNotesEditor({ jwt }: { jwt: string }) {
           <Text style={styles.counter}>
             {notes.length}/{CHAT_NOTES_MAX_LENGTH}
           </Text>
-          <SaveButton label="chat-notes-save" busy={submitting} disabled={!dirty} onPress={onSave} />
+          <SaveButton
+            testID="chat-notes-save"
+            label="Save notes for the assistant"
+            busy={submitting} disabled={!dirty} onPress={onSave} />
           {error ? (
             <Text style={styles.error} testID="chat-notes-error">
               {error}
@@ -384,11 +387,14 @@ function ChatNotesEditor({ jwt }: { jwt: string }) {
 }
 
 function SaveButton({
+  testID,
   label,
   busy,
   disabled,
   onPress,
 }: {
+  testID: string;
+  /** Spoken name; both Save buttons read "Save", so say which. */
   label: string;
   busy: boolean;
   disabled: boolean;
@@ -396,8 +402,10 @@ function SaveButton({
 }) {
   return (
     <Pressable
-      testID={label}
+      testID={testID}
+      accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled: busy || disabled, busy }}
       onPress={() => void onPress()}
       disabled={busy || disabled}
       style={[styles.primary, (busy || disabled) && { opacity: 0.5 }]}
