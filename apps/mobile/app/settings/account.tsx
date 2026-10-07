@@ -154,7 +154,12 @@ export default function AccountSettingsScreen() {
 
           <Pressable
             testID="username-save"
+            accessibilityLabel="Save username"
             accessibilityRole="button"
+            accessibilityState={{
+              busy: submitting,
+              disabled: submitting || !dirty || handle.trim() === '',
+            }}
             onPress={() => void onSave()}
             disabled={submitting || !dirty || handle.trim() === ''}
             style={[

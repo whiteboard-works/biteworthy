@@ -1,0 +1,39 @@
+# Runs from signed-in.yaml's onFlowComplete, pass or fail: clears the QA
+# account's bio and notes. It checks the account first, so it can never
+# blank someone else's profile.
+appId: app.biteworthy.mobile
+---
+- launchApp
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "username"
+      text: "qa_mobile"
+    timeout: 20000
+- tapOn:
+    id: "bio"
+- eraseText:
+    charactersToErase: 80
+- tapOn:
+    id: "bio-public-note"
+- tapOn:
+    id: "bio-save"
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes"
+- eraseText:
+    charactersToErase: 80
+- tapOn:
+    id: "chat-notes-help"
+- scrollUntilVisible:
+    element:
+      id: "chat-notes-save"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes-save"
+    optional: true

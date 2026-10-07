@@ -64,7 +64,11 @@ export default function LoginScreen() {
 
       <Pressable
         testID="login-submit"
+        // Named outright: while signing in the only child is a spinner,
+        // which would leave the button with no spoken name.
+        accessibilityLabel="Sign in"
         accessibilityRole="button"
+        accessibilityState={{ busy: submitting, disabled: submitting }}
         onPress={onSubmit}
         disabled={submitting}
         style={[styles.primary, submitting && { opacity: 0.5 }]}
