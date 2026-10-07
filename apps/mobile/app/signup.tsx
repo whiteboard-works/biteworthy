@@ -127,7 +127,12 @@ export default function SignupScreen() {
 
       <Pressable
         testID="signup-submit"
+        accessibilityLabel="Create account"
         accessibilityRole="button"
+        accessibilityState={{
+          busy: submitting,
+          disabled: submitting || !ageConfirmed || !termsAccepted,
+        }}
         onPress={onSubmit}
         disabled={submitting || !ageConfirmed || !termsAccepted}
         style={[styles.primary, (submitting || !ageConfirmed || !termsAccepted) && { opacity: 0.5 }]}
