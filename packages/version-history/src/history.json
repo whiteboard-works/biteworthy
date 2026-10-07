@@ -10,6 +10,7 @@
     "version": "2026.10.6.2",
     "date": "2026-10-06",
     "notes": [
+      "Signed in, you can add a photo of a dish from its page, from a menu card without a photo, or when you write a review. A moderator approves it before it shows.",
       "In the app, Settings → Account lets you write a short public bio and private notes the chat assistant starts every conversation with, and profiles show the bio.",
       "In the app, Top Picks cards line up when only some of them have photos."
     ]
