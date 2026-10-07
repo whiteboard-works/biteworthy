@@ -13,13 +13,15 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": { "simulator": true },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": { "EXPO_PUBLIC_API_BASE": "https://api.bite-worthy.com" }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "ios": { "buildConfiguration": "Release" },
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "app-bundle" },
+      "env": { "EXPO_PUBLIC_API_BASE": "https://api.bite-worthy.com" }
     }
   },
   "submit": {
