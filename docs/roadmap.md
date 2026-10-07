@@ -316,12 +316,6 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   re-resolves the value it returns instead of inspecting the one it got.
   See `docs/status.md` 2026-08-14.
 
-- **`pnpm build` fails on clean master** — `@biteworthy/mobile#build`
-  (`expo export`) exits non-zero with no local changes, and `ci-js.yml`
-  never runs `build`, so nothing catches it. Not blocking today (Vercel
-  builds web on its own and mobile ships through EAS), but it means the
-  root `pnpm build` cannot be used as a pre-push check.
-
 - **`Chat::Titler` has no VCR cassette** — surfaced by Codex on #599.
   `GroundingReview` has two under `spec/cassettes/chat/`; the titler has
   none, because `titler_spec` injects a `ScriptedClient` and never makes
