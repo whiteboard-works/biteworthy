@@ -51,6 +51,8 @@ RSpec.describe Biteworthy::EmailSmoke do
       html_part = delivery.parts.find { |p| p.content_type.start_with?("text/html") }
       expect(text_part.body.to_s).to include("BiteWorthy SMTP smoke test")
       expect(html_part.body.to_s).to include("<h1>BiteWorthy SMTP smoke test</h1>")
+      expect(text_part.body.to_s).to include("7533 S Center View Ct, Ste N, West Jordan, UT 84084")
+      expect(html_part.body.to_s).to include("7533 S Center View Ct, Ste N, West Jordan, UT 84084")
     end
   end
 end
