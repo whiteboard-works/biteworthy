@@ -1,6 +1,7 @@
 # Runs from signed-in.yaml's onFlowComplete, pass or fail: clears the QA
-# account's bio and notes. It checks the account first, so it can never
-# blank someone else's profile.
+# account's bio and notes, then proves it from the server's side (the
+# public profile shows no bio; a fresh launch loads empty notes). It
+# checks the account first, so it can never blank someone else's profile.
 appId: app.biteworthy.mobile
 ---
 - launchApp
@@ -17,9 +18,10 @@ appId: app.biteworthy.mobile
     charactersToErase: 80
 - tapOn:
     id: "bio-public-note"
+# Save is disabled when the bio was already empty; the checks below are
+# what decide pass or fail, not this tap.
 - tapOn:
     id: "bio-save"
-    optional: true
 - scrollUntilVisible:
     element:
       id: "chat-notes"
@@ -36,4 +38,30 @@ appId: app.biteworthy.mobile
     direction: DOWN
 - tapOn:
     id: "chat-notes-save"
-    optional: true
+# Proof, read back from the server.
+- scrollUntilVisible:
+    element:
+      id: "view-public-profile"
+    direction: UP
+- tapOn:
+    id: "view-public-profile"
+- extendedWaitUntil:
+    visible: "@qa_mobile.*"
+    timeout: 20000
+- assertNotVisible:
+    id: "user-bio"
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "username"
+      text: "qa_mobile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- assertNotVisible: "QA notes: mild spice only."
+- assertNotVisible: "QA bio: testing the app build."
