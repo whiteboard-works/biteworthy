@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   applicationName: 'BiteWorthy',
   // Standalone add-to-home-screen on iOS; the manifest covers Android/Chrome.
   appleWebApp: { capable: true, title: 'BiteWorthy', statusBarStyle: 'default' },
+  // Meta Business domain verification for bite-worthy.com.
+  other: { 'facebook-domain-verification': 'krpds19h77ym3m25eylsrjkk291vxk' },
 };
 
 export const viewport: Viewport = {
