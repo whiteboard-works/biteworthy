@@ -90,7 +90,7 @@ function VisitRow({ visit }: { visit: HistoryVisit }) {
   });
   return (
     <Pressable
-      accessibilityLabel={`open-restaurant-${visit.restaurant.id}`}
+      accessibilityRole="button"
       onPress={() =>
         router.push({
           pathname: '/restaurants/[id]',

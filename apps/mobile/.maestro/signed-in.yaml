@@ -1,0 +1,105 @@
+# Signed-in test: bio and assistant notes save, and the bio shows on the
+# public profile. Uses the QA account; pass its credentials, never commit them:
+#   maestro --device <id> test -e EMAIL=qa+mobile@bite-worthy.com \
+#     -e PASSWORD="$(security find-generic-password -s biteworthy-qa-mobile -w)" \
+#     apps/mobile/.maestro/signed-in.yaml
+# It writes real data to production; the last steps clear it again.
+appId: app.biteworthy.mobile
+---
+- launchApp
+- tapOn:
+    id: "account-link"
+- runFlow:
+    when:
+      visible:
+        id: "login-submit"
+    commands:
+      - tapOn:
+          id: "email"
+      - inputText: ${EMAIL}
+      - tapOn:
+          id: "password"
+      - inputText: ${PASSWORD}
+      - tapOn:
+          id: "login-submit"
+- extendedWaitUntil:
+    visible: "About you"
+    timeout: 20000
+- tapOn:
+    id: "bio"
+- inputText: "QA bio: testing the app build."
+- tapOn: "About you"
+- tapOn:
+    id: "bio-save"
+- extendedWaitUntil:
+    visible:
+      id: "bio-saved"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes"
+- inputText: "QA notes: mild spice only."
+- tapOn: "Notes for the assistant"
+- scrollUntilVisible:
+    element:
+      id: "chat-notes-save"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes-save"
+- extendedWaitUntil:
+    visible:
+      id: "chat-notes-saved"
+    timeout: 15000
+- takeScreenshot: account-saved
+- scrollUntilVisible:
+    element:
+      id: "view-public-profile"
+    direction: UP
+- tapOn:
+    id: "view-public-profile"
+- extendedWaitUntil:
+    visible:
+      id: "user-bio"
+    timeout: 20000
+- assertVisible: "QA bio: testing the app build."
+- takeScreenshot: public-profile-bio
+# Clean up: the public profile must not keep test text.
+- launchApp
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible: "About you"
+    timeout: 20000
+- tapOn:
+    id: "bio"
+- eraseText:
+    charactersToErase: 60
+- tapOn: "About you"
+- tapOn:
+    id: "bio-save"
+- extendedWaitUntil:
+    visible:
+      id: "bio-saved"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes"
+- eraseText:
+    charactersToErase: 60
+- tapOn: "Notes for the assistant"
+- scrollUntilVisible:
+    element:
+      id: "chat-notes-save"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes-save"
+- extendedWaitUntil:
+    visible:
+      id: "chat-notes-saved"
+    timeout: 15000

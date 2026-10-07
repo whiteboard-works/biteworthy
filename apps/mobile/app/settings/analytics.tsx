@@ -43,7 +43,8 @@ export default function AnalyticsSettingsScreen() {
       <View style={styles.row}>
         <Text style={styles.rowLabel}>Allow anonymous analytics</Text>
         <Switch
-          accessibilityLabel="analytics-opt-in"
+          testID="analytics-opt-in"
+          accessibilityLabel="Allow anonymous analytics"
           disabled={optedIn === null}
           value={optedIn === true}
           onValueChange={onToggle}
@@ -51,7 +52,7 @@ export default function AnalyticsSettingsScreen() {
         />
       </View>
 
-      <Text style={styles.note} accessibilityLabel="analytics-state">
+      <Text style={styles.note} testID="analytics-state">
         {optedIn === null
           ? 'Loading…'
           : optedIn

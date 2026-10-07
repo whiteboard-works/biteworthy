@@ -69,7 +69,8 @@ export default function SignupScreen() {
       <Text style={styles.body}>Free. We'll save your dietary filter for next time.</Text>
 
       <TextInput
-        accessibilityLabel="email"
+        testID="email"
+        accessibilityLabel="Email"
         placeholder="Email"
         autoCapitalize="none"
         autoComplete="email"
@@ -79,7 +80,8 @@ export default function SignupScreen() {
         style={styles.input}
       />
       <TextInput
-        accessibilityLabel="password"
+        testID="password"
+        accessibilityLabel="Password"
         placeholder="Password (8+ chars)"
         autoCapitalize="none"
         secureTextEntry
@@ -89,7 +91,7 @@ export default function SignupScreen() {
       />
 
       <Pressable
-        accessibilityLabel="age-confirm"
+        testID="age-confirm"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: ageConfirmed }}
         onPress={() => setAgeConfirmed((v) => !v)}
@@ -102,7 +104,7 @@ export default function SignupScreen() {
       </Pressable>
 
       <Pressable
-        accessibilityLabel="terms-accept"
+        testID="terms-accept"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: termsAccepted }}
         onPress={() => setTermsAccepted((v) => !v)}
@@ -114,17 +116,18 @@ export default function SignupScreen() {
         <Text style={styles.ageText}>I agree to the Terms of Service and Privacy Policy.</Text>
       </Pressable>
       <View style={styles.legalLinks}>
-        <Pressable accessibilityLabel="open-terms" onPress={() => void Linking.openURL(`${LEGAL_SITE}/terms`)}>
+        <Pressable testID="open-terms" accessibilityRole="button" onPress={() => void Linking.openURL(`${LEGAL_SITE}/terms`)}>
           <Text style={styles.linkInline}>Terms of Service</Text>
         </Pressable>
         <Text style={styles.ageText}> · </Text>
-        <Pressable accessibilityLabel="open-privacy" onPress={() => void Linking.openURL(`${LEGAL_SITE}/privacy`)}>
+        <Pressable testID="open-privacy" accessibilityRole="button" onPress={() => void Linking.openURL(`${LEGAL_SITE}/privacy`)}>
           <Text style={styles.linkInline}>Privacy Policy</Text>
         </Pressable>
       </View>
 
       <Pressable
-        accessibilityLabel="signup-submit"
+        testID="signup-submit"
+        accessibilityRole="button"
         onPress={onSubmit}
         disabled={submitting || !ageConfirmed || !termsAccepted}
         style={[styles.primary, (submitting || !ageConfirmed || !termsAccepted) && { opacity: 0.5 }]}

@@ -130,18 +130,18 @@ describe('AccountSettingsScreen', () => {
   it('loads and shows the current handle', async () => {
     render(<AccountSettingsScreen />);
 
-    const input = await screen.findByLabelText('username');
+    const input = await screen.findByTestId('username');
     expect(input.props.value).toBe('diner_ab12cd34');
     expect(mockFetchMe).toHaveBeenCalledWith('jwt-123');
   });
 
   it('saves the trimmed handle and confirms the new identity', async () => {
     render(<AccountSettingsScreen />);
-    const input = await screen.findByLabelText('username');
+    const input = await screen.findByTestId('username');
 
     fireEvent.changeText(input, '  Chosen_Name ');
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('username-save'));
+      fireEvent.press(screen.getByTestId('username-save'));
     });
 
     expect(mockUpdateMyHandle).toHaveBeenCalledWith('Chosen_Name', 'jwt-123');
@@ -150,11 +150,11 @@ describe('AccountSettingsScreen', () => {
 
   it('does nothing when the handle is unchanged (case-insensitively)', async () => {
     render(<AccountSettingsScreen />);
-    const input = await screen.findByLabelText('username');
+    const input = await screen.findByTestId('username');
 
     fireEvent.changeText(input, 'Diner_AB12cd34');
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('username-save'));
+      fireEvent.press(screen.getByTestId('username-save'));
     });
 
     expect(mockUpdateMyHandle).not.toHaveBeenCalled();
@@ -163,11 +163,11 @@ describe('AccountSettingsScreen', () => {
   it('renders a taken handle as an inline field error', async () => {
     mockUpdateMyHandle.mockRejectedValue(new MeValidationError(['has already been taken']));
     render(<AccountSettingsScreen />);
-    const input = await screen.findByLabelText('username');
+    const input = await screen.findByTestId('username');
 
     fireEvent.changeText(input, 'somebody_else');
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('username-save'));
+      fireEvent.press(screen.getByTestId('username-save'));
     });
 
     expect(screen.getByTestId('username-error')).toHaveTextContent(
@@ -177,9 +177,9 @@ describe('AccountSettingsScreen', () => {
 
   it('links to the public profile at the current handle', async () => {
     render(<AccountSettingsScreen />);
-    await screen.findByLabelText('username');
+    await screen.findByTestId('username');
 
-    fireEvent.press(screen.getByLabelText('view-public-profile'));
+    fireEvent.press(screen.getByTestId('view-public-profile'));
     expect(mockPush).toHaveBeenCalledWith('/users/diner_ab12cd34');
   });
 
@@ -188,12 +188,12 @@ describe('AccountSettingsScreen', () => {
       mockFetchMe.mockResolvedValue({ ...ME, bio: 'Celiac in Durango.' });
       render(<AccountSettingsScreen />);
 
-      const input = await screen.findByLabelText('bio');
+      const input = await screen.findByTestId('bio');
       expect(input.props.value).toBe('Celiac in Durango.');
 
       fireEvent.changeText(input, 'Taco hunter.');
       await act(async () => {
-        fireEvent.press(screen.getByLabelText('bio-save'));
+        fireEvent.press(screen.getByTestId('bio-save'));
       });
 
       expect(mockUpdateMyBio).toHaveBeenCalledWith('Taco hunter.', 'jwt-123');
@@ -205,7 +205,7 @@ describe('AccountSettingsScreen', () => {
     // must never be (legal E13). The field says so before anyone types.
     it('warns that the bio is public', async () => {
       render(<AccountSettingsScreen />);
-      await screen.findByLabelText('bio');
+      await screen.findByTestId('bio');
       expect(screen.getByTestId('bio-public-note')).toHaveTextContent(/anyone/i);
     });
 
@@ -213,9 +213,9 @@ describe('AccountSettingsScreen', () => {
       mockUpdateMyBio.mockRejectedValue(new MeValidationError(['is too long']));
       render(<AccountSettingsScreen />);
 
-      fireEvent.changeText(await screen.findByLabelText('bio'), 'x');
+      fireEvent.changeText(await screen.findByTestId('bio'), 'x');
       await act(async () => {
-        fireEvent.press(screen.getByLabelText('bio-save'));
+        fireEvent.press(screen.getByTestId('bio-save'));
       });
 
       expect(screen.getByTestId('bio-error')).toHaveTextContent('Bio is too long.');
@@ -227,12 +227,12 @@ describe('AccountSettingsScreen', () => {
       mockFetchChatNotes.mockResolvedValue('Pregnant.');
       render(<AccountSettingsScreen />);
 
-      const input = await screen.findByLabelText('chat-notes');
+      const input = await screen.findByTestId('chat-notes');
       expect(input.props.value).toBe('Pregnant.');
 
       fireEvent.changeText(input, 'Pregnant. Mild spice only.');
       await act(async () => {
-        fireEvent.press(screen.getByLabelText('chat-notes-save'));
+        fireEvent.press(screen.getByTestId('chat-notes-save'));
       });
 
       expect(mockSaveChatNotes).toHaveBeenCalledWith('Pregnant. Mild spice only.', 'jwt-123');
@@ -244,7 +244,7 @@ describe('AccountSettingsScreen', () => {
     // avoid list.
     it('says the notes do not hide dishes', async () => {
       render(<AccountSettingsScreen />);
-      await screen.findByLabelText('chat-notes');
+      await screen.findByTestId('chat-notes');
       expect(screen.getByTestId('chat-notes-help')).toHaveTextContent(/don.t hide dishes/i);
     });
 
@@ -252,7 +252,7 @@ describe('AccountSettingsScreen', () => {
       mockFetchChatNotes.mockRejectedValue(new Error('fetchChatNotes failed: 500'));
       render(<AccountSettingsScreen />);
 
-      expect(await screen.findByLabelText('username')).toBeTruthy();
+      expect(await screen.findByTestId('username')).toBeTruthy();
       expect(await screen.findByTestId('chat-notes-load-error')).toBeTruthy();
     });
   });
