@@ -15,13 +15,23 @@ appId: app.biteworthy.mobile
 - tapOn:
     id: "bio"
 - eraseText:
-    charactersToErase: 80
+    charactersToErase: 520
 - tapOn:
     id: "bio-public-note"
-# Save is disabled when the bio was already empty; the checks below are
-# what decide pass or fail, not this tap.
-- tapOn:
-    id: "bio-save"
+# Save is enabled only when the field changed. When it is, wait for the
+# server's answer before moving on, or a relaunch can cut the save off.
+- runFlow:
+    when:
+      visible:
+        id: "bio-save"
+        enabled: true
+    commands:
+      - tapOn:
+          id: "bio-save"
+      - extendedWaitUntil:
+          visible:
+            id: "bio-saved"
+          timeout: 15000
 - scrollUntilVisible:
     element:
       id: "chat-notes"
@@ -29,20 +39,31 @@ appId: app.biteworthy.mobile
 - tapOn:
     id: "chat-notes"
 - eraseText:
-    charactersToErase: 80
+    charactersToErase: 520
 - tapOn:
     id: "chat-notes-help"
 - scrollUntilVisible:
     element:
       id: "chat-notes-save"
     direction: DOWN
-- tapOn:
-    id: "chat-notes-save"
+- runFlow:
+    when:
+      visible:
+        id: "chat-notes-save"
+        enabled: true
+    commands:
+      - tapOn:
+          id: "chat-notes-save"
+      - extendedWaitUntil:
+          visible:
+            id: "chat-notes-saved"
+          timeout: 15000
 # Proof, read back from the server.
 - scrollUntilVisible:
     element:
       id: "view-public-profile"
     direction: UP
+    centerElement: true
 - tapOn:
     id: "view-public-profile"
 - extendedWaitUntil:
@@ -63,5 +84,9 @@ appId: app.biteworthy.mobile
     element:
       id: "chat-notes"
     direction: DOWN
-- assertNotVisible: "QA notes: mild spice only."
-- assertNotVisible: "QA bio: testing the app build."
+# The counters read the reloaded values: 0 means empty on the server,
+# whatever was there before.
+- assertVisible: "0/500"
+- scrollUntilVisible:
+    element: "0/300"
+    direction: UP

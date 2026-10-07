@@ -56,6 +56,7 @@ onFlowComplete:
     element:
       id: "view-public-profile"
     direction: UP
+    centerElement: true
 - tapOn:
     id: "view-public-profile"
 - extendedWaitUntil:
