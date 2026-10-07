@@ -27,8 +27,12 @@ appId: app.biteworthy.mobile
 - launchApp
 - tapOn:
     id: "account-link"
+# Signed out, Account bounces to Sign in; signed in, it opens the
+# account screen. Either proves the route works.
+# IDs, not text: "Account" is also the home screen's link, so text would
+# pass even if the tap did nothing.
 - extendedWaitUntil:
     visible:
-      id: "login-submit"
+      id: "(login-submit|username)"
     timeout: 15000
-- takeScreenshot: account-signed-out
+- takeScreenshot: account
