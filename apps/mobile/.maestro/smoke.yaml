@@ -1,0 +1,34 @@
+# Signed-out smoke test against a preview build and the production API.
+#   maestro --device <simulator-or-emulator-id> test apps/mobile/.maestro/smoke.yaml
+# Selectors are testIDs (`id:`), never accessibility labels: labels are
+# what screen readers say, so they read as words, not hooks.
+appId: app.biteworthy.mobile
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Where are you eating?"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "restaurant-himalayan-kitchen"
+    timeout: 20000
+- takeScreenshot: home
+- tapOn:
+    id: "restaurant-himalayan-kitchen"
+- extendedWaitUntil:
+    visible: "Himalayan Kitchen"
+    timeout: 20000
+- takeScreenshot: restaurant
+- scrollUntilVisible:
+    element: "KARMA'S SPECIALTIES"
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: restaurant-scrolled
+- launchApp
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "login-submit"
+    timeout: 15000
+- takeScreenshot: account-signed-out

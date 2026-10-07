@@ -98,7 +98,8 @@ export function TopPicksRow({
       <Text style={styles.heading}>Your best bets here</Text>
       <View style={styles.linkRow}>
         <Pressable
-          accessibilityLabel="why-these"
+          testID="why-these"
+          accessibilityRole="button"
           onPress={() => setWhyOpen((v) => !v)}
           hitSlop={8}
           style={styles.link}
@@ -106,7 +107,8 @@ export function TopPicksRow({
           <Text style={styles.linkText}>Why these?</Text>
         </Pressable>
         <Pressable
-          accessibilityLabel="improve-picks"
+          testID="improve-picks"
+          accessibilityRole="button"
           onPress={() => router.push('/onboarding?step=taste')}
           hitSlop={8}
           style={[styles.link, styles.improveLink]}
@@ -134,7 +136,8 @@ export function TopPicksRow({
           return (
             <Pressable
               key={item.id}
-              accessibilityLabel={`top-pick-${item.id}`}
+              testID={`top-pick-${item.id}`}
+              accessibilityRole="button"
               onPress={() => router.push(`/items/${item.id}`)}
               style={styles.card}
             >

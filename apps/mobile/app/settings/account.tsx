@@ -117,6 +117,9 @@ export default function AccountSettingsScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      // Scrolling closes the keyboard, which otherwise sits over the bio
+      // and notes Save buttons with no obvious way to dismiss it.
+      keyboardDismissMode="on-drag"
       // The bio and notes fields sit at the bottom of a long screen; on
       // iOS the keyboard would otherwise cover them and their Save.
       automaticallyAdjustKeyboardInsets
@@ -136,7 +139,8 @@ export default function AccountSettingsScreen() {
       ) : (
         <>
           <TextInput
-            accessibilityLabel="username"
+            testID="username"
+            accessibilityLabel="Username"
             placeholder="letters, numbers, underscores"
             autoCapitalize="none"
             autoCorrect={false}
@@ -149,7 +153,8 @@ export default function AccountSettingsScreen() {
           />
 
           <Pressable
-            accessibilityLabel="username-save"
+            testID="username-save"
+            accessibilityRole="button"
             onPress={() => void onSave()}
             disabled={submitting || !dirty || handle.trim() === ''}
             style={[
@@ -176,7 +181,8 @@ export default function AccountSettingsScreen() {
           ) : null}
 
           <Pressable
-            accessibilityLabel="view-public-profile"
+            testID="view-public-profile"
+            accessibilityRole="button"
             onPress={() => router.push(`/users/${user.handle}`)}
           >
             <Text style={styles.link}>View your public profile</Text>
@@ -239,7 +245,8 @@ function BioEditor({
         wouldn&apos;t post publicly — your dietary settings stay private either way.
       </Text>
       <TextInput
-        accessibilityLabel="bio"
+        testID="bio"
+        accessibilityLabel="About you"
         placeholder="Taco hunter. Always asking about the fryer."
         multiline
         maxLength={BIO_MAX_LENGTH}
@@ -253,7 +260,7 @@ function BioEditor({
       <Text style={styles.counter}>
         {bio.length}/{BIO_MAX_LENGTH}
       </Text>
-      <SaveButton label="bio-save" busy={submitting} disabled={!dirty} onPress={onSave} />
+      <SaveButton testID="bio-save" label="Save bio" busy={submitting} disabled={!dirty} onPress={onSave} />
       {error ? (
         <Text style={styles.error} testID="bio-error">
           {error}
@@ -344,7 +351,8 @@ function ChatNotesEditor({ jwt }: { jwt: string }) {
       ) : (
         <>
           <TextInput
-            accessibilityLabel="chat-notes"
+            testID="chat-notes"
+            accessibilityLabel="Notes for the assistant"
             placeholder="Cooking for two kids. Mild spice only."
             multiline
             maxLength={CHAT_NOTES_MAX_LENGTH}
@@ -358,7 +366,10 @@ function ChatNotesEditor({ jwt }: { jwt: string }) {
           <Text style={styles.counter}>
             {notes.length}/{CHAT_NOTES_MAX_LENGTH}
           </Text>
-          <SaveButton label="chat-notes-save" busy={submitting} disabled={!dirty} onPress={onSave} />
+          <SaveButton
+            testID="chat-notes-save"
+            label="Save notes for the assistant"
+            busy={submitting} disabled={!dirty} onPress={onSave} />
           {error ? (
             <Text style={styles.error} testID="chat-notes-error">
               {error}
@@ -376,11 +387,14 @@ function ChatNotesEditor({ jwt }: { jwt: string }) {
 }
 
 function SaveButton({
+  testID,
   label,
   busy,
   disabled,
   onPress,
 }: {
+  testID: string;
+  /** Spoken name; both Save buttons read "Save", so say which. */
   label: string;
   busy: boolean;
   disabled: boolean;
@@ -388,7 +402,10 @@ function SaveButton({
 }) {
   return (
     <Pressable
+      testID={testID}
       accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: busy || disabled, busy }}
       onPress={() => void onPress()}
       disabled={busy || disabled}
       style={[styles.primary, (busy || disabled) && { opacity: 0.5 }]}

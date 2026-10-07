@@ -93,11 +93,11 @@ describe('StrictnessToggle (mobile)', () => {
       <StrictnessToggle active="balanced" loading={false} onChange={() => {}} />,
     );
 
-    const balanced = screen.getByLabelText('strictness-balanced');
+    const balanced = screen.getByTestId('strictness-balanced');
     expect(balanced).toBeOnTheScreen();
     expect(balanced.props.accessibilityState).toMatchObject({ selected: true, disabled: false });
 
-    const strict = screen.getByLabelText('strictness-strict');
+    const strict = screen.getByTestId('strictness-strict');
     expect(strict.props.accessibilityState).toMatchObject({ selected: false, disabled: false });
   });
 
@@ -105,7 +105,7 @@ describe('StrictnessToggle (mobile)', () => {
     render(
       <StrictnessToggle active="strict" loading={true} onChange={() => {}} />,
     );
-    const relaxed = screen.getByLabelText('strictness-relaxed');
+    const relaxed = screen.getByTestId('strictness-relaxed');
     expect(relaxed.props.accessibilityState).toMatchObject({ selected: false, disabled: true });
     expect(screen.getByTestId('strictness-spinner')).toBeOnTheScreen();
   });
@@ -148,7 +148,7 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     render(<RestaurantScreen />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
 
-    expect(screen.queryByLabelText('rescan-menu')).toBeNull();
+    expect(screen.queryByTestId('rescan-menu')).toBeNull();
   });
 
   // The keychain read is async. Fetching before it resolves showed a

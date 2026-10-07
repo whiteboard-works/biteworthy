@@ -275,7 +275,7 @@ export default function RestaurantScreen() {
  */
 function AllergenNotice() {
   return (
-    <View style={styles.allergenNotice} accessibilityLabel="allergen-notice">
+    <View style={styles.allergenNotice} testID="allergen-notice">
       <Text style={styles.allergenText}>
         <Text style={styles.allergenStrong}>A filter, not a guarantee. </Text>
         BiteWorthy reads menus with AI and your dietary filter — but recipes change and a result
@@ -313,7 +313,8 @@ export function StrictnessToggle({
         return (
           <Pressable
             key={s}
-            accessibilityLabel={`strictness-${s}`}
+            testID={`strictness-${s}`}
+            accessibilityRole="button"
             accessibilityState={{ selected, disabled: loading }}
             onPress={() => {
               if (!loading && !selected) onChange(s);
@@ -352,7 +353,8 @@ function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary
   };
   return (
     <Pressable
-      accessibilityLabel="share-link"
+      testID="share-link"
+      accessibilityRole="button"
       onPress={handlePress}
       style={styles.shareButton}
     >
@@ -406,7 +408,8 @@ function SectionBlock({
       {section.hidden.length > 0 && (
         <Pressable
           onPress={() => setHiddenOpen((v) => !v)}
-          accessibilityLabel={`toggle-hidden-${section.id ?? 'none'}`}
+          testID={`toggle-hidden-${section.id ?? 'none'}`}
+          accessibilityRole="button"
           style={styles.hiddenToggle}
         >
           <Text style={styles.hiddenToggleText}>

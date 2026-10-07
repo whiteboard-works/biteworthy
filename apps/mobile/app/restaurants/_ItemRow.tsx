@@ -71,7 +71,8 @@ export function ItemRow({
       ) : null}
 
       <Pressable
-        accessibilityLabel={`open-item-${item.id}`}
+        testID={`open-item-${item.id}`}
+        accessibilityRole="button"
         onPress={() =>
           router.push({
             pathname: '/items/[id]',
@@ -103,7 +104,8 @@ export function ItemRow({
         <View style={styles.overrideRow}>
           {item.overridden_by_user ? (
             <Pressable
-              accessibilityLabel={`undo-never-hide-${item.id}`}
+              testID={`undo-never-hide-${item.id}`}
+              accessibilityRole="button"
               onPress={() => onSetPersistentOverride(item.id, false)}
               style={styles.overrideButton}
             >
@@ -112,7 +114,8 @@ export function ItemRow({
           ) : (
             <>
               <Pressable
-                accessibilityLabel={`toggle-override-${item.id}`}
+                testID={`toggle-override-${item.id}`}
+                accessibilityRole="button"
                 onPress={() => onToggleOverride(item.id)}
                 style={styles.overrideButton}
               >
@@ -122,7 +125,8 @@ export function ItemRow({
               </Pressable>
               {overridden && allowPersistent && (
                 <Pressable
-                  accessibilityLabel={`set-never-hide-${item.id}`}
+                  testID={`set-never-hide-${item.id}`}
+                  accessibilityRole="button"
                   onPress={() => onSetPersistentOverride(item.id, true)}
                   style={styles.overrideButton}
                 >

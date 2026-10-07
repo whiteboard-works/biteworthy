@@ -55,7 +55,7 @@ describe('Home (Phase 7.2)', () => {
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
 
-    fireEvent.changeText(screen.getByLabelText('restaurant-search'), 'zanzibar');
+    fireEvent.changeText(screen.getByTestId('restaurant-search'), 'zanzibar');
 
     await waitFor(() => expect(mockSearch).toHaveBeenLastCalledWith('zanzibar'));
     await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy());
@@ -66,7 +66,7 @@ describe('Home (Phase 7.2)', () => {
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText('restaurant-ninis-1'));
+    fireEvent.press(screen.getByTestId('restaurant-ninis-1'));
     expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1?from=search');
   });
 
@@ -85,9 +85,9 @@ describe('Home (Phase 7.2)', () => {
   it('profile link routes to onboarding', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
-    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('profile-link')).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText('profile-link'));
+    fireEvent.press(screen.getByTestId('profile-link'));
     expect(mockPush).toHaveBeenCalledWith('/onboarding');
   });
 
@@ -96,10 +96,10 @@ describe('Home (Phase 7.2)', () => {
   it('no longer offers a scan entry point', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
-    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('profile-link')).toBeTruthy());
 
-    expect(screen.queryByLabelText('scan-cta')).toBeNull();
-    expect(screen.queryByLabelText('scan-miss-cta')).toBeNull();
+    expect(screen.queryByTestId('scan-cta')).toBeNull();
+    expect(screen.queryByTestId('scan-miss-cta')).toBeNull();
   });
 
   it('shows a friendly error when the API is unreachable', async () => {
@@ -119,7 +119,7 @@ it('offers the chat from the home screen', async () => {
 
   render(<Home />);
 
-  fireEvent.press(await screen.findByLabelText('chat-link'));
+  fireEvent.press(await screen.findByTestId('chat-link'));
 
   expect(mockPush).toHaveBeenCalledWith('/chat');
 });

@@ -106,7 +106,7 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
 
   it('tapping a card opens the item screen', () => {
     render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
-    fireEvent.press(screen.getByLabelText('top-pick-curry'));
+    fireEvent.press(screen.getByTestId('top-pick-curry'));
     expect(mockPush).toHaveBeenCalledWith('/items/curry');
   });
 
@@ -114,7 +114,7 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
     render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
 
     expect(screen.queryByTestId('why-these-explainer')).toBeNull();
-    fireEvent.press(screen.getByLabelText('why-these'));
+    fireEvent.press(screen.getByTestId('why-these'));
     expect(screen.getByTestId('why-these-explainer').props.children).toMatch(
       /passed your dietary filter/,
     );

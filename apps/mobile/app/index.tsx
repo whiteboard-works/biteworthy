@@ -67,7 +67,8 @@ export default function Home() {
       <Text style={styles.headline}>Where are you eating?</Text>
 
       <TextInput
-        accessibilityLabel="restaurant-search"
+        testID="restaurant-search"
+        accessibilityLabel="Search restaurants"
         placeholder="Search restaurants…"
         value={query}
         onChangeText={setQuery}
@@ -77,7 +78,7 @@ export default function Home() {
       />
 
       {loading ? (
-        <ActivityIndicator accessibilityLabel="search-loading" color={colors.bite} />
+        <ActivityIndicator testID="search-loading" accessibilityLabel="Loading restaurants" color={colors.bite} />
       ) : error ? (
         <Text style={styles.error}>Couldn’t load restaurants. Pull to retry or check your connection.</Text>
       ) : (
@@ -87,7 +88,8 @@ export default function Home() {
           style={styles.list}
           renderItem={({ item }) => (
             <Pressable
-              accessibilityLabel={`restaurant-${item.slug}`}
+              testID={`restaurant-${item.slug}`}
+              accessibilityRole="button"
               onPress={() => router.push(`/restaurants/${item.id}?from=search`)}
               style={styles.row}
             >
@@ -102,7 +104,7 @@ export default function Home() {
               </Text>
               {/* The scan path, where someone actually needs it: they
                   looked for a place and it is not here yet. */}
-              <Pressable accessibilityLabel="scan-a-menu" onPress={() => router.push('/chat')}>
+              <Pressable testID="scan-a-menu" accessibilityRole="button" onPress={() => router.push('/chat')}>
                 <Text style={styles.profileLink}>Scan a menu →</Text>
               </Pressable>
             </View>
@@ -110,13 +112,13 @@ export default function Home() {
         />
       )}
 
-      <Pressable accessibilityLabel="chat-link" onPress={() => router.push('/chat')}>
+      <Pressable testID="chat-link" accessibilityRole="button" onPress={() => router.push('/chat')}>
         <Text style={styles.profileLink}>Ask about a menu, or add one</Text>
       </Pressable>
-      <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
+      <Pressable testID="profile-link" accessibilityRole="button" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>
-      <Pressable accessibilityLabel="account-link" onPress={() => router.push('/settings/account')}>
+      <Pressable testID="account-link" accessibilityRole="button" onPress={() => router.push('/settings/account')}>
         <Text style={styles.profileLink}>Account</Text>
       </Pressable>
       <Text style={styles.version} testID="app-version">

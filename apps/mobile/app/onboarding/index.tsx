@@ -206,7 +206,8 @@ export default function OnboardingScreen() {
               return (
                 <Pressable
                   key={p.slug}
-                  accessibilityLabel={`preset-${p.slug}`}
+                  testID={`preset-${p.slug}`}
+                  accessibilityRole="button"
                   onPress={() => dispatch({ type: 'TOGGLE_PRESET', slug: p.slug })}
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
@@ -218,7 +219,7 @@ export default function OnboardingScreen() {
           </ScrollView>
         )}
 
-        <Pressable accessibilityLabel="next-to-ingredients" onPress={() => setStep('ingredients')} style={styles.primary}>
+        <Pressable testID="next-to-ingredients" accessibilityRole="button" onPress={() => setStep('ingredients')} style={styles.primary}>
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -233,7 +234,8 @@ export default function OnboardingScreen() {
         <Text style={styles.body}>Search for specific ingredients to avoid.</Text>
 
         <TextInput
-          accessibilityLabel="ingredient-search"
+          testID="ingredient-search"
+          accessibilityLabel="Search ingredients to avoid"
           placeholder="Search ingredients (e.g. 'cilantro')"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -247,7 +249,8 @@ export default function OnboardingScreen() {
             const added = draft.manualIngredientIds.includes(item.id);
             return (
               <Pressable
-                accessibilityLabel={`add-${item.slug}`}
+                testID={`add-${item.slug}`}
+                accessibilityRole="button"
                 onPress={() =>
                   dispatch({
                     type: added ? 'REMOVE_MANUAL_INGREDIENT' : 'ADD_MANUAL_INGREDIENT',
@@ -276,7 +279,7 @@ export default function OnboardingScreen() {
         />
 
         <Text style={styles.muted}>{draft.manualIngredientIds.length} added manually</Text>
-        <Pressable accessibilityLabel="next-to-strictness" onPress={() => setStep('strictness')} style={styles.primary}>
+        <Pressable testID="next-to-strictness" accessibilityRole="button" onPress={() => setStep('strictness')} style={styles.primary}>
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -297,7 +300,8 @@ export default function OnboardingScreen() {
           return (
             <Pressable
               key={s}
-              accessibilityLabel={`strictness-${s}`}
+              testID={`strictness-${s}`}
+              accessibilityRole="button"
               onPress={() => dispatch({ type: 'SET_STRICTNESS', strictness: s })}
               style={[styles.chip, selected && styles.chipSelected, { width: '100%' }]}
             >
@@ -313,7 +317,7 @@ export default function OnboardingScreen() {
           );
         })}
 
-        <Pressable accessibilityLabel="next-to-taste" onPress={() => setStep('taste')} style={styles.primary}>
+        <Pressable testID="next-to-taste" accessibilityRole="button" onPress={() => setStep('taste')} style={styles.primary}>
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -349,7 +353,8 @@ export default function OnboardingScreen() {
             return (
               <Pressable
                 key={t.id}
-                accessibilityLabel={`taste-tag-${t.slug}`}
+                testID={`taste-tag-${t.slug}`}
+                accessibilityRole="button"
                 onPress={() => dispatch({ type: 'CYCLE_TASTE_TAG', tagId: t.id })}
                 style={[
                   styles.tasteChip,
@@ -372,7 +377,8 @@ export default function OnboardingScreen() {
         </View>
 
         <TextInput
-          accessibilityLabel="taste-ingredient-search"
+          testID="taste-ingredient-search"
+          accessibilityLabel="Search ingredients you like or dislike"
           placeholder="Search a favorite ingredient (e.g. 'basil')"
           value={tasteQuery}
           onChangeText={setTasteQuery}
@@ -385,7 +391,8 @@ export default function OnboardingScreen() {
             const state = tasteStateOf(item.id, draft.likedIngredientIds, draft.dislikedIngredientIds);
             return (
               <Pressable
-                accessibilityLabel={`taste-ing-${item.slug}`}
+                testID={`taste-ing-${item.slug}`}
+                accessibilityRole="button"
                 onPress={() => dispatch({ type: 'CYCLE_TASTE_INGREDIENT', ingredientId: item.id })}
                 style={[styles.searchRow, state === 'liked' && styles.searchRowAdded]}
               >
@@ -403,7 +410,8 @@ export default function OnboardingScreen() {
 
         {standalone ? (
           <Pressable
-            accessibilityLabel="save-taste"
+            testID="save-taste"
+            accessibilityRole="button"
             onPress={finalizeTaste}
             disabled={saving}
             style={[styles.primary, saving && { opacity: 0.5 }]}
@@ -411,13 +419,14 @@ export default function OnboardingScreen() {
             <Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save picks'}</Text>
           </Pressable>
         ) : (
-          <Pressable accessibilityLabel="next-to-done" onPress={() => setStep('done')} style={styles.primary}>
+          <Pressable testID="next-to-done" accessibilityRole="button" onPress={() => setStep('done')} style={styles.primary}>
             <Text style={styles.primaryText}>Review →</Text>
           </Pressable>
         )}
 
         <Pressable
-          accessibilityLabel="skip-taste"
+          testID="skip-taste"
+          accessibilityRole="button"
           onPress={() => (standalone ? router.replace('/') : setStep('done'))}
           style={styles.skip}
         >
@@ -442,7 +451,7 @@ export default function OnboardingScreen() {
       </Text>
 
       <Pressable
-        accessibilityLabel="acknowledge-disclaimer"
+        testID="acknowledge-disclaimer"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: acknowledged }}
         onPress={() => setAcknowledged((v) => !v)}
@@ -458,7 +467,8 @@ export default function OnboardingScreen() {
       </Pressable>
 
       <Pressable
-        accessibilityLabel="finish"
+        testID="finish"
+        accessibilityRole="button"
         onPress={finalize}
         disabled={saving || !acknowledged}
         style={[styles.primary, (saving || !acknowledged) && { opacity: 0.5 }]}
