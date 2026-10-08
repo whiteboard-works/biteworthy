@@ -34,6 +34,12 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * unpublished until a moderator approves them, then optionally credited
  * on the dish page.
  *
+ * 2026-10-08: the Meta Pixel (#827) is disclosed. Its limits are enforced
+ * in lib/meta-pixel-policy.ts (allowlisted public pages, no query string,
+ * no automatic tracking) and pinned by its tests; keep this text and that
+ * rule in step. "We do not sell or share" became "do not sell", plus the
+ * sharing opt-out, because ad pixels count as sharing under the CCPA.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -48,7 +54,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-06';
+const LAST_UPDATED = '2026-10-08';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -62,8 +68,11 @@ export default function PrivacyPage(): ReactElement {
         <Section title="The short version">
           <p>
             BiteWorthy keeps the data we need to make the dietary filter work and not much more. We
-            don’t sell or share your personal information. We don’t share it with advertisers. The
-            list of third-party services we use is short and named below. You must be at least 13
+            don’t sell your personal information. Your dietary profile, the diets you filter by,
+            and your reviews are never sent to advertisers. On a few public pages of our website,
+            the Meta Pixel tells Meta that a page was viewed or a sign-up happened, so we can
+            measure our ads; you can switch that off (see “Your rights and controls”). The list of
+            third-party services we use is short and named below. You must be at least 13
             years old to use BiteWorthy.
           </p>
         </Section>
@@ -169,6 +178,20 @@ export default function PrivacyPage(): ReactElement {
               <strong>PostHog</strong>: product analytics. See “Your rights and controls” for
               exactly what we send and how to opt out.
             </li>
+            <li>
+              <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our
+              ads on Facebook and Instagram bring people to BiteWorthy. It runs only on public
+              pages (the home page, sign-up and sign-in, our story, press, updates, and restaurant
+              and city pages) and only when the page address has nothing after the “?”. It never
+              runs on diet pages, people’s profiles, your history, chat, settings, or onboarding,
+              and it is never sent which diet you filtered by. On those pages it tells Meta that a
+              page was viewed and, when you create an account from the sign-up page, that a sign-up
+              happened. Meta’s script also receives the page address, your IP address and browser
+              details, and Meta’s own cookie, and Meta may link that to your Facebook or Instagram
+              account under{' '}
+              <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
+              mobile app does not use the Meta Pixel.
+            </li>
           </ul>
         </Section>
 
@@ -215,7 +238,7 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
-              Do-Not-Track signal automatically. On mobile, analytics are off by default and only
+              Do-Not-Track signal automatically. Either one also turns off the Meta Pixel. On mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
               random analytics ID, <strong>not to your account</strong> — signing in does not
               connect them to your identity. What they carry is
@@ -232,7 +255,11 @@ export default function PrivacyPage(): ReactElement {
               sent you. We don’t record what you click or type, and we don’t record your session.
             </li>
             <li>
-              <strong>We do not sell or share</strong> your personal information, and we will not
+              <strong>We do not sell</strong> your personal information. The Meta Pixel described
+              above sends Meta limited website activity for advertising, which California law
+              counts as “sharing”. To opt out of that sharing, turn off analytics in{' '}
+              <em>/profile/settings</em>, or use a browser that sends Global Privacy Control or
+              Do-Not-Track: we honor each of them, and any one switches the pixel off. We will not
               discriminate against you for exercising any of these rights.
             </li>
           </ul>

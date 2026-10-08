@@ -1,17 +1,25 @@
 'use client';
 
 import Script from 'next/script';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { analyticsAllowed } from '../lib/track';
+import { globalPrivacyControl, metaPixelPathAllowed } from '../lib/meta-pixel-policy';
 
 /**
- * Meta Pixel provider — loads the Meta Pixel (ID 1775852390205529, shared
- * across all WBW sites) on public pages, fires PageView on initial load
- * and route changes, and respects the same DNT / opt-out checks as PostHog.
+ * Meta Pixel provider. Loads the Meta Pixel (ID 1775852390205529, shared
+ * across all WBW sites) and sends PageView, but only where the privacy
+ * policy says it may.
  *
- * Pixel ID is kept in one constant; events use content_name: 'BiteWorthy'
- * to identify this product. Admin routes are excluded from tracking.
+ * Meta receives the page's full address with every event, so each event
+ * is gated on `metaPixelPathAllowed`. That is an allowlist of public pages
+ * that refuses any query string, because restaurant links carry the
+ * chosen diet as `?profile=…`. Meta's own automatic history tracking
+ * (`disablePushState`) and its automatic click and page-metadata
+ * collection (`autoConfig`) are off, so only the PageView sent here leaves
+ * the browser. There is no <noscript> image either, because its request
+ * would carry the full address. The analytics opt-out, Do Not Track, and
+ * Global Privacy Control each switch the pixel off entirely.
  */
 
 const PIXEL_ID = '1775852390205529';
@@ -19,84 +27,81 @@ const CONTENT_NAME = 'BiteWorthy';
 
 declare global {
   interface Window {
-    fbq?: (
-      action: 'init' | 'track' | 'trackCustom',
+    fbq?: ((
+      action: 'init' | 'track' | 'trackCustom' | 'set',
       eventName: string,
-      params?: Record<string, unknown>,
-    ) => void;
+      ...params: unknown[]
+    ) => void) & { disablePushState?: boolean };
     _fbq?: Window['fbq'];
+    __bwMetaReady?: () => void;
   }
+}
+
+function consented(): boolean {
+  return analyticsAllowed() && !globalPrivacyControl();
+}
+
+/** True when the current page may send anything to Meta. */
+function allowedHere(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    consented() &&
+    metaPixelPathAllowed(window.location.pathname, window.location.search)
+  );
+}
+
+function pageView(): void {
+  if (allowedHere() && window.fbq) window.fbq('track', 'PageView');
 }
 
 export function MetaPixelProvider() {
   const pathname = usePathname();
-  const initialPageViewFired = useRef(false);
-
-  const isAdminRoute = pathname.startsWith('/admin');
+  // The script loads on the first allowed page, not on whatever page the
+  // visit started on, and stays loaded after that.
+  const [load, setLoad] = useState(false);
 
   useEffect(() => {
-    if (
-      typeof window === 'undefined' ||
-      !analyticsAllowed() ||
-      !window.fbq ||
-      isAdminRoute
-    )
-      return;
-
-    if (!initialPageViewFired.current) {
-      initialPageViewFired.current = true;
+    if (!allowedHere()) return;
+    if (!load) {
+      window.__bwMetaReady = pageView;
+      setLoad(true);
       return;
     }
+    pageView();
+  }, [pathname, load]);
 
-    window.fbq('track', 'PageView');
-  }, [pathname, isAdminRoute]);
-
-  if (typeof window !== 'undefined' && (!analyticsAllowed() || isAdminRoute)) {
-    return null;
-  }
+  if (!load) return null;
 
   return (
-    <>
-      <Script
-        id="meta-pixel-base"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-            !function(f,b,e,v,n,t,s)
-            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-            n.queue=[];t=b.createElement(e);t.async=!0;
-            t.src=v;s=b.getElementsByTagName(e)[0];
-            s.parentNode.insertBefore(t,s)}(window, document,'script',
-            'https://connect.facebook.net/en_US/fbevents.js');
-            fbq('init', '${PIXEL_ID}');
-            fbq('track', 'PageView');
-          `,
-        }}
-      />
-      <noscript>
-        <img
-          height="1"
-          width="1"
-          style={{ display: 'none' }}
-          src={`https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1`}
-          alt=""
-        />
-      </noscript>
-    </>
+    <Script
+      id="meta-pixel-base"
+      strategy="afterInteractive"
+      dangerouslySetInnerHTML={{
+        __html: `
+          !function(f,b,e,v,n,t,s)
+          {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t,s)}(window, document,'script',
+          'https://connect.facebook.net/en_US/fbevents.js');
+          fbq.disablePushState = true;
+          fbq('set', 'autoConfig', false, '${PIXEL_ID}');
+          fbq('init', '${PIXEL_ID}');
+          if (window.__bwMetaReady) window.__bwMetaReady();
+        `,
+      }}
+    />
   );
 }
 
 /**
- * Track a Meta Pixel standard event. Only fires when the Pixel is loaded
- * and analytics is allowed (not DNT, not opted out).
+ * Track a Meta Pixel standard event. Fires only where a PageView may: the
+ * event carries the page's address too.
  */
-export function trackMetaEvent(
-  eventName: string,
-  params: Record<string, unknown> = {},
-): void {
-  if (typeof window === 'undefined' || !analyticsAllowed() || !window.fbq) return;
+export function trackMetaEvent(eventName: string, params: Record<string, unknown> = {}): void {
+  if (!allowedHere() || !window.fbq) return;
   window.fbq('track', eventName, { content_name: CONTENT_NAME, ...params });
 }
 
