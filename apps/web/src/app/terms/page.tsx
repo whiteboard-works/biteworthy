@@ -27,7 +27,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-08-14';
+const LAST_UPDATED = '2026-10-08';
 
 export default function TermsPage(): ReactElement {
   return (
@@ -200,13 +200,16 @@ export default function TermsPage(): ReactElement {
         <Section title="Analytics" id="analytics">
           <p>
             On web, BiteWorthy uses PostHog for funnel analytics (events like <em>app_open</em>,{' '}
-            <em>menu_filtered</em>). What they carry is deliberately narrow: the restaurant, how
-            many items were visible or hidden, and which <em>kind</em> of filter was applied — not
-            the filter itself. Toggling strictness on a menu sends the before and after value.
-            Saving your dietary profile sends only that it happened, never the preset or the
-            strictness. Never review text, your email, or your specific avoid-lists. We honor
-            browser <em>Do-Not-Track</em> automatically and a per-user opt-out at{' '}
-            <em>/profile/settings</em>. The Privacy Policy carries the full list.
+            <em>menu_filtered</em>) and Meta Pixel (Meta Platforms, Inc.) for conversion tracking.
+            What they carry is deliberately narrow: the restaurant, how many items were visible or
+            hidden, and which <em>kind</em> of filter was applied — not the filter itself. Toggling
+            strictness on a menu sends the before and after value. Saving your dietary profile
+            sends only that it happened, never the preset or the strictness. Never review text,
+            your email, or your specific avoid-lists. Share-link tokens and other sensitive URL
+            parameters are stripped before Meta receives a page address. We honor browser{' '}
+            <em>Do-Not-Track</em> automatically and a per-user opt-out at{' '}
+            <em>/profile/settings</em> that covers both PostHog and Meta Pixel. The Privacy Policy
+            carries the full list.
           </p>
           <p>
             On mobile, analytics are <strong>off by default</strong>. They only fire if you

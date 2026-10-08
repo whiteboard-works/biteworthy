@@ -48,7 +48,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-06';
+const LAST_UPDATED = '2026-10-08';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -169,6 +169,17 @@ export default function PrivacyPage(): ReactElement {
               <strong>PostHog</strong>: product analytics. See “Your rights and controls” for
               exactly what we send and how to opt out.
             </li>
+            <li>
+              <strong>Meta (Meta Pixel / Meta Platforms, Inc.)</strong>: conversion tracking for
+              marketing campaigns. When you visit BiteWorthy from an ad, the Meta Pixel reports
+              that you arrived and tracks key milestones like account signup. What it sends: the
+              page you visited (with sensitive parameters like share tokens, license keys, and
+              emails stripped before Meta receives them), your browser and device type, your
+              approximate location from your IP address, and which ad you came from. Pixel events
+              are tied to a Meta cookie, not to your BiteWorthy account. The Pixel respects the
+              same opt-out as PostHog (see below). Meta&apos;s own privacy policy governs what they
+              do with the data.
+            </li>
           </ul>
         </Section>
 
@@ -213,8 +224,9 @@ export default function PrivacyPage(): ReactElement {
               for anything else, email us and we’ll fix it.
             </li>
             <li>
-              <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
-              off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
+              <strong>Opt out of analytics:</strong> on web, analytics (PostHog and Meta Pixel) are
+              on by default — turn them off with the toggle in <em>/profile/settings</em>, and we
+              honor your browser’s
               Do-Not-Track signal automatically. On mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
               random analytics ID, <strong>not to your account</strong> — signing in does not
