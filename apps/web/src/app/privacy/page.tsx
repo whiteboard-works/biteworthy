@@ -48,7 +48,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-06';
+const LAST_UPDATED = '2026-10-08';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -56,7 +56,6 @@ export default function PrivacyPage(): ReactElement {
       <p className="text-bite text-bw-sm font-bold uppercase tracking-[0.2em]">Legal</p>
       <h1 className="mt-bw-3 text-bw-3xl font-bold text-zinc-900 md:text-bw-4xl">Privacy Policy</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
-
 
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="The short version">
@@ -89,8 +88,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dish photos:</strong> if you submit a photo of a dish (from the dish page, or
               by offering a review photo), we store the image and whether you confirmed you took it.
-              Location metadata is stripped the same way as review photos. A moderator reviews
-              every submission before it can appear as the dish photo.
+              Location metadata is stripped the same way as review photos. A moderator reviews every
+              submission before it can appear as the dish photo.
             </li>
             <li>
               <strong>Restaurant visits:</strong> when you open a filtered restaurant page while
@@ -147,9 +146,8 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Cloudflare R2</strong>: review photos and diner-submitted dish photos
-              (metadata stripped; dish submissions unpublished until a moderator approves them),
-              and the cropped per-dish photos that the ingestion pipeline extracts from menu
-              images.
+              (metadata stripped; dish submissions unpublished until a moderator approves them), and
+              the cropped per-dish photos that the ingestion pipeline extracts from menu images.
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
@@ -169,6 +167,17 @@ export default function PrivacyPage(): ReactElement {
               <strong>PostHog</strong>: product analytics. See “Your rights and controls” for
               exactly what we send and how to opt out.
             </li>
+            <li>
+              <strong>Meta (Meta Pixel / Meta Platforms, Inc.)</strong>: conversion tracking for
+              marketing campaigns. When you visit BiteWorthy from an ad, the Meta Pixel reports that
+              you arrived and tracks key milestones like account signup. What it sends: the page you
+              visited (with sensitive parameters like share tokens, license keys, and emails
+              stripped before Meta receives them), your browser and device type, your approximate
+              location from your IP address, and which ad you came from. Pixel events are tied to a
+              Meta cookie, not to your BiteWorthy account. The Pixel respects the same opt-out as
+              PostHog (see below). Meta&apos;s own privacy policy governs what they do with the
+              data.
+            </li>
           </ul>
         </Section>
 
@@ -185,8 +194,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dish photo submissions:</strong> pending, rejected, withdrawn, and
               accepted-but-not-used-as-the-dish-photo submissions are deleted with your account
-              (including the stored image). An approved photo that is still the dish photo stays
-              on the menu; the byline is anonymized to “a diner”.
+              (including the stored image). An approved photo that is still the dish photo stays on
+              the menu; the byline is anonymized to “a diner”.
             </li>
             <li>
               <strong>Restaurant-visit history:</strong> kept for as long as your account is open.
@@ -213,23 +222,23 @@ export default function PrivacyPage(): ReactElement {
               for anything else, email us and we’ll fix it.
             </li>
             <li>
-              <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
-              off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
-              Do-Not-Track signal automatically. On mobile, analytics are off by default and only
-              fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
-              random analytics ID, <strong>not to your account</strong> — signing in does not
-              connect them to your identity. What they carry is
-              deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
-              visible or hidden, and which <em>kind</em> of filter was applied — not the filter
-              itself. Toggling strictness on a menu sends the before and after value.
-              Saving your dietary profile sends only that it happened, never the preset, the
-              strictness, or how much you avoid — that association is the one we most want to
-              avoid making. We never send review text, your email, or your specific avoid-lists.
-              Page views send the page’s address with the part after the “?” removed, and without
-              which diet page you opened or whose profile you viewed. Like every event, they also
-              carry that random analytics ID and basic browser and device details (browser, OS,
-              screen size, approximate location from your IP), and the domain of the site that
-              sent you. We don’t record what you click or type, and we don’t record your session.
+              <strong>Opt out of analytics:</strong> on web, analytics (PostHog and Meta Pixel) are
+              on by default — turn them off with the toggle in <em>/profile/settings</em>, and we
+              honor your browser’s Do-Not-Track signal automatically. On mobile, analytics are off
+              by default and only fire if you enable them in <em>Settings → Analytics</em>. Funnel
+              events are tied to a random analytics ID, <strong>not to your account</strong> —
+              signing in does not connect them to your identity. What they carry is deliberately
+              narrow: <em>menu_filtered</em> sends the restaurant, how many items were visible or
+              hidden, and which <em>kind</em> of filter was applied — not the filter itself.
+              Toggling strictness on a menu sends the before and after value. Saving your dietary
+              profile sends only that it happened, never the preset, the strictness, or how much you
+              avoid — that association is the one we most want to avoid making. We never send review
+              text, your email, or your specific avoid-lists. Page views send the page’s address
+              with the part after the “?” removed, and without which diet page you opened or whose
+              profile you viewed. Like every event, they also carry that random analytics ID and
+              basic browser and device details (browser, OS, screen size, approximate location from
+              your IP), and the domain of the site that sent you. We don’t record what you click or
+              type, and we don’t record your session.
             </li>
             <li>
               <strong>We do not sell or share</strong> your personal information, and we will not
