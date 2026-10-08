@@ -30,7 +30,8 @@ function readCookie(name: string): string | null {
 }
 
 function writeCookie(name: string, value: string): void {
-  document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${NINETY_DAYS}; path=/; samesite=lax`;
+  const secure = window.location.protocol === 'https:' ? '; secure' : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${NINETY_DAYS}; path=/; samesite=lax${secure}`;
 }
 
 /**
