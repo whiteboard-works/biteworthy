@@ -1,20 +1,27 @@
 'use client';
 
 import Script from 'next/script';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { analyticsAllowed } from '../lib/track';
-import { globalPrivacyControl, metaPixelPathAllowed } from '../lib/meta-pixel-policy';
+import {
+  globalPrivacyControl,
+  metaPixelReferrerAllowed,
+  metaPixelUrlAllowed,
+} from '../lib/meta-pixel-policy';
 
 /**
  * Meta Pixel provider. Loads the Meta Pixel (ID 1775852390205529, shared
  * across all WBW sites) and sends PageView, but only where the privacy
  * policy says it may.
  *
- * Meta receives the page's full address with every event, so each event
- * is gated on `metaPixelPathAllowed`. That is an allowlist of public pages
- * that refuses any query string, because restaurant links carry the
- * chosen diet as `?profile=…`. Meta's own automatic history tracking
+ * Meta receives the page's full address and its referrer with every
+ * event, so each event is gated on `metaPixelUrlAllowed` (an allowlist of
+ * public pages that refuses anything after "?" or "#", because restaurant
+ * links carry the chosen diet as `?profile=…`) and on
+ * `metaPixelReferrerAllowed`. The sign-up conversion is recorded when it
+ * happens and sent from the next allowed page, so the pixel never runs on
+ * a page with an email field. Meta's own automatic history tracking
  * (`disablePushState`) and its automatic click and page-metadata
  * collection (`autoConfig`) are off, so only the PageView sent here leaves
  * the browser. There is no <noscript> image either, because its request
@@ -46,12 +53,24 @@ function allowedHere(): boolean {
   return (
     typeof window !== 'undefined' &&
     consented() &&
-    metaPixelPathAllowed(window.location.pathname, window.location.search)
+    metaPixelUrlAllowed(window.location) &&
+    metaPixelReferrerAllowed(document.referrer, window.location.origin)
   );
 }
 
+const PENDING_REGISTRATION = 'bw_meta_pending_registration';
+
 function pageView(): void {
-  if (allowedHere() && window.fbq) window.fbq('track', 'PageView');
+  if (!allowedHere() || !window.fbq) return;
+  window.fbq('track', 'PageView');
+  let pending = false;
+  try {
+    pending = sessionStorage.getItem(PENDING_REGISTRATION) === '1';
+    if (pending) sessionStorage.removeItem(PENDING_REGISTRATION);
+  } catch {
+    // storage blocked: the conversion is lost, never the visitor's privacy
+  }
+  if (pending) window.fbq('track', 'CompleteRegistration', { content_name: CONTENT_NAME });
 }
 
 export function MetaPixelProvider() {
@@ -59,12 +78,20 @@ export function MetaPixelProvider() {
   // The script loads on the first allowed page, not on whatever page the
   // visit started on, and stays loaded after that.
   const [load, setLoad] = useState(false);
+  // The script's own ready hook sends the first PageView; the effect run
+  // caused by `setLoad(true)` must not send a second one.
+  const justLoaded = useRef(false);
 
   useEffect(() => {
     if (!allowedHere()) return;
     if (!load) {
       window.__bwMetaReady = pageView;
+      justLoaded.current = true;
       setLoad(true);
+      return;
+    }
+    if (justLoaded.current) {
+      justLoaded.current = false;
       return;
     }
     pageView();
@@ -97,12 +124,17 @@ export function MetaPixelProvider() {
 }
 
 /**
- * Track a Meta Pixel standard event. Fires only where a PageView may: the
- * event carries the page's address too.
+ * Record a completed sign-up. Nothing goes to Meta from the sign-up page;
+ * the next allowed page's PageView sends CompleteRegistration with it.
+ * Off entirely when the visitor has opted out.
  */
-export function trackMetaEvent(eventName: string, params: Record<string, unknown> = {}): void {
-  if (!allowedHere() || !window.fbq) return;
-  window.fbq('track', eventName, { content_name: CONTENT_NAME, ...params });
+export function markMetaRegistration(): void {
+  if (typeof window === 'undefined' || !consented()) return;
+  try {
+    sessionStorage.setItem(PENDING_REGISTRATION, '1');
+  } catch {
+    // storage blocked: skip the conversion
+  }
 }
 
 export { PIXEL_ID, CONTENT_NAME };

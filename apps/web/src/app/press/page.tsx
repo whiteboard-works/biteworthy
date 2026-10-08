@@ -61,7 +61,8 @@ export default function PressPage(): ReactElement {
           The launch beta is adding independent Durango restaurants &mdash; not chains, not
           delivery aggregators. Reviews are by real diners with the same dietary needs as you;
           owners can claim their listings to fix mistakes; everyone can suggest fixes through a
-          community moderation queue. Free, no ads, and analytics you can switch off. Built in Durango, Colorado,
+          community moderation queue. Free, no ads, and analytics you can switch off. Built in
+          Durango, Colorado,
           with the same dietary-filter logic running identically on web and mobile.
         </p>
       </Section>

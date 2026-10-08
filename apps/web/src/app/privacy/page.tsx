@@ -181,14 +181,15 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our
               ads on Facebook and Instagram bring people to BiteWorthy. It runs only on public
-              pages (the home page, sign-up and sign-in, our story, press, updates, and restaurant
-              and city pages) and only when the page address has nothing after the “?”. It never
-              runs on diet pages, people’s profiles, your history, chat, settings, or onboarding,
-              and it is never sent which diet you filtered by. On those pages it tells Meta that a
-              page was viewed and, when you create an account from the sign-up page, that a sign-up
-              happened. Meta’s script also receives the page address, your IP address and browser
-              details, and Meta’s own cookie, and Meta may link that to your Facebook or Instagram
-              account under{' '}
+              pages (the home page, our story, press, updates, and restaurant, dish, and city
+              pages) and only when neither the page address nor the page you came from has anything
+              after a “?” or “#”. It never runs on diet pages, people’s profiles, your history,
+              chat, settings, onboarding, or the sign-in and sign-up pages, and it is never sent
+              which diet you filtered by. On those public pages it tells Meta that a page was
+              viewed, and after you create an account, the next public page you open also tells
+              Meta that a sign-up happened. Meta’s script receives the page address and the page
+              you came from, your IP address and browser details, and Meta’s own cookie, and Meta
+              may link that to your Facebook or Instagram account under{' '}
               <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
               mobile app does not use the Meta Pixel.
             </li>
@@ -238,7 +239,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
-              Do-Not-Track signal automatically. Either one also turns off the Meta Pixel. On mobile, analytics are off by default and only
+              Do-Not-Track signal automatically. Either one also turns off the Meta Pixel. On
+              mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
               random analytics ID, <strong>not to your account</strong> — signing in does not
               connect them to your identity. What they carry is
