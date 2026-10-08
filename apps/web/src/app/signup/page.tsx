@@ -7,7 +7,7 @@ import type { Route } from 'next';
 import { signup, AuthError, authFailureReason } from '../../lib/auth';
 import { safeNext } from '../../lib/safe-next';
 import { useTracker } from '../_PostHogProvider';
-import { trackMetaEvent } from '../_MetaPixelProvider';
+import { markMetaRegistration } from '../_MetaPixelProvider';
 
 /**
  * Phase 4.1 — web signup page. Posts to `/api/auth/signup` (Next
@@ -108,7 +108,7 @@ function SignupForm() {
       setSubmitting(true);
       await signup(email, password, ageConfirmed, termsAccepted);
       tracker.track('auth_completed', { method: 'signup' });
-      trackMetaEvent('CompleteRegistration');
+      markMetaRegistration();
       // `next` is a runtime query value — typedRoutes can't prove it.
       router.replace(next as Route);
     } catch (err) {
