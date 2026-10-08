@@ -1,50 +1,51 @@
 /**
- * Where the Meta Pixel may fire. Meta receives the page's full address
- * (`dl`) and the address of the page before it (`rl`) with every event, so
- * this decides what Meta can learn, and the privacy policy describes
- * exactly this rule.
+ * What the Meta Pixel may tell Meta. The site does not load Meta's script;
+ * `lib/meta-pixel.ts` sends the pixel's image requests itself, built only
+ * from what this module allows, so this file is the whole of what Meta
+ * can learn, and the privacy policy describes exactly this rule.
  *
- * An allowlist, so a new page is excluded until someone decides otherwise.
- * Pages that can reveal a diet, a person, or an account (diet pages,
- * /u/<handle>, history, chat, onboarding, settings, admin, adding a
- * restaurant, menu scans, suggestions, claims) never match. Sign-in and
- * sign-up pages are out too, because they hold email fields and Meta's
- * automatic advanced matching can read those.
+ * Pages: an allowlist, so a new page is excluded until someone decides
+ * otherwise. Pages that can reveal a diet, a person, or an account (diet
+ * pages, /u/<handle>, history, chat, onboarding, settings, admin, adding
+ * a restaurant, menu scans, suggestions, claims) never match.
  *
- * Any address with something after "?" or "#" is refused, because
- * restaurant links carry the chosen diet as `?profile=celiac` and shared
- * filters as `?p=`.
+ * Addresses: only the path is ever sent. Nothing after "?" or "#" leaves
+ * the browser, because restaurant links carry the chosen diet as
+ * `?profile=celiac` and shared filters as `?p=`.
  */
-const EXACT = new Set(['/', '/story', '/press', '/updates', '/durango', '/restaurants']);
+const EXACT = new Set(['/', '/signup', '/story', '/press', '/updates', '/durango', '/restaurants']);
 
 // /restaurants/<country>[/<region>[/<city>[/<restaurant>[/items/<dish>]]]],
 // and never /restaurants/new.
 const RESTAURANT_PAGE =
   /^\/restaurants\/(?!new$)[^/]+(?:\/[^/]+(?:\/[^/]+(?:\/[^/]+(?:\/items\/[^/]+)?)?)?)?$/;
 
-type Where = Pick<URL, 'pathname' | 'search' | 'hash'>;
-
-export function metaPixelUrlAllowed({ pathname, search, hash }: Where): boolean {
-  if (search !== '' && search !== '?') return false;
-  if (hash !== '' && hash !== '#') return false;
+export function metaPixelPathAllowed(pathname: string): boolean {
   return EXACT.has(pathname) || RESTAURANT_PAGE.test(pathname);
 }
 
+/** The page address Meta receives: origin and path, nothing after it. */
+export function metaPageAddress(origin: string, pathname: string): string {
+  return `${origin}${pathname}`;
+}
+
 /**
- * The referrer rides along with every event. A visitor who comes to an
- * allowed page from `/restaurants/…?profile=celiac` would otherwise hand
- * Meta that address. Another site's address is not ours to reveal.
+ * The referrer Meta receives. Our own pages: the path, and only when that
+ * path is itself allowed (otherwise just the origin). Other sites: their
+ * origin only.
  */
-export function metaPixelReferrerAllowed(referrer: string, origin: string): boolean {
-  if (referrer === '') return true;
+export function metaReferrer(referrer: string, origin: string): string {
+  if (referrer === '') return '';
   let url: URL;
   try {
     url = new URL(referrer);
   } catch {
-    return false;
+    return '';
   }
-  if (url.origin !== origin) return true;
-  return metaPixelUrlAllowed(url);
+  if (url.origin === origin && metaPixelPathAllowed(url.pathname)) {
+    return metaPageAddress(url.origin, url.pathname);
+  }
+  return url.origin;
 }
 
 /**

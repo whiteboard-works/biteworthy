@@ -1,97 +1,100 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { OPT_OUT_KEY } from '../../lib/track';
 
 let mockPath = '/';
 vi.mock('next/navigation', () => ({ usePathname: () => mockPath }));
-// The real <Script> injects into <head>; a marker is enough to see whether
-// Meta's code would load at all.
-vi.mock('next/script', () => ({ default: () => <div data-testid="meta-script" /> }));
 
 import { MetaPixelProvider, markMetaRegistration } from '../_MetaPixelProvider';
 
 /**
- * The privacy policy promises Meta never learns a diet: no pixel on diet
- * pages or when any opt-out is set, nothing from a page reached from a
- * diet link, one PageView per page, and the sign-up conversion sent from
- * a later allowed page rather than from the page holding the email field.
+ * Every request the site sends Meta is an image request built by
+ * lib/meta-pixel.ts. These capture each one and check what it carries,
+ * which is everything Meta can learn from the website.
  */
+const sent: { src: string; referrerPolicy: string }[] = [];
+class FakeImage {
+  referrerPolicy = '';
+  set src(value: string) {
+    sent.push({ src: value, referrerPolicy: this.referrerPolicy });
+  }
+}
+
 function visit(path: string, referrer = '') {
   window.history.pushState({}, '', path);
   mockPath = new URL(path, window.location.origin).pathname;
   Object.defineProperty(document, 'referrer', { value: referrer, configurable: true });
 }
 
+const params = (i = 0) => new URL(sent[i]!.src).searchParams;
 const nav = navigator as { globalPrivacyControl?: boolean };
-const fbq = vi.fn();
 
 beforeEach(() => {
+  sent.length = 0;
+  vi.stubGlobal('Image', FakeImage);
   localStorage.clear();
-  sessionStorage.clear();
   delete nav.globalPrivacyControl;
-  fbq.mockReset();
-  delete (window as { fbq?: unknown }).fbq;
-  delete window.__bwMetaReady;
+  document.cookie = '_fbc=; max-age=0; path=/';
+  document.cookie = '_fbp=; max-age=0; path=/';
 });
-afterEach(() => visit('/'));
+afterEach(() => {
+  vi.unstubAllGlobals();
+  visit('/');
+});
 
-describe('MetaPixelProvider', () => {
-  it('loads nothing on a page that carries a diet', () => {
-    visit('/restaurants/usa/colorado/durango/himalayan-kitchen?profile=celiac');
+describe('Meta Pixel requests', () => {
+  it('sends the path only, never the diet in the query', () => {
+    visit('/restaurants/usa/colorado/durango/himalayan-kitchen?profile=celiac#top');
     render(<MetaPixelProvider />);
-    expect(screen.queryByTestId('meta-script')).toBeNull();
+
+    expect(sent).toHaveLength(1);
+    expect(params().get('ev')).toBe('PageView');
+    expect(params().get('dl')).toBe(
+      `${window.location.origin}/restaurants/usa/colorado/durango/himalayan-kitchen`,
+    );
+    expect(sent[0]!.src).not.toContain('celiac');
+    // The browser must not attach the full address as a Referer header.
+    expect(sent[0]!.referrerPolicy).toBe('no-referrer');
   });
 
-  it('loads nothing when the visitor has opted out or sent Global Privacy Control', () => {
+  it('sends nothing from a diet page or a profile', () => {
+    visit('/durango/celiac');
+    render(<MetaPixelProvider />);
+    visit('/u/diner_jane');
+    render(<MetaPixelProvider />);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('cleans the referrer of a diet link', () => {
+    visit('/story', `${window.location.origin}/durango/celiac?profile=celiac`);
+    render(<MetaPixelProvider />);
+    expect(params().get('rl')).toBe(window.location.origin);
+  });
+
+  it('sends nothing when the visitor opted out or sent Global Privacy Control', () => {
     visit('/story');
     localStorage.setItem(OPT_OUT_KEY, '1');
     const { unmount } = render(<MetaPixelProvider />);
-    expect(screen.queryByTestId('meta-script')).toBeNull();
     unmount();
-
     localStorage.clear();
     nav.globalPrivacyControl = true;
     render(<MetaPixelProvider />);
-    expect(screen.queryByTestId('meta-script')).toBeNull();
+    expect(sent).toHaveLength(0);
   });
 
-  it('loads nothing on an allowed page reached from a diet link', () => {
-    visit('/story', `${window.location.origin}/restaurants/usa/colorado/durango/x?profile=celiac`);
+  it('keeps an ad click id as a cookie and credits it, without sending the query', () => {
+    visit('/?fbclid=AbC123&utm_source=fb');
     render(<MetaPixelProvider />);
-    expect(screen.queryByTestId('meta-script')).toBeNull();
+    expect(params().get('fbc')).toMatch(/^fb\.1\.\d+\.AbC123$/);
+    expect(params().get('dl')).toBe(`${window.location.origin}/`);
+    expect(sent[0]!.src).not.toContain('utm_source');
   });
 
-  it('sends exactly one PageView on an allowed page', () => {
-    visit('/story');
-    render(<MetaPixelProvider />);
-    expect(screen.getByTestId('meta-script')).toBeTruthy();
-
-    // What the loaded script does: define fbq, then call the ready hook.
-    window.fbq = fbq as unknown as Window['fbq'];
-    window.__bwMetaReady?.();
-    expect(fbq.mock.calls.filter((c) => c[1] === 'PageView')).toHaveLength(1);
-  });
-
-  it('sends a recorded sign-up with the next allowed PageView, once', () => {
-    visit('/signup');
+  it('sends a sign-up as CompleteRegistration from the sign-up page', () => {
+    visit('/signup?next=%2Fdurango%2Fceliac');
     markMetaRegistration();
-
-    visit('/');
-    render(<MetaPixelProvider />);
-    window.fbq = fbq as unknown as Window['fbq'];
-    window.__bwMetaReady?.();
-    expect(fbq).toHaveBeenCalledWith('track', 'CompleteRegistration', {
-      content_name: 'BiteWorthy',
-    });
-
-    fbq.mockReset();
-    window.__bwMetaReady?.();
-    expect(fbq).not.toHaveBeenCalledWith('track', 'CompleteRegistration', expect.anything());
-  });
-
-  it('records no sign-up for a visitor who opted out', () => {
-    localStorage.setItem(OPT_OUT_KEY, '1');
-    markMetaRegistration();
-    expect(sessionStorage.length).toBe(0);
+    expect(params().get('ev')).toBe('CompleteRegistration');
+    expect(params().get('dl')).toBe(`${window.location.origin}/signup`);
+    expect(sent[0]!.src).not.toContain('celiac');
   });
 });

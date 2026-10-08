@@ -180,16 +180,17 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our
-              ads on Facebook and Instagram bring people to BiteWorthy. It runs only on public
-              pages (the home page, our story, press, updates, and restaurant, dish, and city
-              pages) and only when neither the page address nor the page you came from has anything
-              after a “?” or “#”. It never runs on diet pages, people’s profiles, your history,
-              chat, settings, onboarding, or the sign-in and sign-up pages, and it is never sent
-              which diet you filtered by. On those public pages it tells Meta that a page was
-              viewed, and after you create an account, the next public page you open also tells
-              Meta that a sign-up happened. Meta’s script receives the page address and the page
-              you came from, your IP address and browser details, and Meta’s own cookie, and Meta
-              may link that to your Facebook or Instagram account under{' '}
+              ads on Facebook and Instagram bring people to BiteWorthy. We don’t load Meta’s own
+              script; each pixel event is one request we build ourselves. It runs only on public
+              pages (the home page, sign-up, our story, press, updates, and restaurant, dish, and
+              city pages), and never on diet pages, people’s profiles, your history, chat,
+              settings, onboarding, or sign-in. It tells Meta that a page was viewed and, when you
+              create an account, that a sign-up happened. Each request carries the page’s path but
+              never anything after a “?” or “#”, so Meta is never sent which diet you filtered by.
+              It also carries the site you came from (only its domain, or one of the public pages
+              above), your IP address and browser details, and two cookies we set for Meta: a
+              random browser id, and the ad-click id when you arrived from a Meta ad. Meta may link
+              that to your Facebook or Instagram account under{' '}
               <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
               mobile app does not use the Meta Pixel.
             </li>
