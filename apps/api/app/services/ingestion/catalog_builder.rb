@@ -25,20 +25,6 @@ module Ingestion
         format_rows(rows)
       end
 
-      # Tags share the same shape with one extra useful field
-      # (family) — but we keep the output schema identical to
-      # ingredients to keep the prompt format uniform. `family:` scopes
-      # the rendered catalog to one family (the gap-fill prompt only
-      # carries cuisine).
-      def tags_text(family: nil)
-        scope = Tag.order(:family, :path)
-        scope = scope.where(family: family) if family
-        rows = scope.pluck(:slug, :name, :path, :family).map do |slug, name, path, fam|
-          [slug, name, "#{fam}.#{path}", []]
-        end
-        format_rows(rows)
-      end
-
       private
 
       def format_rows(rows)

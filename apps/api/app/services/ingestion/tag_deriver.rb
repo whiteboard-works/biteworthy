@@ -11,8 +11,8 @@ module Ingestion
   #              ingredient-ancestry veto; never inferred from absence.
   #   prep     — keyword table (fried/grilled/smoked/raw).
   #   flavor   — keyword table (spicy/sweet).
-  #   cuisine  — weak keyword pass (incl. section name); the LLM
-  #              gap-fill owns this family's real coverage.
+  #   cuisine  — weak keyword pass (incl. section name); Jev owns this
+  #              family's real coverage (JevCuisineTagger, in gap-fill).
   #
   # All slugs referenced here must exist in db/seeds/tags.yml /
   # ingredients.yml — spec/services/ingestion/taxonomy_drift_spec.rb
