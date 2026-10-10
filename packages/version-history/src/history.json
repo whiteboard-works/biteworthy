@@ -3,7 +3,7 @@
     "version": "2026.10.10.8",
     "date": "2026-10-10",
     "notes": [
-      "When something goes wrong in a chat or in a background job on our side, we now hear about it ourselves: each distinct failure is filed once as a private ticket for us, counted when it recurs, and reopened if it comes back after a fix — so a problem that keeps happening gets fixed before anyone has to write in. The ticket carries the technical shape of the error, with ids, addresses, and quoted text blanked out, and nothing about who you are."
+      "When something goes wrong in a chat or in a background job on our side, we now record it ourselves: each distinct failure once, counted when it recurs, so a problem that keeps happening can be fixed before anyone has to write in. The record is the technical shape of the error, with ids, addresses, and quoted text blanked out, plus an internal reference to the affected chat so we can look into it."
     ]
   },
   {
