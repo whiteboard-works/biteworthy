@@ -4,7 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import PostHog from 'posthog-react-native';
 import { noopTracker, type Tracker } from '@biteworthy/analytics';
 import { buildMobileTracker } from '../lib/track';
-import { createPostHogClient, POSTHOG_HOST, registerExtension } from '../lib/posthog-client';
+import {
+  createPostHogClient,
+  POSTHOG_HOST,
+  registerExtension,
+  stopCapturing,
+} from '../lib/posthog-client';
 import { TrackerContext } from '../lib/tracker-context';
 import { getAnalyticsOptIn, onAnalyticsOptInChange } from '../lib/analytics-prefs';
 
@@ -37,12 +42,12 @@ export default function RootLayout() {
     const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 
     // One client for the app's life. Built on the first opt-in; an opt-out
-    // tells it to stop (`optOut` also drops what it had queued) rather than
+    // stops it (`stopCapturing`: the flag, then the queue) rather than
     // discarding it, so a later opt-in is `optIn` on the same instance.
     const trackerFor = (optedIn: boolean): Tracker => {
       if (!apiKey) return noopTracker;
       if (!optedIn) {
-        void clientRef.current?.optOut();
+        if (clientRef.current) void stopCapturing(clientRef.current);
         return noopTracker;
       }
       if (!clientRef.current) {
