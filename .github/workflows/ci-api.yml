@@ -66,8 +66,9 @@ jobs:
       # ubuntu-latest runner ships ImageMagick today but be explicit
       # so a future runner image change doesn't silently break us.
       # libvips42 for ActiveStorage variant processing (WebP generation).
-      - name: Install ImageMagick and libvips
-        run: sudo apt-get update -y && sudo apt-get install -y imagemagick libvips42
+      # ghostscript for Pdfs::Shrink (oversized menu PDFs).
+      - name: Install ImageMagick, libvips, and Ghostscript
+        run: sudo apt-get update -y && sudo apt-get install -y imagemagick libvips42 ghostscript
 
       - uses: ruby/setup-ruby@v1
         with:

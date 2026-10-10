@@ -26,6 +26,11 @@ jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
 }));
 
+jest.mock('expo-image-manipulator', () => ({
+  ImageManipulator: { manipulate: jest.fn() },
+  SaveFormat: { JPEG: 'jpeg' },
+}));
+
 const mockCreate = jest.fn();
 const mockGet = jest.fn();
 const mockSend = jest.fn();
