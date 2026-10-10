@@ -103,15 +103,15 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(tags.map { |t| t["slug"] }).not_to include("grilled")
     end
 
-    it "records unresolved ingredient strings for the curation queue; there are no unresolved tags any more" do
+    it "records unresolved ingredient strings for the curation queue and leaves unresolved_tags alone" do
       gap_item.update!(unresolved_tags: ["left by an older release"])
       described_class.perform_now(run.id)
 
       gap_item.reload
       expect(gap_item.unresolved_ingredients).to eq(["romaine hearts"])
-      # Jev answers over the cuisine catalog, so no cuisine-ish phrase
-      # can be left over, and a stale one must not keep flagging review.
-      expect(gap_item.unresolved_tags).to eq([])
+      # Jev answers over the cuisine catalog, so gap-fill has no cuisine
+      # phrases to record and must not clear what another writer left.
+      expect(gap_item.unresolved_tags).to eq(["left by an older release"])
     end
 
     it "marks enrichment completed and leaves non-gap items untouched" do
@@ -487,6 +487,7 @@ RSpec.describe GapFillResolveJob, type: :job do
 
     it "a failing Jev call leaves the Haiku merge and the completed status untouched, with no AI cuisine" do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.error).to receive(:report)
       jev = stub_request(:post, jev_url).to_return(status: 500, body: "{}")
 
       described_class.perform_now(run.id)
@@ -497,6 +498,59 @@ RSpec.describe GapFillResolveJob, type: :job do
         { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" }
       )
       expect(gap_item.tags_payload.map { |t| t["slug"] }).not_to include("italian")
+    end
+
+    # A previous attempt's Jev answer must not be rebuilt from nothing
+    # when this attempt's Jev call fails.
+    it "a failing Jev call keeps the AI cuisine row an earlier attempt landed" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.error).to receive(:report)
+      gap_item.update!(tags_payload: [ { "slug" => "italian", "confidence" => 0.9, "source" => "ai" } ])
+      stub_request(:post, jev_url).to_return(status: 500, body: "{}")
+
+      described_class.perform_now(run.id)
+
+      expect(gap_item.reload.tags_payload).to include(
+        { "slug" => "italian", "confidence" => 0.9, "source" => "ai" }
+      )
+    end
+
+    # The retry skip only spares the Haiku call: a slice merged by an
+    # earlier attempt whose Jev call failed still gets its cuisine.
+    it "a retry asks Jev about an already-enriched slice without re-sending it to Haiku" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      gap_item.update!(ingredients_payload: [ { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" } ])
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+      jev = stub_request(:post, jev_url).to_return(
+        status: 200,
+        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.88 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      described_class.perform_now(run.id)
+
+      expect(jev).to have_been_made.once
+      gap_item.reload
+      expect(gap_item.ingredients_payload).to eq([ { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" } ])
+      expect(gap_item.tags_payload).to include({ "slug" => "italian", "confidence" => 0.88, "source" => "ai" })
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
+    it "switches Jev off for the rest of the attempt after one failure, so an outage costs one timeout" do
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.error).to receive(:report)
+      Array.new(10) do |i|
+        create(:ingestion_item, ingestion_run: run, position: 2 + i, name: format("Mystery Dish %02d", i),
+               description: nil, decision: "pending", ingredients_payload: [], tags_payload: [])
+      end
+      # 401 is not retried by the client, so one call is one request.
+      jev = stub_request(:post, jev_url).to_return(status: 401, body: "{}")
+
+      described_class.perform_now(run.id)
+
+      # 11 gap items make two Haiku slices; only the first reached Jev.
+      expect(jev).to have_been_made.once
+      expect(run.reload.enrichment_status).to eq("completed")
     end
   end
 end

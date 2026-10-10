@@ -17,7 +17,7 @@ the Phase 5 pause) are archived in
 
 ---
 
-2026-10-10 (UTC) — **Jev owns cuisine tags.** The shadow trial is over: `Ingestion::JevCuisineTagger` asks TypeSafe's Jev one yes/no per (gap item, leaf cuisine) after each Haiku slice and merges a tag at probability 0.5 or above as an `ai` row carrying that probability; Haiku's gap-fill prompt and schema no longer mention cuisine, the cuisine catalog left the prompt, and `unresolved_tags` is always empty. A Jev failure merges the slice without AI cuisine and reports; no key means keyword cuisine only, warned once per run. Spend is logged (`[jev_cuisine]`), not added to `api_cost_cents`. The 2026-09-28 follow-up moved to the archive.
+2026-10-10 (UTC) — **Jev owns cuisine tags.** The shadow trial is over: `Ingestion::JevCuisineTagger` asks TypeSafe's Jev one yes/no per (gap item, leaf cuisine) after each Haiku slice and merges a tag at probability 0.5 or above as an `ai` row carrying that probability; Haiku's gap-fill prompt and schema no longer mention cuisine, the cuisine catalog left the prompt, and `unresolved_tags` is always empty. A Jev failure merges the slice keeping any AI cuisine rows it already had, reports, and skips Jev for the rest of the attempt; a retry re-asks Jev even for slices Haiku already enriched. No key means keyword cuisine only, warned on every attempt. Spend is logged (`[jev_cuisine]`), not added to `api_cost_cents`. The 2026-09-28 follow-up moved to the archive.
 
 2026-10-10 (UTC) — **Chat footer: fewer pills.** The admin usage footer drops the per-turn cost, the cache read/write counts, and the in/out token counts. It shows the conversation cost, rounds, duration, and any non-benign outcome. The columns are still recorded; only the display changed.
 

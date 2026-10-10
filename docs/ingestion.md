@@ -214,12 +214,17 @@ and sections, nothing else. A tag whose probability reaches 0.5 is
 merged as `source: "ai"` with the probability as its confidence (so
 `ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
 the slice logs one `[jev_cuisine]` JSON line (model version, latency,
-input tokens, items, tags kept, answers missing). Haiku is never asked
-for cuisine and never sees the cuisine catalog, so `unresolved_tags`
-is always empty now. A Jev failure never raises: the slice merges
-without AI cuisine tags and the keyword pass is all the dish gets,
-reported through `Rails.error.report`. With `JEV_API_KEY` unset the
-job warns once per run and does the same for every slice. Jev's spend
+input tokens, items, tags kept, answers missing; a missing answer is
+also reported through `Rails.error.report`). Haiku is never asked for
+cuisine and never sees the cuisine catalog, so gap-fill no longer
+writes `unresolved_tags`. A Jev failure never raises: the slice merges
+keeping whatever AI cuisine rows it already had, the failure is
+reported, and Jev is skipped for the rest of that attempt so an outage
+costs one timeout rather than one per slice. A retry (any later slice's
+Haiku failure triggers one) skips the Haiku call for slices already
+enriched but still asks Jev, which is what repairs a slice whose Jev
+call failed. With `JEV_API_KEY` unset the job warns on every attempt
+that enriches and the keyword pass is all a dish gets. Jev's spend
 (~2k input tokens per slice at $0.042/MTok, output free) is logged,
 not added to `api_cost_cents`. Ingredients stay with Haiku: ~1,088
 slugs exceed Jev's 255-option Choice limit.

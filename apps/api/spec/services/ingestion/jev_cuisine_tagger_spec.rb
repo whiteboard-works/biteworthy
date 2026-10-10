@@ -66,14 +66,17 @@ RSpec.describe Ingestion::JevCuisineTagger do
     }).to have_been_made
   end
 
-  it "turns an absent or out-of-range answer into no tag, and counts it, instead of guessing" do
+  it "turns an absent or out-of-range answer into no tag, counts it, and reports it instead of guessing" do
     answers.delete("i1__mexican")
     answers["i1__italian"] = { "type" => "noul", "noul" => 1.7 }
     stub_jev
+    allow(Rails.error).to receive(:report)
     rows_out = described_class.new(client: client).call(run, rows)
 
     expect(rows_out).to eq(0 => [ { "slug" => "italian", "confidence" => 0.97 } ], 1 => [])
     expect(logged_line).to include("tagged" => 1, "missing" => 2)
+    expect(Rails.error).to have_received(:report)
+      .with(an_instance_of(described_class::PartialAnswers), hash_including(handled: true))
   end
 
   # The tagger runs inside GapFillResolveJob between a billed Haiku call

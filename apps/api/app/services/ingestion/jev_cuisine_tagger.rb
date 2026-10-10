@@ -35,6 +35,12 @@ module Ingestion
     # sides of it; tune it from the `[jev_cuisine]` lines, not by feel.
     THRESHOLD = 0.5
 
+    # A 200 whose `answers` map lacks a pair, or carries something that
+    # is not a probability. Reported (never raised) so a shape change on
+    # TypeSafe's side shows up as an error, not as a run of dishes with
+    # no cuisine.
+    class PartialAnswers < StandardError; end
+
     def self.enabled? = TypesafeClient.configured?
 
     def initialize(client: TypesafeClient.new)
@@ -77,6 +83,12 @@ module Ingestion
         tagged:       rows.values.sum(&:size),
         missing:      missing
       }.to_json)
+      if missing.positive?
+        Rails.error.report(
+          PartialAnswers.new("#{missing} of #{prompt_rows.size * tags.size} answers missing or malformed"),
+          handled: true, context: { ingestion_run_id: run.id, model: @client.last_model }
+        )
+      end
       rows
     rescue StandardError => e
       Rails.logger.warn(
