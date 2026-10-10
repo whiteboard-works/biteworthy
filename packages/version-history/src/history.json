@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.10",
+    "date": "2026-10-10",
+    "notes": [
+      "On a dish page, the ingredient chips under \"What we detected\" no longer repeat the word \"human\" on every one. The mark alone says how sure we are, and a \"What the marks mean\" button beside the heading opens a short list explaining each mark instead of a paragraph crowding the page.",
+      "The Meta ad pixel now sends only the page path, never a diet or a search query, and switches off under the analytics opt-out, Do Not Track, or Global Privacy Control. The privacy policy describes exactly that."
+    ]
+  },
+  {
     "version": "2026.10.6.3",
     "date": "2026-10-06",
     "notes": [
