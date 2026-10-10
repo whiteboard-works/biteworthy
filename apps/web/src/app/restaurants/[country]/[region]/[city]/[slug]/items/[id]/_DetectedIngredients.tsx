@@ -62,12 +62,13 @@ export default function DetectedIngredients({
         Spot something wrong? Use &ldquo;Suggest a fix&rdquo; below.
       </p>
 
-      {/* Native popover: top layer, centered, closes on Escape or an outside click, no client JS. */}
+      {/* Native popover: top layer, centered, closes on Escape or an outside click, no client JS.
+          `hidden` keeps it out of the page where the popover API is missing, instead of always open. */}
       <div
         id={LEGEND_ID}
         popover="auto"
         data-testid="detected-legend"
-        className="m-auto w-[min(92vw,24rem)] rounded-bw-lg border border-zinc-200 bg-white p-bw-4 text-bw-sm text-zinc-700 shadow-xl"
+        className="m-auto hidden w-[min(92vw,24rem)] [&:popover-open]:block rounded-bw-lg border border-zinc-200 bg-white p-bw-4 text-bw-sm text-zinc-700 shadow-xl"
       >
         <p className="font-semibold text-zinc-900">
           Every ingredient call carries a confidence level and a source.
