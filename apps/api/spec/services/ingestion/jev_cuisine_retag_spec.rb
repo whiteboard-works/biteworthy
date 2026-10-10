@@ -139,6 +139,22 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
   end
 
+  # A section rename goes through the section row, not the dishes, so a
+  # dish timestamp would not catch it.
+  it "skips every dish whose section was renamed while Jev was answering" do
+    stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return do
+      section.update!(name: "Antipasti")
+      { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+        headers: { "Content-Type" => "application/json" } }
+    end
+
+    result = described_class.new(restaurant, tagger: tagger).call
+
+    expect(result.stale).to eq(3)
+    expect(result.changes).to be_empty
+    expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
+  end
+
   it "writes nothing when Jev fails, and says so" do
     stub_jev({}, status: 401)
     allow(Rails.error).to receive(:report)
