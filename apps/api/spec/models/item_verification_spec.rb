@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Item, type: :model, focus: :item_verification do
+RSpec.describe Item, type: :model do
   describe "verification methods" do
     let(:item) { create(:item, :published) }
     let(:user) { create(:user) }
