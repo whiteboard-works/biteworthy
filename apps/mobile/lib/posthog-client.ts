@@ -7,16 +7,19 @@
  * `new PostHog(key, options)` and `register()` is async — but the
  * `AnalyticsClient` boundary smooths that out.
  *
- * Project context: WBW Cross-Product (id 370116). All seven Whiteboard
- * Works sites share one PostHog project; this app sets the
- * `extension: 'biteworthy'` super-property so events can be filtered
- * to BiteWorthy in the dashboard.
+ * Project context: BiteWorthy's own PostHog project (id 652080, ADR 0009).
+ * The token is `EXPO_PUBLIC_POSTHOG_KEY`, set on the production profile in
+ * `eas.json` only (preview builds are QA traffic) — a public client token,
+ * so it is config, not a secret. The
+ * `extension` super property predates the dedicated project and stays so
+ * saved insights that filter on it keep working.
  */
 
 import type PostHog from 'posthog-react-native';
 import type { AnalyticsClient } from '@biteworthy/analytics';
 
 export const EXTENSION_NAME = 'biteworthy';
+export const POSTHOG_HOST = 'https://us.i.posthog.com';
 
 /**
  * posthog-react-native 4.45+ narrowed event properties from

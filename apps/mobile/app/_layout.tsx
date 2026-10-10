@@ -4,14 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import PostHog from 'posthog-react-native';
 import { noopTracker, type Tracker } from '@biteworthy/analytics';
 import { buildMobileTracker } from '../lib/track';
-import { createPostHogClient, registerExtension } from '../lib/posthog-client';
+import { createPostHogClient, POSTHOG_HOST, registerExtension } from '../lib/posthog-client';
 import { TrackerContext } from '../lib/tracker-context';
 import { getAnalyticsOptIn } from '../lib/analytics-prefs';
 
 /**
  * Phase 5.8-wiring — root layout with PostHog provider.
  *
- * Mounts the WBW Cross-Product PostHog client once at app start,
+ * Mounts the PostHog client (project 652080) once at app start,
  * registers `extension: 'biteworthy'`, and fires `app_open` so the
  * launch funnel has a known first event. The tracker is exposed to
  * descendants via `TrackerContext` (mirrors the web pattern).
@@ -37,7 +37,7 @@ export default function RootLayout() {
 
       let next: Tracker = noopTracker;
       if (apiKey && optedIn) {
-        const client = new PostHog(apiKey, { host: 'https://us.i.posthog.com' });
+        const client = new PostHog(apiKey, { host: POSTHOG_HOST });
         registerExtension(client);
         next = buildMobileTracker({ apiKey, optedIn: true, client: createPostHogClient(client) });
       }

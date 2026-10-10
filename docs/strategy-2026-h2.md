@@ -96,7 +96,7 @@ longer the product's identity; they're a guarantee underneath it. See §7.
 - [x] Resend SMTP (Devise reset, claim verification, waitlist) — live 2026-08-14, smoke delivered to inbox
 - [x] Cloudflare R2 bucket (review + dish photos) — live
 - [x] Vercel (bite-worthy.com domain + SSR restaurant pages) — live
-- [ ] PostHog API key (funnel measurement)
+- [x] PostHog API key (funnel measurement) — pinned for project 652080, ADR 0009 (2026-10-10)
 - [ ] Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)
 - [ ] Record the ingestion cassette (~$0.05) so CI greens on real ExtractMenuJob
 - [ ] Seed 30 Durango restaurants (~$15 ingestion) — coverage *is* the day-one product

@@ -18,6 +18,11 @@ Rails.application.configure do
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
   config.log_tags = [:request_id]
   config.logger = ActiveSupport::TaggedLogging.logger(STDOUT)
+  # kamal-proxy polls /up every five seconds, and every line of that went
+  # to STDOUT. This silences the STDOUT logger only — silence is a
+  # LoggerSilence feature the PostHog log forwarder does not have — so
+  # `Telemetry::Scrub.log` drops the forwarder's copy by path.
+  config.silence_healthcheck_path = "/up"
 
   config.cache_store = :solid_cache_store
   config.active_job.queue_adapter = :solid_queue

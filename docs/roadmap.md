@@ -196,16 +196,6 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Persistent production logs (2026-10-10)** — the API logs to STDOUT
-  only (`config/environments/production.rb`), Docker keeps that per
-  container, and every deploy replaces the containers, so `kamal app
-  logs` shows the current release alone and the previous release's log
-  lives only until its stopped container is pruned. Nothing ships logs
-  to PostHog or Datadog: the API carries neither SDK. We want logs that
-  outlive a deploy. Pick a sink (PostHog Logs, Datadog, or a file on a
-  Kamal volume with rotation), ship both roles' STDOUT to it, and
-  document how to query it. Until then, anything that has to be read
-  later belongs in a table, not a log line.
 - **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
   — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
   alongside Haiku and logs `[jev_shadow]` agreement lines, writing

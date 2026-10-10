@@ -16,6 +16,8 @@ import { NextResponse } from 'next/server';
 import { API_BASE } from './api-base';
 import { getServerJwt } from './server-auth';
 import { edgeHeaders } from './edge-headers';
+import { maskPath } from './posthog-client';
+import { serverLog } from './server-log';
 
 // Statuses the Response constructor refuses a body for, even an empty
 // string. Rails answers a delete with 204.
@@ -26,11 +28,28 @@ const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
  * body, and Content-Type (defaulting to JSON when upstream omits it).
  */
 export async function relayUpstream(upstream: Response): Promise<NextResponse> {
+  // A 5xx from Rails is the failure a visitor sees first and the API may
+  // not have logged (a proxy timeout never reaches puma). One line, with
+  // the path and nothing from the request.
+  if (upstream.status >= 500) {
+    serverLog.error('rails upstream failed', {
+      'http.response.status_code': upstream.status,
+      'url.path': upstreamPath(upstream.url),
+    });
+  }
   const body = NULL_BODY_STATUSES.has(upstream.status) ? null : await upstream.text();
   return new NextResponse(body, {
     status: upstream.status,
     headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
   });
+}
+
+function upstreamPath(url: string): string {
+  try {
+    return maskPath(new URL(url).pathname);
+  } catch {
+    return '';
+  }
 }
 
 export interface ProxyInit {

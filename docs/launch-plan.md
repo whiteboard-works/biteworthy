@@ -93,8 +93,9 @@ can launch without, or fast-follow.
       `app exec` runs on the worker too and the two runs race — this exact
       command did it once already), swipe-verify to the
       80%-published threshold. ~$15. **HARD — coverage *is* the day-one product.**
-- [ ] **Set PostHog keys** — `NEXT_PUBLIC_POSTHOG_KEY` (Vercel) +
-      `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
+- [ ] ~~**Set PostHog keys**~~ — pinned in code for project 652080 (ADR
+      0009, 2026-10-10); what is left is to verify `app_open` fires after
+      the next deploy (`docs/launch-readiness.md` §7). SOFT.
 - [x] **Remove the DRAFT banners** — done at the owner's call ahead of
       L1 sign-off (`/privacy` 2026-10-05 #785, `/terms` 2026-10-06). L1
       itself is still open.
@@ -249,7 +250,7 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 - [ ] **Engage attorney for L1 Privacy/ToS sign-off** (keystone #2 — start now, long lead)
 - [ ] **Enable Anthropic billing** (keystone #3)
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**
-- [ ] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ (all done) · **PostHog** key wiring
+- [x] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ · ~~PostHog key wiring~~ (all done; ADR 0009)
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
 - [x] **Remove the DRAFT banners** (done 2026-10-06, ahead of L1)

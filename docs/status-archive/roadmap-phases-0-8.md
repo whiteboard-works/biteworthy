@@ -228,6 +228,12 @@ like…" explainer.
 
 ## Resolved Discovered follow-ups
 
+- ~~**Persistent production logs (2026-10-10)**~~ — resolved 2026-10-10
+  (ADR 0009): `Rails.logger` is broadcast to PostHog Logs over OTLP from
+  both Kamal roles (`posthog-rails`, `config/initializers/posthog.rb`),
+  scrubbed of IPs, emails, and credentials, tagged `service.role` web or
+  worker; the Next server's `lib/server-log.ts` goes to the same project.
+  `kamal app logs` is still the live tail; PostHog → Logs is the record.
 - ~~Wire `jest-expo` preset + `@testing-library/react-native` for mobile,
   AND `@testing-library/react` + jsdom for web~~ — promoted to Next-up
   (web side) after three paused ticks; mobile counterpart followed.
