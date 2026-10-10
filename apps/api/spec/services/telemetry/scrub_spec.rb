@@ -84,6 +84,7 @@ RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
           "$exception_list" => [ { "type" => "ActiveRecord::RecordNotUnique",
                                    "value" => "Key (email)=(someone@example.com) already exists" } ],
           "$referrer" => "https://bite-worthy.com/u/alice?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig",
+          "$current_url" => "https://api.bite-worthy.com/api/v1/restaurants/x/items?profile=celiac&strictness=strict",
           "$context_path" => "/api/v1/users/alice"
         }
       }
@@ -91,6 +92,7 @@ RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
       properties = described_class.event(event)[:properties]
 
       expect(properties["$exception_list"].first["value"]).to eq("Key (email)=(<email>) already exists")
+      expect(properties["$current_url"]).to eq("https://api.bite-worthy.com/api/v1/restaurants/x/items?profile=<q>&strictness=<q>")
       expect(properties).not_to have_key("$referrer")
       expect(properties["$context_path"]).to eq("/api/v1/users/:handle")
     end
@@ -120,12 +122,12 @@ RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
       expect(described_class.log(record)[:body]).to eq("[chat] grounding flagged conversation 42: <model text>")
     end
 
-    it "redacts a token in a query string: verify links, resets, share links" do
-      record = { body: "[RestaurantClaimMailer] verify URL for Cafe: https://bite-worthy.com/claim/verify?token=abc123&x=1 " \
-                       'Started GET "/r/cafe?p=eyJhIjoxfQ" for 10.0.0.1 at 2026-10-10 00:00:00' }
+    it "blanks every query value: verify tokens, share tokens, the diet a menu is filtered by" do
+      record = { body: "[RestaurantClaimMailer] verify URL for Cafe: https://bite-worthy.com/claim/verify?t=abc123&x=1 " \
+                       'Started GET "/r/cafe?p=eyJhIjoxfQ&profile=celiac" for 10.0.0.1 at 2026-10-10 00:00:00' }
       body = described_class.log(record)[:body]
-      expect(body).to include("verify?token=<redacted>&x=1", '"/r/cafe?p=<redacted>"')
-      expect(body).not_to include("abc123", "eyJhIjoxfQ")
+      expect(body).to include("verify?t=<q>&x=<q>", '"/r/cafe?p=<q>&profile=<q>"')
+      expect(body).not_to include("abc123", "eyJhIjoxfQ", "celiac")
     end
 
     it "drops job arguments: Devise's mail job carries the raw reset token as a bare string" do

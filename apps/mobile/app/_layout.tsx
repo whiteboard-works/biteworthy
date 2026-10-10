@@ -6,7 +6,7 @@ import { noopTracker, type Tracker } from '@biteworthy/analytics';
 import { buildMobileTracker } from '../lib/track';
 import { createPostHogClient, POSTHOG_HOST, registerExtension } from '../lib/posthog-client';
 import { TrackerContext } from '../lib/tracker-context';
-import { getAnalyticsOptIn } from '../lib/analytics-prefs';
+import { getAnalyticsOptIn, onAnalyticsOptInChange } from '../lib/analytics-prefs';
 
 /**
  * Phase 5.8-wiring — root layout with PostHog provider.
@@ -18,30 +18,57 @@ import { getAnalyticsOptIn } from '../lib/analytics-prefs';
  *
  * Legal remediation E7b — mobile is opt-in by default: the tracker
  * stays `noopTracker` until the user enables analytics in
- * Settings → Analytics. That choice is persisted in expo-secure-store
- * and read here at boot. `EXPO_PUBLIC_POSTHOG_OPT_IN=1` still forces it
- * on for local smoke testing.
+ * Settings → Analytics. That choice is persisted in expo-secure-store,
+ * read here at boot, and watched afterwards: flipping the switch opts
+ * the SDK client out (or back in) and swaps the tracker on the spot, so
+ * "Off" is off now, not after a restart. `EXPO_PUBLIC_POSTHOG_OPT_IN=1`
+ * still forces it on for local smoke testing.
  */
 export default function RootLayout() {
   const [tracker, setTracker] = useState<Tracker>(noopTracker);
   const startedRef = useRef(false);
+  const clientRef = useRef<PostHog | null>(null);
 
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
 
     let cancelled = false;
-    (async () => {
-      const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
-      const optedIn = (await getAnalyticsOptIn()) || process.env.EXPO_PUBLIC_POSTHOG_OPT_IN === '1';
+    const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 
-      let next: Tracker = noopTracker;
-      if (apiKey && optedIn) {
-        const client = new PostHog(apiKey, { host: POSTHOG_HOST });
-        registerExtension(client);
-        next = buildMobileTracker({ apiKey, optedIn: true, client: createPostHogClient(client) });
+    // One client for the app's life. Built on the first opt-in; an opt-out
+    // tells it to stop (`optOut` also drops what it had queued) rather than
+    // discarding it, so a later opt-in is `optIn` on the same instance.
+    const trackerFor = (optedIn: boolean): Tracker => {
+      if (!apiKey) return noopTracker;
+      if (!optedIn) {
+        void clientRef.current?.optOut();
+        return noopTracker;
       }
+      if (!clientRef.current) {
+        clientRef.current = new PostHog(apiKey, {
+          host: POSTHOG_HOST,
+          // Only the named events in @biteworthy/analytics. The SDK's own
+          // "Application Opened" and friends are on by default and are
+          // not part of the contract `/privacy` describes.
+          captureAppLifecycleEvents: false,
+        });
+        registerExtension(clientRef.current);
+      }
+      // The SDK persists an opt-out across launches; a fresh client after
+      // an earlier "off" is still out until told otherwise.
+      void clientRef.current.optIn();
+      return buildMobileTracker({
+        apiKey,
+        optedIn: true,
+        client: createPostHogClient(clientRef.current),
+      });
+    };
+
+    (async () => {
+      const optedIn = (await getAnalyticsOptIn()) || process.env.EXPO_PUBLIC_POSTHOG_OPT_IN === '1';
       if (cancelled) return;
+      const next = trackerFor(optedIn);
       setTracker(next);
 
       // Fire app_open once, on whichever tracker we resolved (a no-op
@@ -52,8 +79,13 @@ export default function RootLayout() {
       next.track('app_open', { surface: Platform.OS === 'android' ? 'android' : 'ios' });
     })();
 
+    const unsubscribe = onAnalyticsOptInChange((optedIn) => {
+      if (!cancelled) setTracker(trackerFor(optedIn));
+    });
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 

@@ -14,7 +14,12 @@ jest.mock('expo-secure-store', () => {
   };
 });
 
-import { getAnalyticsOptIn, setAnalyticsOptIn, OPT_IN_KEY } from '../../lib/analytics-prefs';
+import {
+  getAnalyticsOptIn,
+  onAnalyticsOptInChange,
+  setAnalyticsOptIn,
+  OPT_IN_KEY,
+} from '../../lib/analytics-prefs';
 
 const SecureStore = jest.requireMock('expo-secure-store') as {
   __memstore: Map<string, string>;
@@ -50,5 +55,21 @@ describe('analytics-prefs', () => {
   it('returns false (default-off) when SecureStore throws', async () => {
     SecureStore.getItemAsync.mockRejectedValueOnce(new Error('no keychain'));
     expect(await getAnalyticsOptIn()).toBe(false);
+  });
+});
+
+describe('onAnalyticsOptInChange', () => {
+  // The root layout swaps the live tracker on this, so "Off" in Settings
+  // is off for the current session and not only the next launch.
+  it('tells a listener about each change until it unsubscribes', async () => {
+    const seen: boolean[] = [];
+    const unsubscribe = onAnalyticsOptInChange((v) => seen.push(v));
+
+    await setAnalyticsOptIn(true);
+    await setAnalyticsOptIn(false);
+    unsubscribe();
+    await setAnalyticsOptIn(true);
+
+    expect(seen).toEqual([true, false]);
   });
 });

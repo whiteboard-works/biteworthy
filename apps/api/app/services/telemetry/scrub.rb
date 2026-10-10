@@ -43,10 +43,12 @@ module Telemetry
     # text stays on the box.
     MODEL_TEXT_LINE = /\A(\[chat\] grounding flagged conversation \S+:).*/m
 
-    # A token in a query string: a claim's verify link, a password reset, a
-    # share link's encoded avoid list. Logged by the mailer that sends it,
-    # and by Rails when the link is followed.
-    QUERY_TOKEN = /([?&](?:token|reset_password_token|confirmation_token|p|code)=)[^&\s"]+/
+    # Every value in a query string. A claim's verify link (`?t=`), a
+    # password reset, a share link's encoded avoid list (`?p=`), the diet a
+    # menu is filtered by (`?profile=`) — a list of key names is a list
+    # someone forgets to extend, and Rails' own parameter filter blanks the
+    # request line's query only for the keys it names. Keys stay, values go.
+    QUERY_VALUE = /([?&][^=&\s"']+=)[^&\s"']*/
 
     # Active Job logs every job's arguments on enqueue and on perform. For
     # Devise's mail job that is the raw reset token as a bare string, which
@@ -136,7 +138,7 @@ module Telemetry
         .gsub(KEY_WITH_PREFIX) { "#{Regexp.last_match(1)}<redacted>" }
         .gsub(RESEND_KEY, "re_<redacted>")
         .gsub(JWT, "<jwt>")
-        .gsub(QUERY_TOKEN, '\1<redacted>')
+        .gsub(QUERY_VALUE, '\1<q>')
         .gsub(REQUEST_LINE_IP, '\1<ip>\3')
         .gsub(IPV4, "<ip>")
         .gsub(EMAIL, "<email>")

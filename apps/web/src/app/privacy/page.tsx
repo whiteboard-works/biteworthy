@@ -54,7 +54,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-08';
+const LAST_UPDATED = '2026-10-10';
 
 export default function PrivacyPage(): ReactElement {
   return (
