@@ -44,10 +44,18 @@ servers:
     # the entrypoint execs nothing and the container exits 0 silently.
     # These exact two trailing args also arm the entrypoint's db:prepare.
     cmd: ./bin/rails server
+    # Both roles run the same image; `Telemetry::Scrub` stamps this on every
+    # log line and exception so PostHog can tell a puma failure from a job's.
+    env:
+      clear:
+        APP_ROLE: web
   worker:
     hosts:
       - 87.99.137.181
     cmd: bundle exec rake solid_queue:start
+    env:
+      clear:
+        APP_ROLE: worker
 
 # Kamal 2's built-in proxy (replaces the older Traefik integration).
 # Handles TLS termination via Let's Encrypt + zero-downtime cutover.
@@ -103,6 +111,12 @@ env:
     SMTP_DOMAIN: mail.bite-worthy.com
     SMTP_USERNAME: resend
     DEVISE_MAILER_FROM: no-reply@mail.bite-worthy.com
+    # PostHog project 652080 (ADR 0009): exceptions and logs from both roles.
+    # This is the project's public client token — the same value the web
+    # and mobile bundles carry — so it is config, not a secret. Unset it and
+    # the API reports nothing; config/initializers/posthog.rb has the rest.
+    POSTHOG_API_KEY: phc_CPvZQiDfikVk4xEG4AvDvSbshhyExH3QdfWVtX4zN999
+    POSTHOG_HOST: https://us.i.posthog.com
   secret:
     # Rails core
     - RAILS_MASTER_KEY
