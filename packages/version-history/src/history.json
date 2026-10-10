@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.1",
+    "date": "2026-10-10",
+    "notes": [
+      "In chat, photos you attach show as photos in your message instead of a long line of file codes. After you reload or open the chat elsewhere, each one shows as its file name."
+    ]
+  },
+  {
     "version": "2026.10.10",
     "date": "2026-10-10",
     "notes": [
