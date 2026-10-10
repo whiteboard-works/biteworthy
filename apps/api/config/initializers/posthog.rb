@@ -29,10 +29,11 @@
 PostHog::Rails.configure do |config|
   config.auto_capture_exceptions = true
   config.report_rescued_exceptions = false
-  # Solid Queue runs every job inside the app executor, which reports a job
-  # that exhausted its retries to `Rails.error`, and the subscriber gets it
-  # from there. Instrumenting ActiveJob as well would report every attempt
-  # of a job that `retry_on` was about to retry.
+  # `ApplicationJob` reports a job that exhausted its retries to
+  # `Rails.error` itself (Solid Queue swallows the exception inside the app
+  # executor and files a failed execution, so the executor never sees it),
+  # and the subscriber gets it from there. Instrumenting ActiveJob as well
+  # would report every attempt of a job that `retry_on` was about to retry.
   config.auto_instrument_active_job = false
   config.capture_user_context = false
   # No client sends X-PostHog-* headers; refusing them means a header
