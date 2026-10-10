@@ -929,19 +929,11 @@ function formatCost(cents: number): string {
 function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
   const run = usage.last_run;
   const pills = [
-    // Two scopes, said out loud. The old footer showed only the
-    // conversation lifetime and labelled it "total" beside per-run token
-    // counts, which invited reading a whole conversation's spend as the
-    // price of the last dozen tokens.
-    run ? `${formatCost(run.cost_cents)} turn` : null,
+    // Conversation spend only. Per-turn cost and the token counts were
+    // dropped: nobody read them, and the token pills beside a cost
+    // invited the arithmetic that says 1,200 tokens cost two dollars.
     `${formatCost(usage.cost_cents)} conversation`,
     run ? `${run.rounds} rounds` : null,
-    run
-      ? `${run.cache_read_tokens.toLocaleString()} cache r / ${run.cache_write_tokens.toLocaleString()} w`
-      : null,
-    run
-      ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out`
-      : null,
     run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
     // Two outcomes, because there are two runs. How the run these numbers
     // came from ended, and — only when it is something else worth seeing

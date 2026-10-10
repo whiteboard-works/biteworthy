@@ -437,11 +437,11 @@ describe('ChatClient', () => {
   // renders what it was sent and nothing more, so there is no visibility
   // check here to get wrong.
   describe('usage pills', () => {
-    // Two scopes, and they must not read as one number. The old footer
-    // showed only the conversation lifetime, labelled "total", next to
-    // per-run token counts — so "203¢ total · 1,200 in" invited the
-    // arithmetic that says 1,200 tokens cost two dollars.
-    it("shows the turn's cost and the conversation's separately", async () => {
+    // Conversation spend, rounds, and duration — and nothing per-token.
+    // The old footer put "203¢ total" next to "1,200 in", which invited
+    // the arithmetic that says 1,200 tokens cost two dollars, so the
+    // per-turn cost and token counts are no longer shown at all.
+    it('shows the conversation cost without per-turn cost or token counts', async () => {
       getConversation.mockResolvedValue({
         ...answered('ok'),
         usage: {
@@ -464,11 +464,12 @@ describe('ChatClient', () => {
       await type('hi');
 
       const pills = await screen.findByTestId('usage-pills');
-      expect(pills).toHaveTextContent('9¢ turn');
       expect(pills).toHaveTextContent('34¢ conversation');
-      // Cache writes bill at 1.25× input and were recorded but never shown.
-      expect(pills).toHaveTextContent('7,550 cache r / 2,100 w');
+      expect(pills).toHaveTextContent('3 rounds');
       expect(pills).toHaveTextContent('8.2s');
+      expect(pills).not.toHaveTextContent('turn');
+      expect(pills).not.toHaveTextContent('cache');
+      expect(pills).not.toHaveTextContent('in /');
     });
 
     // The reported symptom: "203¢ total · 0 rounds · 0 cached ·
@@ -501,7 +502,7 @@ describe('ChatClient', () => {
 
       const pills = await screen.findByTestId('usage-pills');
       expect(pills).toHaveTextContent('4 rounds');
-      expect(pills).toHaveTextContent('1,200 in / 400 out');
+      expect(pills).toHaveTextContent('8.2s');
       expect(pills).toHaveTextContent('error');
       expect(pills).not.toHaveTextContent('0 rounds');
     });

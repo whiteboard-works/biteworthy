@@ -353,7 +353,9 @@ limit is too small" and "24¢ for one question" were one bug.
   run that had already replaced it.
 - The footer separates the two scopes it had been conflating:
   `9¢ turn · 34¢ conversation`, plus the `cache_write_tokens` C3 recorded
-  and nothing displayed.
+  and nothing displayed. (Since 2026-10-10 the footer shows only the
+  conversation cost, rounds, duration, and outcome; the per-turn cost and
+  token pills are gone, though the columns are still recorded.)
 
 ### C9 — Cache the transcript, not just the prompt — SHIPPED
 

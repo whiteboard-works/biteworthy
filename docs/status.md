@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-10 (UTC) — **Chat footer: fewer pills.** The admin usage footer drops the per-turn cost, the cache read/write counts, and the in/out token counts. It shows the conversation cost, rounds, duration, and any non-benign outcome. The columns are still recorded; only the display changed.
+
 2026-10-10 (UTC) — **Chat: uploaded photos show as photos, not ids.** A sent message carried one `[Attached X — attachment_id: <signed id>]` line per upload, and both bubbles printed it verbatim. The line stays in the stored text (the model needs the id for `start_menu_scan`); web and mobile now strip it on render with `parseManifest`, the inverse of `compose`. In the session that uploaded the file the bubble shows a thumbnail from the local file (web: an object URL kept in a module-level map; mobile: the picker's `file://` uri). After a reload, from History, or on another device there is no local file, so it shows a 📎 filename chip instead. Nothing is stored server-side for display, so thumbnails do not survive a reload by design.
 
 2026-10-10 (UTC) — **Dish page: provenance chips lose the "human" word, legend moves into a popover.** Every human-checked chip under "What we detected" read "✓ human" because `SOURCE_WORD[row.source] ?? row.source` fell through the intended `null` to the raw source name. The lookup is now a partial map, so a chip shows its mark alone unless the source is AI, derived, or the owner. The legend paragraph under the chips is gone; a "What the marks mean" button next to the heading opens a native `popover` (no client JS) that lists each mark on its own line. Not screenshotted: the local stack was down and the page needs the API.
