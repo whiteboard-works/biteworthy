@@ -28,6 +28,14 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
+
+- [x] Web scan uploads go straight to the API with a 10-minute ticket (`POST /api/v1/attachments/ticket`, `X-Upload-Ticket`), so the web server's 4.5 MB body limit no longer caps them; the client ceiling is the API's 15 MB.
+- [x] A PDF over the 10 MB scan limit, up to 15 MB, gets one Ghostscript `/ebook` pass (`Pdfs::Shrink`) at the attachments door before being refused.
+- [x] `Images::StripMetadata` accepts up to 15 MB raw (was 5 MB, the stored cap) and shrinks the stored copy under 5 MB.
+- [x] Mobile resizes a picked photo to 2000px JPEG before uploading (`lib/shrink-image.ts`, `expo-image-manipulator`), mirroring web.
+- [ ] Review and dish-photo uploads on web still go through the proxy at 4 MB; move them to the ticket path if the client-side shrink ever proves insufficient.
+
 ## Profile: about + chat notes (shipped 2026-10-06)
 
 - [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.
@@ -188,13 +196,29 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
+- **Persistent production logs (2026-10-10)** — the API logs to STDOUT
+  only (`config/environments/production.rb`), Docker keeps that per
+  container, and every deploy replaces the containers, so `kamal app
+  logs` shows the current release alone and the previous release's log
+  lives only until its stopped container is pruned. Nothing ships logs
+  to PostHog or Datadog: the API carries neither SDK. We want logs that
+  outlive a deploy. Pick a sink (PostHog Logs, Datadog, or a file on a
+  Kamal volume with rotation), ship both roles' STDOUT to it, and
+  document how to query it. Until then, anything that has to be read
+  later belongs in a table, not a log line.
 - **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
   — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
   alongside Haiku and logs `[jev_shadow]` agreement lines, writing
   nothing. After a few dozen real scans, compare: if agreement is high
   and the disagreements favor Jev, move cuisine tags to Jev (and drop
   the cuisine catalog from the Haiku prompt); otherwise remove the
-  trial. See `docs/ingestion.md` §2b.
+  trial. See `docs/ingestion.md` §2b. *Read 2026-10-10:* only 3 of the
+  16 completed runs still had lines (17 slices, 1,085 pairs), the rest
+  went with their containers (see the persistent-logs item above).
+  Agreement 95.6%; 44 Haiku-only tags against 4 Jev-only, and the
+  Haiku-only ones are mostly force-fits into the seven leaf cuisines
+  (a Venezuelan menu as `mexican`, chai as `indian`, a Greek wrap as
+  `italian`). Decision still open.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately

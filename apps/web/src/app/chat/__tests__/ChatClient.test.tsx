@@ -1172,15 +1172,15 @@ describe('ChatClient', () => {
     });
 
     // The endpoint has no sequence, so two PATCHes in flight could commit
-    // in either order. The row already shows the first; the second waits
-    // for the person to try again.
-    it('drops a second rename while the first is still out', async () => {
-      let confirm: () => void = () => {};
+    // in either order. The second name is drawn at once and sent only when
+    // the first has settled.
+    it('sends a second rename once the first settles', async () => {
+      const settle: Array<() => void> = [];
       renameConversation.mockImplementation(
         (_id: string, title: string) =>
           new Promise((resolve) => {
             listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
-            confirm = () => resolve({ ...old, title });
+            settle.push(() => resolve({ ...old, title }));
           }),
       );
       render(<ChatClient />);
@@ -1195,9 +1195,16 @@ describe('ChatClient', () => {
       fireEvent.keyDown(second, { key: 'Enter' });
 
       expect(renameConversation).toHaveBeenCalledTimes(1);
-      expect(within(screen.getByTestId('chat-history')).getByText('First')).toBeInTheDocument();
-      act(() => confirm());
-      await waitFor(() => expect(screen.getByText('First')).toBeInTheDocument());
+      expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument();
+
+      act(() => settle.shift()!());
+      await waitFor(() => expect(renameConversation).toHaveBeenCalledWith('c-old', 'Second'));
+      expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument();
+      act(() => settle.shift()!());
+      await waitFor(() =>
+        expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument(),
+      );
+      expect(renameConversation).toHaveBeenCalledTimes(2);
     });
 
     it('puts the old name back when the server refuses', async () => {
@@ -1220,6 +1227,7 @@ describe('ChatClient', () => {
     const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
     const other = { ...blank, id: 'c-2', title: 'Other chat' };
     let finish: (last?: ChatEvent) => void = () => {};
+    let drop: () => void = () => {};
 
     beforeEach(() => {
       listConversations.mockResolvedValue({ conversations: [busy, other] });
@@ -1229,11 +1237,12 @@ describe('ChatClient', () => {
       }));
       watchTurn.mockImplementationOnce(
         (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
-          new Promise<null>((resolve) => {
+          new Promise<null>((resolve, reject) => {
             finish = (last = { type: 'done', text: 'Sure.' }) => {
               onEvent(last);
               resolve(null);
             };
+            drop = () => reject(new Error('connection lost'));
           }),
       );
     });
@@ -1288,6 +1297,23 @@ describe('ChatClient', () => {
           within(row('Busy chat')).getByRole('img', { name: 'New reply' }),
         ).toBeInTheDocument(),
       );
+    });
+
+    // A watch this side lost says nothing about the turn, which may still
+    // be running: the dot would send the person to a chat with no reply.
+    it('does not mark a chat whose watch dropped before the server said it ended', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      drop();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
     });
 
     // Nothing ran, so there is nothing new in that chat to point at.

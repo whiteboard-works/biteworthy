@@ -279,4 +279,24 @@ RSpec.describe "API rate limiting (legal E12)", type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
   end
+  # A browser scan upload carries a ticket instead of a JWT. It names the
+  # same user, so it has to land in that user's bucket, not the shared
+  # per-IP one every anonymous caller fills.
+  describe "upload tickets" do
+    let(:user) { create(:user) }
+
+    def throttle_key(headers)
+      Rack::Attack.api_user_key(Rack::Attack::Request.new(Rack::MockRequest.env_for("/api/v1/attachments", headers)))
+    end
+
+    it "keys a ticketed upload on the user the ticket names" do
+      ticket = Attachments::UploadTicket.issue(user)
+
+      expect(throttle_key("HTTP_X_UPLOAD_TICKET" => ticket)).to eq("user:#{user.id}")
+    end
+
+    it "gives a forged ticket no user bucket" do
+      expect(throttle_key("HTTP_X_UPLOAD_TICKET" => "forged")).to be_nil
+    end
+  end
 end

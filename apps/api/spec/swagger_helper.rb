@@ -386,6 +386,15 @@ RSpec.configure do |config|
               after:  { type: :integer, description: "Narration position to watch from." }
             }
           },
+          UploadTicket: {
+            type: :object,
+            required: %w[ticket expires_at max_bytes],
+            properties: {
+              ticket:     { type: :string, description: "Send as the X-Upload-Ticket header on POST /api/v1/attachments." },
+              expires_at: { type: :string, format: "date-time" },
+              max_bytes:  { type: :integer, description: "The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side." }
+            }
+          },
           Attachment: {
             type: :object,
             required: %w[id filename content_type byte_size],

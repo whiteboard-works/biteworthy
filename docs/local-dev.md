@@ -21,6 +21,7 @@ the run book.
 | Node | 22+ | web + mobile |
 | pnpm | 10+ | web + mobile (`corepack enable` or `npm i -g pnpm`) |
 | Ruby | 3.3.6 | only if running the API **natively** |
+| libvips, ImageMagick, Ghostscript | distro packages | only if running the API **natively** — photo variants, dish-photo cropping, and shrinking oversized menu PDFs (`Pdfs::Shrink`; without `gs` such a PDF is refused rather than shrunk) |
 
 `.nvmrc` and `.ruby-version` pin the exact versions.
 

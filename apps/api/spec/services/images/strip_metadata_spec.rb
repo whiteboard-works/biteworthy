@@ -38,8 +38,8 @@ RSpec.describe Images::StripMetadata do
     expect(result.filename).to match(/\A[0-9a-f-]{36}\.jpg\z/)
   end
 
-  it "rejects a file over 5 MB before decoding it" do
-    big = StringIO.new("x" * (HasPhotoValidation::MAX_PHOTO_BYTES + 1))
+  it "rejects a file over the 15 MB raw guard before decoding it" do
+    big = StringIO.new("x" * (Images::StripMetadata::MAX_SOURCE_BYTES + 1))
     expect {
       described_class.call(big, filename: "huge.jpg", content_type: "image/jpeg")
     }.to raise_error(Images::StripMetadata::TooLarge)
@@ -88,5 +88,23 @@ RSpec.describe Images::StripMetadata do
     expect(stored.bytesize).to be > 32
     decoded = Vips::Image.new_from_buffer(stored, "")
     expect(decoded.width).to be > 0
+  end
+  # The stored cap is 5 MB; the raw guard is 15 MB. A 12 MB phone photo
+  # is an ordinary upload, so the gap between the two has to come out
+  # shrunk, not refused.
+  it "accepts a photo over 5 MB and shrinks it under the stored cap" do
+    noise = Vips::Image.gaussnoise(4000, 4000, mean: 128, sigma: 60)
+    source = noise.write_to_buffer(".jpg", Q: 80)
+    expect(source.bytesize).to be > HasPhotoValidation::MAX_PHOTO_BYTES
+    expect(source.bytesize).to be <= Images::StripMetadata::MAX_SOURCE_BYTES
+
+    result = described_class.call(
+      StringIO.new(source),
+      filename: "big.jpg",
+      content_type: "image/jpeg"
+    )
+    stored = result.io.read
+    expect(stored.bytesize).to be <= HasPhotoValidation::MAX_PHOTO_BYTES
+    expect(Vips::Image.new_from_buffer(stored, "").width).to be > 0
   end
 end

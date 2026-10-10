@@ -192,6 +192,7 @@ provider up again on a new box:
   - `NEXT_PUBLIC_API_BASE=https://api.bite-worthy.com`
   - `NEXT_PUBLIC_COOKIE_DOMAIN=.bite-worthy.com`
   - `NEXT_PUBLIC_SITE_URL=https://bite-worthy.com`
+- The browser calls the API directly for scan uploads and the onboarding taxonomy, so every web origin that serves the app (production, and any staging or preview deployment) must be in the API's `ALLOWED_ORIGINS` (`apps/api/config/deploy.yml` env.clear); an origin missing there fails those calls with a CORS error.
 - Add `bite-worthy.com` + `www.bite-worthy.com` as custom domains. Vercel emits the DNS records.
 - Push to master triggers an auto-deploy.
 

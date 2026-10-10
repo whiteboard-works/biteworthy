@@ -110,10 +110,11 @@ export function ChatClient(): ReactElement {
   const current = useRef<Conversation | null>(null);
   // Renames in the air, by chat: the name this tab chose, until the server
   // confirms it. A refetch served before the PATCH committed carries the
-  // old name, and must not draw it over the new one. One per chat: a
-  // second rename while the first is still out is dropped, because the
-  // endpoint has no sequence and two in flight would race on the server.
-  const renaming = useRef(new Map<string, string>());
+  // old name, and must not draw it over the new one. One PATCH per chat
+  // at a time, because the endpoint has no sequence and two in flight
+  // could commit in either order; a name typed while one is out waits in
+  // `next` and goes when the first settles.
+  const renaming = useRef(new Map<string, { sent: string; next: string | null }>());
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
@@ -258,7 +259,7 @@ export function ChatClient(): ReactElement {
       const fetched = await getConversation(id);
       if (await deletedMeanwhile()) return null;
       const held = renaming.current.get(id);
-      const conversation = held === undefined ? fetched : { ...fetched, title: held };
+      const conversation = held ? { ...fetched, title: held.next ?? held.sent } : fetched;
       setConversations((list) =>
         list.some((c) => c.id === id)
           ? list.map((c) => (c.id === id ? { ...c, ...conversation } : c))
@@ -398,11 +399,11 @@ export function ChatClient(): ReactElement {
   // The person's name for a chat, over the model's. Drawn first and sent
   // after: a rename is the kind of edit that should feel instant, and if
   // the server refuses it the old name comes back with the error.
-  const rename = async (id: string, title: string) => {
-    // The one before is still out, and the row shows it; this one would
-    // race it on a server that has no way to order the two.
-    if (renaming.current.has(id)) return;
-    const previous = conversations.find((c) => c.id === id)?.title ?? null;
+  //
+  // `base` is the name to fall back to, handed in by a follow-up rename
+  // because by then the list shows the name it is about to send, not the
+  // one the server holds.
+  const rename = async (id: string, title: string, base?: string | null) => {
     const retitle = (next: string | null) => {
       setConversations((list) => list.map((c) => (c.id === id ? { ...c, title: next } : c)));
       if (current.current?.id === id) {
@@ -410,16 +411,33 @@ export function ChatClient(): ReactElement {
         setActive((a) => (a?.id === id ? { ...a, title: next } : a));
       }
     };
-    renaming.current.set(id, title);
+    const inflight = renaming.current.get(id);
+    if (inflight) {
+      // Drawn now, sent when the one before it settles. Only the latest
+      // waits: two names typed in that window were one change of mind.
+      inflight.next = title;
+      retitle(title);
+      return;
+    }
+    const previous =
+      base !== undefined ? base : (conversations.find((c) => c.id === id)?.title ?? null);
+    const mine = { sent: title, next: null as string | null };
+    renaming.current.set(id, mine);
     retitle(title);
+    let confirmed = previous;
     try {
       const renamed = await renameConversation(id, title);
-      if (!removed.current.has(id)) retitle(renamed.title);
+      confirmed = renamed.title;
+      if (mine.next === null && !removed.current.has(id)) retitle(renamed.title);
     } catch (e) {
-      if (!removed.current.has(id)) retitle(previous);
+      // A chat deleted while its rename was out answers 404, which is
+      // news to no one.
+      if (removed.current.has(id)) return;
+      if (mine.next === null) retitle(previous);
       onFailure(e);
     } finally {
       renaming.current.delete(id);
+      if (mine.next !== null && !removed.current.has(id)) void rename(id, mine.next, confirmed);
     }
   };
 
@@ -487,6 +505,9 @@ export function ChatClient(): ReactElement {
     let tools = 0;
     let outcome = 'error';
     let accepted = false;
+    // Whether the server said the turn ended. A watch that dropped on this
+    // side says nothing about the turn, which may well still be running.
+    let ended = false;
     let failure: unknown = null;
     let gone = false;
     // Whether a `pane` event followed the latest tool call — see the
@@ -511,6 +532,14 @@ export function ChatClient(): ReactElement {
           if (event.type === 'pane') sawPane = true;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          if (
+            event.type === 'done' ||
+            event.type === 'stopped' ||
+            event.type === 'awaiting_confirmation' ||
+            event.type === 'error'
+          ) {
+            ended = true;
+          }
           // Narration belongs to its own chat. Once that chat is off
           // screen or being deleted, nothing this turn says belongs on the
           // page — not its text, and not the error event the server sends
@@ -551,11 +580,12 @@ export function ChatClient(): ReactElement {
       const conversation = gone ? null : await refresh(id);
       // Ended while the person was looking at another chat: there is a
       // reply there they have not seen, and the sidebar is the one place
-      // that can say so. Any ending counts — the server writes a turn that
-      // failed or was stopped into the transcript too (`AgentLoop#halt`),
-      // so the dot points at a reply either way. Only a turn the server
-      // took: a rejected `ask` left nothing in the chat to see.
-      if (accepted && !gone && !removed.current.has(id) && !onScreen()) {
+      // that can say so. Any ending the server announced counts — it
+      // writes a turn that failed or was stopped into the transcript too
+      // (`AgentLoop#halt`), so the dot points at a reply either way. Not
+      // a watch that merely dropped: the turn may still be running, and
+      // there is nothing new to see yet.
+      if (accepted && ended && !gone && !removed.current.has(id) && !onScreen()) {
         setUnread((set) => new Set(set).add(id));
       }
       // The stream can drop after a write and before its `pane` event —

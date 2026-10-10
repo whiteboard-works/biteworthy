@@ -8,11 +8,14 @@ module Images
   # cameras embed a location; diner photos (reviews and dish submissions)
   # must not keep it.
   #
-  # Bounds run *before* a full decode: raw byte size, then width/height
-  # from a sequential header read. A huge compressed image must not be
-  # able to exhaust memory by expanding inside write_to_buffer. After
-  # rewrite, if quality-90 still exceeds 5 MB, quality drops and the
-  # image is downscaled until it fits — that is not a diner-facing 422.
+  # Bounds run *before* a full decode: raw byte size (MAX_SOURCE_BYTES),
+  # then width/height from a sequential header read. A huge compressed
+  # image must not be able to exhaust memory by expanding inside
+  # write_to_buffer. The raw guard is three times the stored cap on
+  # purpose: a 12 MB phone photo is an ordinary upload, and the encode
+  # loop below shrinks it. After rewrite, if quality-90 still exceeds
+  # 5 MB, quality drops and the image is downscaled until it fits — that
+  # is not a diner-facing 422.
   #
   # Autorotate runs so a phone photo taken in portrait still displays
   # upright after the orientation tag is stripped. HEIC/HEIF is decoded
@@ -28,7 +31,7 @@ module Images
     end
 
     class TooLarge < Unprocessable
-      def initialize(message = "photo must be 5 MB or smaller")
+      def initialize(message = "photo must be #{MAX_SOURCE_BYTES / 1.megabyte} MB or smaller")
         super(message, code: "too_large")
       end
     end
@@ -43,6 +46,7 @@ module Images
     PNG_TYPE   = "image/png"
     WEBP_TYPE  = "image/webp"
     HEIC_TYPES = %w[image/heic image/heif].freeze
+    MAX_SOURCE_BYTES = 15 * 1024 * 1024
     MAX_EDGE   = 8_000
     MAX_PIXELS = 40_000_000
 
@@ -59,7 +63,7 @@ module Images
     end
 
     def call
-      raise TooLarge if source_byte_size > HasPhotoValidation::MAX_PHOTO_BYTES
+      raise TooLarge if source_byte_size > MAX_SOURCE_BYTES
       unless allowed_type?
         raise Unprocessable.new(
           "photo must be one of #{HasPhotoValidation::ALLOWED_PHOTO_TYPES.join(', ')}",
@@ -110,9 +114,9 @@ module Images
       end
     end
 
-    # Raw size already passed. A Q90 rewrite can still exceed 5 MB
-    # (noisy phone photos). Lower quality, then downscale, until the
-    # stored bytes fit — do not 422 the diner for that.
+    # Raw size already passed. A Q90 rewrite can still exceed 5 MB (any
+    # phone photo over it, and noisy ones under it). Lower quality, then
+    # downscale, until the stored bytes fit — do not 422 the diner for that.
     def encode_within_size(image)
       ext, out_type, write_opts = write_format
       working = image
@@ -137,7 +141,7 @@ module Images
         end
       end
 
-      raise TooLarge
+      raise TooLarge, "photo could not be shrunk under #{HasPhotoValidation::MAX_PHOTO_BYTES / 1.megabyte} MB — try a smaller image"
     end
 
     def open_image(path, access: nil)
