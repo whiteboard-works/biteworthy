@@ -25,11 +25,7 @@ type FetchArgs = Parameters<typeof fetch>;
 function jsonFetch(status: number, body: unknown) {
   return vi.fn(
     async (..._args: FetchArgs) =>
-      ({
-        ok: status >= 200 && status < 300,
-        status,
-        json: async () => body,
-      }) as unknown as Response,
+      ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response,
   );
 }
 
@@ -45,9 +41,7 @@ function sseFetch(chunks: string[]) {
           : { done: true, value: undefined },
     }),
   };
-  return vi.fn(
-    async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response,
-  );
+  return vi.fn(async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response);
 }
 
 function frame(payload: unknown): string {
@@ -133,19 +127,15 @@ describe('chat client', () => {
       await watchTurn('c-1', 0, (e) => seen.push(e));
 
       expect(seen.map((e) => e.type)).toEqual(['open', 'text_delta', 'text_delta', 'done']);
-      expect(
-        seen
-          .filter((e) => e.type === 'text_delta')
-          .map((e) => e.text)
-          .join(''),
-      ).toBe('Hello there.');
+      expect(seen.filter((e) => e.type === 'text_delta').map((e) => e.text).join('')).toBe(
+        'Hello there.',
+      );
     });
 
     // Chunk boundaries follow the network, not the protocol: an event can
     // arrive split anywhere, and half a JSON payload must not be parsed.
     it('reassembles events split across chunks', async () => {
-      const whole =
-        frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
+      const whole = frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
       vi.stubGlobal('fetch', sseFetch([whole.slice(0, 12), whole.slice(12, 30), whole.slice(30)]));
 
       const seen: ChatEvent[] = [];
@@ -156,6 +146,7 @@ describe('chat client', () => {
         { type: 'done', text: 'split' },
       ]);
     });
+
   });
 
   // Events are stored, not just sent, so a reconnect asks for everything
@@ -283,10 +274,7 @@ describe('chat client', () => {
   it('swallows the reconnect event and returns the cursor', async () => {
     vi.stubGlobal(
       'fetch',
-      sseFetch([
-        frame({ type: 'text_delta', text: 'hi' }),
-        frame({ type: 'reconnect', after: 12 }),
-      ]),
+      sseFetch([frame({ type: 'text_delta', text: 'hi' }), frame({ type: 'reconnect', after: 12 })]),
     );
 
     const seen: ChatEvent[] = [];
@@ -302,6 +290,7 @@ describe('chat client', () => {
     expect(await watchTurn('c-1', 0, () => {})).toBeNull();
   });
 });
+
 
 // The manifest is for the model. People see their own words plus the
 // files, never a signed id — so whatever compose writes, parseManifest has

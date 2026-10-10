@@ -2039,6 +2039,22 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.title).to eq("Dinner plans")
     end
 
+    # The entry check reads the row as it was when the turn began. A rename
+    # that lands while the turn runs — the ✎ is not disabled for a working
+    # chat — must not be overwritten by the model's name a second later.
+    it "keeps a name the person gave mid-turn over the model's" do
+      renamed_meanwhile = instance_double(Chat::Titler)
+      allow(renamed_meanwhile).to receive(:call) do
+        Conversation.where(id: conversation.id).update_all(title: "Sam's birthday dinner")
+        Chat::Titler::Result.new(title: "Gluten-free options at Ninis", model: Chat::Titler::MODEL)
+      end
+      allow(Chat::Titler).to receive(:new).and_return(renamed_meanwhile)
+
+      loop_with(say("The al pastor works.")).run(text: "what can I eat without gluten")
+
+      expect(conversation.reload.title).to eq("Sam's birthday dinner")
+    end
+
     it "does not rename a conversation on every later turn" do
       titled("First thing asked")
       loop_with(say("One.")).run(text: "first question")

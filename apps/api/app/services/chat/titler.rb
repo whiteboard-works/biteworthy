@@ -128,6 +128,12 @@ module Chat
 
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
+    # Everything a sidebar row cannot render, flattened: control characters
+    # become spaces and runs of whitespace collapse. Shared with the rename
+    # path so a person's title is held to the same shape as the model's —
+    # and so a NUL in a rename is a space, not a Postgres error.
+    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]/, " ").squish
+
     def initialize(client: nil)
       @injected = client
     end
@@ -201,7 +207,7 @@ module Chat
     # otherwise appends an ellipsis, which is trailing punctuation, which
     # is the thing two lines of prompt just asked the model not to do.
     def clean(title)
-      flat = unquote(title.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip)
+      flat = unquote(self.class.flatten(title))
       return nil if flat.blank? || REJECTED.include?(flat.downcase.delete_suffix("."))
 
       flat.truncate(MAX_LENGTH, omission: "")

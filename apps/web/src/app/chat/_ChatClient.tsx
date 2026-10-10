@@ -108,6 +108,10 @@ export function ChatClient(): ReactElement {
   // `active` as of the latest adopt, for teardowns that closed over an
   // older render.
   const current = useRef<Conversation | null>(null);
+  // Renames in the air, by chat: the name this tab chose, until the server
+  // confirms it. A refetch served before the PATCH committed carries the
+  // old name, and must not draw it over the new one.
+  const renaming = useRef(new Map<string, string>());
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
@@ -249,8 +253,10 @@ export function ChatClient(): ReactElement {
   const refresh = async (id: string): Promise<Conversation | null> => {
     const deletedMeanwhile = async () => (await deletions.current.get(id)) ?? false;
     try {
-      const conversation = await getConversation(id);
+      const fetched = await getConversation(id);
       if (await deletedMeanwhile()) return null;
+      const held = renaming.current.get(id);
+      const conversation = held === undefined ? fetched : { ...fetched, title: held };
       setConversations((list) =>
         list.some((c) => c.id === id)
           ? list.map((c) => (c.id === id ? { ...c, ...conversation } : c))
@@ -273,7 +279,6 @@ export function ChatClient(): ReactElement {
     following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
-    markRead(id);
     // Whatever they had open on a phone, the chat they picked is what
     // they asked to see.
     setPaneOpen(false);
@@ -295,6 +300,9 @@ export function ChatClient(): ReactElement {
     // open that first saw it is still pending — overlapping opens would
     // otherwise leave it stranded.
     if (opened) {
+      // Read only once it is on screen: a failed open puts the previous
+      // chat back, and the reply they clicked for is still unseen.
+      markRead(id);
       const retire = leftBlankKey.current;
       if (retire !== null) {
         leftBlankKey.current = null;
@@ -398,12 +406,15 @@ export function ChatClient(): ReactElement {
       }
     };
     retitle(title);
+    renaming.current.set(id, title);
     try {
       const renamed = await renameConversation(id, title);
       if (!removed.current.has(id)) retitle(renamed.title);
     } catch (e) {
       if (!removed.current.has(id)) retitle(previous);
       onFailure(e);
+    } finally {
+      if (renaming.current.get(id) === title) renaming.current.delete(id);
     }
   };
 
@@ -535,8 +546,9 @@ export function ChatClient(): ReactElement {
       const conversation = gone ? null : await refresh(id);
       // Finished — or parked, or failed — while the person was looking at
       // another chat. Whatever it is, they have not seen it, and the
-      // sidebar is the one place that can say so.
-      if (!gone && !onScreen()) setUnread((set) => new Set(set).add(id));
+      // sidebar is the one place that can say so. Only a turn the server
+      // took: a rejected `ask` left nothing in the chat to see.
+      if (accepted && !gone && !onScreen()) setUnread((set) => new Set(set).add(id));
       // The stream can drop after a write and before its `pane` event —
       // past the reconnect cap, or with the run gone. The refetch then
       // hands back the stored pane, which after `set_strictness` is the
@@ -1118,7 +1130,8 @@ function History({
             </li>
           ) : conversation.id === editing?.id ? (
             // The name is edited where it is read. Enter keeps it, Escape
-            // drops it; the server has the final say on length.
+            // drops it. No length cap here: the server has the only one, and
+            // its refusal comes back as the error with the old name restored.
             <li
               key={conversation.id}
               className="flex items-center gap-bw-2 rounded-bw-md bg-zinc-50 px-bw-2 py-bw-1 text-bw-sm"
@@ -1127,11 +1140,11 @@ function History({
                 type="text"
                 aria-label="Chat title"
                 value={editing.draft}
-                maxLength={TITLE_MAX_LENGTH}
                 autoFocus
                 onChange={(e) => setEditing({ id: conversation.id, draft: e.target.value })}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveTitle();
+                  // Not the Enter that accepts an IME candidate.
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveTitle();
                   if (e.key === 'Escape') setEditing(null);
                 }}
                 className="min-w-0 flex-1 rounded-bw-sm border border-zinc-300 px-bw-1 py-bw-1 text-zinc-900"
@@ -1189,10 +1202,6 @@ function History({
     </aside>
   );
 }
-
-/** Matches `Chat::Titler::MAX_LENGTH`; the server refuses anything longer,
- *  this only stops the person typing past the point it would. */
-const TITLE_MAX_LENGTH = 60;
 
 /**
  * The dot beside a chat's name. Pulsing while this tab is running a turn

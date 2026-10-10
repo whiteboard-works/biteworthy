@@ -56,7 +56,7 @@ module Api
         end
 
         if params.key?(:title)
-          title = params[:title].to_s.squish
+          title = Chat::Titler.flatten(params[:title])
           if title.blank?
             return render json: { error: "A title cannot be blank." }, status: :unprocessable_entity
           end

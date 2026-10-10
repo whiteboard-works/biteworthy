@@ -95,6 +95,18 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(conversation.chat_mode).to eq("planning")
     end
 
+    # The same flattening the titler applies to the model's output: a
+    # newline would break the row, and a NUL would be a Postgres error
+    # rather than a 422.
+    it "flattens control characters out of a title" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "Lunch\u0000 with\tSam" }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.title).to eq("Lunch with Sam")
+    end
+
     # A blank name is "Untitled" with extra steps — and worse, a null title
     # is the condition the titler retries on, so the model would name it
     # again under the person who just tried to clear it.

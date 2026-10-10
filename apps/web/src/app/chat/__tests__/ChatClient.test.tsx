@@ -1126,6 +1126,51 @@ describe('ChatClient', () => {
       expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
     });
 
+    // A turn's teardown refetches the chat. Served before the rename
+    // committed, it carries the old name; landing after the rename drew,
+    // it must not draw the old name back over it.
+    it('keeps the new name over a refetch that was served before the rename', async () => {
+      let land: () => void = () => {};
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...old, messages: [] });
+          }),
+      );
+      let confirm: () => void = () => {};
+      renameConversation.mockImplementation((_id: string, title: string) => {
+        // The list is refetched on every render under test (the mocked
+        // router is a new object each time), so it has to say the new name
+        // or it would be the thing drawing the old one back — not the
+        // stale refetch this test is about.
+        listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+        return new Promise((resolve) => {
+          confirm = () => resolve({ ...old, title });
+        });
+      });
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Add city Riverton Utah'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-old'));
+
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Riverton, Utah' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      await waitFor(() => expect(renameConversation).toHaveBeenCalled());
+
+      act(() => land());
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Riverton, Utah'),
+      );
+      expect(screen.queryByText('Add city Riverton Utah')).toBeNull();
+
+      act(() => confirm());
+      await waitFor(() =>
+        expect(
+          within(screen.getByTestId('chat-history')).getByText('Riverton, Utah'),
+        ).toBeVisible(),
+      );
+    });
+
     it('puts the old name back when the server refuses', async () => {
       renameConversation.mockRejectedValue(new Error('Keep the title to 60 characters.'));
       render(<ChatClient />);
@@ -1191,6 +1236,28 @@ describe('ChatClient', () => {
       // Opening it is reading it.
       fireEvent.click(screen.getByText('Busy chat'));
       await waitFor(() => expect(within(row('Busy chat')).queryByRole('img')).toBeNull());
+    });
+
+    // Nothing ran, so there is nothing new in that chat to point at.
+    it('does not mark a chat whose send was refused before it ran', async () => {
+      let refuse: () => void = () => {};
+      sendMessage.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            refuse = () => reject(new Error('Busy answering already.'));
+          }),
+      );
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      act(() => refuse());
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
     });
 
     // A reply that lands on the chat the person is looking at is seen as

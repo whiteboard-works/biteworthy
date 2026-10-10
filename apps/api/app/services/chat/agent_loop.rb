@@ -976,7 +976,16 @@ module Chat
 
       named = Titler.new.call(question: @conversation.opening_question, answer: result.text)
       record_side_usage(named.usage, named.model)
-      @conversation.update!(title: named.title) if named.title.present?
+      return if named.title.blank?
+
+      # Checked again at write time, in the database, not only at entry on
+      # the row as it was when the turn began: the person can rename the
+      # chat while this turn runs (`ConversationsController#update`), and
+      # their name wins. The turn's lock is a run lease, not a row lock, so
+      # the only way to be sure is to write conditionally.
+      written = Conversation.where(id: @conversation.id, title: nil)
+                            .update_all(title: named.title, updated_at: Time.current)
+      @conversation.title = named.title if written == 1
     rescue StandardError => e
       # Never at the cost of the answer, which is already on screen. The
       # column stays null — which is the same condition that got us here,
