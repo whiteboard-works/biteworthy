@@ -23,4 +23,18 @@ describe('serverLog without a PostHog key', () => {
     expect(warn).toHaveBeenCalledWith('upstream slow', { 'url.path': '/api/me' });
     expect(error).toHaveBeenCalledWith('upstream failed', { 'http.response.status_code': 502 });
   });
+
+  it('scrubs the line before the console sees it, the same as the OTLP record', () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', '');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    serverLog.error('rails said: someone@example.com at /items?profile=celiac', {
+      'url.full': 'https://api.bite-worthy.com/r/x?p=eyJhIjoxfQ',
+    });
+
+    expect(error).toHaveBeenCalledWith('rails said: <email> at /items?profile=<q>', {
+      'url.full': 'https://api.bite-worthy.com/r/x?p=<q>',
+    });
+  });
 });

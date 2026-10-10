@@ -101,7 +101,7 @@ describe('scrubText', () => {
       scrubText(
         'upstream 500 for /items?profile=celiac&strictness=strict#top and /r/x?p=eyJhIjoxfQ',
       ),
-    ).toBe('upstream 500 for /items?profile=<q>&strictness=<q>#top and /r/x?p=<q>');
+    ).toBe('upstream 500 for /items?profile=<q>&strictness=<q> and /r/x?p=<q>');
   });
 
   it('redacts the credential shapes the API scrubber does', () => {
