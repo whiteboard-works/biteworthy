@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.6",
+    "date": "2026-10-10",
+    "notes": [
+      "Menus published before today kept their old cuisine labels. An admin can now re-run the cuisine labelling on any restaurant with the newer yes-or-no model, preview the changes first, and keep every label a person added by hand."
+    ]
+  },
+  {
     "version": "2026.10.10.5",
     "date": "2026-10-10",
     "notes": [
