@@ -472,8 +472,10 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
   the model that decides them for every new scan since 2026-10-10, and
   rewrite the model-written (`source: ai`) `cuisine` join rows.
-  `dry_run: true` reports the changes without writing; a real run is
-  gated by `confirm_when`. Keeps every cuisine row a person added or
+  `dry_run: true` reports the changes without writing and is never
+  parked; a real run is gated by `confirm_when` on both doors and
+  declared unrecoverable, so `accept_edits` parks it too (the
+  `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
   confirmed and every keyword-derived one (gap-fill keeps those beside
   Jev's too), touches no other family, and never changes a dish's own
   confidence. All slices are asked before anything is written and each

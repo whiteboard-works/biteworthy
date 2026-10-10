@@ -16,9 +16,10 @@ module Ingestion
   #
   # All or nothing: every slice is asked before anything is written, so a
   # Jev failure part-way leaves the menu exactly as it was. Each dish is
-  # locked and its rows re-read inside the transaction, and one edited
-  # since it was sent to Jev is skipped, so an edit made while Jev was
-  # answering is neither overwritten nor collided with.
+  # locked and its rows re-read inside the transaction, and one whose
+  # text or section changed since it was sent to Jev is skipped, so an
+  # edit made while Jev was answering is neither overwritten nor collided
+  # with.
   class JevCuisineRetag
     SLICE = 20
 
@@ -26,8 +27,9 @@ module Ingestion
 
     # `before` / `after` are the dish's cuisine rows as { slug:, confidence: }.
     Change = Data.define(:item, :before, :after)
-    # `stale` counts dishes edited while Jev was answering; their answer
-    # was about the old text, so they are left alone.
+    # `stale` counts dishes whose name, description or section changed
+    # while Jev was answering; the answer was about the old text, so
+    # they are left alone.
     Result = Data.define(:dishes, :changes, :unchanged, :unanswered, :stale, :dry_run)
 
     MANAGED_SOURCE = "ai"
@@ -42,7 +44,7 @@ module Ingestion
       raise Unavailable, "the taxonomy has no leaf cuisine tags" if tags.empty?
 
       items   = @restaurant.items.published.includes(:menu_section).order(:position, :name).to_a
-      seen_at = items.to_h { |item| [ item.id, item.updated_at ] }
+      asked   = items.to_h { |item| [ item.id, prompt_row(item) ] }
       answers = ask(items)
 
       changes    = []
@@ -59,7 +61,10 @@ module Ingestion
             end
 
             item.lock!
-            if item.updated_at != seen_at.fetch(item.id)
+            # lock! re-reads the dish; the section is re-read by hand so a
+            # rename or removal since the question was asked counts too.
+            item.association(:menu_section).reset
+            if prompt_row(item) != asked.fetch(item.id)
               stale += 1
               next
             end

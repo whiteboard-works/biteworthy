@@ -29,7 +29,8 @@ module Tools
         Returns the dishes whose cuisine rows changed (slug or confidence
         grade), with the rows before and after, plus counts of dishes left
         as they were, dishes Jev could not answer for, and dishes edited
-        while Jev was answering (stale, left alone; run again).
+        while Jev was answering (stale, left alone; run again). Running
+        it twice re-decides the same dishes from the same text.
       TEXT
 
       input_schema(
@@ -46,7 +47,11 @@ module Tools
         required: [ "restaurant" ]
       )
 
-      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
+      # The static hint stays off so a dry run is never parked; the
+      # argument gate below is what puts a person in front of a real run,
+      # on both doors, and `unrecoverable_when` is what parks it in the
+      # chat's accept_edits mode. Same shape as update_avoid_lists.
+      annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
       # A real run replaces the model-written rows and nothing restores
       # them; a dry run writes nothing.
       unrecoverable_when { |args| !args[:dry_run] }
