@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type {
   DetectedAssociation,
   DetectedIngredient,
@@ -26,16 +27,17 @@ const CONFIDENCE_MARK: Record<DetectedAssociation['confidence'], string> = {
 };
 
 // The mark alone says a person checked; only a non-human source earns a
-// visible word, so a chip never reads "✓ human". A source missing here
-// shows no word (a `??` fallback once leaked the raw source name).
-const SOURCE_WORD: Partial<Record<DetectedAssociation['source'], string>> = {
+// visible word, so a chip never reads "✓ human". Exhaustive on purpose:
+// a new source must choose its word here (a `??` fallback on this map
+// once leaked the raw source name onto every human chip).
+const SOURCE_WORD: Record<DetectedAssociation['source'], string | null> = {
+  human: null,
+  match: null,
   ai: 'AI',
   derived: 'inferred',
   ingredient_derived: 'inferred',
   owner: 'owner',
 };
-
-const LEGEND_ID = 'detected-legend';
 
 export default function DetectedIngredients({
   ingredients,
@@ -44,19 +46,24 @@ export default function DetectedIngredients({
   ingredients: DetectedIngredient[];
   tags: DetectedAssociation[];
 }) {
+  const legendId = useId();
+  const legendTitleId = `${legendId}-title`;
+  const hasData = ingredients.length > 0 || tags.length > 0;
   return (
     <section aria-labelledby="detected-heading" className="mt-bw-8">
       <div className="flex flex-wrap items-baseline gap-x-bw-3 gap-y-bw-1">
         <h2 id="detected-heading" className="text-bw-lg font-bold text-zinc-900">
           What we detected
         </h2>
-        <button
-          type="button"
-          popoverTarget={LEGEND_ID}
-          className="text-bw-sm font-semibold text-bite hover:text-bite-dark"
-        >
-          What the marks mean
-        </button>
+        {hasData && (
+          <button
+            type="button"
+            popoverTarget={legendId}
+            className="text-bw-sm font-semibold text-bite hover:text-bite-dark"
+          >
+            What the marks mean
+          </button>
+        )}
       </div>
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
         Spot something wrong? Use &ldquo;Suggest a fix&rdquo; below.
@@ -65,12 +72,14 @@ export default function DetectedIngredients({
       {/* Native popover: top layer, centered, closes on Escape or an outside click, no client JS.
           `hidden` keeps it out of the page where the popover API is missing, instead of always open. */}
       <div
-        id={LEGEND_ID}
+        id={legendId}
         popover="auto"
+        role="dialog"
+        aria-labelledby={legendTitleId}
         data-testid="detected-legend"
         className="m-auto hidden w-[min(92vw,24rem)] [&:popover-open]:block rounded-bw-lg border border-zinc-200 bg-white p-bw-4 text-bw-sm text-zinc-700 shadow-xl"
       >
-        <p className="font-semibold text-zinc-900">
+        <p id={legendTitleId} className="font-semibold text-zinc-900">
           Every ingredient call carries a confidence level and a source.
         </p>
         <ul className="mt-bw-3 space-y-bw-2">
@@ -93,10 +102,13 @@ export default function DetectedIngredients({
             <span className="font-semibold text-zinc-900">inferred</span>, after a mark — worked out
             from the dish&rsquo;s other ingredients
           </li>
+          <li>
+            <span className="font-semibold text-zinc-900">owner</span> — entered by the restaurant
+          </li>
         </ul>
         <button
           type="button"
-          popoverTarget={LEGEND_ID}
+          popoverTarget={legendId}
           popoverTargetAction="hide"
           className="mt-bw-4 text-bw-sm font-semibold text-bite hover:text-bite-dark"
         >
@@ -104,7 +116,7 @@ export default function DetectedIngredients({
         </button>
       </div>
 
-      {ingredients.length === 0 && tags.length === 0 ? (
+      {!hasData ? (
         <p className="mt-bw-3 text-bw-sm italic text-zinc-500">
           No ingredient data recorded for this dish yet.
         </p>

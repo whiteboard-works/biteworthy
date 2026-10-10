@@ -97,5 +97,7 @@ describe('DetectedIngredients', () => {
   it('says so when no data is recorded rather than rendering nothing', () => {
     render(<DetectedIngredients ingredients={[]} tags={[]} />);
     expect(screen.getByText(/no ingredient data recorded/i)).toBeInTheDocument();
+    // No chips, so nothing for a legend to explain.
+    expect(screen.queryByRole('button', { name: /what the marks mean/i })).not.toBeInTheDocument();
   });
 });
