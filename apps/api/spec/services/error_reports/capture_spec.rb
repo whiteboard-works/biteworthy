@@ -117,15 +117,32 @@ RSpec.describe ErrorReports::Capture do
     expect(payload["message"]).to eq("Failing row contains (…). Said <str> to <email>")
   end
 
+  # The same scrubber as the PostHog path, so a credential shape that is
+  # kept out of one place is kept out of both.
   it "redacts credentials quoted in the message" do
     payload = described_class.call(failing(
-      "401 for sk-ant-api03-abcdef, ghp_12345, re_abcdefghijklmnopqrstuvwxyz, AKIAIOSFODNN7EXAMPLE, " \
+      "401 for sk-ant-api03-abcdef; ghp_12345; re_abcdefghijklmnopqrstuvwxyz; " \
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig and postgres://neon:hunter2@host/db"
     ))
 
     expect(payload["message"]).to eq(
-      "401 for sk-ant-<redacted>, ghp_<redacted>, re_<redacted>, <redacted>, <redacted> and postgres://<redacted>@host/db"
+      "401 for sk-ant-<redacted> ghp_<redacted> re_<redacted>; <jwt> and postgres://<redacted>@host/db"
     )
+  end
+
+  # A verify or reset link and a signed blob path are bearer credentials
+  # that no key-prefix pattern recognizes.
+  it "blanks query-string values and signed Active Storage paths" do
+    payload = described_class.call(failing(
+      "Net::ReadTimeout fetching https://api.bite-worthy.com/verify?t=abc123xyz&profile=celiac " \
+      "then /rails/active_storage/blobs/redirect/abc--def/menu.pdf from 203.0.113.9"
+    ), context: { url: "https://api.bite-worthy.com/reset?token=secret" })
+
+    expect(payload["message"]).to eq(
+      "Net::ReadTimeout fetching https://api.bite-worthy.com/verify?t=<q>&profile=<q> " \
+      "then /rails/active_storage/<redacted> from <ip>"
+    )
+    expect(payload["context"]).to eq("url" => "https://api.bite-worthy.com/reset?token=<q>")
   end
 
   it "bounds the message" do

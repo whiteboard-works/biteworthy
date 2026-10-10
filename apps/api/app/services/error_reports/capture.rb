@@ -24,6 +24,9 @@ module ErrorReports
     # when a parser or a constraint quotes it. Only the `normalized`
     # shape is stored: an `error_reports` row belongs to no account, so
     # deleting an account could never reach a message that quoted them.
+    # Before any of this the message goes through `Telemetry::Scrub.text`,
+    # the one scrubber for everything that leaves the box (ADR 0009):
+    # credentials, query-string values, signed blob paths, addresses.
     UUID     = /\h{8}-\h{4}-\h{4}-\h{4}-\h{12}/
     HEX      = /\b0x\h+\b/
     EMAIL    = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/
@@ -33,21 +36,10 @@ module ErrorReports
     MEASURE  = /\d+(?:ms|s|m|h|kb|mb|gb|b)\b/i
     LONG_N   = /\d{4,}/
 
-    # Credentials have no business in an issue, and the parameter filter
-    # cannot see inside a message string: every key prefix the app holds
-    # (Anthropic, GitHub, TypeSafe, Resend, AWS-style), a JWT, a bearer
-    # token, and the password in a connection URL.
-    SECRET = Regexp.union(
-      /(sk-ant-|ghp_|github_pat_|apikey_|re_|Bearer )[^\s,;)]+/,
-      /AKIA[0-9A-Z]{16}/,
-      /eyJ[\w-]{10,}\.[\w-]+\.[\w-]+/,
-      %r{://[^/\s:@]+:[^@\s]+@}
-    )
-
     SCALARS = [ String, Symbol, Numeric, TrueClass, FalseClass, NilClass ].freeze
 
     def self.call(error, context: {}, source: "application", handled: true)
-      shape  = normalized(scrubbed(error.message.to_s))
+      shape  = normalized(Telemetry::Scrub.text(error.message.to_s))
       frames = app_frames(error)
       plain  = plain_context(context)
 
@@ -101,8 +93,9 @@ module ErrorReports
 
     # Only what can be serialized and shown: the job's and controller's
     # names rather than their instances (Active Job and Action Dispatch
-    # put the instances in the execution context), scalar values, and
-    # nothing the parameter filter would hide from the logs.
+    # put the instances in the execution context), scalar values with
+    # the credential shapes blanked, and nothing the parameter filter
+    # would hide from the logs.
     def self.plain_context(context)
       plain = {}
       context.to_h.each do |key, value|
@@ -112,7 +105,7 @@ module ErrorReports
         else
           next unless SCALARS.any? { |kind| value.is_a?(kind) }
 
-          plain[key.to_s] = value.is_a?(Symbol) ? value.to_s : value
+          plain[key.to_s] = value.is_a?(String) || value.is_a?(Symbol) ? Telemetry::Scrub.text(value.to_s) : value
         end
       end
       filter.filter(plain)
@@ -127,10 +120,6 @@ module ErrorReports
     # the storm it is meant to survive.
     def self.filter
       @filter ||= ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
-    end
-
-    def self.scrubbed(message)
-      message.gsub(SECRET) { |match| match.start_with?("://") ? "://<redacted>@" : "#{Regexp.last_match(1)}<redacted>" }
     end
   end
 end
