@@ -17,6 +17,8 @@ the Phase 5 pause) are archived in
 
 ---
 
+2026-10-10 (UTC) — **Chat footer: fewer pills.** The admin usage footer drops the per-turn cost, the cache read/write counts, and the in/out token counts. It shows the conversation cost, rounds, duration, and any non-benign outcome. The columns are still recorded; only the display changed.
+
 2026-10-10 (UTC) — **Chat: a deleted chat leaves the sidebar at once.** Rails answers a delete with 204 and no body, and the web proxy's `relayUpstream` rebuilt it as a Response with an empty-string body, which the Response constructor refuses on a no-body status. The route handler threw, the browser got a 500 for a delete that had already happened, and the chat stayed listed (opening it then 404ed) until a reload re-fetched the list. The relay now passes a null body for 101/103/204/205/304. Same path for the other `head :no_content` answers that go through `proxyAuthed` or `adminProxy` (review delete, MCP-token and connected-app deletes, admin tag, ingredient, and menu deletes); sign-out builds its own response and nine route handlers still relay inline, so they are untouched.
 
 2026-10-10 (UTC) — **Production logs do not outlive a deploy.** Reading the Jev shadow trial: `kamal app logs` returned nothing because a deploy had just replaced the containers. The stopped Oct 7 worker still held 3 runs (17 slices, 1,085 pairs, 95.6% agreement, disagreements mostly Haiku force-fitting dishes into the seven leaf cuisines), and the lines for the 13 earlier runs were gone with their containers. The API logs to STDOUT only and ships nothing to PostHog or Datadog. Recorded in ADR 0007 and as a roadmap follow-up; the Jev decision stays open.

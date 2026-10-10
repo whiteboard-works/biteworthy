@@ -351,9 +351,10 @@ limit is too small" and "24¢ for one question" were one bug.
 - **`record_round!` is guarded by `run_token`**, like `tick!` and
   `release!` always were. It was the one accrual that could write onto a
   run that had already replaced it.
-- The footer separates the two scopes it had been conflating:
-  `9¢ turn · 34¢ conversation`, plus the `cache_write_tokens` C3 recorded
-  and nothing displayed.
+- The footer shows the conversation cost, rounds, duration, and outcome.
+  It briefly separated two scopes (`9¢ turn · 34¢ conversation`) and
+  showed the `cache_write_tokens` C3 recorded, but the per-turn cost and
+  token pills were removed on 2026-10-10; the columns are still recorded.
 
 ### C9 — Cache the transcript, not just the prompt — SHIPPED
 
