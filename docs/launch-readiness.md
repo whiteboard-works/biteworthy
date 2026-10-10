@@ -228,9 +228,10 @@ provider up again on a new box:
 
 - ~~Code side~~ — **done in #218 and the ADR 0009 PR**: all three apps point at BiteWorthy's own project (id 652080). The public token is pinned in `apps/web/src/lib/posthog-config.ts` (production hosts), `apps/mobile/eas.json` (production profile), and `apps/api/config/deploy.yml` (`POSTHOG_API_KEY`, `APP_ROLE`). Nothing needs setting in Vercel or EAS.
 - Remaining (human):
-  - [ ] **Verify events arrive** after the next web deploy: load bite-worthy.com, confirm `$pageview` and `app_open` in the project's activity view.
-  - [ ] **Verify the API reports** after the next API deploy: `kamal console`, then `Rails.error.report(RuntimeError.new("posthog smoke"), handled: true, context: { component: "smoke" })`; an issue appears under Error tracking within a minute, and `kamal app logs` lines appear under Logs with `service.name = Biteworthy`.
-  - [ ] **Remove any `NEXT_PUBLIC_POSTHOG_KEY` set in Vercel.** It is ignored on production and only matters for previews, where it would now send preview traffic to whatever project it names.
+  - [x] ~~**Verify events arrive**~~ — verified 2026-10-10 after #855 deployed: a visit to bite-worthy.com posted to `us.i.posthog.com/e/` with the 652080 token's persistence, and the project's "no events yet" banner cleared.
+  - [x] ~~**Verify the API logs arrive**~~ — verified 2026-10-10: PostHog → Logs showed `service.name = Biteworthy`, environment `production`, within minutes of the API deploy.
+  - [ ] **Verify the API reports exceptions**: `kamal console`, then `Rails.error.report(RuntimeError.new("posthog smoke"), handled: true, context: { component: "smoke" })`; an issue appears under Error tracking within a minute.
+  - [ ] **Remove the `NEXT_PUBLIC_POSTHOG_KEY` set in Vercel.** It exists — a browser that had visited the site before #855 still holds posthog-js state for the old project's token — and it is ignored on production but sends every preview deploy's traffic to the old shared project.
   - [ ] **Re-authorize the PostHog MCP server** used by agents: every call fails `INVALID_API_KEY`, so dashboards and alerts are a UI job until then.
   - [ ] **L1 review:** `/privacy`'s PostHog entry now says it also receives error reports and logs from our servers.
 
