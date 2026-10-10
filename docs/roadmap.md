@@ -210,11 +210,11 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   Every restaurant published before 2026-10-10 still carries Haiku's
   cuisine tags (the shadow trial showed them force-fitting dishes into
   the seven leaf cuisines), and fully matched dishes never got one at
-  all. Either a one-off backfill that asks Jev over every published
-  item and rewrites its `cuisine` `ItemTag` rows through the join
-  table, or an admin tool that re-tags one restaurant on demand, or
-  one service with both entry points. Writes live menu tags, so it is
-  product-visible.
+  all. The admin tool `retag_cuisine` (shipped 2026-10-10, backed by
+  `Ingestion::JevCuisineRetag`) re-tags one restaurant on demand, with
+  `dry_run`. **Still open:** running it across every restaurant
+  published before 2026-10-10, restaurant by restaurant from an admin
+  session, and checking a few dry runs first.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately

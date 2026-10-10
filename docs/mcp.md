@@ -469,10 +469,22 @@ reusing the same business logic and validation as the REST admin endpoints:
   current join (downgrade only). Dish-level `confidence` is not settable
   directly — it still graduates through `promote!` and
   `confirm_restaurant_data`.
+- **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
+  the model that decides them for every new scan since 2026-10-10, and
+  rewrite the model-written (`source: ai`) `cuisine` join rows.
+  `dry_run: true` reports the changes without writing; a real run is
+  gated by `confirm_when`. Keeps every cuisine row a person added or
+  confirmed and every keyword-derived one (gap-fill keeps those beside
+  Jev's too), touches no other family, and never changes a dish's own
+  confidence. All slices are asked before anything is written and each
+  dish is locked and re-read inside the transaction, so a Jev failure
+  part-way or a concurrent edit changes nothing it should not. This is
+  the admin re-run for menus published with Haiku's cuisine tags; the
+  backfill is calling it per restaurant.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 
-All ten require `is_admin: true` and are filtered out of the catalogue for
+All eleven require `is_admin: true` and are filtered out of the catalogue for
 non-admin callers. Rate limiting is shared with the rest of `/mcp`:
 120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
 anonymous.
