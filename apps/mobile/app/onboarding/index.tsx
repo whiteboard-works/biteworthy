@@ -573,9 +573,13 @@ const styles = StyleSheet.create({
     gap: space['3'],
     paddingVertical: space['3'],
   },
+  // flexShrink: React Native defaults it to 0, and a box that cannot
+  // shrink would push the controls off an SE-sized screen just the same.
   tasteCatalog: {
     maxHeight: 280,
+    minHeight: 96,
     flexGrow: 0,
+    flexShrink: 1,
   },
   chip: {
     borderWidth: 1,
