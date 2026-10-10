@@ -9,11 +9,18 @@ module Pdfs
   # names and prices legible — the vision call downsamples anyway.
   #
   # Returns a Tempfile holding the smaller PDF, or nil when Ghostscript is
-  # missing, fails, overruns its time, or produced nothing smaller. The
-  # caller then gives its usual too-large answer; a box without `gs` never
-  # turns an upload into a 500.
+  # missing, fails, overruns its time or memory, or produced nothing
+  # smaller. The caller then gives its usual too-large answer; a box
+  # without `gs` never turns an upload into a 500.
+  #
+  # This runs in the request, on bytes anyone with an account chose, so
+  # the child is boxed: `-dSAFER`, a CPU and wall-clock limit under
+  # kamal-proxy's 30 s response timeout (a real menu takes a few seconds),
+  # and an address-space limit so five parallel uploads cannot take the
+  # box's memory with them.
   class Shrink
-    TIMEOUT_SECONDS = 60
+    TIMEOUT_SECONDS   = 20
+    MAX_ADDRESS_SPACE = 768 * 1024 * 1024
     ARGS = %w[
       -q -dSAFER -dBATCH -dNOPAUSE
       -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook
@@ -44,7 +51,8 @@ module Pdfs
     private
 
     def run(*command)
-      pid = Process.spawn(*command, in: File::NULL, out: File::NULL, err: File::NULL)
+      pid = Process.spawn(*command, in: File::NULL, out: File::NULL, err: File::NULL,
+                          rlimit_cpu: TIMEOUT_SECONDS, rlimit_as: MAX_ADDRESS_SPACE)
       _, status = Timeout.timeout(TIMEOUT_SECONDS) { Process.wait2(pid) }
       status.success?
     rescue Timeout::Error

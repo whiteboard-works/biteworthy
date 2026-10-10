@@ -6496,6 +6496,8 @@ export interface components {
             ticket: string;
             /** Format: date-time */
             expires_at: string;
+            /** @description The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side. */
+            max_bytes: number;
         };
         Attachment: {
             /** @description Signed blob id. Bytes never enter the agent's context. */
