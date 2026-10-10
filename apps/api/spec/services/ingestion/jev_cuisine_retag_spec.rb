@@ -11,15 +11,18 @@ RSpec.describe Ingestion::JevCuisineRetag do
   let!(:spicy)    { create(:tag, slug: "flavor-spicy") }
 
   # Haiku called the tacos Italian; a person confirmed spicy and added
-  # Mexican to the arepas by hand.
+  # Mexican to the arepas by hand; the pizza's Italian came from the
+  # section keyword, the way TagDeriver writes it.
   let!(:tacos)  { create(:item, restaurant: restaurant, menu_section: section, name: "Carnitas Tacos", status: "published", confidence: "confirmed", position: 0) }
   let!(:arepas) { create(:item, restaurant: restaurant, menu_section: section, name: "Arepas", status: "published", confidence: "suggested", position: 1) }
-  let!(:draft)  { create(:item, restaurant: restaurant, name: "Secret Dish", status: "draft", position: 2) }
+  let!(:pizza)  { create(:item, restaurant: restaurant, menu_section: section, name: "Margherita", status: "published", position: 2) }
+  let!(:draft)  { create(:item, restaurant: restaurant, name: "Secret Dish", status: "draft", position: 3) }
 
   before do
     ItemTag.create!(item: tacos, tag: italian, source: "ai", confidence: "suggested")
     ItemTag.create!(item: tacos, tag: spicy, source: "human", confidence: "confirmed")
     ItemTag.create!(item: arepas, tag: mexican, source: "human", confidence: "confirmed")
+    ItemTag.create!(item: pizza, tag: italian, source: "derived", confidence: "suggested")
     allow(Rails.logger).to receive(:info)
     allow(Rails.logger).to receive(:warn)
   end
@@ -34,19 +37,25 @@ RSpec.describe Ingestion::JevCuisineRetag do
     { "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
       "i0__cuisine-italian" => { "type" => "noul", "noul" => 0.04 },
       "i1__cuisine-mexican" => { "type" => "noul", "noul" => 0.30 },
-      "i1__cuisine-italian" => { "type" => "noul", "noul" => 0.02 } }
+      "i1__cuisine-italian" => { "type" => "noul", "noul" => 0.02 },
+      "i2__cuisine-mexican" => { "type" => "noul", "noul" => 0.01 },
+      "i2__cuisine-italian" => { "type" => "noul", "noul" => 0.20 } }
   end
 
-  it "replaces machine cuisine rows with Jev's, keeps what a person vouched for, and touches nothing else" do
+  def cuisine_rows(item)
+    item.reload.item_tags.map { |r| [ r.tag.slug, r.source, r.confidence ] }
+  end
+
+  it "replaces model-written cuisine rows with Jev's and leaves every other row alone" do
     request = stub_jev(answers)
     result  = described_class.new(restaurant, tagger: tagger).call
 
     # Only the published dishes went to Jev, in position order.
-    expect(request.with { |req| JSON.parse(req.body)["state"]["items"].map { |i| i["name"] } == [ "Carnitas Tacos", "Arepas" ] })
-      .to have_been_made.once
+    expect(request.with { |req|
+      JSON.parse(req.body)["state"]["items"].map { |i| i["name"] } == [ "Carnitas Tacos", "Arepas", "Margherita" ]
+    }).to have_been_made.once
 
-    tacos.reload
-    expect(tacos.item_tags.map { |r| [ r.tag.slug, r.source, r.confidence ] }).to contain_exactly(
+    expect(cuisine_rows(tacos)).to contain_exactly(
       [ "cuisine-mexican", "ai", "suggested" ],
       [ "flavor-spicy", "human", "confirmed" ]
     )
@@ -55,22 +64,46 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(tacos.confidence).to eq("confirmed")
 
     # Jev said 0.30 to Mexican for the arepas, but a person added that tag.
-    expect(arepas.reload.item_tags.map { |r| [ r.tag.slug, r.source ] }).to eq([ [ "cuisine-mexican", "human" ] ])
+    expect(cuisine_rows(arepas)).to eq([ [ "cuisine-mexican", "human", "confirmed" ] ])
+    # Jev said 0.20 to Italian for the pizza, but the menu's own wording
+    # said it, and gap-fill keeps those hits beside Jev's answers too.
+    expect(cuisine_rows(pizza)).to eq([ [ "cuisine-italian", "derived", "suggested" ] ])
     expect(draft.reload.item_tags).to be_empty
 
-    expect(result.dishes).to eq(2)
-    expect(result.changes.map { |c| [ c.item.name, c.before, c.after ] })
-      .to eq([ [ "Carnitas Tacos", [ "cuisine-italian" ], [ "cuisine-mexican" ] ] ])
-    expect(result.unchanged).to eq(1)
+    expect(result.dishes).to eq(3)
+    expect(result.changes.map { |c| [ c.item.name, c.before, c.after ] }).to eq([
+      [ "Carnitas Tacos",
+        [ { slug: "cuisine-italian", confidence: "suggested" } ],
+        [ { slug: "cuisine-mexican", confidence: "suggested" } ] ]
+    ])
+    expect(result.unchanged).to eq(2)
     expect(result.unanswered).to eq(0)
   end
 
-  it "stores the probability's grade: below 0.8 lands as inferred" do
+  it "reports a regrade of an existing row as a change: below 0.8 lands as inferred" do
+    ItemTag.find_by!(item: tacos, tag: italian).destroy!
+    ItemTag.create!(item: tacos, tag: mexican, source: "ai", confidence: "suggested")
     answers["i0__cuisine-mexican"]["noul"] = 0.6
     stub_jev(answers)
-    described_class.new(restaurant, tagger: tagger).call
+    result = described_class.new(restaurant, tagger: tagger).call
 
-    expect(tacos.reload.item_tags.find_by(tag: mexican).confidence).to eq("inferred")
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
+    expect(result.changes.map { |c| [ c.before, c.after ] }).to eq([ [
+      [ { slug: "cuisine-mexican", confidence: "suggested" }, { slug: "flavor-spicy", confidence: "confirmed" } ].select { |r| r[:slug].start_with?("cuisine") },
+      [ { slug: "cuisine-mexican", confidence: "inferred" } ]
+    ] ])
+  end
+
+  it "does not write to a dish whose rows already match, so its updated_at stays put" do
+    ItemTag.find_by!(item: tacos, tag: italian).update!(tag: mexican)
+    stub_jev(answers)
+    stamp = tacos.reload.updated_at
+
+    result = described_class.new(restaurant, tagger: tagger).call
+
+    expect(result.changes).to be_empty
+    expect(result.unchanged).to eq(3)
+    expect(tacos.reload.updated_at).to eq(stamp)
   end
 
   it "reports the same changes on a dry run and writes none of them" do
@@ -78,8 +111,8 @@ RSpec.describe Ingestion::JevCuisineRetag do
     result = described_class.new(restaurant, tagger: tagger).call(dry_run: true)
 
     expect(result.dry_run).to be(true)
-    expect(result.changes.map { |c| c.after }).to eq([ [ "cuisine-mexican" ] ])
-    expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to contain_exactly("cuisine-italian", "flavor-spicy")
+    expect(result.changes.map { |c| c.after }).to eq([ [ { slug: "cuisine-mexican", confidence: "suggested" } ] ])
+    expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
   end
 
   it "leaves a dish Jev did not fully answer as it was, and counts it" do
@@ -89,7 +122,7 @@ RSpec.describe Ingestion::JevCuisineRetag do
     result = described_class.new(restaurant, tagger: tagger).call
 
     expect(result.unanswered).to eq(1)
-    expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to contain_exactly("cuisine-italian", "flavor-spicy")
+    expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
   end
 
   it "writes nothing when Jev fails, and says so" do
@@ -97,6 +130,15 @@ RSpec.describe Ingestion::JevCuisineRetag do
     allow(Rails.error).to receive(:report)
 
     expect { described_class.new(restaurant, tagger: tagger).call }.to raise_error(described_class::Unavailable)
-    expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to contain_exactly("cuisine-italian", "flavor-spicy")
+    expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
+  end
+
+  it "refuses outright when the taxonomy has no leaf cuisine tags, rather than reporting every dish unanswered" do
+    Tag.where(family: "cuisine").find_each { |t| t.item_tags.destroy_all; t.destroy! }
+    jev = stub_jev({})
+
+    expect { described_class.new(restaurant, tagger: tagger).call }
+      .to raise_error(described_class::Unavailable, /no leaf cuisine tags/)
+    expect(jev).not_to have_been_made
   end
 end

@@ -6,24 +6,28 @@ module Ingestion
   # which the 2026-09-28 trial showed force-fitting dishes into the seven
   # leaf cuisines) and for fully matched dishes that never got one.
   #
-  # What it touches: `cuisine`-family ItemTag rows only, through the join
-  # table (SyncsDenormalizedIds keeps `items.tag_ids` honest). What it
-  # keeps: any row a person vouched for — `source` human or owner, or
-  # `confidence` confirmed, which only a person produces. What it never
-  # touches: other families, and the dish's own `confidence`, which the
-  # strict filter reads and which cuisine has no say in.
+  # What it manages: `cuisine`-family ItemTag rows with `source: "ai"` —
+  # the rows a model wrote, Haiku's then and Jev's now — through the join
+  # table, so `items.tag_ids` stays honest. Every other cuisine row stays
+  # exactly as it is: a person's (`human`, `owner`, or `confirmed`), and
+  # TagDeriver's keyword hits (`derived`, `match`), which gap-fill also
+  # keeps beside Jev's answers. Other families and the dish's own
+  # `confidence` (what the strict filter reads) are never touched.
   #
   # All or nothing: every slice is asked before anything is written, so a
-  # Jev failure part-way leaves the menu exactly as it was.
+  # Jev failure part-way leaves the menu exactly as it was. Each dish is
+  # locked and its rows re-read inside the transaction, so an edit made
+  # while Jev was answering is neither overwritten nor collided with.
   class JevCuisineRetag
     SLICE = 20
 
     class Unavailable < StandardError; end
 
+    # `before` / `after` are the dish's cuisine rows as { slug:, confidence: }.
     Change = Data.define(:item, :before, :after)
     Result = Data.define(:dishes, :changes, :unchanged, :unanswered, :dry_run)
 
-    PERSON_SOURCES = %w[human owner].freeze
+    MANAGED_SOURCE = "ai"
 
     def initialize(restaurant, tagger: JevCuisineTagger.new)
       @restaurant = restaurant
@@ -31,31 +35,41 @@ module Ingestion
     end
 
     def call(dry_run: false)
-      items   = @restaurant.items.published.includes(:menu_section, item_tags: :tag).order(:position, :name).to_a
+      tags = leaf_cuisine_tags
+      raise Unavailable, "the taxonomy has no leaf cuisine tags" if tags.empty?
+
+      items   = @restaurant.items.published.includes(:menu_section).order(:position, :name).to_a
       answers = ask(items)
-      tags    = Tag.where(family: "cuisine").index_by(&:slug)
 
       changes    = []
       unchanged  = 0
       unanswered = 0
       Item.transaction do
-        items.each do |item|
-          wanted = answers[item.id]
-          if wanted.nil?
-            unanswered += 1
-            next
-          end
+        Item.defer_denormalization do
+          items.each do |item|
+            wanted = answers[item.id]
+            if wanted.nil?
+              unanswered += 1
+              next
+            end
 
-          before  = cuisine_rows(item)
-          kept    = before.select { |row| vouched?(row) }
-          after   = (kept.map { |row| row.tag.slug } + wanted.map { |w| w["slug"] }).uniq.sort
-          changed = after != before.map { |row| row.tag.slug }.sort
+            item.lock!
+            current = item.item_tags.includes(:tag).reload.select { |row| row.tag.family == "cuisine" }
+            managed = current.select { |row| row.source == MANAGED_SOURCE }
+            kept    = current - managed
+            target  = wanted.reject { |w| kept.any? { |row| row.tag.slug == w["slug"] } }
+                            .to_h { |w| [ w["slug"], ConfidenceMapper.map_confidence(w["confidence"], "ai", "suggested") ] }
 
-          apply!(item, before, kept, wanted, tags) unless dry_run
-          if changed
-            changes << Change.new(item: item, before: before.map { |row| row.tag.slug }.sort, after: after)
-          else
-            unchanged += 1
+            if managed.to_h { |row| [ row.tag.slug, row.confidence ] } == target
+              unchanged += 1
+              next
+            end
+
+            # Snapshot before apply!, which updates these very rows.
+            before = rows(current.map { |row| [ row.tag.slug, row.confidence ] })
+            after  = rows(kept.map { |row| [ row.tag.slug, row.confidence ] } + target.to_a)
+            apply!(item, managed, target, tags) unless dry_run
+            changes << Change.new(item: item, before: before, after: after)
           end
         end
         raise ActiveRecord::Rollback if dry_run
@@ -66,8 +80,13 @@ module Ingestion
 
     private
 
+    def leaf_cuisine_tags
+      Tag.where(family: "cuisine").select { |tag| tag.path.to_s.include?(".") }.index_by(&:slug)
+    end
+
     # { item_id => rows } for every published dish; nil for a dish Jev did
-    # not fully answer. Raises rather than returning a partial map.
+    # not fully answer. Raises rather than returning a partial map, and
+    # on the first failed slice, so an outage costs one timeout.
     def ask(items)
       items.each_slice(SLICE).each_with_object({}) do |slice, answers|
         rows = @tagger.call(@restaurant, slice.map { |item| prompt_row(item) })
@@ -81,30 +100,20 @@ module Ingestion
       { name: item.name, description: item.description.presence, section: item.menu_section&.name }
     end
 
-    def cuisine_rows(item)
-      item.item_tags.select { |row| row.tag.family == "cuisine" }
+    def rows(pairs)
+      pairs.sort_by(&:first).map { |slug, confidence| { slug: slug, confidence: confidence } }
     end
 
-    def vouched?(row)
-      PERSON_SOURCES.include?(row.source) || row.confidence == "confirmed"
-    end
-
-    # Machine rows Jev no longer wants go; a wanted slug updates its
-    # machine row or gets a new one; a vouched row is never written to.
-    def apply!(item, before, kept, wanted, tags)
-      kept_slugs = kept.to_set { |row| row.tag.slug }
-      machine    = (before - kept).index_by { |row| row.tag.slug }
-
-      (machine.keys - wanted.map { |w| w["slug"] }).each { |slug| machine.fetch(slug).destroy! }
-      wanted.each do |w|
-        slug = w["slug"]
-        next if kept_slugs.include?(slug)
-
-        attrs = { source: "ai", confidence: ConfidenceMapper.map_confidence(w["confidence"], "ai", "suggested") }
-        if (row = machine[slug])
-          row.update!(**attrs)
+    # Managed rows Jev no longer wants go; a wanted slug updates its
+    # managed row when the grade moved, or gets a new one.
+    def apply!(item, managed, target, tags)
+      by_slug = managed.index_by { |row| row.tag.slug }
+      (by_slug.keys - target.keys).each { |slug| by_slug.fetch(slug).destroy! }
+      target.each do |slug, confidence|
+        if (row = by_slug[slug])
+          row.update!(confidence: confidence) if row.confidence != confidence
         else
-          ItemTag.create!(item: item, tag: tags.fetch(slug), **attrs)
+          ItemTag.create!(item: item, tag: tags.fetch(slug), source: MANAGED_SOURCE, confidence: confidence)
         end
       end
     end

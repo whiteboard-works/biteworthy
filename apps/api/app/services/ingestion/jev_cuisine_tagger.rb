@@ -80,7 +80,7 @@ module Ingestion
       end
 
       Rails.logger.info("[jev_cuisine] " + {
-        subject:      label(subject),
+        **ids(subject),
         model:        @client.last_model,
         latency_ms:   latency,
         input_tokens: @client.last_usage&.dig("input_tokens"),
@@ -91,7 +91,7 @@ module Ingestion
       if missing.positive?
         Rails.error.report(
           PartialAnswers.new("#{missing} of #{prompt_rows.size * tags.size} answers missing or malformed"),
-          handled: true, context: { subject: label(subject), model: @client.last_model }
+          handled: true, context: { **ids(subject), model: @client.last_model }
         )
       end
       rows
@@ -99,13 +99,21 @@ module Ingestion
       Rails.logger.warn(
         "[jev_cuisine] #{label(subject)} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
       )
-      Rails.error.report(e, handled: true, context: { subject: label(subject) })
+      Rails.error.report(e, handled: true, context: ids(subject))
       nil
     end
 
     private
 
     def label(subject) = "#{subject.class.name}##{subject&.id}"
+
+    # `run_id` stays for an IngestionRun so nothing reading the gap-fill
+    # lines changes; `subject` names whatever the dishes belong to.
+    def ids(subject)
+      ids = { subject: label(subject) }
+      ids[:run_id] = subject.id if subject.is_a?(IngestionRun)
+      ids
+    end
 
     # Leaf cuisines only: the root `cuisine` node is a grouping, not a
     # label anyone would apply to a dish.

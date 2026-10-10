@@ -19,14 +19,16 @@ module Tools
         on any menu whose cuisine tags look wrong. Call it with
         dry_run: true first to see what would change.
 
-        Only cuisine-family tags are touched. A cuisine tag a person added
-        or confirmed is kept. Other tag families, ingredients, and each
-        dish's own confidence (what strict-mode filtering reads) are never
-        changed. Nothing is written if Jev fails part-way.
+        Only cuisine tags a model wrote are replaced. A cuisine tag a
+        person added or confirmed, or one derived from the menu's own
+        wording, is kept. Other tag families, ingredients, and each dish's
+        own confidence (what strict-mode filtering reads) are never
+        changed. Nothing is written if Jev fails part-way. A real run asks
+        for confirmation first; a dry run does not.
 
-        Returns the dishes whose cuisine set changed, with before and after
-        slugs, plus counts of dishes left as they were and dishes Jev could
-        not answer for.
+        Returns the dishes whose cuisine rows changed (slug or confidence
+        grade), with the rows before and after, plus counts of dishes left
+        as they were and dishes Jev could not answer for.
       TEXT
 
       input_schema(
@@ -44,9 +46,15 @@ module Tools
       )
 
       annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
-      # Running it again re-decides the same tags; a person's rows are
-      # never written to.
-      unrecoverable_when { false }
+      # A real run replaces the model-written rows and nothing restores
+      # them; a dry run writes nothing.
+      unrecoverable_when { |args| !args[:dry_run] }
+      confirm_when { |args| !args[:dry_run] }
+      confirmation_prompt do |args|
+        "Rewrite the cuisine tags on every published dish at #{args[:restaurant]} from Jev's " \
+        "answers? Tags a person added or confirmed stay; the model-written ones are replaced " \
+        "and cannot be restored."
+      end
 
       running_description { |args| args[:dry_run] ? "Previewing cuisine tags" : "Re-tagging cuisine" }
 

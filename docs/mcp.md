@@ -471,12 +471,16 @@ reusing the same business logic and validation as the REST admin endpoints:
   `confirm_restaurant_data`.
 - **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
   the model that decides them for every new scan since 2026-10-10, and
-  rewrite the `cuisine` join rows. `dry_run: true` reports the changes
-  without writing. Keeps any cuisine tag a person added or confirmed,
-  touches no other family, and never changes a dish's own confidence.
-  All slices are asked before anything is written, so a Jev failure
-  part-way changes nothing. This is the admin re-run for menus published
-  with Haiku's cuisine tags; the backfill is calling it per restaurant.
+  rewrite the model-written (`source: ai`) `cuisine` join rows.
+  `dry_run: true` reports the changes without writing; a real run is
+  gated by `confirm_when`. Keeps every cuisine row a person added or
+  confirmed and every keyword-derived one (gap-fill keeps those beside
+  Jev's too), touches no other family, and never changes a dish's own
+  confidence. All slices are asked before anything is written and each
+  dish is locked and re-read inside the transaction, so a Jev failure
+  part-way or a concurrent edit changes nothing it should not. This is
+  the admin re-run for menus published with Haiku's cuisine tags; the
+  backfill is calling it per restaurant.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 

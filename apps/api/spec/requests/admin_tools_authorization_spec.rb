@@ -74,6 +74,8 @@ RSpec.describe "Admin tools authorization" do
   end
 
   def retag_cuisine_args
+    # The tool refuses a taxonomy with no leaf cuisine before asking Jev.
+    create(:tag, slug: "cuisine-mexican") unless Tag.exists?(slug: "cuisine-mexican")
     { restaurant: restaurant.id, dry_run: true }
   end
 
