@@ -62,7 +62,9 @@ export function requestErrorProperties(
 // token, `?profile=celiac`). Mirrors `Telemetry::Scrub.text` in the API.
 const SCRUBS: ReadonlyArray<[RegExp, string]> = [
   [/:\/\/[^/\s:@]+:[^@\s]+@/g, '://<redacted>@'],
-  [/([?&][^=&\s"']+=)[^&\s"']*/g, '$1<q>'],
+  // An apostrophe is an ordinary query character ("Bob's"); a double quote
+  // ends the value, because a quoted URL is how one appears in a message.
+  [/([?&][^=&\s"]+=)[^&\s"]*/g, '$1<q>'],
   [/\b(sk-ant-|ghp_|github_pat_|apikey_|phx_|phs_|Bearer )\S+/g, '$1<redacted>'],
   [/\bre_[A-Za-z0-9_]{20,}/g, 're_<redacted>'],
   [/\beyJ[\w-]{10,}\.[\w-]+\.[\w-]+/g, '<jwt>'],

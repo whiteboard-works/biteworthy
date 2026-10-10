@@ -141,6 +141,11 @@ RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
       expect(described_class.log(performing)[:body]).not_to include(token)
     end
 
+    it "blanks a query value past an apostrophe" do
+      record = { body: %(Started GET "/search?q=Bob's-celiac-plan&page=2" for 10.0.0.1 at 2026-10-10 00:00:00) }
+      expect(described_class.log(record)[:body]).to eq(%(Started GET "/search?q=<q>&page=<q>" for <ip> at 2026-10-10 00:00:00))
+    end
+
     it "redacts Active Storage paths: the signed blob id is a bearer credential" do
       path = "/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsiZGF0YSI6MX19--abcdef0123456789/menu%20photo.jpg"
       record = { body: "Started GET \"#{path}\" for 10.0.0.1 at 2026-10-10 00:00:00", attributes: { "url.path" => path } }

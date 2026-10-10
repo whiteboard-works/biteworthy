@@ -48,7 +48,9 @@ module Telemetry
     # menu is filtered by (`?profile=`) — a list of key names is a list
     # someone forgets to extend, and Rails' own parameter filter blanks the
     # request line's query only for the keys it names. Keys stay, values go.
-    QUERY_VALUE = /([?&][^=&\s"']+=)[^&\s"']*/
+    # An apostrophe is an ordinary query character ("Bob's"), so it does not
+    # end a value; a double quote does, because Rails quotes the request line.
+    QUERY_VALUE = /([?&][^=&\s"]+=)[^&\s"]*/
 
     # Active Job logs every job's arguments on enqueue and on perform. For
     # Devise's mail job that is the raw reset token as a bare string, which
