@@ -63,7 +63,7 @@ module Api
           end
 
           title = Chat::Titler.flatten(params[:title])
-          if title.blank?
+          unless Chat::Titler.visible?(title)
             return render json: { error: "A title cannot be blank." }, status: :unprocessable_entity
           end
           if title.length > Chat::Titler::MAX_LENGTH

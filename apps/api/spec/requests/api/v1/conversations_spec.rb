@@ -121,10 +121,11 @@ RSpec.describe "Api::V1::Conversations", type: :request do
 
     # A zero-width space is not whitespace to `blank?`, and a title made
     # of one would draw an empty row with no "Untitled" fallback — and
-    # stop the model ever naming the chat.
+    # stop the model ever naming the chat. The non-joiner is kept inside a
+    # word, so it is the sharper case: alone, it is still nothing.
     it "treats a title of invisible characters as blank" do
       patch "/api/v1/conversations/#{conversation.id}",
-            params: { title: "\u200B\u200E" }.to_json,
+            params: { title: "\u200B\u200E\u200C" }.to_json,
             headers: headers.merge("CONTENT_TYPE" => "application/json")
 
       expect(response).to have_http_status(:unprocessable_entity)

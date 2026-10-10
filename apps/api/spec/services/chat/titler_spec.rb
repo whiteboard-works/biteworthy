@@ -56,9 +56,9 @@ RSpec.describe Chat::Titler, :real_titler do
     # drops: a Persian word is spelled with the zero-width non-joiner, a
     # composed emoji is held together by the joiner, and a regional flag
     # ends in tag characters. A zero-width space or a BiDi mark, by
-    # contrast, is a title made of nothing.
+    # contrast, corrupts whatever it sits in.
     describe ".flatten" do
-      it "drops the invisibles a blank title could hide behind" do
+      it "drops the invisibles that corrupt the text around them" do
         expect(described_class.flatten("\u200B\u200E Lunch\u202E with\uFEFF Sam \u2066")).to eq("Lunch with Sam")
         expect(described_class.flatten("\u200B\u200F\u2060")).to eq("")
       end
@@ -72,6 +72,27 @@ RSpec.describe Chat::Titler, :real_titler do
 
       it "turns control characters into spaces and collapses the runs" do
         expect(described_class.flatten("Lunch\u0000 with\t\nSam  ")).to eq("Lunch with Sam")
+      end
+    end
+
+    # Blankness is asked directly — "would anything show" — rather than by
+    # subtracting a list of invisibles, because the list is never complete
+    # and the characters it has to keep (a non-joiner inside a word) are
+    # blank on their own.
+    describe ".visible?" do
+      it "sees nothing in format characters, combining marks, or whitespace alone" do
+        expect(described_class.visible?("\u200C")).to be(false)
+        expect(described_class.visible?("\u061C")).to be(false)
+        expect(described_class.visible?("\uFE0F \u034F")).to be(false)
+        expect(described_class.visible?("\u{E0067}\u{E007F}")).to be(false)
+        expect(described_class.visible?("   ")).to be(false)
+        expect(described_class.visible?(nil)).to be(false)
+      end
+
+      it "sees a word, an emoji, or a flag" do
+        expect(described_class.visible?("می\u200Cخواهم")).to be(true)
+        expect(described_class.visible?("👨\u200D👩\u200D👧")).to be(true)
+        expect(described_class.visible?("🏴\u{E0067}\u{E007F}")).to be(true)
       end
     end
 

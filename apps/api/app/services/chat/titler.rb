@@ -128,23 +128,28 @@ module Chat
 
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
-    # The invisible characters a title can be made of and still read as
-    # non-blank: the zero-width space and word joiner, the BiDi marks,
-    # embeddings, overrides and isolates, and the byte-order mark. Named
-    # one by one rather than as the whole `\p{Cf}` class, because that
-    # class also holds the zero-width non-joiner that Persian and Urdu
-    # words are spelled with, the joiner that holds a composed emoji
-    # together, and the tag characters under a regional flag — all of
-    # which a person may well type, and none of which may be touched.
-    INVISIBLE = /[\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/
+    # What a sidebar row cannot render and must not store: control
+    # characters, and the format characters that corrupt the text around
+    # them — the zero-width space and word joiner, the BiDi marks,
+    # embeddings, overrides and isolates, and the byte-order mark. Not the
+    # whole `\p{Cf}` class: that also holds the zero-width non-joiner that
+    # Persian and Urdu words are spelled with, the joiner that holds a
+    # composed emoji together, and the tag characters under a regional
+    # flag, all of which a person may well type.
+    FLATTENED = /[[:cntrl:]\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/
 
-    # Everything a sidebar row cannot render, flattened: control characters
-    # and the invisibles above become spaces and runs of whitespace
-    # collapse. Shared with the rename path so a person's title is held to
-    # the same shape as the model's — and so a NUL in a rename is a space,
-    # not a Postgres error, and a title made of nothing visible is blank
-    # rather than stored.
-    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]|#{INVISIBLE}/, " ").squish
+    # Flattened for storage: the characters above become spaces and runs of
+    # whitespace collapse. Shared with the rename path so a person's title
+    # is held to the same shape as the model's — and so a NUL in a rename
+    # is a space, not a Postgres error.
+    def self.flatten(text) = text.to_s.gsub(FLATTENED, " ").squish
+
+    # Whether anything would actually show in the row. Asked directly
+    # rather than by subtraction, because no list of invisibles is ever
+    # complete: a title that is only format characters, combining marks,
+    # or whitespace — a lone non-joiner, an emoji presentation selector,
+    # an Arabic letter mark — is blank however `flatten` left it.
+    def self.visible?(text) = text.to_s.match?(/[^\p{Cf}\p{Mn}\p{Me}[[:space:]]]/)
 
     def initialize(client: nil)
       @injected = client
@@ -220,7 +225,7 @@ module Chat
     # is the thing two lines of prompt just asked the model not to do.
     def clean(title)
       flat = unquote(self.class.flatten(title))
-      return nil if flat.blank? || REJECTED.include?(flat.downcase.delete_suffix("."))
+      return nil if !self.class.visible?(flat) || REJECTED.include?(flat.downcase.delete_suffix("."))
 
       flat.truncate(MAX_LENGTH, omission: "")
     end
