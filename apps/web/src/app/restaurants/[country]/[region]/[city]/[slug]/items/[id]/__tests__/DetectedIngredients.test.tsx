@@ -39,10 +39,25 @@ describe('DetectedIngredients', () => {
     // Source must be perceivable without hover: AI-sourced chips carry a
     // visible marker, and the aria-label repeats the full provenance.
     expect(wheatChip).toHaveTextContent('AI');
+    // A human-sourced chip is the mark alone: "✓ human" on every chip
+    // was noise (a `??` fallback once leaked the raw source name).
     const basilChip = screen.getByTitle('confirmed — a human verified it · source: human');
-    expect(basilChip).toHaveTextContent('Basil');
-    expect(basilChip).not.toHaveTextContent('AI');
-    expect(screen.getByTestId('detected-tags')).toHaveTextContent('Contains gluten');
+    expect(basilChip).toHaveTextContent(/^Basil\s*✓$/);
+    expect(screen.getByTestId('detected-tags')).toHaveTextContent(/^Contains gluten\s*~$/);
+  });
+
+  it('keeps the legend in a popover list rather than a paragraph under the chips', () => {
+    render(<DetectedIngredients ingredients={[wheat, basil]} tags={[glutenTag]} />);
+
+    const legend = screen.getByTestId('detected-legend');
+    expect(legend).toHaveAttribute('popover', 'auto');
+    const trigger = screen.getByRole('button', { name: /what the marks mean/i });
+    expect(trigger).toHaveAttribute('popovertarget', legend.id);
+    const items = legend.querySelectorAll('li');
+    expect(items.length).toBeGreaterThanOrEqual(3);
+    expect(items[0]).toHaveTextContent('✓ confirmed — a human verified it');
+    // The old inline paragraph is gone from the section body.
+    expect(screen.queryByText(/chips marked ai/i)).not.toBeInTheDocument();
   });
 
   it('emphasizes allergen ingredients over non-allergens', () => {
