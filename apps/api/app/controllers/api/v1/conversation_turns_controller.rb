@@ -66,6 +66,7 @@ module Api
         relay
       rescue StandardError => e
         Rails.logger.error("[chat] stream on #{conversation.id} failed: #{e.class}: #{e.message}")
+        Rails.error.report(e, handled: true, context: { conversation_id: conversation.id, component: "chat", stage: "stream" })
         # `interrupted` tells a client this is the relay failing, not the
         # turn ending: the turn may still be running, and its events are
         # rows, so nothing it says is lost. The loop's own terminal `error`

@@ -279,7 +279,7 @@ module Tools
         # must not read as a recoverable domain error either — otherwise the
         # model rewrites its arguments and calls the broken tool again.
         Rails.logger.error("[tools] #{name_value} raised: #{e.class}: #{e.message}")
-        Rails.error.report(e, handled: true, context: { tool: name_value })
+        Rails.error.report(e, handled: true, context: { tool: name_value, component: "tools" })
         error("#{name_value} failed and cannot be retried.", code: "tool_failed")
       end
 
