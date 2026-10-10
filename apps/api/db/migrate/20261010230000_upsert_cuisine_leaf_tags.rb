@@ -43,6 +43,12 @@ class UpsertCuisineLeafTags < ActiveRecord::Migration[8.1]
 
     TAGS.each do |attrs|
       tag = MigrationTag.find_or_initialize_by(slug: attrs[:slug])
+      # A slug that already exists elsewhere in the tree is a different
+      # tag wearing this name; moving it would re-parent its item rows.
+      if tag.persisted? && [ tag.path.to_s, tag.family ] != [ attrs[:path], attrs[:family] ]
+        raise "tag #{attrs[:slug]} exists at #{tag.family}/#{tag.path}, not #{attrs[:family]}/#{attrs[:path]}"
+      end
+
       tag.assign_attributes(attrs)
       tag.save!
     end

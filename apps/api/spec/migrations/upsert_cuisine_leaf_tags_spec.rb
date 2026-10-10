@@ -31,6 +31,13 @@ RSpec.describe UpsertCuisineLeafTags do
     expect(Tag.find_by!(slug: "bbq").name).to eq("Barbecue")
   end
 
+  it "refuses to move a slug that already lives elsewhere in the tree" do
+    create(:tag, slug: "greek", name: "Greek", family: "flavor", path: "flavor.greek")
+
+    expect { described_class.new.up }.to raise_error(/greek exists at flavor/)
+    expect(Tag.find_by!(slug: "greek").path.to_s).to eq("flavor.greek")
+  end
+
   # A fresh database runs migrations before it is seeded; the seed file
   # carries these rows, so the migration must not create orphans there.
   it "does nothing under an unseeded taxonomy rather than create orphans" do
