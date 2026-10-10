@@ -11,21 +11,35 @@ module ErrorReports
   # to catch — unless someone has labelled it `wontfix`, which mutes it:
   # still counted on the row, never touched on GitHub again.
   #
-  # What leaves the database is the message's *shape* — ids, emails,
-  # quoted strings, parenthesised values and numbers blanked by
-  # `Capture.normalized` — never the message itself, which may quote
-  # whatever a person typed.
+  # The issue carries what the row holds: the message's *shape* (ids,
+  # emails, quoted strings, parenthesised values and numbers blanked by
+  # `Capture.normalized` before anything was stored), the scalar
+  # context, and the app frames.
   #
   # The target repo is configuration, never a default, and it is checked
-  # to be private before anything is filed: an issue still carries a
-  # backtrace and a conversation id, and `whiteboard-works/biteworthy`
-  # itself is public. Until both `GITHUB_ERROR_REPORTS_TOKEN` and
-  # `GITHUB_ERROR_REPORTS_REPO` are set nothing is filed, and every
-  # failure still lands in `error_reports` for the day they are.
+  # to be private before anything is filed — again every hour, so a repo
+  # flipped public does not keep receiving backtraces from a process
+  # that checked it last week. An issue still carries a backtrace and a
+  # conversation id, and `whiteboard-works/biteworthy` itself is public.
+  # Until both `GITHUB_ERROR_REPORTS_TOKEN` and `GITHUB_ERROR_REPORTS_REPO`
+  # are set nothing is filed, and every failure still lands in
+  # `error_reports` for the day they are.
+  #
+  # Every write is reconciled before it is made: a create whose response
+  # was lost leaves an issue GitHub has and the row does not, and the
+  # retry finds it by fingerprint among the repo's recent `auto-reported`
+  # issues rather than opening a twin.
   class GithubIssues
     LABELS           = %w[bug auto-reported].freeze
     MUTE_LABEL       = "wontfix"
     COMMENT_INTERVAL = 1.hour
+    # How long the private-repo check is trusted before it is made again.
+    VISIBILITY_INTERVAL = 1.hour
+    # How far back the fingerprint search looks: the newest issues with
+    # our label, one page. A create whose response was lost is the newest
+    # issue there is, and the hourly cap means this page covers at least
+    # the last five hours of creates.
+    RECONCILE_PAGE = 100
     # New issues per hour, across every fingerprint. A dependency flapping
     # in a way the fingerprint cannot fold must not open issues without
     # end; past this the rows still count, and the next hour opens the
@@ -43,7 +57,8 @@ module ErrorReports
     end
 
     # A public repo as the target is a configuration mistake that would
-    # publish every backtrace. Checked once per process per repo.
+    # publish every backtrace. Checked per process per repo, and again
+    # every `VISIBILITY_INTERVAL`.
     class NotPrivate < StandardError; end
 
     def self.configured?
@@ -87,14 +102,22 @@ module ErrorReports
     end
 
     def ensure_private!
-      return if self.class.verified_private[@repo]
+      checked = self.class.verified_private[@repo]
+      return if checked && checked > VISIBILITY_INTERVAL.ago
 
       raise NotPrivate, "#{@repo} is not a private repository" unless request(:get, "/repos/#{@repo}")["private"] == true
 
-      self.class.verified_private[@repo] = true
+      self.class.verified_private[@repo] = Time.current
     end
 
     def open(report)
+      if (existing = existing_issue(report))
+        Rails.logger.info("[error_reports] #{report.fingerprint} already has issue ##{existing['number']}; adopting it")
+        report.update!(issue_number: existing["number"], issue_opened_at: Time.zone.parse(existing["created_at"].to_s),
+                       issue_occurrences: 0)
+        return update(report)
+      end
+
       # Counted, not claimed: a few workers racing past the line open a
       # few more than twenty, which is a bound that still holds.
       if ErrorReport.where(issue_opened_at: COMMENT_INTERVAL.ago..).count >= OPEN_LIMIT_PER_HOUR
@@ -135,8 +158,19 @@ module ErrorReports
       open(report)
     end
 
+    # The issue the row forgot — a create whose response never arrived,
+    # with the row still at `issue_number: nil` — found by the
+    # fingerprint its body carries. The issue list is live, where the
+    # search API lags its index by minutes, which is exactly the window
+    # a retry lands in.
+    def existing_issue(report)
+      request(:get, "/repos/#{@repo}/issues",
+              query: { labels: LABELS.last, state: "all", sort: "created", direction: "desc", per_page: RECONCILE_PAGE })
+        .find { |issue| issue["pull_request"].nil? && issue["body"].to_s.include?("`#{report.fingerprint}`") }
+    end
+
     def body_for(report)
-      shape = Capture.normalized(report.message)
+      shape = report.message.presence || "(no message)"
       trace = report.backtrace.presence || "(no app frames)"
       fence = fence_for(shape, trace)
 
@@ -181,8 +215,8 @@ module ErrorReports
       "Context: #{report.context.map { |key, value| "`#{key}`=`#{value.to_s.delete('`')}`" }.join(', ')}"
     end
 
-    def request(method, path, **params)
-      response = connection.public_send(method, path) do |req|
+    def request(method, path, query: nil, **params)
+      response = connection.public_send(method, path, query) do |req|
         req.body = params.to_json if params.any?
       end
       unless (200..299).cover?(response.status)

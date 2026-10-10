@@ -14,15 +14,16 @@ module ErrorReports
     TITLE_CHARS   = 110
     FRAMES        = 15
 
-    # Things the fingerprint must not depend on, and the issue must not
-    # show: record ids, memory addresses, email addresses, long numbers,
+    # Things the fingerprint must not depend on, and the record must not
+    # keep: record ids, memory addresses, email addresses, long numbers,
     # measurements, decimals, quoted strings, and anything in parentheses
     # — which is where Postgres puts the values it echoes, quoted
     # (`Key (email)=(a@b.com)`) and unquoted alike (`Failing row contains
     # (Jane, pregnant, hunter2)`). Two failures that differ only there
     # are the same bug — and that is also where a person's text ends up
-    # when a parser or a constraint quotes it, so `normalized` is what
-    # leaves the database.
+    # when a parser or a constraint quotes it. Only the `normalized`
+    # shape is stored: an `error_reports` row belongs to no account, so
+    # deleting an account could never reach a message that quoted them.
     UUID     = /\h{8}-\h{4}-\h{4}-\h{4}-\h{12}/
     HEX      = /\b0x\h+\b/
     EMAIL    = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/
@@ -46,15 +47,15 @@ module ErrorReports
     SCALARS = [ String, Symbol, Numeric, TrueClass, FalseClass, NilClass ].freeze
 
     def self.call(error, context: {}, source: "application", handled: true)
-      message = scrubbed(error.message.to_s)
-      frames  = app_frames(error)
-      plain   = plain_context(context)
+      shape  = normalized(scrubbed(error.message.to_s))
+      frames = app_frames(error)
+      plain  = plain_context(context)
 
       {
-        "fingerprint" => fingerprint(error, message, frames.first),
+        "fingerprint" => fingerprint(error, shape, frames.first),
         "error_class" => error.class.name,
-        "title"       => title(error, message, plain),
-        "message"     => message.truncate(MESSAGE_CHARS),
+        "title"       => title(error, shape, plain),
+        "message"     => shape.truncate(MESSAGE_CHARS),
         "source"      => source.to_s,
         "handled"     => handled ? true : false,
         "context"     => plain,
@@ -67,8 +68,8 @@ module ErrorReports
     # The frame loses its line number on purpose: a deploy that shifts a
     # file down by one line would otherwise open a fresh issue for a bug
     # that already has one.
-    def self.fingerprint(error, message, frame)
-      key = [ error.class.name, normalized(message), frame.to_s.sub(/:\d+:/, ":") ].join("|")
+    def self.fingerprint(error, shape, frame)
+      key = [ error.class.name, shape, frame.to_s.sub(/:\d+:/, ":") ].join("|")
       Digest::SHA256.hexdigest(key).first(16)
     end
 
@@ -87,11 +88,10 @@ module ErrorReports
     end
 
     # "[chat] AnthropicClient::ApiError: Anthropic API returned 529 …" —
-    # where it happened, what it was, and the first line of why. Built
-    # from the normalized message: a title travels in notification mail.
-    def self.title(error, message, plain)
+    # where it happened, what it was, and the first line of why.
+    def self.title(error, shape, plain)
       where = plain["component"].presence || plain["job"].presence || plain["controller"].presence
-      lead  = normalized(message).lines.first.to_s.strip.presence || error.class.name
+      lead  = shape.lines.first.to_s.strip.presence || error.class.name
       [ where && "[#{where}]", "#{error.class.name}: #{lead}" ].compact.join(" ").truncate(TITLE_CHARS)
     end
 

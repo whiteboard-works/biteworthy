@@ -62,8 +62,9 @@ RSpec.describe ErrorReports::Capture do
     end
   end
 
-  # What leaves the database. A parser or a constraint quotes whatever
-  # it choked on, and that can be a person's words or address.
+  # What is stored. A parser or a constraint quotes whatever it choked
+  # on, and that can be a person's words or address; a row that belongs
+  # to no account must never hold them.
   describe ".normalized" do
     it "blanks ids, emails, quoted text, and anything in parentheses, nested or not" do
       shape = described_class.normalized(
@@ -108,6 +109,12 @@ RSpec.describe ErrorReports::Capture do
 
       expect(payload["context"]).to eq("api_key" => "[FILTERED]", "path" => "/x")
     end
+  end
+
+  it "stores the message's shape, not the message" do
+    payload = described_class.call(failing(%(Failing row contains (Jane Doe, pregnant). Said "I am celiac" to a@b.com)))
+
+    expect(payload["message"]).to eq("Failing row contains (…). Said <str> to <email>")
   end
 
   it "redacts credentials quoted in the message" do

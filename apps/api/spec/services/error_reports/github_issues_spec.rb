@@ -18,10 +18,12 @@ RSpec.describe ErrorReports::GithubIssues do
   end
 
   # The private-repo check is remembered per process; each example
-  # starts without that memory so the check is really made.
+  # starts without that memory so the check is really made. The repo
+  # starts with no issues of ours, so a create is a create.
   before do
     described_class.verified_private.clear
     stub_repo(private: true)
+    stub_list
   end
 
   # Performing a job in an example leaves it in the execution context,
@@ -31,6 +33,11 @@ RSpec.describe ErrorReports::GithubIssues do
   def stub_repo(private:)
     stub_request(:get, "https://api.github.com/repos/#{repo}")
       .to_return(status: 200, body: { private: private }.to_json, headers: json)
+  end
+
+  def stub_list(issues = [])
+    stub_request(:get, base).with(query: hash_including("labels" => "auto-reported", "state" => "all"))
+                            .to_return(status: 200, body: issues.to_json, headers: json)
   end
 
   # WebMock's `with` wants either options or a block, never a nil block.
@@ -76,7 +83,7 @@ RSpec.describe ErrorReports::GithubIssues do
   end
 
   # A public repo as the target would publish every backtrace. The
-  # check is one request, remembered for the life of the process.
+  # check is one request, remembered for an hour.
   it "refuses to file into a repo that is not private" do
     stub_repo(private: false)
     create = stub_create
@@ -85,7 +92,7 @@ RSpec.describe ErrorReports::GithubIssues do
     expect(create).not_to have_been_requested
   end
 
-  it "checks the repo once, not once per issue" do
+  it "checks the repo once an hour, not once per issue" do
     stub_create
     issues.sync(record)
     issues.sync(record(ErrorReports::Capture.call(ArgumentError.new("other"))))
@@ -93,9 +100,44 @@ RSpec.describe ErrorReports::GithubIssues do
     expect(a_request(:get, "https://api.github.com/repos/#{repo}")).to have_been_made.once
   end
 
+  # A repo flipped public must not keep receiving backtraces from a
+  # process that checked it last week.
+  it "notices a repo that has gone public since the last check" do
+    stub_create
+    issues.sync(record)
+    stub_repo(private: false)
+
+    travel 61.minutes do
+      expect { issues.sync(record(ErrorReports::Capture.call(ArgumentError.new("other")))) }
+        .to raise_error(described_class::NotPrivate)
+    end
+  end
+
+  # GitHub created the issue, the response never arrived, and the row
+  # still says it has none. The retry must find it, not open a twin.
+  it "adopts the issue a lost create response left behind, instead of opening a twin" do
+    report = record
+    stub_list([
+      { number: 3, body: "| Fingerprint | `0000000000000000` |", created_at: 2.hours.ago.utc.iso8601 },
+      { number: 11, body: "| Fingerprint | `#{report.fingerprint}` |", created_at: 90.minutes.ago.utc.iso8601 },
+      { number: 12, body: "| Fingerprint | `#{report.fingerprint}` |", pull_request: { url: "x" } }
+    ])
+    create  = stub_create
+    stub_issue(number: 11)
+    comment = stub_comment(number: 11)
+
+    issues.sync(report)
+
+    expect(create).not_to have_been_requested
+    expect(comment).to have_been_requested.once
+    expect(ErrorReport.last.issue_number).to eq(11)
+    expect(ErrorReport.last.issue_opened_at).to be_within(1.second).of(90.minutes.ago)
+    expect(ErrorReport.last.issue_occurrences).to eq(1)
+  end
+
   # What a person typed can end up quoted in a parser's or a
-  # constraint's message, or echoed unquoted in a Postgres row. The row
-  # keeps it; the issue gets the shape.
+  # constraint's message, or echoed unquoted in a Postgres row. Only the
+  # shape was stored, so the shape is what the issue gets.
   it "posts the message's shape, never the quoted or echoed values" do
     sent = nil
     stub_create { |req| sent = JSON.parse(req.body) }
@@ -128,7 +170,7 @@ RSpec.describe ErrorReports::GithubIssues do
       issues.sync(record)
     }.to have_enqueued_job(ErrorReports::SyncIssueJob).once.with(ErrorReport.last.id)
 
-    expect(a_request(:get, /#{base}/)).not_to have_been_made
+    expect(a_request(:get, "#{base}/7")).not_to have_been_made
     expect(ErrorReport.last.occurrences).to eq(3)
     expect(ErrorReport.last.issue_occurrences).to eq(1)
   end
