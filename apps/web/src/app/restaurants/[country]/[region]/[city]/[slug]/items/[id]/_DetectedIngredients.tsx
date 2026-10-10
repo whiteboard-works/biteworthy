@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type {
   DetectedAssociation,
   DetectedIngredient,
@@ -25,6 +26,19 @@ const CONFIDENCE_MARK: Record<DetectedAssociation['confidence'], string> = {
   inferred: '≈',
 };
 
+// The mark alone says a person checked; only a non-human source earns a
+// visible word, so a chip never reads "✓ human". Exhaustive on purpose:
+// a new source must choose its word here (a `??` fallback on this map
+// once leaked the raw source name onto every human chip).
+const SOURCE_WORD: Record<DetectedAssociation['source'], string | null> = {
+  human: null,
+  match: null,
+  ai: 'AI',
+  derived: 'inferred',
+  ingredient_derived: 'inferred',
+  owner: 'owner',
+};
+
 export default function DetectedIngredients({
   ingredients,
   tags,
@@ -32,17 +46,77 @@ export default function DetectedIngredients({
   ingredients: DetectedIngredient[];
   tags: DetectedAssociation[];
 }) {
+  const legendId = useId();
+  const legendTitleId = `${legendId}-title`;
+  const hasData = ingredients.length > 0 || tags.length > 0;
   return (
     <section aria-labelledby="detected-heading" className="mt-bw-8">
-      <h2 id="detected-heading" className="text-bw-lg font-bold text-zinc-900">
-        What we detected
-      </h2>
+      <div className="flex flex-wrap items-baseline gap-x-bw-3 gap-y-bw-1">
+        <h2 id="detected-heading" className="text-bw-lg font-bold text-zinc-900">
+          What we detected
+        </h2>
+        {hasData && (
+          <button
+            type="button"
+            popoverTarget={legendId}
+            className="text-bw-sm font-semibold text-bite hover:text-bite-dark"
+          >
+            What the marks mean
+          </button>
+        )}
+      </div>
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
-        Every ingredient call carries a confidence level and a source. Spot something wrong? Use
-        &ldquo;Suggest a fix&rdquo; below.
+        Spot something wrong? Use &ldquo;Suggest a fix&rdquo; below.
       </p>
 
-      {ingredients.length === 0 && tags.length === 0 ? (
+      {/* Native popover: top layer, centered, closes on Escape or an outside click, no client JS.
+          `hidden` keeps it out of the page where the popover API is missing, instead of always open. */}
+      <div
+        id={legendId}
+        popover="auto"
+        role="dialog"
+        aria-labelledby={legendTitleId}
+        data-testid="detected-legend"
+        className="m-auto hidden w-[min(92vw,24rem)] [&:popover-open]:block rounded-bw-lg border border-zinc-200 bg-white p-bw-4 text-bw-sm text-zinc-700 shadow-xl"
+      >
+        <p id={legendTitleId} className="font-semibold text-zinc-900">
+          Every ingredient call carries a confidence level and a source.
+        </p>
+        <ul className="mt-bw-3 space-y-bw-2">
+          <li>
+            <span className="font-semibold text-zinc-900">✓ confirmed</span> — a human verified it
+          </li>
+          <li>
+            <span className="font-semibold text-zinc-900">~ suggested</span> — extracted, awaiting
+            review
+          </li>
+          <li>
+            <span className="font-semibold text-zinc-900">≈ inferred</span> — derived from other
+            data
+          </li>
+          <li>
+            <span className="font-semibold text-zinc-900">AI</span> — came from the menu reader, not
+            a person
+          </li>
+          <li>
+            <span className="font-semibold text-zinc-900">inferred</span>, after a mark — worked out
+            from the dish&rsquo;s other ingredients
+          </li>
+          <li>
+            <span className="font-semibold text-zinc-900">owner</span> — entered by the restaurant
+          </li>
+        </ul>
+        <button
+          type="button"
+          popoverTarget={legendId}
+          popoverTargetAction="hide"
+          className="mt-bw-4 text-bw-sm font-semibold text-bite hover:text-bite-dark"
+        >
+          Close
+        </button>
+      </div>
+
+      {!hasData ? (
         <p className="mt-bw-3 text-bw-sm italic text-zinc-500">
           No ingredient data recorded for this dish yet.
         </p>
@@ -66,11 +140,6 @@ export default function DetectedIngredients({
               ))}
             </ul>
           )}
-          <p className="mt-bw-3 text-bw-xs text-zinc-500">
-            ✓ confirmed — a human verified it · ~ suggested — extracted, awaiting review · ≈
-            inferred — derived from other data. Chips marked AI came from the menu reader, not a
-            person.
-          </p>
         </>
       )}
     </section>
@@ -88,15 +157,7 @@ function AssociationChip({
   // `source` must be perceivable without hover — touch screens and
   // screen readers never see a title tooltip. Non-human sources get a
   // visible word; the aria-label always carries the full provenance.
-  const SOURCE_WORD: Record<DetectedAssociation['source'], string | null> = {
-    human: null,
-    match: null,
-    ai: 'AI',
-    derived: 'inferred',
-    ingredient_derived: 'inferred',
-    owner: 'owner',
-  };
-  const sourceWord = SOURCE_WORD[row.source] ?? row.source;
+  const sourceWord = SOURCE_WORD[row.source];
   const provenance = `${row.confidence} — ${CONFIDENCE_GLOSS[row.confidence]} · source: ${row.source}`;
   return (
     <span
