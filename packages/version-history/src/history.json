@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.10.5",
+    "date": "2026-10-10",
+    "notes": [
+      "You can rename a chat: hover a chat in the sidebar and use the pencil to give it your own name. The assistant never overwrites a name you chose.",
+      "The chat sidebar now shows a pulsing dot beside a chat that is still working and a steady dot beside one that finished while you were in another chat, so you know where a reply is waiting."
+    ]
+  },
+  {
     "version": "2026.10.10.4",
     "date": "2026-10-10",
     "notes": [
