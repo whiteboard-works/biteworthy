@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 # JSON Schema for the gap-fill enrichment call. One entry per gap item,
-# carrying ADDITIONS only: implied ingredients and cuisine tags. There
-# is deliberately no field for allergen/diet/prep/flavor tags — those
-# families are derived in code (TagDeriver) and never asked of the LLM.
+# carrying ADDITIONS only: implied ingredients. There is deliberately no
+# field for any tag — allergen/diet/prep/flavor are derived in code
+# (TagDeriver), and cuisine is decided by Jev (JevCuisineTagger), so
+# Haiku is never asked for one.
 module Ingestion
   resolution = {
     type: "object",
@@ -38,12 +39,11 @@ module Ingestion
         type: "array",
         items: {
           type: "object",
-          required: %w[index ingredients cuisine_tags],
+          required: %w[index ingredients],
           additionalProperties: false,
           properties: {
-            index:        { type: "integer", minimum: 0 },
-            ingredients:  resolution,
-            cuisine_tags: resolution
+            index:       { type: "integer", minimum: 0 },
+            ingredients: resolution
           }
         }
       }

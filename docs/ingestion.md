@@ -179,8 +179,8 @@ the taxonomy already in Postgres:
   resolved meat suppresses "vegan"/"vegetarian", and a claim its own
   derived allergen tags contradict (wheat → no "gluten-free" badge) is
   dropped; never inferred from absence. `prep`/`flavor` are keyword
-  tables. `cuisine` is a weak keyword pass, mostly delegated to
-  gap-fill.
+  tables. `cuisine` is a weak keyword pass; Jev owns the family's real
+  coverage in gap-fill (§2b).
 
 The run transitions to `staged` right here — the verify UI gets
 populated dishes seconds after extraction.
@@ -196,26 +196,38 @@ tracked by `ingestion_runs.enrichment_status`
 (`pending | completed | failed`). `pending` holds through the job's
 `retry_on` attempts; only the last failed attempt stamps `failed`, so
 clients can treat it as final.
-The prompt carries the **prompt-cached** ingredient catalog plus the
-cuisine-family tag catalog only, and asks solely for what code can't
-do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine
-tags. Merge rules: append-only (`source: "ai"`), unknown slugs
-dropped, rows contradicting a name-level diet claim dropped
-(`Ingestion::DietClaims` — the same gate the resolver's implied bases
-use), only items still `pending`, and allergen/diet tags re-derived
-in code over the merged ingredient set. A gap-fill failure never fails
-the run — it's already staged and usable on deterministic data.
+The Haiku prompt carries the **prompt-cached** ingredient catalog and
+no tag catalog, and asks solely for what code can't do: implied
+ingredients ("Caesar Salad" → anchovy, egg). Merge rules: append-only
+(`source: "ai"`), unknown slugs dropped, rows contradicting a
+name-level diet claim dropped (`Ingestion::DietClaims` — the same gate
+the resolver's implied bases use), only items still `pending`, and
+allergen/diet tags re-derived in code over the merged ingredient set.
+A gap-fill failure never fails the run — it's already staged and
+usable on deterministic data.
 
-**Jev shadow trial (2026-09-28).** When `JEV_API_KEY` is set, each
-merged slice is also sent to TypeSafe's Jev (`TypesafeClient`,
-`Ingestion::JevCuisineShadow`): one yes/no question per (item, leaf
-cuisine tag), state limited to the slice's names/descriptions/sections.
-It writes nothing — it logs one `[jev_shadow]` JSON line per slice
-(resolved model version, latency, agree / `jev_only` / `haiku_only` / `missing`
-counts, up to 20 disagreements) and swallows its own errors. Whether
-Jev takes over cuisine tags is decided from those lines. Ingredients
-stay with Haiku regardless: ~1,088 slugs exceed Jev's 255-option
-Choice limit.
+**Cuisine tags come from Jev (since 2026-10-10).** After each Haiku
+slice returns, the same items go to TypeSafe's Jev (`TypesafeClient`,
+`Ingestion::JevCuisineTagger`): one yes/no `noul` question per (item,
+leaf cuisine tag), state limited to the slice's names, descriptions
+and sections, nothing else. A tag whose probability reaches 0.5 is
+merged as `source: "ai"` with the probability as its confidence (so
+`ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
+the slice logs one `[jev_cuisine]` JSON line (model version, latency,
+input tokens, items, tags kept, answers missing). Haiku is never asked
+for cuisine and never sees the cuisine catalog, so `unresolved_tags`
+is always empty now. A Jev failure never raises: the slice merges
+without AI cuisine tags and the keyword pass is all the dish gets,
+reported through `Rails.error.report`. With `JEV_API_KEY` unset the
+job warns once per run and does the same for every slice. Jev's spend
+(~2k input tokens per slice at $0.042/MTok, output free) is logged,
+not added to `api_cost_cents`. Ingredients stay with Haiku: ~1,088
+slugs exceed Jev's 255-option Choice limit.
+
+The 2026-09-28 shadow trial that decided this agreed with Haiku on
+95.6% of 1,085 pairs, and the disagreements were almost all Haiku
+forcing a dish into one of the seven leaf cuisines (a Venezuelan menu
+as `mexican`, chai as `indian`, a Greek wrap as `italian`).
 
 ### 3. Stage
 

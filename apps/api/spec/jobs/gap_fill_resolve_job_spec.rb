@@ -44,16 +44,7 @@ RSpec.describe GapFillResolveJob, type: :job do
             { "slug" => "fish-anchovy", "confidence" => 0.85 },
             { "slug" => "not-a-real-slug", "confidence" => 0.9 },
           ],
-          "unresolved" => ["romaine hearts"] },
-        "cuisine_tags" => {
-          "resolved" => [
-            { "slug" => "italian", "confidence" => 0.8 },
-            { "slug" => "not-a-cuisine", "confidence" => 0.7 },
-            # A real allergen slug smuggled into the cuisine channel must
-            # be dropped — allergen tags only ever come from TagDeriver.
-            { "slug" => "contains-peanut", "confidence" => 0.9 },
-          ],
-          "unresolved" => ["trattoria style"] } },
+          "unresolved" => ["romaine hearts"] } },
     ] }
   end
 
@@ -84,18 +75,17 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(gap_item.match_score).to eq(1.0)
     end
 
-    it "re-derives allergen tags in code from the AI ingredients and appends AI cuisine" do
-      create(:tag, slug: "contains-peanut", family: "allergen", path: "allergen.contains_peanut")
+    it "re-derives allergen tags in code from the AI ingredients; Haiku has no tag channel at all" do
       described_class.perform_now(run.id)
 
       tags = gap_item.reload.tags_payload
       expect(tags).to include(
         { "slug" => "contains-fish", "confidence" => 0.85,
-          "source" => "ingredient_derived", "from_source" => "ai" },
-        { "slug" => "italian", "confidence" => 0.8, "source" => "ai" }
+          "source" => "ingredient_derived", "from_source" => "ai" }
       )
-      # The fake slug AND the real-but-wrong-channel allergen slug are gone.
-      expect(tags.map { |t| t["slug"] }).not_to include("not-a-cuisine", "contains-peanut")
+      # Cuisine is Jev's family; with no JEV_API_KEY in the test env the
+      # item carries no AI cuisine row rather than one Haiku made up.
+      expect(tags.map { |t| t["source"] }).not_to include("ai")
     end
 
     it "preserves human-authored tag rows (Undo returns edited items to pending)" do
@@ -113,12 +103,15 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(tags.map { |t| t["slug"] }).not_to include("grilled")
     end
 
-    it "records unresolved strings for the curation queue" do
+    it "records unresolved ingredient strings for the curation queue; there are no unresolved tags any more" do
+      gap_item.update!(unresolved_tags: ["left by an older release"])
       described_class.perform_now(run.id)
 
       gap_item.reload
       expect(gap_item.unresolved_ingredients).to eq(["romaine hearts"])
-      expect(gap_item.unresolved_tags).to eq(["trattoria style"])
+      # Jev answers over the cuisine catalog, so no cuisine-ish phrase
+      # can be left over, and a stale one must not keep flagging review.
+      expect(gap_item.unresolved_tags).to eq([])
     end
 
     it "marks enrichment completed and leaves non-gap items untouched" do
@@ -175,8 +168,7 @@ RSpec.describe GapFillResolveJob, type: :job do
               { "slug" => "grain-wheat", "confidence" => 0.9 },
               { "slug" => "fish-anchovy", "confidence" => 0.85 },
             ],
-            "unresolved" => [] },
-          "cuisine_tags" => { "resolved" => [], "unresolved" => [] } },
+            "unresolved" => [] } },
       ] }
       allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(response)
       allow(Rails.logger).to receive(:info)
@@ -206,16 +198,13 @@ RSpec.describe GapFillResolveJob, type: :job do
       [
         { "items" => [{ "index" => 0,
                         "ingredients" => { "resolved" => [{ "slug" => "fish-anchovy", "confidence" => 0.85 }],
-                                           "unresolved" => [] },
-                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+                                           "unresolved" => [] } }] },
         { "items" => [{ "index" => 0,
                         "ingredients" => { "resolved" => [{ "slug" => "meat-beef", "confidence" => 0.7 }],
-                                           "unresolved" => [] },
-                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+                                           "unresolved" => [] } }] },
         { "items" => [{ "index" => 0,
                         "ingredients" => { "resolved" => [{ "slug" => "fish-anchovy", "confidence" => 0.6 }],
-                                           "unresolved" => [] },
-                        "cuisine_tags" => { "resolved" => [], "unresolved" => [] } }] },
+                                           "unresolved" => [] } }] },
       ]
     end
 
@@ -454,9 +443,9 @@ RSpec.describe GapFillResolveJob, type: :job do
     end
   end
 
-  # The Jev trial is observation only: whatever it does, the merge and
-  # the enrichment status must come out exactly as they would without it.
-  describe "the Jev cuisine shadow" do
+  # Jev owns cuisine tags. Whatever it does, the Haiku ingredient merge
+  # and the enrichment status must come out exactly as they would without it.
+  describe "the Jev cuisine tagger" do
     let(:jev_url) { "https://api.typesafe.ai/v1/systemone" }
 
     before do
@@ -465,7 +454,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       allow(Rails.logger).to receive(:warn)
     end
 
-    it "never calls TypeSafe when no key is configured" do
+    it "never calls TypeSafe when no key is configured, and says so" do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return(nil)
       jev = stub_request(:post, jev_url)
 
@@ -473,25 +462,30 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       expect(jev).not_to have_been_made
       expect(run.reload.enrichment_status).to eq("completed")
+      expect(Rails.logger).to have_received(:warn).with(/\[jev_cuisine\] JEV_API_KEY unset/)
     end
 
-    # Clients poll enrichment_status; a slow TypeSafe must never be what
-    # they are waiting on.
-    it "stamps completed before asking Jev anything" do
+    it "asks Jev about the gap items only and stores a yes as an AI cuisine row carrying its probability" do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
-      status_at_call = nil
-      stub_request(:post, jev_url).to_return do
-        status_at_call = run.reload.enrichment_status
-        { status: 200, body: { model: "jev-1.13.0", answers: {} }.to_json,
-          headers: { "Content-Type" => "application/json" } }
-      end
+      jev = stub_request(:post, jev_url).to_return(
+        status: 200,
+        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.93 } },
+                usage: { input_tokens: 300 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
 
       described_class.perform_now(run.id)
 
-      expect(status_at_call).to eq("completed")
+      expect(jev.with { |req| JSON.parse(req.body)["state"]["items"].map { |i| i["name"] } == [ "Caesar Salad" ] })
+        .to have_been_made.once
+      expect(gap_item.reload.tags_payload).to include(
+        { "slug" => "italian", "confidence" => 0.93, "source" => "ai" }
+      )
+      expect(matched_item.reload.tags_payload).to eq([])
+      expect(run.reload.enrichment_status).to eq("completed")
     end
 
-    it "a failing Jev call leaves the Haiku merge and the completed status untouched" do
+    it "a failing Jev call leaves the Haiku merge and the completed status untouched, with no AI cuisine" do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
       jev = stub_request(:post, jev_url).to_return(status: 500, body: "{}")
 
@@ -499,9 +493,10 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       expect(jev).to have_been_made.at_least_once
       expect(run.reload.enrichment_status).to eq("completed")
-      expect(gap_item.reload.tags_payload).to include(
-        { "slug" => "italian", "confidence" => 0.8, "source" => "ai" }
+      expect(gap_item.reload.ingredients_payload).to include(
+        { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" }
       )
+      expect(gap_item.tags_payload.map { |t| t["slug"] }).not_to include("italian")
     end
   end
 end

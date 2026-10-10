@@ -206,19 +206,6 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   Kamal volume with rotation), ship both roles' STDOUT to it, and
   document how to query it. Until then, anything that has to be read
   later belongs in a table, not a log line.
-- **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
-  — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
-  alongside Haiku and logs `[jev_shadow]` agreement lines, writing
-  nothing. After a few dozen real scans, compare: if agreement is high
-  and the disagreements favor Jev, move cuisine tags to Jev (and drop
-  the cuisine catalog from the Haiku prompt); otherwise remove the
-  trial. See `docs/ingestion.md` §2b. *Read 2026-10-10:* only 3 of the
-  16 completed runs still had lines (17 slices, 1,085 pairs), the rest
-  went with their containers (see the persistent-logs item above).
-  Agreement 95.6%; 44 Haiku-only tags against 4 Jev-only, and the
-  Haiku-only ones are mostly force-fits into the seven leaf cuisines
-  (a Venezuelan menu as `mexican`, chai as `indian`, a Greek wrap as
-  `italian`). Decision still open.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
