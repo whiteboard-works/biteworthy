@@ -101,4 +101,116 @@ RSpec.describe "Api::V1::Attachments", type: :request do
       expect(result[:content].first[:text]).to include("Provide one of")
     end
   end
+  # The scan limit is 10 MB; a menu exported at print resolution runs
+  # past it. The door gives a PDF one Ghostscript pass before refusing.
+  describe "a PDF over the scan limit" do
+    before do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with("INGESTION_MAX_INPUT_FILE_BYTES", anything).and_return("200")
+    end
+
+    def pdf_upload(bytes)
+      body = "%PDF-1.4\n" + ("%" + ("x" * 60) + "\n") * (bytes / 62)
+      Rack::Test::UploadedFile.new(StringIO.new(body), "application/pdf", original_filename: "menu.pdf")
+    end
+
+    def shrunk_pdf
+      file = Tempfile.new([ "shrunk", ".pdf" ], binmode: true)
+      file.write("%PDF-1.4\n% small\n")
+      file.rewind
+      file
+    end
+
+    it "stores the shrunk copy when Ghostscript gets it under the limit" do
+      allow(Pdfs::Shrink).to receive(:call).and_return(shrunk_pdf)
+
+      post "/api/v1/attachments", params: { file: pdf_upload(1_000) }, headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body).to include("content_type" => "application/pdf", "filename" => "menu.pdf")
+      expect(response.parsed_body["byte_size"]).to be < 100
+      expect(Pdfs::Shrink).to have_received(:call).with(a_string_ending_with(".pdf").or(a_kind_of(String)))
+    end
+
+    it "refuses it when the shrunk copy is still over the limit" do
+      allow(Pdfs::Shrink).to receive(:call).and_return(nil)
+
+      expect { post "/api/v1/attachments", params: { file: pdf_upload(1_000) }, headers: headers }
+        .not_to change(ActiveStorage::Blob, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to include("too large")
+    end
+
+    # The clients resize photos before sending; a photo still over the
+    # limit here is refused as it always was, with no Ghostscript run.
+    it "does not try to shrink an image" do
+      allow(Pdfs::Shrink).to receive(:call)
+
+      post "/api/v1/attachments", params: { file: upload }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Pdfs::Shrink).not_to have_received(:call)
+    end
+
+    it "refuses anything over the raw ceiling without reading it" do
+      stub_const("Api::V1::AttachmentsController::MAX_RAW_BYTES", 500)
+      allow(Pdfs::Shrink).to receive(:call)
+
+      post "/api/v1/attachments", params: { file: pdf_upload(1_000) }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Pdfs::Shrink).not_to have_received(:call)
+    end
+  end
+
+  # The browser keeps its session in an HttpOnly cookie it cannot send
+  # here, so it uploads with a ticket the proxy minted on its behalf.
+  describe "upload tickets" do
+    include ActiveSupport::Testing::TimeHelpers
+
+    it "mints a ticket for the signed-in user" do
+      post "/api/v1/attachments/ticket", headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(Attachments::UploadTicket.user_for(response.parsed_body["ticket"])).to eq(user)
+      expect(Time.iso8601(response.parsed_body["expires_at"])).to be > Time.current
+    end
+
+    it "requires a session to mint one" do
+      post "/api/v1/attachments/ticket"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "accepts an upload carrying a ticket instead of a JWT" do
+      ticket = Attachments::UploadTicket.issue(user)
+
+      post "/api/v1/attachments", params: { file: upload }, headers: { "X-Upload-Ticket" => ticket }
+
+      expect(response).to have_http_status(:created)
+      expect(ActiveStorage::Blob.last.metadata["uploaded_by_user_id"]).to eq(user.id)
+    end
+
+    it "refuses a forged ticket" do
+      post "/api/v1/attachments", params: { file: upload }, headers: { "X-Upload-Ticket" => "not-a-ticket" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "refuses an expired ticket" do
+      ticket = Attachments::UploadTicket.issue(user)
+
+      travel(Attachments::UploadTicket::TTL + 1.minute) do
+        post "/api/v1/attachments", params: { file: upload }, headers: { "X-Upload-Ticket" => ticket }
+      end
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "still refuses an upload with neither credential" do
+      post "/api/v1/attachments", params: { file: upload }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

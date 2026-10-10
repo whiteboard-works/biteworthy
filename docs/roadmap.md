@@ -28,6 +28,14 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
+
+- [x] Web scan uploads go straight to the API with a 10-minute ticket (`POST /api/v1/attachments/ticket`, `X-Upload-Ticket`), so the web server's 4.5 MB body limit no longer caps them; the client ceiling is the API's 15 MB.
+- [x] A PDF over the 10 MB scan limit, up to 15 MB, gets one Ghostscript `/ebook` pass (`Pdfs::Shrink`) at the attachments door before being refused.
+- [x] `Images::StripMetadata` accepts up to 15 MB raw (was 5 MB, the stored cap) and shrinks the stored copy under 5 MB.
+- [x] Mobile resizes a picked photo to 2000px JPEG before uploading (`lib/shrink-image.ts`, `expo-image-manipulator`), mirroring web.
+- [ ] Review and dish-photo uploads on web still go through the proxy at 4 MB; move them to the ticket path if the client-side shrink ever proves insufficient.
+
 ## Profile: about + chat notes (shipped 2026-10-06)
 
 - [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.

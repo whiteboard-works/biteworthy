@@ -151,7 +151,9 @@ Rails.application.routes.draw do
       end
       # Menu photos/PDFs the chat refers to by id, so bytes never enter
       # the agent's context.
-      resources :attachments, only: [:create]
+      resources :attachments, only: [:create] do
+        post :ticket, on: :collection
+      end
       # The same scan tools the chat drives, for a scan screen that polls
       # a row instead of paying a model round per status check.
       resources :scans, only: [:create, :show] do

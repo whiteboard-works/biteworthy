@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { shrinkForUpload } from '../lib/shrink-image';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   answerConfirmation,
@@ -436,11 +437,7 @@ export default function ChatScreen() {
     if (!asset) return;
 
     try {
-      const uploaded = await uploadAttachment(jwt, {
-        uri: asset.uri,
-        name: asset.fileName ?? 'menu.jpg',
-        type: asset.mimeType ?? 'image/jpeg',
-      });
+      const uploaded = await uploadAttachment(jwt, await shrinkForUpload(asset, 'menu.jpg'));
       rememberPreview(uploaded.id, asset.uri);
       setAttachments((current) => [...current, uploaded]);
     } catch (e) {
