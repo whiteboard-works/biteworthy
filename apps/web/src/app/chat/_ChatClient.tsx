@@ -11,6 +11,7 @@ import {
   getConversation,
   listConversations,
   answerConfirmation,
+  compose,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -1072,19 +1073,6 @@ function History({
       </ul>
     </aside>
   );
-}
-
-/**
- * Uploaded files travel as ids, never bytes. Naming them in the message
- * keeps the transcript honest about what was sent, and gives the model
- * the ids `start_menu_scan` needs.
- */
-function compose(text: string, attachments: Attachment[]): string {
-  if (attachments.length === 0) return text;
-  const manifest = attachments
-    .map((file) => `[Attached ${file.filename} — attachment_id: ${file.id}]`)
-    .join('\n');
-  return [text, manifest].filter(Boolean).join('\n\n');
 }
 
 /** The chat lives at /chat, so the useful signal is where the user came
