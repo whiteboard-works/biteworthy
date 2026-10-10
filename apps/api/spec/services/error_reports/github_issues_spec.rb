@@ -23,6 +23,7 @@ RSpec.describe ErrorReports::GithubIssues do
   before do
     described_class.verified_private.clear
     stub_repo(private: true)
+    stub_labels
     stub_list
   end
 
@@ -33,6 +34,11 @@ RSpec.describe ErrorReports::GithubIssues do
   def stub_repo(private:)
     stub_request(:get, "https://api.github.com/repos/#{repo}")
       .to_return(status: 200, body: { private: private }.to_json, headers: json)
+  end
+
+  def stub_labels(names = %w[bug auto-reported])
+    stub_request(:get, "https://api.github.com/repos/#{repo}/labels").with(query: hash_including({}))
+      .to_return(status: 200, body: names.map { |n| { name: n } }.to_json, headers: json)
   end
 
   def stub_list(issues = [])
@@ -98,6 +104,20 @@ RSpec.describe ErrorReports::GithubIssues do
     issues.sync(record(ErrorReports::Capture.call(ArgumentError.new("other"))))
 
     expect(a_request(:get, "https://api.github.com/repos/#{repo}")).to have_been_made.once
+  end
+
+  # A fresh private repo has `bug` and nothing else; reconciliation finds
+  # our issues by the other label, so it has to exist before the first.
+  it "creates the auto-reported label when the repo lacks it" do
+    stub_labels(%w[bug])
+    created = stub_request(:post, "https://api.github.com/repos/#{repo}/labels")
+                .with(body: hash_including("name" => "auto-reported"))
+                .to_return(status: 201, body: "{}", headers: json)
+    stub_create
+
+    issues.sync(record)
+
+    expect(created).to have_been_requested.once
   end
 
   # A repo flipped public must not keep receiving backtraces from a

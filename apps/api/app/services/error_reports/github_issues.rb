@@ -58,7 +58,8 @@ module ErrorReports
 
     # A public repo as the target is a configuration mistake that would
     # publish every backtrace. Checked per process per repo, and again
-    # every `VISIBILITY_INTERVAL`.
+    # every `VISIBILITY_INTERVAL`, along with the labels: a fresh repo
+    # has no `auto-reported`, and reconciliation finds our issues by it.
     class NotPrivate < StandardError; end
 
     def self.configured?
@@ -84,7 +85,7 @@ module ErrorReports
         return
       end
 
-      ensure_private!
+      ensure_repo!
       report.issue_number ? update(report) : open(report)
     rescue StandardError
       report.release_issue_slot!(to: previously)
@@ -101,13 +102,23 @@ module ErrorReports
       SyncIssueJob.set(wait_until: due).perform_later(report.id) if report.schedule_sync!(at: due)
     end
 
-    def ensure_private!
+    def ensure_repo!
       checked = self.class.verified_private[@repo]
       return if checked && checked > VISIBILITY_INTERVAL.ago
 
       raise NotPrivate, "#{@repo} is not a private repository" unless request(:get, "/repos/#{@repo}")["private"] == true
 
+      ensure_labels!
       self.class.verified_private[@repo] = Time.current
+    end
+
+    # The labels the issues are filed under, created if the repo lacks
+    # them. Rails' own `bug` is a GitHub default; `auto-reported` is ours.
+    def ensure_labels!
+      present = request(:get, "/repos/#{@repo}/labels", query: { per_page: 100 }).map { |label| label["name"] }
+      (LABELS - present).each do |name|
+        request(:post, "/repos/#{@repo}/labels", name: name, color: "d93f0b", description: "Filed by the API's error reporter")
+      end
     end
 
     def open(report)
