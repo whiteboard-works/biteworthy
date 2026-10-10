@@ -15,6 +15,7 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { POSTHOG_HOST, serverPostHogKey } from './posthog-config';
+import { scrubText } from './posthog-server';
 
 export type LogAttributes = Record<string, string | number | boolean>;
 
@@ -52,7 +53,15 @@ function emit(
   const active = loggerProvider();
   if (!active) return;
   try {
-    active.getLogger(SERVICE_NAME).emit({ severityNumber, severityText, body, attributes });
+    // The same scrubs the exception path uses, so a line that quotes a URL
+    // or an upstream message leaves with the same gaps.
+    const safeAttributes: LogAttributes = {};
+    for (const [key, value] of Object.entries(attributes)) {
+      safeAttributes[key] = typeof value === 'string' ? scrubText(value) : value;
+    }
+    active
+      .getLogger(SERVICE_NAME)
+      .emit({ severityNumber, severityText, body: scrubText(body), attributes: safeAttributes });
     scheduleFlush(active);
   } catch {
     // Logging must never be what breaks a request.
