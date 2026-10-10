@@ -3,12 +3,12 @@ require "rails_helper"
 RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
   let(:admin) { create(:user, :admin) }
   let(:item) { create(:item, :published) }
-  let(:context) { build_tool_context(user: admin) }
+  let(:context) { Tools::Context.new({ user_id: admin.id }) }
 
   describe ".perform" do
     it "requires admin" do
       user = create(:user)
-      non_admin_context = build_tool_context(user: user)
+      non_admin_context = Tools::Context.new({ user_id: user.id })
 
       expect {
         described_class.perform(context: non_admin_context, item_id: item.id)

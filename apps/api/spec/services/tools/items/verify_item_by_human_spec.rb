@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Tools::Items::VerifyItemByHuman, type: :tool do
   let(:user) { create(:user) }
   let(:item) { create(:item, :published) }
-  let(:context) { build_tool_context(user: user) }
+  let(:context) { Tools::Context.new({ user_id: user.id }) }
 
   describe ".perform" do
     it "marks an item as human verified" do
