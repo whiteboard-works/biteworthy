@@ -839,7 +839,7 @@ be a separate request because the one that started the turn is busy.
 A turn streams these events, each as one `data:` line of JSON:
 
 `open` · `thinking_delta` · `text_delta` · `tool_use` · `tool_result` ·
-then exactly one of `done`, `awaiting_confirmation`, or `error`. An `error` with `interrupted: true` is the relay losing the turn, not the turn ending — it may still be running, and a reconnect catches up.
+then exactly one of `done`, `awaiting_confirmation`, or `error`. The relay may also write an `error` with `interrupted: true` when it loses the turn; that is the stream ending, not the turn, which may still be running — the web client does not read it as a terminal event.
 
 Two properties follow from this being a chat and not an RPC:
 

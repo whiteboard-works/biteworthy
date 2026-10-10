@@ -128,16 +128,23 @@ module Chat
 
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
+    # The invisible characters a title can be made of and still read as
+    # non-blank: the zero-width space and word joiner, the BiDi marks,
+    # embeddings, overrides and isolates, and the byte-order mark. Named
+    # one by one rather than as the whole `\p{Cf}` class, because that
+    # class also holds the zero-width non-joiner that Persian and Urdu
+    # words are spelled with, the joiner that holds a composed emoji
+    # together, and the tag characters under a regional flag — all of
+    # which a person may well type, and none of which may be touched.
+    INVISIBLE = /[\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/
+
     # Everything a sidebar row cannot render, flattened: control characters
-    # and invisible format characters (a zero-width space, a BiDi override)
-    # become spaces and runs of whitespace collapse. Shared with the rename
-    # path so a person's title is held to the same shape as the model's —
-    # and so a NUL in a rename is a space, not a Postgres error, and a
-    # title made of nothing visible is blank rather than stored.
-    #
-    # The zero-width joiner stays: it is what holds a composed emoji
-    # together, and a person may well type one.
-    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]|[\p{Cf}&&[^\u200D]]/, " ").squish
+    # and the invisibles above become spaces and runs of whitespace
+    # collapse. Shared with the rename path so a person's title is held to
+    # the same shape as the model's — and so a NUL in a rename is a space,
+    # not a Postgres error, and a title made of nothing visible is blank
+    # rather than stored.
+    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]|#{INVISIBLE}/, " ").squish
 
     def initialize(client: nil)
       @injected = client

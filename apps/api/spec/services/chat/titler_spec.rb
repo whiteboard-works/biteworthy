@@ -51,6 +51,30 @@ RSpec.describe Chat::Titler, :real_titler do
         .to eq("Dairy-free lunch near Belmar")
     end
 
+    # Shared with the rename path, where a person types rather than a model
+    # answers — so the characters it keeps matter as much as the ones it
+    # drops: a Persian word is spelled with the zero-width non-joiner, a
+    # composed emoji is held together by the joiner, and a regional flag
+    # ends in tag characters. A zero-width space or a BiDi mark, by
+    # contrast, is a title made of nothing.
+    describe ".flatten" do
+      it "drops the invisibles a blank title could hide behind" do
+        expect(described_class.flatten("\u200B\u200E Lunch\u202E with\uFEFF Sam \u2066")).to eq("Lunch with Sam")
+        expect(described_class.flatten("\u200B\u200F\u2060")).to eq("")
+      end
+
+      it "keeps the format characters words and emoji are spelled with" do
+        expect(described_class.flatten("می\u200Cخواهم")).to eq("می\u200Cخواهم")
+        expect(described_class.flatten("👨\u200D👩\u200D👧 dinner")).to eq("👨\u200D👩\u200D👧 dinner")
+        flag = "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}"
+        expect(described_class.flatten("#{flag} England")).to eq("#{flag} England")
+      end
+
+      it "turns control characters into spaces and collapses the runs" do
+        expect(described_class.flatten("Lunch\u0000 with\t\nSam  ")).to eq("Lunch with Sam")
+      end
+    end
+
     it "flattens a title that arrived with newlines in it" do
       expect(titling(named("Dairy-free\n\nlunch")).call(question: "dairy free lunch").title)
         .to eq("Dairy-free lunch")

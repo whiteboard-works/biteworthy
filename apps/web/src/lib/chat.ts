@@ -111,13 +111,12 @@ export type ChatEvent =
   | { type: 'tool_use'; name: string; input: Record<string, unknown>; doing?: string | null }
   | { type: 'tool_result'; name: string; ok: boolean }
   | { type: 'done'; text: string | null }
-  | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
   | { type: 'compacted'; messages: number; tokens_saved: number }
   | { type: 'pane'; pane: ChatPane }
   | { type: 'reconnect'; after: number }
   /** `interrupted` marks the relay losing the turn rather than the turn
-   *  ending: it may still be running, and a reconnect catches up. */
+   *  ending: the turn may still be running, so this is not terminal. */
   | { type: 'error'; message: string; interrupted?: boolean };
 
 /** Thrown when the session cookie is missing or stale, so callers can
