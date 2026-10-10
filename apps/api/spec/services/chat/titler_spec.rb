@@ -82,6 +82,7 @@ RSpec.describe Chat::Titler, :real_titler do
     describe ".visible?" do
       it "sees nothing in format characters, combining marks, or whitespace alone" do
         expect(described_class.visible?("\u200C")).to be(false)
+        expect(described_class.visible?("\u0001")).to be(false)
         expect(described_class.visible?("\u061C")).to be(false)
         expect(described_class.visible?("\uFE0F \u034F")).to be(false)
         expect(described_class.visible?("\u{E0067}\u{E007F}")).to be(false)
@@ -94,6 +95,14 @@ RSpec.describe Chat::Titler, :real_titler do
         expect(described_class.visible?("👨\u200D👩\u200D👧")).to be(true)
         expect(described_class.visible?("🏴\u{E0067}\u{E007F}")).to be(true)
       end
+    end
+
+    # Clamped before it is judged: sixty invisibles ahead of a word would
+    # otherwise pass as visible and be stored as sixty invisibles.
+    it "judges the clamped title, not the one the model sent" do
+      title = titling(named(("\u200C" * (described_class::MAX_LENGTH + 10)) + "Lunch")).call(question: "lunch").title
+
+      expect(title).to be_nil
     end
 
     it "flattens a title that arrived with newlines in it" do

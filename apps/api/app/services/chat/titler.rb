@@ -129,10 +129,10 @@ module Chat
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
     # What a sidebar row cannot render and must not store: control
-    # characters, and the format characters that corrupt the text around
-    # them — the zero-width space and word joiner, the BiDi marks,
-    # embeddings, overrides and isolates, and the byte-order mark. Not the
-    # whole `\p{Cf}` class: that also holds the zero-width non-joiner that
+    # characters, and the format characters that corrupt or hide in the
+    # text around them — the zero-width space and word joiner, the BiDi
+    # marks, embeddings, overrides and isolates, and the byte-order mark.
+    # Not the whole `\p{Cf}` class: that also holds the zero-width non-joiner that
     # Persian and Urdu words are spelled with, the joiner that holds a
     # composed emoji together, and the tag characters under a regional
     # flag, all of which a person may well type.
@@ -144,12 +144,14 @@ module Chat
     # is a space, not a Postgres error.
     def self.flatten(text) = text.to_s.gsub(FLATTENED, " ").squish
 
-    # Whether anything would actually show in the row. Asked directly
-    # rather than by subtraction, because no list of invisibles is ever
-    # complete: a title that is only format characters, combining marks,
-    # or whitespace — a lone non-joiner, an emoji presentation selector,
-    # an Arabic letter mark — is blank however `flatten` left it.
-    def self.visible?(text) = text.to_s.match?(/[^\p{Cf}\p{Mn}\p{Me}[[:space:]]]/)
+    # Whether anything would show in the row. Asked directly rather than
+    # by subtraction, because no list of invisibles is ever complete: a
+    # title that is only control or format characters, marks, or
+    # whitespace — a lone non-joiner, an emoji presentation selector, an
+    # Arabic letter mark — is blank however `flatten` left it. Best
+    # effort, by Unicode category: a filler letter such as the Hangul
+    # filler is a letter to Unicode and gets through.
+    def self.visible?(text) = text.to_s.match?(/[^\p{C}\p{M}[[:space:]]]/)
 
     def initialize(client: nil)
       @injected = client
@@ -224,10 +226,10 @@ module Chat
     # otherwise appends an ellipsis, which is trailing punctuation, which
     # is the thing two lines of prompt just asked the model not to do.
     def clean(title)
-      flat = unquote(self.class.flatten(title))
+      flat = unquote(self.class.flatten(title)).truncate(MAX_LENGTH, omission: "")
       return nil if !self.class.visible?(flat) || REJECTED.include?(flat.downcase.delete_suffix("."))
 
-      flat.truncate(MAX_LENGTH, omission: "")
+      flat
     end
 
     def unquote(text)
