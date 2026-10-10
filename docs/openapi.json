@@ -11536,7 +11536,8 @@
         "type": "object",
         "required": [
           "ticket",
-          "expires_at"
+          "expires_at",
+          "max_bytes"
         ],
         "properties": {
           "ticket": {
@@ -11546,6 +11547,10 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "max_bytes": {
+            "type": "integer",
+            "description": "The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side."
           }
         }
       },

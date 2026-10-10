@@ -174,6 +174,19 @@ RSpec.describe "Api::V1::Attachments", type: :request do
       expect(response).to have_http_status(:created)
       expect(Attachments::UploadTicket.user_for(response.parsed_body["ticket"])).to eq(user)
       expect(Time.iso8601(response.parsed_body["expires_at"])).to be > Time.current
+      expect(response.parsed_body["max_bytes"]).to eq(Api::V1::AttachmentsController::MAX_RAW_BYTES)
+    end
+
+    # The ceiling never undercuts what the scan would accept, so a larger
+    # per-file allowance (the super tier, or the env) reaches the browser.
+    it "reports a configured per-file limit above the 15 MB floor as the ceiling" do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with("INGESTION_MAX_INPUT_FILE_BYTES", anything).and_return((20 * 1024 * 1024).to_s)
+      allow(ENV).to receive(:fetch).with("INGESTION_MAX_TOTAL_INPUT_BYTES", anything).and_return((40 * 1024 * 1024).to_s)
+
+      post "/api/v1/attachments/ticket", headers: headers
+
+      expect(response.parsed_body["max_bytes"]).to eq(20 * 1024 * 1024)
     end
 
     it "requires a session to mint one" do

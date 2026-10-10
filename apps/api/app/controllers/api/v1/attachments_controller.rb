@@ -40,6 +40,7 @@ module Api
         end
 
         blob = store(io, file)
+        io.close! if io != file.tempfile
         # Declared content types lie; ActiveStorage sniffs the real one on
         # create, so the check that matters happens after the write.
         unless allowed?(blob.content_type)
@@ -52,10 +53,13 @@ module Api
 
       # A ticket the browser carries to `create`. Minted with the session,
       # so this action keeps the JWT requirement the rest of the API has.
+      # `max_bytes` is this caller's raw ceiling, so the client refuses a
+      # bigger file before sending it rather than after.
       def ticket
         render json: {
           ticket:     Attachments::UploadTicket.issue(current_user),
-          expires_at: Attachments::UploadTicket::TTL.from_now.iso8601
+          expires_at: Attachments::UploadTicket::TTL.from_now.iso8601,
+          max_bytes:  raw_ceiling
         }, status: :created
       end
 

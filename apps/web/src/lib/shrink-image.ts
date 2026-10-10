@@ -2,8 +2,8 @@
  * Phone photos are 3–8 MB. Review and dish photos go through a Vercel
  * function whose request body tops out at 4.5 MB — a full-size photo is
  * refused with a bare 413 before our code runs. Scan uploads go straight
- * to Rails (`uploadAttachment`), whose raw ceiling is 15 MB, but an
- * 8 MB photo is still a slow upload for nothing. Re-encoding to a 2000px
+ * to Rails (`uploadAttachment`), whose ceiling is higher, but an 8 MB
+ * photo is still a slow upload for nothing. Re-encoding to a 2000px
  * JPEG lands well under both, and loses nothing the menu reader needs:
  * vision models downscale anything larger anyway.
  */
@@ -14,9 +14,6 @@ export const MAX_EDGE_PX = 2000;
 export const SHRINK_ABOVE_BYTES = 1.5 * 1024 * 1024;
 /** Vercel's 4.5 MB body limit, less headroom for the multipart envelope. */
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
-/** The API's raw ceiling for a scan upload, which bypasses this server. A PDF
- *  over the scan limit is shrunk there; a photo is shrunk here first. */
-export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 
 const JPEG_QUALITY = 0.85;
 
@@ -97,6 +94,3 @@ export function tooLargeToUpload(file: File): boolean {
 
 export const TOO_LARGE_MESSAGE =
   'That file is too large to upload (4 MB max). For a big PDF, send photos of the pages instead.';
-
-export const ATTACHMENT_TOO_LARGE_MESSAGE =
-  'That file is too large to upload (15 MB max). For a bigger PDF, send photos of the pages instead.';

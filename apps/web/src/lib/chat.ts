@@ -15,11 +15,7 @@ import type {
   PendingTool as ApiPendingTool,
 } from '@biteworthy/api-types';
 import { API_BASE } from './api-base';
-import {
-  ATTACHMENT_TOO_LARGE_MESSAGE,
-  MAX_ATTACHMENT_BYTES,
-  shrinkForUpload,
-} from './shrink-image';
+import { shrinkForUpload } from './shrink-image';
 
 export type ChatBlock =
   | { type: 'text'; text: string }
@@ -173,6 +169,13 @@ export async function deleteConversation(id: string): Promise<void> {
 export interface UploadTicket {
   ticket: string;
   expires_at: string;
+  /** This caller's raw ceiling; the API shrinks an oversized PDF under it. */
+  max_bytes: number;
+}
+
+function tooLargeMessage(maxBytes: number): string {
+  const mb = Math.floor(maxBytes / (1024 * 1024));
+  return `That file is too large to upload (${mb} MB max). For a bigger PDF, send photos of the pages instead.`;
 }
 
 /**
@@ -183,9 +186,11 @@ export interface UploadTicket {
  */
 export async function uploadAttachment(picked: File): Promise<Attachment> {
   const file = await shrinkForUpload(picked);
-  if (file.size > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_TOO_LARGE_MESSAGE);
+  const { ticket, max_bytes } = await json<UploadTicket>('/api/chat/attachments/ticket', {
+    method: 'POST',
+  });
+  if (file.size > max_bytes) throw new Error(tooLargeMessage(max_bytes));
 
-  const { ticket } = await json<UploadTicket>('/api/chat/attachments/ticket', { method: 'POST' });
   const form = new FormData();
   form.append('file', file);
   // No Content-Type — fetch sets the multipart boundary.
@@ -194,9 +199,10 @@ export async function uploadAttachment(picked: File): Promise<Attachment> {
     headers: { 'X-Upload-Ticket': ticket },
     body: form,
   });
-  if (res.status === 401) throw new NotSignedInError();
+  // A 401 here is the ticket, not the session (minting it just proved the
+  // session): a login redirect would throw away a signed-in composer.
   // Refused by a body limit in front of the API, before its code runs.
-  if (res.status === 413) throw new Error(ATTACHMENT_TOO_LARGE_MESSAGE);
+  if (res.status === 413) throw new Error(tooLargeMessage(max_bytes));
   if (!res.ok) throw new Error(await errorMessage(res));
   const attachment = (await res.json()) as Attachment;
   // The shrunk copy: an 80px tile does not need a 12 MP decode.

@@ -20,6 +20,7 @@ vi.mock('../shrink-image', async (importOriginal) => {
 });
 
 type FetchArgs = Parameters<typeof fetch>;
+const MB = 1024 * 1024;
 
 function jsonFetch(status: number, body: unknown) {
   return vi.fn(
@@ -160,7 +161,11 @@ describe('chat client', () => {
         ? ({
             ok: true,
             status: 201,
-            json: async () => ({ ticket: 'tkt-1', expires_at: '2026-10-10T00:10:00Z' }),
+            json: async () => ({
+              ticket: 'tkt-1',
+              expires_at: '2026-10-10T00:10:00Z',
+              max_bytes: 15 * MB,
+            }),
           } as unknown as Response)
         : ({
             ok: status >= 200 && status < 300,
@@ -262,18 +267,28 @@ describe('chat client', () => {
     vi.unstubAllGlobals();
   });
 
-  // Over the API's 15 MB raw ceiling, sending it only earns a 422 after
+  // Over the ceiling the ticket names, sending it only earns a 422 after
   // the whole upload. A PDF cannot be shrunk here, so the message says
   // what to do instead.
-  it('refuses a file still too large, with a message that says so, before sending it', async () => {
+  it("refuses a file over the ticket's ceiling, with a message that says so, before sending it", async () => {
     const fetchMock = uploadFetch(201, { id: 'never' });
     vi.stubGlobal('fetch', fetchMock);
-    const pdf = new File([new Uint8Array(16 * 1024 * 1024)], 'menu.pdf', {
-      type: 'application/pdf',
-    });
+    const pdf = new File([new Uint8Array(16 * MB)], 'menu.pdf', { type: 'application/pdf' });
 
-    await expect(uploadAttachment(pdf)).rejects.toThrow(/too large/);
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(uploadAttachment(pdf)).rejects.toThrow(/15 MB max/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/attachments/ticket');
+  });
+
+  // Minting the ticket just proved the session; a 401 on the upload is
+  // the ticket (expired mid-upload), and a login redirect would throw
+  // away a signed-in composer.
+  it('reports a rejected ticket as an error, not as being signed out', async () => {
+    vi.stubGlobal('fetch', uploadFetch(401, { error: 'That upload ticket is not valid.' }));
+
+    const failure = uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' }));
+    await expect(failure).rejects.toThrow(/ticket is not valid/);
+    await expect(failure).rejects.not.toBeInstanceOf(NotSignedInError);
   });
 
   it('explains a 413 from the server instead of showing the status code', async () => {

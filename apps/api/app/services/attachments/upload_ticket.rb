@@ -21,10 +21,18 @@ module Attachments
 
     # The user a ticket names, or nil for a missing, forged, or expired one.
     def self.user_for(ticket)
+      id = user_id_for(ticket)
+      id && User.find_by(id: id)
+    end
+
+    # The id alone, with no query: what Rack::Attack keys its per-user
+    # throttle on, the same way it reads a JWT's `sub` without loading
+    # the user.
+    def self.user_id_for(ticket)
       return nil if ticket.blank?
 
       payload = verifier.verified(ticket, purpose: PURPOSE)
-      payload && User.find_by(id: payload["user_id"])
+      payload && payload["user_id"]
     end
 
     def self.verifier = Rails.application.message_verifier("attachments.upload_ticket")
