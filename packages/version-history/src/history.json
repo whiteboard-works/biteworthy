@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.4",
+    "date": "2026-10-10",
+    "notes": [
+      "Menus scanned from today on get their cuisine labels from a model built for yes-or-no judgments instead of the general-purpose one. It stopped calling a Venezuelan menu Mexican and chai Indian, answers in a fraction of a second, and costs almost nothing per dish."
+    ]
+  },
+  {
     "version": "2026.10.10.3",
     "date": "2026-10-10",
     "notes": [
