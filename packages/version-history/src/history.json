@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.8",
+    "date": "2026-10-10",
+    "notes": [
+      "When something goes wrong in a chat or in a background job on our side, we now record it ourselves: each distinct failure once, counted when it recurs, so a problem that keeps happening can be fixed before anyone has to write in. The record is the technical shape of the error, with ids, addresses, and quoted text blanked out, plus an internal reference to the affected chat so we can look into it."
+    ]
+  },
+  {
     "version": "2026.10.10.7",
     "date": "2026-10-10",
     "notes": [
