@@ -1299,6 +1299,23 @@ describe('ChatClient', () => {
       );
     });
 
+    // The relay losing the turn is reported as an `error` too, flagged
+    // `interrupted`; the turn itself may still be running.
+    it('does not mark a chat when the relay, not the turn, reported an error', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      finish({ type: 'error', message: 'Lost the connection to that turn.', interrupted: true });
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+
     // A watch this side lost says nothing about the turn, which may still
     // be running: the dot would send the person to a chat with no reply.
     it('does not mark a chat whose watch dropped before the server said it ended', async () => {

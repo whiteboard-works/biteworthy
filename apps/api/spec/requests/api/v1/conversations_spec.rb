@@ -107,6 +107,30 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(conversation.reload.updated_at).to be_within(1.second).of(was)
     end
 
+    # Switching the mode goes through the same action, and it should not
+    # reorder the sidebar either — it is a setting, not a message.
+    it "does not move a conversation to the top of the list on a mode switch" do
+      conversation.update!(updated_at: 3.weeks.ago)
+      was = conversation.reload.updated_at
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { mode: "planning" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.updated_at).to be_within(1.second).of(was)
+    end
+
+    # A zero-width space is not whitespace to `blank?`, and a title made
+    # of one would draw an empty row with no "Untitled" fallback — and
+    # stop the model ever naming the chat.
+    it "treats a title of invisible characters as blank" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "\u200B\u200E" }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
+    end
+
     # A nested or array param would be stringified into a junk name the
     # person never typed.
     it "refuses a title that is not text" do

@@ -431,8 +431,10 @@ export function ChatClient(): ReactElement {
       if (mine.next === null && !removed.current.has(id)) retitle(renamed.title);
     } catch (e) {
       // A chat deleted while its rename was out answers 404, which is
-      // news to no one.
+      // news to no one. A session that has expired sends the person to
+      // sign in, and a follow-up would only send them there twice.
       if (removed.current.has(id)) return;
+      if (e instanceof NotSignedInError) mine.next = null;
       if (mine.next === null) retitle(previous);
       onFailure(e);
     } finally {
@@ -532,11 +534,12 @@ export function ChatClient(): ReactElement {
           if (event.type === 'pane') sawPane = true;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          // The loop's three terminal events — not the relay reporting
+          // that it lost the turn, which is an `error` with `interrupted`.
           if (
             event.type === 'done' ||
-            event.type === 'stopped' ||
             event.type === 'awaiting_confirmation' ||
-            event.type === 'error'
+            (event.type === 'error' && !event.interrupted)
           ) {
             ended = true;
           }

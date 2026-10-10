@@ -129,10 +129,15 @@ module Chat
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
     # Everything a sidebar row cannot render, flattened: control characters
+    # and invisible format characters (a zero-width space, a BiDi override)
     # become spaces and runs of whitespace collapse. Shared with the rename
     # path so a person's title is held to the same shape as the model's —
-    # and so a NUL in a rename is a space, not a Postgres error.
-    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]/, " ").squish
+    # and so a NUL in a rename is a space, not a Postgres error, and a
+    # title made of nothing visible is blank rather than stored.
+    #
+    # The zero-width joiner stays: it is what holds a composed emoji
+    # together, and a person may well type one.
+    def self.flatten(text) = text.to_s.gsub(/[[:cntrl:]]|[\p{Cf}&&[^\u200D]]/, " ").squish
 
     def initialize(client: nil)
       @injected = client

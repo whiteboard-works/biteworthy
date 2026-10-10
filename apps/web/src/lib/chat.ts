@@ -116,7 +116,9 @@ export type ChatEvent =
   | { type: 'compacted'; messages: number; tokens_saved: number }
   | { type: 'pane'; pane: ChatPane }
   | { type: 'reconnect'; after: number }
-  | { type: 'error'; message: string };
+  /** `interrupted` marks the relay losing the turn rather than the turn
+   *  ending: it may still be running, and a reconnect catches up. */
+  | { type: 'error'; message: string; interrupted?: boolean };
 
 /** Thrown when the session cookie is missing or stale, so callers can
  *  send the user to sign in rather than showing an empty chat. */

@@ -973,6 +973,11 @@ module Chat
       # a tool result is a `user` row and one long opening turn would
       # otherwise close the window before its first attempt.
       return if @conversation.exchange_count > Titler::NAMING_WINDOW_EXCHANGES
+      # The row as it is now, not as it was when the turn began: a person
+      # who renamed the chat while this turn ran has already named it, and
+      # a model call whose result the write below would discard is spend
+      # for nothing. One indexed read against a billed call.
+      return unless Conversation.where(id: @conversation.id, title: nil).exists?
 
       named = Titler.new.call(question: @conversation.opening_question, answer: result.text)
       record_side_usage(named.usage, named.model)

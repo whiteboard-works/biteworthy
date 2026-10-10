@@ -2055,6 +2055,18 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.title).to eq("Sam's birthday dinner")
     end
 
+    # The person named it while the turn ran: the model call would only be
+    # discarded, so it is not made.
+    it "does not spend on naming a conversation renamed while the turn ran" do
+      conversation.update!(title: nil)
+      Conversation.where(id: conversation.id).update_all(title: "Sam's birthday dinner")
+      expect(Chat::Titler).not_to receive(:new)
+
+      loop_with(say("Sure.")).run(text: "what can I eat")
+
+      expect(conversation.reload.title).to eq("Sam's birthday dinner")
+    end
+
     # The naming write bypasses the model, and `CompletionJob` goes on to
     # `with_lock` this same object for a queued second turn — which `lock!`
     # refuses on a record with unsaved changes.
