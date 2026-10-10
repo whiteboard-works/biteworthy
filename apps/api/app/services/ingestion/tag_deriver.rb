@@ -210,7 +210,7 @@ module Ingestion
         "nepali-tibetan" => ["nepali", "nepalese", "tibetan"],
         "mediterranean"  => ["mediterranean"],
         "middle-eastern" => ["middle eastern", "lebanese"],
-        "latin-american" => ["venezuelan", "colombian", "peruvian", "salvadoran"],
+        "latin-american" => ["latin american", "venezuelan", "colombian", "peruvian", "salvadoran"],
         "caribbean"      => ["caribbean", "jamaican"],
         "korean"         => ["korean"],
         "vietnamese"     => ["vietnamese"],
