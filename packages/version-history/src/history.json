@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.3",
+    "date": "2026-10-10",
+    "notes": [
+      "Deleting a chat from the sidebar removes it right away, without a reload."
+    ]
+  },
+  {
     "version": "2026.10.10.2",
     "date": "2026-10-10",
     "notes": [
