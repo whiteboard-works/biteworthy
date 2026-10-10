@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_233000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -216,6 +216,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_200000) do
     t.datetime "sync_scheduled_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "issue_repo"
     t.index ["fingerprint"], name: "index_error_reports_on_fingerprint", unique: true
     t.index ["issue_opened_at"], name: "index_error_reports_on_issue_opened_at"
     t.index ["last_seen_at"], name: "index_error_reports_on_last_seen_at"

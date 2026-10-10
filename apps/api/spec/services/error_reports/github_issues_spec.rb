@@ -120,6 +120,39 @@ RSpec.describe ErrorReports::GithubIssues do
     expect(created).to have_been_requested.once
   end
 
+  it "records which repo the issue is in" do
+    stub_create
+    issues.sync(record)
+
+    expect(ErrorReport.last.issue_repo).to eq(repo)
+  end
+
+  # Issue #7 in the new repo is somebody else's. The row starts over
+  # there: adopt by fingerprint if the issue was moved, else file afresh.
+  it "forgets an issue number that belongs to the previous target repo" do
+    stub_create
+    issues.sync(record)
+
+    other = "whiteboard-works/elsewhere"
+    stub_request(:get, "https://api.github.com/repos/#{other}")
+      .to_return(status: 200, body: { private: true }.to_json, headers: json)
+    stub_request(:get, "https://api.github.com/repos/#{other}/labels").with(query: hash_including({}))
+      .to_return(status: 200, body: [ { name: "bug" }, { name: "auto-reported" } ].to_json, headers: json)
+    stub_request(:get, "https://api.github.com/repos/#{other}/issues").with(query: hash_including("labels" => "auto-reported"))
+      .to_return(status: 200, body: "[]", headers: json)
+    created = stub_request(:post, "https://api.github.com/repos/#{other}/issues")
+                .to_return(status: 201, body: { number: 1 }.to_json, headers: json)
+
+    travel 61.minutes do
+      described_class.new(token: "ghp_test", repo: other).sync(record)
+    end
+
+    expect(created).to have_been_requested.once
+    expect(a_request(:get, "https://api.github.com/repos/#{other}/issues/7")).not_to have_been_made
+    expect(ErrorReport.last.issue_number).to eq(1)
+    expect(ErrorReport.last.issue_repo).to eq(other)
+  end
+
   # A repo flipped public must not keep receiving backtraces from a
   # process that checked it last week.
   it "notices a repo that has gone public since the last check" do

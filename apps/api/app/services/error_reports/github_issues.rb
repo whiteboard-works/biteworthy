@@ -86,6 +86,7 @@ module ErrorReports
       end
 
       ensure_repo!
+      forget_foreign_issue(report)
       report.issue_number ? update(report) : open(report)
     rescue StandardError
       report.release_issue_slot!(to: previously)
@@ -112,6 +113,16 @@ module ErrorReports
       self.class.verified_private[@repo] = Time.current
     end
 
+    # A number from another repo names a stranger's issue here. Once the
+    # target changes, the row starts over: `open` adopts by fingerprint
+    # if the issue was moved along, and files afresh if not.
+    def forget_foreign_issue(report)
+      return if report.issue_number.nil? || report.issue_repo == @repo
+
+      Rails.logger.info("[error_reports] #{report.fingerprint}: issue ##{report.issue_number} is in #{report.issue_repo}, not #{@repo}; forgetting it")
+      report.update!(issue_number: nil, issue_repo: nil, issue_occurrences: 0)
+    end
+
     # The labels the issues are filed under, created if the repo lacks
     # them. Rails' own `bug` is a GitHub default; `auto-reported` is ours.
     def ensure_labels!
@@ -124,8 +135,8 @@ module ErrorReports
     def open(report)
       if (existing = existing_issue(report))
         Rails.logger.info("[error_reports] #{report.fingerprint} already has issue ##{existing['number']}; adopting it")
-        report.update!(issue_number: existing["number"], issue_opened_at: Time.zone.parse(existing["created_at"].to_s),
-                       issue_occurrences: 0)
+        report.update!(issue_number: existing["number"], issue_repo: @repo,
+                       issue_opened_at: Time.zone.parse(existing["created_at"].to_s), issue_occurrences: 0)
         return update(report)
       end
 
@@ -139,7 +150,8 @@ module ErrorReports
 
       issue = request(:post, "/repos/#{@repo}/issues",
                       title: report.title, body: body_for(report), labels: LABELS)
-      report.update!(issue_number: issue["number"], issue_opened_at: Time.current, issue_occurrences: report.occurrences)
+      report.update!(issue_number: issue["number"], issue_repo: @repo, issue_opened_at: Time.current,
+                     issue_occurrences: report.occurrences)
     end
 
     def update(report)
@@ -165,7 +177,7 @@ module ErrorReports
       # instead of asking after it every hour forever.
       raise unless [ 404, 410 ].include?(e.status)
 
-      report.update!(issue_number: nil, issue_occurrences: 0)
+      report.update!(issue_number: nil, issue_repo: nil, issue_occurrences: 0)
       open(report)
     end
 
