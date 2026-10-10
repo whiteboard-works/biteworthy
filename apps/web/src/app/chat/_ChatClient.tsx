@@ -906,9 +906,9 @@ export function ChatClient(): ReactElement {
 }
 
 /**
- * What the last turn cost. Rendered only when the server sent it, which
- * it does only for admins — the visibility decision lives server-side, so
- * there is nothing here to get wrong.
+ * What the conversation has cost, and how its last run went. Rendered only
+ * when the server sent it, which it does only for admins — the visibility
+ * decision lives server-side, so there is nothing here to get wrong.
  */
 /**
  * Outcomes worth a pill. `done` is the happy path and `nothing_queued` is

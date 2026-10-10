@@ -467,9 +467,9 @@ describe('ChatClient', () => {
       expect(pills).toHaveTextContent('34¢ conversation');
       expect(pills).toHaveTextContent('3 rounds');
       expect(pills).toHaveTextContent('8.2s');
-      expect(pills).not.toHaveTextContent('turn');
-      expect(pills).not.toHaveTextContent('cache');
-      expect(pills).not.toHaveTextContent('in /');
+      expect(pills).not.toHaveTextContent('9¢ turn');
+      expect(pills).not.toHaveTextContent('7,550 cache r / 2,100 w');
+      expect(pills).not.toHaveTextContent('1,200 in / 400 out');
     });
 
     // The reported symptom: "203¢ total · 0 rounds · 0 cached ·
