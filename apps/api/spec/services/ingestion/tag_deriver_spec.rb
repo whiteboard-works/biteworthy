@@ -155,7 +155,7 @@ RSpec.describe Ingestion::TagDeriver do
         [ "Himalayan Salt Margarita", "Cocktails", %w[nepali-tibetan] ],
         [ "Texas Toast", "Sides", %w[tex-mex] ]
       ].each do |text, section, slugs|
-        expect(tag_slugs(derive(text: text, section: section))).not_to include(*slugs), text
+        expect(tag_slugs(derive(text: text, section: section)) & slugs).to be_empty, text
       end
     end
   end

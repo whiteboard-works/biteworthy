@@ -22,6 +22,16 @@ RSpec.describe UpsertCuisineLeafTags do
     expect(Tag.where(family: "cuisine").where("path <@ 'cuisine' AND path != 'cuisine'").count).to eq(16)
   end
 
+  ORIGINAL_SEVEN = %w[italian mexican thai japanese indian american chinese].freeze
+
+  # Both directions: a leaf added to the seed file without a migration
+  # would exist on a fresh database and nowhere else.
+  it "carries every cuisine leaf the seed file has beyond the original seven, and nothing else" do
+    seed_leaves = seeded.select { |r| r["family"] == "cuisine" && r["path"].include?(".") }.map { |r| r["slug"] }
+
+    expect(described_class::TAGS.map { |t| t[:slug] }).to match_array(seed_leaves - ORIGINAL_SEVEN)
+  end
+
   it "is idempotent and fixes a renamed leaf without duplicating it" do
     create(:tag, slug: "bbq", name: "BBQ", family: "cuisine", path: "cuisine.bbq")
 

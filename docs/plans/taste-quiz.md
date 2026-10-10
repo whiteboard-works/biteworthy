@@ -18,11 +18,11 @@ scores). The constraint is **vocabulary**, from `apps/api/db/seeds/tags.yml:92`:
 
 | Family | Real tags today | Count |
 |---|---|---|
-| `cuisine` | Italian, Mexican, Thai, Japanese, Indian, American | 6 |
+| `cuisine` | Italian, Mexican, Thai, Japanese, Indian, American, Chinese, plus the 16 added 2026-10-10 (Nepali & Tibetan, Mediterranean, Greek, Middle Eastern, Latin American, Caribbean, Korean, Vietnamese, French, Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue, Tex-Mex) | 23 |
 | `prep` | Fried, Grilled, Raw, Smoked | 4 |
 | `flavor` | **Spicy, Sweet** | 2 |
 
-**12 taste tags total.** Hero ingredients exist for love/hate cards
+**29 taste tags total.** Hero ingredients exist for love/hate cards
 (`apps/api/db/seeds/ingredients.yml`): `herb-cilantro`, `herb-basil`,
 `herb-garlic`, `fruit-lemon`, `fruit-olive`, mushroom, etc. — plus on-demand
 `searchIngredients(q)` (≤20 results).
@@ -53,8 +53,10 @@ Each screen writes concrete signals. A persistent **"Skip → see my picks"**
 appears from screen 3 on; the minimum viable profile is a couple of cuisine taps.
 
 ### Screen 1 — Cuisines *(multi-select)*
-**"Which cuisines make you hungry?"** — 6 chips (Italian, Mexican, Thai,
-Japanese, Indian, American). Tap = love.
+**"Which cuisines make you hungry?"** — the 23 cuisine chips, the seven
+originals first and the rest alphabetical (a 2026-10-10 expansion took
+the family from 7 to 23, so the screen needs a wrap or a "more" fold,
+not six fixed chips). Tap = love.
 → `SET_TASTE_TAG {cuisineTagId, 'liked'}`; tap again → `'neutral'`.
 
 ### Screen 2 — Heat *(single tap, 4-point)*
