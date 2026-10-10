@@ -206,6 +206,24 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   Kamal volume with rotation), ship both roles' STDOUT to it, and
   document how to query it. Until then, anything that has to be read
   later belongs in a table, not a log line.
+- **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
+  its latency, input tokens, tags kept, answers missing, and failures
+  only on `[jev_cuisine]` log lines and through `Rails.error.report`,
+  and the API's logs do not outlive a deploy. Add counters to
+  `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
+  so the admin dashboard can show Jev spend and health per run, and so
+  a slice that completed without cuisine is visible after the fact.
+  Schema change; its own PR.
+- **Backfill cuisine tags with Jev, or let an admin re-run a menu
+  (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
+  Every restaurant published before 2026-10-10 still carries Haiku's
+  cuisine tags (the shadow trial showed them force-fitting dishes into
+  the seven leaf cuisines), and fully matched dishes never got one at
+  all. Either a one-off backfill that asks Jev over every published
+  item and rewrites its `cuisine` `ItemTag` rows through the join
+  table, or an admin tool that re-tags one restaurant on demand, or
+  one service with both entry points. Writes live menu tags, so it is
+  product-visible.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
