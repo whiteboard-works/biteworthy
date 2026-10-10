@@ -21,7 +21,10 @@
       "autoIncrement": true,
       "ios": { "buildConfiguration": "Release" },
       "android": { "buildType": "app-bundle" },
-      "env": { "EXPO_PUBLIC_API_BASE": "https://api.bite-worthy.com" }
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://api.bite-worthy.com",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_CPvZQiDfikVk4xEG4AvDvSbshhyExH3QdfWVtX4zN999"
+      }
     }
   },
   "submit": {

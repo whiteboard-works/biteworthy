@@ -3743,8 +3743,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Switch the conversation's mode
-         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.
+         * Switch the conversation's mode, or rename it
+         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running. `title` renames the conversation; a name set here is never replaced by the model's. Send either field or both.
          */
         patch: {
             parameters: {
@@ -3762,12 +3762,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        mode: "planning" | "manual" | "accept_edits" | "auto";
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
+                        /** @description Whitespace is collapsed. Blank, or longer than the sidebar can show, is refused. */
+                        title?: string;
                     };
                 };
             };
             responses: {
-                /** @description the conversation, with the new mode */
+                /** @description the conversation, with the new mode or title */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3776,7 +3778,7 @@ export interface paths {
                         "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description a mode that does not exist */
+                /** @description a mode that does not exist; a blank, over-long, or non-text title; or an empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;

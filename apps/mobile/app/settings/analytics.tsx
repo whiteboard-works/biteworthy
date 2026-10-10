@@ -9,9 +9,9 @@ import { getAnalyticsOptIn, setAnalyticsOptIn } from '../../lib/analytics-prefs'
  * fire if you enable them in Settings → Analytics").
  *
  * The toggle persists the opt-in to expo-secure-store; the root layout
- * reads it at boot to decide whether to construct a real tracker, so
- * the change takes effect on the next app launch. Analytics never carry
- * the dietary profile (see packages/analytics).
+ * reads it at boot and listens for changes, so flipping it opts the SDK
+ * out or in at once. Analytics never carry the dietary profile (see
+ * packages/analytics).
  */
 export default function AnalyticsSettingsScreen() {
   const [optedIn, setOptedIn] = useState<boolean | null>(null);
@@ -56,7 +56,7 @@ export default function AnalyticsSettingsScreen() {
         {optedIn === null
           ? 'Loading…'
           : optedIn
-            ? 'On. Takes effect the next time you open the app.'
+            ? 'On. Anonymous usage events are being sent.'
             : 'Off. No analytics are sent.'}
       </Text>
     </View>

@@ -3,8 +3,9 @@
 require "rails_helper"
 
 # The wiring, not the behaviour: `config/initializers/error_reports.rb`
-# is the only thing that makes `Rails.error.report` do anything at all,
-# and nothing else would notice it going missing.
+# is the only thing that turns a `Rails.error.report` into an issue (the
+# PostHog subscribers beside it make an event), and nothing else would
+# notice it going missing.
 RSpec.describe "Rails.error subscription" do
   include ActiveJob::TestHelper
 

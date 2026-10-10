@@ -34,18 +34,54 @@ module Api
       end
 
       # Switching modes without sending anything, so the picker survives a
-      # reload and follows the user between devices.
+      # reload and follows the user between devices — and renaming, so the
+      # sidebar says what the person wants it to say.
       #
-      # Only `mode` is writable. A turn carries its own mode in the queued
-      # payload, so this is not the value a running turn reads — it is the
-      # one the next send will stamp.
+      # Only `mode` and `title` are writable. A turn carries its own mode
+      # in the queued payload, so this is not the value a running turn
+      # reads — it is the one the next send will stamp. A title set here
+      # is final: `Chat::Titler` only names a conversation while the
+      # column is null, so a person's name is never overwritten by the
+      # model's.
       def update
-        mode = params[:mode].to_s
-        unless Chat::ModePolicy::MODES.include?(mode)
-          return render json: { error: "Unknown mode." }, status: :unprocessable_entity
+        changes = {}
+
+        if params.key?(:mode)
+          mode = params[:mode].to_s
+          unless Chat::ModePolicy::MODES.include?(mode)
+            return render json: { error: "Unknown mode." }, status: :unprocessable_entity
+          end
+
+          changes[:chat_mode] = mode
         end
 
-        conversation.update!(chat_mode: mode)
+        if params.key?(:title)
+          # `null` reads as blank below; anything else that is not text is
+          # refused rather than stringified into a name nobody typed.
+          unless params[:title].nil? || params[:title].is_a?(String)
+            return render json: { error: "A title is text." }, status: :unprocessable_entity
+          end
+
+          title = Chat::Titler.flatten(params[:title])
+          unless Chat::Titler.visible?(title)
+            return render json: { error: "A title cannot be blank." }, status: :unprocessable_entity
+          end
+          if title.length > Chat::Titler::MAX_LENGTH
+            return render json: { error: "Keep the title to #{Chat::Titler::MAX_LENGTH} characters." },
+                          status: :unprocessable_entity
+          end
+
+          changes[:title] = title
+        end
+
+        if changes.empty?
+          return render json: { error: "Nothing to change." }, status: :unprocessable_entity
+        end
+
+        # Not a touch: the sidebar orders by `updated_at`, and renaming a
+        # chat from three weeks ago is not talking to it.
+        conversation.assign_attributes(changes)
+        conversation.save!(touch: false)
         render json: Chat::Serializer.conversation(conversation)
       end
 

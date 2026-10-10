@@ -222,16 +222,17 @@ provider up again on a new box:
   ```
 - Use the swipe-verify queue (mobile or the web `/admin/runs`) to accept items per restaurant. The 80%-accepted threshold flips each run + restaurant to `:published`.
 
-### 7. PostHog analytics (Phase 5.8-wiring)
+### 7. PostHog — events, errors, and logs (Phase 5.8-wiring, ADR 0009)
 
-**Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`).
+**Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`), server error tracking, and logs that outlive a deploy.
 
-- ~~Code side~~ — **done in #218**: posthog-js + posthog-react-native installed, wrapped in `AnalyticsClient` adapters, all 9 events instrumented per `docs/analytics.md`. Env vars documented in each app's `.env.example`.
+- ~~Code side~~ — **done in #218 and the ADR 0009 PR**: all three apps point at BiteWorthy's own project (id 652080). The public token is pinned in `apps/web/src/lib/posthog-config.ts` (production hosts), `apps/mobile/eas.json` (production profile), and `apps/api/config/deploy.yml` (`POSTHOG_API_KEY`, `APP_ROLE`). Nothing needs setting in Vercel or EAS.
 - Remaining (human):
-  - Generate a project API key (WBW Cross-Product project, id 370116).
-  - Vercel: set `NEXT_PUBLIC_POSTHOG_KEY=<key>`.
-  - EAS: set `EXPO_PUBLIC_POSTHOG_KEY=<key>` in the project's env (mobile capture is additionally opt-in via `EXPO_PUBLIC_POSTHOG_OPT_IN` / the in-app toggle).
-  - Verify events arrive: load the prod site, confirm `app_open` in the PostHog live-events view.
+  - [ ] **Verify events arrive** after the next web deploy: load bite-worthy.com, confirm `$pageview` and `app_open` in the project's activity view.
+  - [ ] **Verify the API reports** after the next API deploy: `kamal console`, then `Rails.error.report(RuntimeError.new("posthog smoke"), handled: true, context: { component: "smoke" })`; an issue appears under Error tracking within a minute, and `kamal app logs` lines appear under Logs with `service.name = Biteworthy`.
+  - [ ] **Remove any `NEXT_PUBLIC_POSTHOG_KEY` set in Vercel.** It is ignored on production and only matters for previews, where it would now send preview traffic to whatever project it names.
+  - [ ] **Re-authorize the PostHog MCP server** used by agents: every call fails `INVALID_API_KEY`, so dashboards and alerts are a UI job until then.
+  - [ ] **L1 review:** `/privacy`'s PostHog entry now says it also receives error reports and logs from our servers.
 
 ### 8. App Store + Play Store submission (Phase 5.9-wiring)
 

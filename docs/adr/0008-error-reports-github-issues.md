@@ -3,12 +3,13 @@
 - **Date:** 2026-10-10
 - **Status:** Accepted
 - **Refines:** [ADR 0001](./0001-stack.md) (the stack line "Errors | Sentry" — never wired)
+- **Alongside:** [ADR 0009](./0009-observability-posthog.md) (every exception to PostHog; this ADR adds one deduplicated issue per failure)
 
 ## Context
 
 ADR 0001 named Sentry for errors. Nothing was ever wired: no gem, no DSN, no `Rails.error` subscriber. The chat loop, the tool layer, and the controllers all call `Rails.error.report` on the failures they catch, and Rails itself reports unhandled request exceptions and exhausted job failures the same way (through the executor Solid Queue wraps every job in) — but `ActiveSupport::ErrorReporter#report` with no subscribers does nothing. Every one of those calls was a no-op, and the only trace of a production failure was a log line on the Hetzner box that nobody reads until a user writes in.
 
-The question was where the reports should go. Options weighed:
+[ADR 0009](./0009-observability-posthog.md), decided the same day, subscribes posthog-rails so that every report becomes a PostHog `$exception`. That is a stream: every occurrence, searchable, with no notion of "the same bug again" beyond PostHog's own grouping, and nothing that lands where the fix's PR will link. The question here was where a *deduplicated* report — one place per failure, with a count — should go. Options weighed:
 
 - **Sentry (or any hosted tracker).** Real product, real cost, a fourth vendor holding stack traces and conversation ids, and a dashboard that would be opened when something was already known to be wrong.
 - **Linear.** The portfolio's Linear rules are explicit: Linear holds decisions and results, bugs that need code are GitHub issues, and nothing posts progress pings there. An automated error feed is the thing those rules exist to keep out.
@@ -29,7 +30,7 @@ What now reports, beyond what already did: the chat's upstream, stream, pane, co
 
 ## Consequences
 
-- No Sentry, no new vendor, no cost. The count lives in Postgres and the conversation lives on GitHub.
+- No Sentry, no new vendor, no cost. The count lives in Postgres and the conversation lives on GitHub. PostHog (ADR 0009) still receives every occurrence as an `$exception`; the two subscribers do not see each other's failures (Rails rescues a subscriber's own error, and this one ignores reports from its own jobs).
 - An upstream outage (a run of 529s) opens one issue, not fifty — but it does open one. That is deliberate: a rate limit that recurs daily is a problem to fix, and `wontfix` is one click.
 - Nothing a person typed is kept anywhere: not in Postgres, not on GitHub. The raw message exists only in the process that raised it and in the log line it already wrote. What does leave the box is a backtrace and a conversation id; whether the private repo should be named in `/privacy` for that is an open question for the L1 review, not something this ADR settles.
 - A message whose variable parts carry the diagnosis (which row, which value) is harder to read from the issue. That is the trade: `kamal console` and the conversation id are the way back to the specifics.

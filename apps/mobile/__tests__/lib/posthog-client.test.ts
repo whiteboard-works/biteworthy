@@ -1,4 +1,9 @@
-import { createPostHogClient, EXTENSION_NAME, registerExtension } from '../../lib/posthog-client';
+import {
+  createPostHogClient,
+  EXTENSION_NAME,
+  registerExtension,
+  stopCapturing,
+} from '../../lib/posthog-client';
 import type PostHog from 'posthog-react-native';
 
 /**
@@ -18,8 +23,32 @@ function fakeClient() {
     capture: jest.fn(),
     identify: jest.fn(),
     reset: jest.fn().mockResolvedValue(undefined),
+    optOut: jest.fn().mockResolvedValue(undefined),
+    optIn: jest.fn().mockResolvedValue(undefined),
+    setPersistedProperty: jest.fn(),
   } as unknown as jest.Mocked<PostHog>;
 }
+
+describe('stopCapturing', () => {
+  // "Off" in Settings has to be off now. The SDK's optOut only refuses new
+  // captures; an event queued a moment earlier would still flush, so the
+  // queue goes too — after the flag, so nothing slips in between.
+  it('opts the client out, then empties its persisted queue', async () => {
+    const client = fakeClient();
+    const order: string[] = [];
+    client.optOut.mockImplementation(async () => {
+      order.push('optOut');
+    });
+    client.setPersistedProperty.mockImplementation(() => {
+      order.push('clearQueue');
+    });
+
+    await stopCapturing(client);
+
+    expect(client.setPersistedProperty).toHaveBeenCalledWith('queue', null);
+    expect(order).toEqual(['optOut', 'clearQueue']);
+  });
+});
 
 describe('registerExtension', () => {
   it('registers the WBW extension super-property as biteworthy', () => {

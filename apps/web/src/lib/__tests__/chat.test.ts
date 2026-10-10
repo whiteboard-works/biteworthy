@@ -3,6 +3,7 @@ import {
   NotSignedInError,
   listConversations,
   answerConfirmation,
+  renameConversation,
   sendMessage,
   watchTurn,
   uploadAttachment,
@@ -100,6 +101,21 @@ describe('chat client', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/confirm');
     expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
+  });
+
+  it('renames a conversation with a PATCH carrying only the title', async () => {
+    const fetchMock = jsonFetch(200, { id: 'c-1', title: 'Lunch with Sam' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(renameConversation('c-1', 'Lunch with Sam')).resolves.toMatchObject({
+      title: 'Lunch with Sam',
+    });
+    const [path, init] = fetchMock.mock.calls[0]!;
+    expect(path).toBe('/api/chat/conversations/c-1');
+    expect(init?.method).toBe('PATCH');
+    // Only the title: sending the mode alongside would stamp whatever this
+    // tab thinks the mode is over a switch made on another device.
+    expect(JSON.parse(init?.body as string)).toEqual({ title: 'Lunch with Sam' });
   });
 
   describe('streaming a turn', () => {

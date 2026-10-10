@@ -13,15 +13,17 @@ import posthog from 'posthog-js';
 import { noopTracker, type Tracker } from '@biteworthy/analytics';
 import { analyticsAllowed, buildWebTracker } from '../lib/track';
 import { createPostHogClient, initPostHog } from '../lib/posthog-client';
+import { browserPostHogKey } from '../lib/posthog-config';
 
 /**
- * Phase 5.8-wiring — root client provider for the WBW Cross-Product
- * PostHog project.
+ * Phase 5.8-wiring — root client provider for BiteWorthy's PostHog
+ * project (652080).
  *
  * Mounts once at the app root (apps/web/src/app/layout.tsx); inits
- * posthog-js with `NEXT_PUBLIC_POSTHOG_KEY`, registers the
- * `extension: 'biteworthy'` super-property, and fires the canonical
- * `app_open` event on first paint.
+ * posthog-js with the key `browserPostHogKey` picks for this host (the
+ * project token on bite-worthy.com, `NEXT_PUBLIC_POSTHOG_KEY` elsewhere),
+ * registers the `extension: 'biteworthy'` super-property, and fires the
+ * canonical `app_open` event on first paint.
  *
  * Children read the tracker via `useTracker()`. When the key is
  * absent / DNT is on / the user has opted out, `useTracker()`
@@ -39,10 +41,11 @@ export function PostHogProvider({ children }: { children: ReactNode }): ReactEle
   const appOpenFired = useRef(false);
 
   if (trackerRef.current === null) {
-    const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    const apiKey =
+      typeof window !== 'undefined' ? browserPostHogKey(window.location.hostname) : undefined;
     // Checked before init, not only in the Tracker: posthog-js captures
     // page views itself once initialized.
-    if (apiKey && typeof window !== 'undefined' && analyticsAllowed()) {
+    if (apiKey && analyticsAllowed()) {
       initPostHog(posthog, apiKey);
       trackerRef.current = buildWebTracker({
         apiKey,

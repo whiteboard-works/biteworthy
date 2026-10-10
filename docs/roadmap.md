@@ -196,20 +196,11 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Persistent production logs (2026-10-10)** — the API logs to STDOUT
-  only (`config/environments/production.rb`), Docker keeps that per
-  container, and every deploy replaces the containers, so `kamal app
-  logs` shows the current release alone and the previous release's log
-  lives only until its stopped container is pruned. Nothing ships logs
-  to PostHog or Datadog: the API carries neither SDK. We want logs that
-  outlive a deploy. Pick a sink (PostHog Logs, Datadog, or a file on a
-  Kamal volume with rotation), ship both roles' STDOUT to it, and
-  document how to query it. Until then, anything that has to be read
-  later belongs in a table, not a log line.
 - **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
   its latency, input tokens, tags kept, answers missing, and failures
   only on `[jev_cuisine]` log lines and through `Rails.error.report`,
-  and the API's logs do not outlive a deploy. Add counters to
+  and a log line is not something the admin dashboard can
+  show. Add counters to
   `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
   so the admin dashboard can show Jev spend and health per run, and so
   a slice that completed without cuisine is visible after the fact.
@@ -219,11 +210,11 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   Every restaurant published before 2026-10-10 still carries Haiku's
   cuisine tags (the shadow trial showed them force-fitting dishes into
   the seven leaf cuisines), and fully matched dishes never got one at
-  all. Either a one-off backfill that asks Jev over every published
-  item and rewrites its `cuisine` `ItemTag` rows through the join
-  table, or an admin tool that re-tags one restaurant on demand, or
-  one service with both entry points. Writes live menu tags, so it is
-  product-visible.
+  all. The admin tool `retag_cuisine` (shipped 2026-10-10, backed by
+  `Ingestion::JevCuisineRetag`) re-tags one restaurant on demand, with
+  `dry_run`. **Still open:** running it across every restaurant
+  published before 2026-10-10, restaurant by restaurant from an admin
+  session, and checking a few dry runs first.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
