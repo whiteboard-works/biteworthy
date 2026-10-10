@@ -141,11 +141,22 @@ RSpec.describe Ingestion::TagDeriver do
       expect(tag_slugs(derive(text: "Shawarma Plate", section: "Middle Eastern"))).to include("middle-eastern")
     end
 
-    # "Southern Colorado", "Latin night", "Spanish rice", "Texas toast":
-    # the word is on the menu, the cuisine is not. Those are Jev's call.
-    it "leaves the ambiguous cuisine words alone" do
-      slugs = tag_slugs(derive(text: "Spanish Rice", section: "Southern Colorado Favorites"))
-      expect(slugs).not_to include("spanish", "southern", "latin-american")
+    # The word is on the menu, the cuisine is not: this pass fires at
+    # 0.9 with nothing to veto it, so a modifier word must never be a
+    # keyword, however real the cuisine. Those dishes are Jev's call.
+    it "leaves cuisine words that are also dish modifiers alone" do
+      [
+        [ "Spanish Rice", "Southern Colorado Favorites", %w[spanish southern latin-american] ],
+        [ "French Fries", "Sides", %w[french] ],
+        [ "Greek Yogurt Parfait", "Breakfast", %w[greek] ],
+        [ "German Chocolate Cake", "Desserts", %w[german] ],
+        [ "BBQ Chicken Pizza", "Pizzas", %w[bbq] ],
+        [ "Cajun Fries", "Sides", %w[cajun-creole] ],
+        [ "Himalayan Salt Margarita", "Cocktails", %w[nepali-tibetan] ],
+        [ "Texas Toast", "Sides", %w[tex-mex] ]
+      ].each do |text, section, slugs|
+        expect(tag_slugs(derive(text: text, section: section))).not_to include(*slugs), text
+      end
     end
   end
 

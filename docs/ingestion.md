@@ -242,9 +242,12 @@ leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
 Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
 Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
 Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
-230 questions; still a few thousand tokens. Adding a cuisine is a row
-in that file plus, for an unambiguous demonym, a `TagDeriver::Cuisine`
-keyword; `taxonomy_drift_spec` pins the two together.
+230 questions; still a few thousand of the 64k tokens a request may
+carry (TypeSafe caps Choice *options* at 255, not Noul questions).
+Adding a cuisine is a row in that file plus, only for a word that is
+never a dish modifier, a `TagDeriver::Cuisine` keyword ("french" fries
+and "greek" yogurt are why french and greek have none);
+`taxonomy_drift_spec` pins the two together.
 
 ### 3. Stage
 

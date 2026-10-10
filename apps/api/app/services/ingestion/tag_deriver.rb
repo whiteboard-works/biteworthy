@@ -193,9 +193,13 @@ module Ingestion
     end
 
     module Cuisine
-      # Demonyms and dish-family words only. Anything a menu uses for
-      # something else ("southern", "latin", "spanish rice", "texas") is
-      # left to Jev, which reads the whole dish.
+      # Only words that name a cuisine and nothing else on a menu. A word
+      # that also modifies dishes stays out, however good the cuisine
+      # match: "french" (fries, toast, dip), "greek" (yogurt), "german"
+      # (chocolate cake), "bbq" (sauce, chicken pizza), "cajun" (fries),
+      # "himalayan" (salt), "spanish" (rice), "southern", "texas". Jev
+      # reads the whole dish and decides those; this pass only fires at
+      # 0.9 with no veto, so a wrong hit sticks.
       KEYWORDS = {
         "italian"        => ["italian"],
         "mexican"        => ["mexican"],
@@ -203,20 +207,14 @@ module Ingestion
         "japanese"       => ["japanese"],
         "indian"         => ["indian"],
         "american"       => ["american"],
-        "chinese"        => ["chinese"],
-        "nepali-tibetan" => ["nepali", "nepalese", "tibetan", "himalayan"],
+        "nepali-tibetan" => ["nepali", "nepalese", "tibetan"],
         "mediterranean"  => ["mediterranean"],
-        "greek"          => ["greek"],
-        "middle-eastern" => ["middle eastern", "lebanese", "turkish", "persian"],
-        "latin-american" => ["venezuelan", "colombian", "peruvian", "cuban", "brazilian", "salvadoran"],
+        "middle-eastern" => ["middle eastern", "lebanese"],
+        "latin-american" => ["venezuelan", "colombian", "peruvian", "salvadoran"],
         "caribbean"      => ["caribbean", "jamaican"],
         "korean"         => ["korean"],
         "vietnamese"     => ["vietnamese"],
-        "french"         => ["french"],
-        "german"         => ["german"],
-        "ethiopian"      => ["ethiopian"],
-        "cajun-creole"   => ["cajun", "creole"],
-        "bbq"            => ["bbq", "barbecue", "barbeque"]
+        "ethiopian"      => ["ethiopian"]
       }.freeze
 
       def self.call(ctx)

@@ -212,9 +212,11 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   the seven leaf cuisines), and fully matched dishes never got one at
   all. The admin tool `retag_cuisine` (shipped 2026-10-10, backed by
   `Ingestion::JevCuisineRetag`) re-tags one restaurant on demand, with
-  `dry_run`. **Still open:** running it across every restaurant
-  published before 2026-10-10, restaurant by restaurant from an admin
-  session, and checking a few dry runs first.
+  `dry_run`. The first dry runs (ten Durango restaurants, 2026-10-10)
+  showed Jev refusing the force-fits with nowhere else to put a dish, so
+  the cuisine taxonomy grew from 7 to 23 leaves the same day. **Still
+  open:** re-run the dry runs on the new taxonomy, then the real runs
+  restaurant by restaurant from an admin session.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
