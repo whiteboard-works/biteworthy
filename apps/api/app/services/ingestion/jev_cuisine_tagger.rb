@@ -47,11 +47,13 @@ module Ingestion
       @client = client
     end
 
-    # `prompt_rows` are the slice's GapFillResolveJob prompt rows. Returns
+    # `subject` is what the dishes belong to, for the log line: the
+    # IngestionRun in gap-fill, the Restaurant in a re-tag. `prompt_rows`
+    # are `{ name:, description:, section: }` hashes. Returns
     # `{ index => [{ "slug" => …, "confidence" => … }] }` with an entry for
     # every index (nil for an item Jev did not fully answer), or nil when
     # Jev could not answer at all.
-    def call(run, prompt_rows)
+    def call(subject, prompt_rows)
       tags = cuisine_tags
       return {} if tags.empty? || prompt_rows.empty?
 
@@ -78,7 +80,7 @@ module Ingestion
       end
 
       Rails.logger.info("[jev_cuisine] " + {
-        run_id:       run.id,
+        subject:      label(subject),
         model:        @client.last_model,
         latency_ms:   latency,
         input_tokens: @client.last_usage&.dig("input_tokens"),
@@ -89,19 +91,21 @@ module Ingestion
       if missing.positive?
         Rails.error.report(
           PartialAnswers.new("#{missing} of #{prompt_rows.size * tags.size} answers missing or malformed"),
-          handled: true, context: { ingestion_run_id: run.id, model: @client.last_model }
+          handled: true, context: { subject: label(subject), model: @client.last_model }
         )
       end
       rows
     rescue StandardError => e
       Rails.logger.warn(
-        "[jev_cuisine] IngestionRun##{run&.id} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
+        "[jev_cuisine] #{label(subject)} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
       )
-      Rails.error.report(e, handled: true, context: { ingestion_run_id: run&.id })
+      Rails.error.report(e, handled: true, context: { subject: label(subject) })
       nil
     end
 
     private
+
+    def label(subject) = "#{subject.class.name}##{subject&.id}"
 
     # Leaf cuisines only: the root `cuisine` node is a grouping, not a
     # label anyone would apply to a dish.

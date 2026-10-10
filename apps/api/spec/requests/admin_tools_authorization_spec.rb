@@ -62,8 +62,20 @@ RSpec.describe "Admin tools authorization" do
     { name: "reject_items", args_method: :reject_items_args },
     { name: "list_restaurant_items", args_method: :list_restaurant_items_args },
     { name: "update_published_item", args_method: :update_published_item_args },
+    { name: "retag_cuisine", args_method: :retag_cuisine_args },
     { name: "set_restaurant_status", args_method: :set_restaurant_status_args }
   ].freeze
+
+  # retag_cuisine refuses outright without a Jev key; the restaurant here
+  # has no published dishes, so a configured key means no request is made.
+  before do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+  end
+
+  def retag_cuisine_args
+    { restaurant: restaurant.id, dry_run: true }
+  end
 
   def update_restaurant_args
     { restaurant: restaurant.id, name: "Updated Name" }
