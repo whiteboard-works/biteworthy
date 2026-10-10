@@ -55,8 +55,9 @@ appears from screen 3 on; the minimum viable profile is a couple of cuisine taps
 ### Screen 1 — Cuisines *(multi-select)*
 **"Which cuisines make you hungry?"** — the 23 cuisine chips, the seven
 originals first and the rest alphabetical (a 2026-10-10 expansion took
-the family from 7 to 23, so the screen needs a wrap or a "more" fold,
-not six fixed chips). Tap = love.
+the family from 7 to 23; the mobile taste step already scrolls the
+catalog inside a bounded box so the controls stay on screen, and this
+screen needs the same or a "more" fold, not six fixed chips). Tap = love.
 → `SET_TASTE_TAG {cuisineTagId, 'liked'}`; tap again → `'neutral'`.
 
 ### Screen 2 — Heat *(single tap, 4-point)*
