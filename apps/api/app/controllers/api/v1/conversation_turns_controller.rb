@@ -66,7 +66,12 @@ module Api
         relay
       rescue StandardError => e
         Rails.logger.error("[chat] stream on #{conversation.id} failed: #{e.class}: #{e.message}")
-        write_event({ type: "error", message: "Lost the connection to that turn. Reload to catch up." })
+        # `interrupted` tells a client this is the relay failing, not the
+        # turn ending: the turn may still be running, and its events are
+        # rows, so nothing it says is lost. The loop's own terminal `error`
+        # never carries the flag.
+        write_event({ type: "error", message: "Lost the connection to that turn. Reload to catch up.",
+                      interrupted: true })
       ensure
         response.stream.close
       end

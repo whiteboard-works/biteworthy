@@ -280,6 +280,19 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    # The relay failing is reported in the same `error` shape the loop uses
+    # for a turn that failed, and the two mean opposite things to a client
+    # deciding whether the turn is over: the turn behind a lost relay may
+    # still be running. The flag is what keeps them apart.
+    it "flags an error of its own as interrupted, not as the turn ending" do
+      allow_any_instance_of(Api::V1::ConversationTurnsController).to receive(:relay).and_raise("relay died")
+
+      get "/api/v1/conversations/#{conversation.id}/stream",
+          headers: headers.merge("Last-Event-ID" => "0")
+
+      expect(streamed.last).to include("type" => "error", "interrupted" => true)
+    end
   end
 
   describe "POST /api/v1/conversations/:id/confirm" do
