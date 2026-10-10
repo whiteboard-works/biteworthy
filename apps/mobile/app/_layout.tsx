@@ -70,22 +70,36 @@ export default function RootLayout() {
       });
     };
 
-    (async () => {
-      const optedIn = (await getAnalyticsOptIn()) || process.env.EXPO_PUBLIC_POSTHOG_OPT_IN === '1';
-      if (cancelled) return;
-      const next = trackerFor(optedIn);
-      setTracker(next);
-
-      // Fire app_open once, on whichever tracker we resolved (a no-op
-      // when opted out). The native-bridge require is fine — this is a
-      // screen — and avoids booting it for tests.
+    // The funnel's first event, once per session of tracking: at boot on
+    // whichever tracker we resolved (a no-op when opted out), and again if
+    // the person turns analytics on mid-session, so that session does not
+    // start in the middle. The native-bridge require is fine — this is a
+    // screen — and avoids booting it for tests.
+    const openWith = (next: Tracker) => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Platform } = require('react-native');
       next.track('app_open', { surface: Platform.OS === 'android' ? 'android' : 'ios' });
+    };
+
+    let live = false;
+    const apply = (optedIn: boolean) => {
+      const next = trackerFor(optedIn);
+      setTracker(next);
+      const nowLive = next !== noopTracker;
+      if (nowLive && !live) openWith(next);
+      live = nowLive;
+    };
+
+    (async () => {
+      const optedIn = (await getAnalyticsOptIn()) || process.env.EXPO_PUBLIC_POSTHOG_OPT_IN === '1';
+      if (cancelled) return;
+      apply(optedIn);
+      // Opted out at boot: app_open still fires, into the no-op.
+      if (!optedIn) openWith(noopTracker);
     })();
 
     const unsubscribe = onAnalyticsOptInChange((optedIn) => {
-      if (!cancelled) setTracker(trackerFor(optedIn));
+      if (!cancelled) apply(optedIn);
     });
 
     return () => {

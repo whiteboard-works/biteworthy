@@ -72,4 +72,16 @@ describe('onAnalyticsOptInChange', () => {
 
     expect(seen).toEqual([true, false]);
   });
+
+  it('reports the flips in the order they were made, before the store is written', async () => {
+    const seen: boolean[] = [];
+    const unsubscribe = onAnalyticsOptInChange((v) => seen.push(v));
+
+    // Not awaited one by one: two quick flips in Settings.
+    const first = setAnalyticsOptIn(true);
+    const second = setAnalyticsOptIn(false);
+    expect(seen).toEqual([true, false]);
+    await Promise.all([first, second]);
+    unsubscribe();
+  });
 });

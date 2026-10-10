@@ -56,6 +56,11 @@ module Telemetry
     # caller passed. The job class and id stay; the arguments stay on the box.
     JOB_ARGUMENTS = / with arguments: .*/m
 
+    # An Active Storage URL is a bearer credential in a path: the signed
+    # blob id (and the original filename) under `/rails/active_storage/…`
+    # lets anyone holding it fetch the file. Rails logs every such request.
+    BLOB_PATH = %r{/rails/active_storage/[^\s"']*}
+
     # The API's one route with a person in the path (`GET /users/:handle`).
     # Masked the way the web client masks `/u/<handle>`; the query is
     # handled upstream by `filter_parameters` (Rails logs `filtered_path`).
@@ -138,6 +143,7 @@ module Telemetry
         .gsub(KEY_WITH_PREFIX) { "#{Regexp.last_match(1)}<redacted>" }
         .gsub(RESEND_KEY, "re_<redacted>")
         .gsub(JWT, "<jwt>")
+        .gsub(BLOB_PATH, "/rails/active_storage/<redacted>")
         .gsub(QUERY_VALUE, '\1<q>')
         .gsub(REQUEST_LINE_IP, '\1<ip>\3')
         .gsub(IPV4, "<ip>")

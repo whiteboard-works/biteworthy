@@ -33,6 +33,11 @@ export async function getAnalyticsOptIn(): Promise<boolean> {
 }
 
 export async function setAnalyticsOptIn(value: boolean): Promise<void> {
+  // Listeners first, synchronously: two quick flips reach them in the order
+  // the person made them, not the order two keychain writes happen to
+  // finish in — and "off" means off for this session even when it could
+  // not be remembered for the next one.
+  listeners.forEach((listener) => listener(value));
   try {
     if (value) await SecureStore.setItemAsync(OPT_IN_KEY, '1');
     else await SecureStore.deleteItemAsync(OPT_IN_KEY);
@@ -40,9 +45,6 @@ export async function setAnalyticsOptIn(value: boolean): Promise<void> {
     // SecureStore unavailable (e.g. simulator without keychain) — the
     // default-off posture still holds, so there's nothing to recover.
   }
-  // Told regardless of the store: "off" has to mean off for this session
-  // even when it could not be remembered for the next one.
-  listeners.forEach((listener) => listener(value));
 }
 
 export { OPT_IN_KEY };
