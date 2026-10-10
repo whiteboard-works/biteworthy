@@ -193,13 +193,30 @@ module Ingestion
     end
 
     module Cuisine
+      # Demonyms and dish-family words only. Anything a menu uses for
+      # something else ("southern", "latin", "spanish rice", "texas") is
+      # left to Jev, which reads the whole dish.
       KEYWORDS = {
-        "italian"  => ["italian"],
-        "mexican"  => ["mexican"],
-        "thai"     => ["thai"],
-        "japanese" => ["japanese"],
-        "indian"   => ["indian"],
-        "american" => ["american"]
+        "italian"        => ["italian"],
+        "mexican"        => ["mexican"],
+        "thai"           => ["thai"],
+        "japanese"       => ["japanese"],
+        "indian"         => ["indian"],
+        "american"       => ["american"],
+        "chinese"        => ["chinese"],
+        "nepali-tibetan" => ["nepali", "nepalese", "tibetan", "himalayan"],
+        "mediterranean"  => ["mediterranean"],
+        "greek"          => ["greek"],
+        "middle-eastern" => ["middle eastern", "lebanese", "turkish", "persian"],
+        "latin-american" => ["venezuelan", "colombian", "peruvian", "cuban", "brazilian", "salvadoran"],
+        "caribbean"      => ["caribbean", "jamaican"],
+        "korean"         => ["korean"],
+        "vietnamese"     => ["vietnamese"],
+        "french"         => ["french"],
+        "german"         => ["german"],
+        "ethiopian"      => ["ethiopian"],
+        "cajun-creole"   => ["cajun", "creole"],
+        "bbq"            => ["bbq", "barbecue", "barbeque"]
       }.freeze
 
       def self.call(ctx)

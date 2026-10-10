@@ -231,8 +231,20 @@ slugs exceed Jev's 255-option Choice limit.
 
 The 2026-09-28 shadow trial that decided this agreed with Haiku on
 95.6% of 1,085 pairs, and the disagreements were almost all Haiku
-forcing a dish into one of the seven leaf cuisines (a Venezuelan menu
-as `mexican`, chai as `indian`, a Greek wrap as `italian`).
+forcing a dish into one of the then seven leaf cuisines (a Venezuelan
+menu as `mexican`, chai as `indian`, a Greek wrap as `italian`).
+
+The leaf set is `db/seeds/tags.yml`, seeded on every deploy. Dry runs
+of `retag_cuisine` on 2026-10-10 showed Jev rightly refusing those
+force-fits but with nowhere else to put the dish (a Himalayan menu
+losing `indian` and gaining nothing), so the set grew from 7 to 23
+leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
+Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
+Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
+Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
+230 questions; still a few thousand tokens. Adding a cuisine is a row
+in that file plus, for an unambiguous demonym, a `TagDeriver::Cuisine`
+keyword; `taxonomy_drift_spec` pins the two together.
 
 ### 3. Stage
 

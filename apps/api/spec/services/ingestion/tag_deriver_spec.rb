@@ -135,6 +135,18 @@ RSpec.describe Ingestion::TagDeriver do
       tags = derive(text: "Al Pastor", section: "Mexican Classics")
       expect(tag_slugs(tags)).to include("mexican")
     end
+
+    it "knows the cuisines added for Jev's sake, including the two-word ones" do
+      expect(tag_slugs(derive(text: "Sherpa Stew", section: "Nepali Specialties"))).to include("nepali-tibetan")
+      expect(tag_slugs(derive(text: "Shawarma Plate", section: "Middle Eastern"))).to include("middle-eastern")
+    end
+
+    # "Southern Colorado", "Latin night", "Spanish rice", "Texas toast":
+    # the word is on the menu, the cuisine is not. Those are Jev's call.
+    it "leaves the ambiguous cuisine words alone" do
+      slugs = tag_slugs(derive(text: "Spanish Rice", section: "Southern Colorado Favorites"))
+      expect(slugs).not_to include("spanish", "southern", "latin-american")
+    end
   end
 
   describe "per-family isolation" do
