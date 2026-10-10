@@ -985,7 +985,13 @@ module Chat
       # the only way to be sure is to write conditionally.
       written = Conversation.where(id: @conversation.id, title: nil)
                             .update_all(title: named.title, updated_at: Time.current)
-      @conversation.title = named.title if written == 1
+      return unless written == 1
+
+      # Keep the in-memory row honest without leaving it dirty: a queued
+      # second turn in this same job takes `with_lock` on this object next,
+      # and `lock!` refuses a record with unsaved changes.
+      @conversation.title = named.title
+      @conversation.clear_attribute_changes([ :title ])
     rescue StandardError => e
       # Never at the cost of the answer, which is already on screen. The
       # column stays null — which is the same condition that got us here,

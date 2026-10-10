@@ -56,6 +56,10 @@ module Api
         end
 
         if params.key?(:title)
+          unless params[:title].is_a?(String)
+            return render json: { error: "A title is text." }, status: :unprocessable_entity
+          end
+
           title = Chat::Titler.flatten(params[:title])
           if title.blank?
             return render json: { error: "A title cannot be blank." }, status: :unprocessable_entity
@@ -72,7 +76,10 @@ module Api
           return render json: { error: "Nothing to change." }, status: :unprocessable_entity
         end
 
-        conversation.update!(changes)
+        # Not a touch: the sidebar orders by `updated_at`, and renaming a
+        # chat from three weeks ago is not talking to it.
+        conversation.assign_attributes(changes)
+        conversation.save!(touch: false)
         render json: Chat::Serializer.conversation(conversation)
       end
 

@@ -2055,6 +2055,18 @@ RSpec.describe Chat::AgentLoop do
       expect(conversation.reload.title).to eq("Sam's birthday dinner")
     end
 
+    # The naming write bypasses the model, and `CompletionJob` goes on to
+    # `with_lock` this same object for a queued second turn — which `lock!`
+    # refuses on a record with unsaved changes.
+    it "leaves the record lockable after naming it" do
+      titled("Lunch at Ninis")
+
+      loop_with(say("Sure.")).run(text: "lunch")
+
+      expect(conversation.title).to eq("Lunch at Ninis")
+      expect { conversation.with_lock { } }.not_to raise_error
+    end
+
     it "does not rename a conversation on every later turn" do
       titled("First thing asked")
       loop_with(say("One.")).run(text: "first question")

@@ -110,8 +110,12 @@ export function ChatClient(): ReactElement {
   const current = useRef<Conversation | null>(null);
   // Renames in the air, by chat: the name this tab chose, until the server
   // confirms it. A refetch served before the PATCH committed carries the
-  // old name, and must not draw it over the new one.
+  // old name, and must not draw it over the new one. Only the newest
+  // rename of a chat speaks for it, like `modeTicket` for the picker.
   const renaming = useRef(new Map<string, string>());
+  // The name before any rename of that chat was in flight, for the revert
+  // — not the optimistic one a second rename would otherwise find drawn.
+  const renameBase = useRef(new Map<string, string | null>());
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
@@ -397,7 +401,6 @@ export function ChatClient(): ReactElement {
   // after: a rename is the kind of edit that should feel instant, and if
   // the server refuses it the old name comes back with the error.
   const rename = async (id: string, title: string) => {
-    const previous = conversations.find((c) => c.id === id)?.title ?? null;
     const retitle = (next: string | null) => {
       setConversations((list) => list.map((c) => (c.id === id ? { ...c, title: next } : c)));
       if (current.current?.id === id) {
@@ -405,16 +408,30 @@ export function ChatClient(): ReactElement {
         setActive((a) => (a?.id === id ? { ...a, title: next } : a));
       }
     };
-    retitle(title);
+    if (!renaming.current.has(id)) {
+      renameBase.current.set(id, conversations.find((c) => c.id === id)?.title ?? null);
+    }
     renaming.current.set(id, title);
+    retitle(title);
+    let renamed: Conversation | null = null;
+    let failure: unknown = null;
     try {
-      const renamed = await renameConversation(id, title);
-      if (!removed.current.has(id)) retitle(renamed.title);
+      renamed = await renameConversation(id, title);
     } catch (e) {
-      if (!removed.current.has(id)) retitle(previous);
-      onFailure(e);
-    } finally {
-      if (renaming.current.get(id) === title) renaming.current.delete(id);
+      failure = e;
+    }
+    // An older rename settling late says nothing: the newest one is what
+    // is drawn, and it will settle on its own.
+    if (renaming.current.get(id) !== title) return;
+    renaming.current.delete(id);
+    const base = renameBase.current.get(id) ?? null;
+    renameBase.current.delete(id);
+    if (removed.current.has(id)) return;
+    if (renamed) {
+      retitle(renamed.title);
+    } else {
+      retitle(base);
+      onFailure(failure);
     }
   };
 
@@ -544,11 +561,13 @@ export function ChatClient(): ReactElement {
       // finished, parked on a confirmation, or the connection dropped.
       // `refresh` only redraws if this chat is still the one on screen.
       const conversation = gone ? null : await refresh(id);
-      // Finished — or parked, or failed — while the person was looking at
-      // another chat. Whatever it is, they have not seen it, and the
-      // sidebar is the one place that can say so. Only a turn the server
-      // took: a rejected `ask` left nothing in the chat to see.
-      if (accepted && !gone && !onScreen()) setUnread((set) => new Set(set).add(id));
+      // Finished, or parked on a question, while the person was looking at
+      // another chat: there is a reply there they have not seen, and the
+      // sidebar is the one place that can say so. Not a turn that errored
+      // or was stopped — the dot promises a reply, and there is none.
+      if (outcome !== 'error' && !gone && !removed.current.has(id) && !onScreen()) {
+        setUnread((set) => new Set(set).add(id));
+      }
       // The stream can drop after a write and before its `pane` event —
       // past the reconnect cap, or with the run gone. The refetch then
       // hands back the stored pane, which after `set_strictness` is the

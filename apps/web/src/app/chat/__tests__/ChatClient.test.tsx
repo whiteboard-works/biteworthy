@@ -1190,7 +1190,7 @@ describe('ChatClient', () => {
   describe('the marks beside a chat in the sidebar', () => {
     const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
     const other = { ...blank, id: 'c-2', title: 'Other chat' };
-    let finish: () => void = () => {};
+    let finish: (last?: ChatEvent) => void = () => {};
 
     beforeEach(() => {
       listConversations.mockResolvedValue({ conversations: [busy, other] });
@@ -1199,9 +1199,12 @@ describe('ChatClient', () => {
         messages: [],
       }));
       watchTurn.mockImplementationOnce(
-        () =>
+        (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
           new Promise<null>((resolve) => {
-            finish = () => resolve(null);
+            finish = (last = { type: 'done', text: 'Sure.' }) => {
+              onEvent(last);
+              resolve(null);
+            };
           }),
       );
     });
@@ -1236,6 +1239,23 @@ describe('ChatClient', () => {
       // Opening it is reading it.
       fireEvent.click(screen.getByText('Busy chat'));
       await waitFor(() => expect(within(row('Busy chat')).queryByRole('img')).toBeNull());
+    });
+
+    // The dot promises a reply. A turn that died before writing one would
+    // send the person to a chat with nothing new in it.
+    it('does not mark a chat whose turn ended in an error', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      finish({ type: 'error', message: 'The model is unavailable.' });
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
     });
 
     // Nothing ran, so there is nothing new in that chat to point at.

@@ -95,6 +95,28 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(conversation.chat_mode).to eq("planning")
     end
 
+    # The sidebar is ordered by `updated_at`. Renaming a chat from three
+    # weeks ago must not float it above the one the person was just in.
+    it "does not move a renamed conversation to the top of the list" do
+      conversation.update!(updated_at: 3.weeks.ago)
+      was = conversation.reload.updated_at
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { title: "Old plans" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.updated_at).to be_within(1.second).of(was)
+    end
+
+    # A nested or array param would be stringified into a junk name the
+    # person never typed.
+    it "refuses a title that is not text" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: [ "x" ] }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     # The same flattening the titler applies to the model's output: a
     # newline would break the row, and a NUL would be a Postgres error
     # rather than a 422.
