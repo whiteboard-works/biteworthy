@@ -111,12 +111,13 @@ export type ChatEvent =
   | { type: 'tool_use'; name: string; input: Record<string, unknown>; doing?: string | null }
   | { type: 'tool_result'; name: string; ok: boolean }
   | { type: 'done'; text: string | null }
-  | { type: 'stopped'; message: string }
   | { type: 'awaiting_confirmation'; tool: PendingTool }
   | { type: 'compacted'; messages: number; tokens_saved: number }
   | { type: 'pane'; pane: ChatPane }
   | { type: 'reconnect'; after: number }
-  | { type: 'error'; message: string };
+  /** `interrupted` marks the relay losing the turn rather than the turn
+   *  ending: the turn may still be running, so this is not terminal. */
+  | { type: 'error'; message: string; interrupted?: boolean };
 
 /** Thrown when the session cookie is missing or stale, so callers can
  *  send the user to sign in rather than showing an empty chat. */
@@ -312,6 +313,16 @@ export function setConversationMode(id: string, mode: ChatMode): Promise<Convers
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode }),
+  });
+}
+
+/** Rename. The server keeps a person's name over the model's: the titler
+ *  only names a conversation whose title is still null. */
+export function renameConversation(id: string, title: string): Promise<Conversation> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
   });
 }
 

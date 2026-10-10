@@ -196,19 +196,25 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
-  — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
-  alongside Haiku and logs `[jev_shadow]` agreement lines, writing
-  nothing. After a few dozen real scans, compare: if agreement is high
-  and the disagreements favor Jev, move cuisine tags to Jev (and drop
-  the cuisine catalog from the Haiku prompt); otherwise remove the
-  trial. See `docs/ingestion.md` §2b. *Read 2026-10-10:* only 3 of the
-  16 completed runs still had lines (17 slices, 1,085 pairs), the rest
-  went with their containers (see the persistent-logs item above).
-  Agreement 95.6%; 44 Haiku-only tags against 4 Jev-only, and the
-  Haiku-only ones are mostly force-fits into the seven leaf cuisines
-  (a Venezuelan menu as `mexican`, chai as `indian`, a Greek wrap as
-  `italian`). Decision still open.
+- **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
+  its latency, input tokens, tags kept, answers missing, and failures
+  only on `[jev_cuisine]` log lines and through `Rails.error.report`,
+  and a log line is not something the admin dashboard can
+  show. Add counters to
+  `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
+  so the admin dashboard can show Jev spend and health per run, and so
+  a slice that completed without cuisine is visible after the fact.
+  Schema change; its own PR.
+- **Backfill cuisine tags with Jev, or let an admin re-run a menu
+  (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
+  Every restaurant published before 2026-10-10 still carries Haiku's
+  cuisine tags (the shadow trial showed them force-fitting dishes into
+  the seven leaf cuisines), and fully matched dishes never got one at
+  all. Either a one-off backfill that asks Jev over every published
+  item and rewrites its `cuisine` `ItemTag` rows through the join
+  table, or an admin tool that re-tags one restaurant on demand, or
+  one service with both entry points. Writes live menu tags, so it is
+  product-visible.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately

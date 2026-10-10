@@ -1,5 +1,34 @@
 [
   {
+    "version": "2026.10.10.5",
+    "date": "2026-10-10",
+    "notes": [
+      "You can rename a chat: hover a chat in the sidebar and use the pencil to give it your own name. The assistant never overwrites a name you chose.",
+      "The chat sidebar now shows a pulsing dot beside a chat that is still working and a steady dot beside one that finished while you were in another chat, so you know where a reply is waiting."
+    ]
+  },
+  {
+    "version": "2026.10.10.4",
+    "date": "2026-10-10",
+    "notes": [
+      "Menus scanned from today on get their cuisine labels from a model built for yes-or-no judgments instead of the general-purpose one. It stopped calling a Venezuelan menu Mexican and chai Indian, answers in a fraction of a second, and costs almost nothing per dish."
+    ]
+  },
+  {
+    "version": "2026.10.10.3",
+    "date": "2026-10-10",
+    "notes": [
+      "Deleting a chat from the sidebar removes it right away, without a reload."
+    ]
+  },
+  {
+    "version": "2026.10.10.2",
+    "date": "2026-10-10",
+    "notes": [
+      "Bigger uploads: web scan uploads go straight to the API with a short-lived ticket, oversized menu PDFs get a Ghostscript pass, photos up to 15 MB are accepted and shrunk, and mobile resizes photos before upload."
+    ]
+  },
+  {
     "version": "2026.10.10.1",
     "date": "2026-10-10",
     "notes": [

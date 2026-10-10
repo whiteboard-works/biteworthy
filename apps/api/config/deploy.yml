@@ -127,8 +127,8 @@ env:
     - WEB_PROXY_SECRET
     # AI ingestion (Phase 2.1+)
     - ANTHROPIC_API_KEY
-    # TypeSafe Jev — shadow-only cuisine-tag trial (Ingestion::JevCuisineShadow);
-    # unset disables it.
+    # TypeSafe Jev — decides cuisine tags in gap-fill (Ingestion::JevCuisineTagger);
+    # unset leaves dishes with keyword cuisine tags only.
     - JEV_API_KEY
     # SMTP — Resend API key (username "resend" is non-secret, in env.clear)
     - SMTP_PASSWORD

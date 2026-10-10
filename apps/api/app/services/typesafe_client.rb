@@ -8,11 +8,13 @@
 # the pipeline's narrow classification calls, never for extraction —
 # it takes no images. API reference: https://docs.typesafe.ai/api.md
 #
-# Only `Ingestion::JevCuisineShadow` calls it today, and only to compare
-# against Haiku; nothing it returns is written anywhere.
+# `Ingestion::JevCuisineTagger` is its one caller: Jev owns the cuisine
+# tags that gap-fill writes. Pricing is $0.042 per million input tokens
+# with free output (docs.typesafe.ai/models), so the caller logs usage
+# instead of adding it to the run's Anthropic spend.
 #
 # Timeouts are short on purpose: Jev answers in 70–500ms, and the one
-# caller is optional work inside a background job.
+# caller treats a failure as "no AI cuisine tags for this slice".
 class TypesafeClient
   ENDPOINT = "https://api.typesafe.ai"
   PATH     = "/v1/systemone"

@@ -830,7 +830,7 @@ be a separate request because the one that started the turn is busy.
 | `GET /api/v1/conversations` | The caller's own, newest first |
 | `POST /api/v1/conversations` | Opens an empty one |
 | `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
-| `PATCH /api/v1/conversations/:id` | Sets `mode` — for switching without sending anything |
+| `PATCH /api/v1/conversations/:id` | Sets `mode` (switching without sending anything) and/or `title` (a rename the titler never overwrites) |
 | `DELETE /api/v1/conversations/:id` | Removes it and its messages |
 | `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE. Optional `mode` switches and sends in one request |
 | `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
@@ -839,7 +839,7 @@ be a separate request because the one that started the turn is busy.
 A turn streams these events, each as one `data:` line of JSON:
 
 `open` · `thinking_delta` · `text_delta` · `tool_use` · `tool_result` ·
-then exactly one of `done`, `awaiting_confirmation`, or `error`.
+then exactly one terminal event from the loop: `done`, `awaiting_confirmation`, or `error`. Independently of the turn, the relay may write `reconnect` (its window closed; resume from `after`) or an `error` with `interrupted: true` (it lost the turn, which may still be running). Neither is terminal, and the web client reads neither as the turn ending.
 
 Two properties follow from this being a chat and not an RPC:
 

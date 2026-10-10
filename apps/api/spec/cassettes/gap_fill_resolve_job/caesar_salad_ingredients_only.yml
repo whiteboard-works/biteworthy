@@ -1,0 +1,112 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.anthropic.com/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"claude-haiku-4-5-20251001","max_tokens":8000,"system":[{"type":"text","text":"You
+        are the second-pass enricher for a menu ingestion pipeline. A\ndeterministic
+        matcher already resolved every explicitly named\ningredient (the item''s `matched`
+        list). Your job is only what\ncode cannot do.\n\nFor each item I send, return:\n  *
+        `ingredients.resolved`: ADDITIONAL ingredient slugs implied by\n    the dish
+        but not explicitly named (\"Caesar Salad\" implies\n    anchovy, parmesan,
+        egg), each with a confidence (0..1).\n  * `ingredients.unresolved`: strings
+        from `unmatched` that are\n    real ingredients missing from the catalog (raw
+        material for\n    the curation queue).\n\nSafety-critical: Always infer typical
+        preparation methods that use\nwheat even when the dish description doesn''t
+        mention it. Common examples:\n  * Gravy is typically flour-thickened (grain-wheat-gravy
+        or grain-wheat-roux)\n  * Fried items often use wheat batter or breading (grain-wheat-batter,
+        grain-wheat-breading)\n  * Samosas typically use wheat pastry\n  * Chile rellenos
+        are typically battered\n  * Sauces with roux bases contain wheat flour\nIf
+        uncertain whether a preparation uses wheat, include it with lower\nconfidence
+        rather than omitting it — false negatives can be harmful.\n\nRules:\n  * Use
+        slugs **verbatim** from the catalog — no fuzzy matches,\n    no inventing.\n  *
+        Never repeat a slug from the item''s `matched` list.\n  * `index` in the response
+        must equal the index I gave you.\n  * Items in the response must appear in
+        the same order as the input.\n  * Output JSON only. No prose, no markdown
+        fences."},{"type":"text","text":"# Ingredient catalog\n# slug | name | (path)
+        | aliases\nfish-anchovy | Anchovy | fish.anchovy | \nmeat-beef | Beef | meat.beef
+        | steak","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"Enrich
+        the following items:\n\n[0] Caesar Salad (section: Tacos)\n    unmatched:
+        caesar salad"}]}]}'
+    headers:
+      X-Api-Key:
+      - "<X_API_KEY_HEADER>"
+      Anthropic-Version:
+      - '2023-06-01'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - Faraday v2.14.4
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Sat, 10 Oct 2026 21:18:24 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Anthropic-Ratelimit-Input-Tokens-Limit:
+      - '10000000'
+      Anthropic-Ratelimit-Input-Tokens-Remaining:
+      - '10000000'
+      Anthropic-Ratelimit-Input-Tokens-Reset:
+      - '2026-10-10T21:18:24Z'
+      Anthropic-Ratelimit-Output-Tokens-Limit:
+      - '2000000'
+      Anthropic-Ratelimit-Output-Tokens-Remaining:
+      - '2000000'
+      Anthropic-Ratelimit-Output-Tokens-Reset:
+      - '2026-10-10T21:18:24Z'
+      Anthropic-Ratelimit-Requests-Limit:
+      - '10000'
+      Anthropic-Ratelimit-Requests-Remaining:
+      - '9999'
+      Anthropic-Ratelimit-Requests-Reset:
+      - '2026-10-10T21:18:24Z'
+      Anthropic-Ratelimit-Tokens-Limit:
+      - '12000000'
+      Anthropic-Ratelimit-Tokens-Remaining:
+      - '12000000'
+      Anthropic-Ratelimit-Tokens-Reset:
+      - '2026-10-10T21:18:24Z'
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Request-Id:
+      - req_011CfuFeYiDDuTKFWpiazfvM
+      Traceresponse:
+      - 00-a562962571b7f15292cd430b4fa8fa87-2ab2ce7c056db155-01
+      Anthropic-Organization-Id:
+      - 1ddf08a4-ce21-4dfb-bbf0-fd52d76d3811
+      Anthropic-Workspace-Id:
+      - wrkspc_01LgJ8LVomBhqyCZNBwtgM9H
+      Vary:
+      - Accept-Encoding
+      Content-Security-Policy:
+      - default-src 'none'; frame-ancestors 'none'
+      Server:
+      - cloudflare
+      Cf-Cache-Status:
+      - DYNAMIC
+      X-Robots-Tag:
+      - none
+      Cf-Ray:
+      - a488a8478a6952c1-SLC
+    body:
+      encoding: ASCII-8BIT
+      string: '{"model":"claude-haiku-4-5-20251001","id":"msg_011CfuFeZfWDCrLN2j6Q9z6t","type":"message","role":"assistant","content":[{"type":"text","text":"```json\n[\n  {\n    \"index\":
+        0,\n    \"ingredients\": {\n      \"resolved\": [\n        {\n          \"slug\":
+        \"fish-anchovy\",\n          \"confidence\": 0.95\n        }\n      ],\n      \"unresolved\":
+        [\n        \"caesar salad\"\n      ]\n    }\n  }\n]\n```"}],"container":null,"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":470,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":87,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}'
+  recorded_at: Sat, 10 Oct 2026 21:18:24 GMT
+recorded_with: VCR 6.4.0

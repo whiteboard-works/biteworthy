@@ -80,6 +80,130 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response).to have_http_status(:not_found)
       expect(other.reload.chat_mode).to eq("manual")
     end
+
+    # The sidebar's whole job is telling conversations apart, and the
+    # model's guess at a name is not always the one the person would use.
+    it "renames the conversation, leaving the mode alone" do
+      conversation.update!(title: "Dairy-free lunch near Belmar", chat_mode: "planning")
+
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "  Saturday   lunch\nwith Sam  " }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["title"]).to eq("Saturday lunch with Sam")
+      expect(conversation.reload.title).to eq("Saturday lunch with Sam")
+      expect(conversation.chat_mode).to eq("planning")
+    end
+
+    # The sidebar is ordered by `updated_at`. Renaming a chat from three
+    # weeks ago must not float it above the one the person was just in.
+    it "does not move a renamed conversation to the top of the list" do
+      conversation.update!(updated_at: 3.weeks.ago)
+      was = conversation.reload.updated_at
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { title: "Old plans" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.updated_at).to be_within(1.second).of(was)
+    end
+
+    # Switching the mode goes through the same action, and it should not
+    # reorder the sidebar either — it is a setting, not a message.
+    it "does not move a conversation to the top of the list on a mode switch" do
+      conversation.update!(updated_at: 3.weeks.ago)
+      was = conversation.reload.updated_at
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { mode: "planning" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.updated_at).to be_within(1.second).of(was)
+    end
+
+    # A zero-width space is not whitespace to `blank?`, and a title made
+    # of one would draw an empty row with no "Untitled" fallback — and
+    # stop the model ever naming the chat. The non-joiner is the sharper
+    # case: kept inside a word, nothing on its own.
+    it "treats a title of invisible characters as blank" do
+      ["\u200B\u200E", "\u200C"].each do |invisible|
+        patch "/api/v1/conversations/#{conversation.id}",
+              params: { title: invisible }.to_json,
+              headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
+      end
+    end
+
+    # A nested or array param would be stringified into a junk name the
+    # person never typed.
+    it "refuses a title that is not text" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: [ "x" ] }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    # The same flattening the titler applies to the model's output: a
+    # newline would break the row, and a NUL would be a Postgres error
+    # rather than a 422.
+    it "flattens control characters out of a title" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "Lunch\u0000 with\tSam" }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload.title).to eq("Lunch with Sam")
+    end
+
+    # A blank name is "Untitled" with extra steps — and worse, a null title
+    # is the condition the titler retries on, so the model would name it
+    # again under the person who just tried to clear it.
+    it "refuses a blank title" do
+      conversation.update!(title: "Dairy-free lunch near Belmar")
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { title: "   " }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
+      expect(conversation.reload.title).to eq("Dairy-free lunch near Belmar")
+    end
+
+    # A client clearing a title gets the blank answer, not a type error.
+    it "reads a null title as blank" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: nil }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
+    end
+
+    # Refused rather than clamped: a person who typed sixty-one characters
+    # should be told, not shown a title missing its last word.
+    it "refuses a title longer than the sidebar can show" do
+      conversation.update!(title: "Dairy-free lunch near Belmar")
+
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "x" * (Chat::Titler::MAX_LENGTH + 1) }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.title).to eq("Dairy-free lunch near Belmar")
+    end
+
+    it "takes a mode and a title together" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { mode: "auto", title: "Weeknight takeout" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload).to have_attributes(chat_mode: "auto", title: "Weeknight takeout")
+    end
+
+    it "refuses a body that changes nothing" do
+      patch "/api/v1/conversations/#{conversation.id}", params: {}, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
   end
 
   # `can_undo` answers "did a write run since you last spoke", which the
