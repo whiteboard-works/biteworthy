@@ -56,7 +56,9 @@ module Api
         end
 
         if params.key?(:title)
-          unless params[:title].is_a?(String)
+          # `null` reads as blank below; anything else that is not text is
+          # refused rather than stringified into a name nobody typed.
+          unless params[:title].nil? || params[:title].is_a?(String)
             return render json: { error: "A title is text." }, status: :unprocessable_entity
           end
 

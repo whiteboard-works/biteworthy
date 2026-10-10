@@ -3661,7 +3661,7 @@ export interface paths {
                         "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description a mode that does not exist, a blank or over-long title, or an empty body */
+                /** @description a mode that does not exist; a blank, over-long, or non-text title; or an empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;

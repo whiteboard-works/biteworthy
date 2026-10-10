@@ -1171,6 +1171,35 @@ describe('ChatClient', () => {
       );
     });
 
+    // The endpoint has no sequence, so two PATCHes in flight could commit
+    // in either order. The row already shows the first; the second waits
+    // for the person to try again.
+    it('drops a second rename while the first is still out', async () => {
+      let confirm: () => void = () => {};
+      renameConversation.mockImplementation(
+        (_id: string, title: string) =>
+          new Promise((resolve) => {
+            listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+            confirm = () => resolve({ ...old, title });
+          }),
+      );
+      render(<ChatClient />);
+      const first = await startRenaming();
+      fireEvent.change(first, { target: { value: 'First' } });
+      fireEvent.keyDown(first, { key: 'Enter' });
+      await waitFor(() => expect(renameConversation).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Rename First' }));
+      const second = screen.getByLabelText('Chat title');
+      fireEvent.change(second, { target: { value: 'Second' } });
+      fireEvent.keyDown(second, { key: 'Enter' });
+
+      expect(renameConversation).toHaveBeenCalledTimes(1);
+      expect(within(screen.getByTestId('chat-history')).getByText('First')).toBeInTheDocument();
+      act(() => confirm());
+      await waitFor(() => expect(screen.getByText('First')).toBeInTheDocument());
+    });
+
     it('puts the old name back when the server refuses', async () => {
       renameConversation.mockRejectedValue(new Error('Keep the title to 60 characters.'));
       render(<ChatClient />);
@@ -1241,9 +1270,9 @@ describe('ChatClient', () => {
       await waitFor(() => expect(within(row('Busy chat')).queryByRole('img')).toBeNull());
     });
 
-    // The dot promises a reply. A turn that died before writing one would
-    // send the person to a chat with nothing new in it.
-    it('does not mark a chat whose turn ended in an error', async () => {
+    // The server writes a failed turn into the transcript ("Sorry —
+    // something went wrong"), so there is a reply to see.
+    it('marks a chat whose turn ended in an error', async () => {
       render(<ChatClient />);
       fireEvent.click(await screen.findByText('Busy chat'));
       await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
@@ -1254,8 +1283,11 @@ describe('ChatClient', () => {
 
       finish({ type: 'error', message: 'The model is unavailable.' });
 
-      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
-      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+      await waitFor(() =>
+        expect(
+          within(row('Busy chat')).getByRole('img', { name: 'New reply' }),
+        ).toBeInTheDocument(),
+      );
     });
 
     // Nothing ran, so there is nothing new in that chat to point at.

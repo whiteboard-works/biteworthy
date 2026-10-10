@@ -98,7 +98,7 @@ RSpec.describe "conversations", type: :request do
         run_test!
       end
 
-      response(422, "a mode that does not exist, a blank or over-long title, or an empty body") do
+      response(422, "a mode that does not exist; a blank, over-long, or non-text title; or an empty body") do
         schema "$ref" => "#/components/schemas/ErrorResponse"
         let(:id)   { create(:conversation, user: account).id }
         let(:body) { { mode: "yolo" } }

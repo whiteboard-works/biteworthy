@@ -138,7 +138,18 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       patch "/api/v1/conversations/#{conversation.id}", params: { title: "   " }, headers: headers
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
       expect(conversation.reload.title).to eq("Dairy-free lunch near Belmar")
+    end
+
+    # A client clearing a title gets the blank answer, not a type error.
+    it "reads a null title as blank" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: nil }.to_json,
+            headers: headers.merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("A title cannot be blank.")
     end
 
     # Refused rather than clamped: a person who typed sixty-one characters
