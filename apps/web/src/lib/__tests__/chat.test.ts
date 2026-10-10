@@ -6,6 +6,10 @@ import {
   sendMessage,
   watchTurn,
   uploadAttachment,
+  compose,
+  parseManifest,
+  previewFor,
+  type Attachment,
   type ChatEvent,
 } from '../chat';
 import { shrinkForUpload } from '../shrink-image';
@@ -178,6 +182,45 @@ describe('chat client', () => {
     expect(sent.size).toBe(shrunk.size);
   });
 
+  // The sent bubble shows the photo — and an 80px tile should not cost a
+  // full-size decode, so it is the shrunk copy too.
+  it('keeps a preview of the shrunk copy once the upload is accepted', async () => {
+    vi.stubGlobal('fetch', jsonFetch(201, { id: 'signed-preview' }));
+    const shrunk = new File(['small'], 'IMG_2.jpg', { type: 'image/jpeg' });
+    vi.mocked(shrinkForUpload).mockResolvedValueOnce(shrunk);
+    const createObjectURL = vi.fn((_file: Blob) => 'blob:preview');
+    // jsdom has no createObjectURL.
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = createObjectURL;
+      },
+    );
+
+    await uploadAttachment(new File(['original'], 'IMG_2.HEIC', { type: 'image/heic' }));
+
+    expect(createObjectURL).toHaveBeenCalledWith(shrunk);
+    expect(previewFor('signed-preview')).toBe('blob:preview');
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps no preview for an upload the server refused', async () => {
+    vi.stubGlobal('fetch', jsonFetch(422, { error: 'nope' }));
+    const createObjectURL = vi.fn((_file: Blob) => 'blob:never');
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = createObjectURL;
+      },
+    );
+
+    await expect(
+      uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' })),
+    ).rejects.toThrow();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   // Sending it anyway only earns a bare "Request failed (413)".
   it('refuses a file still too large, with a message that says so, before sending it', async () => {
     const fetchMock = jsonFetch(201, { id: 'never' });
@@ -232,3 +275,49 @@ describe('chat client', () => {
   });
 });
 
+
+// The manifest is for the model. People see their own words plus the
+// files, never a signed id — so whatever compose writes, parseManifest has
+// to take back out exactly.
+describe('parseManifest', () => {
+  const photo = (id: string, filename: string): Attachment => ({
+    id,
+    filename,
+    content_type: 'image/jpeg',
+    byte_size: 10,
+  });
+
+  it('splits a composed message back into the words and the files', () => {
+    const files = [photo('eyJ--abc', 'IMG_7978.jpg'), photo('eyJ--def', 'IMG_7977.jpg')];
+
+    expect(parseManifest(compose('Can you add these?', files))).toEqual({
+      text: 'Can you add these?',
+      attachments: [
+        { id: 'eyJ--abc', filename: 'IMG_7978.jpg' },
+        { id: 'eyJ--def', filename: 'IMG_7977.jpg' },
+      ],
+    });
+  });
+
+  it('leaves a message with no manifest untouched', () => {
+    expect(parseManifest('what can I eat\n\nat ninis')).toEqual({
+      text: 'what can I eat\n\nat ninis',
+      attachments: [],
+    });
+  });
+
+  it('leaves no text behind when the photo is the whole message', () => {
+    expect(parseManifest(compose('', [photo('id-1', 'menu.jpg')]))).toEqual({
+      text: '',
+      attachments: [{ id: 'id-1', filename: 'menu.jpg' }],
+    });
+  });
+
+  it('keeps a filename that contains the separator or a bracket', () => {
+    const odd = photo('id-2', 'lunch — page [2].jpg');
+
+    expect(parseManifest(compose('', [odd])).attachments).toEqual([
+      { id: 'id-2', filename: 'lunch — page [2].jpg' },
+    ]);
+  });
+});

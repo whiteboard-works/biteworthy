@@ -180,7 +180,55 @@ export async function uploadAttachment(picked: File): Promise<Attachment> {
   // Refused by the web server's body limit, before the API sees it.
   if (res.status === 413) throw new Error(TOO_LARGE_MESSAGE);
   if (!res.ok) throw new Error(await errorMessage(res));
-  return (await res.json()) as Attachment;
+  const attachment = (await res.json()) as Attachment;
+  // The shrunk copy: an 80px tile does not need a 12 MP decode.
+  rememberPreview(attachment.id, file);
+  return attachment;
+}
+
+/**
+ * Uploaded files travel as ids, never bytes. Naming them in the message
+ * keeps the transcript honest about what was sent, and gives the model
+ * the ids `start_menu_scan` needs.
+ */
+export function compose(text: string, attachments: Attachment[]): string {
+  if (attachments.length === 0) return text;
+  const manifest = attachments
+    .map((file) => `[Attached ${file.filename} — attachment_id: ${file.id}]`)
+    .join('\n');
+  return [text, manifest].filter(Boolean).join('\n\n');
+}
+
+export interface SentFile {
+  id: string;
+  filename: string;
+}
+
+const MANIFEST_LINE = /^\[Attached (.+) — attachment_id: (\S+)\]$/;
+
+/** The inverse of `compose`: the manifest is for the model, so the bubble
+ *  shows the words and the files without the signed ids. */
+export function parseManifest(text: string): { text: string; attachments: SentFile[] } {
+  const attachments: SentFile[] = [];
+  const kept = text.split('\n').filter((line) => {
+    const match = MANIFEST_LINE.exec(line);
+    if (match) attachments.push({ filename: match[1]!, id: match[2]! });
+    return !match;
+  });
+  return { text: attachments.length ? kept.join('\n').trim() : text, attachments };
+}
+
+// Session-only: the bytes were never kept server-side for display, so a
+// thumbnail exists only while this page still holds the file it came from.
+const previews = new Map<string, string>();
+
+export function rememberPreview(id: string, file: Blob): void {
+  if (!file.type.startsWith('image/') || typeof URL.createObjectURL !== 'function') return;
+  previews.set(id, URL.createObjectURL(file));
+}
+
+export function previewFor(id: string): string | undefined {
+  return previews.get(id);
 }
 
 /** What the server accepted, and the narration position to watch from. */

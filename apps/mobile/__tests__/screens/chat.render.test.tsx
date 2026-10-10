@@ -32,6 +32,7 @@ const mockSend = jest.fn();
 const mockEvents = jest.fn();
 const mockAnswer = jest.fn();
 const mockSetMode = jest.fn();
+const mockUpload = jest.fn();
 jest.mock('../../lib/api/chat', () => ({
   ...jest.requireActual('../../lib/api/chat'),
   createConversation: (...a: unknown[]) => mockCreate(...a),
@@ -40,11 +41,14 @@ jest.mock('../../lib/api/chat', () => ({
   fetchEvents: (...a: unknown[]) => mockEvents(...a),
   answerConfirmation: (...a: unknown[]) => mockAnswer(...a),
   setConversationMode: (...a: unknown[]) => mockSetMode(...a),
+  uploadAttachment: (...a: unknown[]) => mockUpload(...a),
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { Tracker } from '@biteworthy/analytics';
+import * as ImagePicker from 'expo-image-picker';
 import ChatScreen from '../../app/chat';
+import { compose } from '../../lib/api/chat';
 import { TrackerContext } from '../../lib/tracker-context';
 
 const blank = {
@@ -439,5 +443,83 @@ describe('turn analytics', () => {
 
     await waitFor(() => expect(turn()).toBeDefined());
     expect(turn()).toEqual(expect.objectContaining({ outcome: 'awaiting_confirmation' }));
+  });
+});
+
+// The manifest line carries the signed id the model needs to start a
+// scan. It is machinery, and it was reaching people as a wall of base64.
+describe('an uploaded photo in a sent message', () => {
+  function sentWith(id: string, filename: string) {
+    const attachment = { id, filename, content_type: 'image/jpeg', byte_size: 10 };
+    return {
+      ...blank,
+      messages: [
+        {
+          id: 'm-1',
+          role: 'user' as const,
+          position: 1,
+          blocks: [{ type: 'text' as const, text: compose('read this', [attachment]) }],
+        },
+      ],
+    };
+  }
+
+  it('shows the photo picked this session', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'file:///menu.jpg', fileName: 'menu.jpg', mimeType: 'image/jpeg' }],
+    } as unknown as ImagePicker.ImagePickerResult);
+    mockUpload.mockResolvedValue({
+      id: 'signed-picked',
+      filename: 'menu.jpg',
+      content_type: 'image/jpeg',
+      byte_size: 10,
+    });
+    mockGet.mockResolvedValue(sentWith('signed-picked', 'menu.jpg'));
+
+    render(<ChatScreen />);
+    fireEvent.press(await screen.findByLabelText('Attach a menu photo'));
+    await screen.findByTestId('chat-attachments');
+    await type('read this');
+
+    const photo = await screen.findByLabelText('menu.jpg');
+    expect(photo.props.source).toEqual({ uri: 'file:///menu.jpg' });
+    expect(screen.queryByText(/attachment_id/)).toBeNull();
+  });
+
+  // The OS can purge the picker's cache, and Android may not decode HEIC.
+  it('falls back to the filename when the photo cannot be drawn', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'file:///gone.jpg', fileName: 'gone.jpg', mimeType: 'image/jpeg' }],
+    } as unknown as ImagePicker.ImagePickerResult);
+    mockUpload.mockResolvedValue({
+      id: 'signed-gone',
+      filename: 'gone.jpg',
+      content_type: 'image/jpeg',
+      byte_size: 10,
+    });
+    mockGet.mockResolvedValue(sentWith('signed-gone', 'gone.jpg'));
+
+    render(<ChatScreen />);
+    fireEvent.press(await screen.findByLabelText('Attach a menu photo'));
+    await screen.findByTestId('chat-attachments');
+    await type('read this');
+    fireEvent(await screen.findByLabelText('gone.jpg'), 'error');
+
+    expect(await screen.findByText('📎 gone.jpg')).toBeOnTheScreen();
+  });
+
+  // Reloaded, or opened on another device: nothing local to show, but
+  // the person should still see that a file went with it.
+  it('falls back to the filename when the photo is not on this device', async () => {
+    mockGet.mockResolvedValue(sentWith('signed-elsewhere', 'IMG_7978.jpg'));
+
+    render(<ChatScreen />);
+    await type('read this');
+
+    expect(await screen.findByText('📎 IMG_7978.jpg')).toBeOnTheScreen();
+    expect(screen.queryByText(/attachment_id/)).toBeNull();
+    expect(screen.getByText('read this')).toBeOnTheScreen();
   });
 });

@@ -283,3 +283,34 @@ export function compose(text: string, attachments: Attachment[]): string {
     .join('\n');
   return [text, manifest].filter(Boolean).join('\n\n');
 }
+
+export interface SentFile {
+  id: string;
+  filename: string;
+}
+
+const MANIFEST_LINE = /^\[Attached (.+) — attachment_id: (\S+)\]$/;
+
+/** The inverse of `compose`: the manifest is for the model, so the bubble
+ *  shows the words and the files without the signed ids. */
+export function parseManifest(text: string): { text: string; attachments: SentFile[] } {
+  const attachments: SentFile[] = [];
+  const kept = text.split('\n').filter((line) => {
+    const match = MANIFEST_LINE.exec(line);
+    if (match) attachments.push({ filename: match[1]!, id: match[2]! });
+    return !match;
+  });
+  return { text: attachments.length ? kept.join('\n').trim() : text, attachments };
+}
+
+// Session-only: the bytes were never kept server-side for display, so a
+// thumbnail exists only while the app still holds the picker's local file.
+const previews = new Map<string, string>();
+
+export function rememberPreview(id: string, uri: string): void {
+  previews.set(id, uri);
+}
+
+export function previewFor(id: string): string | undefined {
+  return previews.get(id);
+}

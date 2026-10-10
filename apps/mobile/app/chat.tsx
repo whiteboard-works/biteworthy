@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,9 @@ import {
   createConversation,
   fetchEvents,
   getConversation,
+  parseManifest,
+  previewFor,
+  rememberPreview,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -30,6 +34,7 @@ import {
   type ChatMode,
   type Conversation,
   type PendingTool,
+  type SentFile,
 } from '../lib/api/chat';
 import { getJwt } from '../lib/auth';
 import { useTracker } from '../lib/tracker-context';
@@ -436,6 +441,7 @@ export default function ChatScreen() {
         name: asset.fileName ?? 'menu.jpg',
         type: asset.mimeType ?? 'image/jpeg',
       });
+      rememberPreview(uploaded.id, asset.uri);
       setAttachments((current) => [...current, uploaded]);
     } catch (e) {
       setError((e as Error).message);
@@ -615,13 +621,49 @@ function MessageRow({ message }: { message: ChatMessage }) {
   const visible = message.blocks.filter((b) => b.type === 'text');
   if (visible.length === 0) return null;
 
-  const text = visible.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+  const joined = visible.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
   const mine = message.role === 'user';
+  // Only the person's own messages carry a manifest; the model's text is
+  // shown as written.
+  const { text, attachments } = mine ? parseManifest(joined) : { text: joined, attachments: [] };
 
   return (
-    <View style={[styles.bubble, mine ? styles.mine : styles.theirs]} testID="chat-message">
-      <Text style={mine ? styles.mineText : styles.theirsText}>{text}</Text>
+    <View style={mine ? styles.mineRow : undefined} testID="chat-message">
+      {attachments.length > 0 ? (
+        <View style={styles.sentFiles}>
+          {attachments.map((file) => (
+            <SentAttachment key={file.id} file={file} />
+          ))}
+        </View>
+      ) : null}
+      {text ? (
+        <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+          <Text style={mine ? styles.mineText : styles.theirsText}>{text}</Text>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+/** The photo while this session still has it; its name once it doesn't,
+ *  or when the cached file is gone or cannot be decoded. */
+function SentAttachment({ file }: { file: SentFile }) {
+  const [broken, setBroken] = useState(false);
+  const uri = previewFor(file.id);
+  if (uri && !broken) {
+    return (
+      <Image
+        source={{ uri }}
+        accessibilityLabel={file.filename}
+        onError={() => setBroken(true)}
+        style={styles.sentPhoto}
+      />
+    );
+  }
+  return (
+    <Text style={styles.sentFile} numberOfLines={1}>
+      📎 {file.filename}
+    </Text>
   );
 }
 
@@ -677,6 +719,19 @@ const styles = StyleSheet.create({
     maxWidth: '85%',
   },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.bite },
+  mineRow: { alignItems: 'flex-end', gap: space[2] },
+  sentFiles: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: space[2] },
+  sentPhoto: { width: 80, height: 80, borderRadius: 8 },
+  sentFile: {
+    maxWidth: 240,
+    fontSize: fontSize.sm,
+    color: colors.bg,
+    backgroundColor: colors.bite,
+    borderRadius: 999,
+    paddingHorizontal: space[3],
+    paddingVertical: space[1],
+    overflow: 'hidden',
+  },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.bgAlt },
   mineText: { color: colors.bg, fontSize: fontSize.base },
   theirsText: { color: colors.text, fontSize: fontSize.base },
