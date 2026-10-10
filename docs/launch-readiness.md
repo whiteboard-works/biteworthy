@@ -266,6 +266,17 @@ Dishes promoted before #638, #766, or #794 lack the gluten rows those rules add.
 
 Add-only and idempotent. It never writes over what may be a person's decision: a dish missing a base that a rule live at its promotion should have added, or a dish edited since a rule went live, is listed under "to review by hand" with its admin restaurant link instead. Any FAILED line is a dish to fix by hand in admin, and the task then exits 1.
 
+### 11. Error reports → GitHub issues (private repo + token)
+
+**Unlocks:** chat and job failures filed as GitHub issues — one per distinct failure, counted, reopened when they recur — before a user writes in. Until this is done every failure is still recorded in `error_reports` (count, first and last seen) and nothing leaves the box.
+
+The API's `Rails.error` subscriber files through `ErrorReports::GithubIssues` (ADR 0008). It needs a repo to file into and a token that can write issues there.
+
+- [ ] **Pick a private repo.** `whiteboard-works/biteworthy` is public, and an issue carries a backtrace, a conversation id, and whatever the error message quoted — so not there. A new `whiteboard-works/biteworthy-ops` (private, issues on) is the clean choice.
+- [ ] **Create a fine-grained PAT** (GitHub → Settings → Developer settings → Fine-grained tokens): resource owner `whiteboard-works`, repository access limited to that one repo, permission **Issues: Read and write**, nothing else. Note the expiry.
+- [ ] **Add it to the deploy, in this order.** First `GITHUB_ERROR_REPORTS_TOKEN=github_pat_…` in `apps/api/.kamal/secrets`, then `apps/api/bin/kamal-secrets-push`. Only then a PR adding `GITHUB_ERROR_REPORTS_TOKEN` under `env.secret` and `GITHUB_ERROR_REPORTS_REPO: whiteboard-works/<repo>` under `env.clear` in `apps/api/config/deploy.yml`. Kamal fails a deploy on a listed-but-missing secret, and merging an `apps/api` change deploys.
+- [ ] **Check it fired.** After that deploy: `kamal console`, then `Rails.error.report(RuntimeError.new("error reports smoke"), handled: true, context: { component: "smoke" })`. An issue titled `[smoke] RuntimeError: error reports smoke` should appear within a minute; close it, and it stays closed unless reported again.
+
 ## CI status
 
 - `ci-api.yml` — runs on every PR touching `apps/api/`. Postgres 16, ImageMagick installed, full rspec, Brakeman + Rubocop (both blocking).

@@ -66,6 +66,7 @@ module Api
         relay
       rescue StandardError => e
         Rails.logger.error("[chat] stream on #{conversation.id} failed: #{e.class}: #{e.message}")
+        Rails.error.report(e, handled: true, context: { conversation_id: conversation.id, component: "chat", stage: "stream" })
         write_event({ type: "error", message: "Lost the connection to that turn. Reload to catch up." })
       ensure
         response.stream.close
