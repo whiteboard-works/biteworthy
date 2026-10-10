@@ -28,7 +28,8 @@ module Tools
 
         Returns the dishes whose cuisine rows changed (slug or confidence
         grade), with the rows before and after, plus counts of dishes left
-        as they were and dishes Jev could not answer for.
+        as they were, dishes Jev could not answer for, and dishes edited
+        while Jev was answering (stale, left alone; run again).
       TEXT
 
       input_schema(
@@ -76,7 +77,8 @@ module Tools
             { item_id: c.item.id, name: untrusted(c.item.name), before: c.before, after: c.after }
           },
           unchanged:  result.unchanged,
-          unanswered: result.unanswered
+          unanswered: result.unanswered,
+          stale:      result.stale
         )
       rescue ::Ingestion::JevCuisineRetag::Unavailable => e
         raise Errors::Error.new("Jev did not answer; nothing was changed. Try again shortly. (#{e.message})",

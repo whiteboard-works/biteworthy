@@ -16,8 +16,9 @@ module Ingestion
   #
   # All or nothing: every slice is asked before anything is written, so a
   # Jev failure part-way leaves the menu exactly as it was. Each dish is
-  # locked and its rows re-read inside the transaction, so an edit made
-  # while Jev was answering is neither overwritten nor collided with.
+  # locked and its rows re-read inside the transaction, and one edited
+  # since it was sent to Jev is skipped, so an edit made while Jev was
+  # answering is neither overwritten nor collided with.
   class JevCuisineRetag
     SLICE = 20
 
@@ -25,7 +26,9 @@ module Ingestion
 
     # `before` / `after` are the dish's cuisine rows as { slug:, confidence: }.
     Change = Data.define(:item, :before, :after)
-    Result = Data.define(:dishes, :changes, :unchanged, :unanswered, :dry_run)
+    # `stale` counts dishes edited while Jev was answering; their answer
+    # was about the old text, so they are left alone.
+    Result = Data.define(:dishes, :changes, :unchanged, :unanswered, :stale, :dry_run)
 
     MANAGED_SOURCE = "ai"
 
@@ -39,11 +42,13 @@ module Ingestion
       raise Unavailable, "the taxonomy has no leaf cuisine tags" if tags.empty?
 
       items   = @restaurant.items.published.includes(:menu_section).order(:position, :name).to_a
+      seen_at = items.to_h { |item| [ item.id, item.updated_at ] }
       answers = ask(items)
 
       changes    = []
       unchanged  = 0
       unanswered = 0
+      stale      = 0
       Item.transaction do
         Item.defer_denormalization do
           items.each do |item|
@@ -54,6 +59,11 @@ module Ingestion
             end
 
             item.lock!
+            if item.updated_at != seen_at.fetch(item.id)
+              stale += 1
+              next
+            end
+
             current = item.item_tags.includes(:tag).reload.select { |row| row.tag.family == "cuisine" }
             managed = current.select { |row| row.source == MANAGED_SOURCE }
             kept    = current - managed
@@ -75,7 +85,8 @@ module Ingestion
         raise ActiveRecord::Rollback if dry_run
       end
 
-      Result.new(dishes: items.size, changes: changes, unchanged: unchanged, unanswered: unanswered, dry_run: dry_run)
+      Result.new(dishes: items.size, changes: changes, unchanged: unchanged, unanswered: unanswered,
+                 stale: stale, dry_run: dry_run)
     end
 
     private
