@@ -411,8 +411,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_233000) do
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "items_confidence_valid"
     t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'removed'::character varying::text])", name: "items_status_valid"
-    t.foreign_key "users", column: "human_verified_by_user_id", on_delete: :nullify
-    t.foreign_key "users", column: "restaurant_verified_by_user_id", on_delete: :nullify
   end
 
   create_table "mcp_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -834,6 +832,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_233000) do
   add_foreign_key "items", "menu_sections"
   add_foreign_key "items", "restaurants"
   add_foreign_key "items", "users", column: "created_by_user_id"
+  add_foreign_key "items", "users", column: "human_verified_by_user_id", on_delete: :nullify
+  add_foreign_key "items", "users", column: "restaurant_verified_by_user_id", on_delete: :nullify
   add_foreign_key "mcp_tokens", "users"
   add_foreign_key "menu_sections", "menus"
   add_foreign_key "menus", "restaurants"
