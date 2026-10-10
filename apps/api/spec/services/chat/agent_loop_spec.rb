@@ -1308,6 +1308,21 @@ RSpec.describe Chat::AgentLoop do
       expect(result.error).to eq(Chat::UpstreamError::TIMED_OUT)
       expect(conversation.reload.state).to eq("active")
     end
+
+    # The sentence tells the person what to do; the report is how we
+    # find out how often it happens. One timeout is weather; fifty in a
+    # day is a problem nobody wrote in about.
+    it "reports an upstream failure so recurring ones get counted" do
+      allow(Rails.error).to receive(:report).and_call_original
+      client = StreamingScriptedClient.new(Faraday::TimeoutError.new("timeout"))
+
+      described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(Rails.error).to have_received(:report).with(
+        an_instance_of(Faraday::TimeoutError),
+        hash_including(context: hash_including(conversation_id: conversation.id, component: "chat", stage: "upstream"))
+      )
+    end
   end
 
   # Every way a turn can end has to leave the same thing behind: a
