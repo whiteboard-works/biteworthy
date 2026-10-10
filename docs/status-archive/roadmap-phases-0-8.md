@@ -228,6 +228,13 @@ like…" explainer.
 
 ## Resolved Discovered follow-ups
 
+- ~~**Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**~~
+  — resolved 2026-10-10: Jev owns cuisine tags. The surviving shadow
+  lines (3 runs, 1,085 pairs) agreed with Haiku 95.6% of the time and
+  the disagreements were Haiku force-fitting dishes into the seven leaf
+  cuisines, so `Ingestion::JevCuisineTagger` replaced the shadow,
+  Haiku's gap-fill prompt and schema lost the cuisine channel, and the
+  cuisine catalog left the Haiku prompt. `docs/ingestion.md` §2b.
 - ~~Wire `jest-expo` preset + `@testing-library/react-native` for mobile,
   AND `@testing-library/react` + jsdom for web~~ — promoted to Next-up
   (web side) after three paused ticks; mobile counterpart followed.

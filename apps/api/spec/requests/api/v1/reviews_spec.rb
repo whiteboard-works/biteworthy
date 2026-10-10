@@ -197,7 +197,7 @@ RSpec.describe "Reviews API", type: :request do
     end
 
     it "rejects oversized photos" do
-      big = upload_fixture(filename: "big.png", type: "image/png", size: 6.megabytes)
+      big = upload_fixture(filename: "big.png", type: "image/png", size: Images::StripMetadata::MAX_SOURCE_BYTES + 1)
 
       post "/api/v1/items/#{item.id}/reviews",
            params: { rating: 4, photo: big },

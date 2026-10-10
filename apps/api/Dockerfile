@@ -87,8 +87,9 @@ RUN bundle exec bootsnap precompile app/ lib/
 FROM base
 
 # Runtime-only OS deps. libvips + imagemagick are both used by
-# image_processing (review photos + Phase 4.11 dish photos); libpq for
-# Postgres; libjemalloc2 trims puma's RSS by ~30%.
+# image_processing (review photos + Phase 4.11 dish photos); ghostscript
+# for Pdfs::Shrink (oversized menu PDFs); libpq for Postgres;
+# libjemalloc2 trims puma's RSS by ~30%.
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
         curl \
@@ -96,6 +97,7 @@ RUN apt-get update -qq && \
         libpq5 \
         libvips42 \
         imagemagick \
+        ghostscript \
         postgresql-client && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

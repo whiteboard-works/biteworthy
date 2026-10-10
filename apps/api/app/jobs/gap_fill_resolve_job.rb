@@ -1,8 +1,9 @@
 # Background LLM enrichment pass, enqueued by ResolveItemsJob after the
 # run is already :staged and usable. Haiku calls covering only the items
-# the deterministic resolver flagged as gaps (one call per slice of 25 —
+# the deterministic resolver flagged as gaps (one call per slice of 10 —
 # the composed-dish trigger can flag most of a menu), asking only for
-# what code can't derive: implied ingredients + cuisine tags.
+# what code can't derive: implied ingredients. Each slice then goes to
+# Jev (Ingestion::JevCuisineTagger) for its cuisine tags.
 #
 # Contract:
 #   * Append-only for ingredients — never removes or rewrites a
@@ -10,8 +11,9 @@
 #   * Only touches items still `decision: "pending"` (row-locked, so a
 #     concurrent accept wins and the item is skipped).
 #   * Tags are fully re-derived in code over the merged ingredient set —
-#     allergen/diet/prep/flavor are NEVER taken from the model. Safe to
-#     rebuild because every tag row on a pending item is machine-authored.
+#     allergen/diet/prep/flavor are NEVER taken from a model, and cuisine
+#     comes only from Jev. Safe to rebuild because every tag row on a
+#     pending item is machine-authored.
 #   * Failure never fails the run — it's already staged; we record
 #     `enrichment_status: "failed"` and the verify flow continues on
 #     deterministic data.
@@ -30,8 +32,8 @@ class GapFillResolveJob < ApplicationJob
   # 10/batch keeps slices under ~6K output tokens.
   GAP_BATCH_SIZE = 10
 
-  # Explicit output budget for gap-fill. Each item can emit ~10 ingredients
-  # + 3 cuisine tags, each with slug + confidence + unresolved arrays.
+  # Explicit output budget for gap-fill. Each item can emit ~10 ingredients,
+  # each with slug + confidence, plus the unresolved array.
   # At 10 items/batch, ~500-600 tokens/item = ~6K tokens, with headroom.
   GAP_MAX_TOKENS = 8_000
 
@@ -60,53 +62,59 @@ class GapFillResolveJob < ApplicationJob
     end
 
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
-    cuisine_slugs    = Tag.where(family: "cuisine").pluck(:slug).to_set
-    shadowed         = []
+    tagger           = cuisine_tagger(run)
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The
     # usage accounting stays per-call: timed_anthropic_call records each
     # client's billed tokens itself.
     gaps.each_slice(GAP_BATCH_SIZE) do |slice|
+      prompt_rows = slice.map { |g| g[:prompt_row] }
+      result      = nil
       # Retry cheaply: a slice whose every item already carries an AI
       # row was merged by a previous attempt — re-sending it would
-      # re-bill for rows merge! deduplicates anyway.
-      next if slice.all? { |g| g[:enriched] }
-
-      prompt_rows = slice.map { |g| g[:prompt_row] }
-      out = timed_anthropic_call(
+      # re-bill for rows merge! deduplicates anyway. Jev is still asked
+      # below: it is ~150ms and the previous attempt's Jev call may be
+      # the thing that failed.
+      unless slice.all? { |g| g[:enriched] }
+        out = timed_anthropic_call(
         run,
         api_error:        "gap_fill_api_error",
         validation_error: "gap_fill_validation_failed",
         truncation_error: "gap_fill_truncated",
         model:            resolve_model,
         fail_run:         false
-      ) do |client|
-        client.messages_create(
-          system:          Ingestion::GapFillPrompt.system(client),
-          messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
-          max_tokens:      GAP_MAX_TOKENS,
-          response_schema: Ingestion::GapFillSchema
-        )
+        ) do |client|
+          client.messages_create(
+            system:          Ingestion::GapFillPrompt.system(client),
+            messages:        Ingestion::GapFillPrompt.user_messages(prompt_rows),
+            max_tokens:      GAP_MAX_TOKENS,
+            response_schema: Ingestion::GapFillSchema
+          )
+        end
+
+        # When fail_run: false, timed_anthropic_call returns [nil, nil, error_msg] on failure
+        if out.nil? || (out.is_a?(Array) && out[0].nil?)
+          error_msg = out.is_a?(Array) && out.size == 3 ? out[2] : "gap-fill slice failed"
+          # Log the full error for debugging enrichment failures
+          Rails.logger.error("GapFillResolveJob failed for run #{run.id}: #{error_msg}")
+          run.update(enrichment_failure_message: error_msg) if run.enrichment_failure_message.nil?
+          raise SliceFailedError, error_msg
+        end
+
+        result, = out
       end
 
-      # When fail_run: false, timed_anthropic_call returns [nil, nil, error_msg] on failure
-      if out.nil? || (out.is_a?(Array) && out[0].nil?)
-        error_msg = out.is_a?(Array) && out.size == 3 ? out[2] : "gap-fill slice failed"
-        # Log the full error for debugging enrichment failures
-        Rails.logger.error("GapFillResolveJob failed for run #{run.id}: #{error_msg}")
-        run.update(enrichment_failure_message: error_msg) if run.enrichment_failure_message.nil?
-        raise SliceFailedError, error_msg
-      end
-
-      result, = out
-      merge!(run, slice, result, ingredient_paths, cuisine_slugs)
-      shadowed << [ prompt_rows, result ]
+      # Jev never raises: a failure (nil) merges the slice with whatever
+      # cuisine rows it already had rather than re-running a Haiku call
+      # that succeeded, and switches Jev off for the rest of this attempt
+      # so an outage costs one timeout, not one per slice. The next
+      # attempt, if there is one, asks again.
+      cuisine = tagger&.call(run, prompt_rows)
+      tagger  = nil if cuisine.nil?
+      merge!(run, slice, result, ingredient_paths, cuisine)
     end
     run.update!(enrichment_status: "completed", enrichment_failure_message: nil)
-    # After `completed`, so a slow TypeSafe never holds up the status
-    # clients are waiting on. Observation only; see JevCuisineShadow.
-    shadow_cuisine_tags(run, shadowed)
   rescue StandardError => e
     # Everything that should reach retry_on (a slice's SliceFailedError,
     # transport errors that bypass ApiError, DB hiccups, bugs) re-raises so
@@ -132,11 +140,14 @@ class GapFillResolveJob < ApplicationJob
 
   private
 
-  def shadow_cuisine_tags(run, shadowed)
-    return unless Ingestion::JevCuisineShadow.enabled?
+  # Jev is the only source of AI cuisine tags; without a key the family
+  # degrades to TagDeriver's keyword pass, warned on every attempt that
+  # enriches, rather than falling back to asking Haiku.
+  def cuisine_tagger(run)
+    return Ingestion::JevCuisineTagger.new if Ingestion::JevCuisineTagger.enabled?
 
-    shadow = Ingestion::JevCuisineShadow.new
-    shadowed.each { |rows, result| shadow.call(run, rows, result) }
+    Rails.logger.warn("[jev_cuisine] JEV_API_KEY unset: IngestionRun##{run.id} gets keyword cuisine tags only")
+    nil
   end
 
   # Recompute the gap set from scratch (the resolver is stateless and
@@ -161,8 +172,12 @@ class GapFillResolveJob < ApplicationJob
     end
   end
 
-  def merge!(run, gaps, result, ingredient_paths, cuisine_slugs)
-    response_by_index = Array(result["items"]).each_with_object({}) { |row, h| h[row["index"]] ||= row }
+  # `result` is Haiku's parsed response, or nil when the slice was
+  # already enriched and only Jev was asked. `cuisine` is
+  # JevCuisineTagger's { index => rows } for this slice, or nil when Jev
+  # could not answer (existing AI cuisine rows then stay as they are).
+  def merge!(run, gaps, result, ingredient_paths, cuisine)
+    response_by_index = Array(result&.dig("items")).each_with_object({}) { |row, h| h[row["index"]] ||= row }
 
     run.transaction do
       # order(:id) keeps lock acquisition in PK order, matching
@@ -174,25 +189,29 @@ class GapFillResolveJob < ApplicationJob
       rows = gaps.each_with_index.filter_map do |gap, index|
         item     = locked[gap[:item_id]]
         response = response_by_index[index]
-        next if item.nil? || response.nil?
+        next if item.nil? || (response.nil? && cuisine.nil?)
 
-        merged = merge_ingredients(item, response.dig("ingredients", "resolved"), ingredient_paths)
+        merged = if response
+          merge_ingredients(item, response.dig("ingredients", "resolved"), ingredient_paths)
+        else
+          Array(item.ingredients_payload)
+        end
         # ingestion_run_id: Postgres checks NOT NULL on the insert tuple
-        # before ON CONFLICT resolves.
+        # before ON CONFLICT resolves. unresolved_tags is not written:
+        # it was Haiku's list of cuisine-ish phrases, and Jev answers
+        # over the catalog, so there is nothing to collect.
         { id:                     item.id,
           ingestion_run_id:       run.id,
           ingredients_payload:    merged,
-          tags_payload:           rebuild_tags(item, merged, response.dig("cuisine_tags", "resolved"),
-                                               ingredient_paths, cuisine_slugs),
-          unresolved_ingredients: Array(response.dig("ingredients", "unresolved")),
-          unresolved_tags:        Array(response.dig("cuisine_tags", "unresolved")) }
+          tags_payload:           rebuild_tags(item, merged, cuisine&.fetch(index, []), ingredient_paths),
+          unresolved_ingredients: response ? Array(response.dig("ingredients", "unresolved")) : item.unresolved_ingredients }
       end
 
       if rows.any?
         # upsert_all stamps updated_at itself (record_timestamps).
         IngestionItem.upsert_all(
           rows,
-          update_only: %i[ingredients_payload tags_payload unresolved_ingredients unresolved_tags]
+          update_only: %i[ingredients_payload tags_payload unresolved_ingredients]
         )
       end
     end
@@ -234,13 +253,17 @@ class GapFillResolveJob < ApplicationJob
   # so a pending item can carry human tags (e.g. an added allergen).
   MACHINE_SOURCES = %w[match derived ai ingredient_derived].freeze
 
-  def rebuild_tags(item, merged_ingredients, ai_cuisine_rows, ingredient_paths, cuisine_slugs)
+  # `cuisine_rows` nil means Jev could not answer this time: the `ai`
+  # rows (only ever cuisine) a previous attempt landed are kept instead
+  # of being rebuilt from nothing.
+  def rebuild_tags(item, merged_ingredients, cuisine_rows, ingredient_paths)
     resolved = merged_ingredients.map do |r|
       { slug: r["slug"], path: ingredient_paths[r["slug"]].to_s,
         confidence: r["confidence"], source: r["source"] }
     end
 
-    tags = Array(item.tags_payload).reject { |r| MACHINE_SOURCES.include?(r["source"]) }
+    rebuilt = cuisine_rows.nil? ? MACHINE_SOURCES - [ "ai" ] : MACHINE_SOURCES
+    tags = Array(item.tags_payload).reject { |r| rebuilt.include?(r["source"]) }
     known = tags.map { |t| t["slug"] }.to_set
 
     Ingestion::TagDeriver.derive(
@@ -253,14 +276,11 @@ class GapFillResolveJob < ApplicationJob
       tags << Ingestion::AssociationPayload.load(t).dump
       known << t[:slug]
     end
-    Array(ai_cuisine_rows).each do |row|
+    # Jev's rows are keyed by our own leaf-cuisine slugs, so there is no
+    # unknown slug to drop — only a keyword hit to avoid duplicating.
+    Array(cuisine_rows).each do |row|
       slug = row["slug"]
       next if known.include?(slug)
-
-      unless cuisine_slugs.include?(slug)
-        Rails.logger.warn("GapFillResolveJob: dropping unknown cuisine tag slug #{slug.inspect}")
-        next
-      end
 
       tags << Ingestion::AssociationPayload.dump(slug: slug, confidence: row["confidence"], source: "ai")
       known << slug

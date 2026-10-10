@@ -50,6 +50,16 @@ describe('relayUpstream', () => {
     const res = await relayUpstream(upstream('x', 200, null));
     expect(res.headers.get('Content-Type')).toBe('application/json');
   });
+
+  // Rails answers a delete with 204 and no body. The Response constructor
+  // rejects a body — even an empty string — on a no-body status, so the
+  // relay used to throw and the browser saw a 500 for a delete that had
+  // already happened: the chat stayed in the sidebar until a reload.
+  it('relays a 204 without a body instead of throwing', async () => {
+    const res = await relayUpstream(upstream('', 204, null));
+    expect(res.status).toBe(204);
+    expect(res.body).toBeNull();
+  });
 });
 
 describe('proxyAuthed', () => {

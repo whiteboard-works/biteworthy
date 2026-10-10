@@ -14,7 +14,8 @@ import type {
   ChatUsage as ApiChatUsage,
   PendingTool as ApiPendingTool,
 } from '@biteworthy/api-types';
-import { shrinkForUpload, tooLargeToUpload, TOO_LARGE_MESSAGE } from './shrink-image';
+import { API_BASE } from './api-base';
+import { shrinkForUpload } from './shrink-image';
 
 export type ChatBlock =
   | { type: 'text'; text: string }
@@ -164,23 +165,94 @@ export async function deleteConversation(id: string): Promise<void> {
   if (!res.ok) throw new Error(await errorMessage(res));
 }
 
+/** From POST /api/chat/attachments/ticket: opens the upload door and nothing else. */
+export interface UploadTicket {
+  ticket: string;
+  expires_at: string;
+  /** This caller's raw ceiling; the API shrinks an oversized PDF under it. */
+  max_bytes: number;
+}
+
+function tooLargeMessage(maxBytes: number): string {
+  const mb = Math.floor(maxBytes / (1024 * 1024));
+  return `That file is too large to upload (${mb} MB max). For a bigger PDF, send photos of the pages instead.`;
+}
+
+/**
+ * The bytes go straight to Rails: this server's body limit (4.5 MB on
+ * Vercel) sits below the API's, which shrinks an oversized PDF itself.
+ * The browser holds no JWT it can send, so the proxy mints a short-lived
+ * ticket with the session first.
+ */
 export async function uploadAttachment(picked: File): Promise<Attachment> {
   const file = await shrinkForUpload(picked);
-  if (tooLargeToUpload(file)) throw new Error(TOO_LARGE_MESSAGE);
+  const { ticket, max_bytes } = await json<UploadTicket>('/api/chat/attachments/ticket', {
+    method: 'POST',
+  });
+  if (file.size > max_bytes) throw new Error(tooLargeMessage(max_bytes));
 
   const form = new FormData();
   form.append('file', file);
   // No Content-Type — fetch sets the multipart boundary.
-  const res = await fetch('/api/chat/attachments', {
+  const res = await fetch(`${API_BASE}/api/v1/attachments`, {
     method: 'POST',
+    headers: { 'X-Upload-Ticket': ticket },
     body: form,
-    credentials: 'same-origin',
   });
-  if (res.status === 401) throw new NotSignedInError();
-  // Refused by the web server's body limit, before the API sees it.
-  if (res.status === 413) throw new Error(TOO_LARGE_MESSAGE);
+  // A 401 here is the ticket, not the session (minting it just proved the
+  // session): a login redirect would throw away a signed-in composer.
+  // Refused by a body limit in front of the API, before its code runs.
+  if (res.status === 413) throw new Error(tooLargeMessage(max_bytes));
   if (!res.ok) throw new Error(await errorMessage(res));
-  return (await res.json()) as Attachment;
+  const attachment = (await res.json()) as Attachment;
+  // The shrunk copy: an 80px tile does not need a 12 MP decode.
+  rememberPreview(attachment.id, file);
+  return attachment;
+}
+
+/**
+ * Uploaded files travel as ids, never bytes. Naming them in the message
+ * keeps the transcript honest about what was sent, and gives the model
+ * the ids `start_menu_scan` needs.
+ */
+export function compose(text: string, attachments: Attachment[]): string {
+  if (attachments.length === 0) return text;
+  const manifest = attachments
+    .map((file) => `[Attached ${file.filename} — attachment_id: ${file.id}]`)
+    .join('\n');
+  return [text, manifest].filter(Boolean).join('\n\n');
+}
+
+export interface SentFile {
+  id: string;
+  filename: string;
+}
+
+const MANIFEST_LINE = /^\[Attached (.+) — attachment_id: (\S+)\]$/;
+
+/** The inverse of `compose`: the manifest is for the model, so the bubble
+ *  shows the words and the files without the signed ids. */
+export function parseManifest(text: string): { text: string; attachments: SentFile[] } {
+  const attachments: SentFile[] = [];
+  const kept = text.split('\n').filter((line) => {
+    const match = MANIFEST_LINE.exec(line);
+    if (match) attachments.push({ filename: match[1]!, id: match[2]! });
+    return !match;
+  });
+  return { text: attachments.length ? kept.join('\n').trim() : text, attachments };
+}
+
+// Session-only: the bytes were never kept server-side for display, so a
+// thumbnail exists only while this page still holds the file it came from.
+const previews = new Map<string, string>();
+
+export function rememberPreview(id: string, file: Blob): void {
+  if (!file.type.startsWith('image/') || typeof URL.createObjectURL !== 'function') return;
+  previews.set(id, URL.createObjectURL(file));
+}
+
+export function previewFor(id: string): string | undefined {
+  return previews.get(id);
 }
 
 /** What the server accepted, and the narration position to watch from. */

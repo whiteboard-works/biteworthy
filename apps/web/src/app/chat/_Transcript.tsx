@@ -1,7 +1,14 @@
 'use client';
 
-import type { ReactElement } from 'react';
-import type { ChatBlock, ChatMessage, PendingTool } from '../../lib/chat';
+import { useState, type ReactElement } from 'react';
+import {
+  parseManifest,
+  previewFor,
+  type ChatBlock,
+  type ChatMessage,
+  type PendingTool,
+  type SentFile,
+} from '../../lib/chat';
 import { Markdown } from './_Markdown';
 
 /** The assistant turn currently streaming, before it is persisted. */
@@ -22,6 +29,8 @@ interface TranscriptProps {
   pending: PendingTool | null;
   busy: boolean;
   onAnswer: (approved: boolean) => void;
+  /** Local thumbnail for an upload id, if this session still has the file. */
+  previews?: (id: string) => string | undefined;
 }
 
 export function Transcript({
@@ -30,13 +39,14 @@ export function Transcript({
   pending,
   busy,
   onAnswer,
+  previews = previewFor,
 }: TranscriptProps): ReactElement {
   const outcomes = toolOutcomes(messages);
 
   return (
     <div className="flex flex-col gap-bw-6" data-testid="chat-transcript">
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} outcomes={outcomes} />
+        <MessageRow key={message.id} message={message} outcomes={outcomes} previews={previews} />
       ))}
       {live ? <LiveRow turn={live} /> : null}
       {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={onAnswer} /> : null}
@@ -62,9 +72,11 @@ function toolOutcomes(messages: ChatMessage[]): Map<string, boolean> {
 function MessageRow({
   message,
   outcomes,
+  previews,
 }: {
   message: ChatMessage;
   outcomes: Map<string, boolean>;
+  previews: (id: string) => string | undefined;
 }): ReactElement | null {
   // Tool results are carried on a user-role message because that is the
   // Messages API shape, not because a person typed them.
@@ -76,7 +88,7 @@ function MessageRow({
       .filter((b): b is Extract<ChatBlock, { type: 'text' }> => b.type === 'text')
       .map((b) => b.text)
       .join('\n');
-    return <UserBubble text={text} />;
+    return <UserBubble {...parseManifest(text)} previews={previews} />;
   }
 
   return (
@@ -108,16 +120,60 @@ function Timestamp({ at }: { at: string | undefined }): ReactElement | null {
   );
 }
 
-function UserBubble({ text }: { text: string }): ReactElement {
+function UserBubble({
+  text,
+  attachments,
+  previews,
+}: {
+  text: string;
+  attachments: SentFile[];
+  previews: (id: string) => string | undefined;
+}): ReactElement {
   return (
     <div className="flex justify-end">
-      <p
+      <div
         data-testid="user-message"
-        className="max-w-[85%] whitespace-pre-wrap rounded-bw-lg bg-bite px-bw-4 py-bw-3 text-bw-base text-white"
+        className="flex max-w-[85%] flex-col items-end gap-bw-2 text-bw-base text-white"
       >
-        {text}
-      </p>
+        {attachments.length > 0 ? (
+          <ul className="flex flex-wrap justify-end gap-bw-2">
+            {attachments.map((file) => (
+              <li key={file.id}>
+                <SentAttachment file={file} src={previews(file.id)} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {text ? (
+          <p className="whitespace-pre-wrap rounded-bw-lg bg-bite px-bw-4 py-bw-3">{text}</p>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+/** The photo while this session still has it; its name once it doesn't,
+ *  or when the browser cannot draw it (HEIC outside Safari). */
+function SentAttachment({ file, src }: { file: SentFile; src?: string }): ReactElement {
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a local blob: URL, nothing to optimize
+      <img
+        src={src}
+        alt={file.filename}
+        onError={() => setBroken(true)}
+        className="h-20 w-20 rounded-bw-md object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      data-testid="attachment-file"
+      className="inline-block max-w-[16rem] truncate rounded-bw-pill bg-bite px-bw-3 py-bw-1 text-bw-sm"
+    >
+      📎 {file.filename}
+    </span>
   );
 }
 

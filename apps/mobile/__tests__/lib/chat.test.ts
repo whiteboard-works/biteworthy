@@ -2,6 +2,7 @@ import {
   ChatError,
   answerConfirmation,
   compose,
+  parseManifest,
   fetchEvents,
   sendMessage,
   setConversationMode,
@@ -117,6 +118,52 @@ describe('chat api', () => {
 
     it('works when the photo is the whole message', () => {
       expect(compose('', [file])).toBe('[Attached menu.jpg — attachment_id: signed-abc]');
+    });
+  });
+
+  // The manifest is for the model. People see their own words plus the
+  // files, never a signed id — so whatever compose writes, parseManifest
+  // has to take back out exactly.
+  describe('parseManifest', () => {
+    const photo = (id: string, filename: string): Attachment => ({
+      id,
+      filename,
+      content_type: 'image/jpeg',
+      byte_size: 10,
+    });
+
+    it('splits a composed message back into the words and the files', () => {
+      const files = [photo('eyJ--abc', 'IMG_7978.jpg'), photo('eyJ--def', 'IMG_7977.jpg')];
+
+      expect(parseManifest(compose('Can you add these?', files))).toEqual({
+        text: 'Can you add these?',
+        attachments: [
+          { id: 'eyJ--abc', filename: 'IMG_7978.jpg' },
+          { id: 'eyJ--def', filename: 'IMG_7977.jpg' },
+        ],
+      });
+    });
+
+    it('leaves a message with no manifest untouched', () => {
+      expect(parseManifest('what can I eat\n\nat ninis')).toEqual({
+        text: 'what can I eat\n\nat ninis',
+        attachments: [],
+      });
+    });
+
+    it('leaves no text behind when the photo is the whole message', () => {
+      expect(parseManifest(compose('', [photo('id-1', 'menu.jpg')]))).toEqual({
+        text: '',
+        attachments: [{ id: 'id-1', filename: 'menu.jpg' }],
+      });
+    });
+
+    it('keeps a filename that contains the separator or a bracket', () => {
+      const odd = photo('id-2', 'lunch — page [2].jpg');
+
+      expect(parseManifest(compose('', [odd])).attachments).toEqual([
+        { id: 'id-2', filename: 'lunch — page [2].jpg' },
+      ]);
     });
   });
 });
