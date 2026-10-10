@@ -1,5 +1,19 @@
 [
   {
+    "version": "2026.10.10.3",
+    "date": "2026-10-10",
+    "notes": [
+      "Deleting a chat from the sidebar removes it right away, without a reload."
+    ]
+  },
+  {
+    "version": "2026.10.10.2",
+    "date": "2026-10-10",
+    "notes": [
+      "Bigger uploads: web scan uploads go straight to the API with a short-lived ticket, oversized menu PDFs get a Ghostscript pass, photos up to 15 MB are accepted and shrunk, and mobile resizes photos before upload."
+    ]
+  },
+  {
     "version": "2026.10.10.1",
     "date": "2026-10-10",
     "notes": [

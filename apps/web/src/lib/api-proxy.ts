@@ -17,12 +17,16 @@ import { API_BASE } from './api-base';
 import { getServerJwt } from './server-auth';
 import { edgeHeaders } from './edge-headers';
 
+// Statuses the Response constructor refuses a body for, even an empty
+// string. Rails answers a delete with 204.
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
+
 /**
  * Relay a Rails response back to the browser verbatim — same status,
  * body, and Content-Type (defaulting to JSON when upstream omits it).
  */
 export async function relayUpstream(upstream: Response): Promise<NextResponse> {
-  const body = await upstream.text();
+  const body = NULL_BODY_STATUSES.has(upstream.status) ? null : await upstream.text();
   return new NextResponse(body, {
     status: upstream.status,
     headers: { 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' },
