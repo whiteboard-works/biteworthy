@@ -139,6 +139,21 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
   end
 
+  # An unpublish or a tag edit changes nothing Jev was told, but the row
+  # moved under the question, and a removed dish must not be re-tagged.
+  it "skips a dish unpublished while Jev was answering" do
+    stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return do
+      tacos.update!(status: "removed")
+      { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+        headers: { "Content-Type" => "application/json" } }
+    end
+
+    result = described_class.new(restaurant, tagger: tagger).call
+
+    expect(result.stale).to eq(1)
+    expect(cuisine_rows(tacos).map(&:first)).to contain_exactly("cuisine-italian", "flavor-spicy")
+  end
+
   # A section rename goes through the section row, not the dishes, so a
   # dish timestamp would not catch it.
   it "skips every dish whose section was renamed while Jev was answering" do

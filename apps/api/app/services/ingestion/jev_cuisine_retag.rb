@@ -27,9 +27,10 @@ module Ingestion
 
     # `before` / `after` are the dish's cuisine rows as { slug:, confidence: }.
     Change = Data.define(:item, :before, :after)
-    # `stale` counts dishes whose name, description or section changed
-    # while Jev was answering; the answer was about the old text, so
-    # they are left alone.
+    # `stale` counts dishes edited while Jev was answering — text or
+    # section (the answer was about the old text), or anything else on
+    # the row, tags and status included (the timestamp moves); they are
+    # left alone.
     Result = Data.define(:dishes, :changes, :unchanged, :unanswered, :stale, :dry_run)
 
     MANAGED_SOURCE = "ai"
@@ -44,7 +45,7 @@ module Ingestion
       raise Unavailable, "the taxonomy has no leaf cuisine tags" if tags.empty?
 
       items   = @restaurant.items.published.includes(:menu_section).order(:position, :name).to_a
-      asked   = items.to_h { |item| [ item.id, prompt_row(item) ] }
+      asked   = items.to_h { |item| [ item.id, [ item.updated_at, prompt_row(item) ] ] }
       answers = ask(items)
 
       changes    = []
@@ -61,10 +62,12 @@ module Ingestion
             end
 
             item.lock!
-            # lock! re-reads the dish; the section is re-read by hand so a
-            # rename or removal since the question was asked counts too.
+            # lock! re-reads the dish, so the timestamp catches any edit to
+            # the row, its tags (denormalization touches it) or its status;
+            # the section is re-read by hand because a rename or removal
+            # goes through the section row and leaves the dish untouched.
             item.association(:menu_section).reset
-            if prompt_row(item) != asked.fetch(item.id)
+            if [ item.updated_at, prompt_row(item) ] != asked.fetch(item.id)
               stale += 1
               next
             end
