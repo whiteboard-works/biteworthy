@@ -1,9 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
+import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import { formatPriceRange } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../lib/api/restaurants';
+import { InfoChip } from './_InfoChip';
 import { HiddenReasonChip } from './[id]';
 
 /**
@@ -22,15 +23,6 @@ import { HiddenReasonChip } from './[id]';
  * The `_` prefix on the filename is the expo-router convention for
  * private files (excluded from routing).
  */
-/** A small neutral fact about a dish (its price, its menu section). */
-export function InfoChip({ testID, children }: { testID: string; children: string }) {
-  return (
-    <Text style={styles.infoChip} testID={testID}>
-      {children}
-    </Text>
-  );
-}
-
 export interface ItemRowProps {
   item: RestaurantItem;
   /** Optional — when set, passed through to /items/[id] so the review
@@ -198,16 +190,6 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     marginTop: space['1'],
-  },
-  infoChip: {
-    backgroundColor: colors.bgAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: space['2'],
-    paddingVertical: 2,
-    fontSize: fontSize.xs,
-    fontWeight: '600',
-    color: colors.textMuted,
-    overflow: 'hidden',
   },
   chipRow: {
     flexDirection: 'row',

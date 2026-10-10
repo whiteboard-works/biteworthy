@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
 import { formatPriceRange, tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../lib/api/restaurants';
-import { InfoChip } from './_ItemRow';
+import { InfoChip } from './_InfoChip';
 
 /**
  * Phase 8.4 — mobile twin of the web Top Picks row (Phase 8.3).
