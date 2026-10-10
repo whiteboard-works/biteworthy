@@ -103,12 +103,14 @@ export async function reportRequestError(
   context: RequestContext,
 ): Promise<void> {
   const properties = requestErrorProperties(request, context, err);
-  // Vercel's own log keeps a line too, for the hour it keeps them.
-  console.error('[request-error]', properties, err);
+  const safe = sanitizeError(err);
+  // Vercel's own log keeps a line too, for the hour it keeps them — the
+  // same scrubbed copy, so neither store holds what the other does not.
+  console.error('[request-error]', properties, safe);
   const posthog = serverPostHog();
   if (!posthog) return;
   try {
-    await posthog.captureExceptionImmediate(sanitizeError(err), undefined, properties);
+    await posthog.captureExceptionImmediate(safe, undefined, properties);
   } catch (sendError) {
     console.error('[request-error] not reported to PostHog', sendError);
   }

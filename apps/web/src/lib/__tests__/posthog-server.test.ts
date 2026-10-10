@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { requestErrorProperties, sanitizeError, scrubText } from '../posthog-server';
+import { afterEach, vi } from 'vitest';
+import {
+  reportRequestError,
+  requestErrorProperties,
+  sanitizeError,
+  scrubText,
+} from '../posthog-server';
 
 const context = {
   routerKind: 'App Router' as const,
@@ -94,5 +100,25 @@ describe('scrubText', () => {
     expect(
       scrubText('postgresql://u:hunter2@db/x sk-ant-api03-zzz re_D4Tw9LZ1JNdEy5SCZfxVqtXXEZN'),
     ).toBe('postgresql://<redacted>@db/x sk-ant-<redacted> re_<redacted>');
+  });
+});
+
+describe('reportRequestError', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('writes the scrubbed error to the console, never the original', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', '');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await reportRequestError(
+      new Error('upstream 422: {"email":"someone@example.com"}'),
+      { path: '/api/me', method: 'GET', headers: {} },
+      { routerKind: 'App Router', routePath: '/api/me', routeType: 'route' } as never,
+    );
+
+    const logged = JSON.stringify(error.mock.calls.map((call) => call.map(String)));
+    expect(logged).toContain('<email>');
+    expect(logged).not.toContain('someone@example.com');
   });
 });
