@@ -3,56 +3,65 @@ require "rails_helper"
 RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
   let(:admin) { create(:user, :admin) }
   let(:item) { create(:item, :published) }
-  let(:context) { Tools::Context.new({ user_id: admin.id }) }
 
-  describe ".perform" do
+  def call(**args)
+    described_class.call(server_context: { user_id: admin.id }, **args)
+  end
+
+  def call_as(user, **args)
+    described_class.call(server_context: { user_id: user.id }, **args)
+  end
+
+  def payload(response)
+    response.to_h[:structuredContent]
+  end
+
+  describe ".call" do
     it "requires admin" do
       user = create(:user)
-      non_admin_context = Tools::Context.new({ user_id: user.id })
+      response = call_as(user, item_id: item.id)
 
-      expect {
-        described_class.perform(context: non_admin_context, item_id: item.id)
-      }.to raise_error(Tools::Errors::Forbidden)
+      expect(response.to_h[:error]).to be true
+      expect(payload(response)[:error]).to eq("forbidden")
     end
 
     it "marks an item as restaurant verified" do
-      result = described_class.perform(context: context, item_id: item.id)
+      response = call(item_id: item.id)
 
-      expect(result).to be_success
+      expect(response.to_h[:error]).to be_nil
       expect(item.reload.restaurant_verified?).to be true
       expect(item.restaurant_verified_by_user).to eq(admin)
     end
 
     it "returns verification information" do
-      result = described_class.perform(context: context, item_id: item.id)
+      response = call(item_id: item.id)
 
-      expect(result.data[:restaurant_verified]).to be true
-      expect(result.data[:restaurant_verified_at]).to be_present
-      expect(result.data[:human_verified]).to be false
+      expect(payload(response)[:restaurant_verified]).to be true
+      expect(payload(response)[:restaurant_verified_at]).to be_present
+      expect(payload(response)[:human_verified]).to be false
     end
 
     it "locks item from editing by non-admins" do
-      described_class.perform(context: context, item_id: item.id)
+      call(item_id: item.id)
 
       expect(item.can_be_edited_by?(admin)).to be true
       expect(item.can_be_edited_by?(create(:user))).to be false
     end
 
-    it "raises NotFound for nonexistent item" do
-      expect {
-        described_class.perform(context: context, item_id: SecureRandom.uuid)
-      }.to raise_error(ActiveRecord::RecordNotFound)
+    it "returns not found for nonexistent item" do
+      response = call(item_id: SecureRandom.uuid)
+
+      expect(response.to_h[:error]).to be true
+      expect(payload(response)[:error]).to eq("not_found")
     end
 
     it "is idempotent" do
-      described_class.perform(context: context, item_id: item.id)
+      call(item_id: item.id)
       first_verified_at = item.reload.restaurant_verified_at
 
-      travel 1.hour do
-        described_class.perform(context: context, item_id: item.id)
-      end
+      call(item_id: item.id)
 
-      expect(item.reload.restaurant_verified_at).to be > first_verified_at
+      expect(item.reload.restaurant_verified_at).to eq(first_verified_at)
       expect(item.restaurant_verified_by_user).to eq(admin)
     end
   end
