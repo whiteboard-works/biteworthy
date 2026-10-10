@@ -15,6 +15,7 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { POSTHOG_HOST, serverPostHogKey } from './posthog-config';
+import { scrubText } from './posthog-server';
 
 export type LogAttributes = Record<string, string | number | boolean>;
 
@@ -85,17 +86,31 @@ function scheduleFlush(active: LoggerProvider): void {
   });
 }
 
+// Scrubbed once, before either sink: the console line Vercel keeps and the
+// OTLP record carry the same text, with the same gaps the exception path
+// leaves (a quoted URL loses its query values, an address or a key goes).
+function scrubbed(message: string, attributes: LogAttributes): [string, LogAttributes] {
+  const safe: LogAttributes = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    safe[key] = typeof value === 'string' ? scrubText(value) : value;
+  }
+  return [scrubText(message), safe];
+}
+
 export const serverLog = {
   info(message: string, attributes: LogAttributes = {}): void {
-    console.info(message, attributes);
-    emit(SeverityNumber.INFO, 'INFO', message, attributes);
+    const [body, safe] = scrubbed(message, attributes);
+    console.info(body, safe);
+    emit(SeverityNumber.INFO, 'INFO', body, safe);
   },
   warn(message: string, attributes: LogAttributes = {}): void {
-    console.warn(message, attributes);
-    emit(SeverityNumber.WARN, 'WARN', message, attributes);
+    const [body, safe] = scrubbed(message, attributes);
+    console.warn(body, safe);
+    emit(SeverityNumber.WARN, 'WARN', body, safe);
   },
   error(message: string, attributes: LogAttributes = {}): void {
-    console.error(message, attributes);
-    emit(SeverityNumber.ERROR, 'ERROR', message, attributes);
+    const [body, safe] = scrubbed(message, attributes);
+    console.error(body, safe);
+    emit(SeverityNumber.ERROR, 'ERROR', body, safe);
   },
 };

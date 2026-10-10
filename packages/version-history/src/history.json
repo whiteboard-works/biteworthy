@@ -3,7 +3,8 @@
     "version": "2026.10.10.7",
     "date": "2026-10-10",
     "notes": [
-      "Server errors and server logs now go to the same analytics service as our usage events, so a failure is found before someone has to write in. Nothing new is collected from your browser or phone: before a line leaves our servers it loses the request body, your IP address, every query value (including the diet you filter by), file and job arguments, and anything shaped like a credential, and the privacy policy says so.",
+      "The usage analytics the privacy policy describes are now actually on for the web and mobile apps: they report to BiteWorthy's own analytics project, where before the key was never set. Nothing new is collected from your browser or phone, and the opt-out and Do-Not-Track controls are unchanged.",
+      "Our servers now send their error reports and logs to that same project so we can see a failure when it happens. Before a line leaves a server it loses the request body, your IP address, every query value (including the diet you filter by), file and job arguments, and anything shaped like a credential; the privacy policy says so.",
       "On mobile, turning analytics off in Settings takes effect at once instead of on the next launch, and the app sends only its named events, never the SDK's automatic ones."
     ]
   },

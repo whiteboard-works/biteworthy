@@ -10,7 +10,7 @@ Three gaps, found the same week:
 
 1. **No funnel data had ever arrived.** The web and mobile wiring from Phase 5.8 was complete, but it read its key from an environment variable that was never set, and the project it was documented against — the Whiteboard Works cross-product project, id 370116 — is shared with six browser extensions and filtered by a super property. BiteWorthy has its own project now: **652080**, "no events yet" on the day of this ADR.
 2. **The API's logs vanish on deploy.** `kamal app logs` reads the running container; a deploy replaces both role containers; the Jev shadow trial lost 13 of 16 runs' lines that way (ADR 0007, roadmap 2026-10-10).
-3. **The API's errors go nowhere.** `Rails.error.report` is called from the chat loop, the tool layer, and the controllers, and Rails reports unhandled request and job failures to it as well — with no subscriber on `master`, every call is a no-op. (A subscriber that files deduplicated GitHub issues is in flight on a separate branch; it and this ADR are complementary, and both can subscribe.)
+3. **The API's errors go nowhere.** `Rails.error.report` is called from the chat loop, the tool layer, and the controllers, and Rails reports unhandled request and job failures to it as well — with no subscriber on `master`, every call is a no-op. (ADR 0008's subscriber, which files deduplicated GitHub issues, landed the same day in #853; it and this ADR are complementary, and both subscribe.)
 
 PostHog was already the analytics vendor (ADR 0006), already a named subprocessor in `/privacy`, and now has error tracking and a logs product on the same project token. One more vendor for errors and another for logs would mean two more dashboards nobody opens and two more places a conversation id can end up.
 
@@ -58,5 +58,5 @@ The posture `/privacy` already takes for client events — a random id, nothing 
 - **The privacy page names one more use of the same processor.** PostHog's subprocessor entry now says it also receives error reports and logs from our servers. That is a factual change to a legal page; it is flagged for the L1 review rather than settled here.
 - **No new vendor, no new secret.** The token is public; rotating it is a config change in three files. Cost stays inside PostHog's free tier at launch volume; the per-minute cap bounds a runaway logger.
 - **`extension: 'biteworthy'` is now redundant** and kept only for the saved insights that filter on it. Drop it when those are rebuilt against the new project.
-- **Two error subscribers may coexist.** When the GitHub-issues reporter lands, a failure is both an issue to fix and a PostHog event to trend; the fingerprinting there and the grouping here are independent, and that is fine.
+- **Two error subscribers coexist.** With ADR 0008's reporter (#853), a failure is both an issue to fix and a PostHog event to trend; the fingerprinting there and the grouping here are independent, and that is fine.
 - **The PostHog MCP server configured for agents has an invalid token** (every call fails `INVALID_API_KEY`), so dashboards, alerts, and verification happen in the UI until it is re-authorized.

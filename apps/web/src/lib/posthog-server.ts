@@ -58,9 +58,11 @@ export function requestErrorProperties(
 
 // What a message may quote and must not carry out: an email, a bearer token
 // or JWT, a key with one of the prefixes the app holds, the password in a
-// connection URL, an IPv4 address. Mirrors `Telemetry::Scrub.text` in the API.
+// connection URL, an IPv4 address, and every query-string value (a share
+// token, `?profile=celiac`). Mirrors `Telemetry::Scrub.text` in the API.
 const SCRUBS: ReadonlyArray<[RegExp, string]> = [
   [/:\/\/[^/\s:@]+:[^@\s]+@/g, '://<redacted>@'],
+  [/([?&][^=&\s"']+=)[^&\s"']*/g, '$1<q>'],
   [/\b(sk-ant-|ghp_|github_pat_|apikey_|phx_|phs_|Bearer )\S+/g, '$1<redacted>'],
   [/\bre_[A-Za-z0-9_]{20,}/g, 're_<redacted>'],
   [/\beyJ[\w-]{10,}\.[\w-]+\.[\w-]+/g, '<jwt>'],

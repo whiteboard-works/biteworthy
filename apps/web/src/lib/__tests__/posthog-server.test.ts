@@ -96,6 +96,14 @@ describe('sanitizeError', () => {
 });
 
 describe('scrubText', () => {
+  it('blanks every query value, as the API scrubber does', () => {
+    expect(
+      scrubText(
+        'upstream 500 for /items?profile=celiac&strictness=strict#top and /r/x?p=eyJhIjoxfQ',
+      ),
+    ).toBe('upstream 500 for /items?profile=<q>&strictness=<q> and /r/x?p=<q>');
+  });
+
   it('redacts the credential shapes the API scrubber does', () => {
     expect(
       scrubText('postgresql://u:hunter2@db/x sk-ant-api03-zzz re_D4Tw9LZ1JNdEy5SCZfxVqtXXEZN'),
