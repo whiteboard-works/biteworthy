@@ -200,7 +200,8 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   only (`config/environments/production.rb`), Docker keeps that per
   container, and every deploy replaces the containers, so `kamal app
   logs` shows the current release alone and the previous release's log
-  lives only until its stopped container is pruned. Nothing ships logs
+  lives only until its stopped container is pruned (`kamal app logs
+  --container-id <id>` reads it until then). Nothing ships logs
   to PostHog or Datadog: the API carries neither SDK. We want logs that
   outlive a deploy. Pick a sink (PostHog Logs, Datadog, or a file on a
   Kamal volume with rotation), ship both roles' STDOUT to it, and
