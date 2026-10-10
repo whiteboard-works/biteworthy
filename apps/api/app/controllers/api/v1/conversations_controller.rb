@@ -34,18 +34,45 @@ module Api
       end
 
       # Switching modes without sending anything, so the picker survives a
-      # reload and follows the user between devices.
+      # reload and follows the user between devices — and renaming, so the
+      # sidebar says what the person wants it to say.
       #
-      # Only `mode` is writable. A turn carries its own mode in the queued
-      # payload, so this is not the value a running turn reads — it is the
-      # one the next send will stamp.
+      # Only `mode` and `title` are writable. A turn carries its own mode
+      # in the queued payload, so this is not the value a running turn
+      # reads — it is the one the next send will stamp. A title set here
+      # is final: `Chat::Titler` only names a conversation while the
+      # column is null, so a person's name is never overwritten by the
+      # model's.
       def update
-        mode = params[:mode].to_s
-        unless Chat::ModePolicy::MODES.include?(mode)
-          return render json: { error: "Unknown mode." }, status: :unprocessable_entity
+        changes = {}
+
+        if params.key?(:mode)
+          mode = params[:mode].to_s
+          unless Chat::ModePolicy::MODES.include?(mode)
+            return render json: { error: "Unknown mode." }, status: :unprocessable_entity
+          end
+
+          changes[:chat_mode] = mode
         end
 
-        conversation.update!(chat_mode: mode)
+        if params.key?(:title)
+          title = params[:title].to_s.squish
+          if title.blank?
+            return render json: { error: "A title cannot be blank." }, status: :unprocessable_entity
+          end
+          if title.length > Chat::Titler::MAX_LENGTH
+            return render json: { error: "Keep the title to #{Chat::Titler::MAX_LENGTH} characters." },
+                          status: :unprocessable_entity
+          end
+
+          changes[:title] = title
+        end
+
+        if changes.empty?
+          return render json: { error: "Nothing to change." }, status: :unprocessable_entity
+        end
+
+        conversation.update!(changes)
         render json: Chat::Serializer.conversation(conversation)
       end
 

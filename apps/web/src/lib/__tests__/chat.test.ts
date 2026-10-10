@@ -3,6 +3,7 @@ import {
   NotSignedInError,
   listConversations,
   answerConfirmation,
+  renameConversation,
   sendMessage,
   watchTurn,
   uploadAttachment,
@@ -24,7 +25,11 @@ type FetchArgs = Parameters<typeof fetch>;
 function jsonFetch(status: number, body: unknown) {
   return vi.fn(
     async (..._args: FetchArgs) =>
-      ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response,
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      }) as unknown as Response,
   );
 }
 
@@ -40,7 +45,9 @@ function sseFetch(chunks: string[]) {
           : { done: true, value: undefined },
     }),
   };
-  return vi.fn(async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response);
+  return vi.fn(
+    async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response,
+  );
 }
 
 function frame(payload: unknown): string {
@@ -95,6 +102,21 @@ describe('chat client', () => {
     expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
   });
 
+  it('renames a conversation with a PATCH carrying only the title', async () => {
+    const fetchMock = jsonFetch(200, { id: 'c-1', title: 'Lunch with Sam' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(renameConversation('c-1', 'Lunch with Sam')).resolves.toMatchObject({
+      title: 'Lunch with Sam',
+    });
+    const [path, init] = fetchMock.mock.calls[0]!;
+    expect(path).toBe('/api/chat/conversations/c-1');
+    expect(init?.method).toBe('PATCH');
+    // Only the title: sending the mode alongside would stamp whatever this
+    // tab thinks the mode is over a switch made on another device.
+    expect(JSON.parse(init?.body as string)).toEqual({ title: 'Lunch with Sam' });
+  });
+
   describe('streaming a turn', () => {
     it('reports each event in order', async () => {
       vi.stubGlobal(
@@ -111,15 +133,19 @@ describe('chat client', () => {
       await watchTurn('c-1', 0, (e) => seen.push(e));
 
       expect(seen.map((e) => e.type)).toEqual(['open', 'text_delta', 'text_delta', 'done']);
-      expect(seen.filter((e) => e.type === 'text_delta').map((e) => e.text).join('')).toBe(
-        'Hello there.',
-      );
+      expect(
+        seen
+          .filter((e) => e.type === 'text_delta')
+          .map((e) => e.text)
+          .join(''),
+      ).toBe('Hello there.');
     });
 
     // Chunk boundaries follow the network, not the protocol: an event can
     // arrive split anywhere, and half a JSON payload must not be parsed.
     it('reassembles events split across chunks', async () => {
-      const whole = frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
+      const whole =
+        frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
       vi.stubGlobal('fetch', sseFetch([whole.slice(0, 12), whole.slice(12, 30), whole.slice(30)]));
 
       const seen: ChatEvent[] = [];
@@ -130,7 +156,6 @@ describe('chat client', () => {
         { type: 'done', text: 'split' },
       ]);
     });
-
   });
 
   // Events are stored, not just sent, so a reconnect asks for everything
@@ -258,7 +283,10 @@ describe('chat client', () => {
   it('swallows the reconnect event and returns the cursor', async () => {
     vi.stubGlobal(
       'fetch',
-      sseFetch([frame({ type: 'text_delta', text: 'hi' }), frame({ type: 'reconnect', after: 12 })]),
+      sseFetch([
+        frame({ type: 'text_delta', text: 'hi' }),
+        frame({ type: 'reconnect', after: 12 }),
+      ]),
     );
 
     const seen: ChatEvent[] = [];
@@ -274,7 +302,6 @@ describe('chat client', () => {
     expect(await watchTurn('c-1', 0, () => {})).toBeNull();
   });
 });
-
 
 // The manifest is for the model. People see their own words plus the
 // files, never a signed id — so whatever compose writes, parseManifest has

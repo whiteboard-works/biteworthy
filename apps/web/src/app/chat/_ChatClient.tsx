@@ -12,6 +12,7 @@ import {
   listConversations,
   answerConfirmation,
   compose,
+  renameConversation,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -51,6 +52,14 @@ export function ChatClient(): ReactElement {
   const [pending, setPending] = useState<PendingTool | null>(null);
   const [live, setLive] = useState<LiveTurn | null>(null);
   const [busy, setBusy] = useState(false);
+  // The chat whose turn this tab is running, for the sidebar's "working"
+  // mark. `turn` below is the same fact as a ref, for the code that has to
+  // read it synchronously; this is the copy that draws.
+  const [runningId, setRunningId] = useState<string | null>(null);
+  // Chats whose turn finished while the person was looking at another
+  // one. Cleared the moment they open the chat — the mark says "there is
+  // something here you have not seen", nothing more.
+  const [unread, setUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const deviceLocation = useDeviceLocation();
@@ -218,6 +227,16 @@ export function ChatClient(): ReactElement {
     setQueued(queue.current);
   };
 
+  // Opening a chat is reading it; so is deleting it.
+  const markRead = (id: string) => {
+    setUnread((set) => {
+      if (!set.has(id)) return set;
+      const next = new Set(set);
+      next.delete(id);
+      return next;
+    });
+  };
+
   // Refetching after every turn — rather than stitching the streamed
   // fragments into local state — means what's on screen is what the
   // server stored, which is also what a reload would show.
@@ -254,6 +273,7 @@ export function ChatClient(): ReactElement {
     following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
+    markRead(id);
     // Whatever they had open on a phone, the chat they picked is what
     // they asked to see.
     setPaneOpen(false);
@@ -356,10 +376,34 @@ export function ChatClient(): ReactElement {
       if (turn.current?.id === id) {
         turn.current = null;
         setBusy(false);
+        setRunningId(null);
         flushView();
       }
+      markRead(id);
     } else {
       deletions.current.delete(id);
+    }
+  };
+
+  // The person's name for a chat, over the model's. Drawn first and sent
+  // after: a rename is the kind of edit that should feel instant, and if
+  // the server refuses it the old name comes back with the error.
+  const rename = async (id: string, title: string) => {
+    const previous = conversations.find((c) => c.id === id)?.title ?? null;
+    const retitle = (next: string | null) => {
+      setConversations((list) => list.map((c) => (c.id === id ? { ...c, title: next } : c)));
+      if (current.current?.id === id) {
+        current.current = { ...current.current, title: next };
+        setActive((a) => (a?.id === id ? { ...a, title: next } : a));
+      }
+    };
+    retitle(title);
+    try {
+      const renamed = await renameConversation(id, title);
+      if (!removed.current.has(id)) retitle(renamed.title);
+    } catch (e) {
+      if (!removed.current.has(id)) retitle(previous);
+      onFailure(e);
     }
   };
 
@@ -418,6 +462,7 @@ export function ChatClient(): ReactElement {
     turn.current = mine;
     const onScreen = () => viewing.current === id;
     setBusy(true);
+    setRunningId(id);
     setError(null);
     // Only on its own chat: teardown clears it only there, so a turn that
     // starts off screen would leave another chat "thinking" for good.
@@ -488,6 +533,10 @@ export function ChatClient(): ReactElement {
       // finished, parked on a confirmation, or the connection dropped.
       // `refresh` only redraws if this chat is still the one on screen.
       const conversation = gone ? null : await refresh(id);
+      // Finished — or parked, or failed — while the person was looking at
+      // another chat. Whatever it is, they have not seen it, and the
+      // sidebar is the one place that can say so.
+      if (!gone && !onScreen()) setUnread((set) => new Set(set).add(id));
       // The stream can drop after a write and before its `pane` event —
       // past the reconnect cap, or with the run gone. The refetch then
       // hands back the stored pane, which after `set_strictness` is the
@@ -525,6 +574,7 @@ export function ChatClient(): ReactElement {
       if (turn.current === mine) {
         turn.current = null;
         setBusy(false);
+        setRunningId(null);
         if (onScreen()) {
           const settled = conversation ?? current.current;
           // Only when the server took this turn. If `ask` was rejected,
@@ -796,9 +846,12 @@ export function ChatClient(): ReactElement {
       <History
         conversations={conversations}
         activeId={active?.id ?? null}
+        runningId={runningId}
+        unread={unread}
         open={historyOpen}
         onOpen={open}
         onNew={startNew}
+        onRename={rename}
         onDelete={remove}
       />
 
@@ -992,19 +1045,34 @@ function Welcome(): ReactElement {
 function History({
   conversations,
   activeId,
+  runningId,
+  unread,
   open,
   onOpen,
   onNew,
+  onRename,
   onDelete,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
+  runningId: string | null;
+  unread: ReadonlySet<string>;
   open: boolean;
   onOpen: (id: string) => void;
   onNew: () => void;
+  onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }): ReactElement {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+
+  const saveTitle = () => {
+    if (!editing) return;
+    const title = editing.draft.trim();
+    const before = conversations.find((c) => c.id === editing.id)?.title ?? null;
+    if (title && title !== before) onRename(editing.id, title);
+    setEditing(null);
+  };
 
   return (
     <aside
@@ -1048,16 +1116,63 @@ function History({
                 Cancel
               </button>
             </li>
+          ) : conversation.id === editing?.id ? (
+            // The name is edited where it is read. Enter keeps it, Escape
+            // drops it; the server has the final say on length.
+            <li
+              key={conversation.id}
+              className="flex items-center gap-bw-2 rounded-bw-md bg-zinc-50 px-bw-2 py-bw-1 text-bw-sm"
+            >
+              <input
+                type="text"
+                aria-label="Chat title"
+                value={editing.draft}
+                maxLength={TITLE_MAX_LENGTH}
+                autoFocus
+                onChange={(e) => setEditing({ id: conversation.id, draft: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveTitle();
+                  if (e.key === 'Escape') setEditing(null);
+                }}
+                className="min-w-0 flex-1 rounded-bw-sm border border-zinc-300 px-bw-1 py-bw-1 text-zinc-900"
+              />
+              <button
+                type="button"
+                onClick={saveTitle}
+                className="font-semibold text-bite hover:underline"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="font-semibold text-zinc-400 hover:text-zinc-600"
+              >
+                Cancel
+              </button>
+            </li>
           ) : (
             <li key={conversation.id} className="group flex items-center gap-bw-1">
               <button
                 type="button"
                 onClick={() => onOpen(conversation.id)}
-                className={`flex-1 truncate rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
+                className={`flex min-w-0 flex-1 items-center gap-bw-2 rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
                   conversation.id === activeId ? 'bg-zinc-100 font-medium' : 'text-zinc-600'
                 }`}
               >
-                {conversation.title ?? 'Untitled'}
+                <Mark
+                  working={conversation.id === runningId}
+                  unread={unread.has(conversation.id)}
+                />
+                <span className="truncate">{conversation.title ?? 'Untitled'}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Rename ${conversation.title ?? 'conversation'}`}
+                onClick={() => setEditing({ id: conversation.id, draft: conversation.title ?? '' })}
+                className="px-bw-1 text-zinc-300 hover:text-zinc-600"
+              >
+                ✎
               </button>
               <button
                 type="button"
@@ -1073,6 +1188,39 @@ function History({
       </ul>
     </aside>
   );
+}
+
+/** Matches `Chat::Titler::MAX_LENGTH`; the server refuses anything longer,
+ *  this only stops the person typing past the point it would. */
+const TITLE_MAX_LENGTH = 60;
+
+/**
+ * The dot beside a chat's name. Pulsing while this tab is running a turn
+ * in it; steady once that turn ended off screen, until the chat is
+ * opened. Working wins: a reply that is still arriving is not yet "new".
+ */
+function Mark({ working, unread }: { working: boolean; unread: boolean }): ReactElement | null {
+  if (working) {
+    return (
+      <span
+        role="img"
+        aria-label="Working"
+        title="Working"
+        className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bite"
+      />
+    );
+  }
+  if (unread) {
+    return (
+      <span
+        role="img"
+        aria-label="New reply"
+        title="New reply"
+        className="h-2 w-2 shrink-0 rounded-full bg-bite"
+      />
+    );
+  }
+  return null;
 }
 
 /** The chat lives at /chat, so the useful signal is where the user came

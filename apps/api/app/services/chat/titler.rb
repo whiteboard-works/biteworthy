@@ -9,8 +9,11 @@ module Chat
   # reading "Untitled", the one screen whose whole job is telling
   # conversations apart.
   #
-  # **This runs only while the column is null, so nothing else may fill
-  # it.** `ConversationTurnsController` used to stamp the opening message
+  # **This runs only while the column is null, so nothing automatic may
+  # fill it.** The one other writer is the person renaming their own chat
+  # (`ConversationsController#update`), and that is the point: a name
+  # they chose is never replaced by one the model chose.
+  # `ConversationTurnsController` used to stamp the opening message
   # into it, truncated to 60 characters, before enqueuing the turn — which
   # meant `AgentLoop#name_conversation` found a title present and returned
   # without ever calling this class. That is not a hypothetical: this file

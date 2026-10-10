@@ -80,6 +80,58 @@ RSpec.describe "Api::V1::Conversations", type: :request do
       expect(response).to have_http_status(:not_found)
       expect(other.reload.chat_mode).to eq("manual")
     end
+
+    # The sidebar's whole job is telling conversations apart, and the
+    # model's guess at a name is not always the one the person would use.
+    it "renames the conversation, leaving the mode alone" do
+      conversation.update!(title: "Dairy-free lunch near Belmar", chat_mode: "planning")
+
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "  Saturday   lunch\nwith Sam  " }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["title"]).to eq("Saturday lunch with Sam")
+      expect(conversation.reload.title).to eq("Saturday lunch with Sam")
+      expect(conversation.chat_mode).to eq("planning")
+    end
+
+    # A blank name is "Untitled" with extra steps — and worse, a null title
+    # is the condition the titler retries on, so the model would name it
+    # again under the person who just tried to clear it.
+    it "refuses a blank title" do
+      conversation.update!(title: "Dairy-free lunch near Belmar")
+
+      patch "/api/v1/conversations/#{conversation.id}", params: { title: "   " }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.title).to eq("Dairy-free lunch near Belmar")
+    end
+
+    # Refused rather than clamped: a person who typed sixty-one characters
+    # should be told, not shown a title missing its last word.
+    it "refuses a title longer than the sidebar can show" do
+      conversation.update!(title: "Dairy-free lunch near Belmar")
+
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { title: "x" * (Chat::Titler::MAX_LENGTH + 1) }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.title).to eq("Dairy-free lunch near Belmar")
+    end
+
+    it "takes a mode and a title together" do
+      patch "/api/v1/conversations/#{conversation.id}",
+            params: { mode: "auto", title: "Weeknight takeout" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(conversation.reload).to have_attributes(chat_mode: "auto", title: "Weeknight takeout")
+    end
+
+    it "refuses a body that changes nothing" do
+      patch "/api/v1/conversations/#{conversation.id}", params: {}, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
   end
 
   # `can_undo` answers "did a write run since you last spoke", which the

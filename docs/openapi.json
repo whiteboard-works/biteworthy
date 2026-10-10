@@ -6302,11 +6302,11 @@
         }
       },
       "patch": {
-        "summary": "Switch the conversation's mode",
+        "summary": "Switch the conversation's mode, or rename it",
         "tags": [
           "Chat"
         ],
-        "description": "For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.",
+        "description": "For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running. `title` renames the conversation; a name set here is never replaced by the model's. Send either field or both.",
         "security": [
           {
             "bearerAuth": []
@@ -6324,7 +6324,7 @@
         ],
         "responses": {
           "200": {
-            "description": "the conversation, with the new mode",
+            "description": "the conversation, with the new mode or title",
             "content": {
               "application/json": {
                 "schema": {
@@ -6334,7 +6334,7 @@
             }
           },
           "422": {
-            "description": "a mode that does not exist",
+            "description": "a mode that does not exist, a blank or over-long title, or an empty body",
             "content": {
               "application/json": {
                 "schema": {
@@ -6349,9 +6349,6 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "mode"
-                ],
                 "properties": {
                   "mode": {
                     "type": "string",
@@ -6361,6 +6358,12 @@
                       "accept_edits",
                       "auto"
                     ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "Whitespace is collapsed. Blank, or longer than the sidebar can show, is refused."
                   }
                 }
               }

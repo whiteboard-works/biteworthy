@@ -291,6 +291,16 @@ export function setConversationMode(id: string, mode: ChatMode): Promise<Convers
   });
 }
 
+/** Rename. The server keeps a person's name over the model's: the titler
+ *  only names a conversation whose title is still null. */
+export function renameConversation(id: string, title: string): Promise<Conversation> {
+  return json(`/api/chat/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+}
+
 /** Stop. Raises a flag the running turn reads at its next checkpoint. */
 export async function stopTurn(id: string): Promise<void> {
   const res = await fetch(`/api/chat/conversations/${encodeURIComponent(id)}/run`, {

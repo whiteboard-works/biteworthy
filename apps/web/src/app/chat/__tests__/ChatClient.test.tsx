@@ -25,6 +25,7 @@ const watchTurn = vi.fn();
 const stopTurn = vi.fn();
 const uploadAttachment = vi.fn();
 const setConversationMode = vi.fn();
+const renameConversation = vi.fn();
 
 vi.mock('../../../lib/chat', async () => {
   const actual = await vi.importActual<typeof import('../../../lib/chat')>('../../../lib/chat');
@@ -39,6 +40,7 @@ vi.mock('../../../lib/chat', async () => {
     answerConfirmation: (id: string, ok: boolean, fingerprint: string | null, mode?: unknown) =>
       answerConfirmation(id, ok, fingerprint, mode),
     setConversationMode: (id: string, mode: unknown) => setConversationMode(id, mode),
+    renameConversation: (id: string, title: string) => renameConversation(id, title),
     watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
       watchTurn(id, after, onEvent),
     stopTurn: (id: string) => stopTurn(id),
@@ -100,6 +102,11 @@ beforeEach(() => {
   watchTurn.mockResolvedValue(null);
   stopTurn.mockResolvedValue(undefined);
   setConversationMode.mockResolvedValue(blank);
+  renameConversation.mockImplementation(async (id: string, title: string) => ({
+    ...blank,
+    id,
+    title,
+  }));
 });
 
 afterEach(() => {
@@ -1055,6 +1062,153 @@ describe('ChatClient', () => {
   // Deleting a chat cannot be undone, and the × sits right next to the
   // title people click to open it. One stray click must not cost a
   // conversation.
+  describe('renaming a chat from the sidebar', () => {
+    const old = { ...blank, id: 'c-old', title: 'Add city Riverton Utah' };
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [old] });
+      getConversation.mockResolvedValue({ ...old, messages: [] });
+      // Like the server: once renamed, the list says the new name.
+      renameConversation.mockImplementation(async (id: string, title: string) => {
+        listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+        return { ...old, title };
+      });
+    });
+
+    async function startRenaming() {
+      fireEvent.click(await screen.findByRole('button', { name: 'Rename Add city Riverton Utah' }));
+      const input = screen.getByLabelText('Chat title') as HTMLInputElement;
+      expect(input.value).toBe('Add city Riverton Utah');
+      return input;
+    }
+
+    it('saves on Enter and shows the new name in the sidebar and the header', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Add city Riverton Utah'));
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+          'Add city Riverton Utah',
+        ),
+      );
+
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: '  Riverton, Utah  ' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() =>
+        expect(renameConversation).toHaveBeenCalledWith('c-old', 'Riverton, Utah'),
+      );
+      const history = screen.getByTestId('chat-history');
+      expect(within(history).getByText('Riverton, Utah')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Riverton, Utah');
+      expect(screen.queryByLabelText('Chat title')).toBeNull();
+    });
+
+    it('drops the edit on Escape without asking the server', async () => {
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Something else' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(renameConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+
+    // "Untitled" is the sidebar's word for null, not a name the person
+    // chose; saving it as a title would stop the model naming the chat.
+    it('does not send a blank title', async () => {
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: '   ' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(renameConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+
+    it('puts the old name back when the server refuses', async () => {
+      renameConversation.mockRejectedValue(new Error('Keep the title to 60 characters.'));
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Too long, says the server' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() => expect(renameConversation).toHaveBeenCalled());
+      await waitFor(() => expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument());
+      expect(screen.queryByText('Too long, says the server')).toBeNull();
+      expect(screen.getByTestId('chat-error')).toHaveTextContent(
+        'Keep the title to 60 characters.',
+      );
+    });
+  });
+
+  describe('the marks beside a chat in the sidebar', () => {
+    const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
+    const other = { ...blank, id: 'c-2', title: 'Other chat' };
+    let finish: () => void = () => {};
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [busy, other] });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-2' ? other : busy),
+        messages: [],
+      }));
+      watchTurn.mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+    });
+
+    const row = (title: string) =>
+      within(screen.getByTestId('chat-history')).getByText(title).closest('button')!;
+
+    it('shows which chat is working, and marks it unread once it finishes off screen', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      expect(within(row('Busy chat')).getByRole('img', { name: 'Working' })).toBeInTheDocument();
+      expect(within(row('Other chat')).queryByRole('img')).toBeNull();
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+      // Still working after the person moves on — that is the point.
+      expect(within(row('Busy chat')).getByRole('img', { name: 'Working' })).toBeInTheDocument();
+
+      finish();
+
+      await waitFor(() =>
+        expect(
+          within(row('Busy chat')).getByRole('img', { name: 'New reply' }),
+        ).toBeInTheDocument(),
+      );
+      expect(within(row('Busy chat')).queryByRole('img', { name: 'Working' })).toBeNull();
+
+      // Opening it is reading it.
+      fireEvent.click(screen.getByText('Busy chat'));
+      await waitFor(() => expect(within(row('Busy chat')).queryByRole('img')).toBeNull());
+    });
+
+    // A reply that lands on the chat the person is looking at is seen as
+    // it arrives; a mark would be telling them about something on screen.
+    it('does not mark a chat whose turn finished while it was on screen', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      finish();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+  });
+
   describe('deleting a chat from the sidebar', () => {
     beforeEach(() => {
       listConversations.mockResolvedValue({

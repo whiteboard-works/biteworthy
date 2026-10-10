@@ -830,7 +830,7 @@ be a separate request because the one that started the turn is busy.
 | `GET /api/v1/conversations` | The caller's own, newest first |
 | `POST /api/v1/conversations` | Opens an empty one |
 | `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
-| `PATCH /api/v1/conversations/:id` | Sets `mode` — for switching without sending anything |
+| `PATCH /api/v1/conversations/:id` | Sets `mode` (switching without sending anything) and/or `title` (a rename the titler never overwrites) |
 | `DELETE /api/v1/conversations/:id` | Removes it and its messages |
 | `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE. Optional `mode` switches and sends in one request |
 | `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
