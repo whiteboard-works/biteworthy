@@ -77,7 +77,7 @@ end
 
 RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
   describe ".event" do
-    it "scrubs the exception message, the context, and the referrer, not just the dropped keys" do
+    it "scrubs the exception message and the context, and drops the referrer with its query" do
       event = {
         event: "$exception",
         properties: {
@@ -91,7 +91,7 @@ RSpec.describe Telemetry::Scrub, "the parts the first review found missing" do
       properties = described_class.event(event)[:properties]
 
       expect(properties["$exception_list"].first["value"]).to eq("Key (email)=(<email>) already exists")
-      expect(properties["$referrer"]).to eq("https://bite-worthy.com/u/alice?token=<redacted>")
+      expect(properties).not_to have_key("$referrer")
       expect(properties["$context_path"]).to eq("/api/v1/users/:handle")
     end
 

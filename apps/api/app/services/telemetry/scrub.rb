@@ -16,7 +16,9 @@ module Telemetry
     # a third party's store. `$request_params` is the request body after
     # the parameter filter, which cannot see inside a chat message or a
     # review — either can name a diet. `$ip` is the caller's address.
-    DROPPED_EVENT_PROPERTIES = %w[$request_params $ip].freeze
+    # `$referrer` is a full URL with its query, and `?profile=celiac` is a
+    # query the web client goes out of its way to strip from page views.
+    DROPPED_EVENT_PROPERTIES = %w[$request_params $ip $referrer].freeze
 
     # kamal-proxy polls /up every five seconds. `silence_healthcheck_path`
     # silences the STDOUT logger for those requests, but silence is a
