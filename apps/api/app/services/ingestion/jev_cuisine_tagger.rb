@@ -49,7 +49,8 @@ module Ingestion
 
     # `prompt_rows` are the slice's GapFillResolveJob prompt rows. Returns
     # `{ index => [{ "slug" => …, "confidence" => … }] }` with an entry for
-    # every index, or nil when Jev could not answer.
+    # every index (nil for an item Jev did not fully answer), or nil when
+    # Jev could not answer at all.
     def call(run, prompt_rows)
       tags = cuisine_tags
       return {} if tags.empty? || prompt_rows.empty?
@@ -63,14 +64,16 @@ module Ingestion
       prompt_rows.each_index do |i|
         tags.each do |tag|
           noul = answers.dig(key(i, tag[:slug]), "noul")
-          # An absent or malformed answer is not a "no": it yields no tag
-          # and is counted, so a half-answered slice shows in the log.
+          # An absent or malformed answer is not a "no": the item's rows
+          # become nil, which the merge reads as "keep what Jev said last
+          # time", and the count makes a half-answered slice visible.
           unless noul.is_a?(Numeric) && noul.between?(0, 1)
             missing += 1
+            rows[i] = nil
             next
           end
 
-          rows[i] << { "slug" => tag[:slug], "confidence" => noul } if noul >= THRESHOLD
+          rows[i] << { "slug" => tag[:slug], "confidence" => noul } if rows[i] && noul >= THRESHOLD
         end
       end
 
@@ -80,7 +83,7 @@ module Ingestion
         latency_ms:   latency,
         input_tokens: @client.last_usage&.dig("input_tokens"),
         items:        prompt_rows.size,
-        tagged:       rows.values.sum(&:size),
+        tagged:       rows.values.sum { |r| r&.size.to_i },
         missing:      missing
       }.to_json)
       if missing.positive?

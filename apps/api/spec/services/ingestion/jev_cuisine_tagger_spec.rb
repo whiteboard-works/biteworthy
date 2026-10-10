@@ -73,7 +73,8 @@ RSpec.describe Ingestion::JevCuisineTagger do
     allow(Rails.error).to receive(:report)
     rows_out = described_class.new(client: client).call(run, rows)
 
-    expect(rows_out).to eq(0 => [ { "slug" => "italian", "confidence" => 0.97 } ], 1 => [])
+    # nil, not []: the merge keeps that item's earlier AI cuisine rows.
+    expect(rows_out).to eq(0 => [ { "slug" => "italian", "confidence" => 0.97 } ], 1 => nil)
     expect(logged_line).to include("tagged" => 1, "missing" => 2)
     expect(Rails.error).to have_received(:report)
       .with(an_instance_of(described_class::PartialAnswers), hash_including(handled: true))

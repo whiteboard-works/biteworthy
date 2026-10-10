@@ -553,4 +553,36 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
   end
+
+  describe "live-cassette integration smoke test" do
+    # `apps/api/AGENTS.md` treats a changed Anthropic call without a
+    # committed cassette as a P1: CI runs `record: :none`, so a prompt or
+    # schema that the real model rejects would fail there as a
+    # key-not-set error. The mocked examples above cover the job's branch
+    # logic; this replays one real Haiku call to assert the ingredient-only
+    # prompt + schema (cuisine moved to Jev) still produce a parseable
+    # response. Recorded once locally with ANTHROPIC_API_KEY set; VCR
+    # matches on method + URI + body, so changing the prompt invalidates
+    # the cassette — re-record locally and commit the new file.
+    before do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return(nil)
+      allow(Rails.logger).to receive(:warn)
+    end
+
+    it "enriches a real gap item end-to-end", vcr: { cassette_name: "gap_fill_resolve_job/caesar_salad_ingredients_only" } do
+      described_class.perform_now(run.id)
+
+      expect(run.reload.enrichment_status).to eq("completed")
+      payload = gap_item.reload.ingredients_payload
+      ai_rows = payload.select { |r| r["source"] == "ai" }
+      # The catalog holds meat-beef and fish-anchovy; a Caesar Salad
+      # implies the anchovy, and nothing the model returns may be a slug
+      # outside the catalog.
+      expect(ai_rows.map { |r| r["slug"] }).to include("fish-anchovy")
+      expect(ai_rows.map { |r| r["slug"] }).to all(satisfy { |slug| Ingredient.exists?(slug: slug) })
+      expect(gap_item.tags_payload.map { |t| t["source"] }).not_to include("ai")
+      expect(run.api_cost_cents).to be > 0
+    end
+  end
 end
