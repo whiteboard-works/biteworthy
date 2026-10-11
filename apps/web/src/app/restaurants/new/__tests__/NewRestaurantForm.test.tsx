@@ -8,9 +8,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
  */
 
 const mockCreate = vi.fn();
+const mockBrand = vi.fn();
 vi.mock('../../../../lib/cities', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/cities')>()),
   createRestaurant: (input: unknown) => mockCreate(input),
+  brandRestaurant: (slug: string, images: unknown) => mockBrand(slug, images),
+}));
+
+vi.mock('../../../../lib/shrink-image', () => ({
+  MAX_UPLOAD_BYTES: 4 * 1024 * 1024,
+  shrinkForUpload: async (file: File) => file,
+  tooLargeToUpload: (file: File) => file.size > 4 * 1024 * 1024,
 }));
 
 const mockPush = vi.fn();
@@ -38,8 +46,29 @@ function fill(name: string) {
 
 beforeEach(() => {
   mockCreate.mockReset();
+  mockBrand.mockReset();
   mockPush.mockReset();
+  vi.stubGlobal('URL', {
+    ...URL,
+    createObjectURL: () => 'blob:preview',
+    revokeObjectURL: () => {},
+  });
 });
+
+const created = {
+  kind: 'created',
+  slug: 'red-iguana',
+  web_path: '/restaurants/usa/utah/salt-lake-city/red-iguana',
+};
+
+async function pickLogo() {
+  const file = new File(['x'], 'logo.png', { type: 'image/png' });
+  fireEvent.change(screen.getByTestId('new-restaurant-logo-input'), { target: { files: [file] } });
+  await waitFor(() =>
+    expect(screen.getByTestId('new-restaurant-logo-preview')).toBeInTheDocument(),
+  );
+  return file;
+}
 
 describe('NewRestaurantForm', () => {
   it('creates the restaurant in the chosen city and goes straight to its scan', async () => {
@@ -58,6 +87,54 @@ describe('NewRestaurantForm', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Red Iguana', city_slug: 'salt-lake-city', force: false }),
     );
+  });
+
+  // The images ride the same branding door the owner uses, after the
+  // restaurant exists (its creator may brand it while it is a draft), so
+  // the form's job is to send them for the right slug before moving on.
+  it('uploads a picked logo for the new restaurant before going to its scan', async () => {
+    mockCreate.mockResolvedValue(created);
+    mockBrand.mockResolvedValue(undefined);
+    render(<NewRestaurantForm cities={[SLC]} />);
+
+    const file = await pickLogo();
+    fill('Red Iguana');
+
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana/scan'),
+    );
+    expect(mockBrand).toHaveBeenCalledWith('red-iguana', { logo: file, banner: null });
+  });
+
+  it('sends nothing to the branding door when no image was picked', async () => {
+    mockCreate.mockResolvedValue(created);
+    render(<NewRestaurantForm cities={[SLC]} />);
+
+    fill('Red Iguana');
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalled());
+    expect(mockBrand).not.toHaveBeenCalled();
+  });
+
+  // A retry would trip the duplicate check on the restaurant that now
+  // exists, so a failed image save offers the scan instead of an error.
+  it('offers the scan link when the restaurant was added but its images did not save', async () => {
+    mockCreate.mockResolvedValue(created);
+    mockBrand.mockRejectedValue(new Error('too big'));
+    render(<NewRestaurantForm cities={[SLC]} />);
+
+    await pickLogo();
+    fill('Red Iguana');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('new-restaurant-branding-failed')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('new-restaurant-continue')).toHaveAttribute(
+      'href',
+      '/restaurants/usa/utah/salt-lake-city/red-iguana/scan',
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it('stops on a likely duplicate and only forces after the user says none match', async () => {
@@ -82,7 +159,9 @@ describe('NewRestaurantForm', () => {
     fireEvent.click(screen.getByTestId('new-restaurant-force'));
 
     await waitFor(() =>
-      expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana-2/scan'),
+      expect(mockPush).toHaveBeenCalledWith(
+        '/restaurants/usa/utah/salt-lake-city/red-iguana-2/scan',
+      ),
     );
     expect(mockCreate).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }));
   });
