@@ -443,6 +443,48 @@ RSpec.describe "Admin MCP tools" do
     end
   end
 
+  describe "normalize_item_names" do
+    let!(:restaurant) { create(:restaurant, city: city, status: "published") }
+    let!(:dish)       { create(:item, restaurant: restaurant, status: "published") }
+
+    # Raw SQL: `update_columns` and `update_all` both normalize.
+    before { Item.connection.execute("UPDATE items SET name = 'CARNITAS TACOS*' WHERE id = #{Item.connection.quote(dish.id)}") }
+
+    context "as admin" do
+      it "previews without confirmation and writes nothing" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        content = result_content
+        expect(content["dry_run"]).to be(true)
+        expect(content["changed"][0]).to include("item_id" => dish.id)
+        expect(content["changed"][0]["after"]).to include("name" => "<untrusted-content>Carnitas Tacos</untrusted-content>")
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+      end
+
+      it "asks for confirmation before a real run, then rewrites the names" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug }, admin)
+        first = JSON.parse(response.body)["result"]
+        expect(first.dig("structuredContent", "error")).to eq("confirmation_required")
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+
+        token = first.dig("structuredContent", "confirmation_token")
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, confirmation: token }, admin)
+
+        expect(result_content).to include("dry_run" => false, "written" => 1)
+        expect(dish.reload.name).to eq("Carnitas Tacos")
+      end
+    end
+
+    context "as non-admin" do
+      it "is not a tool they can see" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, user)
+
+        expect(JSON.parse(response.body).dig("error", "message")).to match(/tool not found|invalid params/i)
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+      end
+    end
+  end
+
   describe "retag_cuisine" do
     let!(:restaurant) { create(:restaurant, city: city, status: "published") }
     let!(:mexican)    { create(:tag, slug: "cuisine-mexican") }

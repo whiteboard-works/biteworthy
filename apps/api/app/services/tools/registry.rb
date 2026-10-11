@@ -101,6 +101,7 @@ module Tools
         "Admin::ListRestaurantItems",
         "Admin::UpdatePublishedItem",
         "Admin::RetagCuisine",
+        "Admin::NormalizeItemNames",
         "Admin::SetRestaurantStatus"
       ]
     }.freeze

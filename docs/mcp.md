@@ -490,10 +490,18 @@ reusing the same business logic and validation as the REST admin endpoints:
   part-way or a concurrent edit changes nothing it should not. This is
   the admin re-run for menus published with Haiku's cuisine tags; the
   backfill is calling it per restaurant.
+- **`normalize_item_names`** — apply the naming standard
+  (`Names::Standard`) to every dish at a restaurant saved before it
+  existed: all-caps names become Title Case, all-caps descriptions
+  sentence case, and footnote asterisks at either end of a name go.
+  `dry_run: true` previews `changed` (before/after per dish); a real run
+  is confirmation-gated and unrecoverable, the `retag_cuisine` shape.
+  New writes are already normalized on assignment, so this is only for
+  old rows; `bin/rails names:normalize` is the all-restaurants backfill.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 
-All eleven require `is_admin: true` and are filtered out of the catalogue for
+All twelve require `is_admin: true` and are filtered out of the catalogue for
 non-admin callers. Rate limiting is shared with the rest of `/mcp`:
 120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
 anonymous.

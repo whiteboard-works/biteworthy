@@ -28,6 +28,13 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat header (moved out of the composer so the input has room on a phone); the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Naming standard: no all-caps dishes (shipped 2026-10-11)
+
+- [x] `Names::Standard` — names mostly in capitals become Title Case (acronyms like BBQ/BLT/GF kept, small words lowercase), shouting descriptions become sentence case, footnote asterisks at either end of a name are stripped; deliberate mixed case is untouched. Applied by `normalizes` on `Item` and `IngestionItem`, so every writer gets it.
+- [x] Bulk fix for old rows: `bin/rails names:normalize` (dry run unless `DRY_RUN=false`, optional `RESTAURANT_ID`) and the admin tool `normalize_item_names`.
+- [ ] Run the production backfill (human: dry run, review, then `DRY_RUN=false`).
+- [ ] Decide whether a stripped `*` (the raw/undercooked advisory) should derive the `prep.raw` tag at scan time; today nothing reads it, and the source photo/PDF is the only record once the name is normalized.
+
 ## Restaurant branding: logo + banner (shipped 2026-10-11)
 
 - [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
