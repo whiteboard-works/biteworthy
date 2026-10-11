@@ -388,7 +388,12 @@ The same gate opens `set_restaurant_branding` (`restaurants` domain,
 `audience :user`): the owner's logo and banner. It takes attachment ids
 from `POST /api/v1/attachments`, never image bytes, and only resolves an
 id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
-and the REST door `PATCH /restaurants/:id/branding` shares it.
+and the REST door `PATCH /restaurants/:id/branding` shares it. Each image
+is cropped to its slot by `Images::Fit` (logo 1:1 up to 400×400, banner
+8:3 up to 1600×600; center unless `logo_crop` / `banner_crop` gives an
+anchor or a fractional box). The model never sees pixels, so the
+read-only `inspect_image` tool gives it an upload's size and what a
+center crop would trim, to choose a crop or ask the owner first.
 
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.

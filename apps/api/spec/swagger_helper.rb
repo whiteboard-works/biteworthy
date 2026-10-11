@@ -50,6 +50,19 @@ RSpec.configure do |config|
               country: { type: :string }
             }
           },
+          # Which part of a new logo/banner to keep (Images::Fit). As
+          # multipart fields: `logo_crop[anchor]`, `logo_crop[x]`, ….
+          BrandingCrop: {
+            type: :object,
+            properties: {
+              anchor: { type: :string, enum: %w[center top bottom left right],
+                        description: "Edge kept when trimming to the slot's shape. Default center." },
+              x: { type: :number, description: "Box left, fraction of width (0–1)." },
+              y: { type: :number, description: "Box top, fraction of height (0–1)." },
+              w: { type: :number, description: "Box width, fraction of width (0–1)." },
+              h: { type: :number, description: "Box height, fraction of height (0–1)." }
+            }
+          },
           # The public restaurant row: GET /restaurants/{id} and the
           # branding door answer with it.
           RestaurantDetail: {

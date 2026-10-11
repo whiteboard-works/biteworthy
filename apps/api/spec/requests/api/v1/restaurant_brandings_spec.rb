@@ -121,4 +121,39 @@ RSpec.describe "PATCH /api/v1/restaurants/:id/branding", type: :request do
     expect(row["logo_url"]).to be_present
     expect(row).not_to have_key("banner_url")
   end
+
+  it "crops the banner to the part the owner picked" do
+    tall = Rack::Test::UploadedFile.new(ShapedImage.tempfile(800, 1200).path, "image/jpeg")
+    patch_branding(as: owner, params: { banner: tall, banner_crop: { anchor: "bottom" } })
+
+    expect(response).to have_http_status(:ok)
+    bytes = restaurant.reload.banner.download
+    expect(Vips::Image.new_from_buffer(bytes, "").then { [ _1.width, _1.height ] }).to eq([ 800, 300 ])
+    expect(ShapedImage.brightness(bytes)).to be < 15
+  end
+
+  it "rejects a crop box outside the image" do
+    patch_branding(as: owner, params: { logo: logo_file, logo_crop: { x: "0.9", y: "0", w: "0.5", h: "1" } })
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["code"]).to eq("invalid_crop")
+    expect(restaurant.reload.logo).not_to be_attached
+  end
+
+  # OpenAPI sends an object field in multipart as one JSON part, so a
+  # generated client's crop must not be dropped into a silent center-crop.
+  it "reads a crop sent as a JSON part" do
+    tall = Rack::Test::UploadedFile.new(ShapedImage.tempfile(800, 1200).path, "image/jpeg")
+    patch_branding(as: owner, params: { banner: tall, banner_crop: { anchor: "top" }.to_json })
+
+    expect(response).to have_http_status(:ok)
+    expect(ShapedImage.brightness(restaurant.reload.banner.download)).to be > 240
+  end
+
+  it "rejects a crop it cannot read" do
+    patch_branding(as: owner, params: { logo: logo_file, logo_crop: "top" })
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["code"]).to eq("invalid_crop")
+  end
 end
