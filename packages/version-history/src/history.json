@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.11.2",
+    "date": "2026-10-11",
+    "notes": [
+      "Admins can now see at a glance how the cuisine model is doing: calls, failures and cost by day, week and month, and for each scan how many dishes the hidden-wheat check flagged that the menu data missed."
+    ]
+  },
+  {
     "version": "2026.10.11.1",
     "date": "2026-10-11",
     "notes": [
