@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.11.4",
+    "date": "2026-10-11",
+    "notes": [
+      "Cuisine labels no longer fall for a borrowed name: French toast stays American, and a house-made antipasto at a pizza kitchen keeps its Italian label. A label an admin has confirmed is never rewritten by the model, and a label that stays put no longer flickers between confidence grades."
+    ]
+  },
+  {
     "version": "2026.10.11.3",
     "date": "2026-10-11",
     "notes": [
