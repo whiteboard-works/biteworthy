@@ -8,7 +8,18 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
   let!(:city) { create(:city, slug: "durango", name: "Durango", region: "CO") }
 
   def payload(response) = response.to_h[:structuredContent]
-  def call(**args) = described_class.call(server_context: { user_id: user.id }, **args)
+  def call(**args)
+    described_class.call(server_context: { user_id: user.id, public_host: "https://biteworthy.test" }, **args)
+  end
+
+  def upload_for(uploader)
+    ActiveStorage::Blob.create_and_upload!(
+      io:           File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+      filename:     "logo.jpg",
+      content_type: "image/jpeg",
+      metadata:     { "uploaded_by_user_id" => uploader.id }
+    )
+  end
 
   it "creates a draft attributed to the caller" do
     response = call(name: "Ninis Taqueria", city_slug: "durango")
@@ -40,6 +51,29 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(restaurant.hours.sole).to have_attributes(day_of_week: 1)
     expect(restaurant.hours.sole.opens_at.strftime("%H:%M")).to eq("11:00")
     expect(payload(response)[:restaurant]).to include(website: "https://caracasgrillutah.com")
+  end
+
+  # An import from chat should leave the listing as complete as the user
+  # can make it; the images ride the same call as hours, phone, and
+  # website rather than needing a claim first.
+  it "attaches an uploaded logo and banner to the new draft" do
+    response = call(
+      name: "Ninis Taqueria", city_slug: "durango",
+      logo_attachment_id: upload_for(user).signed_id, banner_attachment_id: upload_for(user).signed_id
+    )
+
+    restaurant = Restaurant.find(payload(response)[:restaurant][:id])
+    expect(restaurant.logo).to be_attached
+    expect(restaurant.banner).to be_attached
+    expect(payload(response)[:restaurant][:logo_url]).to be_present
+    expect(payload(response)[:restaurant][:banner_url]).to be_present
+  end
+
+  it "refuses somebody else's upload and creates nothing" do
+    response = call(name: "Ninis", city_slug: "durango", logo_attachment_id: upload_for(create(:user)).signed_id)
+
+    expect(payload(response)[:error]).to eq("invalid_argument")
+    expect(Restaurant.where(name: "Ninis")).to be_empty
   end
 
   it "rejects a website that is not an http(s) URL" do

@@ -388,7 +388,13 @@ The same gate opens `set_restaurant_branding` (`restaurants` domain,
 `audience :user`): the owner's logo and banner. It takes attachment ids
 from `POST /api/v1/attachments`, never image bytes, and only resolves an
 id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
-and the REST door `PATCH /restaurants/:id/branding` shares it.
+and the REST door `PATCH /restaurants/:id/branding` shares it. While a
+restaurant is still a draft, the community member who added it passes the
+gate too (the scan door's rule), so a chat import can be complete:
+`create_restaurant` takes `logo_attachment_id` / `banner_attachment_id`
+in the same call as hours, phone, and website, and
+`set_restaurant_branding` adds them a turn later. Publishing ends the
+creator's say.
 
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.

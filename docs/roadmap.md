@@ -32,6 +32,7 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 
 - [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
 - [x] Doors: `PATCH /api/v1/restaurants/:id/branding` (multipart) and the MCP `set_restaurant_branding` tool (attachment ids from `POST /attachments`).
+- [x] Chat import: `create_restaurant` takes `logo_attachment_id` / `banner_attachment_id`, and the creator of a draft may brand it until it is published (the scan door's rule), so a restaurant added from chat can be complete without a claim. The web `/restaurants/new` form has no image pickers yet.
 - [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
 - [ ] Mobile — render the logo on home rows and the banner on `restaurants/[id]` (`expo-image`); the API already returns both.
 

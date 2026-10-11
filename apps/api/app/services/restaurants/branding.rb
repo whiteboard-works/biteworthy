@@ -6,8 +6,11 @@ module Restaurants
   # `set_restaurant_branding` tool (signed blob ids from POST /attachments).
   #
   # Who may call it is the whole security model: the restaurant's verified
-  # owner (`claimed_by_user_id`, set by the emailed claim token) or an
-  # admin. Same gate as resolving suggestions.
+  # owner (`claimed_by_user_id`, set by the emailed claim token), an
+  # admin, or — while the restaurant is still a draft — the community
+  # member who created it, the same rule the scan door applies
+  # (`Ingestion::StartRun.can_target?`). Publishing ends the creator's
+  # say: from then on it is the owner's or an admin's.
   #
   # Every image goes through Images::StripMetadata, so an owner's phone
   # photo lands without EXIF/GPS and over the same size/type limits as a
@@ -17,7 +20,8 @@ module Restaurants
   module Branding
     class Forbidden < StandardError
       def initialize(restaurant)
-        super("Only the verified owner of #{restaurant.name} or an admin can change its branding.")
+        super("Only the verified owner of #{restaurant.name}, an admin, or (while it is a draft) " \
+              "the person who added it can change its branding.")
       end
     end
 
@@ -28,6 +32,8 @@ module Restaurants
     def authorize!(user, restaurant)
       return restaurant if user&.is_admin?
       return restaurant if restaurant.claimed_by_user_id.present? && restaurant.claimed_by_user_id == user&.id
+      return restaurant if restaurant.status == "draft" && restaurant.created_by_user_id.present? &&
+                           restaurant.created_by_user_id == user&.id
 
       raise Forbidden, restaurant
     end
