@@ -118,9 +118,9 @@ class Item < ApplicationRecord
     return true unless restaurant_verified?
     return true if user&.is_super_admin?
 
-    # The verifier pointer is nulled when that account is deleted; a nil
-    # user must not match a nil verifier, so the dish stays locked.
-    user.present? && user.id == restaurant_verified_by_user_id
+    # The verifier pointer is nulled when that account is deleted; nobody,
+    # not even a nil or unsaved user, matches a missing verifier.
+    restaurant_verified_by_user_id.present? && user&.id == restaurant_verified_by_user_id
   end
 
   # Bulk writers attach many joins to the same item, and every join rewrites

@@ -104,6 +104,7 @@ RSpec.describe Item, type: :model do
 
         it "denies nil user from editing" do
           expect(item.can_be_edited_by?(nil)).to be false
+      expect(item.can_be_edited_by?(User.new)).to be false
         end
       end
     end
@@ -135,6 +136,7 @@ RSpec.describe Item, type: :model do
       item.reload
 
       expect(item.can_be_edited_by?(nil)).to be false
+      expect(item.can_be_edited_by?(User.new)).to be false
       expect(item.can_be_edited_by?(create(:user, :admin))).to be false
       expect(item.can_be_edited_by?(create(:user, :super_admin))).to be true
     end
