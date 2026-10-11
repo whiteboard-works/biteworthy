@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Image } from 'expo-image';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
@@ -212,8 +213,28 @@ export default function RestaurantScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {restaurant.banner_url ? (
+        <Image
+          source={{ uri: restaurant.banner_url }}
+          accessibilityLabel={`${restaurant.name} banner`}
+          testID="restaurant-banner"
+          contentFit="cover"
+          style={styles.banner}
+        />
+      ) : null}
       <Text style={styles.eyebrow}>{restaurant.city.name}, {restaurant.city.region}</Text>
-      <Text style={styles.headline}>{restaurant.name}</Text>
+      <View style={styles.titleRow}>
+        {restaurant.logo_url ? (
+          <Image
+            source={{ uri: restaurant.logo_url }}
+            accessibilityLabel={`${restaurant.name} logo`}
+            testID="restaurant-logo"
+            contentFit="cover"
+            style={styles.logo}
+          />
+        ) : null}
+        <Text style={[styles.headline, styles.headlineText]}>{restaurant.name}</Text>
+      </View>
       <Text style={styles.summary}>
         {filter.source === 'none' && filter.strictness !== 'strict' ? (
           <>
@@ -481,6 +502,26 @@ const styles = StyleSheet.create({
     fontSize: fontSize['2xl'],
     fontWeight: '700',
     color: colors.text,
+  },
+  headlineText: {
+    flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['3'],
+  },
+  logo: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: colors.bgAlt,
+  },
+  banner: {
+    width: '100%',
+    aspectRatio: 8 / 3,
+    borderRadius: 12,
+    backgroundColor: colors.bgAlt,
   },
   summary: {
     fontSize: fontSize.base,

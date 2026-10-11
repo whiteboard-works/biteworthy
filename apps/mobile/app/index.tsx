@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { searchRestaurants, type RestaurantSummary } from '../lib/api/restaurants';
@@ -93,8 +94,19 @@ export default function Home() {
               onPress={() => router.push(`/restaurants/${item.id}?from=search`)}
               style={styles.row}
             >
-              <Text style={styles.rowName}>{item.name}</Text>
-              <Text style={styles.rowMeta}>{meta(item)}</Text>
+              {item.logo_url ? (
+                <Image
+                  source={{ uri: item.logo_url }}
+                  accessibilityLabel={`${item.name} logo`}
+                  testID={`restaurant-logo-${item.slug}`}
+                  contentFit="cover"
+                  style={styles.rowLogo}
+                />
+              ) : null}
+              <View style={styles.rowText}>
+                <Text style={styles.rowName}>{item.name}</Text>
+                <Text style={styles.rowMeta}>{meta(item)}</Text>
+              </View>
             </Pressable>
           )}
           ListEmptyComponent={
@@ -161,9 +173,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['3'],
     paddingVertical: space['3'],
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  rowLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.bgAlt,
+  },
+  rowText: {
+    flex: 1,
   },
   rowName: {
     fontSize: fontSize.base,

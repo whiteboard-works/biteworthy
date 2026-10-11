@@ -43,7 +43,7 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
 - [x] Shapes the chat knows and can crop to: logo 1:1 up to 400×400, banner 8:3 up to 1600×600. `Images::Fit` crops each upload to its slot (center, an `anchor`, or a fractional box) and never enlarges; `inspect_image` gives the chat an upload's size, and `set_restaurant_branding` / the REST door take `logo_crop` / `banner_crop`.
 - [ ] Web branding editor — crop controls that send `logo_crop` / `banner_crop` (the API takes them; the editor still uploads and lets the server center-crop).
-- [ ] Mobile — render the logo on home rows and the banner on `restaurants/[id]` (`expo-image`); the API already returns both.
+- [x] Mobile — logo on home rows and beside the name on `restaurants/[id]`, banner across the top of that screen (`expo-image`); nothing renders for a restaurant without them.
 
 ## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
 

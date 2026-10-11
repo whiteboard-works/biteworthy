@@ -34,6 +34,8 @@ const restaurantPayload: Restaurant = {
   website: null,
   status: 'published',
   city: { id: 'city-1', slug: 'durango', name: 'Durango', region: 'CO' },
+  logo_url: null,
+  banner_url: null,
 };
 
 const itemsPayload: RestaurantItemsResponse = {
@@ -186,6 +188,7 @@ describe('searchRestaurants (Phase 7.2)', () => {
     street: '119 W College Dr',
     latitude: 37.27,
     longitude: -107.88,
+    logo_url: null,
   };
 
   it('GETs /api/v1/restaurants with no query when q is blank', async () => {
