@@ -27,6 +27,14 @@ module Ingestion
 
     def self.enabled? = TypesafeClient.configured? && ENV["JEV_WHEAT_SHADOW"].present?
 
+    # Every dish a run's earlier observations covered, answered or not: a
+    # failed call is still a call, and a retry must not repeat it.
+    def self.observed_item_ids(run)
+      JevObservation.where(kind: "hidden_wheat_shadow", subject: run)
+                    .pluck(Arel.sql("jsonb_array_elements_text(details->'item_ids')"))
+                    .to_set
+    end
+
     def initialize(client: TypesafeClient.new)
       @client = client
     end
@@ -37,7 +45,9 @@ module Ingestion
     # rather than read as "no wheat"); `ingredient_paths` maps slug to
     # ltree path. Returns true when Jev answered, false when it did not,
     # so the caller can stop asking for the rest of the run.
-    def call(run, prompt_rows, merged, ingredient_paths, attempt: 1)
+    # `item_ids` are the dishes' IngestionItem ids, kept in the row so a
+    # retry can skip dishes already observed (see `observed_item_ids`).
+    def call(run, prompt_rows, merged, ingredient_paths, attempt: 1, item_ids: [])
       return true if prompt_rows.empty?
 
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -54,7 +64,7 @@ module Ingestion
         # Agreement is only a fact about pairs that were compared: a slice
         # with answers missing or nothing to compare says nothing.
         agree: agreement(stats),
-        details: { attempt: attempt, **stats }
+        details: { attempt: attempt, item_ids: item_ids, **stats }
       )
       true
     rescue StandardError => e
@@ -62,7 +72,8 @@ module Ingestion
       JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "failed",
                           model: @client.last_model, input_tokens: @client.last_usage&.dig("input_tokens"),
                           latency_ms: started && ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round,
-                          details: { attempt: attempt, items: Array(prompt_rows).size, error: e.class.name,
+                          details: { attempt: attempt, item_ids: item_ids, items: Array(prompt_rows).size,
+                                     error: e.class.name,
                                      status: (e.respond_to?(:status) ? e.status : nil) }.compact)
       false
     end

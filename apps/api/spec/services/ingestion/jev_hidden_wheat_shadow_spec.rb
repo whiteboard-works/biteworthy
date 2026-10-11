@@ -36,7 +36,7 @@ RSpec.describe Ingestion::JevHiddenWheatShadow do
 
   it "records the slice as an observation, with the dangerous disagreement named" do
     request = stub_jev
-    described_class.new(client: client).call(run, rows, merged, paths, attempt: 1)
+    described_class.new(client: client).call(run, rows, merged, paths, attempt: 1, item_ids: %w[a b c])
 
     expect(request.with { |req|
       body = JSON.parse(req.body)
@@ -48,7 +48,8 @@ RSpec.describe Ingestion::JevHiddenWheatShadow do
     row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
     expect(row).to have_attributes(outcome: "answered", agree: false, model: "jev-1.13.0", input_tokens: 350)
     expect(row.details).to include("items" => 3, "agree" => 2, "jev_only" => 1, "data_only" => 0, "missing" => 0,
-                                   "attempt" => 1)
+                                   "attempt" => 1, "item_ids" => %w[a b c])
+    expect(described_class.observed_item_ids(run)).to eq(Set.new(%w[a b c]))
     expect(row.details["disagreements"]).to eq([
       { "index" => 2, "item" => "Fish & Chips", "section" => "Pub", "jev" => 0.91, "data" => false }
     ])

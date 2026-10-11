@@ -27,7 +27,9 @@ class IngestionRun < ApplicationRecord
 
   belongs_to :user, optional: true
   belongs_to :restaurant, optional: true
-  has_many :jev_observations, as: :subject, dependent: :delete_all
+  # Nullify, not delete: the spend and the missed-wheat count were real
+  # and the dashboard's history must not shrink when a run is cleaned up.
+  has_many :jev_observations, as: :subject, dependent: :nullify
   has_many :ingestion_items, dependent: :destroy
 
   # The source artifact(s) we're extracting from. Multi-page menu

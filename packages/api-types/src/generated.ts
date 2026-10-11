@@ -216,6 +216,74 @@ export interface paths {
                                     cache_hit_rate: number;
                                 };
                             };
+                            jev: {
+                                today: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_7_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_30_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                            };
                             community: {
                                 runs_today: number;
                                 spend_today_cents: number;
@@ -1057,6 +1125,13 @@ export interface paths {
                                 input_kind?: string;
                                 failure_message?: string | null;
                                 api_cost_cents?: number | null;
+                                jev: {
+                                    calls: number;
+                                    failed: number;
+                                    partial: number;
+                                    input_tokens: number;
+                                    wheat_jev_only: number;
+                                };
                                 /** Format: date-time */
                                 archived_at?: string | null;
                                 /** Format: date-time */

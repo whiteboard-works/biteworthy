@@ -13,6 +13,17 @@ RSpec.describe JevObservation do
     expect(described_class.where(kind: "cuisine").group(:outcome).count).to eq("answered" => 1)
   end
 
+  # The spend and the missed-wheat count were real; cleaning up the run
+  # must not erase them from last week's tiles.
+  it "outlives its owner with both subject columns nulled, and still counts in the metrics" do
+    row = described_class.note(kind: "cuisine", subject: run, outcome: "answered", input_tokens: 700,
+                               details: { items: 5, tagged: 2 })
+    run.destroy!
+
+    expect(row.reload).to have_attributes(subject_type: nil, subject_id: nil)
+    expect(Ingestion::JevMetrics.by_period.fetch(:today).to_h).to include(calls: 1, input_tokens: 700)
+  end
+
   # The observation is the measurement, never the thing measured: a
   # row that cannot be written must not fail a gap-fill or a chat turn.
   it "drops a row it cannot write instead of raising" do

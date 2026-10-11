@@ -233,8 +233,12 @@ like…" explainer.
   one row per Jev call (kind, subject, outcome, latency, tokens, agree,
   details), so a live call's failures and spend and a shadow trial's
   agreement both outlive a deploy. `JevCuisineTagger` and
-  `JevHiddenWheatShadow` write it. The dashboard half is its own open
-  follow-up ("Jev health on the admin dashboard").
+  `JevHiddenWheatShadow` write it. The dashboard half shipped the same
+  day: `Ingestion::JevMetrics` buckets the table by the cost tiles'
+  periods for `/admin/dashboard` (calls, outcomes, tokens, cost at
+  TypeSafe's rate, cuisine counters, wheat agreement) and rolls it up
+  per run for the scan queue, where a run's `jev_only` wheat
+  disagreements are named in red.
 - ~~**Persistent production logs (2026-10-10)**~~ — resolved 2026-10-10
   (ADR 0009): `Rails.logger` is broadcast to PostHog Logs over OTLP from
   both Kamal roles (`posthog-rails`, `config/initializers/posthog.rb`),

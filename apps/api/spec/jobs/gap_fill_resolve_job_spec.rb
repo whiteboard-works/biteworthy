@@ -594,6 +594,35 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
 
+    # A slice merged by an earlier attempt was observed then; a slice whose
+    # first attempt failed before the merge is observed when a retry lands
+    # it. Neither counts a dish twice, and neither is left unobserved.
+    it "observes a dish once across attempts, by identity, even when Haiku found it no ingredient" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      # The Caesar got nothing from Haiku on the first attempt, so it is
+      # still "not enriched" and goes back whole with a fresh dish; the
+      # first attempt's observation already covered it.
+      JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "answered", agree: true,
+                          details: { attempt: 1, item_ids: [ gap_item.id ], items: 1, agree: 1, jev_only: 0 })
+      fresh = create(:ingestion_item, ingestion_run: run, position: 20, name: "Mystery Dish", description: nil,
+                     decision: "pending", ingredients_payload: [], tags_payload: [])
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        answers = keys.grep(/__wheat\z/).to_h { |k| [ k, { "type" => "noul", "noul" => 0.9 } ] }
+        { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      final_attempt(run.id)
+
+      rows = JevObservation.where(kind: "hidden_wheat_shadow", subject: run).order(:created_at)
+      expect(rows.count).to eq(2)
+      expect(rows.last.details).to include("items" => 1, "attempt" => ApplicationJob::RETRY_ATTEMPTS,
+                                           "item_ids" => [ fresh.id ])
+      expect(rows.last.details["disagreements"].map { |d| d["item"] }).to eq([ "Mystery Dish" ])
+    end
+
     it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
       allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
       allow(Rails.error).to receive(:report)
