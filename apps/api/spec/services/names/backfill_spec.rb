@@ -62,4 +62,14 @@ RSpec.describe Names::Backfill do
     expect(result.changes).to be_empty
     expect(shouted.reload.name).to eq("OWNER RENAMED THIS")
   end
+
+  # The restaurant approved this text; the bulk fix must not be a way
+  # around the lock that the item editor enforces.
+  it "leaves a dish the caller may not edit, and counts it as locked" do
+    result = described_class.new(restaurant.items, editable: ->(item) { item != shouted }).call(dry_run: false)
+
+    expect(result.locked).to eq(1)
+    expect(result.changes).to be_empty
+    expect(shouted.reload.name).to eq("STEAK TARTARE*")
+  end
 end

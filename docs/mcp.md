@@ -499,6 +499,8 @@ reusing the same business logic and validation as the REST admin endpoints:
   sentence case, and footnote asterisks at either end of a name go.
   `dry_run: true` previews `changed` (before/after per dish); a real run
   is confirmation-gated and unrecoverable, the `retag_cuisine` shape.
+  Dishes the caller may not edit (restaurant-verified, `Item#can_be_edited_by?`)
+  are left alone and counted in `locked`; rows edited mid-run in `stale`.
   New writes are already normalized on assignment, so this is only for
   old rows; `bin/rails names:normalize` is the all-restaurants backfill.
 - **`set_restaurant_status`** — change status to draft, published, or

@@ -21,7 +21,8 @@ module Tools
 
         Returns `written`, the number of dishes changed, and `changed`, each
         with its name and description before and after, plus `stale`, dishes
-        edited while it ran and left alone (run again). Running it twice
+        edited while it ran and left alone (run again), and `locked`, dishes
+        the restaurant verified that you may not edit, left alone. Running it twice
         changes nothing the second time.
       TEXT
 
@@ -58,14 +59,16 @@ module Tools
       def self.perform(context:, restaurant:, dry_run: false)
         context.admin!
         record  = find_restaurant!(restaurant)
-        result  = ::Names::Backfill.new(record.items).call(dry_run: dry_run)
+        result  = ::Names::Backfill.new(record.items, editable: ->(item) { item.can_be_edited_by?(context.user) })
+                                   .call(dry_run: dry_run)
 
         ok(
           restaurant: restaurant_row(record),
           dry_run:    dry_run,
           written:    result.changes.size,
           changed:    result.changes.map { |c| { item_id: c.item.id, before: text_row(c.before), after: text_row(c.after) } },
-          stale:      result.stale
+          stale:      result.stale,
+          locked:     result.locked
         )
       end
     end

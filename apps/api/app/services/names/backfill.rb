@@ -7,20 +7,29 @@ module Names
   # `normalize_item_names`.
   class Backfill
     Change = Data.define(:item, :before, :after)
-    Result = Data.define(:changes, :stale)
+    Result = Data.define(:changes, :stale, :locked)
 
-    def initialize(scope = Item.all)
-      @scope = scope
+    # `editable` is the caller's edit check, so a dish the restaurant
+    # verified keeps the text it approved (see `Item#can_be_edited_by?`).
+    def initialize(scope = Item.all, editable: ->(_item) { true })
+      @scope    = scope
+      @editable = editable
     end
 
     # A row edited between the read and the write is left alone and
     # counted in `stale`; running again picks it up.
     def call(dry_run:)
       stale   = 0
+      locked  = 0
       changes = @scope.find_each.filter_map do |item|
         before = { name: item.name, description: item.description }
         after  = { name: Standard.item_name(item.name), description: Standard.description(item.description) }
         next if after == before
+
+        unless @editable.call(item)
+          locked += 1
+          next
+        end
 
         unless dry_run || write_if_unchanged(item, before, after)
           stale += 1
@@ -28,7 +37,7 @@ module Names
         end
         Change.new(item: item, before: before, after: after)
       end
-      Result.new(changes: changes, stale: stale)
+      Result.new(changes: changes, stale: stale, locked: locked)
     end
 
     private

@@ -484,6 +484,18 @@ RSpec.describe "Admin MCP tools" do
       end
     end
 
+    context "when the restaurant has verified the dish" do
+      let(:owner) { create(:user) }
+
+      before { dish.update_columns(restaurant_verified_at: Time.current, restaurant_verified_by_user_id: owner.id) }
+
+      it "leaves it to the verifier and reports it as locked" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        expect(result_content).to include("written" => 0, "locked" => 1)
+      end
+    end
+
     context "as non-admin" do
       it "is not a tool they can see" do
         mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, user)
