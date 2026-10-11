@@ -99,7 +99,20 @@ RSpec.describe "admin/ingestion_runs", type: :request do
         let(:limit)         { nil }
         let(:offset)        { nil }
         before { create(:ingestion_item) } # one run with one pending item
-        run_test!
+        let!(:observed_run) { create(:ingestion_run, :staged) }
+        before do
+          JevObservation.note(kind: "cuisine", subject: observed_run, outcome: "failed", input_tokens: nil,
+                              details: { items: 10, error: "TypesafeClient::ApiError", status: 503 })
+          JevObservation.note(kind: "hidden_wheat_shadow", subject: observed_run, outcome: "answered",
+                              agree: false, input_tokens: 400, details: { items: 10, agree: 8, jev_only: 2 })
+        end
+        run_test! do |response|
+          rows = JSON.parse(response.body)["runs"]
+          observed = rows.find { |r| r["id"] == observed_run.id }
+          expect(observed["jev"]).to eq("calls" => 2, "failed" => 1, "input_tokens" => 400, "wheat_jev_only" => 2)
+          expect(rows.reject { |r| r["id"] == observed_run.id }.map { |r| r["jev"] })
+            .to all(eq("calls" => 0, "failed" => 0, "input_tokens" => 0, "wheat_jev_only" => 0))
+        end
       end
 
       response(404, "authenticated but not an admin") do

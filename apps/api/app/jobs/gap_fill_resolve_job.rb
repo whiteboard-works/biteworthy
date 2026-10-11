@@ -63,7 +63,10 @@ class GapFillResolveJob < ApplicationJob
 
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
     tagger           = cuisine_tagger(run)
-    wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled?
+    # First attempt only: a retry re-asks Jev for slices Haiku already
+    # merged, and a second row per slice would count a missed-wheat dish
+    # twice on the dashboard.
+    wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled? && executions <= 1
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The

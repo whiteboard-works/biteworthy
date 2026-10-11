@@ -87,7 +87,7 @@ module Api
           end
         end
 
-        def serialize_queue_run(run, counts, jev = nil)
+        def serialize_queue_run(run, counts, jev)
           {
             id:                run.id,
             status:            run.status,
@@ -111,7 +111,7 @@ module Api
               rejected: counts["rejected"] || 0,
               edited:   counts["edited"]   || 0
             },
-            jev: jev || Ingestion::JevMetrics::EMPTY_RUN
+            jev: jev
           }
         end
       end

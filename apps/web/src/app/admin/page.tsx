@@ -93,11 +93,7 @@ export default function AdminHomePage() {
       )}
 
       {!data && !error && (
-        <p
-          role="status"
-          data-testid="dashboard-loading"
-          className="mt-bw-4 text-bw-sm text-zinc-500"
-        >
+        <p role="status" data-testid="dashboard-loading" className="mt-bw-4 text-bw-sm text-zinc-500">
           Loading metrics…
         </p>
       )}
@@ -120,8 +116,8 @@ export default function AdminHomePage() {
             <p className="mt-bw-2 text-bw-3xl font-bold text-zinc-900">
               {dollars(data.community.spend_today_cents)}
               <span className="ml-bw-2 text-bw-sm font-normal text-zinc-500">
-                of {dollars(data.community.ceiling_cents)} ceiling · {data.community.runs_today}{' '}
-                community run
+                of {dollars(data.community.ceiling_cents)} ceiling ·{' '}
+                {data.community.runs_today} community run
                 {data.community.runs_today === 1 ? '' : 's'} today
               </span>
             </p>
@@ -140,16 +136,21 @@ export default function AdminHomePage() {
             </div>
           </section>
 
-          <section aria-labelledby="jev-heading">
-            <h2 id="jev-heading" className="text-bw-sm font-semibold text-zinc-600">
-              Jev: cuisine tags and the hidden-wheat trial
-            </h2>
-            <div className="mt-bw-2 grid gap-bw-4 sm:grid-cols-3">
-              {PERIOD_KEYS.map((key) => (
-                <JevTile key={key} periodKey={key} bucket={data.jev[key]} />
-              ))}
-            </div>
-          </section>
+          {/* Guarded: the web deploys on Vercel ahead of the API's Kamal
+              deploy, and an older API answers without `jev`. The cost and
+              queue tiles must not go down with a missing section. */}
+          {data.jev && (
+            <section aria-labelledby="jev-heading">
+              <h2 id="jev-heading" className="text-bw-sm font-semibold text-zinc-600">
+                Jev: cuisine tags and the hidden-wheat trial
+              </h2>
+              <div className="mt-bw-2 grid gap-bw-4 sm:grid-cols-3">
+                {PERIOD_KEYS.map((key) => (
+                  <JevTile key={key} periodKey={key} bucket={data.jev[key]} />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section aria-labelledby="queues-heading">
             <h2 id="queues-heading" className="text-bw-sm font-semibold text-zinc-600">
@@ -229,9 +230,7 @@ function PeriodTile({
         </div>
         <div className="flex justify-between">
           <dt>Cache hit rate</dt>
-          <dd className="font-semibold text-zinc-800">
-            {Math.round(bucket.cache_hit_rate * 100)}%
-          </dd>
+          <dd className="font-semibold text-zinc-800">{Math.round(bucket.cache_hit_rate * 100)}%</dd>
         </div>
       </dl>
     </article>
@@ -285,13 +284,13 @@ function JevTile({ periodKey, bucket }: { periodKey: string; bucket: JevBucket }
           </dd>
         </div>
         <div className="flex justify-between">
-          <dt>Wheat trial agree / disagree</dt>
+          <dt>Wheat trial slices agree / disagree</dt>
           <dd className="font-semibold text-zinc-800">
             {bucket.wheat.agree} / {bucket.wheat.disagree}
           </dd>
         </div>
         <div className="flex justify-between">
-          <dt>Wheat Jev saw, data missed</dt>
+          <dt>Dishes with wheat Jev saw, data missed</dt>
           <dd
             data-testid={`jev-${periodKey}-wheat-missed`}
             className={

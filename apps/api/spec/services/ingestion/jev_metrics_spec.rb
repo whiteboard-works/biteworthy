@@ -39,7 +39,17 @@ RSpec.describe Ingestion::JevMetrics do
 
     expect(rollup[run.id]).to eq(calls: 3, failed: 1, input_tokens: 2_500, wheat_jev_only: 2)
     expect(rollup[other.id]).to eq(calls: 2, failed: 0, input_tokens: 1_400, wheat_jev_only: 0)
-    expect(rollup.size).to eq(2)
-    expect(described_class.for_runs([])).to eq({})
+    expect(rollup[SecureRandom.uuid]).to eq(calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0)
+    expect(described_class.for_runs([])[run.id]).to eq(calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0)
+  end
+
+  # `details` is written by several services; one bad value must not 500
+  # the dashboard, it is just not counted.
+  it "ignores a counter that is not a JSON number instead of raising" do
+    JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "answered", agree: false,
+                        details: { items: 1, jev_only: "two" })
+
+    expect(described_class.by_period.fetch(:today).wheat[:jev_only]).to eq(2)
+    expect(described_class.for_runs([ run.id ])[run.id][:wheat_jev_only]).to eq(2)
   end
 end

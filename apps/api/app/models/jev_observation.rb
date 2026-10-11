@@ -11,7 +11,8 @@
 #
 #   kind      what was asked: cuisine | hidden_wheat_shadow
 #   subject   what the dishes belonged to (IngestionRun, Restaurant);
-#             polymorphic, optional, and the owner deletes its rows
+#             polymorphic, optional, nulled when the owner is deleted so
+#             the dashboard's history keeps the spend
 #   outcome   answered | partial (some answers missing) | failed (no answer)
 #   agree     shadow trials only: Jev agreed with the model it shadows
 #   details   the kind's own numbers and disagreements, bounded by the writer

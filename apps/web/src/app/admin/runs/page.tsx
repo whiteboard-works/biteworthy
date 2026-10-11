@@ -229,7 +229,9 @@ function RunRow({ run, onChanged }: { run: AdminRunRow; onChanged: () => void })
           {run.created_at && <> · {new Date(run.created_at).toLocaleString()}</>}
           {run.input_kind && <> · {run.input_kind}</>}
           {run.api_cost_cents != null && <> · {(run.api_cost_cents / 100).toFixed(2)} USD</>}
-          {run.jev.calls > 0 && (
+          {/* Optional chaining: an older API (Vercel deploys ahead of Kamal)
+              answers without `jev`, and a row must still render. */}
+          {run.jev?.calls > 0 && (
             <>
               {' '}
               · Jev {run.jev.calls} call{run.jev.calls === 1 ? '' : 's'}

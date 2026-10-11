@@ -89,6 +89,16 @@ describe('AdminRunsPage', () => {
     expect(within(screen.getByTestId('run-row-run-2')).queryByText(/Jev/)).toBeNull();
   });
 
+  it('still renders a row from an API that predates the Jev rollup', async () => {
+    const { jev: _jev, ...older } = runRow({ id: 'run-old' });
+    mockFetchAdminRuns.mockResolvedValue({ runs: [older], pagination: { total: 1, limit: 25, offset: 0 } });
+    render(<AdminRunsPage />);
+
+    const row = within(await screen.findByTestId('run-row-run-old'));
+    expect(row.getByText(/Nini’s Tacos/)).toBeInTheDocument();
+    expect(row.queryByText(/Jev/)).toBeNull();
+  });
+
   it('writes filter changes to the URL and resets paging', async () => {
     searchParams = new URLSearchParams('offset=50');
     mockFetchAdminRuns.mockResolvedValue({

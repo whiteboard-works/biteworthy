@@ -594,6 +594,17 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(run.reload.enrichment_status).to eq("completed")
     end
 
+    it "does not run on a retry, so a missed-wheat dish is never counted twice" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      jev = stub_request(:post, jev_url).to_return(status: 200, body: { model: "jev-1.13.0", answers: {} }.to_json,
+                                                    headers: { "Content-Type" => "application/json" })
+
+      final_attempt(run.id)
+
+      expect(jev.with { |req| JSON.parse(req.body)["questions"].keys.any? { |k| k.end_with?("__wheat") } })
+        .not_to have_been_made
+    end
+
     it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
       allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
       allow(Rails.error).to receive(:report)
