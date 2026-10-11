@@ -221,7 +221,11 @@ merged as `source: "ai"` with the probability as its confidence (so
 `ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
 the slice logs one `[jev_cuisine]` JSON line (model version, latency,
 input tokens, items, tags kept, answers missing; a missing answer is
-also reported through `Rails.error.report`). Haiku is never asked for
+also reported through `Rails.error.report`) and writes one `JevObservation`
+row (kind `cuisine`, subject the run or restaurant, outcome answered /
+partial / failed, latency, tokens, the same counts), which is what
+survives a deploy: `JevObservation.where(kind: "cuisine").group(:outcome).count`.
+Haiku is never asked for
 cuisine and never sees the cuisine catalog, so gap-fill no longer
 writes `unresolved_tags`. A Jev failure never raises: the slice merges
 keeping whatever AI cuisine rows it already had, the failure is

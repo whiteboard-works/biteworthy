@@ -54,6 +54,26 @@ RSpec.describe Ingestion::JevCuisineTagger do
                                    "input_tokens" => 400)
   end
 
+  # The log line dies with the container; the row is what a later
+  # reading of the trial, or of a live failure, has to go on.
+  it "records every call as an observation on the run: answered, partial, or failed" do
+    stub_jev
+    described_class.new(client: client).call(run, rows)
+    answers.delete("i1__mexican")
+    stub_jev
+    allow(Rails.error).to receive(:report)
+    described_class.new(client: client).call(run, rows)
+    stub_jev(status: 401, body: { error: "invalid key" })
+    described_class.new(client: client).call(run, rows)
+
+    kept = JevObservation.where(kind: "cuisine", subject: run).order(:created_at)
+    expect(kept.map(&:outcome)).to eq(%w[answered partial failed])
+    expect(kept.first).to have_attributes(model: "jev-1.13.0", input_tokens: 400)
+    expect(kept.first.details).to include("items" => 2, "tagged" => 2, "no_cuisine" => 0, "missing" => 0)
+    expect(kept.second.details).to include("missing" => 1)
+    expect(kept.third.details).to include("error" => "TypesafeClient::ApiError")
+  end
+
   it "asks one gate and one question per leaf cuisine, each with criteria, with state limited to the dishes themselves" do
     request = stub_jev
     described_class.new(client: client).call(run, rows)

@@ -113,6 +113,13 @@ module Ingestion
         no_cuisine:   no_cuisine,
         missing:      missing
       }.to_json)
+      JevObservation.note(
+        kind: "cuisine", subject: observed(subject), model: @client.last_model,
+        latency_ms: latency, input_tokens: @client.last_usage&.dig("input_tokens"),
+        outcome: missing.positive? ? "partial" : "answered",
+        details: { items: prompt_rows.size, tagged: rows.values.sum { |r| r&.size.to_i },
+                   no_cuisine: no_cuisine, missing: missing }
+      )
       if missing.positive?
         Rails.error.report(
           PartialAnswers.new("#{missing} of #{prompt_rows.size * (tags.size + 1)} answers missing or malformed"),
@@ -125,12 +132,20 @@ module Ingestion
         "[jev_cuisine] #{label(subject)} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
       )
       Rails.error.report(e, handled: true, context: ids(subject))
+      JevObservation.note(
+        kind: "cuisine", subject: observed(subject), outcome: "failed",
+        details: { items: prompt_rows.size, error: e.class.name, message: e.message.truncate(200) }
+      )
       nil
     end
 
     private
 
     def label(subject) = "#{subject.class.name}##{subject&.id}"
+
+    # The polymorphic subject for the observation row; anything that is
+    # not a record (a test double, nil) is simply not attached.
+    def observed(subject) = subject.is_a?(ActiveRecord::Base) ? subject : nil
 
     # `run_id` stays for an IngestionRun so nothing reading the gap-fill
     # lines changes; `subject` names whatever the dishes belong to.
