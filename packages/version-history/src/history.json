@@ -1,5 +1,14 @@
 [
   {
+    "version": "2026.10.11.8",
+    "date": "2026-10-11",
+    "notes": [
+      "The app now shows a restaurant's logo beside its name in the list and on its page, with the banner across the top of the page, matching the website.",
+      "When you add a restaurant on the website, you can attach its logo and banner on the same form; they are saved as soon as the restaurant is created.",
+      "Fixed: someone who had verified a dish could not delete their account; they can again, and a dish whose verifier left stays locked."
+    ]
+  },
+  {
     "version": "2026.10.11.7",
     "date": "2026-10-11",
     "notes": [
