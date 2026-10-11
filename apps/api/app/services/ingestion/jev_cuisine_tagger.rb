@@ -183,7 +183,7 @@ module Ingestion
     # not be told otherwise.
     NAMED_AFTER = {
       "french"  => [ "French toast", "French fries", "French dip" ],
-      "german"  => [ "German chocolate cake", "German potato salad at a diner" ],
+      "german"  => [ "German chocolate cake" ],
       "italian" => [ "Italian soda", "Italian dressing" ],
       "chinese" => [ "Chinese chicken salad" ],
       "spanish" => [ "Spanish rice at a taqueria" ]
