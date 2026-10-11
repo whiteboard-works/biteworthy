@@ -22,11 +22,10 @@ function okResponse(body: unknown): Response {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL: () => 'blob:preview',
-    revokeObjectURL: () => {},
-  });
+  // jsdom has no object URLs; add the two statics without replacing the
+  // URL constructor itself.
+  URL.createObjectURL = vi.fn(() => 'blob:preview');
+  URL.revokeObjectURL = vi.fn();
 });
 
 describe('canEditBranding', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import {
@@ -49,6 +49,9 @@ function ImageField({
       return url;
     });
   };
+  // The preview holds the shrunk bytes until revoked; drop it when the
+  // form unmounts (App Router navigation keeps the document alive).
+  useEffect(() => () => replacePreview(null), []);
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0];
@@ -180,6 +183,12 @@ export function NewRestaurantForm({
   }
 
   const submit = async (force: boolean) => {
+    // The restaurant already exists; a second create would only trip the
+    // duplicate guard. Enter in a field after the image failure goes on.
+    if (brandingFailed) {
+      router.push(brandingFailed.scanPath as Route);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -197,7 +206,12 @@ export function NewRestaurantForm({
       const scanPath = `${result.web_path}/scan`;
       if (logo || banner) {
         // Both images ride one request through the web server's body
-        // cap; two files that each passed the check can fail together.
+        // cap; two files that each passed the check can fail together,
+        // so they go one after the other (never concurrently: both write
+        // the same restaurant row). Any failure here, a lapsed session
+        // included, lands on the "added, images did not save" path: the
+        // restaurant exists, so a login round trip into a fresh form
+        // would only recreate it.
         try {
           if ((logo?.size ?? 0) + (banner?.size ?? 0) > MAX_UPLOAD_BYTES) {
             await brandRestaurant(result.slug, { logo });
@@ -205,8 +219,7 @@ export function NewRestaurantForm({
           } else {
             await brandRestaurant(result.slug, { logo, banner });
           }
-        } catch (err) {
-          if (err instanceof NotSignedInError) throw err;
+        } catch {
           setBrandingFailed({ scanPath });
           return;
         }

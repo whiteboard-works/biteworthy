@@ -48,11 +48,10 @@ beforeEach(() => {
   mockCreate.mockReset();
   mockBrand.mockReset();
   mockPush.mockReset();
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL: () => 'blob:preview',
-    revokeObjectURL: () => {},
-  });
+  // jsdom has no object URLs; add the two statics without replacing the
+  // URL constructor itself.
+  URL.createObjectURL = vi.fn(() => 'blob:preview');
+  URL.revokeObjectURL = vi.fn();
 });
 
 const created = {
@@ -104,6 +103,56 @@ describe('NewRestaurantForm', () => {
       expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana/scan'),
     );
     expect(mockBrand).toHaveBeenCalledWith('red-iguana', { logo: file, banner: null });
+  });
+
+  // Two files that each pass the per-file check can exceed the web
+  // server's body cap together; they go as two requests, one per image.
+  it('uploads the logo and banner separately when together they exceed the body cap', async () => {
+    mockCreate.mockResolvedValue(created);
+    mockBrand.mockResolvedValue(undefined);
+    render(<NewRestaurantForm cities={[SLC]} />);
+
+    const big = (name: string) =>
+      new File([new Uint8Array(3 * 1024 * 1024)], name, { type: 'image/jpeg' });
+    const logo = big('logo.jpg');
+    const banner = big('banner.jpg');
+    fireEvent.change(screen.getByTestId('new-restaurant-logo-input'), {
+      target: { files: [logo] },
+    });
+    fireEvent.change(screen.getByTestId('new-restaurant-banner-input'), {
+      target: { files: [banner] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('new-restaurant-banner-preview')).toBeInTheDocument(),
+    );
+    fill('Red Iguana');
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalled());
+    expect(mockBrand).toHaveBeenCalledTimes(2);
+    expect(mockBrand).toHaveBeenNthCalledWith(1, 'red-iguana', { logo });
+    expect(mockBrand).toHaveBeenNthCalledWith(2, 'red-iguana', { banner });
+  });
+
+  it('keeps a lapsed session out of the login round trip once the restaurant exists', async () => {
+    mockCreate.mockResolvedValue(created);
+    mockBrand.mockRejectedValue(new NotSignedInError());
+    render(<NewRestaurantForm cities={[SLC]} />);
+
+    await pickLogo();
+    fill('Red Iguana');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('new-restaurant-branding-failed')).toBeInTheDocument(),
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+
+    // Enter in a field after the failure goes on to the scan, not back
+    // through create.
+    fireEvent.submit(screen.getByTestId('new-restaurant-form'));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/restaurants/usa/utah/salt-lake-city/red-iguana/scan'),
+    );
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it('sends nothing to the branding door when no image was picked', async () => {
