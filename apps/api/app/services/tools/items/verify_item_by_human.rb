@@ -3,6 +3,8 @@
 module Tools
   module Items
     class VerifyItemByHuman < Tools::Base
+      audience :user
+
       tool_name "verify_item_by_human"
       title "Mark a dish as verified by a human"
       description "Verify that a published dish is correct and accurate. This marks the dish as human-verified in the system's audit trail."
