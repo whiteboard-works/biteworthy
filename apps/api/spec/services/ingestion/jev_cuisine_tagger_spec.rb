@@ -81,6 +81,17 @@ RSpec.describe Ingestion::JevCuisineTagger do
     expect(logged_line).to include("tagged" => 1, "no_cuisine" => 1, "missing" => 0)
   end
 
+  # The gate blocks only the obvious; a borderline item is decided by
+  # the cuisine questions, so a wrong "probably not" cannot erase a tag.
+  it "lets a borderline gate answer fall through to the cuisine questions" do
+    answers["i1__any"]["noul"] = 0.4
+    stub_jev
+    rows_out = described_class.new(client: client).call(run, rows)
+
+    expect(rows_out[1]).to eq([ { "slug" => "mexican", "confidence" => 0.96 } ])
+    expect(logged_line).to include("no_cuisine" => 0)
+  end
+
   it "treats a missing gate answer as a missing item, not as a no" do
     answers.delete("i1__any")
     stub_jev

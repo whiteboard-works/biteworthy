@@ -26,9 +26,10 @@ module Tools
         changed. Nothing is written if Jev fails part-way. A real run asks
         for confirmation first; a dry run does not.
 
-        Returns the dishes whose cuisine slugs changed (`changed`) apart
-        from those where only a confidence grade moved (`regraded`), each
-        with the rows before and after, plus counts of dishes left
+        Returns `written`, the number of dishes whose rows change at all,
+        split into those whose cuisine slugs change (`changed`) and those
+        where only a confidence grade moves (`regraded`), each with the
+        rows before and after, plus counts of dishes left
         as they were, dishes Jev could not answer for, and dishes edited
         while Jev was answering (stale, left alone; run again). Running
         it twice re-decides the same dishes from the same text.
@@ -83,6 +84,7 @@ module Tools
           restaurant: restaurant_row(record),
           dry_run:    result.dry_run,
           dishes:     result.dishes,
+          written:    result.changes.size,
           changed:    result.changes.reject(&:regrade).map { |c| change_row(c) },
           regraded:   result.changes.select(&:regrade).map { |c| change_row(c) },
           unchanged:  result.unchanged,

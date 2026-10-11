@@ -486,6 +486,8 @@ RSpec.describe "Admin MCP tools" do
 
         content = result_content
         expect(content["dry_run"]).to be(false)
+        expect(content["written"]).to eq(1)
+        expect(content["regraded"]).to eq([])
         expect(content["changed"].size).to eq(1)
         expect(content["changed"][0]).to include(
           "item_id" => tacos.id,

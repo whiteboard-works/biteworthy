@@ -21,7 +21,10 @@ module Ingestion
   # edit made while Jev was answering is neither overwritten nor collided
   # with.
   class JevCuisineRetag
-    SLICE = 20
+    # Same as gap-fill's slice. Every item is now a gate plus one Noul
+    # per leaf cuisine, each with criteria, so twenty dishes would be
+    # ~480 questions in one request.
+    SLICE = 10
 
     class Unavailable < StandardError; end
 
@@ -89,7 +92,9 @@ module Ingestion
             before = rows(current.map { |row| [ row.tag.slug, row.confidence ] })
             after  = rows(kept.map { |row| [ row.tag.slug, row.confidence ] } + target.to_a)
             apply!(item, managed, target, tags) unless dry_run
-            regrade = before.map { |r| r[:slug] } == after.map { |r| r[:slug] }
+            # From what apply! does, not from the display rows: the same
+            # managed slugs with a grade moved is a regrade, nothing else is.
+            regrade = managed.map { |row| row.tag.slug }.sort == target.keys.sort
             changes << Change.new(item: item, before: before, after: after, regrade: regrade)
           end
         end

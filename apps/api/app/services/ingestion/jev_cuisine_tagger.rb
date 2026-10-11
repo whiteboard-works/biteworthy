@@ -35,6 +35,14 @@ module Ingestion
     # sides of it; tune it from the `[jev_cuisine]` lines, not by feel.
     THRESHOLD = 0.5
 
+    # The gate exists to catch the obvious — a soda, raw onions, a branded
+    # ice cream bar — so it only blocks an item Jev is fairly sure has no
+    # cuisine. A borderline one (a naan sold on its own, a house drink)
+    # falls through to the per-cuisine questions, whose own criteria say
+    # "not merely the menu around it"; a wrong gate "no" would otherwise
+    # erase a dish's only cuisine row on a re-tag.
+    GATE_THRESHOLD = 0.25
+
     # A 200 whose `answers` map lacks a pair, or carries something that
     # is not a probability. Reported (never raised) so a shape change on
     # TypeSafe's side shows up as an error, not as a run of dishes with
@@ -75,7 +83,7 @@ module Ingestion
           rows[i] = nil
           next
         end
-        if gate < THRESHOLD
+        if gate < GATE_THRESHOLD
           no_cuisine += 1
           next
         end

@@ -209,8 +209,9 @@ usable on deterministic data.
 **Cuisine tags come from Jev (since 2026-10-10).** After each Haiku
 slice returns, the same items go to TypeSafe's Jev (`TypesafeClient`,
 `Ingestion::JevCuisineTagger`): one gate `noul` per item ("does this
-belong to any culinary tradition at all?", so a soda or raw onions get
-no cuisine however Southern the menu around them) and one `noul` per
+belong to any culinary tradition at all?", blocking only below 0.25 so
+a soda or raw onions get no cuisine however Southern the menu around
+them while a borderline item is left to the cuisine questions) and one `noul` per
 (item, leaf cuisine tag), each with `criteria` that pin the answer to
 the item's own recipe rather than the restaurant's identity, state
 limited to the slice's names, descriptions and sections, nothing else.

@@ -13,8 +13,9 @@
 # with free output (docs.typesafe.ai/models), so the caller logs usage
 # instead of adding it to the run's Anthropic spend.
 #
-# Timeouts are short on purpose: Jev answers in 70–500ms, and the one
-# caller treats a failure as "no AI cuisine tags for this slice".
+# Timeouts are short on purpose: Jev answers a slice in well under a
+# second, and the callers treat a failure as "no AI cuisine tags for this
+# slice".
 class TypesafeClient
   ENDPOINT = "https://api.typesafe.ai"
   PATH     = "/v1/systemone"
@@ -60,7 +61,10 @@ class TypesafeClient
   def connection
     @conn ||= Faraday.new(url: ENDPOINT) do |f|
       f.options.open_timeout = 3
-      f.options.timeout      = 5
+      # A gap-fill slice is ~240 Nouls with criteria since 2026-10-11; the
+      # trial's 70-question slices answered in under 200ms, so 10s is
+      # headroom for an overloaded day, not an expectation.
+      f.options.timeout      = 10
       # 529 is TypeSafe's "overloaded"; the docs ask for backoff on it and 429.
       f.request  :retry, max: 1, interval: 0.5, backoff_factor: 2,
                           retry_statuses: [ 429, 500, 502, 503, 504, 529 ],
