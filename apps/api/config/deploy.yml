@@ -89,6 +89,9 @@ builder:
 # before any container/env existed, which can't work on first deploy).
 env:
   clear:
+    # Shadow trial (Ingestion::JevHiddenWheatShadow): one Jev question per
+    # gap dish, written to jev_observations, nothing to dishes. Remove to stop.
+    JEV_WHEAT_SHADOW: "1"
     RAILS_ENV: production
     RAILS_LOG_TO_STDOUT: "true"
     RAILS_SERVE_STATIC_FILES: "true"
@@ -128,7 +131,8 @@ env:
     # AI ingestion (Phase 2.1+)
     - ANTHROPIC_API_KEY
     # TypeSafe Jev — decides cuisine tags in gap-fill (Ingestion::JevCuisineTagger);
-    # unset leaves dishes with keyword cuisine tags only.
+    # unset leaves dishes with keyword cuisine tags only. JEV_WHEAT_SHADOW
+    # (env.clear) switches the hidden-wheat shadow trial.
     - JEV_API_KEY
     # SMTP — Resend API key (username "resend" is non-secret, in env.clear)
     - SMTP_PASSWORD

@@ -554,6 +554,50 @@ RSpec.describe GapFillResolveJob, type: :job do
     end
   end
 
+  describe "the hidden-wheat shadow" do
+    let(:jev_url) { "https://api.typesafe.ai/v1/systemone" }
+
+    before do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(response)
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.logger).to receive(:warn)
+      allow(Rails.logger).to receive(:info)
+    end
+
+    it "is off unless JEV_WHEAT_SHADOW is set, even with a key" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return(nil)
+      jev = stub_request(:post, jev_url).to_return(status: 200, body: { model: "jev-1.13.0", answers: {} }.to_json,
+                                                    headers: { "Content-Type" => "application/json" })
+
+      described_class.perform_now(run.id)
+
+      expect(jev.with { |req| JSON.parse(req.body)["questions"].keys.any? { |k| k.end_with?("__wheat") } })
+        .not_to have_been_made
+      expect(JevObservation.where(kind: "hidden_wheat_shadow")).not_to exist
+    end
+
+    it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        answers = keys.grep(/__wheat\z/).to_h { |k| [ k, { "type" => "noul", "noul" => 0.93 } ] }
+        { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      described_class.perform_now(run.id)
+
+      row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
+      # Caesar Salad merged fish-anchovy only, so Jev's "wheat" is a jev_only disagreement.
+      expect(row.details).to include("items" => 1, "jev_only" => 1, "attempt" => 1)
+      expect(row.agree).to be(false)
+      expect(gap_item.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "fish-anchovy" ])
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+  end
+
   describe "live-cassette integration smoke test" do
     # `apps/api/AGENTS.md` treats a changed Anthropic call without a
     # committed cassette as a P1: CI runs `record: :none`, so a prompt or
