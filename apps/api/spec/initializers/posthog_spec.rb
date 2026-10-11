@@ -1,4 +1,5 @@
 require "rails_helper"
+require "google/protobuf"
 
 # Pins the privacy posture of the PostHog initializer: server errors are
 # reported, and nothing ties one to a person. A future "just turn on user
@@ -34,6 +35,33 @@ RSpec.describe "config/initializers/posthog.rb" do
     filter = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
     expect(filter.filter("profile" => "celiac", "strictness" => "strict", "q" => "gluten free", "limit" => "20"))
       .to eq("profile" => "[FILTERED]", "strictness" => "[FILTERED]", "q" => "[FILTERED]", "limit" => "20")
+  end
+
+  describe "the OpenTelemetry error handler" do
+    let(:otel_logger) { instance_double(Logger) }
+
+    before { allow(OpenTelemetry).to receive(:logger).and_return(otel_logger) }
+
+    it "drops the exporter's complaint about PostHog's JSON acknowledgement of a delivered batch" do
+      expect(otel_logger).not_to receive(:error)
+      OpenTelemetry.handle_error(
+        exception: Google::Protobuf::ParseError.new("Error occurred during parsing"),
+        message: "unexpected error decoding ExportLogsServiceResponse in OTLP::Exporter#log_partial_success"
+      )
+    end
+
+    it "still reports everything else, a rejected record included" do
+      expect(otel_logger).to receive(:error).with(a_string_including("rejected_log_records=3"))
+      OpenTelemetry.handle_error(message: "OTLP logs exporter received partial success: rejected_log_records=3, error_message=too big")
+    end
+
+    it "still reports a response that fails to decode for any other reason" do
+      expect(otel_logger).to receive(:error).with(a_string_including("ExportLogsServiceResponse"))
+      OpenTelemetry.handle_error(
+        exception: IOError.new("closed stream"),
+        message: "unexpected error decoding ExportLogsServiceResponse in OTLP::Exporter#log_partial_success"
+      )
+    end
   end
 
   it "keeps the test suite offline" do
