@@ -15,13 +15,15 @@ vi.mock('../../../../../../../../../lib/photo-submissions', () => ({
 }));
 
 const mockReplace = vi.fn();
+const mockRefresh = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mockReplace }),
+  useRouter: () => ({ replace: mockReplace, refresh: mockRefresh }),
 }));
 
 beforeEach(() => {
   mockSubmit.mockReset();
   mockReplace.mockReset();
+  mockRefresh.mockReset();
   URL.createObjectURL ??= (() => 'blob:preview') as typeof URL.createObjectURL;
   URL.revokeObjectURL ??= (() => undefined) as typeof URL.revokeObjectURL;
 });
@@ -74,6 +76,23 @@ describe('DishPhotoOffer', () => {
       'Thanks, a moderator will review it.',
     );
     expect(mockSubmit).toHaveBeenCalledWith('item-1', file);
+  });
+
+  // An admin's upload is approved on submit, so it is already the dish
+  // photo: say so and re-render the page rather than promise moderation.
+  it('confirms and refreshes the page when the upload comes back approved', async () => {
+    mockSubmit.mockResolvedValue({ id: 'sub-1', status: 'approved' });
+    render(<DishPhotoOffer itemId="item-1" returnPath="/x" signedIn startOpen />);
+
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('dish-photo'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('owns-rights'));
+    fireEvent.click(screen.getByTestId('submit-dish-photo'));
+
+    expect(await screen.findByTestId('photo-thanks')).toHaveTextContent(
+      'Photo set as the dish photo.',
+    );
+    expect(mockRefresh).toHaveBeenCalled();
   });
 
   it('shows Preview unavailable when the browser cannot decode the file', () => {

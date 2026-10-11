@@ -37,7 +37,7 @@ RSpec.describe "items/reviews", type: :request do
         type: :object,
         nullable: true,
         properties: {
-          status:  { type: :string, enum: %w[pending rate_limited failed] },
+          status:  { type: :string, enum: %w[pending approved rate_limited failed] },
           code:    { type: :string },
           message: { type: :string },
           id:      { type: :string, format: :uuid }

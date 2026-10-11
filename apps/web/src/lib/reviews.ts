@@ -22,7 +22,7 @@ export interface ReviewAuthor {
 }
 
 export interface PhotoOffer {
-  status: 'pending' | 'rate_limited' | 'failed';
+  status: 'pending' | 'approved' | 'rate_limited' | 'failed';
   code?: string;
   message?: string;
   id?: string;

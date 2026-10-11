@@ -203,7 +203,7 @@ master; the rest of the queue is human-credential-gated.
 
 ## Diner dish photos (shipped 2026-10-06)
 
-- [x] Diners submit a photo of a dish; admins approve before it becomes `Item#photo`. Web UI on the dish page and photo-less menu cards, review-form opt-in, `/admin/photos` queue, MCP `list_photo_submissions` / `moderate_photo_submission`, EXIF/GPS stripped. Attribution: "Photo by \<display name\>".
+- [x] Diners submit a photo of a dish; admins approve before it becomes `Item#photo` (an admin's own upload is approved on submit). Web UI on the dish page and photo-less menu cards, review-form opt-in, `/admin/photos` queue, MCP `list_photo_submissions` / `moderate_photo_submission`, EXIF/GPS stripped. Attribution: "Photo by \<display name\>".
 - [ ] Mobile (Expo) — same upload + credit on the dish screen; left as a follow-up.
 
 ## Open follow-ups

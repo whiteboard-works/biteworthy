@@ -95,4 +95,65 @@ RSpec.describe DishPhotos::Submit do
       described_class.call(item:, user:, photo: jpeg_upload, owns_rights: true)
     }.to raise_error(DishPhotos::Submit::RateLimited, /per day/)
   end
+
+  context "when an admin uploads" do
+    let(:admin) { create(:user, :admin) }
+
+    def submit_as_admin(owns_rights: true)
+      described_class.call(item:, user: admin, photo: jpeg_upload, owns_rights:)
+    end
+
+    # An admin is the moderator; queueing their own photo for themselves
+    # to approve is busywork that leaves the dish photo-less meanwhile.
+    it "approves it straight onto the dish" do
+      submission = submit_as_admin
+
+      expect(submission.reload).to be_approved
+      expect(submission.reviewed_by).to eq(admin)
+      expect(item.reload.photo).to be_attached
+      expect(item.photo_submission_id).to eq(submission.id)
+    end
+
+    it "replaces an existing dish photo" do
+      submit_as_admin
+      first_blob_id = item.reload.photo.blob.id
+
+      second = submit_as_admin
+
+      expect(item.reload.photo_submission_id).to eq(second.id)
+      expect(item.photo.blob.id).not_to eq(first_blob_id)
+    end
+
+    # Seeding a menu's photos is admin work; the daily limit exists to
+    # bound moderation load, which an auto-approved upload never adds.
+    it "is not held to the diner daily limit" do
+      DishPhotoSubmission::DAILY_LIMIT_PER_USER.times { submit_as_admin }
+
+      expect { submit_as_admin }.to change(DishPhotoSubmission, :count).by(1)
+    end
+
+    it "still holds the admin to the pending-per-dish limit" do
+      allow(DishPhotos::Moderate).to receive(:new).and_raise(ActiveStorage::IntegrityError)
+      DishPhotoSubmission::PENDING_PER_ITEM_LIMIT.times { submit_as_admin }
+
+      expect { submit_as_admin }.to raise_error(described_class::RateLimited, /waiting on a moderator/)
+    end
+
+    # The row already committed, so a failed approve must not surface as
+    # an error the caller retries (a duplicate review, another row). It
+    # stays pending in /admin/photos and says so.
+    it "returns the submission still pending when the approve fails" do
+      allow(DishPhotos::Moderate).to receive(:new).and_raise(ActiveStorage::IntegrityError)
+
+      submission = submit_as_admin
+
+      expect(submission.reload).to be_pending
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "still requires the owns-rights attestation" do
+      expect { submit_as_admin(owns_rights: false) }.to raise_error(ActiveRecord::RecordInvalid)
+      expect(item.reload.photo).not_to be_attached
+    end
+  end
 end
