@@ -402,6 +402,15 @@ RSpec.describe "Admin MCP tools" do
         expect(item.status).to eq("removed")
       end
 
+      it "refuses a dish another user restaurant-verified" do
+        item.mark_restaurant_verified!(create(:user, :admin))
+
+        mcp_call("update_published_item", { item_id: item.id, name: "New Name" }, admin)
+
+        expect(JSON.parse(response.body).dig("result", "isError")).to be(true)
+        expect(item.reload.name).to eq("Old Name")
+      end
+
       it "rejects unknown ingredient slugs" do
         mcp_call("update_published_item", {
           item_id: item.id,
