@@ -124,7 +124,12 @@ class GapFillResolveJob < ApplicationJob
       # still gets its observation when a retry lands it. A shadow that
       # fails writes a failed observation and nothing else, and is not
       # asked again this attempt so an outage costs one timeout.
-      if wheat_shadow && result
+      # Whether a dish needs observing is answered by the persisted ids
+      # alone, not by whether Haiku ran this attempt: a worker interrupted
+      # between the merge's commit and the shadow call leaves a slice
+      # fully enriched and wholly unobserved, and the retry must still
+      # observe it from the rows the merge already landed.
+      if wheat_shadow
         fresh = slice.each_index.reject { |i| observed.include?(slice[i][:item_id]) }
         unless fresh.empty?
           rows   = fresh.map { |i| prompt_rows[i] }
