@@ -21,12 +21,17 @@ module Ingestion
   # edit made while Jev was answering is neither overwritten nor collided
   # with.
   class JevCuisineRetag
-    SLICE = 20
+    # Same as gap-fill's slice. Every item is now a gate plus one Noul
+    # per leaf cuisine, each with criteria, so twenty dishes would be
+    # ~480 questions in one request.
+    SLICE = 10
 
     class Unavailable < StandardError; end
 
     # `before` / `after` are the dish's cuisine rows as { slug:, confidence: }.
-    Change = Data.define(:item, :before, :after)
+    # `regrade` is true when the slugs are the same and only a grade moved,
+    # so a report can tell a real re-tag from confidence churn.
+    Change = Data.define(:item, :before, :after, :regrade)
     # `stale` counts dishes edited while Jev was answering — text or
     # section (the answer was about the old text), or anything else on
     # the row, tags and status included (the timestamp moves); they are
@@ -87,7 +92,10 @@ module Ingestion
             before = rows(current.map { |row| [ row.tag.slug, row.confidence ] })
             after  = rows(kept.map { |row| [ row.tag.slug, row.confidence ] } + target.to_a)
             apply!(item, managed, target, tags) unless dry_run
-            changes << Change.new(item: item, before: before, after: after)
+            # From what apply! does, not from the display rows: the same
+            # managed slugs with a grade moved is a regrade, nothing else is.
+            regrade = managed.map { |row| row.tag.slug }.sort == target.keys.sort
+            changes << Change.new(item: item, before: before, after: after, regrade: regrade)
           end
         end
         raise ActiveRecord::Rollback if dry_run

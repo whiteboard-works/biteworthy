@@ -208,9 +208,15 @@ usable on deterministic data.
 
 **Cuisine tags come from Jev (since 2026-10-10).** After each Haiku
 slice returns, the same items go to TypeSafe's Jev (`TypesafeClient`,
-`Ingestion::JevCuisineTagger`): one yes/no `noul` question per (item,
-leaf cuisine tag), state limited to the slice's names, descriptions
-and sections, nothing else. A tag whose probability reaches 0.5 is
+`Ingestion::JevCuisineTagger`): one gate `noul` per item ("does this
+belong to any culinary tradition at all?", blocking only below 0.25 so
+a soda or raw onions get no cuisine however Southern the menu around
+them while a borderline item is left to the cuisine questions) and one `noul` per
+(item, leaf cuisine tag), each with `criteria` that pin the answer to
+the item's own recipe rather than the restaurant's identity, state
+limited to the slice's names, descriptions and sections, nothing else.
+The first dry runs showed why: with nineteen barbecue plates in the
+slice, "ONIONS" read as Southern. A tag whose probability reaches 0.5 is
 merged as `source: "ai"` with the probability as its confidence (so
 `ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
 the slice logs one `[jev_cuisine]` JSON line (model version, latency,
@@ -245,7 +251,7 @@ leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
 Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
 Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
 Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
-230 questions; still a few thousand of the 64k tokens a request may
+240 questions with the gate; still a few thousand of the 64k tokens a request may
 carry (TypeSafe caps Choice *options* at 255, not Noul questions).
 Adding a cuisine is a row in that file, a migration that upserts it,
 and, only for a word that is never a dish modifier, a
