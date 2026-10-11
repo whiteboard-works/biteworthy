@@ -64,7 +64,9 @@ module Ingestion
         # Agreement is only a fact about pairs that were compared: a slice
         # with answers missing or nothing to compare says nothing.
         agree: agreement(stats),
-        details: { attempt: attempt, item_ids: item_ids, **stats }
+        # Only the dishes actually compared count as observed; one the
+        # merge did not report is left for a later attempt.
+        details: { attempt: attempt, item_ids: compared_ids(prompt_rows, merged, item_ids), **stats }
       )
       true
     rescue StandardError => e
@@ -104,6 +106,10 @@ module Ingestion
     end
 
     def key(index) = "i#{index}__wheat"
+
+    def compared_ids(prompt_rows, merged, item_ids)
+      prompt_rows.each_index.select { |i| merged.key?(i) }.filter_map { |i| item_ids[i] }
+    end
 
     def agreement(stats)
       return nil if stats[:missing].positive? || (stats[:agree] + stats[:jev_only] + stats[:data_only]).zero?

@@ -220,14 +220,19 @@ class GapFillResolveJob < ApplicationJob
       rows = gaps.each_with_index.filter_map do |gap, index|
         item     = locked[gap[:item_id]]
         response = response_by_index[index]
-        next if item.nil? || (response.nil? && cuisine.nil?)
+        next if item.nil?
 
         merged = if response
           merge_ingredients(item, response.dig("ingredients", "resolved"), ingredient_paths)
         else
           Array(item.ingredients_payload)
         end
+        # Reported for every locked dish, written or not: the wheat shadow
+        # compares against what the dish carries, and a dish with nothing
+        # new this attempt still has rows to compare.
         merged_by_index[index] = merged
+        next if response.nil? && cuisine.nil?
+
         # ingestion_run_id: Postgres checks NOT NULL on the insert tuple
         # before ON CONFLICT resolves. unresolved_tags is not written:
         # it was Haiku's list of cuisine-ish phrases, and Jev answers

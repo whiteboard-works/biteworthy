@@ -88,6 +88,14 @@ RSpec.describe Ingestion::JevHiddenWheatShadow do
     expect(row.agree).to be(true)
   end
 
+  it "records as observed only the dishes it compared, so a skipped one is left for a later attempt" do
+    merged.delete(2)
+    stub_jev
+    described_class.new(client: client).call(run, rows, merged, paths, item_ids: %w[a b c])
+
+    expect(described_class.observed_item_ids(run)).to eq(Set.new(%w[a b]))
+  end
+
   it "records no agreement when an answer is missing or nothing was compared" do
     answers.delete("i1__wheat")
     stub_jev
