@@ -386,6 +386,8 @@ export interface paths {
                             items_by_confidence?: {
                                 [key: string]: number;
                             };
+                            logo_url?: string | null;
+                            banner_url?: string | null;
                         };
                     };
                 };
@@ -3607,6 +3609,7 @@ export interface paths {
                                 slug: string;
                                 name: string;
                                 web_path: string;
+                                logo_url: string | null;
                                 visible_count: number;
                                 hidden_count: number;
                                 total_count: number;
@@ -5462,6 +5465,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/restaurants/{restaurant_id}/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restaurant id or slug */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the restaurant's logo and banner
+         * @description The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** @description Restaurant id or slug */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC.
+                         */
+                        logo?: string;
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC.
+                         */
+                        banner?: string;
+                        remove_logo?: boolean;
+                        remove_banner?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the restaurant, with its new image URLs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RestaurantDetail"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description signed in, but not the owner or an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description not an image, or too large */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            code?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/restaurants": {
         parameters: {
             query?: never;
@@ -5498,6 +5593,8 @@ export interface paths {
                                 name: string;
                                 status: string;
                                 web_path: string;
+                                /** @description 200px WebP of the owner-set logo; null when none. */
+                                logo_url: string | null;
                                 street: string | null;
                                 latitude: number | null;
                                 longitude: number | null;
@@ -5911,47 +6008,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            slug: string;
-                            name: string;
-                            about: string | null;
-                            phone: string | null;
-                            website: string | null;
-                            /** @enum {string} */
-                            status: "draft" | "published" | "closed";
-                            web_path: string;
-                            /** Format: date-time */
-                            claimed_at: string | null;
-                            /** Format: uuid */
-                            claimed_by_user_id: string | null;
-                            city: {
-                                /** Format: uuid */
-                                id: string;
-                                slug: string;
-                                name: string;
-                                region: string | null;
-                            };
-                            address?: {
-                                street?: string | null;
-                                city?: string | null;
-                                region?: string | null;
-                                postal_code?: string | null;
-                                country?: string | null;
-                            } | null;
-                            /** @description IANA timezone (e.g. America/Denver) */
-                            time_zone: string | null;
-                            /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */
-                            hours: {
-                                /** @description 0=Sunday, 6=Saturday */
-                                day_of_week: number;
-                                opens_at: string | null;
-                                closes_at: string | null;
-                            }[];
-                            /** @description Always false for an anonymous caller. */
-                            favorited: boolean;
-                        };
+                        "application/json": components["schemas"]["RestaurantDetail"];
                     };
                 };
                 /** @description not found (unknown id/slug, or not published) */
@@ -6348,6 +6405,51 @@ export interface components {
             name: string;
             region: string | null;
             country: string;
+        };
+        RestaurantDetail: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            about: string | null;
+            phone: string | null;
+            website: string | null;
+            /** @enum {string} */
+            status: "draft" | "published" | "closed";
+            web_path: string;
+            /** Format: date-time */
+            claimed_at: string | null;
+            /** Format: uuid */
+            claimed_by_user_id: string | null;
+            city: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+                region: string | null;
+            };
+            address?: {
+                street?: string | null;
+                city?: string | null;
+                region?: string | null;
+                postal_code?: string | null;
+                country?: string | null;
+            } | null;
+            /** @description IANA timezone (e.g. America/Denver) */
+            time_zone: string | null;
+            /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */
+            hours: {
+                /** @description 0=Sunday, 6=Saturday */
+                day_of_week: number;
+                opens_at: string | null;
+                closes_at: string | null;
+            }[];
+            /** @description 200px WebP of the owner-set logo; null when none. */
+            logo_url: string | null;
+            /** @description 1600x600 WebP of the owner-set banner; null when none. */
+            banner_url: string | null;
+            /** @description Whether the caller saved it; false anonymously. */
+            favorited: boolean;
         };
         Pagination: {
             total: number;

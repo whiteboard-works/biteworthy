@@ -24,6 +24,7 @@ import { TypeToConfirm } from '../../_TypeToConfirm';
 import { ItemsList } from './_ItemsList';
 import { MenuManager } from './_MenuManager';
 import { PlaceEditor } from './_PlaceEditor';
+import { BrandingEditor } from '../../../_BrandingEditor';
 import type { AdminMenu } from '../../../../lib/admin/structure';
 
 /**
@@ -313,6 +314,28 @@ export default function AdminRestaurantPage({ params }: { params: Promise<{ id: 
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
+          </div>
+        </section>
+      )}
+
+      {restaurant && (
+        <section
+          data-testid="restaurant-branding-panel"
+          className="rounded-bw-lg border border-zinc-200 bg-white p-bw-4"
+        >
+          <p className="text-bw-sm font-semibold text-zinc-900">Logo &amp; banner</p>
+          <p className="mt-bw-1 text-bw-xs text-zinc-500">
+            The verified owner can also set these from the restaurant page.
+          </p>
+          <div className="mt-bw-3">
+            <BrandingEditor
+              endpoint={`/api/restaurants/${encodeURIComponent(id)}/branding`}
+              current={{
+                logo_url: restaurant.logo_url ?? null,
+                banner_url: restaurant.banner_url ?? null,
+              }}
+              onSaved={(urls) => setRestaurant((prev) => (prev ? { ...prev, ...urls } : prev))}
+            />
           </div>
         </section>
       )}

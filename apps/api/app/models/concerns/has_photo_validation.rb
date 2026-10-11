@@ -1,31 +1,38 @@
-# Shared upload guards for models with a single `:photo` attachment
-# (Item, Review, DishPhotoSubmission). Each model still declares its own
-# `has_one_attached :photo`; this centralises the size + content-type
-# limits so they can't drift apart. Diner-facing uploads (reviews and
-# dish submissions) are rewritten through Images::StripMetadata *before*
-# attach — raw size and pixel bounds first, then EXIF/GPS stripped.
+# Shared upload guards for models with image attachments. Each model
+# declares its own `has_one_attached` and then names it here with
+# `validates_image_attachments` (Item, Review, DishPhotoSubmission:
+# `:photo`; Restaurant: `:logo`, `:banner`), so the size + content-type
+# limits can't drift apart. User-supplied uploads are rewritten through
+# Images::StripMetadata *before* attach — raw size and pixel bounds
+# first, then EXIF/GPS stripped.
 module HasPhotoValidation
   extend ActiveSupport::Concern
 
   MAX_PHOTO_BYTES = 5 * 1024 * 1024 # 5 MB
   ALLOWED_PHOTO_TYPES = %w[image/jpeg image/jpg image/png image/heic image/heif image/webp].freeze
 
-  included do
-    validate :photo_within_size_limit
-    validate :photo_is_an_allowed_image_type
+  class_methods do
+    def validates_image_attachments(*names)
+      names.each do |name|
+        validate { image_attachment_within_size_limit(name) }
+        validate { image_attachment_is_an_allowed_type(name) }
+      end
+    end
   end
 
   private
 
-  def photo_within_size_limit
-    return unless photo.attached?
-    return if photo.byte_size <= MAX_PHOTO_BYTES
-    errors.add(:photo, "must be #{MAX_PHOTO_BYTES / 1.megabyte} MB or smaller")
+  def image_attachment_within_size_limit(name)
+    attachment = public_send(name)
+    return unless attachment.attached?
+    return if attachment.byte_size <= MAX_PHOTO_BYTES
+    errors.add(name, "must be #{MAX_PHOTO_BYTES / 1.megabyte} MB or smaller")
   end
 
-  def photo_is_an_allowed_image_type
-    return unless photo.attached?
-    return if ALLOWED_PHOTO_TYPES.include?(photo.content_type)
-    errors.add(:photo, "must be one of #{ALLOWED_PHOTO_TYPES.join(', ')}")
+  def image_attachment_is_an_allowed_type(name)
+    attachment = public_send(name)
+    return unless attachment.attached?
+    return if ALLOWED_PHOTO_TYPES.include?(attachment.content_type)
+    errors.add(name, "must be one of #{ALLOWED_PHOTO_TYPES.join(', ')}")
   end
 end

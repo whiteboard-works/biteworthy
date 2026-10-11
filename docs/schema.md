@@ -34,6 +34,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 
 - `cities` → `restaurants` → `addresses`, `hours`. No more "Durango"
   default — every restaurant lives in an explicit city.
+- `restaurants` also carry two ActiveStorage attachments, `logo` and
+  `banner` (owner branding). `Restaurants::Branding` is the only writer
+  — verified owner or admin — and the API serves WebP variants only.
 
 ## Menu
 

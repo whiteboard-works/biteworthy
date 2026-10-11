@@ -65,6 +65,9 @@ export interface Restaurant {
   time_zone: string | null;
   /** Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day. */
   hours: HourInterval[];
+  /** Owner-set branding (200px WebP logo, 1600x600 WebP banner); null when none. */
+  logo_url: string | null;
+  banner_url: string | null;
 }
 
 /** The lighter shape `GET /api/v1/restaurants` returns for browse/discovery. */
@@ -81,6 +84,8 @@ export interface RestaurantSummary {
   longitude: number | null;
   time_zone: string | null;
   hours: HourInterval[];
+  /** 200px WebP of the owner-set logo; null when none. */
+  logo_url: string | null;
 }
 
 /**

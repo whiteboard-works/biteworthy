@@ -106,9 +106,11 @@ module Tools
         name: "Run a restaurant you own",
         audience: :user,
         arguments: %i[restaurant],
-        steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion],
+        steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion
+                  set_restaurant_branding],
         note: "Ownership arrives by emailed token. Accepting a suggestion applies it to the " \
-              "live dish immediately — say what it would change first."
+              "live dish immediately — say what it would change first. set_restaurant_branding " \
+              "takes attachment ids from the upload endpoint, never image bytes."
       },
       {
         name: "Fix a live dish",

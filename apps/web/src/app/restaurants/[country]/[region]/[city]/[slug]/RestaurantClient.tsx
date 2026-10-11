@@ -17,6 +17,7 @@ import {
   type RestaurantItem,
   type RestaurantItemsResponse,
 } from '../../../../../../lib/restaurants';
+import { BrandingEditor, canEditBranding, type BrandingUrls } from '../../../../../_BrandingEditor';
 import { ClaimSection } from './ClaimSection';
 import { FilterControls, ShareTokenNotice } from './FilterControls';
 import { PageHeader } from './PageHeader';
@@ -51,6 +52,7 @@ export function RestaurantClient({
   presetInvalid = false,
   shareTokenInvalid = false,
   signedIn = false,
+  viewerId = null,
 }: {
   slug: string;
   /**
@@ -73,8 +75,21 @@ export function RestaurantClient({
   shareTokenInvalid?: boolean;
   /** Gates the save button — the favorite endpoint is authed. */
   signedIn?: boolean;
+  /**
+   * The signed-in user's id (unverified, from the session cookie), or
+   * null. Only decides whether the owner's branding editor renders; the
+   * API gates the upload itself.
+   */
+  viewerId?: string | null;
 }) {
   const tracker = useTracker();
+  // The owner can change the logo/banner in place; the header re-renders
+  // from the response without a reload.
+  const [branding, setBranding] = useState<BrandingUrls>({
+    logo_url: restaurant.logo_url,
+    banner_url: restaurant.banner_url,
+  });
+  const isOwner = canEditBranding(viewerId, restaurant);
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
   // Phase 8.3 — the raw (server-sorted) items feed the Top Picks row;
   // the section state below still drives the main menu + overrides.
@@ -210,7 +225,7 @@ export function RestaurantClient({
   return (
     <main className="mx-auto max-w-3xl px-bw-6 py-bw-12">
       <PageHeader
-        restaurant={restaurant}
+        restaurant={{ ...restaurant, ...branding }}
         signedIn={signedIn}
         onToggleFavorite={(next) => setRestaurantFavorite(slug, next)}
       />
@@ -247,6 +262,24 @@ export function RestaurantClient({
       />
 
       <ClaimSection slug={slug} restaurant={restaurant} />
+
+      {isOwner && (
+        <details
+          className="mt-bw-3 rounded-bw-lg border border-zinc-200 bg-white p-bw-4"
+          data-testid="owner-branding"
+        >
+          <summary className="cursor-pointer text-bw-sm font-semibold text-zinc-900">
+            Edit logo &amp; banner
+          </summary>
+          <div className="mt-bw-3">
+            <BrandingEditor
+              endpoint={`/api/restaurants/${encodeURIComponent(slug)}/branding`}
+              current={branding}
+              onSaved={setBranding}
+            />
+          </div>
+        </details>
+      )}
 
       {shareTokenInvalid && <ShareTokenNotice filter={filter} />}
 

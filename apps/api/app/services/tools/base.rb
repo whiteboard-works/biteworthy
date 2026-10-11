@@ -464,6 +464,18 @@ module Tools
       # one-word call because every tool that emits extracted text uses it
       # and the shorter name is the one that actually gets reached for.
       def untrusted(text) = Untrusted.fence(text)
+
+      # An upload from POST /attachments, by its signed id, and only if
+      # this caller made it: the blob records who uploaded it, so one
+      # account cannot use another's upload by guessing an id. Shared by
+      # every tool that attaches a user's image (review photo, restaurant
+      # branding) so the ownership rule has one spelling.
+      def owned_upload!(signed_id, user)
+        blob = ActiveStorage::Blob.find_signed(signed_id)
+        return blob if blob && blob.metadata["uploaded_by_user_id"].to_s == user.id.to_s
+
+        raise Errors::InvalidArgument, "Attachment not found."
+      end
     end
   end
 end

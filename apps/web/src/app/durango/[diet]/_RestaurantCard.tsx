@@ -29,9 +29,23 @@ export function RestaurantCard({
         className="block"
         data-testid={`restaurant-link-${r.slug}`}
       >
-        <h2 className={['text-bw-lg font-bold', allHidden ? 'text-zinc-500' : 'text-zinc-900'].join(' ')}>
-          {r.name}
-        </h2>
+        <div className="flex items-start gap-bw-3">
+          {r.logo_url && (
+            <img
+              src={r.logo_url}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-bw-md border border-zinc-100 object-cover"
+              data-testid={`restaurant-logo-${r.slug}`}
+            />
+          )}
+          <h2
+            className={['text-bw-lg font-bold', allHidden ? 'text-zinc-500' : 'text-zinc-900'].join(
+              ' ',
+            )}
+          >
+            {r.name}
+          </h2>
+        </div>
         <p className="mt-bw-1 text-bw-sm text-zinc-600">
           {allHidden ? (
             <>No {dietName.toLowerCase()}-safe items in our index yet.</>

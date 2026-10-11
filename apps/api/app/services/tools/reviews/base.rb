@@ -25,12 +25,7 @@ module Tools
         def attach_review_photo!(review, signed_id, user)
           return if signed_id.blank?
 
-          blob = ActiveStorage::Blob.find_signed(signed_id)
-          unless blob && blob.metadata["uploaded_by_user_id"].to_s == user.id.to_s
-            raise Errors::InvalidArgument, "Photo not found."
-          end
-
-          Images::AttachPhoto.call(review, blob)
+          Images::AttachPhoto.call(review, owned_upload!(signed_id, user))
         end
 
         def review_row(review, include_hidden_state: false)

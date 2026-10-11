@@ -51,6 +51,7 @@ module Api
           slug:          r.restaurant.slug,
           name:          r.restaurant.name,
           web_path:      r.restaurant.web_path,
+          logo_url:      representation_url_for(r.restaurant.logo, :thumb),
           visible_count: r.visible_count,
           hidden_count:  r.hidden_count,
           total_count:   r.total_count

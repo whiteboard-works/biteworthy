@@ -65,7 +65,7 @@ module Cities
         )
         .order("visible_count DESC, restaurants.name ASC")
 
-      restaurants_by_id = Restaurant.includes(:city).where(id: rows.map(&:id)).index_by(&:id)
+      restaurants_by_id = Restaurant.includes(:city, logo_attachment: :blob).where(id: rows.map(&:id)).index_by(&:id)
       rows.map do |row|
         Ranked.new(
           restaurant:    restaurants_by_id[row.id],
