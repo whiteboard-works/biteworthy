@@ -61,12 +61,18 @@ module DishPhotos
         raise ActiveRecord::RecordInvalid, submission
       end
 
+      existing = submission_from_same_upload
+      return existing if existing
+
       # Bound + strip before the lock so a decompression bomb does not
       # hold the user's submission lock.
       stripped = strip_photo
 
       submission = DishPhotoSubmission.transaction do
         lock_user!
+        existing = submission_from_same_upload
+        return existing if existing
+
         enforce_daily_limit! unless @user.is_admin?
         enforce_pending_limit!
 
@@ -76,7 +82,8 @@ module DishPhotos
           review: @review,
           owns_rights: true,
           credit_name: credit_name,
-          status: "pending"
+          status: "pending",
+          source_upload_id: source_upload_id
         ) do |row|
           row.photo.attach(
             io: stripped.io,
@@ -123,6 +130,21 @@ module DishPhotos
       )
     end
 
+    # A signed upload (the chat tool's door) records which blob it came
+    # from, so replaying the same confirmed call returns the submission
+    # it already made — whatever has happened to it since — instead of
+    # queueing the photo again. A withdrawn or rejected photo does not
+    # come back on a stale yes.
+    def source_upload_id
+      @photo.id if @photo.is_a?(ActiveStorage::Blob)
+    end
+
+    def submission_from_same_upload
+      return nil unless source_upload_id
+
+      DishPhotoSubmission.find_by(user_id: @user.id, item_id: @item.id, source_upload_id:)
+    end
+
     def over_daily_limit?
       DishPhotoSubmission.where(user_id: @user.id)
                          .where("created_at >= ?", Time.current.utc.beginning_of_day)
@@ -137,6 +159,8 @@ module DishPhotos
     def photo_present?
       if @photo.respond_to?(:attached?)
         @photo.attached?
+      elsif @photo.is_a?(ActiveStorage::Blob)
+        true
       elsif @photo.respond_to?(:tempfile)
         true
       elsif @photo.respond_to?(:read)

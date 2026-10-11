@@ -64,6 +64,7 @@ RSpec.describe Tools::Registry do
       claims:      :user,
       history:     :user,
       structure:   :admin,
+      photos:      :user,
       taxonomy:    :admin,
       moderation:  :admin,
       users:       :admin

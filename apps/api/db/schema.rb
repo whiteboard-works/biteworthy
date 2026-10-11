@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -170,12 +170,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_020000) do
     t.string "credit_name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "source_upload_id"
     t.index ["item_id", "status"], name: "index_dish_photo_submissions_on_item_id_and_status"
     t.index ["item_id"], name: "index_dish_photo_submissions_on_item_id"
     t.index ["review_id"], name: "index_dish_photo_submissions_on_review_id"
     t.index ["reviewed_by_id"], name: "index_dish_photo_submissions_on_reviewed_by_id"
     t.index ["status"], name: "index_dish_photo_submissions_on_status"
     t.index ["user_id", "created_at"], name: "index_dish_photo_submissions_on_user_id_and_created_at"
+    t.index ["user_id", "item_id", "source_upload_id"], name: "index_dish_photo_submissions_on_source_upload", unique: true, where: "(source_upload_id IS NOT NULL)"
     t.index ["user_id"], name: "index_dish_photo_submissions_on_user_id"
     t.check_constraint "rejection_reason IS NULL OR (rejection_reason::text = ANY (ARRAY['not_this_dish'::character varying::text, 'low_quality'::character varying::text, 'inappropriate'::character varying::text, 'not_food'::character varying::text, 'duplicate'::character varying::text]))", name: "dish_photo_submissions_rejection_reason_valid"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'withdrawn'::character varying, 'approve_keep'::character varying]::text[])", name: "dish_photo_submissions_status_valid"

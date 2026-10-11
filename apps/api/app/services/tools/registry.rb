@@ -78,6 +78,10 @@ module Tools
         "Items::VerifyItemByHuman",
         "Items::VerifyItemByRestaurant"
       ],
+      photos: [
+        "Photos::SubmitDishPhoto",
+        "Photos::SetItemPhoto"
+      ],
       taxonomy: [
         "Taxonomy::CreateTaxonomyNode",
         "Taxonomy::EditTaxonomyNode",
