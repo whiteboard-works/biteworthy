@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.11",
+    "date": "2026-10-10",
+    "notes": [
+      "Our servers' own log stream had been repeating a false alarm, a complaint from the log shipper about a reply it could not read, even though every line it sent had arrived. The alarm is gone, so a real problem in that stream is no longer buried under it. We also confirmed end to end that an error on our side reaches our error tracking within a minute."
+    ]
+  },
+  {
     "version": "2026.10.10.10",
     "date": "2026-10-10",
     "notes": [
