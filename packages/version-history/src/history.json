@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.11.7",
+    "date": "2026-10-11",
+    "notes": [
+      "In the web chat you can now drag menu photos onto the message bar or paste a screenshot straight into it; they attach just like the + button does and send when you press Send.",
+      "You can now send the chat a photo you took of a dish and ask it to add it: it asks you to confirm the photo is yours before submitting it, and restaurant owners and admins can set a dish's photo directly."
+    ]
+  },
+  {
     "version": "2026.10.11.6",
     "date": "2026-10-11",
     "notes": [
