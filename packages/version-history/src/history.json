@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.10.10",
+    "date": "2026-10-10",
+    "notes": [
+      "Cuisine labels now stay off things that have no cuisine, like a soda, raw onions or a bottled beer, however themed the restaurant around them. Everyday American plates such as a ribeye or a composed salad keep their American label."
+    ]
+  },
+  {
     "version": "2026.10.10.9",
     "date": "2026-10-10",
     "notes": [
