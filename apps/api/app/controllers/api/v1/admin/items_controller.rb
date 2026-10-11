@@ -43,6 +43,10 @@ module Api
 
         def update
           item = Item.includes(photo_attachment: :blob).find(params[:id])
+          unless item.can_be_edited_by?(current_user)
+            render json: { error: "restaurant_verified" }, status: :forbidden
+            return
+          end
 
           if params.key?(:status) && !Item::STATUSES.include?(params[:status].to_s)
             render json: { error: "invalid_status", allowed: Item::STATUSES },
