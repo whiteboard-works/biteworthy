@@ -2,7 +2,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { formatPriceRange } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../lib/api/restaurants';
+import { InfoChip } from './_InfoChip';
 import { HiddenReasonChip } from './[id]';
 
 /**
@@ -46,6 +48,7 @@ export function ItemRow({
   // user tapped "show anyway" — keep the chips visible as a cue.
   const showChips = hidden || overridden;
   const reviewsCount = item.reviews_count ?? 0;
+  const price = formatPriceRange(item.variants);
   return (
     <View
       style={[styles.itemRow, hidden && styles.itemRowHidden]}
@@ -64,6 +67,11 @@ export function ItemRow({
         />
       ) : null}
       <Text style={[styles.itemName, hidden && styles.itemNameHidden]}>{item.name}</Text>
+      {price ? (
+        <View style={styles.infoRow}>
+          <InfoChip testID={`item-price-${item.id}`}>{price}</InfoChip>
+        </View>
+      ) : null}
       {item.description ? (
         <Text style={[styles.itemDescription, hidden && styles.itemNameHidden]}>
           {item.description}
@@ -178,6 +186,10 @@ const styles = StyleSheet.create({
     color: colors.bite,
     fontSize: fontSize.xs,
     fontWeight: '600',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginTop: space['1'],
   },
   chipRow: {
     flexDirection: 'row',

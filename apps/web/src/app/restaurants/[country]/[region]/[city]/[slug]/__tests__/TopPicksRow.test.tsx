@@ -115,6 +115,40 @@ describe('TopPicksRow', () => {
     );
   });
 
+  // Price and section tell a diner what the pick is and what it costs
+  // before they open it; a chip with nothing behind it would be noise.
+  it('shows price and menu-section chips when the dish has them, and nothing when not', () => {
+    render(
+      <TopPicksRow
+        items={[
+          {
+            ...threePicks[0]!,
+            menu_section_name: 'Curries',
+            variants: [
+              { size: 'Half', price_cents: 900, currency: 'USD' },
+              { size: 'Full', price_cents: 1400, currency: 'USD' },
+            ],
+          },
+          { ...threePicks[1]!, menu_section_name: 'Noodles', variants: [] },
+          {
+            ...threePicks[2]!,
+            menu_section_name: null,
+            variants: [{ size: null, price_cents: 750, currency: 'USD' }],
+          },
+        ]}
+        basePath="/restaurants/usa/colorado/durango/ninis"
+        signedIn
+      />,
+    );
+
+    expect(screen.getByTestId('pick-price-curry')).toHaveTextContent('$9–$14');
+    expect(screen.getByTestId('pick-section-curry')).toHaveTextContent('Curries');
+    expect(screen.queryByTestId('pick-price-pad')).not.toBeInTheDocument();
+    expect(screen.getByTestId('pick-section-pad')).toHaveTextContent('Noodles');
+    expect(screen.getByTestId('pick-price-soup')).toHaveTextContent('$7.50');
+    expect(screen.queryByTestId('pick-section-soup')).not.toBeInTheDocument();
+  });
+
   it('gives photo-less picks a placeholder only when another pick has a photo', () => {
     const { rerender } = render(
       <TopPicksRow

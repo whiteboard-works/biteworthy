@@ -102,3 +102,26 @@ describe('ItemRow — name + description + open badge (mobile)', () => {
     expect(screen.getByText('3 reviews →')).toBeOnTheScreen();
   });
 });
+
+describe('ItemRow — price chip (mobile)', () => {
+  it('shows the price, or the range across sizes', () => {
+    renderRow({
+      variants: [
+        { size: 'Half', price_cents: 900, currency: 'USD' },
+        { size: 'Full', price_cents: 1400, currency: 'USD' },
+      ],
+    });
+    expect(screen.getByTestId('item-price-item-1').props.children).toBe('$9–$14');
+  });
+
+  it('shows no chip when the dish has no price, rather than a guess', () => {
+    renderRow({ variants: [{ size: 'Market', price_cents: null, currency: 'USD' }] });
+    expect(screen.queryByTestId('item-price-item-1')).toBeNull();
+  });
+
+  // The section heading already sits above these rows.
+  it('does not repeat the menu section on the row', () => {
+    renderRow({ menu_section_name: 'Noodles' });
+    expect(screen.queryByText('Noodles')).toBeNull();
+  });
+});
