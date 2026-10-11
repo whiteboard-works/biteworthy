@@ -72,4 +72,16 @@ RSpec.describe Names::Backfill do
     expect(result.changes).to be_empty
     expect(shouted.reload.name).to eq("STEAK TARTARE*")
   end
+
+  it "leaves a dish the restaurant verified after the edit check, and counts it as stale" do
+    verify_mid_run = lambda do |item|
+      item.class.where(id: item.id).update_all(restaurant_verified_at: Time.current)
+      true
+    end
+
+    result = described_class.new(restaurant.items, editable: verify_mid_run).call(dry_run: false)
+
+    expect(result.stale).to eq(1)
+    expect(shouted.reload.name).to eq("STEAK TARTARE*")
+  end
 end

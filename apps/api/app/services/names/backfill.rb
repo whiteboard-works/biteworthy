@@ -44,9 +44,12 @@ module Names
 
     # A string condition, because `normalizes` rewrites hash conditions
     # and would compare against the normalized text instead of what was read.
+    # The verification stamp is in it too, so a dish verified after the
+    # `editable` check is left as approved.
     def write_if_unchanged(item, before, after)
       Item.where(id: item.id)
           .where("name = ? AND description IS NOT DISTINCT FROM ?", before[:name], before[:description])
+          .where("restaurant_verified_at IS NOT DISTINCT FROM ?", item.restaurant_verified_at)
           .update_all(after.reject { |field, value| before[field] == value }.merge(updated_at: Time.current))
           .positive?
     end
