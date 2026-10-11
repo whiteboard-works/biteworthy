@@ -68,6 +68,11 @@ export default function UserProfileScreen() {
       <Text style={styles.eyebrow}>Diner</Text>
       <Text style={styles.headline}>{profile.display_name ?? `@${profile.handle}`}</Text>
       <Text style={styles.muted}>@{profile.handle} · Member since {memberSince}</Text>
+      {profile.bio ? (
+        <Text style={[styles.body, styles.bio]} testID="user-bio">
+          {profile.bio}
+        </Text>
+      ) : null}
 
       <View style={styles.statsRow}>
         <Stat label="Reviews" value={profile.reviews_count} />
@@ -96,7 +101,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 function ReviewRow({ review }: { review: UserReview }) {
   return (
     <Pressable
-      accessibilityLabel={`open-item-${review.item.id}`}
+      accessibilityRole="button"
       onPress={() =>
         router.push({
           pathname: '/items/[id]',
@@ -114,7 +119,7 @@ function ReviewRow({ review }: { review: UserReview }) {
       </Text>
       {review.body ? <Text style={styles.reviewBody}>{review.body}</Text> : null}
       {review.photo_url ? (
-        <Image source={{ uri: review.photo_url }} style={styles.reviewPhoto} accessibilityLabel="review-photo" />
+        <Image source={{ uri: review.photo_url }} style={styles.reviewPhoto} testID="review-photo" accessibilityLabel="Reviewer's photo of the dish" />
       ) : null}
     </Pressable>
   );
@@ -156,6 +161,7 @@ const styles = StyleSheet.create({
   headline: { fontSize: fontSize['2xl'], fontWeight: '700', color: colors.text },
   muted: { fontSize: fontSize.sm, color: colors.textMuted },
   body: { fontSize: fontSize.base, color: colors.text },
+  bio: { marginTop: space['3'] },
   empty: { color: colors.textMuted, fontSize: fontSize.base, paddingVertical: space['4'], textAlign: 'center' },
   statsRow: { flexDirection: 'row', gap: space['3'], marginTop: space['3'] },
   stat: {

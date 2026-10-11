@@ -17,6 +17,13 @@ RSpec.describe Tools::Restaurants::CreateCity do
     expect(City.find_by!(slug: "salt-lake-city")).to have_attributes(name: "Salt Lake City", region: "Utah", country: "US")
   end
 
+  it "rejects single-letter city names" do
+    response = call(admin, name: "P", region: "CO")
+
+    expect(response.to_h[:isError]).to be(true)
+    expect(City.count).to eq(0)
+  end
+
   # Production stores full names (Durango is "Colorado"); a code must
   # land the same way or the same state would render two ways in URLs.
   it "stores a state name however it was typed" do

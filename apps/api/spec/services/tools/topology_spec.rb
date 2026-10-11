@@ -53,7 +53,11 @@ RSpec.describe Tools::Topology do
     it "adds the signed-in workflows once there is a user" do
       names = described_class.for(signed_in)[:workflows].map { |flow| flow[:name] }
 
-      expect(names).to include("Scan a menu into the database", "Report data that is wrong")
+      expect(names).to include(
+        "Scan a menu into the database",
+        "Import a restaurant from its website",
+        "Report data that is wrong"
+      )
       expect(names).not_to include("Moderate")
     end
 

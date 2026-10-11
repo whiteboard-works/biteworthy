@@ -14,11 +14,11 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
   let(:spicy_tag) { create(:tag, slug: "flavor-spicy", name: "Spicy") }
   let(:basil)     { create(:ingredient, slug: "herb-basil", name: "Basil") }
 
-  # Named so the default order (name ASC) leads with the noodles — a
-  # taste profile that likes spice has to flip them, which is the whole
-  # point of the scorer. This used to lean on `popularity` (90 vs 10) for
-  # the same setup; that column was never written by anything and is gone,
-  # so the tie-break it was standing in for is now simply the name.
+  # Same missing section and position 0, so the last key (name) leads
+  # with the noodles — a taste profile that likes spice has to flip them,
+  # which is the whole point of the scorer. This used to lean on
+  # `popularity` (90 vs 10) for the same setup; that column was never
+  # written by anything and is gone, so the remaining tie-break is name.
   let!(:plain_noodles) do
     create(:item, :published, :confirmed,
            restaurant: restaurant, name: "Plain Noodles")
@@ -30,7 +30,7 @@ RSpec.describe "GET /api/v1/restaurants/:id/items (taste ranking)", type: :reque
   end
 
   describe "anonymous callers" do
-    it "gets null taste_score, empty taste_reasons, plain name sort" do
+    it "gets null taste_score, empty taste_reasons, and name as the last sort key" do
       get "/api/v1/restaurants/#{restaurant.id}/items"
 
       body = response.parsed_body

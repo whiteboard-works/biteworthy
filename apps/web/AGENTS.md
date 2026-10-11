@@ -1,6 +1,6 @@
 # AGENTS.md — apps/web (Next.js)
 
-<!-- BEGIN codex-review-guidelines -->
+<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
 ## Review guidelines
 
 **Context:** The Next.js web client for BiteWorthy. It does **not** compute the visible/hidden menu set — the Rails API does, and this app renders the `status` / `reasons` each item arrives with. `@biteworthy/filter-engine` supplies the wire types and the presentation helpers (reason chips, section grouping, "show anyway" overrides, Top Picks selection, share-token encoding), not a filter. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)
@@ -15,3 +15,13 @@ Block a PR (P0/P1) when it:
 
 For architecture and conventions, also follow the repo-root `AGENTS.md`.
 <!-- END codex-review-guidelines -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

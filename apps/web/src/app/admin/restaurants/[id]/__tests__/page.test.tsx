@@ -112,6 +112,13 @@ beforeEach(() => {
 });
 
 describe('AdminRestaurantPage', () => {
+  it('renders the logo & banner editor for the restaurant', async () => {
+    await renderPage();
+    const panel = screen.getByTestId('restaurant-branding-panel');
+    expect(panel).toHaveTextContent('Logo & banner');
+    expect(panel.querySelector('[data-testid="branding-editor"]')).not.toBeNull();
+  });
+
   it('saves the whole form with empty optional fields as NULL, never ""', async () => {
     mockUpdateRestaurant.mockResolvedValue(detail({ status: 'closed' }));
     await renderPage();

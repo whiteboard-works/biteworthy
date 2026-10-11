@@ -59,6 +59,9 @@
     - grain.barley
     - grain.spelt
     - grain.triticale
+  avoid_ingredient_slugs:
+    - alcohol-beer
+    - alcohol-ale
 
 - slug: gluten-free
   name: Gluten-Free
@@ -69,6 +72,9 @@
     - grain.barley
     - grain.spelt
     - grain.triticale
+  avoid_ingredient_slugs:
+    - alcohol-beer
+    - alcohol-ale
 
 - slug: dairy-free
   name: Dairy-Free

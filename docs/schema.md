@@ -11,7 +11,8 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 - `user_profiles` — one per user. `avoid_ingredient_ids[]`,
   `avoid_tag_ids[]`, `prefer_tag_ids[]`, plus `strictness` enum and
   `home_city_id` (nullable FK to `cities`, nullified on delete — the
-  chat's default for "nearby", never a filter).
+  chat's default for "nearby", never a filter), and `chat_notes`
+  (private free text the chat reads as context, never a filter).
 
 ## Taxonomy (the unique-value engine)
 
@@ -33,6 +34,9 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
 
 - `cities` → `restaurants` → `addresses`, `hours`. No more "Durango"
   default — every restaurant lives in an explicit city.
+- `restaurants` also carry two ActiveStorage attachments, `logo` and
+  `banner` (owner branding). `Restaurants::Branding` is the only writer
+  — verified owner or admin — and the API serves WebP variants only.
 
 ## Menu
 
@@ -54,8 +58,10 @@ The v2 data model lives in `apps/api/db/migrate/`. This is a 60-second tour.
   `kind: "addition"` rows on accept.
 
 Each join row carries `confidence` (`confirmed | suggested | inferred`)
-and `source` (`human | ai | owner`). This powers strict-mode honest
-disclosure: *we know X, we suspect Y, we inferred Z*.
+and `source` (`human | ai | owner | match | derived | ingredient_derived`).
+`derived` is name/keyword inference (pizza → wheat); `ingredient_derived`
+is an allergen tag inherited from an ingredient. This powers strict-mode
+honest disclosure: *we know X, we suspect Y, we inferred Z*.
 
 ## Enum columns
 
@@ -71,6 +77,22 @@ and you must ship a migration widening the constraint in the same PR**.
 ## Reviews + community
 
 - `reviews` — per-item, 1–5 + body. Unique on `[user_id, item_id]`.
+- `dish_photo_submissions` — diner photos of a dish, pending until an
+  admin approves. Approve-and-set (`status=approved`) prepares a copy of
+  the diner bytes, then under an item row lock (then the submission lock)
+  attaches that copy, sets `items.photo_submission_id` for the
+  "Photo by …" credit, and marks the row approved in one transaction. A
+  failure leaves the submission pending and the item unchanged; the
+  previous item photo is purged after the new blob is stored. WebP
+  variants generate from those bytes. `approve_keep` accepts without
+  replacing the current photo. Withdrawals are `withdrawn` (bytes purged)
+  so they still count toward the 10/day limit. Rejected rows purge their
+  blob. Stored images are rewritten through libvips with metadata stripped
+  (no EXIF/GPS) after a raw-size and pixel-dimension bound. Rate-limited
+  to 10 per user per day and 3 pending per diner per dish.
+  `source_upload_id` is the `POST /attachments` blob a chat
+  `submit_dish_photo` came from (unique per user + dish), so a replayed
+  confirmation returns the existing row; null for REST submissions.
 - `suggestions` — polymorphic edit proposals queue. Replaces the 2020
   points/levels gamification with a real moderation pipeline.
 
@@ -81,6 +103,7 @@ and you must ship a migration widening the constraint in the same PR**.
 - `ingestion_items` — staged items waiting on contributor decisions
   (`pending | accepted | rejected | edited`). `addons_payload` holds
   nested add-on/upsell lines (`{name, price_cents, source}`).
+- `jev_observations` — one row per Jev call, live (`cuisine`) or shadow (`hidden_wheat_shadow`): polymorphic subject (run or restaurant), outcome, latency, tokens, `agree`, bounded `details`. The trial ledger that outlives a deploy; deleting the owner nulls `subject`, never the row, so the dashboard's history keeps the spend.
 
 ## The filter (Phase 3 punchline)
 
@@ -127,9 +150,9 @@ score = 2.0 * |tag_ids ∩ liked_tag_ids|
 ```
 
 It only runs for a signed-in user with taste signals; everyone else
-keeps the plain `name ASC` order. Scores reorder and
-highlight — they never hide. Note that `user_profiles.prefer_tag_ids`
-is **not** an input to any of this.
+keeps section position (nulls last), then item position, then name.
+Scores reorder and highlight — they never hide. Note that
+`user_profiles.prefer_tag_ids` is **not** an input to any of this.
 
 The array-overlap SQL the schema is shaped for does exist, one level
 up: `Cities::RestaurantRanking` ranks a city's restaurants by how many

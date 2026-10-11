@@ -38,7 +38,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/meta/` | `describe_capabilities`, for clients that don't read resources |
 | `app/services/tools/discovery/` | Public read tools |
 | `app/services/tools/profile/` | The caller's own avoid lists, strictness, saves |
-| `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in |
+| `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in. `discover_restaurant_site` is the website-seed prelude (no run) |
 | `app/services/tools/reviews/` | Per-dish reviews. Reading is public, writing is not |
 | `app/services/tools/suggestions/` | The correction queue; owner- or admin-gated to resolve |
 | `app/services/tools/claims/` | Restaurant ownership, by emailed token |
@@ -47,8 +47,9 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/admin_base.rb` | `Tools::AdminBase` — the one place `audience :admin` is declared |
 | `app/services/tools/structure/` | Menus, sections, address, hours (admin) |
 | `app/services/tools/items/` | Deep-editing a live dish (admin) |
+| `app/services/tools/photos/` | Putting the user's photo on a dish: queued for a moderator, or set directly by the owner/admin |
 | `app/services/tools/taxonomy/` | The ingredient and tag trees (admin) |
-| `app/services/tools/moderation/` | The review queue (admin) |
+| `app/services/tools/moderation/` | The review queue and diner dish-photo queue (admin) |
 | `app/services/tools/users/` | The roster and the admin bit (admin) |
 | `app/controllers/mcp_controller.rb` | Transport adapter. No domain logic |
 
@@ -320,6 +321,46 @@ start_menu_scan   →  get_scan_status (poll until ready)
                   →  undo_staged_item   (if that was wrong)
 ```
 
+**Website-seed import** (own-site URL, including multi-location brands) is a
+separate topology workflow, generated from `Tools::Topology` like the rest:
+
+```
+discover_restaurant_site  →  list_cities / create_restaurant (one row per spot)
+                          →  start_menu_scan on the confirmed own-site menu URL
+                          →  review / accept on the first location
+                          →  clone_menu onto empty siblings when menus match
+```
+
+`discover_restaurant_site` fetches the page through `UrlFetcher` (so the
+host policy applies) and extracts same-origin menu links plus JSON-LD
+location candidates. A single-string JSON-LD address is split
+best-effort (street / city / region / postal) and the raw string is
+kept. Same-origin `onclick` / `data-href` / `location.href` paths are
+picked up without running JS; if the HTML is empty, same-origin
+`sitemap.xml` paths are used when robots.txt allows. It does not start
+a scan. `next_step` asks the user for addresses when already on a
+Locations/Contact page with none (no loop), and asks for a menu page /
+PDF / upload / paste when menus and locations are both empty.
+`Ingestion::HostPolicy` refuses DoorDash / order.online, Google Maps,
+and Toast ordering HTML at the fetch door, plus a DoorDash/Toast
+white-label on a custom domain (`script`/`link` CDN hosts or
+`x-dd-`/`x-toast-` headers — not an outbound DoorDash link, a Toast
+order iframe, or a Datadog `dd_*` cookie).
+`start_menu_scan` and discover both return `forbidden_host` with a
+next_step naming own-site / paste / upload. Community
+`create_restaurant` accepts optional website, phone, and hours so import
+does not need admin `edit_place`. `clone_menu` copies published dishes
+(joins, prices) onto an empty restaurant the caller created; it never
+writes `items.ingredient_ids` / `tag_ids` directly. Community clones
+write item and join confidence at `suggested` (never higher than the
+source) — the same trust as a community accept — so a confirmed dish
+at location A is not treated as human-confirmed at location B. Admin
+clones keep confidence as-is. A published source publishes the sibling
+(clone has no ingestion run, so `maybe_publish!` would never fire).
+Photos are copied as new blobs so a later replace/purge on either
+item cannot delete the other's file. The copy is one transaction: a
+mid-clone failure leaves the target empty so retry is not blocked.
+
 Two properties the tools enforce rather than trust the model with:
 
 - **Run scoping.** Every ingestion tool resolves the run and checks the
@@ -344,6 +385,40 @@ suggest_correction   (anyone, signed in or not; queues, changes nothing)
 The gate is `claimed_by_user_id` on the restaurant, set by
 `claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
 
+The same gate opens `set_restaurant_branding` (`restaurants` domain,
+`audience :user`): the owner's logo and banner. It takes attachment ids
+from `POST /api/v1/attachments`, never image bytes, and only resolves an
+id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
+and the REST door `PATCH /restaurants/:id/branding` shares it. Each image
+is cropped to its slot by `Images::Fit` (logo 1:1 up to 400×400, banner
+8:3 up to 1600×600; center unless `logo_crop` / `banner_crop` gives an
+anchor or a fractional box). The model never sees pixels, so the
+read-only `inspect_image` tool gives it an upload's size and what a
+center crop would trim, to choose a crop or ask the owner first.
+
+While a restaurant is still a draft, the community member who added it
+passes the gate too (the scan door's rule), so a chat import can be
+complete: `create_restaurant` takes `logo_attachment_id` /
+`banner_attachment_id` in the same call as hours, phone, and website, and
+`set_restaurant_branding` adds them a turn later. Publishing ends the
+creator's say.
+
+The `photos` domain (`audience :user`) is how a chat photo reaches a dish.
+Both tools take an attachment id the caller uploaded, never bytes.
+**`submit_dish_photo`** is the chat door to `DishPhotos::Submit` (the same
+strip, limits, and credit as the REST door). It declares `confirm_when { true }`
+so in manual and `accept_edits` modes the "I took this photo" attestation is
+the user's tap on a declared sentence, not the model's word (`unrecoverable_when
+{ true }` is what keeps `accept_edits` parking it). `auto` mode and
+`skip_confirmations` accounts skip it like every card. Replaying the same grant
+returns the existing submission in whatever state it is in, keyed on
+`source_upload_id`. **`set_item_photo`** is the branding gate (verified owner
+or admin) applied to `Item#photo`: stripped, live at once, replaces the old
+photo and clears its diner credit. It only reaches published dishes at
+published restaurants, the same as `get_menu` and `submit_dish_photo`. `get_restaurant` returns `managed_by_caller`
+so the model can pick the right one before a confirmation card is spent on a
+call that would be refused.
+
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.
 `POST /api/v1/items/:id/suggestions` has taken anonymous corrections
@@ -366,6 +441,106 @@ Everything under `audience :admin` descends from `Tools::AdminBase`, which
 is the only place that audience is declared. `Registry.for(context)` drops
 them wholesale for non-admins, so a normal caller's `tools/list` never
 mentions them.
+
+### Dish photo moderation (moderation domain)
+
+Diner dish photos sit in the `moderation` domain, admin-only like the review
+queue: **`list_photo_submissions`** (defaults to pending) and
+**`moderate_photo_submission`** (`approve_and_set` copies the stored diner
+bytes onto a new `Item#photo` blob under an item lock (then the
+submission lock) so attach, credit, and `approved` commit together;
+`approve_keep` marks it
+accepted without replacing an existing photo; `reject` needs a `reason`).
+Stored images are rewritten
+through libvips with metadata stripped (no GPS). Output fences
+`credit_name`, `photo_url`, and other diner-controlled strings.
+
+### Restaurant curation tools (admin domain)
+
+The `admin` domain groups tools for the full restaurant curation workflow,
+reusing the same business logic and validation as the REST admin endpoints:
+
+- **`find_restaurants`** — search by name or city, with filters for status
+  (draft/published/closed) and archived state. Unlike public search, this
+  shows everything.
+- **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
+  with candidate matches if the name looks like an existing one in that city;
+  call again with force: true after reviewing. New restaurants land as draft.
+  Optional `logo_attachment_id` / `banner_attachment_id` (ids of images the
+  user uploaded; refused, with the draft rolled back, when the upload is not
+  an image). Optional website, phone, and hours (full week) so a community website
+  import does not need admin `edit_place`.
+- **`update_restaurant`** — edit name, about, website, phone, and address.
+  Address is a wholesale replacement when any address field is provided.
+  Reuses `Places::Writer` validation.
+- **`set_restaurant_hours`** — replace weekly hours. Supports multiple
+  intervals per day (lunch + dinner). Validates HH:MM format and rejects
+  contradictory rows (closed + open on the same day).
+- **`start_scan`** — the admin version of `start_menu_scan`. Accepts
+  `base64_pdf` or `base64_image` in addition to URL/text/attachment_ids, so
+  captcha-blocked or manually-supplied menus can be ingested. Base64 content
+  is decoded and processed through the same pipeline as uploads.
+- **`get_scan`** — combines `get_scan_status` and `list_staged_items` in
+  one call. Returns status, ready flag, and the full list of staged items
+  with ingredients, tags, confidence, and needs_attention flags.
+- **`accept_items`** — publish staged dishes to the live menu. When an admin
+  accepts, associations are stamped `confirmed` and visible to strict-mode
+  users. Delegates to `Tools::Ingestion::AcceptStagedItems` so the 80%
+  publish threshold and confidence promotion stay in one place.
+- **`reject_items`** — mark items as "not on the menu". Rejected items stay
+  in the scan for audit and count toward the publish threshold but never
+  promote.
+- **`list_restaurant_items`** — list all items at a restaurant, including
+  removed ones. Returns id, name, status, confidence, ingredients (with
+  slugs for editing), tags, variants, and modifiers.
+- **`update_published_item`** — edit a live menu item: name, description,
+  status (including `removed` = admin unpublish), section, position,
+  ingredients (by slug), tags (by slug), variants, modifiers, and optional
+  `added_confidence` (`confirmed` | `suggested` | `inferred`, default
+  `confirmed`). Reuses `Admin::ItemEditor` so validation and join-sync
+  logic stay shared with the REST endpoint. New rows default to
+  `confirmed`/`human`; `suggested`/`inferred` write `source: derived` on
+  only the rows added in that call so ConfidenceMapper's trusted-source
+  allow-list will not remap them to confirmed. Kept rows are untouched.
+  After a join sync the dish confidence is re-derived from the weakest
+  current join (downgrade only). Dish-level `confidence` is not settable
+  directly — it still graduates through `promote!` and
+  `confirm_restaurant_data`.
+- **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
+  the model that decides them for every new scan since 2026-10-10, and
+  rewrite the model-written (`source: ai`) `cuisine` join rows.
+  `dry_run: true` reports the changes without writing (`written` in
+  all, split into `changed` for slug changes and `regraded` where a
+  grade moved clearly across the 0.8 boundary; since 2026-10-11 a
+  kept slug keeps its grade unless Jev is at 0.9 or above, or under
+  0.7, and a model-written row a person confirmed is never touched)
+  and is never parked; a real run is gated by `confirm_when` on both doors and
+  declared unrecoverable, so `accept_edits` parks it too (the
+  `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
+  confirmed and every keyword-derived one (gap-fill keeps those beside
+  Jev's too), touches no other family, and never changes a dish's own
+  confidence. All slices are asked before anything is written and each
+  dish is locked and re-read inside the transaction, so a Jev failure
+  part-way or a concurrent edit changes nothing it should not. This is
+  the admin re-run for menus published with Haiku's cuisine tags; the
+  backfill is calling it per restaurant.
+- **`normalize_item_names`** — apply the naming standard
+  (`Names::Standard`) to every dish at a restaurant saved before it
+  existed: all-caps names become Title Case, all-caps descriptions
+  sentence case, and footnote asterisks at either end of a name go.
+  `dry_run: true` previews `changed` (before/after per dish); a real run
+  is confirmation-gated and unrecoverable, the `retag_cuisine` shape.
+  Dishes the caller may not edit (restaurant-verified, `Item#can_be_edited_by?`)
+  are left alone and counted in `locked`; rows edited mid-run in `stale`.
+  New writes are already normalized on assignment, so this is only for
+  old rows; `bin/rails names:normalize` is the all-restaurants backfill.
+- **`set_restaurant_status`** — change status to draft, published, or
+  closed. Archive/restore are separate (soft/hard delete in the REST API).
+
+All twelve require `is_admin: true` and are filtered out of the catalogue for
+non-admin callers. Rate limiting is shared with the rest of `/mcp`:
+120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
+anonymous.
 
 ### Deleting things
 
@@ -720,7 +895,7 @@ be a separate request because the one that started the turn is busy.
 | `GET /api/v1/conversations` | The caller's own, newest first |
 | `POST /api/v1/conversations` | Opens an empty one |
 | `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
-| `PATCH /api/v1/conversations/:id` | Sets `mode` — for switching without sending anything |
+| `PATCH /api/v1/conversations/:id` | Sets `mode` (switching without sending anything) and/or `title` (a rename the titler never overwrites) |
 | `DELETE /api/v1/conversations/:id` | Removes it and its messages |
 | `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE. Optional `mode` switches and sends in one request |
 | `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
@@ -729,7 +904,7 @@ be a separate request because the one that started the turn is busy.
 A turn streams these events, each as one `data:` line of JSON:
 
 `open` · `thinking_delta` · `text_delta` · `tool_use` · `tool_result` ·
-then exactly one of `done`, `awaiting_confirmation`, or `error`.
+then exactly one terminal event from the loop: `done`, `awaiting_confirmation`, or `error`. Independently of the turn, the relay may write `reconnect` (its window closed; resume from `after`) or an `error` with `interrupted: true` (it lost the turn, which may still be running). Neither is terminal, and the web client reads neither as the turn ending.
 
 Two properties follow from this being a chat and not an RPC:
 
@@ -872,6 +1047,19 @@ curl -s -X POST https://<api-host>/api/v1/auth/login \
   -H 'content-type: application/json' \
   -d '{"user":{"email":"you@example.com","password":"…"}}' -i | grep -i '^authorization:'
 ```
+
+**Admin access**: The tools under the `admin` domain (restaurant curation)
+require `is_admin: true` on the user account. A JWT for a non-admin will
+authenticate fine but see only the public/user tools. Set the admin flag
+from a Rails console:
+
+```ruby
+User.find_by(email: "admin@example.com").update!(is_admin: true)
+```
+
+Or use the `users:promote` rake task if one exists. Admin tools are hidden
+from the catalogue for non-admins — they won't appear in `tools/list` and
+calling them by name returns `forbidden`.
 
 ### Public distribution — OAuth 2.1 (M8) — SHIPPED
 

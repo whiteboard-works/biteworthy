@@ -22,6 +22,12 @@ module Tools
           raise Errors::Forbidden, "Only the review's author can edit or delete it."
         end
 
+        def attach_review_photo!(review, signed_id, user)
+          return if signed_id.blank?
+
+          Images::AttachPhoto.call(review, owned_upload!(signed_id, user))
+        end
+
         def review_row(review, include_hidden_state: false)
           row = {
             id:         review.id,

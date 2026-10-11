@@ -13,6 +13,10 @@ jest.mock('expo-router', () => ({
   Link: 'Link',
 }));
 
+jest.mock('expo-image', () => ({
+  Image: 'Image',
+}));
+
 jest.mock('../../lib/auth', () => ({
   getJwt: jest.fn(() => Promise.resolve(undefined)),
 }));
@@ -93,11 +97,11 @@ describe('StrictnessToggle (mobile)', () => {
       <StrictnessToggle active="balanced" loading={false} onChange={() => {}} />,
     );
 
-    const balanced = screen.getByLabelText('strictness-balanced');
+    const balanced = screen.getByTestId('strictness-balanced');
     expect(balanced).toBeOnTheScreen();
     expect(balanced.props.accessibilityState).toMatchObject({ selected: true, disabled: false });
 
-    const strict = screen.getByLabelText('strictness-strict');
+    const strict = screen.getByTestId('strictness-strict');
     expect(strict.props.accessibilityState).toMatchObject({ selected: false, disabled: false });
   });
 
@@ -105,7 +109,7 @@ describe('StrictnessToggle (mobile)', () => {
     render(
       <StrictnessToggle active="strict" loading={true} onChange={() => {}} />,
     );
-    const relaxed = screen.getByLabelText('strictness-relaxed');
+    const relaxed = screen.getByTestId('strictness-relaxed');
     expect(relaxed.props.accessibilityState).toMatchObject({ selected: false, disabled: true });
     expect(screen.getByTestId('strictness-spinner')).toBeOnTheScreen();
   });
@@ -121,6 +125,8 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     website: null,
     status: 'published',
     city: { id: 'city-1', slug: 'durango', name: 'Durango', region: 'CO' },
+    logo_url: null,
+    banner_url: null,
   };
   const itemsResponse = {
     restaurant_id: 'rest-1',
@@ -143,12 +149,43 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     mockParams = { id: 'rest-1' };
   });
 
+  // The header renders the owner's banner and logo only when they exist;
+  // a restaurant without them looks exactly as it did before branding.
+  it('shows the banner and logo when the owner set them', async () => {
+    mockFetchRestaurant.mockResolvedValue({
+      ...restaurant,
+      logo_url: 'https://img.test/logo.webp',
+      banner_url: 'https://img.test/banner.webp',
+    });
+    render(<RestaurantScreen />);
+    await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
+
+    // Decorative images sit outside the accessibility tree on purpose,
+    // so the queries have to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('restaurant-banner', hidden).props.source).toEqual({
+      uri: 'https://img.test/banner.webp',
+    });
+    expect(screen.getByTestId('restaurant-logo', hidden).props.source).toEqual({
+      uri: 'https://img.test/logo.webp',
+    });
+  });
+
+  it('renders no branding images for a restaurant without them', async () => {
+    render(<RestaurantScreen />);
+    await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
+
+    const hidden = { includeHiddenElements: true };
+    expect(screen.queryByTestId('restaurant-banner', hidden)).toBeNull();
+    expect(screen.queryByTestId('restaurant-logo', hidden)).toBeNull();
+  });
+
   // Re-scanning moved to the tool layer; the button's destination is gone.
   it('no longer offers a re-scan button', async () => {
     render(<RestaurantScreen />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
 
-    expect(screen.queryByLabelText('rescan-menu')).toBeNull();
+    expect(screen.queryByTestId('rescan-menu')).toBeNull();
   });
 
   // The keychain read is async. Fetching before it resolves showed a

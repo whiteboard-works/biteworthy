@@ -30,6 +30,7 @@ module Tools
         "Profile::SaveItem"
       ],
       ingestion: [
+        "Ingestion::DiscoverRestaurantSite",
         "Ingestion::StartMenuScan",
         "Ingestion::GetScanStatus",
         "Ingestion::ListStagedItems",
@@ -61,8 +62,11 @@ module Tools
       restaurants: [
         "Restaurants::CreateCity",
         "Restaurants::CreateRestaurant",
+        "Restaurants::CloneMenu",
         "Restaurants::EditRestaurant",
-        "Restaurants::ConfirmRestaurantData"
+        "Restaurants::ConfirmRestaurantData",
+        "Restaurants::SetRestaurantBranding",
+        "Restaurants::InspectImage"
       ],
       structure: [
         "Structure::GetMenuStructure",
@@ -70,7 +74,13 @@ module Tools
         "Structure::EditPlace"
       ],
       items: [
-        "Items::EditItem"
+        "Items::EditItem",
+        "Items::VerifyItemByHuman",
+        "Items::VerifyItemByRestaurant"
+      ],
+      photos: [
+        "Photos::SubmitDishPhoto",
+        "Photos::SetItemPhoto"
       ],
       taxonomy: [
         "Taxonomy::CreateTaxonomyNode",
@@ -79,11 +89,27 @@ module Tools
       ],
       moderation: [
         "Moderation::ListModerationQueue",
-        "Moderation::ModerateReview"
+        "Moderation::ModerateReview",
+        "Moderation::ListPhotoSubmissions",
+        "Moderation::ModeratePhotoSubmission"
       ],
       users: [
         "Users::ListUsers",
         "Users::SetUserRole"
+      ],
+      admin: [
+        "Admin::FindRestaurants",
+        "Admin::UpdateRestaurant",
+        "Admin::SetRestaurantHours",
+        "Admin::StartScan",
+        "Admin::GetScan",
+        "Admin::AcceptItems",
+        "Admin::RejectItems",
+        "Admin::ListRestaurantItems",
+        "Admin::UpdatePublishedItem",
+        "Admin::RetagCuisine",
+        "Admin::NormalizeItemNames",
+        "Admin::SetRestaurantStatus"
       ]
     }.freeze
 

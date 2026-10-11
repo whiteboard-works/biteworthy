@@ -22,13 +22,21 @@ module Tools
         One review per person per dish. If they already reviewed it, this
         fails and tells you the id — change it with `edit_review` rather than
         replacing what they wrote.
+
+        An optional `attachment_id` (from a photo the caller uploaded) is
+        stored as the review photo after location metadata is stripped.
       TEXT
 
       input_schema(
         properties: {
           item_id: { type: "string", description: "The dish's UUID." },
           rating:  { type: "integer", description: "1 (worst) to 5 (best).", minimum: 1, maximum: 5 },
-          body:    { type: "string", description: "Optional free text, in the user's own words." }
+          body:    { type: "string", description: "Optional free text, in the user's own words." },
+          attachment_id: {
+            type: "string",
+            description: "Optional. Signed id of a photo the caller uploaded. " \
+                         "EXIF/GPS is stripped before it is stored on the review."
+          }
         },
         required: %w[item_id rating]
       )
@@ -37,7 +45,7 @@ module Tools
 
       running_description { "Posting your review" }
 
-      def self.perform(context:, item_id:, rating:, body: nil)
+      def self.perform(context:, item_id:, rating:, body: nil, attachment_id: nil)
         user = context.user!
         item = Item.published.joins(:restaurant).merge(Restaurant.published).find(item_id)
 
@@ -50,8 +58,12 @@ module Tools
                 "You already reviewed this dish (review #{existing.id}). Use edit_review to change it."
         end
 
-        review = Review.create!(user: user, item: item, rating: rating, body: body)
+        review = Review.new(user: user, item: item, rating: rating, body: body)
+        attach_review_photo!(review, attachment_id, user)
+        review.save!
         ok(review_row(review).merge(flagged_for_moderation: review.flagged?))
+      rescue Images::StripMetadata::Unprocessable => e
+        raise Errors::InvalidArgument, e.message
       end
     end
   end

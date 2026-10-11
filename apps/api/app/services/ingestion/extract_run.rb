@@ -35,6 +35,12 @@ module Ingestion
     # Anything genuinely larger belongs in more than one call.
     MAX_OUTPUT_TOKENS = 16_000
 
+    # Minimum character count for text inputs. JS-rendered menu sites like
+    # SinglePlatform return HTML shells with ~50 chars of boilerplate (doctype,
+    # html, head, body tags). A real menu has item names, prices, descriptions.
+    # 200 chars allows for some markup while catching empty pages.
+    MIN_TEXT_LENGTH = 200
+
     def self.call(run) = new(run).call
 
     def initialize(run)
@@ -53,6 +59,18 @@ module Ingestion
       if blobs.empty?
         @run.fail!("no_inputs_attached")
         return
+      end
+
+      # Detect empty or near-empty text content before sending to Anthropic.
+      # SinglePlatform and other JS-rendered sites return HTML shells with no
+      # menu text, which create empty text blocks that Anthropic rejects.
+      if blobs.all? { |b| text_content_type?(b.content_type.to_s) }
+        combined_text = blobs.map { |b| b.download.to_s.strip }.join(" ")
+        if combined_text.length < MIN_TEXT_LENGTH
+          @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
+                     "Upload the menu as a PDF or photos, or paste the menu text.")
+          return
+        end
       end
 
       # A previous attempt may already have paid for the vision call — it is
@@ -173,6 +191,11 @@ module Ingestion
       name = item["name"].to_s.strip.sub(/\Aadd\s+/i, "").sub(/\s*\+\z/, "").strip
       first_price = Array(item["prices"]).first || {}
       { "name" => name, "price_cents" => first_price["price_cents"], "source" => "guard" }
+    end
+
+    def text_content_type?(content_type)
+      ct = content_type.to_s
+      ct.start_with?("text/") || ct == "application/xml"
     end
   end
 end

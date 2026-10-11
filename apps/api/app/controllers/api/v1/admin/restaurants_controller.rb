@@ -67,6 +67,8 @@ module Api
             website:    restaurant.website,
             phone:      restaurant.phone,
             claimed_at: restaurant.claimed_at,
+            logo_url:   representation_url_for(restaurant.logo, :thumb),
+            banner_url: representation_url_for(restaurant.banner, :card),
             items_by_confidence: Item.where(restaurant_id: restaurant.id)
                                      .group(:confidence).count
           )
@@ -123,7 +125,56 @@ module Api
           render json: serialize_restaurant(restaurant)
         end
 
+        # POST /api/v1/admin/restaurants/:id/backfill_structure — rebuild
+        # menu sections and item variants from accepted ingestion payloads.
+        # Defaults to dry_run: an explicit dry_run=false is required to write.
+        # reorder=true rewrites section/item positions from source-menu order
+        # without moving dishes or creating sections.
+        def backfill_structure
+          restaurant = Restaurant.find(params[:id])
+          dry_run    = boolean_param(:dry_run, default: true)
+          overwrite_prices = boolean_param(:overwrite_prices, default: false)
+          reorder = boolean_param(:reorder, default: false)
+
+          result = Restaurants::BackfillStructure.new(
+            restaurant: restaurant,
+            dry_run:    dry_run,
+            overwrite_prices: overwrite_prices,
+            reorder: reorder
+          ).call
+
+          render json: {
+            restaurant_id:     restaurant.id,
+            dry_run:           dry_run,
+            reorder:           reorder,
+            sections_created:  result[:sections_created],
+            variants_added:    result[:variants_added],
+            sections_reordered: result[:sections_reordered],
+            items_reordered:    result[:items_reordered]
+          }
+        end
+
+        # POST /api/v1/admin/restaurants/:id/backfill_confidence — rewrite
+        # source and confidence for published items from accepted ingestion payloads.
+        # Defaults to dry_run=true for safety.
+        def backfill_confidence
+          restaurant = Restaurant.find(params[:id])
+          # Default to true for safety — must explicitly pass dry_run=false to apply changes
+          dry_run = params.key?(:dry_run) ? ActiveModel::Type::Boolean.new.cast(params[:dry_run]) : true
+
+          result = ::Admin::BackfillConfidence.call(restaurant: restaurant, dry_run: dry_run)
+
+          render json: result
+        end
+
         private
+
+        def boolean_param(name, default:)
+          return default unless params.key?(name)
+
+          value = ActiveModel::Type::Boolean.new.cast(params[name])
+          value.nil? ? default : value
+        end
 
         def serialize_restaurant(restaurant)
           {

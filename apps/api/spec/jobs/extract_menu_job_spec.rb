@@ -260,6 +260,68 @@ RSpec.describe ExtractMenuJob, type: :job do
     end
   end
 
+  describe "empty text content detection" do
+    it "fails the run when text/html input is empty or near-empty with helpful guidance" do
+      # SinglePlatform and other JS-rendered sites return HTML shells with no menu text
+      empty_html = "<!DOCTYPE html><html><head></head><body></body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(empty_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.failed?).to be true
+      expect(run.failure_message).to include("no_menu_text")
+      expect(run.failure_message).to include("Upload the menu as a PDF or photos, or paste the menu text")
+    end
+
+    it "succeeds when text/html input has sufficient content" do
+      # Create content that's well over 200 chars to pass the MIN_TEXT_LENGTH check
+      menu_html = "<html><body><h1>Restaurant Menu</h1>" +
+                  "<h2>Appetizers</h2>" +
+                  "<p>Tacos al Pastor - Marinated pork with pineapple, onions, and cilantro $5.99</p>" +
+                  "<p>Burritos Supreme - Large flour tortilla filled with beans, rice, cheese $7.99</p>" +
+                  "<p>Quesadilla Grande - Grilled cheese quesadilla with sour cream $6.50</p>" +
+                  "<h2>Sides</h2>" +
+                  "<p>Guacamole Fresco - Fresh avocado dip with lime and cilantro $4.25</p>" +
+                  "<p>Salsa Roja - Homemade red salsa $3.00</p>" +
+                  "<p>Chips and Queso - Tortilla chips with cheese dip $2.50</p>" +
+                  "<p>Refried Beans - Traditional Mexican beans $3.25</p>" +
+                  "</body></html>"
+      run.inputs.attach(
+        io:           StringIO.new(menu_html),
+        filename:     "menu.html",
+        content_type: "text/html"
+      )
+
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+    end
+
+    it "does not block image inputs" do
+      # Empty text check only applies to text content types
+      attach_fake_input! # JPEG input
+
+      allow_any_instance_of(AnthropicClient)
+        .to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.status).to eq("resolving")
+    end
+  end
+
   describe "Anthropic API error" do
     before do
       attach_fake_input!

@@ -1,7 +1,7 @@
 import type { Metadata, Route } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../../../../lib/restaurants';
-import { getServerJwt } from '../../../../../../lib/server-auth';
+import { getServerJwt, getServerUserId } from '../../../../../../lib/server-auth';
 import { edgeHeaders } from '../../../../../../lib/edge-headers';
 import { toQueryString } from '../../../../../../lib/query-string';
 import { isCanonicalPath } from '../../../../../../lib/restaurant-path';
@@ -71,6 +71,8 @@ export default async function RestaurantPage({
   // The JWT lets fetchRestaurant populate `favorited` for the save button;
   // its presence also gates the button (the endpoint is authed).
   const jwt = await getServerJwt();
+  // Decides only whether the owner's branding editor renders.
+  const viewerId = await getServerUserId();
   const edge = await edgeHeaders();
   const fetchItems = (token: string | undefined, preset: string | undefined) =>
     fetchRestaurantItems(slug, {
@@ -113,6 +115,7 @@ export default async function RestaurantPage({
       presetInvalid={presetInvalid}
       shareTokenInvalid={shareTokenInvalid}
       signedIn={Boolean(jwt)}
+      viewerId={viewerId}
     />
   );
 }

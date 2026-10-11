@@ -1,12 +1,149 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
-import { createRestaurant, type City, type DuplicateCandidate } from '../../../lib/cities';
+import {
+  brandRestaurant,
+  createRestaurant,
+  type City,
+  type DuplicateCandidate,
+} from '../../../lib/cities';
 import { NotSignedInError } from '../../../lib/chat';
+import { MAX_UPLOAD_BYTES, shrinkForUpload, tooLargeToUpload } from '../../../lib/shrink-image';
 
 const INPUT = 'mt-bw-1 w-full rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base';
+const IMAGE_TYPES = 'image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp';
+
+type ImageSlot = 'logo' | 'banner';
+
+/**
+ * One optional image for the new restaurant. The file is shrunk client
+ * side before it is held, and previewed; it is uploaded only after the
+ * restaurant exists, through the same branding door the owner uses.
+ */
+function ImageField({
+  slot,
+  label,
+  hint,
+  file,
+  disabled,
+  onChange,
+  onError,
+}: {
+  slot: ImageSlot;
+  label: string;
+  hint: string;
+  file: File | null;
+  disabled: boolean;
+  onChange: (file: File | null) => void;
+  onError: (message: string | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  const replacePreview = (url: string | null) => {
+    setPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return url;
+    });
+  };
+  // The preview holds the shrunk bytes until revoked; drop it when the
+  // form unmounts (App Router navigation keeps the document alive).
+  useEffect(() => () => replacePreview(null), []);
+
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    onError(null);
+    setProcessing(true);
+    try {
+      const shrunk = await shrinkForUpload(picked);
+      if (tooLargeToUpload(shrunk)) {
+        onError(`That image is still over ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB after resizing.`);
+        e.target.value = '';
+        return;
+      }
+      replacePreview(URL.createObjectURL(shrunk));
+      onChange(shrunk);
+    } catch {
+      onError('That image could not be processed. Try a different file.');
+      e.target.value = '';
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const clear = () => {
+    replacePreview(null);
+    onChange(null);
+    if (input.current) input.current.value = '';
+  };
+
+  // A HEIC the browser cannot decode comes back unshrunk; its preview
+  // would be a broken image, so show the name instead.
+  const undecodable = /image\/hei[cf]/i.test(file?.type ?? '');
+
+  return (
+    <div className="text-bw-sm">
+      <p className="font-semibold text-zinc-800">
+        {label} <span className="font-normal text-zinc-500">(optional)</span>
+      </p>
+      <p className="text-bw-xs text-zinc-500">{hint}</p>
+      {file && preview ? (
+        <div className="mt-bw-2 flex items-start gap-bw-3">
+          {undecodable ? (
+            <p
+              className="rounded-bw-md bg-zinc-100 px-bw-3 py-bw-2 text-bw-xs text-zinc-600"
+              data-testid={`new-restaurant-${slot}-preview`}
+            >
+              {file.name} selected (no preview for HEIC here; it is converted on save)
+            </p>
+          ) : (
+            <img
+              src={preview}
+              alt={`${label} preview`}
+              className={
+                slot === 'logo'
+                  ? 'h-20 w-20 rounded-bw-md object-cover'
+                  : 'aspect-[8/3] w-full max-w-sm rounded-bw-md object-cover'
+              }
+              data-testid={`new-restaurant-${slot}-preview`}
+            />
+          )}
+          <button
+            type="button"
+            onClick={clear}
+            disabled={disabled}
+            data-testid={`new-restaurant-${slot}-clear`}
+            className="text-bw-xs font-semibold text-zinc-600 underline hover:text-zinc-900 disabled:opacity-50"
+          >
+            Remove
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          disabled={disabled || processing}
+          data-testid={`new-restaurant-${slot}-upload`}
+          className="mt-bw-2 text-bw-xs font-semibold text-bite underline hover:text-bite-dark disabled:opacity-50"
+        >
+          {processing ? 'Processing…' : `Add a ${slot}`}
+        </button>
+      )}
+      <input
+        ref={input}
+        type="file"
+        accept={IMAGE_TYPES}
+        onChange={(e) => void pick(e)}
+        className="hidden"
+        data-testid={`new-restaurant-${slot}-input`}
+      />
+    </div>
+  );
+}
 
 export function NewRestaurantForm({
   cities,
@@ -21,8 +158,13 @@ export function NewRestaurantForm({
   const [street, setStreet] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [candidates, setCandidates] = useState<DuplicateCandidate[] | null>(null);
+  const [logo, setLogo] = useState<File | null>(null);
+  const [banner, setBanner] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The restaurant exists but its images did not save: offer the scan
+  // link rather than a retry, which would trip the duplicate check.
+  const [brandingFailed, setBrandingFailed] = useState<{ scanPath: string } | null>(null);
 
   if (loadFailed) {
     return (
@@ -41,6 +183,12 @@ export function NewRestaurantForm({
   }
 
   const submit = async (force: boolean) => {
+    // The restaurant already exists; a second create would only trip the
+    // duplicate guard. Enter in a field after the image failure goes on.
+    if (brandingFailed) {
+      router.push(brandingFailed.scanPath as Route);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -55,7 +203,28 @@ export function NewRestaurantForm({
         setCandidates(result.candidates);
         return;
       }
-      router.push(`${result.web_path}/scan` as Route);
+      const scanPath = `${result.web_path}/scan`;
+      if (logo || banner) {
+        // Both images ride one request through the web server's body
+        // cap; two files that each passed the check can fail together,
+        // so they go one after the other (never concurrently: both write
+        // the same restaurant row). Any failure here, a lapsed session
+        // included, lands on the "added, images did not save" path: the
+        // restaurant exists, so a login round trip into a fresh form
+        // would only recreate it.
+        try {
+          if ((logo?.size ?? 0) + (banner?.size ?? 0) > MAX_UPLOAD_BYTES) {
+            await brandRestaurant(result.slug, { logo });
+            await brandRestaurant(result.slug, { banner });
+          } else {
+            await brandRestaurant(result.slug, { logo, banner });
+          }
+        } catch {
+          setBrandingFailed({ scanPath });
+          return;
+        }
+      }
+      router.push(scanPath as Route);
     } catch (err) {
       if (err instanceof NotSignedInError) {
         router.push('/login?next=%2Frestaurants%2Fnew');
@@ -135,7 +304,42 @@ export function NewRestaurantForm({
         />
       </label>
 
-      {candidates ? (
+      <ImageField
+        slot="logo"
+        label="Logo"
+        hint="Square works best. Shown beside the name on cards and the page."
+        file={logo}
+        disabled={submitting}
+        onChange={setLogo}
+        onError={setError}
+      />
+      <ImageField
+        slot="banner"
+        label="Banner"
+        hint="Wide (about 8:3). Runs across the top of the restaurant page."
+        file={banner}
+        disabled={submitting}
+        onChange={setBanner}
+        onError={setError}
+      />
+
+      {brandingFailed ? (
+        <div
+          data-testid="new-restaurant-branding-failed"
+          className="rounded-bw-lg border border-amber-300 bg-amber-50 p-bw-4 text-bw-sm"
+        >
+          <p className="font-semibold text-zinc-900">
+            The restaurant was added, but its images could not be saved.
+          </p>
+          <a
+            href={brandingFailed.scanPath}
+            data-testid="new-restaurant-continue"
+            className="mt-bw-2 inline-block font-semibold text-bite hover:text-bite-dark"
+          >
+            Continue to scan the menu →
+          </a>
+        </div>
+      ) : candidates ? (
         <div
           data-testid="new-restaurant-duplicates"
           className="rounded-bw-lg border border-amber-300 bg-amber-50 p-bw-4"

@@ -88,3 +88,29 @@ export async function createRestaurant(
   const body = (await res.json()) as { slug: string; web_path: string };
   return { kind: 'created', slug: body.slug, web_path: body.web_path };
 }
+
+/**
+ * Upload a logo and/or banner for a restaurant the caller may brand: its
+ * verified owner, an admin, or, while it is still a draft, the person who
+ * just added it (which is the /restaurants/new case). Only the images
+ * given are sent; the API leaves the other alone.
+ */
+export async function brandRestaurant(
+  slug: string,
+  images: { logo?: File | null; banner?: File | null },
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const form = new FormData();
+  if (images.logo) form.append('logo', images.logo);
+  if (images.banner) form.append('banner', images.banner);
+  const res = await fetchImpl(`/api/restaurants/${encodeURIComponent(slug)}/branding`, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    body: form,
+  });
+  if (res.status === 401) throw new NotSignedInError();
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `brandRestaurant failed: ${res.status}`);
+  }
+}

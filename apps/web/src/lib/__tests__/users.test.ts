@@ -4,6 +4,7 @@ import { fetchPublicUserProfile, type PublicUserProfile } from '../users';
 const samplePayload: PublicUserProfile = {
   handle: 'diner_jane',
   display_name: 'Diner Jane',
+  bio: null,
   member_since: '2026-04-01T00:00:00Z',
   reviews_count: 3,
   restaurants_reviewed_count: 2,

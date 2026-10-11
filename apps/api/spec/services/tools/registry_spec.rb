@@ -64,7 +64,7 @@ RSpec.describe Tools::Registry do
       claims:      :user,
       history:     :user,
       structure:   :admin,
-      items:       :admin,
+      photos:      :user,
       taxonomy:    :admin,
       moderation:  :admin,
       users:       :admin
@@ -99,16 +99,30 @@ RSpec.describe Tools::Registry do
       expect(public_reviews.map(&:name_value)).to eq(["list_reviews"])
     end
 
-    # Restaurants is mixed too: anyone signed in can add a missing place,
-    # only an admin can edit one that exists or add a city.
-    it "keeps only create_restaurant at :user in the restaurants domain" do
+    # Restaurants is mixed too: anyone signed in can add a missing place
+    # or (as its verified owner) brand one, only an admin can edit one
+    # that exists or add a city.
+    it "keeps create_restaurant, clone_menu, set_restaurant_branding, and inspect_image at :user in the restaurants domain" do
       by_audience = described_class::DOMAINS.fetch(:restaurants)
                                             .map { |name| Tools.const_get(name) }
                                             .group_by(&:audience)
 
-      expect(by_audience[:user].map(&:name_value)).to eq(["create_restaurant"])
+      expect(by_audience[:user].map(&:name_value)).to eq(%w[create_restaurant clone_menu set_restaurant_branding inspect_image])
       expect(by_audience[:admin].map(&:name_value)).to contain_exactly(
         "create_city", "edit_restaurant", "confirm_restaurant_data"
+      )
+    end
+
+    # Items is mixed: human verification is user-level (anyone can verify),
+    # but restaurant verification and editing are admin-only.
+    it "keeps verify_item_by_human at :user in the items domain" do
+      by_audience = described_class::DOMAINS.fetch(:items)
+                                            .map { |name| Tools.const_get(name) }
+                                            .group_by(&:audience)
+
+      expect(by_audience[:user].map(&:name_value)).to eq(["verify_item_by_human"])
+      expect(by_audience[:admin].map(&:name_value)).to contain_exactly(
+        "edit_item", "verify_item_by_restaurant"
       )
     end
 

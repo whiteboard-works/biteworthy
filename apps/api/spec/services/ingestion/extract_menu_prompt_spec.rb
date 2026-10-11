@@ -39,6 +39,12 @@ RSpec.describe Ingestion::ExtractMenuPrompt do
     end
   end
 
+  it "routes application/xml to a text block (often misreported HTML)" do
+    block = input_blocks(blob("application/xml", "<html><body>Menu</body></html>")).first
+    expect(block[:type]).to eq("text")
+    expect(block[:text]).to include("Menu")
+  end
+
   it "appends the short instruction after the inputs" do
     expect(input_blocks(blob("image/jpeg")).last)
       .to include(type: "text", text: described_class::USER_INSTRUCTIONS)

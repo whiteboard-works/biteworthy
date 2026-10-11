@@ -81,10 +81,10 @@ Tags: **[MANUAL]** = human-only · **[CODE]** = loop-shippable · P0/P1/P2 = pri
 
 **Stream 1 — [MANUAL] Track A critical path** (the real gate; detail in `docs/launch-plan.md`)
 - [x] **Provision Hetzner cpx21 → Neon → GHCR PAT → first `kamal deploy`** (keystone) — done
-- [ ] **Engage the L1 attorney on `/privacy` + `/terms` — day one** (long lead; blocks DRAFT-banner removal + store submission). Also get the **L3 dish-photo auto-crop liability ruling**.
+- [ ] **Engage the L1 attorney on `/privacy` + `/terms` — day one** (long lead; blocks store submission — the DRAFT banners came off ahead of it, 2026-10-05/06). Also get the **L3 dish-photo auto-crop liability ruling**.
 - [ ] **Enable Anthropic billing**
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**; **design `icon-source.svg`**
-- [ ] ~~Resend SMTP~~ · ~~Cloudflare R2~~ · ~~Vercel (domain + SSR)~~ — all done · **PostHog API key** remains
+- [x] ~~Resend SMTP~~ · ~~Cloudflare R2~~ · ~~Vercel (domain + SSR)~~ · ~~PostHog API key~~ — all done (ADR 0009, 2026-10-10)
 - [ ] **Seed 30 Durango restaurants (~$15 ingestion)** — coverage *is* the day-one product
 - [ ] **Set up Neon snapshots** — ADR-0007 admits no self-snapshot today; one un-backed-up wipe during early word-of-mouth is a pre-mortem death. Don't launch without it.
 - [ ] **Gate: verify strict-mode `visible_count` is non-trivial on seeded data *before* inviting anyone** (the empty-menu check)

@@ -10,9 +10,12 @@ const summary = (slug: string, name: string, city = 'Durango'): RestaurantSummar
   status: 'published',
   web_path: `/restaurants/usa/colorado/${city.toLowerCase()}/${slug}`,
   city: { slug: city.toLowerCase(), name: city, region: 'Colorado' },
+  logo_url: null,
   street: null,
   latitude: null,
   longitude: null,
+  time_zone: null,
+  hours: [],
 });
 
 const LIST = [

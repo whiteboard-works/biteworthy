@@ -1,0 +1,727 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+RSpec.describe "Admin MCP tools" do
+  let(:admin) { create(:user, is_admin: true) }
+  let(:user) { create(:user) }
+  let(:city) { create(:city, slug: "test-city") }
+  let(:restaurant) { create(:restaurant, city: city, status: "draft") }
+
+  def mcp_call(tool_name, args, user_context)
+    post "/mcp", params: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: tool_name, arguments: args }
+    }.to_json, headers: { "Content-Type": "application/json", "Authorization": "Bearer #{jwt_for(user_context)}" }
+  end
+
+  def jwt_for(user)
+    Warden::JWTAuth::UserEncoder.new.call(user, :user, nil).first
+  end
+
+  def result_content
+    JSON.parse(response.body).dig("result", "content", 0, "text")
+      &.then { |text| JSON.parse(text) }
+  end
+
+  describe "find_restaurants" do
+    before do
+      create(:restaurant, name: "Alpha Cafe", city: city, status: "published")
+      create(:restaurant, name: "Beta Bistro", city: city, status: "draft")
+      create(:restaurant, name: "Closed Place", city: city, status: "closed")
+      create(:restaurant, name: "Archived Spot", city: city, status: "published", archived_at: 1.day.ago)
+    end
+
+    context "as admin" do
+      it "returns all kept restaurants by default" do
+        mcp_call("find_restaurants", {}, admin)
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["restaurants"].size).to eq(3) # excludes archived
+      end
+
+      it "filters by name" do
+        mcp_call("find_restaurants", { q: "Alpha" }, admin)
+        content = result_content
+        expect(content["restaurants"].size).to eq(1)
+        expect(content["restaurants"][0]["name"]).to eq("Alpha Cafe")
+      end
+
+      it "filters by status" do
+        mcp_call("find_restaurants", { status: "draft" }, admin)
+        content = result_content
+        expect(content["restaurants"].size).to eq(1)
+        expect(content["restaurants"][0]["name"]).to eq("Beta Bistro")
+      end
+
+      it "shows archived when requested" do
+        mcp_call("find_restaurants", { archived: true }, admin)
+        content = result_content
+        expect(content["restaurants"].size).to eq(1)
+        expect(content["restaurants"][0]["name"]).to eq("Archived Spot")
+      end
+    end
+
+    context "as non-admin" do
+      it "refuses the call" do
+        mcp_call("find_restaurants", {}, user)
+        expect(response).to have_http_status(:ok)
+
+        response_body = JSON.parse(response.body)
+        # Should get JSON-RPC error (tool not found) since registry filters by audience
+        expect(response_body.key?("error")).to be(true),
+          "Expected JSON-RPC error, got: #{response_body}"
+      end
+    end
+  end
+
+  describe "update_restaurant" do
+    context "as admin" do
+      it "updates basic fields" do
+        mcp_call("update_restaurant", {
+          restaurant: restaurant.slug,
+          name: "New Name",
+          about: "New about text",
+          website: "https://example.com",
+          phone: "555-1234"
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        restaurant.reload
+        expect(restaurant.name).to eq("New Name")
+        expect(restaurant.about).to eq("New about text")
+        expect(restaurant.website).to eq("https://example.com")
+        expect(restaurant.phone).to eq("555-1234")
+      end
+
+      it "updates address" do
+        mcp_call("update_restaurant", {
+          restaurant: restaurant.id,
+          street: "123 Main St",
+          city: "Test City",
+          postal_code: "12345",
+          latitude: 40.7,
+          longitude: -74.0
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        address = restaurant.addresses.order(:created_at).first
+        expect(address.street).to eq("123 Main St")
+        expect(address.city).to eq("Test City")
+        expect(address.postal_code).to eq("12345")
+        expect(address.latitude).to be_within(0.01).of(40.7)
+        expect(address.longitude).to be_within(0.01).of(-74.0)
+      end
+
+      it "rejects invalid coordinates" do
+        mcp_call("update_restaurant", {
+          restaurant: restaurant.id,
+          latitude: "not a number"
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("invalid_coordinate")
+      end
+    end
+
+    context "as non-admin" do
+      it "refuses the call" do
+        mcp_call("update_restaurant", { restaurant: restaurant.id, name: "New" }, user)
+
+        response_body = JSON.parse(response.body)
+        expect(response_body.key?("error")).to be(true),
+          "Expected JSON-RPC error, got: #{response_body}"
+      end
+    end
+  end
+
+  describe "set_restaurant_hours" do
+    context "as admin" do
+      it "replaces hours" do
+        hours = [
+          { day_of_week: 1, opens_at: "11:00", closes_at: "14:00" },
+          { day_of_week: 1, opens_at: "17:00", closes_at: "21:00" },
+          { day_of_week: 2, opens_at: "11:00", closes_at: "21:00" }
+        ]
+
+        mcp_call("set_restaurant_hours", {
+          restaurant: restaurant.slug,
+          hours: hours
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        restaurant.reload
+        expect(restaurant.hours.count).to eq(3)
+        monday_hours = restaurant.hours.where(day_of_week: 1).order(:opens_at)
+        expect(monday_hours.size).to eq(2)
+        expect(monday_hours.first.opens_at.strftime("%H:%M")).to eq("11:00")
+        expect(monday_hours.last.opens_at.strftime("%H:%M")).to eq("17:00")
+      end
+
+      it "rejects invalid times" do
+        mcp_call("set_restaurant_hours", {
+          restaurant: restaurant.id,
+          hours: [ { day_of_week: 1, opens_at: "25:99", closes_at: "14:00" } ]
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("invalid_time_of_day")
+      end
+    end
+  end
+
+  describe "start_scan with base64" do
+    context "as admin" do
+      it "accepts base64_pdf" do
+        pdf_content = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\nxref\n0 3\ntrailer<</Size 3/Root 1 0 R>>\nstartxref\n103\n%%EOF"
+        base64_pdf = Base64.strict_encode64(pdf_content)
+
+        mcp_call("start_scan", {
+          restaurant: restaurant.slug,
+          base64_pdf: base64_pdf
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["scan_id"]).to be_present
+        expect(content["ready"]).to be(false)
+      end
+
+      it "accepts base64_image" do
+        # Minimal JPEG header
+        jpeg_header = "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+        base64_image = Base64.strict_encode64(jpeg_header)
+
+        mcp_call("start_scan", {
+          restaurant: restaurant.slug,
+          base64_image: base64_image
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["scan_id"]).to be_present
+      end
+
+      it "rejects multiple sources" do
+        mcp_call("start_scan", {
+          restaurant: restaurant.slug,
+          source_url: "https://example.com/menu",
+          base64_pdf: Base64.strict_encode64("dummy")
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("multiple_sources")
+      end
+
+      it "rejects invalid base64" do
+        mcp_call("start_scan", {
+          restaurant: restaurant.slug,
+          base64_pdf: "not valid base64!!!"
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("base64_decode_failed")
+      end
+    end
+  end
+
+  describe "get_scan" do
+    let!(:run) { create(:ingestion_run, restaurant: restaurant, user: admin, status: "staged") }
+    let!(:item1) do
+      create(:ingestion_item, ingestion_run: run, name: "Burger", decision: "pending",
+                              ingredients_payload: [ { slug: "beef", confidence: "confirmed", source: "ai" } ])
+    end
+    let!(:item2) do
+      create(:ingestion_item, ingestion_run: run, name: "Salad", decision: "accepted",
+                              tags_payload: [ { slug: "vegetarian", confidence: "suggested", source: "ai" } ])
+    end
+    let!(:beef) { create(:ingredient, slug: "beef", name: "Beef") }
+    let!(:veg_tag) { create(:tag, slug: "vegetarian", name: "Vegetarian") }
+
+    context "as admin" do
+      it "returns scan status and items" do
+        mcp_call("get_scan", { scan_id: run.id }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["ready"]).to be(true)
+        expect(content["dish_count"]).to eq(2)
+        expect(content["pending_count"]).to eq(1)
+        expect(content["accepted_count"]).to eq(1)
+        expect(content["items"].size).to eq(2)
+
+        burger = content["items"].find { |i| i["name"].include?("Burger") }
+        expect(burger["ingredients"][0]["slug"]).to eq("beef")
+        expect(burger["ingredients"][0]["name"]).to eq("Beef")
+        expect(burger["ingredients"][0]["confidence"]).to eq("confirmed")
+      end
+
+      it "includes edited_count and remaining_count" do
+        create(:ingestion_item, ingestion_run: run, name: "Edited Item", decision: "edited")
+        create(:ingestion_item, ingestion_run: run, name: "Rejected Item", decision: "rejected")
+
+        mcp_call("get_scan", { scan_id: run.id }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["pending_count"]).to eq(1)
+        expect(content["edited_count"]).to eq(1)
+        expect(content["rejected_count"]).to eq(1)
+        expect(content["remaining_count"]).to eq(2) # pending + edited
+      end
+
+      it "includes prices in items" do
+        item_with_price = create(:ingestion_item, ingestion_run: run, name: "Priced Item",
+                                 prices_payload: [ { "size" => "large", "price_cents" => 1299, "currency" => "USD" } ])
+
+        mcp_call("get_scan", { scan_id: run.id }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        priced_item = content["items"].find { |i| i["name"].include?("Priced Item") }
+        expect(priced_item["prices"].size).to eq(1)
+        expect(priced_item["prices"][0]["size"]).to eq("large")
+        expect(priced_item["prices"][0]["price_cents"]).to eq(1299)
+        expect(priced_item["prices"][0]["currency"]).to eq("USD")
+      end
+    end
+
+    context "as non-admin non-owner" do
+      let(:other_user) { create(:user) }
+
+      it "refuses access to another user's scan" do
+        mcp_call("get_scan", { scan_id: run.id }, other_user)
+
+        response_body = JSON.parse(response.body)
+        # Non-admin should get JSON-RPC error (tool not found)
+        expect(response_body.key?("error")).to be(true),
+          "Expected JSON-RPC error, got: #{response_body}"
+      end
+    end
+  end
+
+  describe "accept_items and reject_items" do
+    let!(:run) { create(:ingestion_run, restaurant: restaurant, user: admin, status: "staged") }
+    let!(:item1) { create(:ingestion_item, ingestion_run: run, name: "Item 1", decision: "pending") }
+    let!(:item2) { create(:ingestion_item, ingestion_run: run, name: "Item 2", decision: "pending") }
+
+    context "as admin" do
+      it "accepts items" do
+        mcp_call("accept_items", { scan_id: run.id, item_ids: [ item1.id ] }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["accepted"].size).to eq(1)
+      end
+
+      it "rejects items" do
+        mcp_call("reject_items", { scan_id: run.id, item_ids: [ item2.id ] }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["rejected"].size).to eq(1)
+        item2.reload
+        expect(item2.decision).to eq("rejected")
+      end
+
+      it "respects publish threshold" do
+        # Create enough items to test the 80% threshold
+        8.times { |i| create(:ingestion_item, ingestion_run: run, name: "Item #{i + 3}", decision: "pending") }
+        run.reload
+
+        # Accept 80% (8 of 10 items)
+        ids = run.ingestion_items.where(decision: "pending").limit(8).pluck(:id)
+        mcp_call("accept_items", { scan_id: run.id, item_ids: ids }, admin)
+
+        content = result_content
+        expect(content["restaurant_published"]).to be(true)
+        restaurant.reload
+        expect(restaurant.status).to eq("published")
+      end
+    end
+  end
+
+  describe "list_restaurant_items" do
+    let!(:item) { create(:item, restaurant: restaurant, name: "Test Item", status: "published") }
+    let!(:removed_item) { create(:item, restaurant: restaurant, name: "Removed", status: "removed") }
+
+    context "as admin" do
+      it "lists all items including removed" do
+        mcp_call("list_restaurant_items", { restaurant: restaurant.slug }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["count"]).to eq(2)
+        expect(content["items"].map { |i| i["name"] }).to contain_exactly("Test Item", "Removed")
+      end
+
+      it "filters by status" do
+        mcp_call("list_restaurant_items", { restaurant: restaurant.slug, status: "published" }, admin)
+
+        content = result_content
+        expect(content["count"]).to eq(1)
+        expect(content["items"][0]["name"]).to eq("Test Item")
+      end
+    end
+  end
+
+  describe "update_published_item" do
+    let!(:item) { create(:item, restaurant: restaurant, name: "Old Name", status: "published") }
+    let!(:ing) { create(:ingredient, slug: "tomato", name: "Tomato") }
+
+    context "as admin" do
+      it "updates item fields" do
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          name: "New Name",
+          description: "New description",
+          ingredient_slugs: [ "tomato" ]
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        item.reload
+        expect(item.name).to eq("New Name")
+        expect(item.description).to eq("New description")
+        expect(item.ingredients.pluck(:slug)).to eq([ "tomato" ])
+      end
+
+      it "sets status to removed" do
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          status: "removed"
+        }, admin)
+
+        item.reload
+        expect(item.status).to eq("removed")
+      end
+
+      it "refuses a dish another user restaurant-verified" do
+        item.mark_restaurant_verified!(create(:user, :admin))
+
+        mcp_call("update_published_item", { item_id: item.id, name: "New Name" }, admin)
+
+        expect(JSON.parse(response.body).dig("result", "isError")).to be(true)
+        expect(item.reload.name).to eq("Old Name")
+      end
+
+      it "rejects unknown ingredient slugs" do
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          ingredient_slugs: [ "nonexistent" ]
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("Unknown")
+      end
+
+      it "marks added rows suggested/derived when added_confidence is suggested" do
+        gluten = create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                              family: "allergen", path: "allergen.contains_gluten")
+        item.update!(confidence: "confirmed")
+
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          tag_slugs: [ "contains-gluten" ],
+          added_confidence: "suggested"
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_tags.find_by!(tag: gluten))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        expect(item.reload.confidence).to eq("suggested")
+      end
+
+      it "validates price_cents as non-negative integer" do
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          variants: [ { size: "Large", price_cents: "not a number" } ]
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("Invalid price_cents")
+      end
+    end
+  end
+
+  describe "normalize_item_names" do
+    let!(:restaurant) { create(:restaurant, city: city, status: "published") }
+    let!(:dish)       { create(:item, restaurant: restaurant, status: "published") }
+
+    # Raw SQL: `update_columns` and `update_all` both normalize.
+    before { Item.connection.execute("UPDATE items SET name = 'CARNITAS TACOS*' WHERE id = #{Item.connection.quote(dish.id)}") }
+
+    context "as admin" do
+      it "previews without confirmation and writes nothing" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        content = result_content
+        expect(content["dry_run"]).to be(true)
+        expect(content["changed"][0]).to include("item_id" => dish.id)
+        expect(content["changed"][0]["after"]).to include("name" => "<untrusted-content>Carnitas Tacos</untrusted-content>")
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+      end
+
+      it "asks for confirmation before a real run, then rewrites the names" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug }, admin)
+        first = JSON.parse(response.body)["result"]
+        expect(first.dig("structuredContent", "error")).to eq("confirmation_required")
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+
+        token = first.dig("structuredContent", "confirmation_token")
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, confirmation: token }, admin)
+
+        expect(result_content).to include("dry_run" => false, "written" => 1)
+        expect(dish.reload.name).to eq("Carnitas Tacos")
+      end
+    end
+
+    context "when the restaurant has verified the dish" do
+      let(:owner) { create(:user) }
+
+      before { dish.update_columns(restaurant_verified_at: Time.current, restaurant_verified_by_user_id: owner.id) }
+
+      it "leaves it to the verifier and reports it as locked" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        expect(result_content).to include("written" => 0, "locked" => 1)
+      end
+    end
+
+    context "as non-admin" do
+      it "is not a tool they can see" do
+        mcp_call("normalize_item_names", { restaurant: restaurant.slug, dry_run: true }, user)
+
+        expect(JSON.parse(response.body).dig("error", "message")).to match(/tool not found|invalid params/i)
+        expect(dish.reload.name).to eq("CARNITAS TACOS*")
+      end
+    end
+  end
+
+  describe "retag_cuisine" do
+    let!(:restaurant) { create(:restaurant, city: city, status: "published") }
+    let!(:mexican)    { create(:tag, slug: "cuisine-mexican") }
+    let!(:italian)    { create(:tag, slug: "cuisine-italian") }
+    let!(:tacos)      { create(:item, restaurant: restaurant, name: "Carnitas Tacos", status: "published") }
+
+    before do
+      ItemTag.create!(item: tacos, tag: italian, source: "ai", confidence: "suggested")
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.logger).to receive(:info)
+      stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return(
+        status: 200,
+        body: { model: "jev-1.13.0",
+                answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
+                           "i0__cuisine-italian" => { "type" => "noul", "noul" => 0.03 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+    end
+
+    context "as admin" do
+      it "previews without confirmation and writes nothing" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["dry_run"]).to be(true)
+        expect(content["changed"][0]).to include("item_id" => tacos.id)
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+
+      it "asks for confirmation before a real run, then rewrites the cuisine tags and reports the change" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug }, admin)
+        first = JSON.parse(response.body)["result"]
+        expect(first["isError"]).to be(true)
+        expect(first.dig("structuredContent", "error")).to eq("confirmation_required")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+
+        token = first.dig("structuredContent", "confirmation_token")
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, confirmation: token }, admin)
+
+        content = result_content
+        expect(content["dry_run"]).to be(false)
+        expect(content["written"]).to eq(1)
+        expect(content["regraded"]).to eq([])
+        expect(content["changed"].size).to eq(1)
+        expect(content["changed"][0]).to include(
+          "item_id" => tacos.id,
+          "before"  => [ { "slug" => "cuisine-italian", "confidence" => "suggested" } ],
+          "after"   => [ { "slug" => "cuisine-mexican", "confidence" => "suggested" } ]
+        )
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-mexican" ])
+      end
+
+      it "reports a Jev outage as a tool error that says nothing changed" do
+        stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return(status: 401, body: "{}")
+        allow(Rails.logger).to receive(:warn)
+        allow(Rails.error).to receive(:report)
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("nothing was changed")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+
+      it "refuses with a clear error when Jev is not configured, writing nothing" do
+        allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return(nil)
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("JEV_API_KEY")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+    end
+
+    context "as non-admin" do
+      it "is not a tool they can see" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug }, user)
+
+        body = JSON.parse(response.body)
+        # The registry never listed it for them, so the call fails as an
+        # unknown tool, which the server reports as invalid params.
+        expect(body.dig("error", "message")).to match(/tool not found|invalid params/i)
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+    end
+  end
+
+  describe "set_restaurant_status" do
+    context "as admin" do
+      it "sets status to published" do
+        mcp_call("set_restaurant_status", {
+          restaurant: restaurant.slug,
+          status: "published"
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        restaurant.reload
+        expect(restaurant.status).to eq("published")
+      end
+
+      it "sets status to closed" do
+        restaurant.update!(status: "published")
+        mcp_call("set_restaurant_status", {
+          restaurant: restaurant.slug,
+          status: "closed"
+        }, admin)
+
+        restaurant.reload
+        expect(restaurant.status).to eq("closed")
+      end
+
+      it "rejects invalid status" do
+        mcp_call("set_restaurant_status", {
+          restaurant: restaurant.id,
+          status: "invalid"
+        }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("Invalid status")
+      end
+    end
+  end
+
+  describe "create_restaurant" do
+    let!(:existing) { create(:restaurant, name: "Cafe Mondo", city: city, status: "published") }
+
+    context "as admin" do
+      it "creates a new restaurant" do
+        # Use the existing Restaurants::CreateRestaurant tool
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
+          name: "New Place",
+          city_slug: city.slug,
+          street: "123 Main St",
+          postal_code: "12345"
+        )
+
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
+        expect(content.dig(:restaurant, :name)).to eq("New Place")
+        expect(content.dig(:restaurant, :status)).to eq("draft")
+      end
+
+      it "returns possible_duplicate without force" do
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
+          name: "Café Mondo",
+          city_slug: city.slug
+        )
+
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(false)
+        expect(content[:reason]).to eq("possible_duplicate")
+        expect(content[:possible_duplicates]).to be_present
+        expect(content[:possible_duplicates].first[:name]).to eq("Cafe Mondo")
+      end
+
+      it "creates with force: true after reviewing duplicates" do
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
+          name: "Café Mondo",
+          city_slug: city.slug,
+          force: true
+        )
+
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
+        expect(Restaurant.where(city: city).count).to eq(2)
+      end
+
+      it "rejects unknown city" do
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: admin.id },
+          name: "New Place",
+          city_slug: "nonexistent"
+        )
+
+        # Tool returns error response with error: true attribute
+        expect(result.error?).to be(true)
+        content = result.to_h[:structuredContent]
+        expect(content[:error]).to be_present
+      end
+    end
+
+    context "as non-admin" do
+      it "allows the call (audience is :user, not :admin)" do
+        result = Tools::Restaurants::CreateRestaurant.call(
+          server_context: { user_id: user.id },
+          name: "New Place",
+          city_slug: city.slug
+        )
+
+        content = result.to_h[:structuredContent]
+        expect(content[:created]).to be(true)
+      end
+    end
+  end
+
+  describe "start_scan with source_text" do
+    context "as admin" do
+      it "accepts source_text input" do
+        menu_text = "Burger - $10\nSalad - $8\nFries - $5"
+        mcp_call("start_scan", {
+          restaurant: restaurant.slug,
+          source_text: menu_text
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["scan_id"]).to be_present
+        expect(content["ready"]).to be(false)
+      end
+    end
+  end
+end

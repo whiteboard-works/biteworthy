@@ -30,8 +30,8 @@ They converge at launch. The move: **you take Track A; the loop takes Track B.**
 1. **First `kamal deploy`** — unblocks email, storage, web, seed, screenshots,
    press. Nothing public exists until this runs.
 2. **L1 attorney sign-off** (Privacy + ToS) — long lead time (external party);
-   blocks DRAFT-banner removal *and* mobile store submission. Start day one even
-   though it finishes late.
+   blocks mobile store submission (the DRAFT banners already came off at the
+   owner's call, 2026-10-05/06). Start day one even though it finishes late.
 3. **Anthropic billing** — cheap, but unblocks both the AI cassette and the
    30-restaurant seed.
 
@@ -93,10 +93,12 @@ can launch without, or fast-follow.
       `app exec` runs on the worker too and the two runs race — this exact
       command did it once already), swipe-verify to the
       80%-published threshold. ~$15. **HARD — coverage *is* the day-one product.**
-- [ ] **Set PostHog keys** — `NEXT_PUBLIC_POSTHOG_KEY` (Vercel) +
-      `EXPO_PUBLIC_POSTHOG_KEY` (EAS); verify `app_open` fires. SOFT.
-- [ ] **Remove DRAFT banners** from `apps/web/src/app/privacy/page.tsx` +
-      `terms/page.tsx` (+ source DRAFT comments) — **only after L1 sign-off.**
+- [ ] ~~**Set PostHog keys**~~ — pinned in code for project 652080 (ADR
+      0009, 2026-10-10); what is left is to verify `app_open` fires after
+      the next deploy (`docs/launch-readiness.md` §7). SOFT.
+- [x] **Remove the DRAFT banners** — done at the owner's call ahead of
+      L1 sign-off (`/privacy` 2026-10-05 #785, `/terms` 2026-10-06). L1
+      itself is still open.
 - [x] *(loop-shippable)* Phase 5.1.1-wiring — **DONE.** `deploy-api.yml` runs
       `kamal deploy` on merges touching `apps/api/**`, including auto-merged PRs
       (that needs `AUTOMERGE_TOKEN`, not `GITHUB_TOKEN`, or the merge commit
@@ -130,7 +132,7 @@ Hetzner + Neon + GHCR + DNS ─┐
                              ├─► first `kamal deploy` ─► Resend / R2 / Vercel+domain
 Anthropic billing ─► cassette┘                        └─► seed 30 ─► screenshots ─► eas submit
 Anthropic billing ─► seed 30                                          │
-L1 attorney ─► remove DRAFT banners ─► (store requires signed docs) ──┘ ─► press
+L1 attorney ─► (signed docs) ─────────────────────────────────────────┘ ─► press
 Apple + Google accounts + icon.svg ─────────────────────────────────► eas submit
 ```
 
@@ -248,10 +250,10 @@ without an app install — the HappyCow-style loop the strategy is betting on.
 - [ ] **Engage attorney for L1 Privacy/ToS sign-off** (keystone #2 — start now, long lead)
 - [ ] **Enable Anthropic billing** (keystone #3)
 - [ ] **Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)**
-- [ ] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ (all done) · **PostHog** key wiring
+- [x] ~~Resend~~ · ~~R2~~ · ~~Vercel + domain~~ · ~~PostHog key wiring~~ (all done; ADR 0009)
 - [ ] **Design `icon-source.svg`**
 - [ ] **Seed 30 Durango restaurants**
-- [ ] **Remove DRAFT banners** (post-L1)
+- [x] **Remove the DRAFT banners** (done 2026-10-06, ahead of L1)
 - [ ] **For QR Phase 2:** capture the **Apple Team ID + Android signing SHA-256**
       when setting up the store accounts
 

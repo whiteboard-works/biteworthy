@@ -4,6 +4,8 @@ The stable funnel + engagement events (9 core, plus 3 auth events). Names + payl
 
 The canonical type definitions live in `packages/analytics/src/index.ts` (`EVENTS` map + `EventPropsMap`). When this doc and that file disagree, the type definitions win — they're the compile-time contract.
 
+Everything goes to BiteWorthy's own PostHog project, **id 652080** (ADR 0009; `apps/web/src/lib/posthog-config.ts` has the token and host). The same project also receives the servers' exceptions and logs — see *Server side* at the end.
+
 ## Funnel
 
 The conversion path the launch dashboards measure:
@@ -135,7 +137,7 @@ Fired on any failure — both client-side gates and API errors — so drop-off i
 - **Web**: respects `navigator.doNotTrack === '1'`. Local opt-out via `localStorage.bw_analytics_opt_out = '1'` (set by /profile/settings).
 - **Mobile**: opt-IN by default-off. App Store privacy screens get the truth — the app doesn't track until the user explicitly accepts in /settings/analytics.
 - **No PII in props**: never put email, full name, address, or device IDs in the payload. Slugs + counts only. PostHog's standard anonymous-id model handles cross-session continuity.
-- **Named events + page views only (web, 2026-09-26)**: `initPostHog` turns off autocapture, rageclicks, dead clicks, heatmaps, surveys and session replay. Autocapture had been sending clicked element text — onboarding presets like "Strict gluten-free for celiac disease" and chat messages — which contradicts `/privacy`. Replay is on at the project level (the project is shared with other Whiteboard Works sites), so the web client must refuse it explicitly rather than rely on project settings.
+- **Named events + page views only (web, 2026-09-26)**: `initPostHog` turns off autocapture, rageclicks, dead clicks, heatmaps, surveys and session replay. Autocapture had been sending clicked element text — onboarding presets like "Strict gluten-free for celiac disease" and chat messages — which contradicts `/privacy`. The web client refuses replay explicitly rather than relying on project settings, so a toggle in the dashboard cannot switch it on.
 - **Consent gates the SDK, not just the Tracker**: `_PostHogProvider` initializes posthog-js only when `analyticsAllowed()` (no Do-Not-Track, no opt-out), because the SDK captures page views itself. The settings toggle calls `opt_out_capturing()`/`opt_in_capturing()` live, and init clears a stale persisted posthog-js opt-out, since our flag is the source of truth.
 - **Page views are scrubbed** (`scrubEvent` as `before_send`): `$pageview` fires on history changes so client-side navigation is visible, but every property whose name ends in `url`/`pathname`/`referrer` (including the SDK's `$session_entry_*` and `$initial_*` copies — matched by name so new ones are scrubbed by default) loses its query string and hash, `/durango/<diet>` becomes `/durango/:diet`, `/u/<handle>` becomes `/u/:handle`, and an outside referrer keeps only its origin. Page titles (a diet page's title names the diet), search keywords (`ph_keyword`), campaign params (`utm_*`) and ad-click ids are dropped outright, prefixed copies included, and `save_campaign_params` is off.
 
@@ -180,3 +182,14 @@ funnel what it needs — did the turn work, how long, how much did it do.
 | `scan_published` | `restaurant_slug`, `accepted_count`, `discarded_count`, `restaurant_published` | The person submitted their review. |
 
 Counts and outcomes only — never dish names, menu text or ingredients.
+
+## Server side (ADR 0009)
+
+Not events, but the same project, so one search covers a request from the browser's proxy call to the Rails handler. None of it names a person: the SDKs fill in a random distinct id with no person profile, the request body and the caller's IP are stripped, and logs are scrubbed of addresses, emails, and credentials before they leave (`apps/api/app/services/telemetry/scrub.rb`).
+
+| Source | `$exception` events | Logs (`service.name`) |
+| --- | --- | --- |
+| Rails API | Every `Rails.error.report`, every unhandled request exception, every job that exhausted its retries. `$exception_source` is `rails` or `rails_error_reporter`; `$context_*` carries the report's context (`component`, a conversation id). Rescued-and-rendered errors (404, 422) are not reported. | `Biteworthy` — `Rails.logger`, info and up. `service.role` is `web` or `worker`; lines inside a request carry `url.path` and `http.request.method`. |
+| Next server | Errors escaping a route handler, server render, or server action (`src/instrumentation.ts`). `$exception_source: nextjs-server`, the route file, the method, and the masked path — no headers, cookies, body, or query. | `biteworthy-web` — `lib/server-log.ts`, used for a 5xx from Rails and the clamped forgot-password failure. |
+
+Browser and mobile exceptions are **not** captured; see ADR 0009 for why.

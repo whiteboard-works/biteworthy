@@ -18,6 +18,7 @@ module Api
           account:           account_section(user),
           profile:           profile_section(user.profile),
           reviews:           user.reviews.order(:created_at).map { |r| review_section(r) },
+          photo_submissions: user.dish_photo_submissions.order(:created_at).map { |s| photo_submission_section(s) },
           suggestions:       user.suggestions.order(:created_at).map { |s| suggestion_section(s) },
           restaurant_visits: user.restaurant_visits.newest_first.map { |v| visit_section(v) }
         }
@@ -31,6 +32,7 @@ module Api
           email:        user.email,
           handle:       user.handle,
           display_name: user.display_name,
+          bio:          user.bio,
           provider:     user.provider,
           created_at:   user.created_at.iso8601
         }
@@ -47,6 +49,7 @@ module Api
           disliked_ingredient_ids: profile.disliked_ingredient_ids,
           disliked_tag_ids:        profile.disliked_tag_ids,
           strictness:              profile.strictness,
+          chat_notes:              profile.chat_notes,
           primary_dietary_profile_slug: profile.primary_dietary_profile&.slug,
           home_city_slug:          profile.home_city&.slug
         }
@@ -60,6 +63,19 @@ module Api
           body:       review.body,
           hidden:     review.hidden?,
           created_at: review.created_at.iso8601
+        }
+      end
+
+      def photo_submission_section(submission)
+        {
+          id:               submission.id,
+          item_id:          submission.item_id,
+          status:           submission.status,
+          rejection_reason: submission.rejection_reason,
+          review_id:        submission.review_id,
+          owns_rights:      submission.owns_rights,
+          credit_name:      submission.credit_name,
+          created_at:       submission.created_at.iso8601
         }
       end
 

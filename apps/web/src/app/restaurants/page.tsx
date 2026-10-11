@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { fetchRestaurants, type RestaurantSummary } from '../../lib/restaurants';
 import { RestaurantSearch } from './_RestaurantSearch';
+import { OnboardingSuccess } from './_OnboardingSuccess';
 
 // ISR: the browse list refreshes every 5 minutes as menus are published.
 export const revalidate = 300;
@@ -38,6 +40,12 @@ export default async function RestaurantsPage(): Promise<ReactElement> {
           Or browse Durango by diet — celiac, vegan, allergies, and more →
         </Link>
       </p>
+
+      <div className="mt-bw-6">
+        <Suspense>
+          <OnboardingSuccess />
+        </Suspense>
+      </div>
 
       <RestaurantSearch restaurants={restaurants} />
 

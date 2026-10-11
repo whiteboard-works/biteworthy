@@ -1,4 +1,6 @@
 class Restaurant < ApplicationRecord
+  include HasPhotoValidation
+
   STATUSES = %w[draft published closed].freeze
 
   belongs_to :city
@@ -7,6 +9,9 @@ class Restaurant < ApplicationRecord
   # admin/seed-created rows leave this nil.
   belongs_to :created_by_user, class_name: "User", optional: true
 
+  # Nullify, not delete: the spend and the missed-wheat count were real
+  # and the dashboard's history must not shrink when a run is cleaned up.
+  has_many :jev_observations, as: :subject, dependent: :nullify
   has_many :addresses,     dependent: :destroy
   has_many :hours,         dependent: :destroy
   has_many :menus,         dependent: :destroy
@@ -30,6 +35,17 @@ class Restaurant < ApplicationRecord
   # spec/models/hard_delete_cascade_spec.rb is where that gets caught.
   has_many :ingestion_runs,       dependent: :nullify
 
+  # Owner-supplied branding (Restaurants::Branding is the only writer).
+  # Only the WebP variants are ever served: the logo rides on every
+  # restaurant card, the banner sits across the restaurant page header.
+  has_one_attached :logo do |attachable|
+    attachable.variant :thumb, resize_to_limit: [ 400, 400 ], format: :webp
+  end
+  has_one_attached :banner do |attachable|
+    attachable.variant :card, resize_to_limit: [ 1600, 600 ], format: :webp
+  end
+  validates_image_attachments :logo, :banner
+
   validates :slug, :name, presence: true
   validates :slug, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
@@ -45,6 +61,14 @@ class Restaurant < ApplicationRecord
   scope :kept,      -> { where(archived_at: nil) }
   scope :archived,  -> { where.not(archived_at: nil) }
   scope :published, -> { kept.where(status: "published") }
+
+  # A community member's say over the restaurant they added, while it is
+  # still a draft. The scan door (`Ingestion::StartRun.can_target?`) and
+  # the branding gate (`Restaurants::Branding.authorize!`) both ask this,
+  # so the rule has one spelling; publishing ends it.
+  def draft_created_by?(user)
+    status == "draft" && created_by_user_id.present? && created_by_user_id == user&.id
+  end
   # Phase 6.4 — the moderation lens. Two ways a restaurant enters it:
   # a community member created it (created_by_user_id present), OR a
   # community member re-scanned an existing/seeded restaurant, which
@@ -87,12 +111,14 @@ class Restaurant < ApplicationRecord
                              .update_all(confidence: "confirmed")
 
       # Only items whose EVERY association is now confirmed graduate —
-      # an item still carrying an ai-suggested join must stay
-      # `suggested`, or strict mode would show it while an untrusted
-      # association remains (6.4.1 — codex).
-      items_n = items.where(confidence: "suggested")
-                     .where.not(id: ItemIngredient.where(confidence: "suggested").select(:item_id))
-                     .where.not(id: ItemTag.where(confidence: "suggested").select(:item_id))
+      # an item still carrying a non-confirmed join (suggested or inferred)
+      # must stay at its weakest link, or strict mode would show it while
+      # an unverified association remains (6.4.1 — codex).
+      # Zero-ingredient dishes stay suggested regardless of tags.
+      items_n = items.where(confidence: %w[suggested inferred])
+                     .where("EXISTS (SELECT 1 FROM item_ingredients WHERE item_ingredients.item_id = items.id)")
+                     .where.not(id: ItemIngredient.where(confidence: %w[suggested inferred]).select(:item_id))
+                     .where.not(id: ItemTag.where(confidence: %w[suggested inferred]).select(:item_id))
                      .update_all(confidence: "confirmed")
 
       { items: items_n, ingredients: ingredients_n, tags: tags_n }

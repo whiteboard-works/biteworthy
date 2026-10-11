@@ -12,8 +12,9 @@ module Tools
       title "Get restaurant details"
       description <<~TEXT
         Fetch one published restaurant by id or slug: name, city, contact
-        details, and whether an owner has claimed it. Use `get_menu` for the
-        dishes.
+        details, and whether an owner has claimed it. `managed_by_caller` is
+        true when the caller is its verified owner or an admin. Use
+        `get_menu` for the dishes.
       TEXT
 
       input_schema(
@@ -43,9 +44,16 @@ module Tools
           website:  record.website,
           claimed:  !record.claimed_at.nil?,
           city:     { slug: record.city.slug, name: record.city.name, region: record.city.region },
-          street:   address&.street,
+          address:  address && {
+            street:      address.street,
+            city:        address.city,
+            region:      address.region,
+            postal_code: address.postal_code,
+            country:     address.country
+          },
           saved_by_caller: context.signed_in? &&
-            FavoriteRestaurant.exists?(user_id: context.user.id, restaurant_id: record.id)
+            FavoriteRestaurant.exists?(user_id: context.user.id, restaurant_id: record.id),
+          managed_by_caller: context.signed_in? && ::Restaurants::Branding.allowed?(context.user, record)
         )
       end
     end

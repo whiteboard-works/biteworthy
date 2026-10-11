@@ -50,6 +50,81 @@ RSpec.configure do |config|
               country: { type: :string }
             }
           },
+          # Which part of a new logo/banner to keep (Images::Fit). As
+          # multipart fields: `logo_crop[anchor]`, `logo_crop[x]`, ….
+          BrandingCrop: {
+            type: :object,
+            properties: {
+              anchor: { type: :string, enum: %w[center top bottom left right],
+                        description: "Edge kept when trimming to the slot's shape. Default center." },
+              x: { type: :number, description: "Box left, fraction of width (0–1)." },
+              y: { type: :number, description: "Box top, fraction of height (0–1)." },
+              w: { type: :number, description: "Box width, fraction of width (0–1)." },
+              h: { type: :number, description: "Box height, fraction of height (0–1)." }
+            }
+          },
+          # The public restaurant row: GET /restaurants/{id} and the
+          # branding door answer with it.
+          RestaurantDetail: {
+            type: :object,
+            required: %w[id slug name about phone website status web_path
+                         claimed_at claimed_by_user_id city time_zone hours logo_url banner_url
+                         favorited],
+            properties: {
+              id:                 { type: :string, format: :uuid },
+              slug:               { type: :string },
+              name:               { type: :string },
+              about:              { type: :string, nullable: true },
+              phone:              { type: :string, nullable: true },
+              website:            { type: :string, nullable: true },
+              status:             { type: :string, enum: %w[draft published closed] },
+              web_path:           { type: :string },
+              claimed_at:         { type: :string, format: "date-time", nullable: true },
+              claimed_by_user_id: { type: :string, format: :uuid, nullable: true },
+              city: {
+                type: :object,
+                required: %w[id slug name region],
+                properties: {
+                  id:     { type: :string, format: :uuid },
+                  slug:   { type: :string },
+                  name:   { type: :string },
+                  region: { type: :string, nullable: true }
+                }
+              },
+              address: {
+                type: :object,
+                nullable: true,
+                properties: {
+                  street:      { type: :string, nullable: true },
+                  city:        { type: :string, nullable: true },
+                  region:      { type: :string, nullable: true },
+                  postal_code: { type: :string, nullable: true },
+                  country:     { type: :string, nullable: true }
+                }
+              },
+              time_zone: { type: :string, nullable: true, description: "IANA timezone (e.g. America/Denver)" },
+              hours: {
+                type: :array,
+                description: "Opening hours sorted by day_of_week then opens_at. " \
+                             "Supports multiple shifts per day (lunch/dinner). " \
+                             "Null times mean closed that day.",
+                items: {
+                  type: :object,
+                  required: %w[day_of_week opens_at closes_at],
+                  properties: {
+                    day_of_week: { type: :integer, description: "0=Sunday, 6=Saturday" },
+                    opens_at:    { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" },
+                    closes_at:   { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" }
+                  }
+                }
+              },
+              logo_url:   { type: :string, nullable: true,
+                            description: "200px WebP of the owner-set logo; null when none." },
+              banner_url: { type: :string, nullable: true,
+                            description: "1600x600 WebP of the owner-set banner; null when none." },
+              favorited:  { type: :boolean, description: "Whether the caller saved it; false anonymously." }
+            }
+          },
           Pagination: {
             type: :object,
             required: %w[total limit offset],
@@ -186,6 +261,7 @@ RSpec.configure do |config|
               email:        { type: :string, format: :email },
               handle:       { type: :string },
               display_name: { type: :string, nullable: true },
+              bio:          { type: :string, nullable: true },
               is_admin:     { type: :boolean },
               is_super_admin: {
                 type: :boolean,
@@ -383,6 +459,15 @@ RSpec.configure do |config|
             properties: {
               queued: { type: :boolean },
               after:  { type: :integer, description: "Narration position to watch from." }
+            }
+          },
+          UploadTicket: {
+            type: :object,
+            required: %w[ticket expires_at max_bytes],
+            properties: {
+              ticket:     { type: :string, description: "Send as the X-Upload-Ticket header on POST /api/v1/attachments." },
+              expires_at: { type: :string, format: "date-time" },
+              max_bytes:  { type: :integer, description: "The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side." }
             }
           },
           Attachment: {
@@ -605,7 +690,7 @@ RSpec.configure do |config|
                          liked_ingredients liked_tags
                          disliked_ingredients disliked_tags
                          strictness primary_dietary_profile home_city
-                         disclaimer_acknowledged_at],
+                         chat_notes disclaimer_acknowledged_at],
             properties: {
               avoid_ingredient_ids: { type: :array, items: { type: :string, format: :uuid } },
               avoid_tag_ids:        { type: :array, items: { type: :string, format: :uuid } },
@@ -648,6 +733,9 @@ RSpec.configure do |config|
                   country: { type: :string }
                 }
               },
+              # Private free text the chat reads as context every
+              # conversation. Never an input to the filter.
+              chat_notes: { type: :string, nullable: true },
               # Legal remediation E1 — ISO-8601 timestamp of when the
               # user accepted the in-app allergen disclaimer, or null if
               # they never have. Server-stamped.

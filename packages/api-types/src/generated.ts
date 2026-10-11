@@ -39,12 +39,14 @@ export interface paths {
                                 email: string;
                                 handle: string;
                                 display_name: string | null;
+                                bio: string | null;
                                 provider: string | null;
                                 /** Format: date-time */
                                 created_at: string;
                             };
                             profile: Record<string, never> | null;
                             reviews: Record<string, never>[];
+                            photo_submissions: Record<string, never>[];
                             suggestions: Record<string, never>[];
                             restaurant_visits: Record<string, never>[];
                         };
@@ -214,6 +216,74 @@ export interface paths {
                                     cache_hit_rate: number;
                                 };
                             };
+                            jev: {
+                                today: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_7_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_30_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                            };
                             community: {
                                 runs_today: number;
                                 spend_today_cents: number;
@@ -224,6 +294,7 @@ export interface paths {
                                 pending_suggestions: number;
                                 community_published_restaurants: number;
                                 staged_runs: number;
+                                pending_photo_submissions: number;
                             };
                         };
                     };
@@ -315,6 +386,8 @@ export interface paths {
                             items_by_confidence?: {
                                 [key: string]: number;
                             };
+                            logo_url?: string | null;
+                            banner_url?: string | null;
                         };
                     };
                 };
@@ -679,6 +752,11 @@ export interface paths {
                         /** @description Complete list; unknown slugs 422 with the offenders. */
                         ingredient_slugs?: string[];
                         tag_slugs?: string[];
+                        /**
+                         * @description Confidence for rows ADDED in this request only. Default confirmed (source: human). suggested/inferred write source: derived so they stay unverified.
+                         * @enum {string}
+                         */
+                        added_confidence?: "confirmed" | "suggested" | "inferred";
                         /** @description Replaced wholesale; array order becomes position. A row may carry a size with no price ("Large — market price"); rows with neither are dropped. */
                         variants?: {
                             size?: string | null;
@@ -749,7 +827,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, or foreign_menu_section */
+                /** @description invalid_status, unknown_ingredient_slugs / unknown_tag_slugs, invalid_added_confidence, or foreign_menu_section */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1049,6 +1127,13 @@ export interface paths {
                                 input_kind?: string;
                                 failure_message?: string | null;
                                 api_cost_cents?: number | null;
+                                jev: {
+                                    calls: number;
+                                    failed: number;
+                                    partial: number;
+                                    input_tokens: number;
+                                    wheat_jev_only: number;
+                                };
                                 /** Format: date-time */
                                 archived_at?: string | null;
                                 /** Format: date-time */
@@ -1444,6 +1529,167 @@ export interface paths {
                                 ingredients: number;
                                 tags: number;
                             };
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/backfill_confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rewrite join-row source/confidence from accepted ingestion items
+         * @description Re-applies the locked confidence rules to published items that have an accepted ingestion item. Defaults to dry_run=true. May only lower confidence or add wheat/gluten rows.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description When omitted, defaults to true */
+                    dry_run?: boolean;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description per-item dry-run or applied rewrite report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            dry_run: boolean;
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            restaurant_name: string;
+                            items_processed: number;
+                            items: {
+                                /** Format: uuid */
+                                item_id: string;
+                                item_name: string;
+                                old_confidence: string;
+                                new_confidence: string;
+                                rows_changed: number;
+                                allergen_rows_added: string[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description not an admin, or unknown restaurant */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/restaurants/{id}/backfill_structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backfill sections, prices, and optional source-menu order
+         * @description Rebuilds missing menu sections and item variants from accepted ingestion payloads. Defaults to dry_run — send dry_run=false to write. reorder=true rewrites menu_sections.position and items.position from source-menu order (latest accepted ingestion item per dish) without moving a dish or creating/renaming sections. Unsourced sections stay after sourced ones in their current relative order.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description Preview only. Defaults to true; send false to persist. */
+                    dry_run?: boolean;
+                    /** @description Rewrite section and item positions from source-menu order. */
+                    reorder?: boolean;
+                    /** @description Replace existing item variants from the latest accepted prices. */
+                    overwrite_prices?: boolean;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description backfill preview or applied changes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            restaurant_id: string;
+                            dry_run: boolean;
+                            reorder: boolean;
+                            sections_created: Record<string, never>[];
+                            variants_added: Record<string, never>[];
+                            sections_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
+                            items_reordered: {
+                                /** Format: uuid */
+                                id?: string;
+                                name?: string;
+                                /** Format: uuid */
+                                section_id?: string;
+                                old_position?: number;
+                                new_position?: number;
+                            }[];
                         };
                     };
                 };
@@ -2873,6 +3119,123 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a menu photo or PDF for a scan
+         * @description Returns a signed id the chat and POST /api/v1/scans refer to, so the bytes never enter the agent's context. Authenticate with the session JWT, or with a ticket from POST /api/v1/attachments/ticket in the X-Upload-Ticket header (how the browser uploads, since its JWT lives in an HttpOnly cookie). Files up to the per-file scan limit are stored as sent; a PDF over it, up to 15 MB, is rewritten through Ghostscript first.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    Authorization?: string;
+                    /** @description A ticket from POST /api/v1/attachments/ticket, in place of Authorization. */
+                    "X-Upload-Ticket"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, HEIC, WebP, or PDF.
+                         */
+                        file: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description stored; refer to it by id */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Attachment"];
+                    };
+                };
+                /** @description neither a valid bearer token nor a valid ticket */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description missing, too large, or a type the extractor cannot read */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attachments/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mint a short-lived ticket for uploading from a browser
+         * @description The ticket names the caller and expires in minutes; it is good only for POST /api/v1/attachments, sent in the X-Upload-Ticket header.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description a ticket */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UploadTicket"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -3246,6 +3609,7 @@ export interface paths {
                                 slug: string;
                                 name: string;
                                 web_path: string;
+                                logo_url: string | null;
                                 visible_count: number;
                                 hidden_count: number;
                                 total_count: number;
@@ -3457,8 +3821,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Switch the conversation's mode
-         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.
+         * Switch the conversation's mode, or rename it
+         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running. `title` renames the conversation; a name set here is never replaced by the model's. Send either field or both.
          */
         patch: {
             parameters: {
@@ -3476,12 +3840,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        mode: "planning" | "manual" | "accept_edits" | "auto";
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
+                        /** @description Whitespace is collapsed. Blank, or longer than the sidebar can show, is refused. */
+                        title?: string;
                     };
                 };
             };
             responses: {
-                /** @description the conversation, with the new mode */
+                /** @description the conversation, with the new mode or title */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3490,7 +3856,7 @@ export interface paths {
                         "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description a mode that does not exist */
+                /** @description a mode that does not exist; a blank, over-long, or non-text title; or an empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -3746,6 +4112,203 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{item_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a review of this dish */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    item_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /** @description 1 to 5. */
+                        rating: number;
+                        body?: string | null;
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC. Required when offer_as_dish_photo is true. EXIF/GPS is stripped.
+                         */
+                        photo?: string;
+                        /** @description When true, also queue the review photo as a pending dish-photo submission. Requires photo and owns_rights. */
+                        offer_as_dish_photo?: boolean;
+                        /** @description Required when offer_as_dish_photo is true. Must be true, 'true', or '1'. */
+                        owns_rights?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the new review */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            user: {
+                                /** Format: uuid */
+                                id: string;
+                                handle: string;
+                                display_name?: string | null;
+                            };
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            updated_at?: string;
+                            photo_offer?: {
+                                /** @enum {string} */
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
+                                code?: string;
+                                message?: string;
+                                /** Format: uuid */
+                                id?: string;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update the caller's own review */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** @description 1 to 5. */
+                        rating?: number;
+                        body?: string | null;
+                        /**
+                         * Format: binary
+                         * @description Replacement photo. EXIF/GPS is stripped. Send an empty value to remove.
+                         */
+                        photo?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description the updated review, including a replacement photo */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            user: {
+                                /** Format: uuid */
+                                id: string;
+                                handle: string;
+                                display_name?: string | null;
+                            };
+                            rating: number;
+                            body?: string | null;
+                            photo_url?: string | null;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            updated_at?: string;
+                            photo_offer?: {
+                                /** @enum {string} */
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
+                                code?: string;
+                                message?: string;
+                                /** Format: uuid */
+                                id?: string;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description unreadable or disallowed replacement photo */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description too_large, too_many_pixels, unsupported_type, or unprocessable_image. */
+                            error: string;
+                            message?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/mcp_tokens": {
         parameters: {
             query?: never;
@@ -3928,7 +4491,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update the caller's own account (handle) */
+        /** Update the caller's own account (handle, bio) */
         patch: {
             parameters: {
                 query?: never;
@@ -3943,6 +4506,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         handle?: string;
+                        bio?: string | null;
                     };
                 };
             };
@@ -3974,6 +4538,457 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/items/{item_id}/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a diner photo of this dish */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    item_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC. EXIF/GPS is stripped before storage.
+                         */
+                        photo: string;
+                        /** @description Must be true, 'true', or '1' — the diner confirms they took the photo. */
+                        owns_rights: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description pending submission */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                        };
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own dish-photo submissions */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the caller's submissions newest-first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            photo_submissions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                item_id: string;
+                                /** @enum {string} */
+                                status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
+                                /** @enum {string|null} */
+                                rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                                owns_rights: boolean;
+                                /** Format: uuid */
+                                review_id?: string | null;
+                                photo_url?: string | null;
+                                credit_name: string;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                reviewed_at?: string | null;
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photo_submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw a pending submission */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description withdrawn */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin dish-photo moderation queue */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "approved" | "approve_keep" | "rejected" | "withdrawn" | "all";
+                    item_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header: {
+                    /** @description Bearer <jwt> for a user with is_admin */
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description submissions newest-first + pagination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            photo_submissions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                item_id: string;
+                                /** @enum {string} */
+                                status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
+                                /** @enum {string|null} */
+                                rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                                owns_rights: boolean;
+                                /** Format: uuid */
+                                review_id?: string | null;
+                                photo_url?: string | null;
+                                credit_name: string;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: date-time */
+                                reviewed_at?: string | null;
+                                user: {
+                                    /** Format: uuid */
+                                    id?: string | null;
+                                    handle?: string | null;
+                                    display_name?: string | null;
+                                };
+                                item: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    photo_url?: string | null;
+                                    restaurant: {
+                                        /** Format: uuid */
+                                        id?: string;
+                                        name?: string;
+                                        slug?: string;
+                                    };
+                                };
+                            }[];
+                            pagination: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+                /** @description authenticated but not an admin */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a diner photo, optionally setting it as the dish photo */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Copy onto Item#photo. Defaults to true when the dish has no photo. */
+                        replace_item_photo?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description the approved submission */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string | null;
+                                handle?: string | null;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                photo_url?: string | null;
+                                restaurant: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/photo_submissions/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** Format: uuid */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a diner photo with a reason */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** Format: uuid */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        reason: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate";
+                    };
+                };
+            };
+            responses: {
+                /** @description the rejected submission */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            item_id: string;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected" | "withdrawn" | "approve_keep";
+                            /** @enum {string|null} */
+                            rejection_reason?: "not_this_dish" | "low_quality" | "inappropriate" | "not_food" | "duplicate" | null;
+                            owns_rights: boolean;
+                            /** Format: uuid */
+                            review_id?: string | null;
+                            photo_url?: string | null;
+                            credit_name: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            reviewed_at?: string | null;
+                            user: {
+                                /** Format: uuid */
+                                id?: string | null;
+                                handle?: string | null;
+                                display_name?: string | null;
+                            };
+                            item: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                photo_url?: string | null;
+                                restaurant: {
+                                    /** Format: uuid */
+                                    id?: string;
+                                    name?: string;
+                                    slug?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/profile/favorites": {
@@ -4259,6 +5274,8 @@ export interface paths {
                         dietary_profile_slug?: string;
                         /** @description A city slug from GET /cities sets the home city; null or blank clears it. */
                         home_city_slug?: string | null;
+                        /** @description Private notes added to every chat's context. Never read by the filter. Trimmed; null or blank clears them. */
+                        chat_notes?: string | null;
                         /** @description When true, server-stamps disclaimer_acknowledged_at (first acknowledgment only). Sent by onboarding. */
                         acknowledge_disclaimer?: boolean;
                     };
@@ -4448,6 +5465,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/restaurants/{restaurant_id}/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restaurant id or slug */
+                restaurant_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the restaurant's logo and banner
+         * @description The verified owner (claimed_by_user_id), an admin, or, while the restaurant is still a draft, the person who added it. Each image is re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never enlarged); a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path: {
+                    /** @description Restaurant id or slug */
+                    restaurant_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC.
+                         */
+                        logo?: string;
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, WebP, or HEIC.
+                         */
+                        banner?: string;
+                        remove_logo?: boolean;
+                        remove_banner?: boolean;
+                        logo_crop?: components["schemas"]["BrandingCrop"];
+                        banner_crop?: components["schemas"]["BrandingCrop"];
+                    };
+                };
+            };
+            responses: {
+                /** @description the restaurant, with its new image URLs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RestaurantDetail"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description signed in, but not the owner, an admin, or the creator of this draft */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description not an image, too large, or a bad crop */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                            code?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/restaurants": {
         parameters: {
             query?: never;
@@ -4484,9 +5595,18 @@ export interface paths {
                                 name: string;
                                 status: string;
                                 web_path: string;
+                                /** @description 200px WebP of the owner-set logo; null when none. */
+                                logo_url: string | null;
                                 street: string | null;
                                 latitude: number | null;
                                 longitude: number | null;
+                                address?: {
+                                    street?: string | null;
+                                    city?: string | null;
+                                    region?: string | null;
+                                    postal_code?: string | null;
+                                    country?: string | null;
+                                } | null;
                                 city: {
                                     slug: string;
                                     name: string;
@@ -4675,6 +5795,8 @@ export interface paths {
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 ingredient_ids: string[];
                                 tag_ids: string[];
+                                /** @description Dish order within its menu section */
+                                position?: number;
                                 /** @enum {string} */
                                 status: "visible" | "hidden";
                                 reasons: {
@@ -4795,12 +5917,18 @@ export interface paths {
                             /** Format: uuid */
                             menu_section_id?: string | null;
                             menu_section_name?: string | null;
+                            menu_section_position?: number | null;
+                            /** @description Dish order within its menu section */
+                            position?: number;
                             /** @enum {string} */
                             status: "visible" | "hidden";
                             reasons: Record<string, never>[];
                             overridden_by_user?: boolean;
                             reviews_count?: number;
                             photo_url?: string | null;
+                            photo_credit?: {
+                                display_name: string;
+                            } | null;
                             taste_score?: number | null;
                             taste_reasons?: Record<string, never>[];
                             favorited: boolean;
@@ -4810,7 +5938,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                                 allergen: boolean;
                             }[];
                             detected_tags: {
@@ -4819,7 +5947,7 @@ export interface paths {
                                 /** @enum {string} */
                                 confidence: "confirmed" | "suggested" | "inferred";
                                 /** @enum {string} */
-                                source: "human" | "ai" | "owner";
+                                source: "human" | "ai" | "owner" | "match" | "derived" | "ingredient_derived";
                             }[];
                         };
                     };
@@ -4882,31 +6010,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** Format: uuid */
-                            id: string;
-                            slug: string;
-                            name: string;
-                            about: string | null;
-                            phone: string | null;
-                            website: string | null;
-                            /** @enum {string} */
-                            status: "draft" | "published" | "closed";
-                            web_path: string;
-                            /** Format: date-time */
-                            claimed_at: string | null;
-                            /** Format: uuid */
-                            claimed_by_user_id: string | null;
-                            city: {
-                                /** Format: uuid */
-                                id: string;
-                                slug: string;
-                                name: string;
-                                region: string | null;
-                            };
-                            /** @description Always false for an anonymous caller. */
-                            favorited: boolean;
-                        };
+                        "application/json": components["schemas"]["RestaurantDetail"];
                     };
                 };
                 /** @description not found (unknown id/slug, or not published) */
@@ -5241,6 +6345,7 @@ export interface paths {
                         "application/json": {
                             handle: string;
                             display_name: string | null;
+                            bio: string | null;
                             /** Format: date-time */
                             member_since: string;
                             reviews_count: number;
@@ -5302,6 +6407,66 @@ export interface components {
             name: string;
             region: string | null;
             country: string;
+        };
+        BrandingCrop: {
+            /**
+             * @description Edge kept when trimming to the slot's shape. Default center.
+             * @enum {string}
+             */
+            anchor?: "center" | "top" | "bottom" | "left" | "right";
+            /** @description Box left, fraction of width (0–1). */
+            x?: number;
+            /** @description Box top, fraction of height (0–1). */
+            y?: number;
+            /** @description Box width, fraction of width (0–1). */
+            w?: number;
+            /** @description Box height, fraction of height (0–1). */
+            h?: number;
+        };
+        RestaurantDetail: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            about: string | null;
+            phone: string | null;
+            website: string | null;
+            /** @enum {string} */
+            status: "draft" | "published" | "closed";
+            web_path: string;
+            /** Format: date-time */
+            claimed_at: string | null;
+            /** Format: uuid */
+            claimed_by_user_id: string | null;
+            city: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+                region: string | null;
+            };
+            address?: {
+                street?: string | null;
+                city?: string | null;
+                region?: string | null;
+                postal_code?: string | null;
+                country?: string | null;
+            } | null;
+            /** @description IANA timezone (e.g. America/Denver) */
+            time_zone: string | null;
+            /** @description Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day (lunch/dinner). Null times mean closed that day. */
+            hours: {
+                /** @description 0=Sunday, 6=Saturday */
+                day_of_week: number;
+                opens_at: string | null;
+                closes_at: string | null;
+            }[];
+            /** @description 200px WebP of the owner-set logo; null when none. */
+            logo_url: string | null;
+            /** @description 1600x600 WebP of the owner-set banner; null when none. */
+            banner_url: string | null;
+            /** @description Whether the caller saved it; false anonymously. */
+            favorited: boolean;
         };
         Pagination: {
             total: number;
@@ -5397,6 +6562,7 @@ export interface components {
             email: string;
             handle: string;
             display_name?: string | null;
+            bio?: string | null;
             is_admin: boolean;
             /** @description UI gating only. The tier above admin: no spend ceilings, no tool-round cap, no request throttle. Granted from the server (admin:grant_super), never over HTTP, so no endpoint can set it. Rails re-checks the column on every request that acts on it. */
             is_super_admin: boolean;
@@ -5520,6 +6686,14 @@ export interface components {
             queued: boolean;
             /** @description Narration position to watch from. */
             after: number;
+        };
+        UploadTicket: {
+            /** @description Send as the X-Upload-Ticket header on POST /api/v1/attachments. */
+            ticket: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @description The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side. */
+            max_bytes: number;
         };
         Attachment: {
             /** @description Signed blob id. Bytes never enter the agent's context. */
@@ -5719,6 +6893,7 @@ export interface components {
                 region: string | null;
                 country: string;
             } | null;
+            chat_notes: string | null;
             /** Format: date-time */
             disclaimer_acknowledged_at: string | null;
         };

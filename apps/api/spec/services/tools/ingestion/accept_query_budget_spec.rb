@@ -17,9 +17,10 @@ RSpec.describe Tools::Ingestion::AcceptStagedItems, "query budget" do
   let(:tag_slugs)        { TAG_SAMPLES.first(4).map { |s| s[:slug] } }
 
   dishes = 50
-  # 10 statements per dish today; the headroom is for incidental additions,
-  # not for another per-association layer.
-  budget_per_dish = 12
+  # Dish confidence is computed from the mapped ingredient rows already
+  # in memory at create time, so the old 2-3 extra plucks per dish are
+  # gone. Fence toward 13; leave a little headroom for section create.
+  budget_per_dish = 13
 
   before do
     ingredient_slugs.each { |slug| create(:ingredient, slug: slug) }

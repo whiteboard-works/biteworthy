@@ -33,7 +33,9 @@ RSpec.describe "enum CHECK constraints", type: :model do
     ["suggestions", "status"]                  => Suggestion::STATUSES,
     ["dmca_notices", "status"]                 => DmcaNotice::STATUSES,
     ["waitlist_signups", "source"]             => WaitlistSignup::SOURCES,
-    ["reviews", "hidden_reason"]               => Review::HIDDEN_REASONS
+    ["reviews", "hidden_reason"]               => Review::HIDDEN_REASONS,
+    ["dish_photo_submissions", "status"]            => DishPhotoSubmission::STATUSES,
+    ["dish_photo_submissions", "rejection_reason"]  => DishPhotoSubmission::REJECTION_REASONS
   }.freeze
 
   # `pg_get_constraintdef` renders as e.g.

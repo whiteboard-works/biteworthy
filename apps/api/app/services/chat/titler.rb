@@ -9,8 +9,11 @@ module Chat
   # reading "Untitled", the one screen whose whole job is telling
   # conversations apart.
   #
-  # **This runs only while the column is null, so nothing else may fill
-  # it.** `ConversationTurnsController` used to stamp the opening message
+  # **This runs only while the column is null, so nothing automatic may
+  # fill it.** The one other writer is the person renaming their own chat
+  # (`ConversationsController#update`), and that is the point: a name
+  # they chose is never replaced by one the model chose.
+  # `ConversationTurnsController` used to stamp the opening message
   # into it, truncated to 60 characters, before enqueuing the turn — which
   # meant `AgentLoop#name_conversation` found a title present and returned
   # without ever calling this class. That is not a hypothetical: this file
@@ -125,6 +128,31 @@ module Chat
 
     Result = Struct.new(:title, :usage, :model, keyword_init: true)
 
+    # What a sidebar row cannot render and must not store: control
+    # characters, and the format characters that corrupt or hide in the
+    # text around them — the zero-width space and word joiner, the BiDi
+    # marks, embeddings, overrides and isolates, and the byte-order mark.
+    # Not the whole `\p{Cf}` class: that also holds the zero-width non-joiner that
+    # Persian and Urdu words are spelled with, the joiner that holds a
+    # composed emoji together, and the tag characters under a regional
+    # flag, all of which a person may well type.
+    FLATTENED = /[[:cntrl:]\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/
+
+    # Flattened for storage: the characters above become spaces and runs of
+    # whitespace collapse. Shared with the rename path so a person's title
+    # is held to the same shape as the model's — and so a NUL in a rename
+    # is a space, not a Postgres error.
+    def self.flatten(text) = text.to_s.gsub(FLATTENED, " ").squish
+
+    # Whether anything would show in the row. Asked directly rather than
+    # by subtraction, because no list of invisibles is ever complete: a
+    # title that is only control or format characters, marks, or
+    # whitespace — a lone non-joiner, an emoji presentation selector, an
+    # Arabic letter mark — is blank however `flatten` left it. Best
+    # effort, by Unicode category: a filler letter such as the Hangul
+    # filler is a letter to Unicode and gets through.
+    def self.visible?(text) = text.to_s.match?(/[^\p{C}\p{M}[[:space:]]]/)
+
     def initialize(client: nil)
       @injected = client
     end
@@ -198,10 +226,10 @@ module Chat
     # otherwise appends an ellipsis, which is trailing punctuation, which
     # is the thing two lines of prompt just asked the model not to do.
     def clean(title)
-      flat = unquote(title.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip)
-      return nil if flat.blank? || REJECTED.include?(flat.downcase.delete_suffix("."))
+      flat = unquote(self.class.flatten(title)).truncate(MAX_LENGTH, omission: "")
+      return nil if !self.class.visible?(flat) || REJECTED.include?(flat.downcase.delete_suffix("."))
 
-      flat.truncate(MAX_LENGTH, omission: "")
+      flat
     end
 
     def unquote(text)

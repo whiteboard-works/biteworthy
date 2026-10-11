@@ -30,6 +30,54 @@ RSpec.describe UrlFetcher do
       expect(result.content_type).to eq("application/pdf")
     end
 
+    it "sniffs PDF magic bytes when content-type is generic octet-stream" do
+      stub_request(:get, "https://example.com/menu.pdf").to_return(
+        status: 200,
+        body: "%PDF-1.7 binary content here",
+        headers: { "Content-Type" => "application/octet-stream" }
+      )
+
+      result = described_class.fetch("https://example.com/menu.pdf")
+
+      expect(result.content_type).to eq("application/pdf")
+    end
+
+    it "sniffs PDF magic bytes when content-type is binary/octet-stream" do
+      stub_request(:get, "https://example.com/menu.pdf").to_return(
+        status: 200,
+        body: "%PDF-1.5 more binary",
+        headers: { "Content-Type" => "binary/octet-stream" }
+      )
+
+      result = described_class.fetch("https://example.com/menu.pdf")
+
+      expect(result.content_type).to eq("application/pdf")
+    end
+
+    it "corrects application/xml to text/html when the body is actually HTML" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        body: "<html><head><title>Menu</title></head><body>items</body></html>",
+        headers: { "Content-Type" => "application/xml" }
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+    end
+
+    it "detects HTML from body structure when content-type is missing" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        body: "<!DOCTYPE html><html><body>Menu items</body></html>",
+        headers: {}
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+    end
+
     it "rejects non-2xx responses with FetchError" do
       stub_request(:get, url).to_return(status: 404, body: "missing")
 
@@ -52,6 +100,76 @@ RSpec.describe UrlFetcher do
         .to raise_error(UrlFetcher::FetchError, /invalid_url/)
     end
 
+    it "rejects DoorDash without making a request" do
+      expect { described_class.fetch("https://www.doordash.com/store/x") }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+      expect(a_request(:get, /doordash/)).not_to have_been_made
+    end
+
+    it "rejects a redirect onto a Toast ordering host" do
+      stub_request(:get, url).to_return(
+        status: 302, headers: { "Location" => "https://www.toasttab.com/place/v3" }
+      )
+
+      expect { described_class.fetch(url) }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+      expect(a_request(:get, /toasttab/)).not_to have_been_made
+    end
+
+    it "rejects a DoorDash white-label on a custom domain after fetch" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cx_js=1; Path=/" },
+        body: '<html><script src="https://cdn.doordash.com/storefront.js"></script></html>'
+      )
+
+      expect { described_class.fetch(url) }
+        .to raise_error(UrlFetcher::FetchError) { |e| expect(e.reason).to eq("forbidden_host") }
+    end
+
+    it "still fetches a restaurant page that only links out to DoorDash" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: '<html><body><a href="https://www.doordash.com/store/x">Order</a></body></html>'
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.content_type).to eq("text/html")
+      expect(result.io.read).to include("Order")
+    end
+
+    it "still fetches an own-site page that embeds a Toast ordering iframe" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html" },
+        body: <<~HTML
+          <html><body>
+            <h1>Dinner menu</h1>
+            <p>Brisket plate, beans, slaw.</p>
+            <iframe src="https://www.toasttab.com/serious-texas/v3"></iframe>
+          </body></html>
+        HTML
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Dinner menu")
+    end
+
+    it "still fetches a page that only sets a Datadog dd_cookie_test cookie" do
+      stub_request(:get, url).to_return(
+        status: 200,
+        headers: { "Content-Type" => "text/html", "Set-Cookie" => "dd_cookie_test_x=1; Path=/" },
+        body: "<html><body>Menu</body></html>"
+      )
+
+      result = described_class.fetch(url)
+
+      expect(result.io.read).to include("Menu")
+    end
+
     it "infers a sensible filename from the URL path" do
       stub_request(:get, "https://example.com/menus/dinner.pdf").to_return(
         status: 200,
@@ -72,6 +190,94 @@ RSpec.describe UrlFetcher do
       )
 
       expect(described_class.fetch("https://example.com/").filename).to eq("menu.html")
+    end
+
+    describe "bot challenge detection" do
+      it "detects SiteGround captcha when a .pdf URL returns HTML with sgcaptcha" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><body><a href="/.well-known/sgcaptcha/">Verify</a></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError) { |e|
+            expect(e.reason).to eq("bot_challenge")
+          }
+      end
+
+      it "detects Cloudflare challenge pages with specific markers" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><head><title>Just a moment...</title></head><body><div class="challenge-platform"></div></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError, /bot_challenge/)
+      end
+
+      it "detects Cloudflare __cf_chl parameter" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: '<html><body><form action="?__cf_chl_tk=abc"></form></body></html>',
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError, /bot_challenge/)
+      end
+
+      it "allows normal HTML pages when no .pdf extension is expected" do
+        stub_request(:get, "https://example.com/menu").to_return(
+          status: 200,
+          body: "<html><body>Menu items here</body></html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu") }.not_to raise_error
+      end
+
+      it "does NOT flag normal menus that mention Cloudflare or security in content" do
+        # A restaurant mentioning "We use Cloudflare for security" in their footer
+        # should NOT be flagged as a bot challenge
+        menu_with_footer = <<~HTML
+          <html>
+          <body>
+            <h1>Our Menu</h1>
+            <div class="menu">
+              <h2>Appetizers</h2>
+              <p>Spring Rolls - $8</p>
+              <p>Hummus - $6</p>
+            </div>
+            <footer>
+              <p>This site is protected by Cloudflare for security.</p>
+            </footer>
+          </body>
+          </html>
+        HTML
+
+        stub_request(:get, "https://example.com/menu").to_return(
+          status: 200,
+          body: menu_with_footer,
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu") }.not_to raise_error
+      end
+
+      it "raises unexpected_content_type when a .pdf returns HTML without challenge markers" do
+        stub_request(:get, "https://example.com/menu.pdf").to_return(
+          status: 200,
+          body: "<html><body>Regular page</body></html>",
+          headers: { "Content-Type" => "text/html" }
+        )
+
+        expect { described_class.fetch("https://example.com/menu.pdf") }
+          .to raise_error(UrlFetcher::FetchError) { |e|
+            expect(e.reason).to eq("unexpected_content_type")
+          }
+      end
     end
 
     describe "SSRF guard" do

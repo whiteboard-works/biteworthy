@@ -90,6 +90,8 @@ Rails.application.routes.draw do
         # Phase 4.9 — restaurant claim flow.
         post   "claim",        to: "restaurant_claims#create"
         get    "claim/verify", to: "restaurant_claims#verify"
+        # Logo + banner, set by the verified owner or an admin.
+        patch  "branding",     to: "restaurant_brandings#update"
         # Save/unsave a restaurant (authed).
         post   "favorite", to: "favorite_restaurants#create"
         delete "favorite", to: "favorite_restaurants#destroy"
@@ -108,9 +110,11 @@ Rails.application.routes.draw do
           delete :favorite, to: "favorite_items#destroy"
         end
         resources :reviews, only: [:index, :create]
+        resources :photo_submissions, only: [:create]
         # Phase 4.10 — anyone can suggest a fix.
         resources :suggestions, only: [:create]
       end
+      resources :photo_submissions, only: [:index, :destroy]
       resources :reviews, only: [:update, :destroy] do
         # Legal remediation E8 — readers report a review into the
         # moderation queue.
@@ -149,7 +153,9 @@ Rails.application.routes.draw do
       end
       # Menu photos/PDFs the chat refers to by id, so bytes never enter
       # the agent's context.
-      resources :attachments, only: [:create]
+      resources :attachments, only: [:create] do
+        post :ticket, on: :collection
+      end
       # The same scan tools the chat drives, for a scan screen that polls
       # a row instead of paying a model round per status check.
       resources :scans, only: [:create, :show] do
@@ -194,6 +200,8 @@ Rails.application.routes.draw do
           member do
             post :confirm_community
             post :restore
+            post :backfill_structure
+            post :backfill_confidence
           end
           resources :items, only: [:index]
           resources :menus, only: [:index, :create]
@@ -215,6 +223,12 @@ Rails.application.routes.draw do
           member do
             post :hide
             post :unhide
+          end
+        end
+        resources :photo_submissions, only: [:index] do
+          member do
+            post :approve
+            post :reject
           end
         end
         resources :suggestions, only: [:index, :destroy]

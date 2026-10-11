@@ -149,7 +149,7 @@ module Chat
       raise
     rescue StandardError => e
       Rails.logger.error("[chat] conversation #{@conversation.id} crashed: #{e.class}: #{e.message}")
-      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id })
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "turn" })
       crashed
     ensure
       finish_run(result) if @run
@@ -228,6 +228,7 @@ module Chat
         Rails.logger.error(
           "[chat] conversation #{@conversation.id} could not record its own crash: #{e.class}: #{e.message}"
         )
+        Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "crash_record" })
       end
       Result.new(state: :error, error: message).tap { |result| emit_terminal(result) }
     end
@@ -290,6 +291,10 @@ module Chat
       # A single sentence for all three is what made the chat look like
       # it randomly stops working.
       Rails.logger.error("[chat] conversation #{@conversation.id} upstream failure: #{e.class}: #{e.message}")
+      # Reported as well as sentenced. One 529 is weather; fifty in a day
+      # is a problem nobody wrote in about, and the report is how those
+      # get counted rather than read one log line at a time.
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "upstream" })
       halt(UpstreamError.message_for(e),
            orphan_reason: "The assistant became unavailable before this ran. Nothing happened.")
     end
@@ -609,6 +614,7 @@ module Chat
       emit(type: "pane", pane: pane)
     rescue StandardError => e
       Rails.logger.error("[chat] pane for #{call['name']} on #{@conversation.id} failed: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "pane", tool: call["name"] })
     end
 
     # The tools that change what the filter hides. Saving a restaurant is
@@ -858,6 +864,7 @@ module Chat
       # disclaimer is both more honest and safer: the repair did not
       # happen, and the reader is told the answer may be incomplete.
       Rails.logger.warn("[chat] regrounding conversation #{@conversation.id} failed: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "regrounding" })
       nil
     end
 
@@ -919,6 +926,7 @@ module Chat
     rescue StandardError => e
       Rails.logger.warn("[chat] storing the repaired answer for conversation " \
                         "#{@conversation.id} failed: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "repair_store" })
       nil
     end
 
@@ -973,15 +981,36 @@ module Chat
       # a tool result is a `user` row and one long opening turn would
       # otherwise close the window before its first attempt.
       return if @conversation.exchange_count > Titler::NAMING_WINDOW_EXCHANGES
+      # The row as it is now, not as it was when the turn began: a person
+      # who renamed the chat while this turn ran has already named it, and
+      # a model call whose result the write below would discard is spend
+      # for nothing. One indexed read against a billed call.
+      return unless Conversation.where(id: @conversation.id, title: nil).exists?
 
       named = Titler.new.call(question: @conversation.opening_question, answer: result.text)
       record_side_usage(named.usage, named.model)
-      @conversation.update!(title: named.title) if named.title.present?
+      return if named.title.blank?
+
+      # Checked again at write time, in the database, not only at entry on
+      # the row as it was when the turn began: the person can rename the
+      # chat while this turn runs (`ConversationsController#update`), and
+      # their name wins. The turn's lock is a run lease, not a row lock, so
+      # the only way to be sure is to write conditionally.
+      written = Conversation.where(id: @conversation.id, title: nil)
+                            .update_all(title: named.title, updated_at: Time.current)
+      return unless written == 1
+
+      # Keep the in-memory row honest without leaving it dirty: a queued
+      # second turn in this same job takes `with_lock` on this object next,
+      # and `lock!` refuses a record with unsaved changes.
+      @conversation.title = named.title
+      @conversation.clear_attribute_changes([ :title ])
     rescue StandardError => e
       # Never at the cost of the answer, which is already on screen. The
       # column stays null — which is the same condition that got us here,
       # so the next turn simply tries again.
       Rails.logger.warn("[chat] naming conversation #{@conversation.id} failed: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "naming" })
     end
 
     def call_model
@@ -1111,6 +1140,7 @@ module Chat
       emit(type: "compacted", messages: result.messages, tokens_saved: result.tokens_saved)
     rescue StandardError => e
       Rails.logger.warn("[chat] compaction failed on #{@conversation.id}: #{e.class}: #{e.message}")
+      Rails.error.report(e, handled: true, context: { conversation_id: @conversation.id, component: "chat", stage: "compaction" })
     end
 
     # The clock, below every breakpoint — which is the only place it can

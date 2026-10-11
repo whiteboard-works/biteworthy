@@ -13,6 +13,7 @@ import type {
   FilterSource,
   HideReason,
   ItemSection,
+  ItemVariant,
   Strictness,
   TasteReason,
 } from '@biteworthy/filter-engine';
@@ -31,6 +32,12 @@ export interface RestaurantCity {
   slug: string;
   name: string;
   region: string;
+}
+
+export interface HourInterval {
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  opens_at: string | null; // "HH:MM" or null for closed
+  closes_at: string | null; // "HH:MM" or null for closed
 }
 
 export interface Restaurant {
@@ -54,6 +61,13 @@ export interface Restaurant {
   city: RestaurantCity;
   /** Set by GET show when the caller is authed; false anonymously. */
   favorited?: boolean;
+  /** IANA timezone (e.g. America/Denver) from the restaurant's city. */
+  time_zone: string | null;
+  /** Opening hours sorted by day_of_week then opens_at. Supports multiple shifts per day. */
+  hours: HourInterval[];
+  /** Owner-set branding (200px WebP logo, 1600x600 WebP banner); null when none. */
+  logo_url: string | null;
+  banner_url: string | null;
 }
 
 /** The lighter shape `GET /api/v1/restaurants` returns for browse/discovery. */
@@ -68,6 +82,10 @@ export interface RestaurantSummary {
   street: string | null;
   latitude: number | null;
   longitude: number | null;
+  time_zone: string | null;
+  hours: HourInterval[];
+  /** 200px WebP of the owner-set logo; null when none. */
+  logo_url: string | null;
 }
 
 /**
@@ -92,6 +110,23 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /** Sizes and prices, in menu order; a size may have no price. */
+  variants?: ItemVariant[];
+  /**
+   * WebP variants of the dish photo at different sizes. Uses
+   * `rails_representation_url` for lazy generation. Null when no
+   * photo is attached.
+   */
+  photo_urls?: {
+    thumb: string;
+    card: string;
+    full: string;
+  } | null;
+  /**
+   * Present on the dish detail payload when the current photo came
+   * from an approved diner submission.
+   */
+  photo_credit?: { display_name: string } | null;
   /**
    * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
    * caller's profile carries taste signals (Phase 8.1 arrays).
@@ -121,7 +156,7 @@ export interface DetectedAssociation {
   slug: string | null;
   name: string | null;
   confidence: Confidence;
-  source: 'human' | 'ai' | 'owner';
+  source: 'human' | 'ai' | 'owner' | 'match' | 'derived' | 'ingredient_derived';
 }
 
 export interface DetectedIngredient extends DetectedAssociation {

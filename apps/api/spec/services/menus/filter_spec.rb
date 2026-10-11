@@ -183,6 +183,138 @@ RSpec.describe Menus::Filter do
     end
   end
 
+  # Safety-critical: Celiac/gluten-free filtering must catch common hidden
+  # wheat sources. These are the real-menu misses reported 2026-10-05.
+  describe "Celiac safety — hidden gluten sources" do
+    let!(:celiac_profile) { create(:dietary_profile, slug: "celiac") }
+    let!(:wheat) { create(:ingredient, name: "Wheat", slug: "grain-wheat", path: "grain.wheat") }
+    let!(:pancake) { create(:ingredient, name: "Pancake", slug: "grain-wheat-pancake", path: "grain.wheat.pancake") }
+    let!(:hotcake_item) { create(:item, :published, restaurant: restaurant, name: "Buttermilk Hotcake", ingredients: [pancake]) }
+    let!(:english_muffin) do
+      create(:ingredient, name: "English Muffin", slug: "grain-wheat-bread-english-muffin",
+             path: "grain.wheat.bread.english_muffin")
+    end
+    let!(:biscuit) do
+      create(:ingredient, name: "Biscuit", slug: "grain-wheat-bread-biscuit", path: "grain.wheat.bread.biscuit")
+    end
+    let!(:wheat_gravy) do
+      create(:ingredient, name: "Wheat-Based Gravy", slug: "grain-wheat-gravy", path: "grain.wheat.gravy")
+    end
+    let!(:batter) do
+      create(:ingredient, name: "Batter", slug: "grain-wheat-batter", path: "grain.wheat.batter")
+    end
+    let!(:breading) do
+      create(:ingredient, name: "Breading", slug: "grain-wheat-breading", path: "grain.wheat.breading")
+    end
+
+    before do
+      celiac_profile.dietary_profile_ingredients.create!(ingredient: wheat, rule: "avoid")
+    end
+
+    def celiac_filter(strictness: "balanced")
+      described_class.build(preset_slug: "celiac", strictness: strictness)
+    end
+
+    it "hides hotcakes (pancake alias)" do
+      expect(reasons(hotcake_item, celiac_filter)).not_to be_empty
+    end
+
+    it "hides English muffin dishes" do
+      item = create(:item, :published, restaurant: restaurant, name: "Eggs Benedict",
+                    description: "English muffin, poached eggs, hollandaise", ingredients: [english_muffin])
+      expect(reasons(item, celiac_filter)).not_to be_empty
+    end
+
+    it "hides biscuit dishes" do
+      item = create(:item, :published, restaurant: restaurant, name: "Biscuits and Gravy", ingredients: [biscuit])
+      expect(reasons(item, celiac_filter)).not_to be_empty
+    end
+
+    it "hides dishes with wheat-based gravy" do
+      item = create(:item, :published, restaurant: restaurant, name: "Chicken Fried Steak",
+                    description: "with country gravy", ingredients: [wheat_gravy])
+      expect(reasons(item, celiac_filter)).not_to be_empty
+    end
+
+    it "hides battered dishes" do
+      item = create(:item, :published, restaurant: restaurant, name: "Fried Chile Relleno",
+                    ingredients: [batter])
+      expect(reasons(item, celiac_filter)).not_to be_empty
+    end
+
+    it "hides breaded dishes" do
+      item = create(:item, :published, restaurant: restaurant, name: "Chicken Tenders",
+                    description: "breaded chicken", ingredients: [breading])
+      expect(reasons(item, celiac_filter)).not_to be_empty
+    end
+
+    # Subtree expansion: avoiding grain.wheat must catch all descendants.
+    it "expands wheat to all descendants including new entries" do
+      filter = celiac_filter
+      expanded = filter.avoid_ingredient_ids
+
+      expect(expanded).to include(pancake.id)
+      expect(expanded).to include(english_muffin.id)
+      expect(expanded).to include(biscuit.id)
+      expect(expanded).to include(wheat_gravy.id)
+      expect(expanded).to include(batter.id)
+      expect(expanded).to include(breading.id)
+    end
+
+    # Papadum is lentil-based, not wheat — but can contain wheat in some
+    # preparations. The taxonomy models it as legume so lentil papadum
+    # passes; wheat detection is the AI's job.
+    it "does not hide lentil papadum as a false positive" do
+      papadum = create(:ingredient, name: "Papadum", slug: "legume-papadum", path: "legume.papadum")
+      item = create(:item, :published, restaurant: restaurant, name: "Papadum",
+                    description: "made from stone ground lentils", ingredients: [papadum])
+
+      expect(reasons(item, celiac_filter)).to be_empty
+    end
+  end
+
+  # Strict mode is critical for allergy users: unconfirmed data must not
+  # pass as safe. This verifies the user-reported bug that Strict showed
+  # identical results to Balanced.
+  describe "Strict mode — confidence gating" do
+    it "hides a suggested item in strict mode" do
+      item = create(:item, :published, restaurant: restaurant, confidence: "suggested")
+      strict_filter = filter_for(strictness: "strict")
+      balanced_filter = filter_for(strictness: "balanced")
+
+      expect(reasons(item, strict_filter)).not_to be_empty
+      expect(reasons(item, balanced_filter)).to be_empty
+    end
+
+    it "hides an inferred item in strict mode" do
+      item = create(:item, :published, restaurant: restaurant, confidence: "inferred")
+      strict_filter = filter_for(strictness: "strict")
+      balanced_filter = filter_for(strictness: "balanced")
+
+      expect(reasons(item, strict_filter)).not_to be_empty
+      expect(reasons(item, balanced_filter)).to be_empty
+    end
+
+    it "shows a confirmed item in strict mode" do
+      item = create(:item, :published, restaurant: restaurant, confidence: "confirmed")
+      strict_filter = filter_for(strictness: "strict")
+
+      expect(reasons(item, strict_filter)).to be_empty
+    end
+
+    it "combines confidence and ingredient reasons in strict mode" do
+      item = create(:item, :published, restaurant: restaurant,
+                    confidence: "suggested", ingredients: [cheddar])
+      strict_filter = filter_for(avoid_ingredients: [cheddar], strictness: "strict")
+
+      result_reasons = reasons(item, strict_filter)
+      kinds = result_reasons.map { |r| r[:kind] }
+
+      expect(kinds).to include("avoid_ingredient")
+      expect(kinds).to include("unconfirmed_strict")
+    end
+  end
+
   # The expansion lives in `build`, not in `reasons_for`, so that the rule
   # itself stays comparable across implementations. This pins the seam.
   describe ".build" do

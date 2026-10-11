@@ -41,7 +41,8 @@ export default function LoginScreen() {
       <Text style={styles.headline}>Sign in</Text>
 
       <TextInput
-        accessibilityLabel="email"
+        testID="email"
+        accessibilityLabel="Email"
         placeholder="Email"
         autoCapitalize="none"
         autoComplete="email"
@@ -51,7 +52,8 @@ export default function LoginScreen() {
         style={styles.input}
       />
       <TextInput
-        accessibilityLabel="password"
+        testID="password"
+        accessibilityLabel="Password"
         placeholder="Password"
         autoCapitalize="none"
         secureTextEntry
@@ -61,7 +63,12 @@ export default function LoginScreen() {
       />
 
       <Pressable
-        accessibilityLabel="login-submit"
+        testID="login-submit"
+        // Named outright: while signing in the only child is a spinner,
+        // which would leave the button with no spoken name.
+        accessibilityLabel="Sign in"
+        accessibilityRole="button"
+        accessibilityState={{ busy: submitting, disabled: submitting }}
         onPress={onSubmit}
         disabled={submitting}
         style={[styles.primary, submitting && { opacity: 0.5 }]}

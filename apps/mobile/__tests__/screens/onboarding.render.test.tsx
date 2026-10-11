@@ -117,19 +117,19 @@ describe('OnboardingScreen — Step 1: presets', () => {
     // groups them inconsistently across runs — sometimes the spinner
     // disappears in a render before the chips appear, sometimes after.
     // findBy on the chip directly waits for the post-batched DOM.
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
     expect(screen.queryByTestId('presets-loading')).toBeNull();
     expect(screen.getByText('Vegan')).toBeOnTheScreen();
     expect(screen.getByText('No animal products.')).toBeOnTheScreen();
-    expect(screen.getByLabelText('preset-gluten-free')).toBeOnTheScreen();
+    expect(screen.getByTestId('preset-gluten-free')).toBeOnTheScreen();
     expect(screen.getByText('Gluten-free')).toBeOnTheScreen();
   });
 
   it('toggles a preset to selected when tapped', async () => {
     render(<OnboardingScreen />);
 
-    const vegan = await screen.findByLabelText('preset-vegan');
+    const vegan = await screen.findByTestId('preset-vegan');
     // Background-color check: the selected style flips backgroundColor.
     // Inspect the flattened style array for `colors.biteLight` after tap.
     fireEvent.press(vegan);
@@ -152,30 +152,30 @@ describe('OnboardingScreen — Step 1: presets', () => {
 describe('OnboardingScreen — Step 3: strictness', () => {
   it('renders all three strictness options after advancing', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan'); // wait for step 1 to settle
+    await screen.findByTestId('preset-vegan'); // wait for step 1 to settle
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
     expect(screen.getByText('Step 2 of 5')).toBeOnTheScreen();
 
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
     expect(screen.getByText('Step 3 of 5')).toBeOnTheScreen();
     expect(screen.getByText('How strict?')).toBeOnTheScreen();
 
-    expect(screen.getByLabelText('strictness-relaxed')).toBeOnTheScreen();
-    expect(screen.getByLabelText('strictness-balanced')).toBeOnTheScreen();
-    expect(screen.getByLabelText('strictness-strict')).toBeOnTheScreen();
+    expect(screen.getByTestId('strictness-relaxed')).toBeOnTheScreen();
+    expect(screen.getByTestId('strictness-balanced')).toBeOnTheScreen();
+    expect(screen.getByTestId('strictness-strict')).toBeOnTheScreen();
   });
 
   it('updates the selected strictness when one is tapped', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
 
     // Default strictness is 'balanced' (per onboarding-reducer's initialDraft).
     // Tap 'strict' and assert the body description text shows.
-    fireEvent.press(screen.getByLabelText('strictness-strict'));
+    fireEvent.press(screen.getByTestId('strictness-strict'));
     expect(
       screen.getByText('Also hide items the AI marked suggested or inferred.'),
     ).toBeOnTheScreen();
@@ -185,32 +185,32 @@ describe('OnboardingScreen — Step 3: strictness', () => {
 describe('OnboardingScreen — Step 4: taste', () => {
   it('renders the taste step between strictness and review, and is skippable', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
 
     expect(screen.getByText('Step 4 of 5')).toBeOnTheScreen();
     expect(screen.getByText('What do you love?')).toBeOnTheScreen();
     // Tag chip from the mocked fetchTags resolves.
-    await screen.findByLabelText('taste-tag-cuisine-thai');
+    await screen.findByTestId('taste-tag-cuisine-thai');
 
     // Skip → review step (taste arrays stay empty).
-    fireEvent.press(screen.getByLabelText('skip-taste'));
+    fireEvent.press(screen.getByTestId('skip-taste'));
     expect(screen.getByText('Step 5 of 5')).toBeOnTheScreen();
     expect(screen.getByText('Ready?')).toBeOnTheScreen();
   });
 
   it('cycles a tag chip to liked when tapped', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
 
-    const chip = await screen.findByLabelText('taste-tag-cuisine-thai');
+    const chip = await screen.findByTestId('taste-tag-cuisine-thai');
     fireEvent.press(chip);
     // Liked chips prefix the name with a heart.
     expect(screen.getByText('♥ Thai')).toBeOnTheScreen();
@@ -220,12 +220,12 @@ describe('OnboardingScreen — Step 4: taste', () => {
 describe('OnboardingScreen — Step 5: review', () => {
   it('summarizes the empty draft on the review step', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
-    fireEvent.press(screen.getByLabelText('next-to-done'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-done'));
 
     expect(screen.getByText('Step 5 of 5')).toBeOnTheScreen();
     expect(screen.getByText('Ready?')).toBeOnTheScreen();
@@ -234,18 +234,18 @@ describe('OnboardingScreen — Step 5: review', () => {
     expect(screen.getByText('0 presets')).toBeOnTheScreen();
     expect(screen.getByText('0 ingredients')).toBeOnTheScreen();
     expect(screen.getByText('balanced')).toBeOnTheScreen();
-    expect(screen.getByLabelText('finish')).toBeOnTheScreen();
+    expect(screen.getByTestId('finish')).toBeOnTheScreen();
   });
 
   it('reflects a selected preset in the review summary count', async () => {
     render(<OnboardingScreen />);
-    const vegan = await screen.findByLabelText('preset-vegan');
+    const vegan = await screen.findByTestId('preset-vegan');
     fireEvent.press(vegan);
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
-    fireEvent.press(screen.getByLabelText('next-to-done'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-done'));
 
     // Singular when count = 1.
     expect(screen.getByText('1 preset')).toBeOnTheScreen();
@@ -254,20 +254,20 @@ describe('OnboardingScreen — Step 5: review', () => {
 
   it('redirects to /login when finalize runs without a JWT', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
-    fireEvent.press(screen.getByLabelText('next-to-done'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-done'));
 
     // Legal remediation E1 — the allergen disclaimer gates the save.
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('acknowledge-disclaimer'));
+      fireEvent.press(screen.getByTestId('acknowledge-disclaimer'));
     });
 
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('finish'));
+      fireEvent.press(screen.getByTestId('finish'));
     });
 
     expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Fonboarding');
@@ -278,17 +278,17 @@ describe('OnboardingScreen — Step 5: review', () => {
   // the allergen disclaimer.
   it('does not finalize until the allergen disclaimer is acknowledged', async () => {
     render(<OnboardingScreen />);
-    await screen.findByLabelText('preset-vegan');
+    await screen.findByTestId('preset-vegan');
 
-    fireEvent.press(screen.getByLabelText('next-to-ingredients'));
-    fireEvent.press(screen.getByLabelText('next-to-strictness'));
-    fireEvent.press(screen.getByLabelText('next-to-taste'));
-    fireEvent.press(screen.getByLabelText('next-to-done'));
+    fireEvent.press(screen.getByTestId('next-to-ingredients'));
+    fireEvent.press(screen.getByTestId('next-to-strictness'));
+    fireEvent.press(screen.getByTestId('next-to-taste'));
+    fireEvent.press(screen.getByTestId('next-to-done'));
 
     // Press finish while unacknowledged — the disabled Pressable swallows
     // the press, so neither the save nor the login redirect fires.
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('finish'));
+      fireEvent.press(screen.getByTestId('finish'));
     });
     expect(mockSaveProfile).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();

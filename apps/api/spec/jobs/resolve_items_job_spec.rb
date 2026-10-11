@@ -67,7 +67,8 @@ RSpec.describe ResolveItemsJob, type: :job do
         { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "derived" }
       )
       expect(item.tags_payload).to include(
-        { "slug" => "contains-gluten", "confidence" => 0.8, "source" => "derived" }
+        { "slug" => "contains-gluten", "confidence" => 0.8,
+          "source" => "ingredient_derived", "from_source" => "derived" }
       )
     end
   end

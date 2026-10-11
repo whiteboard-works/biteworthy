@@ -241,7 +241,7 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
              menu_section: bowls, ingredients: [])
     end
 
-    it "exposes menu_section_id + menu_section_name on each item" do
+    it "exposes menu_section_id + menu_section_name + position on each item" do
       get "/api/v1/restaurants/#{restaurant.id}/items"
 
       expect(response).to have_http_status(:ok)
@@ -249,17 +249,39 @@ RSpec.describe "GET /api/v1/restaurants/:id/items", type: :request do
 
       expect(items["Pollo Taco"]).to include(
         "menu_section_id"   => tacos.id,
-        "menu_section_name" => "Tacos"
+        "menu_section_name" => "Tacos",
+        "position"          => 0
       )
       expect(items["Veggie Bowl"]).to include(
         "menu_section_id"   => bowls.id,
-        "menu_section_name" => "Bowls"
+        "menu_section_name" => "Bowls",
+        "position"          => 0
       )
       # Items without a section (the original three) carry nulls.
       expect(items["Carne Asada Taco"]).to include(
         "menu_section_id"   => nil,
-        "menu_section_name" => nil
+        "menu_section_name" => nil,
+        "position"          => 0
       )
+    end
+
+    it "sorts by section position (nulls last), then item position, then name" do
+      sectioned_taco.update!(position: 1)
+      create(:item, :published, :confirmed,
+             restaurant: restaurant, name: "Al Pastor Taco",
+             menu_section: tacos, position: 0, ingredients: [])
+
+      get "/api/v1/restaurants/#{restaurant.id}/items"
+
+      names = response.parsed_body["items"].pluck("name")
+      expect(names).to eq([
+        "Al Pastor Taco",
+        "Pollo Taco",
+        "Veggie Bowl",
+        "Carne Asada Taco",
+        "Cheese Quesadilla",
+        "Salmon Bowl"
+      ])
     end
   end
 

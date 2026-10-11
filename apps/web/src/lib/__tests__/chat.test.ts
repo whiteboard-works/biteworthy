@@ -3,9 +3,14 @@ import {
   NotSignedInError,
   listConversations,
   answerConfirmation,
+  renameConversation,
   sendMessage,
   watchTurn,
   uploadAttachment,
+  compose,
+  parseManifest,
+  previewFor,
+  type Attachment,
   type ChatEvent,
 } from '../chat';
 import { shrinkForUpload } from '../shrink-image';
@@ -16,11 +21,16 @@ vi.mock('../shrink-image', async (importOriginal) => {
 });
 
 type FetchArgs = Parameters<typeof fetch>;
+const MB = 1024 * 1024;
 
 function jsonFetch(status: number, body: unknown) {
   return vi.fn(
     async (..._args: FetchArgs) =>
-      ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response,
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      }) as unknown as Response,
   );
 }
 
@@ -36,7 +46,9 @@ function sseFetch(chunks: string[]) {
           : { done: true, value: undefined },
     }),
   };
-  return vi.fn(async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response);
+  return vi.fn(
+    async (..._args: FetchArgs) => ({ ok: true, status: 200, body }) as unknown as Response,
+  );
 }
 
 function frame(payload: unknown): string {
@@ -91,6 +103,21 @@ describe('chat client', () => {
     expect(JSON.parse(init.body as string)).toEqual({ confirm: false, fingerprint: 'fp-abc' });
   });
 
+  it('renames a conversation with a PATCH carrying only the title', async () => {
+    const fetchMock = jsonFetch(200, { id: 'c-1', title: 'Lunch with Sam' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(renameConversation('c-1', 'Lunch with Sam')).resolves.toMatchObject({
+      title: 'Lunch with Sam',
+    });
+    const [path, init] = fetchMock.mock.calls[0]!;
+    expect(path).toBe('/api/chat/conversations/c-1');
+    expect(init?.method).toBe('PATCH');
+    // Only the title: sending the mode alongside would stamp whatever this
+    // tab thinks the mode is over a switch made on another device.
+    expect(JSON.parse(init?.body as string)).toEqual({ title: 'Lunch with Sam' });
+  });
+
   describe('streaming a turn', () => {
     it('reports each event in order', async () => {
       vi.stubGlobal(
@@ -107,15 +134,19 @@ describe('chat client', () => {
       await watchTurn('c-1', 0, (e) => seen.push(e));
 
       expect(seen.map((e) => e.type)).toEqual(['open', 'text_delta', 'text_delta', 'done']);
-      expect(seen.filter((e) => e.type === 'text_delta').map((e) => e.text).join('')).toBe(
-        'Hello there.',
-      );
+      expect(
+        seen
+          .filter((e) => e.type === 'text_delta')
+          .map((e) => e.text)
+          .join(''),
+      ).toBe('Hello there.');
     });
 
     // Chunk boundaries follow the network, not the protocol: an event can
     // arrive split anywhere, and half a JSON payload must not be parsed.
     it('reassembles events split across chunks', async () => {
-      const whole = frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
+      const whole =
+        frame({ type: 'text_delta', text: 'split' }) + frame({ type: 'done', text: 'split' });
       vi.stubGlobal('fetch', sseFetch([whole.slice(0, 12), whole.slice(12, 30), whole.slice(30)]));
 
       const seen: ChatEvent[] = [];
@@ -126,7 +157,6 @@ describe('chat client', () => {
         { type: 'done', text: 'split' },
       ]);
     });
-
   });
 
   // Events are stored, not just sent, so a reconnect asks for everything
@@ -140,8 +170,31 @@ describe('chat client', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/conversations/c-1/stream?after=12');
   });
 
-  it('uploads an attachment as multipart and returns its id', async () => {
-    const fetchMock = jsonFetch(201, {
+  /** The ticket call succeeds; the upload itself answers `status` / `body`. */
+  function uploadFetch(status: number, body: unknown) {
+    return vi.fn(async (...[input]: FetchArgs) =>
+      String(input).endsWith('/api/chat/attachments/ticket')
+        ? ({
+            ok: true,
+            status: 201,
+            json: async () => ({
+              ticket: 'tkt-1',
+              expires_at: '2026-10-10T00:10:00Z',
+              max_bytes: 15 * MB,
+            }),
+          } as unknown as Response)
+        : ({
+            ok: status >= 200 && status < 300,
+            status,
+            json: async () => body,
+          } as unknown as Response),
+    );
+  }
+
+  // The bytes bypass this server's 4.5 MB body limit: a ticket from the
+  // proxy, then the multipart straight to the API with it.
+  it('mints a ticket, then uploads the attachment straight to the API', async () => {
+    const fetchMock = uploadFetch(201, {
       id: 'signed-abc',
       filename: 'menu.jpg',
       content_type: 'image/jpeg',
@@ -152,16 +205,29 @@ describe('chat client', () => {
     const file = new File(['bytes'], 'menu.jpg', { type: 'image/jpeg' });
     await expect(uploadAttachment(file)).resolves.toMatchObject({ id: 'signed-abc' });
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/attachments/ticket');
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toMatch(/\/api\/v1\/attachments$/);
     expect(init.body).toBeInstanceOf(FormData);
-    // Setting Content-Type by hand would drop the multipart boundary.
-    expect(init.headers).toBeUndefined();
+    // The ticket rides as a header. Setting Content-Type by hand would
+    // drop the multipart boundary, so it is the only header.
+    expect(init.headers).toEqual({ 'X-Upload-Ticket': 'tkt-1' });
   });
 
-  // A full-size phone photo is over the 4.5 MB the web server accepts;
-  // what goes up has to be the shrunk copy.
+  it('sends nothing when no ticket could be minted', async () => {
+    const fetchMock = jsonFetch(401, { error: 'Not signed in' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' })),
+    ).rejects.toBeInstanceOf(NotSignedInError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // A full-size phone photo is a slow upload for nothing; what goes up
+  // has to be the shrunk copy.
   it('uploads the shrunk copy of a photo, not the original', async () => {
-    const fetchMock = jsonFetch(201, { id: 'signed-abc' });
+    const fetchMock = uploadFetch(201, { id: 'signed-abc' });
     vi.stubGlobal('fetch', fetchMock);
     const original = new File([new Uint8Array(6 * 1024 * 1024)], 'IMG_1.HEIC', {
       type: 'image/heic',
@@ -171,37 +237,93 @@ describe('chat client', () => {
 
     await uploadAttachment(original);
 
-    const sent = ((fetchMock.mock.calls[0]?.[1] as RequestInit).body as FormData).get(
+    const sent = ((fetchMock.mock.calls[1]?.[1] as RequestInit).body as FormData).get(
       'file',
     ) as File;
     expect(sent.name).toBe('IMG_1.jpg');
     expect(sent.size).toBe(shrunk.size);
   });
 
-  // Sending it anyway only earns a bare "Request failed (413)".
-  it('refuses a file still too large, with a message that says so, before sending it', async () => {
-    const fetchMock = jsonFetch(201, { id: 'never' });
-    vi.stubGlobal('fetch', fetchMock);
-    const pdf = new File([new Uint8Array(5 * 1024 * 1024)], 'menu.pdf', {
-      type: 'application/pdf',
-    });
+  // The sent bubble shows the photo — and an 80px tile should not cost a
+  // full-size decode, so it is the shrunk copy too.
+  it('keeps a preview of the shrunk copy once the upload is accepted', async () => {
+    vi.stubGlobal('fetch', uploadFetch(201, { id: 'signed-preview' }));
+    const shrunk = new File(['small'], 'IMG_2.jpg', { type: 'image/jpeg' });
+    vi.mocked(shrinkForUpload).mockResolvedValueOnce(shrunk);
+    const createObjectURL = vi.fn((_file: Blob) => 'blob:preview');
+    // jsdom has no createObjectURL.
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = createObjectURL;
+      },
+    );
 
-    await expect(uploadAttachment(pdf)).rejects.toThrow(/too large/);
-    expect(fetchMock).not.toHaveBeenCalled();
+    await uploadAttachment(new File(['original'], 'IMG_2.HEIC', { type: 'image/heic' }));
+
+    expect(createObjectURL).toHaveBeenCalledWith(shrunk);
+    expect(previewFor('signed-preview')).toBe('blob:preview');
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps no preview for an upload the server refused', async () => {
+    vi.stubGlobal('fetch', uploadFetch(422, { error: 'nope' }));
+    const createObjectURL = vi.fn((_file: Blob) => 'blob:never');
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = createObjectURL;
+      },
+    );
+
+    await expect(
+      uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' })),
+    ).rejects.toThrow();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  // Over the ceiling the ticket names, sending it only earns a 422 after
+  // the whole upload. A PDF cannot be shrunk here, so the message says
+  // what to do instead.
+  it("refuses a file over the ticket's ceiling, with a message that says so, before sending it", async () => {
+    const fetchMock = uploadFetch(201, { id: 'never' });
+    vi.stubGlobal('fetch', fetchMock);
+    const pdf = new File([new Uint8Array(16 * MB)], 'menu.pdf', { type: 'application/pdf' });
+
+    await expect(uploadAttachment(pdf)).rejects.toThrow(/15 MB max/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat/attachments/ticket');
+  });
+
+  // Minting the ticket just proved the session; a 401 on the upload is
+  // the ticket (expired mid-upload), and a login redirect would throw
+  // away a signed-in composer.
+  it('reports a rejected ticket as an error, not as being signed out', async () => {
+    vi.stubGlobal('fetch', uploadFetch(401, { error: 'That upload ticket is not valid.' }));
+
+    const failure = uploadAttachment(new File(['x'], 'menu.jpg', { type: 'image/jpeg' }));
+    await expect(failure).rejects.toThrow(/ticket is not valid/);
+    await expect(failure).rejects.not.toBeInstanceOf(NotSignedInError);
   });
 
   it('explains a 413 from the server instead of showing the status code', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(
-        async () =>
-          ({
-            ok: false,
-            status: 413,
-            json: async () => {
-              throw new Error('html');
-            },
-          }) as unknown as Response,
+      vi.fn(async (...[input]: FetchArgs) =>
+        String(input).endsWith('/ticket')
+          ? ({
+              ok: true,
+              status: 201,
+              json: async () => ({ ticket: 'tkt-1' }),
+            } as unknown as Response)
+          : ({
+              ok: false,
+              status: 413,
+              json: async () => {
+                throw new Error('html');
+              },
+            } as unknown as Response),
       ),
     );
 
@@ -215,7 +337,10 @@ describe('chat client', () => {
   it('swallows the reconnect event and returns the cursor', async () => {
     vi.stubGlobal(
       'fetch',
-      sseFetch([frame({ type: 'text_delta', text: 'hi' }), frame({ type: 'reconnect', after: 12 })]),
+      sseFetch([
+        frame({ type: 'text_delta', text: 'hi' }),
+        frame({ type: 'reconnect', after: 12 }),
+      ]),
     );
 
     const seen: ChatEvent[] = [];
@@ -232,3 +357,48 @@ describe('chat client', () => {
   });
 });
 
+// The manifest is for the model. People see their own words plus the
+// files, never a signed id — so whatever compose writes, parseManifest has
+// to take back out exactly.
+describe('parseManifest', () => {
+  const photo = (id: string, filename: string): Attachment => ({
+    id,
+    filename,
+    content_type: 'image/jpeg',
+    byte_size: 10,
+  });
+
+  it('splits a composed message back into the words and the files', () => {
+    const files = [photo('eyJ--abc', 'IMG_7978.jpg'), photo('eyJ--def', 'IMG_7977.jpg')];
+
+    expect(parseManifest(compose('Can you add these?', files))).toEqual({
+      text: 'Can you add these?',
+      attachments: [
+        { id: 'eyJ--abc', filename: 'IMG_7978.jpg' },
+        { id: 'eyJ--def', filename: 'IMG_7977.jpg' },
+      ],
+    });
+  });
+
+  it('leaves a message with no manifest untouched', () => {
+    expect(parseManifest('what can I eat\n\nat ninis')).toEqual({
+      text: 'what can I eat\n\nat ninis',
+      attachments: [],
+    });
+  });
+
+  it('leaves no text behind when the photo is the whole message', () => {
+    expect(parseManifest(compose('', [photo('id-1', 'menu.jpg')]))).toEqual({
+      text: '',
+      attachments: [{ id: 'id-1', filename: 'menu.jpg' }],
+    });
+  });
+
+  it('keeps a filename that contains the separator or a bracket', () => {
+    const odd = photo('id-2', 'lunch — page [2].jpg');
+
+    expect(parseManifest(compose('', [odd])).attachments).toEqual([
+      { id: 'id-2', filename: 'lunch — page [2].jpg' },
+    ]);
+  });
+});

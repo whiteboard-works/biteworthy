@@ -11,6 +11,8 @@ import {
   getConversation,
   listConversations,
   answerConfirmation,
+  compose,
+  renameConversation,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -29,6 +31,7 @@ import {
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
 import { useDeviceLocation } from './_useDeviceLocation';
+import { LocationNote, LocationToggle } from './_LocationToggle';
 import { ModeNotice, ModePicker } from './_ModePicker';
 import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
@@ -37,6 +40,9 @@ const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [], notices: [] };
 
 /** Enough hops for a very long scan; a bound, not an expectation. */
 const MAX_RECONNECTS = 20;
+// How close to the bottom still counts as "at the bottom" — a finger
+// rarely lands a scroll on the exact last pixel.
+const FOLLOW_SLACK_PX = 48;
 
 export function ChatClient(): ReactElement {
   const router = useRouter();
@@ -47,6 +53,14 @@ export function ChatClient(): ReactElement {
   const [pending, setPending] = useState<PendingTool | null>(null);
   const [live, setLive] = useState<LiveTurn | null>(null);
   const [busy, setBusy] = useState(false);
+  // The chat whose turn this tab is running, for the sidebar's "working"
+  // mark. `turn` below is the same fact as a ref, for the code that has to
+  // read it synchronously; this is the copy that draws.
+  const [runningId, setRunningId] = useState<string | null>(null);
+  // Chats whose turn finished while the person was looking at another
+  // one. Cleared the moment they open the chat — the mark says "there is
+  // something here you have not seen", nothing more.
+  const [unread, setUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const deviceLocation = useDeviceLocation();
@@ -63,7 +77,11 @@ export function ChatClient(): ReactElement {
   const [paneRevision, setPaneRevision] = useState(0);
   // Phone width: the pane takes the transcript's place while open.
   const [paneOpen, setPaneOpen] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  // Whether new content should pull the transcript down with it — only
+  // while the reader is at the bottom. Someone who scrolled up to read the
+  // start of a long reply is left there.
+  const following = useRef(true);
   // The queue is read from inside `run`'s teardown, which closes over the
   // render that started the turn — by then `queued` is whatever it was a
   // minute ago. The ref is the current one; the state is what draws.
@@ -91,6 +109,13 @@ export function ChatClient(): ReactElement {
   // `active` as of the latest adopt, for teardowns that closed over an
   // older render.
   const current = useRef<Conversation | null>(null);
+  // Renames in the air, by chat: the name this tab chose, until the server
+  // confirms it. A refetch served before the PATCH committed carries the
+  // old name, and must not draw it over the new one. One PATCH per chat
+  // at a time, because the endpoint has no sequence and two in flight
+  // could commit in either order; a name typed while one is out waits in
+  // `next` and goes when the first settles.
+  const renaming = useRef(new Map<string, { sent: string; next: string | null }>());
   // A mode switch is in the air. `adopt` must not overwrite the picker
   // with the value the server had before the PATCH landed.
   const switchingMode = useRef(false);
@@ -111,6 +136,10 @@ export function ChatClient(): ReactElement {
   // have a create in flight.
   const blank = useRef(0);
   const creating = useRef(new Set<string>());
+  // The blank key captured when leaving a blank chat, so overlapping opens
+  // can all retire it once any one succeeds. Set when any open sees that
+  // active is null (blank chat on screen); cleared when any open wins.
+  const leftBlankKey = useRef<string | null>(null);
 
   const onFailure = useCallback(
     (e: unknown) => {
@@ -129,9 +158,26 @@ export function ChatClient(): ReactElement {
       .catch(onFailure);
   }, [onFailure]);
 
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_SLACK_PX;
+  };
+
+  // `scrollTop` on the transcript rather than `scrollIntoView`, which also
+  // scrolls every ancestor — on a phone, the page itself.
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages, live, pending]);
+    const el = scroller.current;
+    if (el && following.current) el.scrollTop = el.scrollHeight;
+  }, [messages, live]);
+
+  // A parked call does nothing until it is answered, so it is never left
+  // above the fold.
+  useEffect(() => {
+    if (!pending) return;
+    following.current = true;
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [pending]);
 
   const adopt = (conversation: Conversation) => {
     viewing.current = conversation.id;
@@ -171,6 +217,9 @@ export function ChatClient(): ReactElement {
   const leaveBlank = () => {
     const key = blankKey();
     blank.current += 1;
+    // Clear any stale leftBlankKey so a later blank chat's queue cannot
+    // be stranded by an earlier open that set it but never cleared it.
+    leftBlankKey.current = null;
     if (creating.current.has(key)) return;
     queue.current = queue.current.filter((message) => message.conversationId !== key);
     setQueued(queue.current);
@@ -186,6 +235,16 @@ export function ChatClient(): ReactElement {
     setQueued(queue.current);
   };
 
+  // Opening a chat is reading it; so is deleting it.
+  const markRead = (id: string) => {
+    setUnread((set) => {
+      if (!set.has(id)) return set;
+      const next = new Set(set);
+      next.delete(id);
+      return next;
+    });
+  };
+
   // Refetching after every turn — rather than stitching the streamed
   // fragments into local state — means what's on screen is what the
   // server stored, which is also what a reload would show.
@@ -198,8 +257,10 @@ export function ChatClient(): ReactElement {
   const refresh = async (id: string): Promise<Conversation | null> => {
     const deletedMeanwhile = async () => (await deletions.current.get(id)) ?? false;
     try {
-      const conversation = await getConversation(id);
+      const fetched = await getConversation(id);
       if (await deletedMeanwhile()) return null;
+      const held = renaming.current.get(id);
+      const conversation = held ? { ...fetched, title: held.next ?? held.sent } : fetched;
       setConversations((list) =>
         list.some((c) => c.id === id)
           ? list.map((c) => (c.id === id ? { ...c, ...conversation } : c))
@@ -216,6 +277,10 @@ export function ChatClient(): ReactElement {
 
   const open = async (id: string) => {
     const fromBlank = viewing.current === null;
+    if (fromBlank && leftBlankKey.current === null) {
+      leftBlankKey.current = blankKey();
+    }
+    following.current = true;
     viewing.current = id;
     setHistoryOpen(false);
     // Whatever they had open on a phone, the chat they picked is what
@@ -234,7 +299,29 @@ export function ChatClient(): ReactElement {
     // chat" does — nothing can navigate back to a chat with no id. Only
     // once the open worked: a failed one puts the blank chat back on
     // screen, and what was queued in it has to still be there.
-    if (opened && fromBlank) leaveBlank();
+    //
+    // Any open winning retires the blank chat left behind, even when the
+    // open that first saw it is still pending — overlapping opens would
+    // otherwise leave it stranded.
+    if (opened) {
+      // Read only once it is on screen: a failed open puts the previous
+      // chat back, and the reply they clicked for is still unseen.
+      markRead(id);
+      const retire = leftBlankKey.current;
+      if (retire !== null) {
+        leftBlankKey.current = null;
+        // Increment blank counter so a failed creation can tell it's been
+        // left behind (draft !== blankKey()).
+        blank.current += 1;
+        // Only retire the queue if the blank chat is not still being
+        // created — if it is, its creation will either succeed (and re-tag
+        // the messages) or fail (and drop them in the catch block).
+        if (!creating.current.has(retire)) {
+          queue.current = queue.current.filter((message) => message.conversationId !== retire);
+          setQueued(queue.current);
+        }
+      }
+    }
     if (!opened && viewing.current === id) {
       viewing.current = current.current?.id ?? null;
       // That chat is on screen again, so its queue is drainable again.
@@ -249,6 +336,7 @@ export function ChatClient(): ReactElement {
 
   const startNew = () => {
     viewing.current = null;
+    following.current = true;
     current.current = null;
     setHistoryOpen(false);
     setError(null);
@@ -300,10 +388,59 @@ export function ChatClient(): ReactElement {
       if (turn.current?.id === id) {
         turn.current = null;
         setBusy(false);
+        setRunningId(null);
         flushView();
       }
+      markRead(id);
     } else {
       deletions.current.delete(id);
+    }
+  };
+
+  // The person's name for a chat, over the model's. Drawn first and sent
+  // after: a rename is the kind of edit that should feel instant, and if
+  // the server refuses it the old name comes back with the error.
+  //
+  // `base` is the name to fall back to, handed in by a follow-up rename
+  // because by then the list shows the name it is about to send, not the
+  // one the server holds.
+  const rename = async (id: string, title: string, base?: string | null) => {
+    const retitle = (next: string | null) => {
+      setConversations((list) => list.map((c) => (c.id === id ? { ...c, title: next } : c)));
+      if (current.current?.id === id) {
+        current.current = { ...current.current, title: next };
+        setActive((a) => (a?.id === id ? { ...a, title: next } : a));
+      }
+    };
+    const inflight = renaming.current.get(id);
+    if (inflight) {
+      // Drawn now, sent when the one before it settles. Only the latest
+      // waits: two names typed in that window were one change of mind.
+      inflight.next = title;
+      retitle(title);
+      return;
+    }
+    const previous =
+      base !== undefined ? base : (conversations.find((c) => c.id === id)?.title ?? null);
+    const mine = { sent: title, next: null as string | null };
+    renaming.current.set(id, mine);
+    retitle(title);
+    let confirmed = previous;
+    try {
+      const renamed = await renameConversation(id, title);
+      confirmed = renamed.title;
+      if (mine.next === null && !removed.current.has(id)) retitle(renamed.title);
+    } catch (e) {
+      // A chat deleted while its rename was out answers 404, which is
+      // news to no one. A session that has expired sends the person to
+      // sign in, and a follow-up would only send them there twice.
+      if (removed.current.has(id)) return;
+      if (e instanceof NotSignedInError) mine.next = null;
+      if (mine.next === null) retitle(previous);
+      onFailure(e);
+    } finally {
+      renaming.current.delete(id);
+      if (mine.next !== null && !removed.current.has(id)) void rename(id, mine.next, confirmed);
     }
   };
 
@@ -362,6 +499,7 @@ export function ChatClient(): ReactElement {
     turn.current = mine;
     const onScreen = () => viewing.current === id;
     setBusy(true);
+    setRunningId(id);
     setError(null);
     // Only on its own chat: teardown clears it only there, so a turn that
     // starts off screen would leave another chat "thinking" for good.
@@ -370,6 +508,9 @@ export function ChatClient(): ReactElement {
     let tools = 0;
     let outcome = 'error';
     let accepted = false;
+    // Whether the server said the turn ended. A watch that dropped on this
+    // side says nothing about the turn, which may well still be running.
+    let ended = false;
     let failure: unknown = null;
     let gone = false;
     // Whether a `pane` event followed the latest tool call — see the
@@ -394,6 +535,15 @@ export function ChatClient(): ReactElement {
           if (event.type === 'pane') sawPane = true;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+          // The loop's three terminal events — not the relay reporting
+          // that it lost the turn, which is an `error` with `interrupted`.
+          if (
+            event.type === 'done' ||
+            event.type === 'awaiting_confirmation' ||
+            (event.type === 'error' && !event.interrupted)
+          ) {
+            ended = true;
+          }
           // Narration belongs to its own chat. Once that chat is off
           // screen or being deleted, nothing this turn says belongs on the
           // page — not its text, and not the error event the server sends
@@ -432,6 +582,16 @@ export function ChatClient(): ReactElement {
       // finished, parked on a confirmation, or the connection dropped.
       // `refresh` only redraws if this chat is still the one on screen.
       const conversation = gone ? null : await refresh(id);
+      // Ended while the person was looking at another chat: there is a
+      // reply there they have not seen, and the sidebar is the one place
+      // that can say so. Any ending the server announced counts — it
+      // writes a turn that failed or was stopped into the transcript too
+      // (`AgentLoop#halt`), so the dot points at a reply either way. Not
+      // a watch that merely dropped: the turn may still be running, and
+      // there is nothing new to see yet.
+      if (accepted && ended && !gone && !removed.current.has(id) && !onScreen()) {
+        setUnread((set) => new Set(set).add(id));
+      }
       // The stream can drop after a write and before its `pane` event —
       // past the reconnect cap, or with the run gone. The refetch then
       // hands back the stored pane, which after `set_strictness` is the
@@ -469,6 +629,7 @@ export function ChatClient(): ReactElement {
       if (turn.current === mine) {
         turn.current = null;
         setBusy(false);
+        setRunningId(null);
         if (onScreen()) {
           const settled = conversation ?? current.current;
           // Only when the server took this turn. If `ask` was rejected,
@@ -600,6 +761,11 @@ export function ChatClient(): ReactElement {
         removed.current.add(draft);
         queue.current = queue.current.filter((message) => message.conversationId !== draft);
         setQueued(queue.current);
+        // If this failed blank chat was the one left behind, clear it so
+        // future opens don't try to retire it.
+        if (leftBlankKey.current === draft) {
+          leftBlankKey.current = null;
+        }
       }
       release();
       // Nothing else will drain what the person queued in the chat they
@@ -633,6 +799,8 @@ export function ChatClient(): ReactElement {
   // the composer does not need to know which, and the user finds out by
   // seeing a chip appear instead of a message.
   const send = (text: string, attachments: Attachment[]) => {
+    // Sending is asking to watch the answer arrive.
+    following.current = true;
     // The id is a React key and a cancel handle, nothing more: it only
     // has to be unique among the handful queued at once. The length
     // suffix is there because two messages sent inside the same
@@ -733,20 +901,24 @@ export function ChatClient(): ReactElement {
       <History
         conversations={conversations}
         activeId={active?.id ?? null}
+        runningId={runningId}
+        unread={unread}
         open={historyOpen}
         onOpen={open}
         onNew={startNew}
+        onRename={rename}
         onDelete={remove}
       />
 
       {/* Under `lg` the pane and the transcript share one column and the
           person picks which is showing; from `lg` up both are drawn. */}
       <main className={`${paneOpen ? 'hidden lg:flex' : 'flex'} min-w-0 flex-1 flex-col`}>
-        <header className="flex items-center justify-between border-b border-zinc-200 px-bw-4 py-bw-3">
-          <h1 className="truncate text-bw-lg font-bold text-zinc-900">
+        <header className="flex items-center justify-between gap-bw-2 border-b border-zinc-200 px-bw-4 py-bw-3">
+          <h1 className="min-w-0 truncate text-bw-lg font-bold text-zinc-900">
             {active?.title ?? 'New chat'}
           </h1>
-          <div className="flex items-center gap-bw-2">
+          <div className="flex shrink-0 items-center gap-bw-2">
+            <LocationToggle status={deviceLocation.status} onToggle={deviceLocation.toggle} />
             <ModePicker mode={mode} onChange={changeMode} />
             <button
               type="button"
@@ -769,8 +941,14 @@ export function ChatClient(): ReactElement {
         </header>
 
         <ModeNotice mode={mode} />
+        <LocationNote status={deviceLocation.status} />
 
-        <div className="flex-1 overflow-y-auto px-bw-4 py-bw-6">
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          data-testid="chat-scroller"
+          className="flex-1 overflow-y-auto px-bw-4 py-bw-6"
+        >
           {messages.length === 0 && !live ? <Welcome /> : null}
           <Transcript
             messages={messages}
@@ -785,7 +963,6 @@ export function ChatClient(): ReactElement {
               {error}
             </p>
           ) : null}
-          <div ref={bottom} />
         </div>
 
         {busy ? (
@@ -820,7 +997,6 @@ export function ChatClient(): ReactElement {
           queued={queued.filter((m) => m.conversationId === (active?.id ?? blankKey()))}
           onSend={send}
           onCancelQueued={cancelQueued}
-          location={{ status: deviceLocation.status, onToggle: deviceLocation.toggle }}
         />
       </main>
 
@@ -839,9 +1015,9 @@ export function ChatClient(): ReactElement {
 }
 
 /**
- * What the last turn cost. Rendered only when the server sent it, which
- * it does only for admins — the visibility decision lives server-side, so
- * there is nothing here to get wrong.
+ * What the conversation has cost, and how its last run went. Rendered only
+ * when the server sent it, which it does only for admins — the visibility
+ * decision lives server-side, so there is nothing here to get wrong.
  */
 /**
  * Outcomes worth a pill. `done` is the happy path and `nothing_queued` is
@@ -862,19 +1038,11 @@ function formatCost(cents: number): string {
 function UsagePills({ usage }: { usage: ChatUsage }): ReactElement {
   const run = usage.last_run;
   const pills = [
-    // Two scopes, said out loud. The old footer showed only the
-    // conversation lifetime and labelled it "total" beside per-run token
-    // counts, which invited reading a whole conversation's spend as the
-    // price of the last dozen tokens.
-    run ? `${formatCost(run.cost_cents)} turn` : null,
+    // Conversation spend only. Per-turn cost and the token counts were
+    // dropped: nobody read them, and the token pills beside a cost
+    // invited the arithmetic that says 1,200 tokens cost two dollars.
     `${formatCost(usage.cost_cents)} conversation`,
     run ? `${run.rounds} rounds` : null,
-    run
-      ? `${run.cache_read_tokens.toLocaleString()} cache r / ${run.cache_write_tokens.toLocaleString()} w`
-      : null,
-    run
-      ? `${run.input_tokens.toLocaleString()} in / ${run.output_tokens.toLocaleString()} out`
-      : null,
     run?.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
     // Two outcomes, because there are two runs. How the run these numbers
     // came from ended, and — only when it is something else worth seeing
@@ -925,19 +1093,34 @@ function Welcome(): ReactElement {
 function History({
   conversations,
   activeId,
+  runningId,
+  unread,
   open,
   onOpen,
   onNew,
+  onRename,
   onDelete,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
+  runningId: string | null;
+  unread: ReadonlySet<string>;
   open: boolean;
   onOpen: (id: string) => void;
   onNew: () => void;
+  onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }): ReactElement {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+
+  const saveTitle = () => {
+    if (!editing) return;
+    const title = editing.draft.trim();
+    const before = conversations.find((c) => c.id === editing.id)?.title ?? null;
+    if (title && title !== before) onRename(editing.id, title);
+    setEditing(null);
+  };
 
   return (
     <aside
@@ -981,16 +1164,64 @@ function History({
                 Cancel
               </button>
             </li>
+          ) : conversation.id === editing?.id ? (
+            // The name is edited where it is read. Enter keeps it, Escape
+            // drops it. No length cap here: the server has the only one, and
+            // its refusal comes back as the error with the old name restored.
+            <li
+              key={conversation.id}
+              className="flex items-center gap-bw-2 rounded-bw-md bg-zinc-50 px-bw-2 py-bw-1 text-bw-sm"
+            >
+              <input
+                type="text"
+                aria-label="Chat title"
+                value={editing.draft}
+                autoFocus
+                onChange={(e) => setEditing({ id: conversation.id, draft: e.target.value })}
+                onKeyDown={(e) => {
+                  // Not the Enter that accepts an IME candidate.
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveTitle();
+                  if (e.key === 'Escape') setEditing(null);
+                }}
+                className="min-w-0 flex-1 rounded-bw-sm border border-zinc-300 px-bw-1 py-bw-1 text-zinc-900"
+              />
+              <button
+                type="button"
+                onClick={saveTitle}
+                className="font-semibold text-bite hover:underline"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="font-semibold text-zinc-400 hover:text-zinc-600"
+              >
+                Cancel
+              </button>
+            </li>
           ) : (
             <li key={conversation.id} className="group flex items-center gap-bw-1">
               <button
                 type="button"
                 onClick={() => onOpen(conversation.id)}
-                className={`flex-1 truncate rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
+                className={`flex min-w-0 flex-1 items-center gap-bw-2 rounded-bw-md px-bw-2 py-bw-2 text-left text-bw-sm hover:bg-zinc-100 ${
                   conversation.id === activeId ? 'bg-zinc-100 font-medium' : 'text-zinc-600'
                 }`}
               >
-                {conversation.title ?? 'Untitled'}
+                <Mark
+                  working={conversation.id === runningId}
+                  unread={unread.has(conversation.id)}
+                />
+                <span className="truncate">{conversation.title ?? 'Untitled'}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Rename ${conversation.title ?? 'conversation'}`}
+                onClick={() => setEditing({ id: conversation.id, draft: conversation.title ?? '' })}
+                className="px-bw-1 text-zinc-300 hover:text-zinc-600"
+              >
+                ✎
               </button>
               <button
                 type="button"
@@ -1009,16 +1240,32 @@ function History({
 }
 
 /**
- * Uploaded files travel as ids, never bytes. Naming them in the message
- * keeps the transcript honest about what was sent, and gives the model
- * the ids `start_menu_scan` needs.
+ * The dot beside a chat's name. Pulsing while this tab is running a turn
+ * in it; steady once that turn ended off screen, until the chat is
+ * opened. Working wins: a reply that is still arriving is not yet "new".
  */
-function compose(text: string, attachments: Attachment[]): string {
-  if (attachments.length === 0) return text;
-  const manifest = attachments
-    .map((file) => `[Attached ${file.filename} — attachment_id: ${file.id}]`)
-    .join('\n');
-  return [text, manifest].filter(Boolean).join('\n\n');
+function Mark({ working, unread }: { working: boolean; unread: boolean }): ReactElement | null {
+  if (working) {
+    return (
+      <span
+        role="img"
+        aria-label="Working"
+        title="Working"
+        className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bite"
+      />
+    );
+  }
+  if (unread) {
+    return (
+      <span
+        role="img"
+        aria-label="New reply"
+        title="New reply"
+        className="h-2 w-2 shrink-0 rounded-full bg-bite"
+      />
+    );
+  }
+  return null;
 }
 
 /** The chat lives at /chat, so the useful signal is where the user came

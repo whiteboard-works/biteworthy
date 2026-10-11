@@ -10,12 +10,12 @@ module Tools
         current values back first — BOTH writes REPLACE what is there.
 
         Sending `hours` replaces the entire week. A day you leave out becomes
-        "we have no hours for that day", not "unchanged". Send the whole week
-        every time, including days that did not change.
+        closed (no hours stored). Send the whole week every time, including
+        days that did not change.
 
         A day may carry several ranges — lunch 11:00–14:00 and dinner
-        17:00–21:00 is an ordinary restaurant week. A day that is closed is
-        one row with both times omitted. A day may not have both.
+        17:00–21:00 is an ordinary restaurant week. A day that is closed can
+        be either omitted or sent as one row with both times omitted.
 
         Times are 24-hour "HH:MM". `day_of_week` is 0 for Sunday through 6 for
         Saturday. Bad input is rejected rather than coerced: "25:99" would

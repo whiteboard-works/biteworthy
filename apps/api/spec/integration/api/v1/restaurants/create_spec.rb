@@ -24,16 +24,29 @@ RSpec.describe "restaurants", type: :request do
                    type: :array,
                    items: {
                      type: :object,
-                     required: %w[id slug name status web_path city street latitude longitude],
+                     required: %w[id slug name status web_path city street latitude longitude logo_url],
                      properties: {
                        id:        { type: :string, format: :uuid },
                        slug:      { type: :string },
                        name:      { type: :string },
                        status:    { type: :string },
                        web_path:  { type: :string },
+                       logo_url:  { type: :string, nullable: true,
+                                    description: "200px WebP of the owner-set logo; null when none." },
                        street:    { type: :string, nullable: true },
                        latitude:  { type: :number, nullable: true },
                        longitude: { type: :number, nullable: true },
+                       address: {
+                         type: :object,
+                         nullable: true,
+                         properties: {
+                           street:      { type: :string, nullable: true },
+                           city:        { type: :string, nullable: true },
+                           region:      { type: :string, nullable: true },
+                           postal_code: { type: :string, nullable: true },
+                           country:     { type: :string, nullable: true }
+                         }
+                       },
                        city: {
                          type: :object,
                          required: %w[slug name],

@@ -15,6 +15,12 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockSearch = jest.fn();
+// expo-image as a plain string component: targetable by testID without
+// the native image module.
+jest.mock('expo-image', () => ({
+  Image: 'Image',
+}));
+
 jest.mock('../../lib/api/restaurants', () => ({
   ...jest.requireActual('../../lib/api/restaurants'),
   searchRestaurants: (...args: unknown[]) => mockSearch(...args),
@@ -33,6 +39,7 @@ const ninis = {
   street: '119 W College Dr',
   latitude: 37.27,
   longitude: -107.88,
+  logo_url: null,
 };
 
 describe('Home (Phase 7.2)', () => {
@@ -50,12 +57,31 @@ describe('Home (Phase 7.2)', () => {
     expect(screen.getByText('119 W College Dr · Durango, CO')).toBeTruthy();
   });
 
+  // A logo is the owner's branding, not a requirement: a row without one
+  // must render no image at all, not an empty slot.
+  it('shows a logo beside the name only when the restaurant has one', async () => {
+    mockSearch.mockResolvedValue([
+      { ...ninis, logo_url: 'https://img.test/ninis.webp' },
+      { ...ninis, id: 'rest-2', slug: 'chimayo', name: 'Chimayo', logo_url: null },
+    ]);
+    render(<Home />);
+
+    await waitFor(() => expect(screen.getByText('Chimayo')).toBeTruthy());
+    // Decorative images sit outside the accessibility tree on purpose,
+    // so the query has to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('restaurant-logo-ninis-1', hidden).props.source).toEqual({
+      uri: 'https://img.test/ninis.webp',
+    });
+    expect(screen.queryByTestId('restaurant-logo-chimayo', hidden)).toBeNull();
+  });
+
   it('typing re-searches (debounced) and reports a miss', async () => {
     mockSearch.mockResolvedValueOnce([ninis]).mockResolvedValueOnce([]);
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
 
-    fireEvent.changeText(screen.getByLabelText('restaurant-search'), 'zanzibar');
+    fireEvent.changeText(screen.getByTestId('restaurant-search'), 'zanzibar');
 
     await waitFor(() => expect(mockSearch).toHaveBeenLastCalledWith('zanzibar'));
     await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy());
@@ -66,7 +92,7 @@ describe('Home (Phase 7.2)', () => {
     render(<Home />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText('restaurant-ninis-1'));
+    fireEvent.press(screen.getByTestId('restaurant-ninis-1'));
     expect(mockPush).toHaveBeenCalledWith('/restaurants/rest-1?from=search');
   });
 
@@ -85,9 +111,9 @@ describe('Home (Phase 7.2)', () => {
   it('profile link routes to onboarding', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
-    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('profile-link')).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText('profile-link'));
+    fireEvent.press(screen.getByTestId('profile-link'));
     expect(mockPush).toHaveBeenCalledWith('/onboarding');
   });
 
@@ -96,10 +122,10 @@ describe('Home (Phase 7.2)', () => {
   it('no longer offers a scan entry point', async () => {
     mockSearch.mockResolvedValue([]);
     render(<Home />);
-    await waitFor(() => expect(screen.getByLabelText('profile-link')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('profile-link')).toBeTruthy());
 
-    expect(screen.queryByLabelText('scan-cta')).toBeNull();
-    expect(screen.queryByLabelText('scan-miss-cta')).toBeNull();
+    expect(screen.queryByTestId('scan-cta')).toBeNull();
+    expect(screen.queryByTestId('scan-miss-cta')).toBeNull();
   });
 
   it('shows a friendly error when the API is unreachable', async () => {
@@ -119,7 +145,7 @@ it('offers the chat from the home screen', async () => {
 
   render(<Home />);
 
-  fireEvent.press(await screen.findByLabelText('chat-link'));
+  fireEvent.press(await screen.findByTestId('chat-link'));
 
   expect(mockPush).toHaveBeenCalledWith('/chat');
 });

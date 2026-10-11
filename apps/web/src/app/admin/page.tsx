@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   fetchDashboard,
   type AdminDashboardPayload,
   type DashboardBucket,
+  type JevBucket,
 } from '../../lib/admin/metrics';
 import { friendlyAdminError } from '../../lib/admin/shared';
 import { StatusBadge, type BadgeTone } from './_StatusBadge';
@@ -41,6 +43,7 @@ const QUEUE_LABELS: Record<keyof AdminDashboardPayload['queues'], string> = {
   pending_suggestions: 'Pending suggestions',
   community_published_restaurants: 'Community-published restaurants',
   staged_runs: 'Staged ingestion runs',
+  pending_photo_submissions: 'Pending dish photos',
 };
 
 export default function AdminHomePage() {
@@ -133,6 +136,22 @@ export default function AdminHomePage() {
             </div>
           </section>
 
+          {/* Guarded: the web deploys on Vercel ahead of the API's Kamal
+              deploy, and an older API answers without `jev`. The cost and
+              queue tiles must not go down with a missing section. */}
+          {data.jev && (
+            <section aria-labelledby="jev-heading">
+              <h2 id="jev-heading" className="text-bw-sm font-semibold text-zinc-600">
+                Jev: cuisine tags and the hidden-wheat trial
+              </h2>
+              <div className="mt-bw-2 grid gap-bw-4 sm:grid-cols-3">
+                {PERIOD_KEYS.map((key) => (
+                  <JevTile key={key} periodKey={key} bucket={data.jev[key]} />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section aria-labelledby="queues-heading">
             <h2 id="queues-heading" className="text-bw-sm font-semibold text-zinc-600">
               Moderation queues
@@ -144,7 +163,15 @@ export default function AdminHomePage() {
                   data-testid={`queue-${key}`}
                   className="flex items-center justify-between rounded-bw-md border border-zinc-200 bg-white px-bw-3 py-bw-2 text-bw-sm"
                 >
-                  <span className="text-zinc-700">{QUEUE_LABELS[key]}</span>
+                  <span className="text-zinc-700">
+                    {key === 'pending_photo_submissions' ? (
+                      <Link href="/admin/photos" className="hover:text-bite">
+                        {QUEUE_LABELS[key]}
+                      </Link>
+                    ) : (
+                      QUEUE_LABELS[key]
+                    )}
+                  </span>
                   <span className="font-bold text-zinc-900">{data.queues[key]}</span>
                 </li>
               ))}
@@ -204,6 +231,76 @@ function PeriodTile({
         <div className="flex justify-between">
           <dt>Cache hit rate</dt>
           <dd className="font-semibold text-zinc-800">{Math.round(bucket.cache_hit_rate * 100)}%</dd>
+        </div>
+      </dl>
+    </article>
+  );
+}
+
+/**
+ * One period of Jev health. Two things earn a badge: calls that failed
+ * (the cuisine family silently degrades to keywords when they do) and
+ * `jev_only` wheat disagreements, where Jev says a dish is made with
+ * wheat and the merged data says none — the false negative a gluten-free
+ * filter cannot afford, and the number the shadow trial exists to count.
+ */
+function JevTile({ periodKey, bucket }: { periodKey: string; bucket: JevBucket }) {
+  const costLabel =
+    bucket.cost_cents >= 1
+      ? `${bucket.cost_cents.toFixed(2)}¢`
+      : `${bucket.cost_cents.toFixed(3)}¢`;
+
+  return (
+    <article
+      data-testid={`jev-${periodKey}`}
+      className="rounded-bw-lg border border-zinc-200 bg-white p-bw-4"
+    >
+      <div className="flex items-center justify-between gap-bw-2">
+        <h3 className="text-bw-sm font-semibold text-zinc-600">{bucket.label}</h3>
+        {bucket.failed > 0 && (
+          <StatusBadge
+            tone="warn"
+            label={`${bucket.failed} failed call${bucket.failed === 1 ? '' : 's'}`}
+          />
+        )}
+      </div>
+      <p className="mt-bw-2 text-bw-2xl font-bold text-zinc-900">
+        {bucket.calls}
+        <span className="ml-bw-2 text-bw-sm font-normal text-zinc-500">
+          call{bucket.calls === 1 ? '' : 's'} · {costLabel}
+        </span>
+      </p>
+      <dl className="mt-bw-2 space-y-bw-1 text-bw-xs text-zinc-600">
+        <div className="flex justify-between">
+          <dt>Answered / partial / failed</dt>
+          <dd className="font-semibold text-zinc-800">
+            {bucket.answered} / {bucket.partial} / {bucket.failed}
+          </dd>
+        </div>
+        <div className="flex justify-between">
+          <dt>Cuisine tags / no cuisine</dt>
+          <dd className="font-semibold text-zinc-800">
+            {bucket.cuisine.tagged} / {bucket.cuisine.no_cuisine}
+          </dd>
+        </div>
+        <div className="flex justify-between">
+          <dt>Wheat trial slices agree / disagree</dt>
+          <dd className="font-semibold text-zinc-800">
+            {bucket.wheat.agree} / {bucket.wheat.disagree}
+          </dd>
+        </div>
+        <div className="flex justify-between">
+          <dt>Dishes with wheat Jev saw, data missed</dt>
+          <dd
+            data-testid={`jev-${periodKey}-wheat-missed`}
+            className={
+              bucket.wheat.jev_only > 0
+                ? 'font-semibold text-danger'
+                : 'font-semibold text-zinc-800'
+            }
+          >
+            {bucket.wheat.jev_only}
+          </dd>
         </div>
       </dl>
     </article>

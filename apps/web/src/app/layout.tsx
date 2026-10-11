@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 import { colors } from '@biteworthy/ui-tokens';
 import { PostHogProvider } from './_PostHogProvider';
+import { MetaPixelProvider } from './_MetaPixelProvider';
 import { SiteDisclaimer } from './_SiteDisclaimer';
 import { SiteHeader } from './_SiteHeader';
 import './globals.css';
@@ -13,6 +14,9 @@ export const metadata: Metadata = {
   applicationName: 'BiteWorthy',
   // Standalone add-to-home-screen on iOS; the manifest covers Android/Chrome.
   appleWebApp: { capable: true, title: 'BiteWorthy', statusBarStyle: 'default' },
+  other: {
+    'facebook-domain-verification': 'krpds19h77ym3m25eylsrjkk291vxk',
+  },
 };
 
 export const viewport: Viewport = {
@@ -27,6 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }): React
     <html lang="en">
       <body className="bg-white text-zinc-900 antialiased">
         <PostHogProvider>
+          <MetaPixelProvider />
           <SiteHeader />
           {children}
         </PostHogProvider>

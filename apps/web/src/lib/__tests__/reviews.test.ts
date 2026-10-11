@@ -10,7 +10,7 @@ import {
   type ReviewPayload,
   type ReviewsResponse,
 } from '../reviews';
-import { shrinkForUpload } from '../shrink-image';
+import { shrinkForUpload, MAX_UPLOAD_BYTES } from '../shrink-image';
 
 vi.mock('../shrink-image', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../shrink-image')>();
@@ -103,6 +103,22 @@ describe('createReview', () => {
     const init = fetchImpl.mock.calls[0]![1] as RequestInit;
     expect(init.body).toBeInstanceOf(FormData);
     expect((init.headers as Record<string, string> | undefined)?.['Content-Type']).toBeUndefined();
+    const form = init.body as FormData;
+    expect(form.get('offer_as_dish_photo')).toBeNull();
+  });
+
+  it('offers the review photo as a dish photo only when the diner opts in', async () => {
+    const fetchImpl = fakeFetch(201, sampleReview);
+    const photo = new File(['fake'], 'photo.jpg', { type: 'image/jpeg' });
+    await createReview(
+      'item-1',
+      { rating: 4, photo, offerAsDishPhoto: true },
+      { fetchImpl },
+    );
+
+    const form = (fetchImpl.mock.calls[0]![1] as RequestInit).body as FormData;
+    expect(form.get('offer_as_dish_photo')).toBe('true');
+    expect(form.get('owns_rights')).toBe('true');
   });
 
   // A full-size phone photo is over the 4.5 MB the web server accepts.
@@ -123,11 +139,11 @@ describe('createReview', () => {
 
   it('refuses a photo still too large, with a message that says so, before sending it', async () => {
     const fetchImpl = fakeFetch(201, sampleReview);
-    const photo = new File([new Uint8Array(5 * 1024 * 1024)], 'odd.bmp', { type: 'image/bmp' });
+    const photo = new File([new Uint8Array(MAX_UPLOAD_BYTES + 1)], 'odd.bmp', { type: 'image/bmp' });
     vi.mocked(shrinkForUpload).mockResolvedValueOnce(photo);
 
     await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
-      /too large/,
+      /under 4 MB/,
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -136,6 +152,14 @@ describe('createReview', () => {
     const fetchImpl = fakeFetch(422, { error: 'Rating must be in 1..5' });
     await expect(createReview('item-1', { rating: 99 }, { fetchImpl })).rejects.toBeInstanceOf(
       ReviewError,
+    );
+  });
+
+  it('maps a photo-upload error code to diner-facing copy', async () => {
+    const fetchImpl = fakeFetch(422, { error: 'pending_limit', message: 'pending_limit' });
+    const photo = new File(['x'], 'a.jpg', { type: 'image/jpeg' });
+    await expect(createReview('item-1', { rating: 4, photo }, { fetchImpl })).rejects.toThrow(
+      /3 photos of this dish/i,
     );
   });
 

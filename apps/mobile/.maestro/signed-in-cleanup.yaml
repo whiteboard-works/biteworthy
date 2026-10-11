@@ -1,0 +1,92 @@
+# Runs from signed-in.yaml's onFlowComplete, pass or fail: clears the QA
+# account's bio and notes, then proves it from the server's side (the
+# public profile shows no bio; a fresh launch loads empty notes). It
+# checks the account first, so it can never blank someone else's profile.
+appId: app.biteworthy.mobile
+---
+- launchApp
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "username"
+      text: "qa_mobile"
+    timeout: 20000
+- tapOn:
+    id: "bio"
+- eraseText:
+    charactersToErase: 520
+- tapOn:
+    id: "bio-public-note"
+# Save is enabled only when the field changed. When it is, wait for the
+# server's answer before moving on, or a relaunch can cut the save off.
+- runFlow:
+    when:
+      visible:
+        id: "bio-save"
+        enabled: true
+    commands:
+      - tapOn:
+          id: "bio-save"
+      - extendedWaitUntil:
+          visible:
+            id: "bio-saved"
+          timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes"
+- eraseText:
+    charactersToErase: 520
+- tapOn:
+    id: "chat-notes-help"
+- scrollUntilVisible:
+    element:
+      id: "chat-notes-save"
+    direction: DOWN
+- runFlow:
+    when:
+      visible:
+        id: "chat-notes-save"
+        enabled: true
+    commands:
+      - tapOn:
+          id: "chat-notes-save"
+      - extendedWaitUntil:
+          visible:
+            id: "chat-notes-saved"
+          timeout: 15000
+# Proof, read back from the server.
+- scrollUntilVisible:
+    element:
+      id: "view-public-profile"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "view-public-profile"
+- extendedWaitUntil:
+    visible: "@qa_mobile.*"
+    timeout: 20000
+- assertNotVisible:
+    id: "user-bio"
+- launchApp:
+    stopApp: true
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "username"
+      text: "qa_mobile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+# The counters read the reloaded values: 0 means empty on the server,
+# whatever was there before.
+- assertVisible: "0/500"
+- scrollUntilVisible:
+    element: "0/300"
+    direction: UP

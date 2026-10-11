@@ -228,6 +228,30 @@ like…" explainer.
 
 ## Resolved Discovered follow-ups
 
+- ~~**Run-level Jev counters (2026-10-10)**~~ — the storage half resolved
+  2026-10-11 with a table rather than columns: `jev_observations` keeps
+  one row per Jev call (kind, subject, outcome, latency, tokens, agree,
+  details), so a live call's failures and spend and a shadow trial's
+  agreement both outlive a deploy. `JevCuisineTagger` and
+  `JevHiddenWheatShadow` write it. The dashboard half shipped the same
+  day: `Ingestion::JevMetrics` buckets the table by the cost tiles'
+  periods for `/admin/dashboard` (calls, outcomes, tokens, cost at
+  TypeSafe's rate, cuisine counters, wheat agreement) and rolls it up
+  per run for the scan queue, where a run's `jev_only` wheat
+  disagreements are named in red.
+- ~~**Persistent production logs (2026-10-10)**~~ — resolved 2026-10-10
+  (ADR 0009): `Rails.logger` is broadcast to PostHog Logs over OTLP from
+  both Kamal roles (`posthog-rails`, `config/initializers/posthog.rb`),
+  scrubbed of IPs, emails, and credentials, tagged `service.role` web or
+  worker; the Next server's `lib/server-log.ts` goes to the same project.
+  `kamal app logs` is still the live tail; PostHog → Logs is the record.
+- ~~**Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**~~
+  — resolved 2026-10-10: Jev owns cuisine tags. The surviving shadow
+  lines (3 runs, 1,085 pairs) agreed with Haiku 95.6% of the time and
+  the disagreements were Haiku force-fitting dishes into the seven leaf
+  cuisines, so `Ingestion::JevCuisineTagger` replaced the shadow,
+  Haiku's gap-fill prompt and schema lost the cuisine channel, and the
+  cuisine catalog left the Haiku prompt. `docs/ingestion.md` §2b.
 - ~~Wire `jest-expo` preset + `@testing-library/react-native` for mobile,
   AND `@testing-library/react` + jsdom for web~~ — promoted to Next-up
   (web side) after three paused ticks; mobile counterpart followed.

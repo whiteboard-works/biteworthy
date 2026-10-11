@@ -138,7 +138,10 @@ RSpec.describe "dietary profiles seed", type: :model do
 
   describe "Celiac preset (canary for surgical-leaf selection)" do
     before do
-      seed_ingredients(%w[grain grain-wheat grain-rye grain-barley grain-rice grain-corn])
+      seed_ingredients(%w[
+        grain grain-wheat grain-rye grain-barley grain-rice grain-corn
+        alcohol-beer alcohol-ale
+      ])
       run_seeds!
     end
 
@@ -146,7 +149,13 @@ RSpec.describe "dietary profiles seed", type: :model do
 
     it "avoids gluten-bearing grains specifically" do
       avoid_paths = celiac.ingredients.map(&:path).map(&:to_s)
-      expect(avoid_paths).to contain_exactly("grain.wheat", "grain.rye", "grain.barley")
+      grain_paths = avoid_paths.select { |p| p.start_with?("grain") }
+      expect(grain_paths).to contain_exactly("grain.wheat", "grain.rye", "grain.barley")
+    end
+
+    it "avoids beer and ale (made from barley, contains gluten)" do
+      avoid_slugs = celiac.ingredients.map(&:slug)
+      expect(avoid_slugs).to include("alcohol-beer", "alcohol-ale")
     end
 
     it "does NOT avoid gluten-free grains (rice, corn)" do

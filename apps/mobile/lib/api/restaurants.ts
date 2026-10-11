@@ -12,6 +12,7 @@ import type {
   FilterSource,
   HideReason,
   ItemSection,
+  ItemVariant,
   Strictness,
   TasteReason,
 } from '@biteworthy/filter-engine';
@@ -46,6 +47,9 @@ export interface Restaurant {
   website: string | null;
   status: string;
   city: RestaurantCity;
+  /** Owner-set branding (square WebP logo, 8:3 WebP banner); null when none. */
+  logo_url: string | null;
+  banner_url: string | null;
 }
 
 export type ItemStatus = 'visible' | 'hidden';
@@ -66,6 +70,8 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /** Sizes and prices, in menu order; a size may have no price. */
+  variants?: ItemVariant[];
   /**
    * Phase 8.2 — taste ranks, never hides. Null unless the signed-in
    * caller's profile carries taste signals (Phase 8.1 arrays).
@@ -260,6 +266,8 @@ export interface RestaurantSummary {
   street: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** Square WebP of the owner-set logo; null when none. */
+  logo_url: string | null;
 }
 
 export async function searchRestaurants(

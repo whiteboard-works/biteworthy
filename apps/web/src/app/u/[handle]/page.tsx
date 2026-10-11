@@ -37,6 +37,11 @@ export default async function UserProfilePage({
         {profile.display_name ?? `@${profile.handle}`}
       </h1>
       <p className="mt-1 text-bw-sm text-zinc-500">@{profile.handle} · Member since {memberSince}</p>
+      {profile.bio && (
+        <p className="mt-bw-3 whitespace-pre-line text-bw-base text-zinc-700" data-testid="user-bio">
+          {profile.bio}
+        </p>
+      )}
 
       <dl className="mt-bw-4 grid grid-cols-2 gap-bw-3 sm:grid-cols-3">
         <Stat label="Reviews" value={profile.reviews_count} />

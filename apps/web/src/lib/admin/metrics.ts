@@ -10,6 +10,7 @@ import { getAdminJson } from './shared';
 export type AdminDashboardPayload =
   paths['/api/v1/admin/dashboard']['get']['responses']['200']['content']['application/json'];
 export type DashboardBucket = AdminDashboardPayload['periods']['today'];
+export type JevBucket = AdminDashboardPayload['jev']['today'];
 
 export function fetchDashboard(fetchImpl?: typeof fetch): Promise<AdminDashboardPayload> {
   return getAdminJson<AdminDashboardPayload>('/api/admin/dashboard', fetchImpl);

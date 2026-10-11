@@ -31,7 +31,8 @@ RSpec.describe "Api::V1::Admin gate", type: :request do
       expect(body["community"]).to include("ceiling_cents")
       expect(body["queues"]).to include(
         "flagged_reviews", "pending_suggestions",
-        "community_published_restaurants", "staged_runs"
+        "community_published_restaurants", "staged_runs",
+        "pending_photo_submissions"
       )
     end
 

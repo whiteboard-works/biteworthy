@@ -17,6 +17,7 @@ module AuthTokenResponse
       email: user.email,
       handle: user.handle,
       display_name: user.display_name,
+      bio: user.bio,
       is_admin: user.is_admin,
       # UI gating only — it decides whether a hard-delete button renders.
       # Rails re-checks the column on every request that acts on it, the

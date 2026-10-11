@@ -14,6 +14,7 @@ const TABS = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/runs', label: 'Runs' },
   { href: '/admin/reviews', label: 'Reviews' },
+  { href: '/admin/photos', label: 'Photos' },
   { href: '/admin/suggestions', label: 'Suggestions' },
   // `match` widens the active state to sibling sub-pages (tags).
   { href: '/admin/taxonomy/ingredients', label: 'Taxonomy', match: '/admin/taxonomy' },
@@ -28,7 +29,7 @@ export function AdminNav() {
   return (
     <nav
       data-testid="admin-nav"
-      className="mb-bw-6 flex items-center gap-bw-4 border-b border-zinc-200 pb-bw-3 text-bw-sm"
+      className="mb-bw-6 flex flex-wrap items-center gap-x-bw-4 gap-y-bw-2 overflow-x-auto border-b border-zinc-200 pb-bw-3 text-bw-sm"
     >
       <span className="font-bold text-zinc-900">Admin</span>
       {TABS.map((tab) => {

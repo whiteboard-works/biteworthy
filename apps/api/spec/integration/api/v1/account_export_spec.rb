@@ -11,23 +11,25 @@ RSpec.describe "account/export", type: :request do
 
       response(200, "the personal-data archive") do
         schema type: :object,
-               required: %w[exported_at account profile reviews suggestions restaurant_visits],
+               required: %w[exported_at account profile reviews photo_submissions suggestions restaurant_visits],
                properties: {
                  exported_at: { type: :string, format: "date-time" },
                  account: {
                    type: :object,
-                   required: %w[id email handle display_name provider created_at],
+                   required: %w[id email handle display_name bio provider created_at],
                    properties: {
                      id:           { type: :string, format: :uuid },
                      email:        { type: :string },
                      handle:       { type: :string },
                      display_name: { type: :string, nullable: true },
+                     bio:          { type: :string, nullable: true },
                      provider:     { type: :string, nullable: true },
                      created_at:   { type: :string, format: "date-time" }
                    }
                  },
                  profile: { type: :object, nullable: true },
                  reviews: { type: :array, items: { type: :object } },
+                 photo_submissions: { type: :array, items: { type: :object } },
                  suggestions: { type: :array, items: { type: :object } },
                  restaurant_visits: { type: :array, items: { type: :object } }
                }
@@ -41,6 +43,9 @@ RSpec.describe "account/export", type: :request do
         let!(:review)     { create(:review, user: account, body: "Loved it") }
         let!(:suggestion) { create(:item_suggestion_pending, user: account) }
         let!(:visit)      { create(:restaurant_visit, user: account) }
+        let!(:photo_submission) do
+          create(:dish_photo_submission, user: account, credit_name: "Pat Diner")
+        end
         # A record belonging to someone else must never leak into the export.
         let!(:other_review) { create(:review, body: "Not mine") }
 
@@ -50,9 +55,14 @@ RSpec.describe "account/export", type: :request do
           expect(json["account"]["email"]).to eq(account.email)
           expect(json["reviews"].map { |r| r["id"] }).to contain_exactly(review.id)
           expect(json["reviews"].first["body"]).to eq("Loved it")
+          expect(json["photo_submissions"].map { |s| s["id"] }).to contain_exactly(photo_submission.id)
+          expect(json["photo_submissions"].first).to include(
+            "owns_rights" => true,
+            "credit_name" => "Pat Diner"
+          )
           expect(json["suggestions"].map { |s| s["id"] }).to contain_exactly(suggestion.id)
           expect(json["restaurant_visits"].map { |v| v["id"] }).to contain_exactly(visit.id)
-          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug")
+          expect(json["profile"]).to include("strictness", "avoid_ingredient_ids", "home_city_slug", "chat_notes")
           # No password hash, no JWT secret — only the user's own data.
           expect(response.body).not_to include("encrypted_password")
         end

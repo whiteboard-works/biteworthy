@@ -12,7 +12,7 @@ module Tools
       title "Correct a scanned dish"
       description <<~TEXT
         Correct a staged dish before it is accepted. Editing alone does not
-        publish anything; call `accept_staged_items` afterwards.
+        publish anything; call `accept_items` afterwards (or `accept_staged_items` if not an admin).
 
         Every field is optional and each list you pass REPLACES that list
         wholesale — send the complete set you want stored, not a delta. Omit

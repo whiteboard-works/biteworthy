@@ -19,7 +19,12 @@ module Tools
         properties: {
           review_id: { type: "string", description: "The review's UUID." },
           rating:    { type: "integer", description: "New rating, 1 to 5.", minimum: 1, maximum: 5 },
-          body:      { type: "string", description: "New body. Pass an empty string to clear it." }
+          body:      { type: "string", description: "New body. Pass an empty string to clear it." },
+          attachment_id: {
+            type: "string",
+            description: "Optional. Signed id of a replacement photo the caller uploaded. " \
+                         "EXIF/GPS is stripped before it is stored."
+          }
         },
         required: ["review_id"]
       )
@@ -28,17 +33,26 @@ module Tools
 
       running_description { "Updating your review" }
 
-      def self.perform(context:, review_id:, rating: nil, body: nil)
+      def self.perform(context:, review_id:, rating: nil, body: nil, attachment_id: nil)
         review = find_review!(review_id)
         authorize_author!(context, review)
 
         attrs = {}
         attrs[:rating] = rating unless rating.nil?
         attrs[:body]   = body   unless body.nil?
-        raise Errors::InvalidArgument, "Pass rating, body, or both." if attrs.empty?
+        if attrs.empty? && attachment_id.blank?
+          raise Errors::InvalidArgument, "Pass rating, body, a photo, or both."
+        end
 
-        review.update!(attrs)
-        ok(review_row(review).merge(flagged_for_moderation: review.flagged?))
+        Review.transaction do
+          review.assign_attributes(attrs)
+          review.validate!
+          attach_review_photo!(review, attachment_id, context.user)
+          review.save!
+        end
+        ok(review_row(review.reload).merge(flagged_for_moderation: review.flagged?))
+      rescue Images::StripMetadata::Unprocessable => e
+        raise Errors::InvalidArgument, e.message
       end
     end
   end

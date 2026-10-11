@@ -199,4 +199,50 @@ describe('SiteHeader', () => {
     await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
     expect(localStorage.getItem(DISMISSED_KEY)).toBeNull();
   });
+  // Signed in as an admin the row is six links wide, which pushed a
+  // phone's page sideways. Under `md` the links fold behind one button.
+  describe('on a narrow screen', () => {
+    it('folds the links behind a menu button', async () => {
+      stubAuth({ signedIn: true, admin: true });
+      render(<SiteHeader />);
+      await screen.findByTestId('nav-admin');
+
+      const toggle = screen.getByRole('button', { name: 'Menu' });
+      const nav = screen.getByTestId('site-nav');
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(nav).toHaveClass('hidden', 'md:flex');
+
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(nav).not.toHaveClass('hidden');
+    });
+
+    it('closes the menu when a link to the current page is tapped', async () => {
+      stubAuth({ signedIn: true });
+      render(<SiteHeader />);
+      const toggle = await screen.findByRole('button', { name: 'Menu' });
+      fireEvent.click(toggle);
+
+      fireEvent.click(screen.getByTestId('nav-restaurants'));
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    // A soft navigation keeps the header mounted, so an open menu would
+    // otherwise sit over the page the person just asked for.
+    it('closes the menu once a link has been followed', async () => {
+      stubAuth({ signedIn: true });
+      const { rerender } = render(<SiteHeader />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Menu' }));
+
+      mockPathname = '/chat';
+      rerender(<SiteHeader />);
+
+      expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      mockPathname = '/';
+    });
+  });
 });

@@ -25,8 +25,40 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Add cities (admin: `create_city` tool, `/admin/cities`) and add restaurants from the web (`/restaurants/new`); `list_cities` lets the chat find a city with nothing published yet.
 - [x] Location URLs: `/restaurants/usa/colorado/durango/<slug>`, computed once in `Restaurant#web_path`, with 301s from every old `/restaurants/<slug>` shape.
 - [x] Home city on the profile (`set_home_city`, settings picker): "what's nearby" in chat defaults `search_restaurants` to it. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
-- [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
+- [x] Location P2 (web) — "Use my location" in the chat header (moved out of the composer so the input has room on a phone); the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
+
+## Naming standard: no all-caps dishes (shipped 2026-10-11)
+
+- [x] `Names::Standard` — names mostly in capitals become Title Case (acronyms like BBQ/BLT/GF kept, small words lowercase), shouting descriptions become sentence case, footnote asterisks at either end of a name are stripped; deliberate mixed case is untouched. Applied by `normalizes` on `Item` and `IngestionItem`, so every writer gets it.
+- [x] Bulk fix for old rows: `bin/rails names:normalize` (dry run unless `DRY_RUN=false`, optional `RESTAURANT_ID`) and the admin tool `normalize_item_names`.
+- [ ] Run the production backfill (human: dry run, review, then `DRY_RUN=false`).
+- [ ] Decide whether a stripped `*` (the raw/undercooked advisory) should derive the `prep.raw` tag at scan time; today nothing reads it, and the source photo/PDF is the only record once the name is normalized.
+
+## Restaurant branding: logo + banner (shipped 2026-10-11)
+
+- [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
+- [x] Doors: `PATCH /api/v1/restaurants/:id/branding` (multipart) and the MCP `set_restaurant_branding` tool (attachment ids from `POST /attachments`).
+- [x] Chat import: `create_restaurant` takes `logo_attachment_id` / `banner_attachment_id`, and the creator of a draft may brand it until it is published (the scan door's rule), so a restaurant added from chat can be complete without a claim.
+- [x] Web `/restaurants/new` form: optional logo and banner pickers; the images go through the branding door right after the create (the creator may brand their draft), with a scan link offered if that upload fails.
+- [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
+- [x] Shapes the chat knows and can crop to: logo 1:1 up to 400×400, banner 8:3 up to 1600×600. `Images::Fit` crops each upload to its slot (center, an `anchor`, or a fractional box) and never enlarges; `inspect_image` gives the chat an upload's size, and `set_restaurant_branding` / the REST door take `logo_crop` / `banner_crop`.
+- [ ] Web branding editor — crop controls that send `logo_crop` / `banner_crop` (the API takes them; the editor still uploads and lets the server center-crop).
+- [x] Mobile — logo on home rows and beside the name on `restaurants/[id]`, banner across the top of that screen (`expo-image`); nothing renders for a restaurant without them.
+
+## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
+
+- [x] Web scan uploads go straight to the API with a 10-minute ticket (`POST /api/v1/attachments/ticket`, `X-Upload-Ticket`), so the web server's 4.5 MB body limit no longer caps them; the client ceiling is the API's 15 MB.
+- [x] A PDF over the 10 MB scan limit, up to 15 MB, gets one Ghostscript `/ebook` pass (`Pdfs::Shrink`) at the attachments door before being refused.
+- [x] `Images::StripMetadata` accepts up to 15 MB raw (was 5 MB, the stored cap) and shrinks the stored copy under 5 MB.
+- [x] Mobile resizes a picked photo to 2000px JPEG before uploading (`lib/shrink-image.ts`, `expo-image-manipulator`), mirroring web.
+- [ ] Review and dish-photo uploads on web still go through the proxy at 4 MB; move them to the ticket path if the client-side shrink ever proves insufficient.
+
+## Profile: about + chat notes (shipped 2026-10-06)
+
+- [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.
+- [x] Chat notes — `user_profiles.chat_notes` (500 chars, private), edited under "Notes for the assistant" in settings via `PATCH /profile`, fenced into the chat prompt's caller section as data the filter never reads (kept out of tool results, which are stored), and included in the account export. The privacy page now says the chat sends the profile and notes to Anthropic.
+- [x] Mobile — Settings → Account edits the bio and the chat notes, and `users/[handle]` shows the bio.
 
 ## MVP speed + UI pass (shipped 2026-09-27, #695–#707)
 
@@ -60,6 +92,7 @@ tables before picking up a phase — several are non-obvious from the code.
 - [x] M3a — community domains: reviews, suggestions, claims, history, `create_restaurant` (30 tools)
 - [x] M3b — admin domains: restaurant/menu structure, item deep-edit, taxonomy, moderation, users (43 tools)
 - [x] M3c — topology (`biteworthy://topology` resource + `describe_capabilities`); 44 tools
+- [x] Website-seed import — ToS-safe host policy, `discover_restaurant_site`, `create_restaurant` website/phone/hours, `clone_menu` for sibling locations. Plan notes in [`docs/mcp.md`](mcp.md) §ingestion.
 - [x] M4a — chat loop: `Chat::AgentLoop`, conversations/messages, confirmation gate, spend ceiling
 - [x] M4b — chat HTTP surface: SSE endpoint, attachment upload, conversation replay
 - [x] M5 — chat UI in `apps/web`; web scan entry points restored (mobile still has none)
@@ -124,8 +157,8 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 the merge / review / status rules.
 
 **Launch gates** (human, not the loop): the L1–L5 legal gates (remove
-`/privacy` + `/terms` DRAFT banners, lawyer sign-off, DMCA agent
-registration) in `docs/plans/legal-remediation-followups.md`, alongside
+lawyer sign-off — both DRAFT banners came off at the owner's call
+ahead of it, 2026-10-05/06 — and DMCA agent registration) in `docs/plans/legal-remediation-followups.md`, alongside
 the credential-gated wiring below. `docs/launch-readiness.md` is the
 linear human path from "code complete" to launch.
 
@@ -170,19 +203,36 @@ Other than that workstream and the exploration follow-ups below, **no
 remaining loop-shippable work.** Every loop-shippable launch piece is on
 master; the rest of the queue is human-credential-gated.
 
+## Diner dish photos (shipped 2026-10-06)
+
+- [x] Diners submit a photo of a dish; admins approve before it becomes `Item#photo` (an admin's own upload is approved on submit). Web UI on the dish page and photo-less menu cards, review-form opt-in, `/admin/photos` queue, MCP `list_photo_submissions` / `moderate_photo_submission`, EXIF/GPS stripped. Attribution: "Photo by \<display name\>".
+- [ ] Mobile (Expo) — same upload + credit on the dish screen; left as a follow-up.
+- [x] Chat: attach a photo and name the dish. `submit_dish_photo` queues it for a moderator after the user confirms they took it; `set_item_photo` puts it live for the verified owner or an admin. No client change: both chats already pass uploads as attachment ids (not exercised end-to-end on a device).
+
 ## Open follow-ups
 
 Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
-  — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
-  alongside Haiku and logs `[jev_shadow]` agreement lines, writing
-  nothing. After a few dozen real scans, compare: if agreement is high
-  and the disagreements favor Jev, move cuisine tags to Jev (and drop
-  the cuisine catalog from the Haiku prompt); otherwise remove the
-  trial. See `docs/ingestion.md` §2b.
+- **Read the hidden-wheat shadow and decide (2026-10-11)** — after a
+  few dozen scans, `JevObservation.where(kind: "hidden_wheat_shadow")`:
+  if `jev_only` disagreements are real misses (a battered fish with no
+  wheat row), let a Jev "yes" add a cautionary `grain-wheat-*` row as
+  `inferred`, never remove one; if they are noise, remove the trial and
+  the `JEV_WHEAT_SHADOW` switch. `docs/ingestion.md` §2b.
+- **Backfill cuisine tags with Jev, or let an admin re-run a menu
+  (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
+  Every restaurant published before 2026-10-10 still carries Haiku's
+  cuisine tags (the shadow trial showed them force-fitting dishes into
+  the seven leaf cuisines), and fully matched dishes never got one at
+  all. The admin tool `retag_cuisine` (shipped 2026-10-10, backed by
+  `Ingestion::JevCuisineRetag`) re-tags one restaurant on demand, with
+  `dry_run`. The first dry runs (ten Durango restaurants, 2026-10-10)
+  showed Jev refusing the force-fits with nowhere else to put a dish, so
+  the cuisine taxonomy grew from 7 to 23 leaves the same day. **Still
+  open:** re-run the dry runs on the new taxonomy, then the real runs
+  restaurant by restaurant from an admin session.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately
@@ -303,12 +353,6 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   Both classes bite after the check, not before, so `lib/safe-next.ts`
   re-resolves the value it returns instead of inspecting the one it got.
   See `docs/status.md` 2026-08-14.
-
-- **`pnpm build` fails on clean master** — `@biteworthy/mobile#build`
-  (`expo export`) exits non-zero with no local changes, and `ci-js.yml`
-  never runs `build`, so nothing catches it. Not blocking today (Vercel
-  builds web on its own and mobile ships through EAS), but it means the
-  root `pnpm build` cannot be used as a pre-push check.
 
 - **`Chat::Titler` has no VCR cassette** — surfaced by Codex on #599.
   `GroundingReview` has two under `spec/cassettes/chat/`; the titler has

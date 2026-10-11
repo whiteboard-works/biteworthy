@@ -90,13 +90,13 @@ longer the product's identity; they're a guarantee underneath it. See §7.
 
 ### Month 1 (June) — Unblock launch. *No new product code.*
 
-- [ ] **L1 attorney sign-off** on `/privacy` + `/terms` → remove DRAFT banners (hard gate)
+- [ ] **L1 attorney sign-off** on `/privacy` + `/terms` (hard gate; both DRAFT banners came off ahead of it at the owner's call, 2026-10-05/06)
 - [ ] **L3 dish-photo liability** — counsel ruling on auto-cropping third-party menu photos; decide now (opt-in-upload fallback exists)
 - [x] Provision in dependency order: Hetzner cpx21 → Neon → GHCR PAT → Kamal deploy — done
 - [x] Resend SMTP (Devise reset, claim verification, waitlist) — live 2026-08-14, smoke delivered to inbox
 - [x] Cloudflare R2 bucket (review + dish photos) — live
 - [x] Vercel (bite-worthy.com domain + SSR restaurant pages) — live
-- [ ] PostHog API key (funnel measurement)
+- [x] PostHog API key (funnel measurement) — pinned for project 652080, ADR 0009 (2026-10-10)
 - [ ] Apple Developer ($99) + Google Play ($25) + DMCA agent ($6)
 - [ ] Record the ingestion cassette (~$0.05) so CI greens on real ExtractMenuJob
 - [ ] Seed 30 Durango restaurants (~$15 ingestion) — coverage *is* the day-one product

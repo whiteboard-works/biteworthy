@@ -1,0 +1,67 @@
+# Signed-in test: bio and assistant notes save, and the bio shows on the
+# public profile. Runs against production as the QA account `qa_mobile`.
+#
+# Before the first run, sign the simulator or emulator into qa_mobile by
+# hand (password: macOS Keychain item `biteworthy-qa-mobile`). The flow
+# never types a password, because Maestro writes typed text into its logs.
+#   maestro --device <id> test apps/mobile/.maestro/signed-in.yaml
+#
+# It refuses to touch any other account, and the onFlowComplete hook
+# clears the bio and notes even when a step fails.
+appId: app.biteworthy.mobile
+onFlowComplete:
+  - runFlow: signed-in-cleanup.yaml
+---
+- launchApp
+- tapOn:
+    id: "account-link"
+- extendedWaitUntil:
+    visible:
+      id: "username"
+      text: "qa_mobile"
+    timeout: 20000
+- tapOn:
+    id: "bio"
+- inputText: "QA bio: testing the app build."
+# The help text, not the "About you" title, which also names the input.
+- tapOn:
+    id: "bio-public-note"
+- tapOn:
+    id: "bio-save"
+- extendedWaitUntil:
+    visible:
+      id: "bio-saved"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "chat-notes"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes"
+- inputText: "QA notes: mild spice only."
+- tapOn:
+    id: "chat-notes-help"
+- scrollUntilVisible:
+    element:
+      id: "chat-notes-save"
+    direction: DOWN
+- tapOn:
+    id: "chat-notes-save"
+- extendedWaitUntil:
+    visible:
+      id: "chat-notes-saved"
+    timeout: 15000
+- takeScreenshot: account-saved
+- scrollUntilVisible:
+    element:
+      id: "view-public-profile"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "view-public-profile"
+- extendedWaitUntil:
+    visible:
+      id: "user-bio"
+    timeout: 20000
+- assertVisible: "QA bio: testing the app build."
+- takeScreenshot: public-profile-bio

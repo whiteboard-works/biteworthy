@@ -75,7 +75,7 @@ module Ingestion
       return true if user&.is_admin?
       return true if restaurant.status == "published"
 
-      restaurant.status == "draft" && restaurant.created_by_user_id == user&.id
+      restaurant.draft_created_by?(user)
     end
 
     def self.per_file_byte_limit(user)
@@ -108,7 +108,22 @@ module Ingestion
         begin
           fetched = UrlFetcher.fetch(@source_url)
         rescue UrlFetcher::FetchError => e
-          return failure(:url_fetch_failed, reason: e.reason, status: e.status)
+          # A redirect hop can land on a ToS-forbidden host after the
+          # pre-check above passed. Same refusal as the direct case.
+          if e.reason == "forbidden_host"
+            return failure(:forbidden_host, message: HostPolicy::MESSAGE, next_step: HostPolicy::NEXT_STEP)
+          end
+
+          # Add helpful guidance for common fetch failures
+          message = case e.status
+                    when 403
+                      "URL blocked (403 Forbidden). Upload the menu as a PDF or photos, or paste the menu text."
+                    when 404
+                      "URL not found (404)."
+                    else
+                      e.reason.to_s
+                    end
+          return failure(:url_fetch_failed, reason: e.reason, status: e.status, message: message)
         end
       end
 
@@ -127,6 +142,9 @@ module Ingestion
     def check_preconditions
       return failure(:forbidden_restaurant) unless can_target_restaurant?
       return failure(:no_inputs) if @files.empty? && @source_url.nil? && @source_text.nil?
+      if @source_url && HostPolicy.forbidden?(@source_url)
+        return failure(:forbidden_host, message: HostPolicy::MESSAGE, next_step: HostPolicy::NEXT_STEP)
+      end
 
       validate_files || validate_source_text ||
         # Cheap unlocked pre-check so an over-quota caller can't make us do

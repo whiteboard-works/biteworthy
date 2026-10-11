@@ -26,6 +26,9 @@ module Biteworthy
     config.active_job.queue_adapter = :solid_queue
     config.cache_store = :solid_cache_store
 
+    # Use libvips for ActiveStorage variant processing (WebP, faster than ImageMagick)
+    config.active_storage.variant_processor = :vips
+
     config.autoload_lib(ignore: %w[assets tasks])
 
     # CORS handled in initializers/cors.rb.

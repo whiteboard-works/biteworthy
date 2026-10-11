@@ -26,6 +26,10 @@ const restaurantPayload: Restaurant = {
   claimed_at: null,
   claimed_by_user_id: null,
   city: { id: 'city-1', slug: 'durango', name: 'Durango', region: 'CO' },
+  time_zone: null,
+  hours: [],
+  logo_url: null,
+  banner_url: null,
 };
 
 const itemsPayload: RestaurantItemsResponse = {
@@ -284,6 +288,9 @@ describe('fetchRestaurants', () => {
     street: null,
     latitude: null,
     longitude: null,
+    time_zone: null,
+    hours: [],
+    logo_url: null,
   };
 
   it('GETs the published list and unwraps { restaurants }', async () => {

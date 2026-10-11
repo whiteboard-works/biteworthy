@@ -27,6 +27,8 @@ class Item < ApplicationRecord
   belongs_to :restaurant
   belongs_to :menu_section, optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
+  belongs_to :human_verified_by_user, class_name: "User", optional: true
+  belongs_to :restaurant_verified_by_user, class_name: "User", optional: true
 
   has_many :item_variants,    dependent: :destroy
   has_many :item_modifiers,   dependent: :destroy
@@ -35,6 +37,8 @@ class Item < ApplicationRecord
   has_many :item_tags,        dependent: :destroy
   has_many :tags,        through: :item_tags
   has_many :reviews,          dependent: :destroy
+  has_many :photo_submissions, class_name: "DishPhotoSubmission", dependent: :destroy
+  belongs_to :photo_submission, class_name: "DishPhotoSubmission", optional: true
   has_many :user_item_overrides, dependent: :destroy
   has_many :favorite_items,   dependent: :destroy
   # Destroying a promoted item used to raise InvalidForeignKey —
@@ -58,7 +62,16 @@ class Item < ApplicationRecord
   # restaurant could strand its own claim forever.
   has_many :suggestions, as: :subject, dependent: :destroy
 
-  has_one_attached :photo
+  has_one_attached :photo do |attachable|
+    # format: :webp converts variants to WebP using the vips processor
+    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp
+    attachable.variant :card, resize_to_limit: [ 600, 600 ], format: :webp
+    attachable.variant :full, resize_to_limit: [ 1600, 1600 ], format: :webp
+  end
+  validates_image_attachments :photo
+
+  normalizes :name, with: ->(name) { Names::Standard.item_name(name) }
+  normalizes :description, with: ->(text) { Names::Standard.description(text) }
 
   validates :name, presence: true
   validates :status,     inclusion: { in: STATUSES }
@@ -78,6 +91,36 @@ class Item < ApplicationRecord
 
   def denormalized_tag_ids
     read_attribute(:tag_ids)
+  end
+
+  def human_verified?
+    human_verified_at.present?
+  end
+
+  def restaurant_verified?
+    restaurant_verified_at.present?
+  end
+
+  def mark_human_verified!(user)
+    return unless human_verified_at.nil?
+    update!(human_verified_at: Time.current, human_verified_by_user: user)
+  end
+
+  def mark_restaurant_verified!(user)
+    return unless restaurant_verified_at.nil?
+    update!(restaurant_verified_at: Time.current, restaurant_verified_by_user: user)
+  end
+
+  # Once the restaurant has verified a dish, only the verifier or a super
+  # admin may edit it. A plain admin may not: edit_item is admin-only, so
+  # letting admins through would make the lock a no-op.
+  def can_be_edited_by?(user)
+    return true unless restaurant_verified?
+    return true if user&.is_super_admin?
+
+    # The verifier pointer is nulled when that account is deleted; nobody,
+    # not even a nil or unsaved user, matches a missing verifier.
+    restaurant_verified_by_user_id.present? && user&.id == restaurant_verified_by_user_id
   end
 
   # Bulk writers attach many joins to the same item, and every join rewrites

@@ -3,9 +3,10 @@
 module Ingestion
   # Prompt for the single background enrichment call that follows the
   # deterministic resolve. The model only sees items the code flagged as
-  # gaps, and is only asked for what code can't do: implied ingredients
-  # and cuisine tags. Allergen/diet/prep/flavor never come from here —
-  # TagDeriver re-derives them over the merged ingredient set.
+  # gaps, and is only asked for what code can't do: implied ingredients.
+  # No tag family comes from here — TagDeriver re-derives
+  # allergen/diet/prep/flavor over the merged ingredient set, and Jev
+  # decides cuisine (JevCuisineTagger).
   class GapFillPrompt
     SYSTEM_INSTRUCTIONS = <<~MD.strip
       You are the second-pass enricher for a menu ingestion pipeline. A
@@ -20,13 +21,19 @@ module Ingestion
         * `ingredients.unresolved`: strings from `unmatched` that are
           real ingredients missing from the catalog (raw material for
           the curation queue).
-        * `cuisine_tags.resolved`: cuisine tag slugs for the item from
-          the cuisine catalog, each with a confidence (0..1).
-        * `cuisine_tags.unresolved`: cuisine-ish phrases not in the
-          catalog.
+
+      Safety-critical: Always infer typical preparation methods that use
+      wheat even when the dish description doesn't mention it. Common examples:
+        * Gravy is typically flour-thickened (grain-wheat-gravy or grain-wheat-roux)
+        * Fried items often use wheat batter or breading (grain-wheat-batter, grain-wheat-breading)
+        * Samosas typically use wheat pastry
+        * Chile rellenos are typically battered
+        * Sauces with roux bases contain wheat flour
+      If uncertain whether a preparation uses wheat, include it with lower
+      confidence rather than omitting it — false negatives can be harmful.
 
       Rules:
-        * Use slugs **verbatim** from the catalogs — no fuzzy matches,
+        * Use slugs **verbatim** from the catalog — no fuzzy matches,
           no inventing.
         * Never repeat a slug from the item's `matched` list.
         * `index` in the response must equal the index I gave you.
@@ -35,13 +42,12 @@ module Ingestion
     MD
 
     class << self
-      # Instructions + both catalogs, one cache breakpoint on the last
-      # block so the whole (stable) prefix is cached across runs.
+      # Instructions + the ingredient catalog, one cache breakpoint on
+      # the last block so the whole (stable) prefix is cached across runs.
       def system(client)
         client.system_blocks(
           { text: SYSTEM_INSTRUCTIONS },
-          { text: "# Ingredient catalog\n#{CatalogBuilder.ingredients_text}" },
-          { text: "# Cuisine tag catalog\n#{CatalogBuilder.tags_text(family: 'cuisine')}", cache: true }
+          { text: "# Ingredient catalog\n#{CatalogBuilder.ingredients_text}", cache: true }
         )
       end
 

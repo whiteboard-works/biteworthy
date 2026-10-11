@@ -3,10 +3,13 @@ require "rails_helper"
 # Admin deep-edit is the "fix it at the source" counterpart to verify
 # editing: once a dish is live, this is the only way to correct what it
 # claims. The rules that protect allergy users are the point —
-# admin-set joins land `confirmed`/`human` (so strict mode trusts
-# them), removals go row-by-row so the denormalized arrays the filter
-# query reads stay in sync, and `confidence` itself is unreachable
-# from here.
+# admin-set joins default to `confirmed`/`human` (so strict mode trusts
+# them), an optional `added_confidence` marks only newly added rows as
+# a cautionary guess (`derived`, so the trusted-source allow-list will
+# not remap them to confirmed), removals go row-by-row so the
+# denormalized arrays the filter query reads stay in sync, and
+# dish-level `confidence` is re-derived from the weakest join rather
+# than being settable here.
 RSpec.describe "Admin item deep edit", type: :request do
   let(:admin)      { create(:user, :admin) }
   let(:restaurant) { create(:restaurant, :published) }
@@ -108,6 +111,95 @@ RSpec.describe "Admin item deep edit", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(item.reload.confidence).to eq("suggested")
+    end
+
+    # A curator adding "this American-Chinese sauce likely has wheat soy
+    # sauce" must not land as verified. Default stays confirmed/human so
+    # existing admin edits still outrank a future scan.
+    describe "added_confidence" do
+      let!(:gluten) do
+        create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                     family: "allergen", path: "allergen.contains_gluten")
+      end
+
+      it "defaults omitted added_confidence to confirmed/human" do
+        patch_item(ingredient_slugs: %w[meat-beef], added_confidence: nil)
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_ingredients.pluck(:confidence, :source)).to eq([%w[confirmed human]])
+      end
+
+      it "marks only newly added rows suggested/derived and leaves kept rows alone" do
+        ItemIngredient.create!(item: item, ingredient: beef, confidence: "confirmed", source: "human")
+        ItemTag.create!(item: item, tag: vegan, confidence: "confirmed", source: "human")
+
+        patch_item(
+          ingredient_slugs: %w[meat-beef soy-tofu],
+          tag_slugs: %w[diet-vegan contains-gluten],
+          added_confidence: "suggested"
+        )
+
+        expect(response).to have_http_status(:ok)
+        expect(item.item_ingredients.find_by!(ingredient: beef))
+          .to have_attributes(confidence: "confirmed", source: "human")
+        expect(item.item_ingredients.find_by!(ingredient: tofu))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        expect(item.item_tags.find_by!(tag: vegan))
+          .to have_attributes(confidence: "confirmed", source: "human")
+        expect(item.item_tags.find_by!(tag: gluten))
+          .to have_attributes(confidence: "suggested", source: "derived")
+        # derived is the point of the source pick: TRUSTED_SOURCES is
+        # match/human/owner, so a later admin remap cannot confirm these.
+        expect(Ingestion::ConfidenceMapper::TRUSTED_SOURCES).not_to include("derived")
+        expect(Ingestion::ConfidenceMapper.map_confidence(1.0, "derived", "confirmed"))
+          .to eq("suggested")
+      end
+
+      # The point of the marking: a cautionary allergen tag must pull the
+      # dish off confirmed so strict mode no longer treats it as verified.
+      it "re-derives dish confidence from the weakest current join row" do
+        item.update!(confidence: "confirmed")
+        ItemIngredient.create!(item: item, ingredient: beef, confidence: "confirmed", source: "human")
+
+        patch_item(tag_slugs: %w[contains-gluten], added_confidence: "suggested")
+
+        expect(response).to have_http_status(:ok)
+        expect(item.reload.confidence).to eq("suggested")
+      end
+
+      # The filter reads denormalized tag_ids, not join confidence — a
+      # suggested contains-gluten still has to hide the dish from someone
+      # avoiding gluten, or the cautionary mark would be decoration.
+      it "still hides a dish with a suggested contains-gluten tag from an avoid list" do
+        item.update!(confidence: "confirmed", status: "published")
+
+        patch_item(tag_slugs: %w[contains-gluten], added_confidence: "suggested")
+        expect(response).to have_http_status(:ok)
+
+        filter = Menus::Filter.new(
+          avoid_ingredient_ids: [],
+          avoid_tag_ids:        [gluten.id],
+          strictness:           "balanced",
+          source:               "user_profile",
+          preset_slug:          nil
+        )
+        dish = item.reload
+        reasons = filter.reasons_for(dish, Menus::Labels.for_filter([dish], filter))
+
+        expect(reasons).to include(hash_including(kind: "avoid_tag", tag_id: gluten.id))
+      end
+
+      it "422s an unknown added_confidence and writes nothing" do
+        patch_item(ingredient_slugs: %w[meat-beef], added_confidence: "pretty-sure")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to eq(
+          "error" => "invalid_added_confidence",
+          "value" => "pretty-sure",
+          "allowed" => %w[confirmed suggested inferred]
+        )
+        expect(item.reload.item_ingredients).to be_empty
+      end
     end
   end
 
@@ -213,12 +305,212 @@ RSpec.describe "Admin item deep edit", type: :request do
     end
   end
 
+  describe "photo uploads" do
+    let(:jpeg_file) do
+      Rack::Test::UploadedFile.new(
+        Rails.root.join("spec/fixtures/files/test-image.jpg"),
+        "image/jpeg"
+      )
+    end
+
+    let(:png_file) do
+      Rack::Test::UploadedFile.new(
+        Rails.root.join("spec/fixtures/files/test-image.png"),
+        "image/png"
+      )
+    end
+
+    def patch_with_photo(photo:, extra_params: {})
+      patch "/api/v1/admin/items/#{item.id}",
+            params: extra_params.merge(photo: photo),
+            headers: auth_headers_for(admin)
+    end
+
+    it "attaches a photo and returns photo_url" do
+      patch_with_photo(photo: jpeg_file)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(response.parsed_body["photo_url"]).to be_present
+      expect(response.parsed_body["photo_url"]).to include("test-image.jpg")
+    end
+
+    it "replaces an existing photo" do
+      item.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "old-photo.jpg",
+        content_type: "image/jpeg"
+      )
+      old_blob_id = item.photo.blob.id
+
+      patch_with_photo(photo: png_file)
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(item.photo.blob.id).not_to eq(old_blob_id)
+      expect(item.photo.filename.to_s).to eq("test-image.png")
+    end
+
+    it "removes a photo when remove_photo is true" do
+      item.photo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "dish.jpg",
+        content_type: "image/jpeg"
+      )
+
+      patch "/api/v1/admin/items/#{item.id}",
+            params: { remove_photo: "true" }.to_json,
+            headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).not_to be_attached
+      expect(response.parsed_body["photo_url"]).to be_nil
+    end
+
+    it "can edit other fields and attach a photo in the same request" do
+      patch_with_photo(
+        photo: jpeg_file,
+        extra_params: { name: "Renamed with photo", ingredient_slugs: ["meat-beef"] }
+      )
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.name).to eq("Renamed with photo")
+      expect(item.photo).to be_attached
+      expect(item.item_ingredients.pluck(:confidence, :source)).to eq([%w[confirmed human]])
+    end
+
+    it "422s a file that exceeds the 5 MB limit" do
+      oversized = Rack::Test::UploadedFile.new(
+        StringIO.new("x" * (HasPhotoValidation::MAX_PHOTO_BYTES + 1)),
+        "image/jpeg",
+        original_filename: "huge.jpg"
+      )
+
+      patch_with_photo(photo: oversized)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["photo"]).to include("must be 5 MB or smaller")
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "422s a file with a disallowed content type" do
+      bad_file = Rack::Test::UploadedFile.new(
+        StringIO.new("not an image"),
+        "application/pdf",
+        original_filename: "menu.pdf"
+      )
+
+      patch_with_photo(photo: bad_file)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["photo"]).to be_present
+      expect(item.reload.photo).not_to be_attached
+    end
+
+    it "accepts photo_signed_id from the attachments flow" do
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+        filename: "from-signed-id.jpg",
+        content_type: "image/jpeg"
+      )
+
+      patch "/api/v1/admin/items/#{item.id}",
+            params: { photo_signed_id: blob.signed_id }.to_json,
+            headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.photo).to be_attached
+      expect(item.photo.blob.id).to eq(blob.id)
+    end
+
+    describe "WebP variants" do
+      before do
+        item.photo.attach(
+          io: File.open(Rails.root.join("spec/fixtures/files/test-image.jpg")),
+          filename: "dish.jpg",
+          content_type: "image/jpeg"
+        )
+      end
+
+      it "exposes photo_urls with thumb, card, and full variants" do
+        patch "/api/v1/admin/items/#{item.id}",
+              params: {}.to_json,
+              headers: auth_headers_for(admin).merge("Content-Type" => "application/json")
+
+        expect(response).to have_http_status(:ok)
+        photo_urls = response.parsed_body["photo_urls"]
+        expect(photo_urls).to be_present
+        expect(photo_urls).to have_key("thumb")
+        expect(photo_urls).to have_key("card")
+        expect(photo_urls).to have_key("full")
+        expect(photo_urls["thumb"]).to include("/representations/")
+        expect(photo_urls["card"]).to include("/representations/")
+        expect(photo_urls["full"]).to include("/representations/")
+      end
+
+      it "generates WebP variants from JPEG input" do
+        thumb_variant = item.photo.variant(:thumb)
+        card_variant = item.photo.variant(:card)
+        full_variant = item.photo.variant(:full)
+
+        # Process the variants - .image.blob gets the variant's blob, not the original
+        thumb_blob = thumb_variant.processed.image.blob
+        card_blob = card_variant.processed.image.blob
+        full_blob = full_variant.processed.image.blob
+        original_blob = item.photo.blob
+
+        # All variants should be WebP format
+        expect(thumb_blob.content_type).to eq("image/webp")
+        expect(card_blob.content_type).to eq("image/webp")
+        expect(full_blob.content_type).to eq("image/webp")
+
+        # Variant blobs should differ from original
+        expect(thumb_blob.id).not_to eq(original_blob.id)
+        expect(card_blob.id).not_to eq(original_blob.id)
+        expect(full_blob.id).not_to eq(original_blob.id)
+
+        # Verify WebP magic bytes (RIFF....WEBP header)
+        thumb_bytes = thumb_blob.download
+        expect(thumb_bytes[0..3]).to eq("RIFF")
+        expect(thumb_bytes[8..11]).to eq("WEBP")
+      end
+
+      it "keeps the original photo as-is" do
+        original_blob = item.photo.blob
+        expect(original_blob.content_type).to eq("image/jpeg")
+        expect(original_blob.filename.to_s).to eq("dish.jpg")
+      end
+
+      it "preprocesses the card variant on upload" do
+        patch_with_photo(photo: jpeg_file)
+        item.reload
+
+        # Card variant should be preprocessed (representation should process without error)
+        card_variant = item.photo.variant(:card)
+        expect(card_variant).to be_present
+        expect { card_variant.processed }.not_to raise_error
+      end
+    end
+  end
+
   it "404s non-admins" do
     patch "/api/v1/admin/items/#{item.id}",
           params: { name: "nope" }.to_json,
           headers: auth_headers_for(create(:user)).merge("Content-Type" => "application/json")
 
     expect(response).to have_http_status(:not_found)
+    expect(item.reload.name).not_to eq("nope")
+  end
+
+  # The restaurant-verified lock has to hold on every admin edit path, not
+  # just the edit_item tool, or a second admin can quietly undo it.
+  it "refuses a dish another user restaurant-verified" do
+    item.mark_restaurant_verified!(create(:user, :admin))
+
+    patch_item(name: "nope")
+
+    expect(response).to have_http_status(:forbidden)
+    expect(response.parsed_body["error"]).to eq("restaurant_verified")
     expect(item.reload.name).not_to eq("nope")
   end
 end

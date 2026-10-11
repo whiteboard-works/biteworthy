@@ -13,34 +13,9 @@ RSpec.describe "restaurants/show", type: :request do
       security [ {}, { bearerAuth: [] } ]
 
       response(200, "the restaurant") do
-        schema type: :object,
-               required: %w[id slug name about phone website status web_path
-                            claimed_at claimed_by_user_id city favorited],
-               properties: {
-                 id:                 { type: :string, format: :uuid },
-                 slug:               { type: :string },
-                 name:               { type: :string },
-                 about:              { type: :string, nullable: true },
-                 phone:              { type: :string, nullable: true },
-                 website:            { type: :string, nullable: true },
-                 status:             { type: :string, enum: %w[draft published closed] },
-                 web_path:           { type: :string },
-                 claimed_at:         { type: :string, format: "date-time", nullable: true },
-                 claimed_by_user_id: { type: :string, format: :uuid, nullable: true },
-                 city: {
-                   type: :object,
-                   required: %w[id slug name region],
-                   properties: {
-                     id:     { type: :string, format: :uuid },
-                     slug:   { type: :string },
-                     name:   { type: :string },
-                     region: { type: :string, nullable: true }
-                   }
-                 },
-                 favorited: { type: :boolean, description: "Always false for an anonymous caller." }
-               }
+        schema "$ref" => "#/components/schemas/RestaurantDetail"
 
-        let(:city) { create(:city, slug: "durango", name: "Durango", region: "Colorado") }
+        let(:city) { create(:city, slug: "durango", name: "Durango", region: "Colorado", time_zone: "America/Denver") }
         let(:restaurant) do
           create(:restaurant, :published, slug: "ninis", name: "Ninis Taqueria", city: city)
         end
@@ -50,6 +25,8 @@ RSpec.describe "restaurants/show", type: :request do
           body = JSON.parse(response.body)
           expect(body["web_path"]).to eq("/restaurants/usa/colorado/durango/ninis")
           expect(body["favorited"]).to eq(false)
+          expect(body["time_zone"]).to eq("America/Denver")
+          expect(body["hours"]).to be_an(Array)
         end
       end
 

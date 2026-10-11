@@ -40,11 +40,23 @@ RSpec.describe Ingestion::TagDeriver do
       expect(tag_slugs(tags)).to include("contains-shellfish", "contains-tree-nut")
     end
 
+    it "is nil-safe when ingredients or paths are missing" do
+      expect { derive(ingredients: nil) }.not_to raise_error
+      expect(derive(ingredients: nil)).to eq([])
+      expect { derive(ingredients: [ { slug: nil, path: nil } ]) }.not_to raise_error
+    end
+
     it "carries the ingredient's confidence and marks provenance" do
       derived = derive(ingredients: [ing("egg", "egg", confidence: 0.8)])
       ai      = derive(ingredients: [ing("egg", "egg", confidence: 0.7, source: "ai")])
-      expect(derived.first).to include(slug: "contains-egg", confidence: 0.8, source: "derived")
-      expect(ai.first).to include(slug: "contains-egg", confidence: 0.7, source: "ai")
+      expect(derived.first).to include(
+        slug: "contains-egg", confidence: 0.8,
+        source: "ingredient_derived", from_source: "match"
+      )
+      expect(ai.first).to include(
+        slug: "contains-egg", confidence: 0.7,
+        source: "ingredient_derived", from_source: "ai"
+      )
     end
 
     it "keeps the best confidence when two ingredients derive the same tag" do
@@ -122,6 +134,38 @@ RSpec.describe Ingestion::TagDeriver do
     it "matches cuisine words in the section name" do
       tags = derive(text: "Al Pastor", section: "Mexican Classics")
       expect(tag_slugs(tags)).to include("mexican")
+    end
+
+    it "knows the cuisines added for Jev's sake, including the two-word ones" do
+      expect(tag_slugs(derive(text: "Sherpa Stew", section: "Nepali Specialties"))).to include("nepali-tibetan")
+      expect(tag_slugs(derive(text: "Shawarma Plate", section: "Middle Eastern"))).to include("middle-eastern")
+      slugs = tag_slugs(derive(text: "Arepas", section: "Latin American Plates"))
+      # The longer phrase wins outright: not also `american`, which would
+      # put two sibling cuisines on one dish and double-count its taste.
+      expect(slugs).to include("latin-american")
+      expect(slugs).not_to include("american")
+      expect(tag_slugs(derive(text: "Burger", section: "American Classics"))).to include("american")
+      # Only the shadowed occurrence is dropped; a standalone one still counts.
+      expect(tag_slugs(derive(text: "American Burger", section: "Latin American Plates")))
+        .to include("american", "latin-american")
+    end
+
+    # The word is on the menu, the cuisine is not: this pass fires at
+    # 0.9 with nothing to veto it, so a modifier word must never be a
+    # keyword, however real the cuisine. Those dishes are Jev's call.
+    it "leaves cuisine words that are also dish modifiers alone" do
+      [
+        [ "Spanish Rice", "Southern Colorado Favorites", %w[spanish southern latin-american] ],
+        [ "French Fries", "Sides", %w[french] ],
+        [ "Greek Yogurt Parfait", "Breakfast", %w[greek] ],
+        [ "German Chocolate Cake", "Desserts", %w[german] ],
+        [ "BBQ Chicken Pizza", "Pizzas", %w[bbq] ],
+        [ "Cajun Fries", "Sides", %w[cajun-creole] ],
+        [ "Himalayan Salt Margarita", "Cocktails", %w[nepali-tibetan] ],
+        [ "Texas Toast", "Sides", %w[tex-mex] ]
+      ].each do |text, section, slugs|
+        expect(tag_slugs(derive(text: text, section: section)) & slugs).to be_empty, text
+      end
     end
   end
 

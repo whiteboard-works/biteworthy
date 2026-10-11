@@ -1,6 +1,6 @@
 # AGENTS.md — apps/mobile (Expo)
 
-<!-- BEGIN codex-review-guidelines -->
+<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
 ## Review guidelines
 
 **Context:** The Expo (React Native) mobile client for BiteWorthy, built/released via EAS. Like the web app, it renders the visible/hidden split the Rails API sends rather than computing one — `@biteworthy/filter-engine` gives it wire types and presentation helpers, not a filter. It additionally has an Expo-managed dependency set that must stay SDK-aligned. (See the repo-root `AGENTS.md` for the single-filter and analytics contracts.)

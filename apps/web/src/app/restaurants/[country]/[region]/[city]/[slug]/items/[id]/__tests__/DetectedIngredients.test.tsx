@@ -39,10 +39,25 @@ describe('DetectedIngredients', () => {
     // Source must be perceivable without hover: AI-sourced chips carry a
     // visible marker, and the aria-label repeats the full provenance.
     expect(wheatChip).toHaveTextContent('AI');
+    // A human-sourced chip is the mark alone: "✓ human" on every chip
+    // was noise (a `??` fallback once leaked the raw source name).
     const basilChip = screen.getByTitle('confirmed — a human verified it · source: human');
-    expect(basilChip).toHaveTextContent('Basil');
-    expect(basilChip).not.toHaveTextContent('AI');
-    expect(screen.getByTestId('detected-tags')).toHaveTextContent('Contains gluten');
+    expect(basilChip).toHaveTextContent(/^Basil\s*✓$/);
+    expect(screen.getByTestId('detected-tags')).toHaveTextContent(/^Contains gluten\s*~$/);
+  });
+
+  it('keeps the legend in a popover list rather than a paragraph under the chips', () => {
+    render(<DetectedIngredients ingredients={[wheat, basil]} tags={[glutenTag]} />);
+
+    const legend = screen.getByTestId('detected-legend');
+    expect(legend).toHaveAttribute('popover', 'auto');
+    const trigger = screen.getByRole('button', { name: /what the marks mean/i });
+    expect(trigger).toHaveAttribute('popovertarget', legend.id);
+    const items = legend.querySelectorAll('li');
+    expect(items.length).toBeGreaterThanOrEqual(3);
+    expect(items[0]).toHaveTextContent('✓ confirmed — a human verified it');
+    // The old inline paragraph is gone from the section body.
+    expect(screen.queryByText(/chips marked ai/i)).not.toBeInTheDocument();
   });
 
   it('emphasizes allergen ingredients over non-allergens', () => {
@@ -54,8 +69,35 @@ describe('DetectedIngredients', () => {
     expect(basilChip.className).not.toContain('border-bite');
   });
 
+  it('labels inferred, AI, and derived rows so they do not look human-verified', () => {
+    const derivedWheat: DetectedIngredient = {
+      slug: 'grain-wheat',
+      name: 'Wheat',
+      confidence: 'suggested',
+      source: 'derived',
+      allergen: true,
+    };
+    const inferredGluten: DetectedAssociation = {
+      slug: 'contains-gluten',
+      name: 'Contains gluten',
+      confidence: 'suggested',
+      source: 'ingredient_derived',
+    };
+
+    render(<DetectedIngredients ingredients={[derivedWheat]} tags={[inferredGluten]} />);
+
+    const wheatChip = screen.getByTitle('suggested — extracted, awaiting review · source: derived');
+    expect(wheatChip).toHaveTextContent('inferred');
+    const glutenChip = screen.getByTitle(
+      'suggested — extracted, awaiting review · source: ingredient_derived',
+    );
+    expect(glutenChip).toHaveTextContent('inferred');
+  });
+
   it('says so when no data is recorded rather than rendering nothing', () => {
     render(<DetectedIngredients ingredients={[]} tags={[]} />);
     expect(screen.getByText(/no ingredient data recorded/i)).toBeInTheDocument();
+    // No chips, so nothing for a legend to explain.
+    expect(screen.queryByRole('button', { name: /what the marks mean/i })).not.toBeInTheDocument();
   });
 });

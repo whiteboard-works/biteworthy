@@ -30,6 +30,7 @@ const samplePayload: CityRanked = {
       slug: 'tacos',
       name: 'Tacos',
       web_path: '/restaurants/usa/co/durango/tacos',
+      logo_url: null,
       visible_count: 5,
       hidden_count: 2,
       total_count: 7,

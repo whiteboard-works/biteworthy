@@ -151,3 +151,71 @@
   name: American
   family: cuisine
   path: cuisine.american
+- slug: chinese
+  name: Chinese
+  family: cuisine
+  path: cuisine.chinese
+- slug: nepali-tibetan
+  name: Nepali & Tibetan
+  family: cuisine
+  path: cuisine.nepali_tibetan
+- slug: mediterranean
+  name: Mediterranean
+  family: cuisine
+  path: cuisine.mediterranean
+- slug: greek
+  name: Greek
+  family: cuisine
+  path: cuisine.greek
+- slug: middle-eastern
+  name: Middle Eastern
+  family: cuisine
+  path: cuisine.middle_eastern
+- slug: latin-american
+  name: Latin American
+  family: cuisine
+  path: cuisine.latin_american
+- slug: caribbean
+  name: Caribbean
+  family: cuisine
+  path: cuisine.caribbean
+- slug: korean
+  name: Korean
+  family: cuisine
+  path: cuisine.korean
+- slug: vietnamese
+  name: Vietnamese
+  family: cuisine
+  path: cuisine.vietnamese
+- slug: french
+  name: French
+  family: cuisine
+  path: cuisine.french
+- slug: spanish
+  name: Spanish
+  family: cuisine
+  path: cuisine.spanish
+- slug: german
+  name: German
+  family: cuisine
+  path: cuisine.german
+- slug: ethiopian
+  name: Ethiopian
+  family: cuisine
+  path: cuisine.ethiopian
+- slug: southern
+  name: Southern
+  family: cuisine
+  path: cuisine.southern
+- slug: cajun-creole
+  name: Cajun & Creole
+  family: cuisine
+  path: cuisine.cajun_creole
+- slug: bbq
+  name: Barbecue
+  family: cuisine
+  path: cuisine.bbq
+- slug: tex-mex
+  name: Tex-Mex
+  family: cuisine
+  path: cuisine.tex_mex

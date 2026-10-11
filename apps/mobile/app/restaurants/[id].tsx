@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { Image } from 'expo-image';
+import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
   filterSourceLabel,
@@ -212,8 +213,33 @@ export default function RestaurantScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {restaurant.banner_url ? (
+        // Decorative, like web's alt="": the headline names the place.
+        <Image
+          source={{ uri: restaurant.banner_url }}
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          testID="restaurant-banner"
+          contentFit="cover"
+          style={styles.banner}
+        />
+      ) : null}
       <Text style={styles.eyebrow}>{restaurant.city.name}, {restaurant.city.region}</Text>
-      <Text style={styles.headline}>{restaurant.name}</Text>
+      <View style={styles.titleRow}>
+        {restaurant.logo_url ? (
+          <Image
+            source={{ uri: restaurant.logo_url }}
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            testID="restaurant-logo"
+            contentFit="cover"
+            style={styles.logo}
+          />
+        ) : null}
+        <Text style={styles.headline}>{restaurant.name}</Text>
+      </View>
       <Text style={styles.summary}>
         {filter.source === 'none' && filter.strictness !== 'strict' ? (
           <>
@@ -245,7 +271,7 @@ export default function RestaurantScreen() {
 
       <AllergenNotice />
 
-      <TopPicksRow items={rawItems} />
+      <TopPicksRow items={rawItems} restaurantId={id} signedIn={!!jwt} />
 
       {overriddenSections.map((section) => (
         <SectionBlock
@@ -275,7 +301,7 @@ export default function RestaurantScreen() {
  */
 function AllergenNotice() {
   return (
-    <View style={styles.allergenNotice} accessibilityLabel="allergen-notice">
+    <View style={styles.allergenNotice} testID="allergen-notice">
       <Text style={styles.allergenText}>
         <Text style={styles.allergenStrong}>A filter, not a guarantee. </Text>
         BiteWorthy reads menus with AI and your dietary filter — but recipes change and a result
@@ -313,7 +339,8 @@ export function StrictnessToggle({
         return (
           <Pressable
             key={s}
-            accessibilityLabel={`strictness-${s}`}
+            testID={`strictness-${s}`}
+            accessibilityRole="button"
             accessibilityState={{ selected, disabled: loading }}
             onPress={() => {
               if (!loading && !selected) onChange(s);
@@ -352,7 +379,8 @@ function ShareLinkButton({ slug, filter }: { slug: string; filter: FilterSummary
   };
   return (
     <Pressable
-      accessibilityLabel="share-link"
+      testID="share-link"
+      accessibilityRole="button"
       onPress={handlePress}
       style={styles.shareButton}
     >
@@ -406,7 +434,8 @@ function SectionBlock({
       {section.hidden.length > 0 && (
         <Pressable
           onPress={() => setHiddenOpen((v) => !v)}
-          accessibilityLabel={`toggle-hidden-${section.id ?? 'none'}`}
+          testID={`toggle-hidden-${section.id ?? 'none'}`}
+          accessibilityRole="button"
           style={styles.hiddenToggle}
         >
           <Text style={styles.hiddenToggleText}>
@@ -475,9 +504,27 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headline: {
+    flex: 1,
     fontSize: fontSize['2xl'],
     fontWeight: '700',
     color: colors.text,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['3'],
+  },
+  logo: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: colors.bgAlt,
+  },
+  banner: {
+    width: '100%',
+    aspectRatio: 8 / 3,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bgAlt,
   },
   summary: {
     fontSize: fontSize.base,

@@ -9,8 +9,9 @@ module Menus
   # must always be able to say why — so it has to survive the query.
   #
   # Ranking is separate. With taste signals the response is re-sorted by
-  # `taste_score`; otherwise the order is `name ASC`. Score never hides
-  # anything; it only reorders and highlights.
+  # `taste_score`; otherwise the order is section position (nulls last),
+  # then item position, then name. Score never hides anything; it only
+  # reorders and highlights.
   #
   # The order used to read `popularity DESC, name ASC`, which was `name
   # ASC` wearing a hat: nothing ever wrote `items.popularity`, so every
@@ -59,7 +60,10 @@ module Menus
           association_row(ii, ii.ingredient).merge(allergen: ii.ingredient&.allergen || false)
         end.sort_by { |row| [row[:allergen] ? 0 : 1, row[:name].to_s] },
         detected_tags: item.item_tags.map { |it| association_row(it, it.tag) }
-                           .sort_by { |row| row[:name].to_s }
+                           .sort_by { |row| row[:name].to_s },
+        # Only on the detail payload. A diner-sourced photo is attributed
+        # on the dish page; the menu list does not carry the byline.
+        photo_credit: photo_credit_for(item)
       )
     end
 
@@ -67,9 +71,21 @@ module Menus
 
     def load_items
       @restaurant.items.published
-                 .includes(:menu_section, photo_attachment: :blob)
-                 .order(name: :asc)
+                 .includes(:menu_section, :item_variants, photo_attachment: :blob)
                  .to_a
+                 .sort_by { |item| menu_order_key(item) }
+    end
+
+    # Unsectioned dishes sort after every numbered section. Within a
+    # section (or among the unsectioned), `items.position` then name.
+    def menu_order_key(item)
+      section_position = item.menu_section&.position
+      [
+        section_position.nil? ? 1 : 0,
+        section_position || 0,
+        item.position,
+        item.name.to_s
+      ]
     end
 
     def serialize_all(items)
@@ -107,14 +123,24 @@ module Menus
         tag_ids:            item.denormalized_tag_ids,
         menu_section_id:    section&.id,
         menu_section_name:  section&.name,
+        menu_section_position: section&.position,
+        position:           item.position,
+        variants:           item.item_variants.sort_by(&:position).map do |v|
+          { size: v.size, price_cents: v.price_cents, currency: v.currency }
+        end,
         status:             reasons.empty? ? "visible" : "hidden",
         reasons:            reasons,
         overridden_by_user: override_ids.include?(item.id),
         reviews_count:      review_counts.fetch(item.id, 0),
         photo_url:          photo_url_for(item),
+        photo_urls:         photo_urls_for(item),
         # null / [] whenever the caller has no taste signals.
         taste_score:        score_row&.fetch(:score),
-        taste_reasons:      taste_reasons_for(score_row, taste_labels)
+        taste_reasons:      taste_reasons_for(score_row, taste_labels),
+        human_verified:     item.human_verified?,
+        human_verified_at:  item.human_verified_at,
+        restaurant_verified: item.restaurant_verified?,
+        restaurant_verified_at: item.restaurant_verified_at
       }
     end
 
@@ -163,11 +189,35 @@ module Menus
       Set.new(UserItemOverride.where(user_id: @user.id, item_id: ids, never_hide: true).pluck(:item_id))
     end
 
+    def photo_credit_for(item)
+      submission = item.photo_submission
+      return nil unless submission
+
+      { display_name: submission.credit_name }
+    end
+
     def photo_url_for(item)
       return nil unless @public_host
       return nil unless item.photo.attached?
 
       Rails.application.routes.url_helpers.rails_blob_url(item.photo, host: @public_host)
+    end
+
+    def photo_urls_for(item)
+      return nil unless @public_host
+      return nil unless item.photo.attached?
+
+      {
+        thumb: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:thumb), host: @public_host
+        ),
+        card: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:card), host: @public_host
+        ),
+        full: Rails.application.routes.url_helpers.rails_representation_url(
+          item.photo.variant(:full), host: @public_host
+        )
+      }
     end
   end
 end

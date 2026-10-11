@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { Image } from 'expo-image';
+import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
 import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { searchRestaurants, type RestaurantSummary } from '../lib/api/restaurants';
 
@@ -67,7 +68,8 @@ export default function Home() {
       <Text style={styles.headline}>Where are you eating?</Text>
 
       <TextInput
-        accessibilityLabel="restaurant-search"
+        testID="restaurant-search"
+        accessibilityLabel="Search restaurants"
         placeholder="Search restaurants…"
         value={query}
         onChangeText={setQuery}
@@ -77,7 +79,7 @@ export default function Home() {
       />
 
       {loading ? (
-        <ActivityIndicator accessibilityLabel="search-loading" color={colors.bite} />
+        <ActivityIndicator testID="search-loading" accessibilityLabel="Loading restaurants" color={colors.bite} />
       ) : error ? (
         <Text style={styles.error}>Couldn’t load restaurants. Pull to retry or check your connection.</Text>
       ) : (
@@ -87,12 +89,28 @@ export default function Home() {
           style={styles.list}
           renderItem={({ item }) => (
             <Pressable
-              accessibilityLabel={`restaurant-${item.slug}`}
+              testID={`restaurant-${item.slug}`}
+              accessibilityRole="button"
               onPress={() => router.push(`/restaurants/${item.id}?from=search`)}
               style={styles.row}
             >
-              <Text style={styles.rowName}>{item.name}</Text>
-              <Text style={styles.rowMeta}>{meta(item)}</Text>
+              {item.logo_url ? (
+                // Decorative: the name beside it is the accessible label,
+                // as web's alt="" on the same image.
+                <Image
+                  source={{ uri: item.logo_url }}
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  testID={`restaurant-logo-${item.slug}`}
+                  contentFit="cover"
+                  style={styles.rowLogo}
+                />
+              ) : null}
+              <View style={styles.rowText}>
+                <Text style={styles.rowName}>{item.name}</Text>
+                <Text style={styles.rowMeta}>{meta(item)}</Text>
+              </View>
             </Pressable>
           )}
           ListEmptyComponent={
@@ -102,7 +120,7 @@ export default function Home() {
               </Text>
               {/* The scan path, where someone actually needs it: they
                   looked for a place and it is not here yet. */}
-              <Pressable accessibilityLabel="scan-a-menu" onPress={() => router.push('/chat')}>
+              <Pressable testID="scan-a-menu" accessibilityRole="button" onPress={() => router.push('/chat')}>
                 <Text style={styles.profileLink}>Scan a menu →</Text>
               </Pressable>
             </View>
@@ -110,13 +128,13 @@ export default function Home() {
         />
       )}
 
-      <Pressable accessibilityLabel="chat-link" onPress={() => router.push('/chat')}>
+      <Pressable testID="chat-link" accessibilityRole="button" onPress={() => router.push('/chat')}>
         <Text style={styles.profileLink}>Ask about a menu, or add one</Text>
       </Pressable>
-      <Pressable accessibilityLabel="profile-link" onPress={() => router.push('/onboarding')}>
+      <Pressable testID="profile-link" accessibilityRole="button" onPress={() => router.push('/onboarding')}>
         <Text style={styles.profileLink}>Dietary preferences</Text>
       </Pressable>
-      <Pressable accessibilityLabel="account-link" onPress={() => router.push('/settings/account')}>
+      <Pressable testID="account-link" accessibilityRole="button" onPress={() => router.push('/settings/account')}>
         <Text style={styles.profileLink}>Account</Text>
       </Pressable>
       <Text style={styles.version} testID="app-version">
@@ -159,9 +177,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['3'],
     paddingVertical: space['3'],
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  rowLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.bgAlt,
+  },
+  rowText: {
+    flex: 1,
   },
   rowName: {
     fontSize: fontSize.base,

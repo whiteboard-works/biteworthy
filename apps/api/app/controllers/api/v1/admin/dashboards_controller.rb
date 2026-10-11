@@ -2,13 +2,15 @@ module Api
   module V1
     module Admin
       # GET /api/v1/admin/dashboard — Ingestion::CostMetrics buckets +
-      # the community counters + queue counts for the web admin
+      # Ingestion::JevMetrics buckets + the community counters + queue
+      # counts for the web admin
       # (successor to the Phase 2.9 ERB dashboard, retired with Avo).
       class DashboardsController < BaseController
         def show
           render json: {
             target_cents_per_item: Ingestion::CostMetrics::TARGET_CENTS_PER_ITEM,
             periods: Ingestion::CostMetrics.by_period.transform_values(&:to_h),
+            jev: Ingestion::JevMetrics.by_period.transform_values(&:to_h),
             community: community_counters,
             queues: queue_counts
           }
@@ -42,8 +44,8 @@ module Api
           ingestion_spend + chat_spend
         end
 
-        # All four are cheap indexed counts (partial index on flagged
-        # reviews, status columns elsewhere).
+        # Cheap indexed counts (partial index on flagged reviews,
+        # status columns elsewhere).
         def queue_counts
           {
             flagged_reviews: Review.awaiting_moderation.count,
@@ -52,7 +54,8 @@ module Api
             # `.kept` — this is a queue depth, and an archived run is
             # one an admin has already dealt with. Spend figures above
             # deliberately do not filter: archiving does not refund.
-            staged_runs: IngestionRun.kept.where(status: "staged").count
+            staged_runs: IngestionRun.kept.where(status: "staged").count,
+            pending_photo_submissions: DishPhotoSubmission.pending.count
           }
         end
       end

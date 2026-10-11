@@ -26,8 +26,38 @@ RSpec.describe "admin/dashboard", type: :request do
           }
         }
 
+        jev_bucket = {
+          type: :object,
+          required: %w[label calls answered partial failed input_tokens cost_cents cuisine wheat],
+          properties: {
+            label:        { type: :string },
+            calls:        { type: :integer },
+            answered:     { type: :integer },
+            partial:      { type: :integer },
+            failed:       { type: :integer },
+            input_tokens: { type: :integer },
+            cost_cents:   { type: :number },
+            cuisine: {
+              type: :object,
+              required: %w[calls failed tagged no_cuisine],
+              properties: {
+                calls: { type: :integer }, failed: { type: :integer },
+                tagged: { type: :integer }, no_cuisine: { type: :integer }
+              }
+            },
+            wheat: {
+              type: :object,
+              required: %w[calls agree disagree jev_only data_only],
+              properties: {
+                calls: { type: :integer }, agree: { type: :integer }, disagree: { type: :integer },
+                jev_only: { type: :integer }, data_only: { type: :integer }
+              }
+            }
+          }
+        }
+
         schema type: :object,
-               required: %w[target_cents_per_item periods community queues],
+               required: %w[target_cents_per_item periods jev community queues],
                properties: {
                  target_cents_per_item: { type: :number },
                  periods: {
@@ -37,6 +67,15 @@ RSpec.describe "admin/dashboard", type: :request do
                      today:        period_bucket,
                      last_7_days:  period_bucket,
                      last_30_days: period_bucket
+                   }
+                 },
+                 jev: {
+                   type: :object,
+                   required: %w[today last_7_days last_30_days],
+                   properties: {
+                     today:        jev_bucket,
+                     last_7_days:  jev_bucket,
+                     last_30_days: jev_bucket
                    }
                  },
                  community: {
@@ -51,12 +90,14 @@ RSpec.describe "admin/dashboard", type: :request do
                  queues: {
                    type: :object,
                    required: %w[flagged_reviews pending_suggestions
-                                community_published_restaurants staged_runs],
+                                community_published_restaurants staged_runs
+                                pending_photo_submissions],
                    properties: {
                      flagged_reviews:                 { type: :integer },
                      pending_suggestions:             { type: :integer },
                      community_published_restaurants: { type: :integer },
-                     staged_runs:                     { type: :integer }
+                     staged_runs:                     { type: :integer },
+                     pending_photo_submissions:       { type: :integer }
                    }
                  }
                }
@@ -66,7 +107,19 @@ RSpec.describe "admin/dashboard", type: :request do
           token, _ = Warden::JWTAuth::UserEncoder.new.call(account, :user, nil)
           "Bearer #{token}"
         end
-        run_test!
+        before do
+          run = create(:ingestion_run, :staged)
+          JevObservation.note(kind: "cuisine", subject: run, outcome: "answered", input_tokens: 2_000,
+                              details: { items: 10, tagged: 7, no_cuisine: 2, missing: 0 })
+          JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "answered", agree: false,
+                              input_tokens: 500, details: { items: 10, agree: 9, jev_only: 1, data_only: 0 })
+        end
+        run_test! do |response|
+          today = JSON.parse(response.body).dig("jev", "today")
+          expect(today).to include("calls" => 2, "answered" => 2, "input_tokens" => 2_500)
+          expect(today["cuisine"]).to include("tagged" => 7, "no_cuisine" => 2)
+          expect(today["wheat"]).to include("disagree" => 1, "jev_only" => 1)
+        end
       end
 
       response(401, "missing or invalid bearer token") do

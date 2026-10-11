@@ -7,11 +7,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
  * ownership, so these tests assert the UI gating + that the wired
  * update/delete calls fire.
  */
+const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 const mockReport = vi.fn();
 vi.mock('../../../../../../../../../lib/reviews', () => ({
-  createReview: vi.fn(),
+  createReview: (...a: unknown[]) => mockCreate(...a),
   fetchReviews: vi.fn(),
   reportReview: (...a: unknown[]) => mockReport(...a),
   updateReview: (...a: unknown[]) => mockUpdate(...a),
@@ -21,7 +22,10 @@ vi.mock('../../../../../../../../../lib/reviews', () => ({
 vi.mock('../../../../../../../_PostHogProvider', () => ({
   useTracker: () => ({ track: vi.fn() }),
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: mockRefresh }),
+}));
 
 import { ReviewsClient } from '../ReviewsClient';
 
@@ -44,9 +48,11 @@ const initial = (reviews: ReturnType<typeof review>[]) => ({
 });
 
 beforeEach(() => {
+  mockCreate.mockReset();
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockReport.mockReset();
+  mockRefresh.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -128,5 +134,94 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('rev-1'));
     expect(screen.queryByTestId('review-rev-1')).toBeNull();
+  });
+
+  it('keeps Offer this photo as the dish photo off until the diner checks it', async () => {
+    mockCreate.mockResolvedValue(review({ photo_url: 'https://example.com/r.jpg' }));
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('open-composer'));
+    expect(screen.queryByTestId('offer-as-dish-photo')).not.toBeInTheDocument();
+
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    const offer = screen.getByTestId('offer-as-dish-photo');
+    expect(offer).not.toBeChecked();
+
+    fireEvent.click(screen.getByTestId('star-4'));
+    fireEvent.click(offer);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0]![1]).toMatchObject({
+      rating: 4,
+      photo: file,
+      offerAsDishPhoto: true,
+    });
+  });
+
+  it('posts the review and shows a note when the dish-photo offer is rate-limited', async () => {
+    mockCreate.mockResolvedValue({
+      ...review(),
+      photo_offer: { status: 'rate_limited', code: 'daily_limit' },
+    });
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('open-composer'));
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('offer-as-dish-photo'));
+    fireEvent.click(screen.getByTestId('star-5'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+    expect(await screen.findByTestId('photo-offer-note')).toHaveTextContent(/10 dish photos today/i);
+    expect(screen.getByText('Decent.')).toBeInTheDocument();
+  });
+
+  // An admin's offer is approved on the spot: success, not an error note,
+  // and the dish header has to re-render to show the new photo.
+  it('refreshes the page and shows no error when the dish-photo offer comes back approved', async () => {
+    mockCreate.mockResolvedValue({
+      ...review(),
+      photo_offer: { status: 'approved', id: 'sub-1' },
+    });
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('open-composer'));
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('offer-as-dish-photo'));
+    fireEvent.click(screen.getByTestId('star-5'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+    expect(await screen.findByText('Decent.')).toBeInTheDocument();
+    expect(screen.queryByTestId('photo-offer-note')).not.toBeInTheDocument();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 });

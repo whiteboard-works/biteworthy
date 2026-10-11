@@ -140,7 +140,7 @@ The schema is shaped around one question: "given a user's avoid lists, which ite
 
 **The filter does not run in SQL, and it never removes rows.** `ItemsController#index` loads every published item at the restaurant in one query, then computes a per-item `reasons[]` in Ruby (array intersection against the avoid lists, plus the strict-mode confidence check). Items with a non-empty `reasons[]` come back as `status: "hidden"` with the reasons attached. That is the honest-disclosure contract: a hidden item must always be able to say why it's hidden, so it has to survive the query.
 
-Ranking is separate. When the signed-in user has taste signals, `TasteScoring.scores_for` runs one SQL query per restaurant (liked/disliked overlap ± average visible rating) and the response is re-sorted by `taste_score`. Otherwise the order is plain `name ASC`. Nothing sorts by `user_profiles.prefer_tag_ids`, and `items.popularity` is gone — it was read in three places, written by none, and its scoring term was structurally zero.
+Ranking is separate. When the signed-in user has taste signals, `TasteScoring.scores_for` runs one SQL query per restaurant (liked/disliked overlap ± average visible rating) and the response is re-sorted by `taste_score`. Otherwise the order is section position (nulls last), then item position, then name. Nothing sorts by `user_profiles.prefer_tag_ids`, and `items.popularity` is gone — it was read in three places, written by none, and its scoring term was structurally zero.
 
 The array-overlap SQL does exist, just not here — `Cities::RestaurantRanking` uses `NOT (items.ingredient_ids && ARRAY[…]::uuid[])` inside a `COUNT(…) FILTER` to rank a city's restaurants by how many dishes pass a preset, in one query instead of 30 calls to the items endpoint.
 
@@ -192,13 +192,13 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 Two workflows run the test suites:
 
 - `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, `docs/openapi.json`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test` → api-types codegen drift check.
-- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman and Rubocop run in the same job and both block** (neither has `continue-on-error`). Rubocop inherits Rails' omakase style plus a generated `.rubocop_todo.yml` that freezes the pre-existing offences, so new code has to be clean while the backlog stays grandfathered — run `bundle exec rubocop --parallel` before pushing rather than adding a todo entry.
+- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it) + Ghostscript (`Pdfs::Shrink` shells out to `gs`), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman and Rubocop run in the same job and both block** (neither has `continue-on-error`). Rubocop inherits Rails' omakase style plus a generated `.rubocop_todo.yml` that freezes the pre-existing offences, so new code has to be clean while the backlog stays grandfathered — run `bundle exec rubocop --parallel` before pushing rather than adding a todo entry.
 
 Branch protection requires four check runs: those two jobs plus the two `codeql.yml` language jobs (`javascript-typescript`, `ruby`). Don't request human review on red.
 
 Other workflows run but don't gate auto-merge: `migration-guard.yml` (blocks edits to previously-shipped migrations under `apps/api/db/migrate/`), `ci-nightly.yml` (nightly full suite), `expo-align.yml` (mobile Expo-SDK dependency alignment), `labeler.yml` (auto-applies `area:*` labels), `pr-title.yml` (conventional-commit title check), `auto-merge.yml` (the merge driver), `deploy-api.yml` (runs `kamal deploy` to Hetzner on merge to master touching `apps/api/**` or the workflow file itself, or on manual `workflow_dispatch`; needs the `KAMAL_SECRETS_B64`, `SSH_PRIVATE_KEY`, and `SSH_KNOWN_HOSTS` repo secrets — the last pins the box's host keys, so re-pin it only after confirming a genuine rebuild, never to clear a host-key error).
 
-<!-- BEGIN codex-review-guidelines -->
+<!-- BEGIN codex-review-guidelines (managed by AGENTS-REVIEW-ROLLOUT.md) -->
 ## Review guidelines
 
 **Context:** BiteWorthy is a dietary-filter app — users set avoid lists and are shown only menu items safe for them — shipped as a monorepo: a Rails API (`apps/api`), a Next.js web app (`apps/web`), an Expo mobile app (`apps/mobile`), and shared TypeScript packages under `packages/` (`filter-engine`, `analytics`, `api-types`, `ui-tokens`, `eslint-config`, `version-history`). The safe/unsafe decision is made in exactly one place — `Menus::Filter#reasons_for` in the Rails API — and both clients render the `status` / `reasons` they receive. `packages/filter-engine` holds shared *presentation* helpers and wire types only, despite the name; there is no client-side filter. **The worst failure is an unsafe item shown as safe to an allergic user.** Legal remediation E1–E13 (GDPR/CCPA, allergen disclosure) is baked into the schema and the analytics contract. (This is the repo-root block covering cross-package contracts; see the nested `apps/*/AGENTS.md` for per-stack rules.)
@@ -221,3 +221,14 @@ Also treat these normally-lower-severity issues as P1 so they surface:
 
 For architecture and conventions, also follow the sections above and the nested `apps/api`, `apps/web`, and `apps/mobile` `AGENTS.md` files.
 <!-- END codex-review-guidelines -->
+
+<!-- BEGIN:turborepo-agent-rules -->
+
+# This is NOT the Turborepo you know
+
+Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
+
+Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
+
+This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
+<!-- END:turborepo-agent-rules -->

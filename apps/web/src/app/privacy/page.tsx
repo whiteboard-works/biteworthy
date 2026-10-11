@@ -24,6 +24,22 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * processor is the one drift here with legal weight, so the
  * LAST_UPDATED date moves with it.
  *
+ * 2026-10-05: the Anthropic entry used to say the profile is never
+ * sent. The chat has sent it with every turn since M4, and now sends
+ * the user's saved chat notes too, so the entry says so. It also said
+ * reviews are never sent; the chat's review tools read and write them,
+ * for any user's chat, not only the author's.
+ *
+ * 2026-10-06: diner dish-photo submissions — stored without EXIF/GPS,
+ * unpublished until a moderator approves them, then optionally credited
+ * on the dish page.
+ *
+ * 2026-10-08: the Meta Pixel (#827) is disclosed. Its limits are enforced
+ * in lib/meta-pixel-policy.ts (allowlisted public pages, no query string,
+ * no automatic tracking) and pinned by its tests; keep this text and that
+ * rule in step. "We do not sell or share" became "do not sell", plus the
+ * sharing opt-out, because ad pixels count as sharing under the CCPA.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -38,7 +54,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-09-26';
+const LAST_UPDATED = '2026-10-10';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -47,14 +63,16 @@ export default function PrivacyPage(): ReactElement {
       <h1 className="mt-bw-3 text-bw-3xl font-bold text-zinc-900 md:text-bw-4xl">Privacy Policy</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
-      <DraftBanner />
 
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="The short version">
           <p>
             BiteWorthy keeps the data we need to make the dietary filter work and not much more. We
-            don’t sell or share your personal information. We don’t share it with advertisers. The
-            list of third-party services we use is short and named below. You must be at least 13
+            don’t sell your personal information. Your dietary profile, the diets you filter by,
+            and your reviews are never sent to advertisers. On a few public pages of our website,
+            the Meta Pixel tells Meta that a page was viewed or a sign-up happened, so we can
+            measure our ads; you can switch that off (see “Your rights and controls”). The list of
+            third-party services we use is short and named below. You must be at least 13
             years old to use BiteWorthy.
           </p>
         </Section>
@@ -68,13 +86,20 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dietary profile:</strong> the ingredients and tags you mark “avoid,” the
               dietary preset (e.g. <em>Celiac</em>) you picked, your strictness setting, and any
-              taste signals (ingredients/tags you like or dislike) you add to improve your picks.
-              Stored against your account so it follows you across devices.
+              taste signals (ingredients/tags you like or dislike) you add to improve your picks,
+              and any notes you save for the chat assistant. Stored against your account so it
+              follows you across devices.
             </li>
             <li>
               <strong>Reviews:</strong> the rating, body, and optional photo you submit on a dish.
-              Reviews are public — see “What’s public” below. Photos are stored on Cloudflare R2
-              (see “Where data lives”).
+              Reviews are public — see “What’s public” below. Location and other camera metadata
+              (EXIF/GPS) is stripped from the photo before it is saved.
+            </li>
+            <li>
+              <strong>Dish photos:</strong> if you submit a photo of a dish (from the dish page, or
+              by offering a review photo), we store the image and whether you confirmed you took it.
+              Location metadata is stripped the same way as review photos. A moderator reviews
+              every submission before it can appear as the dish photo.
             </li>
             <li>
               <strong>Restaurant visits:</strong> when you open a filtered restaurant page while
@@ -97,7 +122,7 @@ export default function PrivacyPage(): ReactElement {
           <ul>
             <li>Real name (unless you put it in your display handle).</li>
             <li>Phone number.</li>
-            <li>Address or GPS coordinates.</li>
+            <li>Address or GPS coordinates (we strip location metadata from photos you upload).</li>
             <li>Device fingerprints, advertising IDs, or cross-app tracking signals.</li>
           </ul>
         </Section>
@@ -105,7 +130,9 @@ export default function PrivacyPage(): ReactElement {
         <Section title="What's public">
           <p>
             Your reviews — the rating, text, and any photo — appear publicly next to your display
-            handle on the dish page and on your profile at <em>/u/your-handle</em>. Your{' '}
+            handle on the dish page and on your profile at <em>/u/your-handle</em>. If a moderator
+            approves a dish photo you submitted, it can appear as that dish&apos;s photo with a
+            small &ldquo;Photo by &lt;your display name&gt;&rdquo; credit. Your{' '}
             <strong>dietary profile is never shown publicly</strong>: what you avoid, your presets,
             your strictness, and your taste signals stay private to your account. Be aware that a
             pattern of public reviews can let someone infer your preferences.
@@ -128,13 +155,19 @@ export default function PrivacyPage(): ReactElement {
               <strong>Hetzner</strong> (Ashburn, USA): the servers that run the API.
             </li>
             <li>
-              <strong>Cloudflare R2</strong>: review photos and the cropped per-dish photos that the
-              ingestion pipeline extracts from menu images.
+              <strong>Cloudflare R2</strong>: review photos and diner-submitted dish photos
+              (metadata stripped; dish submissions unpublished until a moderator approves them),
+              and the cropped per-dish photos that the ingestion pipeline extracts from menu
+              images.
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
               Anthropic Claude for OCR + structuring. The image leaves our servers but is not used
-              to train the model. We do not send your reviews or profile to Anthropic.
+              to train the model. When you use the chat, your messages, your dietary profile, any
+              notes you saved for the assistant, and your own reviews when you ask about them
+              (including any hidden by moderation) are sent to Anthropic so it can answer. Reviews
+              are public, so when anyone asks the chat about a dish, the reviews on it (with the
+              reviewer&apos;s username and display name) can be sent to Anthropic too.
             </li>
             <li>
               <strong>Resend</strong>: outbound email (claim verification, password reset). The
@@ -142,8 +175,26 @@ export default function PrivacyPage(): ReactElement {
               itself.
             </li>
             <li>
-              <strong>PostHog</strong>: product analytics. See “Your rights and controls” for
-              exactly what we send and how to opt out.
+              <strong>PostHog</strong>: product analytics, and error reports and logs from our
+              own servers — the latter two never from your browser or phone, with the request body
+              and your IP address removed before they are sent. See “Your rights and controls” for
+              exactly what we send from your device and how to opt out.
+            </li>
+            <li>
+              <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our
+              ads on Facebook and Instagram bring people to BiteWorthy. We don’t load Meta’s own
+              script; each pixel event is one request we build ourselves. It runs only on public
+              pages (the home page, sign-up, our story, press, updates, and restaurant, dish, and
+              city pages), and never on diet pages, people’s profiles, your history, chat,
+              settings, onboarding, or sign-in. It tells Meta that a page was viewed and, when you
+              create an account, that a sign-up happened. Each request carries the page’s path but
+              never anything after a “?” or “#”, so Meta is never sent which diet you filtered by.
+              It also carries the site you came from (only its domain, or one of the public pages
+              above), your IP address and browser details, and two cookies we set for Meta: a
+              random browser id, and the ad-click id when you arrived from a Meta ad. Meta may link
+              that to your Facebook or Instagram account under{' '}
+              <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
+              mobile app does not use the Meta Pixel.
             </li>
           </ul>
         </Section>
@@ -157,6 +208,12 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Reviews & suggested edits:</strong> kept as part of the shared menu graph; if
               you delete your account we delete or anonymize them.
+            </li>
+            <li>
+              <strong>Dish photo submissions:</strong> pending, rejected, withdrawn, and
+              accepted-but-not-used-as-the-dish-photo submissions are deleted with your account
+              (including the stored image). An approved photo that is still the dish photo stays
+              on the menu; the byline is anonymized to “a diner”.
             </li>
             <li>
               <strong>Restaurant-visit history:</strong> kept for as long as your account is open.
@@ -185,7 +242,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
               off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
-              Do-Not-Track signal automatically. On mobile, analytics are off by default and only
+              Do-Not-Track signal automatically. Either one also turns off the Meta Pixel. On
+              mobile, analytics are off by default and only
               fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
               random analytics ID, <strong>not to your account</strong> — signing in does not
               connect them to your identity. What they carry is
@@ -202,7 +260,11 @@ export default function PrivacyPage(): ReactElement {
               sent you. We don’t record what you click or type, and we don’t record your session.
             </li>
             <li>
-              <strong>We do not sell or share</strong> your personal information, and we will not
+              <strong>We do not sell</strong> your personal information. The Meta Pixel described
+              above sends Meta limited website activity for advertising, which California law
+              counts as “sharing”. To opt out of that sharing, turn off analytics in{' '}
+              <em>/profile/settings</em>, or use a browser that sends Global Privacy Control or
+              Do-Not-Track: we honor each of them, and any one switches the pixel off. We will not
               discriminate against you for exercising any of these rights.
             </li>
           </ul>
@@ -236,20 +298,6 @@ export default function PrivacyPage(): ReactElement {
         </Section>
       </article>
     </main>
-  );
-}
-
-function DraftBanner(): ReactElement {
-  return (
-    <div
-      role="note"
-      className="mt-bw-6 rounded-bw-md border border-warn/40 bg-warn/10 p-bw-4 text-bw-sm text-zinc-800"
-      data-testid="draft-banner"
-    >
-      <strong>Draft.</strong> This template fills the App Privacy disclosures with BiteWorthy’s
-      actual data flows but has not yet had final lawyer review. The launch checklist (Phase 5.9)
-      requires that pass before App Store / Play Store submission.
-    </div>
   );
 }
 

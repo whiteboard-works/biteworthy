@@ -3,7 +3,7 @@
 module Tools
   # What the tools are FOR, as opposed to what each one does.
   #
-  # Forty-three tool descriptions tell a model what each call means in
+  # Tool descriptions tell a model what each call means in
   # isolation. They do not say that fixing a wrong ingredient means
   # `search_taxonomy` → `suggest_correction` → someone else resolving it,
   # or that `accept_staged_items` is the only step in the whole scan flow
@@ -22,13 +22,16 @@ module Tools
       suggestions: "Propose a fix to somebody else's menu data, and — if you own the restaurant — decide one.",
       claims:    "Prove you run a restaurant, which unlocks its correction queue.",
       history:   "The caller's own visits and saves. Private.",
-      ingestion: "Turn a photo, URL, or pasted menu into staged dishes, then verify them.",
+      ingestion: "Turn a photo, URL, or pasted menu into staged dishes, then verify them. " \
+                 "discover_restaurant_site lists own-site menu and location candidates first.",
       restaurants: "Add a restaurant we do not have. Admins also add cities, and edit and verify restaurants.",
       structure: "Menus, sections, address, and hours. Admin.",
       items:     "Deep-edit one live dish. Admin.",
+      photos:    "Put the user's photo on a dish: a moderator reviews it, or an owner or admin sets it directly.",
       taxonomy:  "The ingredient and tag trees the filter reads. Admin.",
-      moderation: "The review queue. Admin.",
-      users:     "The roster and who is an admin. Admin."
+      moderation: "The review and diner dish-photo queues. Admin.",
+      users:     "The roster and who is an admin. Admin.",
+      admin:     "Restaurant curation workflow: find, create, update restaurants, scan menus, accept items, edit published items. Admin."
     }.freeze
 
     CONVENTIONS = [
@@ -67,7 +70,28 @@ module Tools
         ],
         note: "create_restaurant only if search_restaurants found nothing. Extraction is " \
               "async — poll get_scan_status. accept_staged_items is the ONLY step that " \
-              "publishes; everything before it stays in staging."
+              "publishes; everything before it stays in staging. A logo or banner the user " \
+              "uploads goes on create_restaurant, or on set_restaurant_branding while the " \
+              "restaurant is still their draft. For a homepage URL with more than one " \
+              "location, use \"Import a restaurant from its website\" instead."
+      },
+      {
+        name: "Import a restaurant from its website",
+        audience: :user,
+        arguments: %i[restaurant city],
+        steps: %w[
+          discover_restaurant_site list_cities create_restaurant start_menu_scan
+          get_scan_status list_staged_items edit_staged_item accept_staged_items
+          clone_menu
+        ],
+        note: "Own-site URLs only — DoorDash, order.online, Google Maps, and Toast " \
+              "ordering pages are refused. Discover first; ask which locations and which " \
+              "menu URL. One Restaurant row per physical spot (distinct names when the " \
+              "brand repeats). Scan and accept once when menus match, then clone_menu " \
+              "onto empty siblings (a published source publishes the sibling). Hours, " \
+              "phone, website, and uploaded logo/banner attachment ids go on " \
+              "create_restaurant. If a Locations page has no addresses, ask the user — " \
+              "do not rediscover the same page."
       },
       {
         # Public because all three steps are. Leaving it at :user would
@@ -86,9 +110,22 @@ module Tools
         name: "Run a restaurant you own",
         audience: :user,
         arguments: %i[restaurant],
-        steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion],
+        steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion
+                  inspect_image set_restaurant_branding],
         note: "Ownership arrives by emailed token. Accepting a suggestion applies it to the " \
-              "live dish immediately — say what it would change first."
+              "live dish immediately — say what it would change first. set_restaurant_branding " \
+              "takes attachment ids from the upload endpoint, never image bytes; inspect_image " \
+              "gives an upload's size so you can choose a crop."
+      },
+      {
+        name: "Add a photo to a dish",
+        audience: :user,
+        arguments: %i[restaurant],
+        steps: %w[get_restaurant get_menu submit_dish_photo set_item_photo],
+        note: "The photo arrives as an attachment id from the upload. Find the dish id with " \
+              "get_menu and ask if the dish is ambiguous. set_item_photo only when get_restaurant " \
+              "says managed_by_caller; otherwise submit_dish_photo. Both stop for the user's " \
+              "confirmation — never attest for them."
       },
       {
         name: "Fix a live dish",
@@ -125,9 +162,10 @@ module Tools
       {
         name: "Moderate",
         audience: :admin,
-        steps: %w[list_moderation_queue moderate_review list_users set_user_role],
+        steps: %w[list_moderation_queue moderate_review list_photo_submissions moderate_photo_submission list_users set_user_role],
         note: "Flagged is not guilty; the heuristic trips on any URL. Hiding is reversible " \
-              "and recorded; only an author can delete their own review."
+              "and recorded; only an author can delete their own review. Diner dish photos " \
+              "are unpublished until approve_and_set copies them onto the dish."
       }
     ].freeze
 

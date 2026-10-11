@@ -68,6 +68,15 @@ RSpec.describe Restaurant, type: :model do
       expect(ItemIngredient.where(item: other_item).pluck(:confidence)).to all(eq("suggested"))
     end
 
+    it "never promotes a zero-ingredient dish, even when its tags are confirmed" do
+      empty = create(:item, :published, restaurant: restaurant, tag_list: [mexican])
+      expect(empty.item_ingredients).to be_empty
+
+      restaurant.confirm_community_associations!
+
+      expect(empty.reload.confidence).to eq("suggested")
+    end
+
     it "keeps the denormalized id arrays intact (update_all skips callbacks by design)" do
       before_ids = community_item.reload.ingredient_ids
 

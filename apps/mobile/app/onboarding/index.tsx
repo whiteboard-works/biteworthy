@@ -63,7 +63,9 @@ export default function OnboardingScreen() {
   const [loadingPresets, setLoadingPresets] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IngredientSearchResult[]>([]);
-  const [searchedIngredients, setSearchedIngredients] = useState<Map<string, IngredientSearchResult>>(new Map());
+  const [searchedIngredients, setSearchedIngredients] = useState<
+    Map<string, IngredientSearchResult>
+  >(new Map());
   const [tags, setTags] = useState<TasteTag[]>([]);
   const [tasteQuery, setTasteQuery] = useState('');
   const [tasteResults, setTasteResults] = useState<IngredientSearchResult[]>([]);
@@ -206,19 +208,29 @@ export default function OnboardingScreen() {
               return (
                 <Pressable
                   key={p.slug}
-                  accessibilityLabel={`preset-${p.slug}`}
+                  testID={`preset-${p.slug}`}
+                  accessibilityRole="button"
                   onPress={() => dispatch({ type: 'TOGGLE_PRESET', slug: p.slug })}
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
-                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{p.name}</Text>
-                  <Text style={[styles.chipDescription, selected && styles.chipTextSelected]}>{p.description}</Text>
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                    {p.name}
+                  </Text>
+                  <Text style={[styles.chipDescription, selected && styles.chipTextSelected]}>
+                    {p.description}
+                  </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
         )}
 
-        <Pressable accessibilityLabel="next-to-ingredients" onPress={() => setStep('ingredients')} style={styles.primary}>
+        <Pressable
+          testID="next-to-ingredients"
+          accessibilityRole="button"
+          onPress={() => setStep('ingredients')}
+          style={styles.primary}
+        >
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -233,7 +245,8 @@ export default function OnboardingScreen() {
         <Text style={styles.body}>Search for specific ingredients to avoid.</Text>
 
         <TextInput
-          accessibilityLabel="ingredient-search"
+          testID="ingredient-search"
+          accessibilityLabel="Search ingredients to avoid"
           placeholder="Search ingredients (e.g. 'cilantro')"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -247,7 +260,8 @@ export default function OnboardingScreen() {
             const added = draft.manualIngredientIds.includes(item.id);
             return (
               <Pressable
-                accessibilityLabel={`add-${item.slug}`}
+                testID={`add-${item.slug}`}
+                accessibilityRole="button"
                 onPress={() =>
                   dispatch({
                     type: added ? 'REMOVE_MANUAL_INGREDIENT' : 'ADD_MANUAL_INGREDIENT',
@@ -262,7 +276,9 @@ export default function OnboardingScreen() {
                     <Text style={styles.searchAliases}>aka {item.aliases.join(', ')}</Text>
                   )}
                 </View>
-                <Text style={[styles.addLabel, added && styles.addedLabel]}>{added ? '✓ added' : '+ add'}</Text>
+                <Text style={[styles.addLabel, added && styles.addedLabel]}>
+                  {added ? '✓ added' : '+ add'}
+                </Text>
               </Pressable>
             );
           }}
@@ -276,7 +292,12 @@ export default function OnboardingScreen() {
         />
 
         <Text style={styles.muted}>{draft.manualIngredientIds.length} added manually</Text>
-        <Pressable accessibilityLabel="next-to-strictness" onPress={() => setStep('strictness')} style={styles.primary}>
+        <Pressable
+          testID="next-to-strictness"
+          accessibilityRole="button"
+          onPress={() => setStep('strictness')}
+          style={styles.primary}
+        >
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -297,7 +318,8 @@ export default function OnboardingScreen() {
           return (
             <Pressable
               key={s}
-              accessibilityLabel={`strictness-${s}`}
+              testID={`strictness-${s}`}
+              accessibilityRole="button"
               onPress={() => dispatch({ type: 'SET_STRICTNESS', strictness: s })}
               style={[styles.chip, selected && styles.chipSelected, { width: '100%' }]}
             >
@@ -307,13 +329,18 @@ export default function OnboardingScreen() {
               <Text style={[styles.chipDescription, selected && styles.chipTextSelected]}>
                 {s === 'relaxed' && 'Show items even if some ingredients are inferred.'}
                 {s === 'balanced' && 'Hide items where the avoid match is confident.'}
-                {s === 'strict'  && 'Also hide items the AI marked suggested or inferred.'}
+                {s === 'strict' && 'Also hide items the AI marked suggested or inferred.'}
               </Text>
             </Pressable>
           );
         })}
 
-        <Pressable accessibilityLabel="next-to-taste" onPress={() => setStep('taste')} style={styles.primary}>
+        <Pressable
+          testID="next-to-taste"
+          accessibilityRole="button"
+          onPress={() => setStep('taste')}
+          style={styles.primary}
+        >
           <Text style={styles.primaryText}>Next →</Text>
         </Pressable>
       </View>
@@ -328,8 +355,8 @@ export default function OnboardingScreen() {
             <Text style={styles.eyebrow}>Improve your picks</Text>
             <Text style={styles.headline}>What do you love?</Text>
             <Text style={styles.body}>
-              Tap to love a cuisine or flavor; tap again to pass. This only ranks your menus —
-              it never hides anything your dietary filter allows.
+              Tap to love a cuisine or flavor; tap again to pass. This only ranks your menus — it
+              never hides anything your dietary filter allows.
             </Text>
           </>
         ) : (
@@ -343,13 +370,22 @@ export default function OnboardingScreen() {
           </>
         )}
 
-        <View style={styles.chipGrid}>
+        {/* Bounded: 23 cuisines plus flavors wrap to several rows, and on a
+            short phone or with large text an unbounded grid pushed Search,
+            Save and Skip below the viewport. The catalog scrolls inside
+            its box; the controls stay put. */}
+        <ScrollView
+          testID="taste-catalog"
+          style={styles.tasteCatalog}
+          contentContainerStyle={styles.chipGrid}
+        >
           {tags.map((t) => {
             const state = tasteStateOf(t.id, draft.likedTagIds, draft.dislikedTagIds);
             return (
               <Pressable
                 key={t.id}
-                accessibilityLabel={`taste-tag-${t.slug}`}
+                testID={`taste-tag-${t.slug}`}
+                accessibilityRole="button"
                 onPress={() => dispatch({ type: 'CYCLE_TASTE_TAG', tagId: t.id })}
                 style={[
                   styles.tasteChip,
@@ -369,10 +405,11 @@ export default function OnboardingScreen() {
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
 
         <TextInput
-          accessibilityLabel="taste-ingredient-search"
+          testID="taste-ingredient-search"
+          accessibilityLabel="Search ingredients you like or dislike"
           placeholder="Search a favorite ingredient (e.g. 'basil')"
           value={tasteQuery}
           onChangeText={setTasteQuery}
@@ -382,10 +419,15 @@ export default function OnboardingScreen() {
           data={tasteResults}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
-            const state = tasteStateOf(item.id, draft.likedIngredientIds, draft.dislikedIngredientIds);
+            const state = tasteStateOf(
+              item.id,
+              draft.likedIngredientIds,
+              draft.dislikedIngredientIds,
+            );
             return (
               <Pressable
-                accessibilityLabel={`taste-ing-${item.slug}`}
+                testID={`taste-ing-${item.slug}`}
+                accessibilityRole="button"
                 onPress={() => dispatch({ type: 'CYCLE_TASTE_INGREDIENT', ingredientId: item.id })}
                 style={[styles.searchRow, state === 'liked' && styles.searchRowAdded]}
               >
@@ -403,7 +445,8 @@ export default function OnboardingScreen() {
 
         {standalone ? (
           <Pressable
-            accessibilityLabel="save-taste"
+            testID="save-taste"
+            accessibilityRole="button"
             onPress={finalizeTaste}
             disabled={saving}
             style={[styles.primary, saving && { opacity: 0.5 }]}
@@ -411,13 +454,19 @@ export default function OnboardingScreen() {
             <Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save picks'}</Text>
           </Pressable>
         ) : (
-          <Pressable accessibilityLabel="next-to-done" onPress={() => setStep('done')} style={styles.primary}>
+          <Pressable
+            testID="next-to-done"
+            accessibilityRole="button"
+            onPress={() => setStep('done')}
+            style={styles.primary}
+          >
             <Text style={styles.primaryText}>Review →</Text>
           </Pressable>
         )}
 
         <Pressable
-          accessibilityLabel="skip-taste"
+          testID="skip-taste"
+          accessibilityRole="button"
           onPress={() => (standalone ? router.replace('/') : setStep('done'))}
           style={styles.skip}
         >
@@ -434,15 +483,21 @@ export default function OnboardingScreen() {
       <Text style={styles.headline}>Ready?</Text>
 
       <Text style={styles.body}>
-        Avoiding <Text style={{ fontWeight: '700' }}>
-          {draft.selectedPresetSlugs.length} preset{draft.selectedPresetSlugs.length === 1 ? '' : 's'}
-        </Text> + <Text style={{ fontWeight: '700' }}>
-          {draft.manualIngredientIds.length} ingredient{draft.manualIngredientIds.length === 1 ? '' : 's'}
-        </Text>, strictness <Text style={{ fontWeight: '700' }}>{draft.strictness}</Text>.
+        Avoiding{' '}
+        <Text style={{ fontWeight: '700' }}>
+          {draft.selectedPresetSlugs.length} preset
+          {draft.selectedPresetSlugs.length === 1 ? '' : 's'}
+        </Text>{' '}
+        +{' '}
+        <Text style={{ fontWeight: '700' }}>
+          {draft.manualIngredientIds.length} ingredient
+          {draft.manualIngredientIds.length === 1 ? '' : 's'}
+        </Text>
+        , strictness <Text style={{ fontWeight: '700' }}>{draft.strictness}</Text>.
       </Text>
 
       <Pressable
-        accessibilityLabel="acknowledge-disclaimer"
+        testID="acknowledge-disclaimer"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: acknowledged }}
         onPress={() => setAcknowledged((v) => !v)}
@@ -458,7 +513,8 @@ export default function OnboardingScreen() {
       </Pressable>
 
       <Pressable
-        accessibilityLabel="finish"
+        testID="finish"
+        accessibilityRole="button"
         onPress={finalize}
         disabled={saving || !acknowledged}
         style={[styles.primary, (saving || !acknowledged) && { opacity: 0.5 }]}
@@ -516,6 +572,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: space['3'],
     paddingVertical: space['3'],
+  },
+  // flexShrink: React Native defaults it to 0, and a box that cannot
+  // shrink would push the controls off an SE-sized screen just the same.
+  tasteCatalog: {
+    maxHeight: 280,
+    minHeight: 96,
+    flexGrow: 0,
+    flexShrink: 1,
   },
   chip: {
     borderWidth: 1,

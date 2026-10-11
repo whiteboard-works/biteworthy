@@ -42,9 +42,14 @@ module Tools
           },
           limit: {
             type: "integer",
-            description: "Maximum dishes to return (1-100, default 50).",
+            description: "Maximum dishes to return (1-500, default 50).",
             minimum: 1,
-            maximum: 100
+            maximum: 500
+          },
+          offset: {
+            type: "integer",
+            description: "Skip this many dishes (for pagination).",
+            minimum: 0
           }
         },
         required: ["scan_id"]
@@ -55,9 +60,9 @@ module Tools
       running_description { "Gathering the dishes it found" }
 
       DEFAULT_LIMIT = 50
-      MAX_LIMIT     = 100
+      MAX_LIMIT     = 500
 
-      def self.perform(context:, scan_id:, decision: nil, needs_attention: nil, limit: nil)
+      def self.perform(context:, scan_id:, decision: nil, needs_attention: nil, limit: nil, offset: nil)
         run = find_run!(context, scan_id)
 
         unless run.staged? || run.published?
@@ -73,17 +78,25 @@ module Tools
         scope = scope.where(decision: decision) if decision.present?
         scope = scope.needing_attention         if needs_attention
 
+        total_count = scope.count
+        limit_val = (limit || DEFAULT_LIMIT).clamp(1, MAX_LIMIT)
+        offset_val = (offset || 0).clamp(0, Float::INFINITY).to_i
+
         rows = scope.order(:position, :created_at)
                     .includes(matched_item: %i[item_variants ingredients tags])
-                    .limit((limit || DEFAULT_LIMIT).clamp(1, MAX_LIMIT))
+                    .limit(limit_val)
+                    .offset(offset_val)
                     .map { |i| staged_item_row(i) }
 
         ok(
           scan_id:      run.id,
           status:       run.status,
           enrichment_status: run.enrichment_status,
-          total_dishes: scope.count,
+          total_dishes: total_count,
           returned:     rows.size,
+          limit:        limit_val,
+          offset:       offset_val,
+          has_more:     (offset_val + rows.size) < total_count,
           dishes:       rows
         )
       end

@@ -11,9 +11,15 @@ module Api
     # endpoint that could.
     class McpTokensController < BaseController
       def index
+        scopes_for_user = if current_user.is_admin?
+          Tools::Scopes.available
+        else
+          Tools::Scopes.available_for_regular_user
+        end
+
         render json: {
           tokens: current_user.mcp_tokens.active.order(:created_at).map { |t| serialize(t) },
-          scopes: Tools::Scopes.available,
+          scopes: scopes_for_user,
           # Named here so the UI can offer full access as a chip like any
           # other rather than hardcoding the wildcard — the same reason
           # `scopes` is returned at all.
@@ -38,6 +44,14 @@ module Api
 
         unknown = scopes.reject { |s| Tools::Scopes.valid?(s) }
         return render_error("Unknown scope(s): #{unknown.join(', ')}.") if unknown.any?
+
+        # Non-admin users cannot mint tokens with admin-only scopes.
+        unless current_user.is_admin?
+          admin_only = scopes.select { |s| Tools::Scopes.admin_only?(s) }
+          if admin_only.any?
+            return render_error("Admin-only scope(s) not allowed: #{admin_only.join(', ')}.")
+          end
+        end
 
         if current_user.mcp_tokens.active.count >= McpToken::MAX_ACTIVE
           return render_error("You already have #{McpToken::MAX_ACTIVE} active tokens. Revoke one first.")

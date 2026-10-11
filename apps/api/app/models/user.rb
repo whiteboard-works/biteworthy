@@ -14,6 +14,13 @@ class User < ApplicationRecord
 
   has_one  :profile, class_name: "UserProfile", dependent: :destroy
   has_many :reviews, dependent: :destroy
+  has_many :dish_photo_submissions, dependent: :nullify
+  has_many :reviewed_photo_submissions, class_name: "DishPhotoSubmission",
+           foreign_key: :reviewed_by_id, inverse_of: :reviewed_by, dependent: :nullify
+  # Must run before `dependent: :nullify` clears user_id. Uncredited
+  # submissions (and their blobs) die with the account; a photo that
+  # became the dish photo stays, with an anonymized byline.
+  before_destroy :discard_uncredited_photo_submissions, prepend: true
   has_many :mcp_tokens, dependent: :destroy
   # Doorkeeper's tables reference `users` by `resource_owner_id` and
   # ship no association of their own, so deleting a member who had
@@ -52,6 +59,10 @@ class User < ApplicationRecord
            inverse_of: :claimed_by_user, dependent: :nullify
   has_many :resolved_suggestions, class_name: "Suggestion", foreign_key: :resolved_by_user_id,
            inverse_of: :resolved_by_user, dependent: :nullify
+  has_many :human_verified_items, class_name: "Item", foreign_key: :human_verified_by_user_id,
+           inverse_of: :human_verified_by_user, dependent: :nullify
+  has_many :restaurant_verified_items, class_name: "Item", foreign_key: :restaurant_verified_by_user_id,
+           inverse_of: :restaurant_verified_by_user, dependent: :nullify
 
   # Handles are stored lowercase: they're public identity (/u/:handle,
   # review bylines), so "Alice" and "alice" coexisting would be an
@@ -63,6 +74,14 @@ class User < ApplicationRecord
   normalizes :handle, with: ->(handle) { handle.downcase }
   validates :handle, presence: true, uniqueness: { case_sensitive: false },
                      format: { with: /\A[a-z0-9_]{3,30}\z/i }
+
+  # The public bio on /u/:handle. Plain text, capped so it stays a line
+  # or two under the name; a blank one is stored as NULL so "no bio"
+  # has one spelling.
+  BIO_MAX_LENGTH = 300
+  # NUL is dropped because Postgres text cannot store it (a 500, not a 422).
+  normalizes :bio, with: ->(bio) { bio.delete("\u0000").strip.presence }
+  validates :bio, length: { maximum: BIO_MAX_LENGTH }
 
   # Mirrors the `super_admin_implies_admin` CHECK constraint so the
   # invariant surfaces as a 422 rather than a PG::CheckViolation 500.
@@ -159,5 +178,20 @@ class User < ApplicationRecord
 
   def ensure_profile
     create_profile! unless profile
+  end
+
+  def discard_uncredited_photo_submissions
+    dish_photo_submissions.find_each do |submission|
+      if submission.credited?
+        submission.update_columns(
+          user_id: nil,
+          credit_name: DishPhotoSubmission::ANONYMOUS_CREDIT,
+          updated_at: Time.current
+        )
+      else
+        submission.photo.purge if submission.photo.attached?
+        submission.destroy!
+      end
+    end
   end
 end
