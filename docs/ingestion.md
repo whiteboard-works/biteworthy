@@ -231,8 +231,28 @@ slugs exceed Jev's 255-option Choice limit.
 
 The 2026-09-28 shadow trial that decided this agreed with Haiku on
 95.6% of 1,085 pairs, and the disagreements were almost all Haiku
-forcing a dish into one of the seven leaf cuisines (a Venezuelan menu
-as `mexican`, chai as `indian`, a Greek wrap as `italian`).
+forcing a dish into one of the then seven leaf cuisines (a Venezuelan
+menu as `mexican`, chai as `indian`, a Greek wrap as `italian`).
+
+The leaf set is `db/seeds/tags.yml`, which only a freshly created
+database reads (`db:prepare` seeds once); an existing deployment gets
+a new leaf through an idempotent data migration, the way
+`UpsertCuisineLeafTags` delivered these. Dry runs
+of `retag_cuisine` on 2026-10-10 showed Jev rightly refusing those
+force-fits but with nowhere else to put the dish (a Himalayan menu
+losing `indian` and gaining nothing), so the set grew from 7 to 23
+leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
+Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
+Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
+Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
+230 questions; still a few thousand of the 64k tokens a request may
+carry (TypeSafe caps Choice *options* at 255, not Noul questions).
+Adding a cuisine is a row in that file, a migration that upserts it,
+and, only for a word that is never a dish modifier, a
+`TagDeriver::Cuisine` keyword ("french" fries and "greek" yogurt are
+why french and greek have none); `taxonomy_drift_spec` pins the
+keywords to the seed file and the migration spec pins the migration
+to it.
 
 ### 3. Stage
 

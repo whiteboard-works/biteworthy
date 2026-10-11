@@ -135,6 +135,35 @@ RSpec.describe Ingestion::TagDeriver do
       tags = derive(text: "Al Pastor", section: "Mexican Classics")
       expect(tag_slugs(tags)).to include("mexican")
     end
+
+    it "knows the cuisines added for Jev's sake, including the two-word ones" do
+      expect(tag_slugs(derive(text: "Sherpa Stew", section: "Nepali Specialties"))).to include("nepali-tibetan")
+      expect(tag_slugs(derive(text: "Shawarma Plate", section: "Middle Eastern"))).to include("middle-eastern")
+      slugs = tag_slugs(derive(text: "Arepas", section: "Latin American Plates"))
+      # The longer phrase wins outright: not also `american`, which would
+      # put two sibling cuisines on one dish and double-count its taste.
+      expect(slugs).to include("latin-american")
+      expect(slugs).not_to include("american")
+      expect(tag_slugs(derive(text: "Burger", section: "American Classics"))).to include("american")
+    end
+
+    # The word is on the menu, the cuisine is not: this pass fires at
+    # 0.9 with nothing to veto it, so a modifier word must never be a
+    # keyword, however real the cuisine. Those dishes are Jev's call.
+    it "leaves cuisine words that are also dish modifiers alone" do
+      [
+        [ "Spanish Rice", "Southern Colorado Favorites", %w[spanish southern latin-american] ],
+        [ "French Fries", "Sides", %w[french] ],
+        [ "Greek Yogurt Parfait", "Breakfast", %w[greek] ],
+        [ "German Chocolate Cake", "Desserts", %w[german] ],
+        [ "BBQ Chicken Pizza", "Pizzas", %w[bbq] ],
+        [ "Cajun Fries", "Sides", %w[cajun-creole] ],
+        [ "Himalayan Salt Margarita", "Cocktails", %w[nepali-tibetan] ],
+        [ "Texas Toast", "Sides", %w[tex-mex] ]
+      ].each do |text, section, slugs|
+        expect(tag_slugs(derive(text: text, section: section)) & slugs).to be_empty, text
+      end
+    end
   end
 
   describe "per-family isolation" do
