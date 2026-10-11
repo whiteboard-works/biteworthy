@@ -457,7 +457,7 @@ RSpec.describe "Admin MCP tools" do
       stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return(
         status: 200,
         body: { model: "jev-1.13.0",
-                answers: { "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
+                answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
                            "i0__cuisine-italian" => { "type" => "noul", "noul" => 0.03 } } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )

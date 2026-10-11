@@ -51,8 +51,8 @@ module Ingestion
     # IngestionRun in gap-fill, the Restaurant in a re-tag. `prompt_rows`
     # are `{ name:, description:, section: }` hashes. Returns
     # `{ index => [{ "slug" => …, "confidence" => … }] }` with an entry for
-    # every index (nil for an item Jev did not fully answer), or nil when
-    # Jev could not answer at all.
+    # every index ([] for an item that belongs to no cuisine, nil for one
+    # Jev did not fully answer), or nil when Jev could not answer at all.
     def call(subject, prompt_rows)
       tags = cuisine_tags
       return {} if tags.empty? || prompt_rows.empty?
@@ -61,15 +61,31 @@ module Ingestion
       answers = @client.system_one(state: state(prompt_rows), questions: questions(prompt_rows, tags))
       latency = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
-      rows    = prompt_rows.each_index.to_h { |i| [ i, [] ] }
-      missing = 0
+      rows       = prompt_rows.each_index.to_h { |i| [ i, [] ] }
+      missing    = 0
+      no_cuisine = 0
       prompt_rows.each_index do |i|
+        # The gate first: an item that belongs to no cuisine (a soda, raw
+        # onions, a branded ice cream bar) gets an empty row set and its
+        # per-cuisine answers are not read, so the restaurant around it
+        # cannot stamp its identity on it.
+        gate = probability(answers, key(i, GATE))
+        if gate.nil?
+          missing += 1
+          rows[i] = nil
+          next
+        end
+        if gate < THRESHOLD
+          no_cuisine += 1
+          next
+        end
+
         tags.each do |tag|
-          noul = answers.dig(key(i, tag[:slug]), "noul")
+          noul = probability(answers, key(i, tag[:slug]))
           # An absent or malformed answer is not a "no": the item's rows
           # become nil, which the merge reads as "keep what Jev said last
           # time", and the count makes a half-answered slice visible.
-          unless noul.is_a?(Numeric) && noul.between?(0, 1)
+          if noul.nil?
             missing += 1
             rows[i] = nil
             next
@@ -86,11 +102,12 @@ module Ingestion
         input_tokens: @client.last_usage&.dig("input_tokens"),
         items:        prompt_rows.size,
         tagged:       rows.values.sum { |r| r&.size.to_i },
+        no_cuisine:   no_cuisine,
         missing:      missing
       }.to_json)
       if missing.positive?
         Rails.error.report(
-          PartialAnswers.new("#{missing} of #{prompt_rows.size * tags.size} answers missing or malformed"),
+          PartialAnswers.new("#{missing} of #{prompt_rows.size * (tags.size + 1)} answers missing or malformed"),
           handled: true, context: { **ids(subject), model: @client.last_model }
         )
       end
@@ -127,17 +144,53 @@ module Ingestion
       { items: prompt_rows.map { |r| r.slice(:name, :description, :section).compact } }
     end
 
+    GATE = "any"
+
+    # What the per-cuisine question means by "American". Generic
+    # restaurant plates (a ribeye, a cedar-plank salmon, a composed salad)
+    # sat at 0.3 to 0.5 without it, and lost their only tag.
+    NOTES = {
+      "american" => "Contemporary and New American restaurant fare counts: steaks, chops, burgers, " \
+                    "roasted vegetables, composed salads, farm-to-table plates, diner breakfasts."
+    }.freeze
+
+    # One gate per item plus one Noul per (item, cuisine). The criteria
+    # are what keep a restaurant's identity off its drinks and condiments:
+    # the state is the whole slice, and without them nineteen barbecue
+    # plates made "ONIONS" read as Southern.
     def questions(prompt_rows, tags)
       prompt_rows.each_index.each_with_object({}) do |i, h|
+        h[key(i, GATE)] = {
+          type:         "noul",
+          instructions: "Does `items[#{i}]` belong to any culinary tradition at all?",
+          criteria:     {
+            true:  { what: "A prepared dish, drink or baked good whose recipe comes from some cuisine" },
+            false: { what:     "A plain beverage, a single ingredient, a condiment, a side or topping sold on " \
+                               "its own, or a packaged brand item, whatever the restaurant around it serves",
+                     examples: [ "hot tea", "milk", "soda", "orange juice", "a bottled beer", "raw onions",
+                                 "pickles", "sour cream", "a sliced tomato", "a branded ice cream bar" ] }
+          }
+        }
         tags.each do |tag|
           h[key(i, tag[:slug])] = {
             type:         "noul",
-            instructions: "Is the dish `items[#{i}]` #{tag[:name]} cuisine?"
+            instructions: "Is `items[#{i}]` #{tag[:name]} cuisine?",
+            criteria:     {
+              true:  { what:    "The item's own recipe and tradition are #{tag[:name]}: its ingredients, " \
+                                "technique and name belong to that cuisine. #{NOTES[tag[:slug]]}".strip,
+                       not_for: "An item merely sold at a #{tag[:name]} restaurant or listed beside #{tag[:name]} dishes" },
+              false: { what: "The item belongs to another cuisine or to none; only the menu around it is #{tag[:name]}" }
+            }
           }
         end
       end
     end
 
     def key(index, slug) = "i#{index}__#{slug}"
+
+    def probability(answers, key)
+      noul = answers.dig(key, "noul")
+      noul if noul.is_a?(Numeric) && noul.between?(0, 1)
+    end
   end
 end

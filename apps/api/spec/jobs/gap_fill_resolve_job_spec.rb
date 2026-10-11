@@ -469,7 +469,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
       jev = stub_request(:post, jev_url).to_return(
         status: 200,
-        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.93 } },
+        body: { model: "jev-1.13.0", answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__italian" => { "type" => "noul", "noul" => 0.93 } },
                 usage: { input_tokens: 300 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
@@ -523,7 +523,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
       jev = stub_request(:post, jev_url).to_return(
         status: 200,
-        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.88 } } }.to_json,
+        body: { model: "jev-1.13.0", answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__italian" => { "type" => "noul", "noul" => 0.88 } } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
 

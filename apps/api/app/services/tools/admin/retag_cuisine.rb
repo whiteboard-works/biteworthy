@@ -26,8 +26,9 @@ module Tools
         changed. Nothing is written if Jev fails part-way. A real run asks
         for confirmation first; a dry run does not.
 
-        Returns the dishes whose cuisine rows changed (slug or confidence
-        grade), with the rows before and after, plus counts of dishes left
+        Returns the dishes whose cuisine slugs changed (`changed`) apart
+        from those where only a confidence grade moved (`regraded`), each
+        with the rows before and after, plus counts of dishes left
         as they were, dishes Jev could not answer for, and dishes edited
         while Jev was answering (stale, left alone; run again). Running
         it twice re-decides the same dishes from the same text.
@@ -64,6 +65,10 @@ module Tools
 
       running_description { |args| args[:dry_run] ? "Previewing cuisine tags" : "Re-tagging cuisine" }
 
+      def self.change_row(change)
+        { item_id: change.item.id, name: untrusted(change.item.name), before: change.before, after: change.after }
+      end
+
       def self.perform(context:, restaurant:, dry_run: false)
         context.admin!
         record = find_restaurant!(restaurant)
@@ -78,9 +83,8 @@ module Tools
           restaurant: restaurant_row(record),
           dry_run:    result.dry_run,
           dishes:     result.dishes,
-          changed:    result.changes.map { |c|
-            { item_id: c.item.id, name: untrusted(c.item.name), before: c.before, after: c.after }
-          },
+          changed:    result.changes.reject(&:regrade).map { |c| change_row(c) },
+          regraded:   result.changes.select(&:regrade).map { |c| change_row(c) },
           unchanged:  result.unchanged,
           unanswered: result.unanswered,
           stale:      result.stale
