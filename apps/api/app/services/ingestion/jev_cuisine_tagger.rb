@@ -172,11 +172,14 @@ module Ingestion
           type:         "noul",
           instructions: "Does `items[#{i}]` belong to any culinary tradition at all?",
           criteria:     {
-            true:  { what: "A prepared dish, drink or baked good whose recipe comes from some cuisine" },
-            false: { what:     "A plain beverage, a single ingredient, a condiment, a side or topping sold on " \
-                               "its own, or a packaged brand item, whatever the restaurant around it serves",
+            true:  { what:     "A prepared dish, drink, baked good or side whose recipe comes from some " \
+                               "cuisine, however small",
+                     examples: [ "naan", "kimchi", "hummus", "grits", "tzatziki", "cornbread", "chai" ] },
+            false: { what:     "A plain beverage, a single raw ingredient, a generic condiment or topping " \
+                               "with no recipe of its own, or a packaged brand item, whatever the restaurant " \
+                               "around it serves",
                      examples: [ "hot tea", "milk", "soda", "orange juice", "a bottled beer", "raw onions",
-                                 "pickles", "sour cream", "a sliced tomato", "a branded ice cream bar" ] }
+                                 "sliced jalapeños", "sour cream", "a sliced tomato", "a branded ice cream bar" ] }
           }
         }
         tags.each do |tag|

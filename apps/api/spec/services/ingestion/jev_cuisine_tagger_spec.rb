@@ -63,6 +63,7 @@ RSpec.describe Ingestion::JevCuisineTagger do
       body["questions"].keys.sort == %w[i0__any i0__italian i0__mexican i1__any i1__italian i1__mexican] &&
         body["questions"].values.all? { |q| q["type"] == "noul" && q["criteria"].keys.sort == %w[false true] } &&
         body["questions"]["i0__italian"]["criteria"]["true"]["not_for"].include?("sold at a Italian restaurant") &&
+        body["questions"]["i0__any"]["criteria"]["true"]["examples"].include?("naan") &&
         body["state"] == { "items" => [
           { "name" => "Carbonara", "description" => "egg, pecorino, guanciale", "section" => "Pasta" },
           { "name" => "Carnitas Tacos", "section" => "Tacos" }
