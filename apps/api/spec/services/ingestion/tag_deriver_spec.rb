@@ -139,7 +139,12 @@ RSpec.describe Ingestion::TagDeriver do
     it "knows the cuisines added for Jev's sake, including the two-word ones" do
       expect(tag_slugs(derive(text: "Sherpa Stew", section: "Nepali Specialties"))).to include("nepali-tibetan")
       expect(tag_slugs(derive(text: "Shawarma Plate", section: "Middle Eastern"))).to include("middle-eastern")
-      expect(tag_slugs(derive(text: "Arepas", section: "Latin American Plates"))).to include("latin-american")
+      slugs = tag_slugs(derive(text: "Arepas", section: "Latin American Plates"))
+      # The longer phrase wins outright: not also `american`, which would
+      # put two sibling cuisines on one dish and double-count its taste.
+      expect(slugs).to include("latin-american")
+      expect(slugs).not_to include("american")
+      expect(tag_slugs(derive(text: "Burger", section: "American Classics"))).to include("american")
     end
 
     # The word is on the menu, the cuisine is not: this pass fires at

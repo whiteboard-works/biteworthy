@@ -218,7 +218,22 @@ module Ingestion
       }.freeze
 
       def self.call(ctx)
-        TagDeriver.keyword_hits(ctx[:segments] + ctx[:section_segments], KEYWORDS, confidence: 0.9)
+        segments = ctx[:segments] + ctx[:section_segments]
+        hits     = TagDeriver.keyword_hits(segments, KEYWORDS, confidence: 0.9)
+        matched  = hits.to_h { |h| [ h[:slug], matched_phrase(segments, KEYWORDS.fetch(h[:slug])) ] }
+        # A word inside a longer matched phrase is not a hit of its own:
+        # "Latin American" is latin-american, not also american. Sibling
+        # cuisine tags on one dish would double-count a taste signal.
+        hits.reject do |h|
+          mine = matched.fetch(h[:slug])
+          matched.any? { |slug, other| slug != h[:slug] && other.length > mine.length && other.each_cons(mine.length).include?(mine) }
+        end
+      end
+
+      def self.matched_phrase(segments, keywords)
+        keywords.map { |kw| kw.split(" ") }
+                .select { |tokens| segments.any? { |seg| seg.each_cons(tokens.length).include?(tokens) } }
+                .max_by(&:length)
       end
     end
 
