@@ -46,7 +46,8 @@ RSpec.describe Item, type: :model do
           item.mark_human_verified!(user)
         end
 
-        expect(item.reload.human_verified_by_user_id).to eq(first_id)
+        item.reload
+        expect(item.human_verified_by_user_id).to eq(first_id)
         expect(item.human_verified_at).to eq(first_verified_at)
       end
     end
