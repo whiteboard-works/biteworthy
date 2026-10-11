@@ -52,6 +52,19 @@ RSpec.describe Tools::Restaurants::SetRestaurantBranding do
     expect(restaurant.reload.logo).not_to be_attached
   end
 
+  it "lets the creator of a draft set its logo, and stops once it is published" do
+    creator = create(:user)
+    draft = create(:restaurant, status: "draft", created_by_user: creator)
+
+    response = call(as: creator, restaurant: draft.slug, logo_attachment_id: upload_for(creator).signed_id)
+    expect(payload(response)[:logo_url]).to be_present
+
+    draft.update!(status: "published")
+    response = call(as: creator, restaurant: draft.slug, remove_logo: true)
+    expect(payload(response)[:error]).to eq("forbidden")
+    expect(draft.reload.logo).to be_attached
+  end
+
   it "removes a logo with the flag" do
     call(as: owner, restaurant: restaurant.slug, logo_attachment_id: upload_for(owner).signed_id)
 

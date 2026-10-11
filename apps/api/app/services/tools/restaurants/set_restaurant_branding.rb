@@ -3,8 +3,8 @@
 module Tools
   module Restaurants
     # Owner-facing, unlike the rest of this directory: `audience :user` is
-    # the outer gate, Restaurants::Branding.authorize! (verified owner or
-    # admin) is the real one. Bytes never enter the agent's context — the
+    # the outer gate, Restaurants::Branding.authorize! (verified owner,
+    # admin, or the creator of a draft) is the real one. Bytes never enter the agent's context — the
     # client uploads to POST /attachments and passes the signed ids here,
     # the same handoff the review and scan tools use.
     class SetRestaurantBranding < Tools::Base
@@ -13,8 +13,9 @@ module Tools
       tool_name "set_restaurant_branding"
       title "Set a restaurant's logo and banner"
       description <<~TEXT
-        Upload or remove a restaurant's logo and banner. Only the verified
-        owner (see claim_restaurant) or an admin can do this.
+        Upload or remove a restaurant's logo and banner. The verified owner
+        (see claim_restaurant), an admin, or — while the restaurant is still
+        a draft — the person who added it can do this.
 
         Pass attachment ids from the upload endpoint; each is an image
         (JPEG, PNG, WebP, or HEIC, up to 15 MB). A new image replaces the

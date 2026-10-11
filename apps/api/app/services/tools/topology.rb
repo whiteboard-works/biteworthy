@@ -69,8 +69,10 @@ module Tools
         ],
         note: "create_restaurant only if search_restaurants found nothing. Extraction is " \
               "async — poll get_scan_status. accept_staged_items is the ONLY step that " \
-              "publishes; everything before it stays in staging. For a homepage URL with " \
-              "more than one location, use \"Import a restaurant from its website\" instead."
+              "publishes; everything before it stays in staging. A logo or banner the user " \
+              "uploads goes on create_restaurant, or on set_restaurant_branding while the " \
+              "restaurant is still their draft. For a homepage URL with more than one " \
+              "location, use \"Import a restaurant from its website\" instead."
       },
       {
         name: "Import a restaurant from its website",
@@ -86,8 +88,9 @@ module Tools
               "menu URL. One Restaurant row per physical spot (distinct names when the " \
               "brand repeats). Scan and accept once when menus match, then clone_menu " \
               "onto empty siblings (a published source publishes the sibling). Hours, " \
-              "phone, and website go on create_restaurant. If a Locations page has no " \
-              "addresses, ask the user — do not rediscover the same page."
+              "phone, website, and uploaded logo/banner attachment ids go on " \
+              "create_restaurant. If a Locations page has no addresses, ask the user — " \
+              "do not rediscover the same page."
       },
       {
         # Public because all three steps are. Leaving it at :user would

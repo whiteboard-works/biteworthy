@@ -5483,7 +5483,7 @@ export interface paths {
         head?: never;
         /**
          * Set the restaurant's logo and banner
-         * @description The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never enlarged); a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
+         * @description The verified owner (claimed_by_user_id), an admin, or, while the restaurant is still a draft, the person who added it. Each image is re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never enlarged); a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
          */
         patch: {
             parameters: {
@@ -5534,7 +5534,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description signed in, but not the owner or an admin */
+                /** @description signed in, but not the owner, an admin, or the creator of this draft */
                 403: {
                     headers: {
                         [name: string]: unknown;

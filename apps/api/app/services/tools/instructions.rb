@@ -118,7 +118,13 @@ module Tools
       Same brand in different cities is expected — only `force` on
       `create_restaurant` after the user confirms they are distinct. Put
       hours, phone, and website on `create_restaurant` (community creators
-      do not have `edit_place`).
+      do not have `edit_place`), and ask for a logo and a banner too — the
+      user uploads them through the app and you pass the attachment ids
+      (`logo_attachment_id`, `banner_attachment_id`). Only pass an id the
+      user said is the logo or the banner: a menu photo or PDF uploaded for
+      scanning is not one, and never invent an id.
+      `set_restaurant_branding` adds them later while it is still their
+      draft.
 
       When the menus match: create the chosen locations, `start_menu_scan`
       the shared own-site source on the first, review and accept, then
