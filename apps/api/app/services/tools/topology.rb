@@ -27,6 +27,7 @@ module Tools
       restaurants: "Add a restaurant we do not have. Admins also add cities, and edit and verify restaurants.",
       structure: "Menus, sections, address, and hours. Admin.",
       items:     "Deep-edit one live dish. Admin.",
+      photos:    "Put the user's photo on a dish: a moderator reviews it, or an owner or admin sets it directly.",
       taxonomy:  "The ingredient and tag trees the filter reads. Admin.",
       moderation: "The review and diner dish-photo queues. Admin.",
       users:     "The roster and who is an admin. Admin.",
@@ -115,6 +116,16 @@ module Tools
               "live dish immediately — say what it would change first. set_restaurant_branding " \
               "takes attachment ids from the upload endpoint, never image bytes; inspect_image " \
               "gives an upload's size so you can choose a crop."
+      },
+      {
+        name: "Add a photo to a dish",
+        audience: :user,
+        arguments: %i[restaurant],
+        steps: %w[get_restaurant get_menu submit_dish_photo set_item_photo],
+        note: "The photo arrives as an attachment id from the upload. Find the dish id with " \
+              "get_menu and ask if the dish is ambiguous. set_item_photo only when get_restaurant " \
+              "says managed_by_caller; otherwise submit_dish_photo. Both stop for the user's " \
+              "confirmation — never attest for them."
       },
       {
         name: "Fix a live dish",

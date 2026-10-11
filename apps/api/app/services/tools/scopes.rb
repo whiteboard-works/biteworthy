@@ -73,6 +73,7 @@ module Tools
       restaurants: "restaurant records",
       structure:   "menu structure — sections, places, and ordering",
       items:       "individual dishes",
+      photos:      "dish photos you submit, or set as a restaurant's owner",
       taxonomy:    "the shared ingredient and tag catalogue",
       moderation:  "the moderation queue",
       users:       "user accounts and their roles",
