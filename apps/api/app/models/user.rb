@@ -59,6 +59,10 @@ class User < ApplicationRecord
            inverse_of: :claimed_by_user, dependent: :nullify
   has_many :resolved_suggestions, class_name: "Suggestion", foreign_key: :resolved_by_user_id,
            inverse_of: :resolved_by_user, dependent: :nullify
+  has_many :human_verified_items, class_name: "Item", foreign_key: :human_verified_by_user_id,
+           inverse_of: :human_verified_by_user, dependent: :nullify
+  has_many :restaurant_verified_items, class_name: "Item", foreign_key: :restaurant_verified_by_user_id,
+           inverse_of: :restaurant_verified_by_user, dependent: :nullify
 
   # Handles are stored lowercase: they're public identity (/u/:handle,
   # review bylines), so "Alice" and "alice" coexisting would be an

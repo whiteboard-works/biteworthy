@@ -104,8 +104,41 @@ RSpec.describe Item, type: :model do
 
         it "denies nil user from editing" do
           expect(item.can_be_edited_by?(nil)).to be false
+      expect(item.can_be_edited_by?(User.new)).to be false
         end
       end
+    end
+  end
+
+  # Account deletion is `current_user.destroy!`; a verifier must still be
+  # able to leave, and the dish keeps its verified timestamp.
+  describe "deleting the verifying user" do
+    it "clears the pointer and keeps the verification" do
+      item = create(:item, :published)
+      user = create(:user)
+      item.mark_human_verified!(user)
+      item.mark_restaurant_verified!(user)
+
+      user.destroy!
+
+      item.reload
+      expect([ item.human_verified_by_user_id, item.restaurant_verified_by_user_id ]).to eq([ nil, nil ])
+      expect(item).to be_human_verified
+      expect(item).to be_restaurant_verified
+    end
+
+    it "keeps the dish locked once the verifier is gone" do
+      item = create(:item, :published)
+      user = create(:user)
+      item.mark_restaurant_verified!(user)
+
+      user.destroy!
+      item.reload
+
+      expect(item.can_be_edited_by?(nil)).to be false
+      expect(item.can_be_edited_by?(User.new)).to be false
+      expect(item.can_be_edited_by?(create(:user, :admin))).to be false
+      expect(item.can_be_edited_by?(create(:user, :super_admin))).to be true
     end
   end
 end
