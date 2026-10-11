@@ -1,6 +1,15 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import { uploadAttachment, type Attachment } from '../../lib/chat';
 
 /** A message typed while the assistant was busy. Held here until the
@@ -26,7 +35,23 @@ interface ComposerProps {
   onCancelQueued: (id: string) => void;
 }
 
-const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf';
+const ACCEPTED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+  'application/pdf',
+];
+const ACCEPT = ACCEPTED_TYPES.join(',');
+
+/** Chrome and Firefox hand over a dragged HEIC with no type at all. */
+function accepted(file: File): boolean {
+  if (ACCEPTED_TYPES.includes(file.type)) return true;
+  return file.type === '' && /\.(heic|heif)$/i.test(file.name);
+}
+
+const carriesFiles = (types: readonly string[]) => types.includes('Files');
 
 export function Composer({
   queueing,
@@ -38,6 +63,7 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
@@ -50,6 +76,22 @@ export function Composer({
     // scrollHeight leaves out the border; border-box sizing counts it.
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
   }, [text]);
+
+  // A file dropped just past the composer would otherwise open in the
+  // tab and take the conversation, and anything queued, with it.
+  useEffect(() => {
+    const swallow = (event: globalThis.DragEvent) => {
+      if (event.dataTransfer && carriesFiles(Array.from(event.dataTransfer.types))) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('dragover', swallow);
+    window.addEventListener('drop', swallow);
+    return () => {
+      window.removeEventListener('dragover', swallow);
+      window.removeEventListener('drop', swallow);
+    };
+  }, []);
 
   // Deliberately not gated on whether a turn is running. The input used
   // to go dead for the length of a turn — which is a minute or more of a
@@ -73,13 +115,20 @@ export function Composer({
 
   const attach = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const usable = Array.from(files).filter(accepted);
+    const skipped = Array.from(files).filter((file) => !accepted(file));
+    setError(
+      skipped.length > 0
+        ? `Only photos and PDFs can be attached — skipped ${skipped.map((f) => f.name).join(', ')}.`
+        : null,
+    );
+    if (usable.length === 0) return;
     setUploading(true);
-    setError(null);
     try {
       // One at a time: each upload shrinks a full-size photo first, and
       // several decoded at once can exceed Safari's canvas memory.
       const uploaded: Attachment[] = [];
-      for (const file of Array.from(files)) uploaded.push(await uploadAttachment(file));
+      for (const file of usable) uploaded.push(await uploadAttachment(file));
       setAttachments((current) => [...current, ...uploaded]);
     } catch (e) {
       setError((e as Error).message);
@@ -89,8 +138,47 @@ export function Composer({
     }
   };
 
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!carriesFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+
+  const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    // Leaving the composer, not passing from it onto one of its children.
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!carriesFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    setDragging(false);
+    void attach(event.dataTransfer.files);
+  };
+
+  // A spreadsheet or document copy carries the text plus a picture of it;
+  // the text is what was meant, so only a files-only paste attaches.
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const { files, types } = event.clipboardData;
+    if (files.length === 0 || types.includes('text/plain')) return;
+    event.preventDefault();
+    void attach(files);
+  };
+
   return (
-    <div className="border-t border-zinc-200 bg-white px-bw-4 py-bw-3">
+    <div
+      data-testid="composer"
+      onDragEnter={onDragOver}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className="relative border-t border-zinc-200 bg-white px-bw-4 py-bw-3"
+    >
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-bw-md border-2 border-dashed border-bite bg-white/90 text-bw-base font-bold text-bite">
+          Drop menu photos here
+        </div>
+      ) : null}
       {/* Cancelable, because "queued" and "sent" are different promises.
           A message that has not left yet is still the user's to take
           back, and the most common reason to want that is the assistant
@@ -168,6 +256,7 @@ export function Composer({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           rows={1}
           aria-label="Message"
           placeholder={

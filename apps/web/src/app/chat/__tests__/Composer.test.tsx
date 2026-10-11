@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { uploadAttachment } from '../../../lib/chat';
 import { Composer } from '../_Composer';
+
+vi.mock('../../../lib/chat', async () => {
+  const actual = await vi.importActual<typeof import('../../../lib/chat')>('../../../lib/chat');
+  return { ...actual, uploadAttachment: vi.fn() };
+});
 
 /**
  * The message box grows with what is typed. It used to sit at one row
@@ -60,5 +66,124 @@ describe('Composer message box', () => {
 
     expect(onSend).toHaveBeenCalledWith('one\ntwo\nthree', []);
     expect(box.style.height).toBe(`${LINE + BORDER}px`);
+  });
+});
+
+/**
+ * A menu photo is usually already on screen — in Finder, a camera roll
+ * synced to the laptop, or a screenshot just taken. Dragging it onto the
+ * composer or pasting it into the box attaches it the same way the + picker
+ * does: it becomes a chip, and nothing sends until Send.
+ */
+describe('Composer drop and paste', () => {
+  const upload = vi.mocked(uploadAttachment);
+
+  beforeEach(() => {
+    upload.mockReset();
+    upload.mockImplementation(async (file: File) => ({
+      id: `id-${file.name}`,
+      filename: file.name,
+      content_type: file.type,
+      byte_size: file.size,
+    }));
+  });
+
+  const photo = (name = 'menu.jpg', type = 'image/jpeg') => new File(['x'], name, { type });
+
+  function setup() {
+    const onSend = vi.fn();
+    render(<Composer queueing={false} queued={[]} onSend={onSend} onCancelQueued={() => {}} />);
+    return {
+      zone: screen.getByTestId('composer'),
+      box: screen.getByRole('textbox', { name: 'Message' }),
+      onSend,
+    };
+  }
+
+  const chips = () => screen.queryByTestId('attachment-chips')?.textContent ?? '';
+
+  it('attaches dropped photos as chips without sending them', async () => {
+    const { zone, onSend } = setup();
+
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [photo('front.jpg'), photo('back.png', 'image/png')],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() => expect(chips()).toContain('back.png'));
+    expect(chips()).toContain('front.jpg');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('skips files the scanner cannot read, says so, and keeps the rest', async () => {
+    const { zone } = setup();
+
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [photo('notes.txt', 'text/plain'), photo('menu.pdf', 'application/pdf')],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() => expect(chips()).toContain('menu.pdf'));
+    expect(chips()).not.toContain('notes.txt');
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert').textContent).toContain('notes.txt');
+  });
+
+  it('accepts a HEIC photo the browser could not label', async () => {
+    const { zone } = setup();
+
+    fireEvent.drop(zone, {
+      dataTransfer: { files: [photo('IMG_0001.HEIC', '')], types: ['Files'] },
+    });
+
+    await waitFor(() => expect(chips()).toContain('IMG_0001.HEIC'));
+  });
+
+  it('shows the drop target only while files are dragged over it', () => {
+    const { zone } = setup();
+
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ['text/plain'] } });
+    expect(screen.queryByText('Drop menu photos here')).toBeNull();
+
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ['Files'] } });
+    expect(screen.getByText('Drop menu photos here')).toBeTruthy();
+
+    fireEvent.dragLeave(zone, { relatedTarget: null });
+    expect(screen.queryByText('Drop menu photos here')).toBeNull();
+  });
+
+  it('lets dragged text land in the message box', () => {
+    const { box } = setup();
+
+    const notCanceled = fireEvent.drop(box, { dataTransfer: { files: [], types: ['text/plain'] } });
+
+    expect(notCanceled).toBe(true);
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('attaches a pasted screenshot', async () => {
+    const { box } = setup();
+
+    fireEvent.paste(box, {
+      clipboardData: { files: [photo('image.png', 'image/png')], types: ['Files'] },
+    });
+
+    await waitFor(() => expect(chips()).toContain('image.png'));
+  });
+
+  it('leaves a text paste alone even when the clipboard also carries an image', () => {
+    // Copying cells from a spreadsheet puts both the text and a picture of
+    // it on the clipboard; the user meant the text.
+    const { box } = setup();
+
+    fireEvent.paste(box, {
+      clipboardData: { files: [photo('cells.png', 'image/png')], types: ['text/plain', 'Files'] },
+    });
+
+    expect(upload).not.toHaveBeenCalled();
   });
 });
