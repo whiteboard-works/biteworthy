@@ -145,6 +145,9 @@ RSpec.describe Ingestion::TagDeriver do
       expect(slugs).to include("latin-american")
       expect(slugs).not_to include("american")
       expect(tag_slugs(derive(text: "Burger", section: "American Classics"))).to include("american")
+      # Only the shadowed occurrence is dropped; a standalone one still counts.
+      expect(tag_slugs(derive(text: "American Burger", section: "Latin American Plates")))
+        .to include("american", "latin-american")
     end
 
     # The word is on the menu, the cuisine is not: this pass fires at
