@@ -63,6 +63,9 @@ module DishPhotos
 
       DishPhotoSubmission.transaction do
         lock_user!
+        existing = pending_from_same_upload
+        return existing if existing
+
         raise RateLimited.new(
           "You can submit at most #{DishPhotoSubmission::DAILY_LIMIT_PER_USER} dish photos per day.",
           code: "daily_limit"
@@ -84,7 +87,8 @@ module DishPhotos
           row.photo.attach(
             io: stripped.io,
             filename: stripped.filename,
-            content_type: stripped.content_type
+            content_type: stripped.content_type,
+            metadata: source_metadata
           )
         end
       end
@@ -98,6 +102,25 @@ module DishPhotos
           [ "SELECT pg_advisory_xact_lock(hashtext(?))", "dish-photo-submit:#{@user.id}" ]
         )
       )
+    end
+
+    # A signed upload (the chat tool's door) records which blob it came
+    # from, so replaying the same confirmed call returns the submission
+    # it already made instead of queueing the photo twice.
+    def source_blob_id
+      @photo.id if @photo.is_a?(ActiveStorage::Blob)
+    end
+
+    def source_metadata
+      source_blob_id ? { "source_blob_id" => source_blob_id } : {}
+    end
+
+    def pending_from_same_upload
+      return nil unless source_blob_id
+
+      DishPhotoSubmission.pending.where(item_id: @item.id, user_id: @user.id)
+                         .includes(photo_attachment: :blob)
+                         .find { |row| row.photo.blob&.metadata&.dig("source_blob_id") == source_blob_id }
     end
 
     def over_daily_limit?
@@ -114,6 +137,8 @@ module DishPhotos
     def photo_present?
       if @photo.respond_to?(:attached?)
         @photo.attached?
+      elsif @photo.is_a?(ActiveStorage::Blob)
+        true
       elsif @photo.respond_to?(:tempfile)
         true
       elsif @photo.respond_to?(:read)

@@ -26,10 +26,15 @@ module Restaurants
     module_function
 
     def authorize!(user, restaurant)
-      return restaurant if user&.is_admin?
-      return restaurant if restaurant.claimed_by_user_id.present? && restaurant.claimed_by_user_id == user&.id
+      return restaurant if allowed?(user, restaurant)
 
       raise Forbidden, restaurant
+    end
+
+    def allowed?(user, restaurant)
+      return true if user&.is_admin?
+
+      restaurant.claimed_by_user_id.present? && restaurant.claimed_by_user_id == user&.id
     end
 
     # `logo` / `banner`: an uploaded file or an ActiveStorage::Blob, or

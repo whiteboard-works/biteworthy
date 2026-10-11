@@ -47,6 +47,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/admin_base.rb` | `Tools::AdminBase` — the one place `audience :admin` is declared |
 | `app/services/tools/structure/` | Menus, sections, address, hours (admin) |
 | `app/services/tools/items/` | Deep-editing a live dish (admin) |
+| `app/services/tools/photos/` | Putting the user's photo on a dish: queued for a moderator, or set directly by the owner/admin |
 | `app/services/tools/taxonomy/` | The ingredient and tag trees (admin) |
 | `app/services/tools/moderation/` | The review queue and diner dish-photo queue (admin) |
 | `app/services/tools/users/` | The roster and the admin bit (admin) |
@@ -389,6 +390,19 @@ The same gate opens `set_restaurant_branding` (`restaurants` domain,
 from `POST /api/v1/attachments`, never image bytes, and only resolves an
 id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
 and the REST door `PATCH /restaurants/:id/branding` shares it.
+
+The `photos` domain (`audience :user`) is how a chat photo reaches a dish.
+Both tools take an attachment id the caller uploaded, never bytes.
+**`submit_dish_photo`** is the chat door to `DishPhotos::Submit` (the same
+strip, limits, and credit as the REST door). It declares `confirm_when { true }`
+so the "I took this photo" attestation is always the user's tap on a declared
+sentence, never the model's word. It also declares `unrecoverable_when { true }`
+so `accept_edits` still parks it. Replaying the same grant returns the existing
+pending submission. **`set_item_photo`** is the branding gate (verified owner
+or admin) applied to `Item#photo`: stripped, live at once, replaces the old
+photo and clears its diner credit. `get_restaurant` returns `managed_by_caller`
+so the model can pick the right one before a confirmation card is spent on a
+call that would be refused.
 
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.

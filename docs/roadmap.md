@@ -196,6 +196,7 @@ master; the rest of the queue is human-credential-gated.
 
 - [x] Diners submit a photo of a dish; admins approve before it becomes `Item#photo`. Web UI on the dish page and photo-less menu cards, review-form opt-in, `/admin/photos` queue, MCP `list_photo_submissions` / `moderate_photo_submission`, EXIF/GPS stripped. Attribution: "Photo by \<display name\>".
 - [ ] Mobile (Expo) — same upload + credit on the dish screen; left as a follow-up.
+- [x] Chat: attach a photo and name the dish. `submit_dish_photo` queues it for a moderator after the user confirms they took it; `set_item_photo` puts it live for the verified owner or an admin. Works on web and mobile chat through the existing attachment upload.
 
 ## Open follow-ups
 

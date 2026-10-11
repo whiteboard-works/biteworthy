@@ -75,6 +75,10 @@ module Tools
       items: [
         "Items::EditItem"
       ],
+      photos: [
+        "Photos::SubmitDishPhoto",
+        "Photos::SetItemPhoto"
+      ],
       taxonomy: [
         "Taxonomy::CreateTaxonomyNode",
         "Taxonomy::EditTaxonomyNode",

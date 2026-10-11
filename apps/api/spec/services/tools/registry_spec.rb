@@ -65,6 +65,7 @@ RSpec.describe Tools::Registry do
       history:     :user,
       structure:   :admin,
       items:       :admin,
+      photos:      :user,
       taxonomy:    :admin,
       moderation:  :admin,
       users:       :admin
