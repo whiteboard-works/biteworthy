@@ -7,22 +7,39 @@ module Names
   # `normalize_item_names`.
   class Backfill
     Change = Data.define(:item, :before, :after)
+    Result = Data.define(:changes, :stale)
 
     def initialize(scope = Item.all)
       @scope = scope
     end
 
+    # A row edited between the read and the write is left alone and
+    # counted in `stale`; running again picks it up.
     def call(dry_run:)
-      @scope.find_each.filter_map do |item|
+      stale   = 0
+      changes = @scope.find_each.filter_map do |item|
         before = { name: item.name, description: item.description }
         after  = { name: Standard.item_name(item.name), description: Standard.description(item.description) }
         next if after == before
 
-        # Only the fields that change, so a concurrent edit to the other
-        # one is not overwritten from this stale read.
-        item.update_columns(**after.reject { |field, value| before[field] == value }, updated_at: Time.current) unless dry_run
+        unless dry_run || write_if_unchanged(item, before, after)
+          stale += 1
+          next
+        end
         Change.new(item: item, before: before, after: after)
       end
+      Result.new(changes: changes, stale: stale)
+    end
+
+    private
+
+    # A string condition, because `normalizes` rewrites hash conditions
+    # and would compare against the normalized text instead of what was read.
+    def write_if_unchanged(item, before, after)
+      Item.where(id: item.id)
+          .where("name = ? AND description IS NOT DISTINCT FROM ?", before[:name], before[:description])
+          .update_all(after.reject { |field, value| before[field] == value }.merge(updated_at: Time.current))
+          .positive?
     end
   end
 end

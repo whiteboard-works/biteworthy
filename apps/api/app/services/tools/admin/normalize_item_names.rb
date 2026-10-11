@@ -20,7 +20,8 @@ module Tools
         for confirmation first; a dry run does not.
 
         Returns `written`, the number of dishes changed, and `changed`, each
-        with its name and description before and after. Running it twice
+        with its name and description before and after, plus `stale`, dishes
+        edited while it ran and left alone (run again). Running it twice
         changes nothing the second time.
       TEXT
 
@@ -57,13 +58,14 @@ module Tools
       def self.perform(context:, restaurant:, dry_run: false)
         context.admin!
         record  = find_restaurant!(restaurant)
-        changes = ::Names::Backfill.new(record.items).call(dry_run: dry_run)
+        result  = ::Names::Backfill.new(record.items).call(dry_run: dry_run)
 
         ok(
           restaurant: restaurant_row(record),
           dry_run:    dry_run,
-          written:    changes.size,
-          changed:    changes.map { |c| { item_id: c.item.id, before: text_row(c.before), after: text_row(c.after) } }
+          written:    result.changes.size,
+          changed:    result.changes.map { |c| { item_id: c.item.id, before: text_row(c.before), after: text_row(c.after) } },
+          stale:      result.stale
         )
       end
     end

@@ -18,7 +18,7 @@ RSpec.describe Names::Backfill do
   before { write_raw(shouted, name: "STEAK TARTARE*", description: "HAND-CUT BEEF. RAW EGG YOLK.") }
 
   it "previews the rewrite without writing on a dry run" do
-    changes = described_class.new(restaurant.items).call(dry_run: true)
+    changes = described_class.new(restaurant.items).call(dry_run: true).changes
 
     expect(changes.map(&:item)).to eq([ shouted ])
     expect(changes.first.before).to eq(name: "STEAK TARTARE*", description: "HAND-CUT BEEF. RAW EGG YOLK.")
@@ -36,7 +36,7 @@ RSpec.describe Names::Backfill do
   it "finds nothing left on a second run" do
     described_class.new(restaurant.items).call(dry_run: false)
 
-    expect(described_class.new(restaurant.items).call(dry_run: true)).to be_empty
+    expect(described_class.new(restaurant.items).call(dry_run: true).changes).to be_empty
   end
 
   it "is limited to the scope it is given" do
@@ -46,5 +46,20 @@ RSpec.describe Names::Backfill do
     described_class.new(restaurant.items).call(dry_run: false)
 
     expect(other.reload.name).to eq("PAD THAI")
+  end
+
+  # The read is a snapshot; an owner's edit landing after it must win.
+  it "leaves a row edited after it was read, and counts it as stale" do
+    backfill = described_class.new(restaurant.items)
+    allow(Names::Standard).to receive(:item_name).and_wrap_original do |original, name|
+      write_raw(shouted, name: "OWNER RENAMED THIS") if name == "STEAK TARTARE*"
+      original.call(name)
+    end
+
+    result = backfill.call(dry_run: false)
+
+    expect(result.stale).to eq(1)
+    expect(result.changes).to be_empty
+    expect(shouted.reload.name).to eq("OWNER RENAMED THIS")
   end
 end
