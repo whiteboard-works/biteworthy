@@ -44,12 +44,19 @@ RSpec.describe "PATCH /api/v1/restaurants/:id/branding", type: :request do
     expect(restaurant.reload.logo).not_to be_attached
   end
 
-  it "refuses an unclaimed restaurant's creator, who is not its owner" do
+  # The same rule as the scan door: a community member's say over the
+  # restaurant they added ends when it is published.
+  it "lets the creator brand their own draft, but not once it is published" do
     creator = create(:user)
-    unclaimed = create(:restaurant, :published, created_by_user: creator)
-    patch "/api/v1/restaurants/#{unclaimed.id}/branding",
+    draft = create(:restaurant, status: "draft", created_by_user: creator)
+    patch "/api/v1/restaurants/#{draft.id}/branding",
           params: { logo: logo_file }, headers: auth_headers_for(creator)
+    expect(response).to have_http_status(:ok)
+    expect(draft.reload.logo).to be_attached
 
+    published = create(:restaurant, :published, created_by_user: creator)
+    patch "/api/v1/restaurants/#{published.id}/branding",
+          params: { logo: logo_file }, headers: auth_headers_for(creator)
     expect(response).to have_http_status(:forbidden)
   end
 

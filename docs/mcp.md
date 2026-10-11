@@ -396,6 +396,13 @@ anchor or a fractional box). The model never sees pixels, so the
 read-only `inspect_image` tool gives it an upload's size and what a
 center crop would trim, to choose a crop or ask the owner first.
 
+While a restaurant is still a draft, the community member who added it
+passes the gate too (the scan door's rule), so a chat import can be
+complete: `create_restaurant` takes `logo_attachment_id` /
+`banner_attachment_id` in the same call as hours, phone, and website, and
+`set_restaurant_branding` adds them a turn later. Publishing ends the
+creator's say.
+
 The `photos` domain (`audience :user`) is how a chat photo reaches a dish.
 Both tools take an attachment id the caller uploaded, never bytes.
 **`submit_dish_photo`** is the chat door to `DishPhotos::Submit` (the same
@@ -459,7 +466,9 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
   with candidate matches if the name looks like an existing one in that city;
   call again with force: true after reviewing. New restaurants land as draft.
-  Optional website, phone, and hours (full week) so a community website
+  Optional `logo_attachment_id` / `banner_attachment_id` (ids of images the
+  user uploaded; refused, with the draft rolled back, when the upload is not
+  an image). Optional website, phone, and hours (full week) so a community website
   import does not need admin `edit_place`.
 - **`update_restaurant`** — edit name, about, website, phone, and address.
   Address is a wholesale replacement when any address field is provided.

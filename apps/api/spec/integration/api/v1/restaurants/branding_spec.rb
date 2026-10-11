@@ -12,7 +12,8 @@ RSpec.describe "restaurants/branding", type: :request do
 
     patch("Set the restaurant's logo and banner") do
       tags "Restaurants"
-      description "The verified owner (claimed_by_user_id) or an admin. Each image is " \
+      description "The verified owner (claimed_by_user_id), an admin, or, while the restaurant " \
+                  "is still a draft, the person who added it. Each image is " \
                   "re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, " \
                   "banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never " \
                   "enlarged); a new one replaces the old. Omitted fields " \
@@ -59,7 +60,7 @@ RSpec.describe "restaurants/branding", type: :request do
         end
       end
 
-      response(403, "signed in, but not the owner or an admin") do
+      response(403, "signed in, but not the owner, an admin, or the creator of this draft") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(create(:user)) }
         run_test!
