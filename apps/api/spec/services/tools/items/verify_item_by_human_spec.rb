@@ -16,9 +16,9 @@ RSpec.describe Tools::Items::VerifyItemByHuman, type: :tool do
     it "marks an item as human verified" do
       response = call(item_id: item.id)
 
-      expect(response.to_h[:isError]).to be false
       expect(item.reload.human_verified?).to be true
       expect(item.human_verified_by_user).to eq(user)
+      expect(payload(response)[:human_verified]).to be true
     end
 
     it "returns verification information" do

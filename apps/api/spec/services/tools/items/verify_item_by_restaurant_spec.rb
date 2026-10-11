@@ -28,9 +28,9 @@ RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
     it "marks an item as restaurant verified" do
       response = call(item_id: item.id)
 
-      expect(response.to_h[:isError]).to be false
       expect(item.reload.restaurant_verified?).to be true
       expect(item.restaurant_verified_by_user).to eq(admin)
+      expect(payload(response)[:restaurant_verified]).to be true
     end
 
     it "returns verification information" do
