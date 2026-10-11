@@ -68,9 +68,23 @@ RSpec.describe Ingestion::JevHiddenWheatShadow do
   it "never raises, and keeps a failed observation" do
     stub_jev(status: 503, body: {})
 
-    expect { described_class.new(client: client).call(run, rows, merged, paths) }.not_to raise_error
+    result = nil
+    expect { result = described_class.new(client: client).call(run, rows, merged, paths) }.not_to raise_error
+    expect(result).to be(false)
     expect(JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run))
       .to have_attributes(outcome: "failed", agree: nil)
+  end
+
+  # An item accepted while Haiku was answering is skipped by the merge and
+  # has no merged rows; that is not "no wheat".
+  it "counts a dish the merge skipped as skipped, not as a disagreement" do
+    merged.delete(2)
+    stub_jev
+    expect(described_class.new(client: client).call(run, rows, merged, paths)).to be(true)
+
+    row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
+    expect(row.details).to include("skipped" => 1, "jev_only" => 0, "agree" => 2)
+    expect(row.agree).to be(true)
   end
 
   it "writes nothing to any dish" do

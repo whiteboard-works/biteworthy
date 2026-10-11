@@ -115,8 +115,11 @@ class GapFillResolveJob < ApplicationJob
       tagger  = nil if cuisine.nil?
       merged  = merge!(run, slice, result, ingredient_paths, cuisine)
       # Observation only, after the merge so it measures what landed; a
-      # shadow that fails writes a failed observation and nothing else.
-      wheat_shadow&.call(run, prompt_rows, merged, ingredient_paths, attempt: executions)
+      # shadow that fails writes a failed observation and nothing else,
+      # and is not asked again this attempt so an outage costs one timeout.
+      if wheat_shadow && !wheat_shadow.call(run, prompt_rows, merged, ingredient_paths, attempt: executions)
+        wheat_shadow = nil
+      end
     end
     run.update!(enrichment_status: "completed", enrichment_failure_message: nil)
   rescue StandardError => e

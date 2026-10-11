@@ -32,10 +32,13 @@ module Ingestion
     end
 
     # `prompt_rows` are the slice's gap-fill prompt rows; `merged` is
-    # `{ index => merged ingredient rows }` as the job just wrote them;
-    # `ingredient_paths` maps slug to ltree path.
+    # `{ index => merged ingredient rows }` as the job just wrote them (an
+    # index the merge skipped is absent, and is counted as skipped here
+    # rather than read as "no wheat"); `ingredient_paths` maps slug to
+    # ltree path. Returns true when Jev answered, false when it did not,
+    # so the caller can stop asking for the rest of the run.
     def call(run, prompt_rows, merged, ingredient_paths, attempt: 1)
-      return if prompt_rows.empty?
+      return true if prompt_rows.empty?
 
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       answers = @client.system_one(state: state(prompt_rows), questions: questions(prompt_rows))
@@ -51,13 +54,13 @@ module Ingestion
         agree: stats[:jev_only].zero? && stats[:data_only].zero?,
         details: { attempt: attempt, **stats }
       )
-      nil
+      true
     rescue StandardError => e
       Rails.logger.warn("[jev_wheat_shadow] IngestionRun##{run&.id} skipped: #{e.class}: #{e.message.truncate(300)}")
       JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "failed",
-                          details: { attempt: attempt, items: prompt_rows.size, error: e.class.name,
-                                     message: e.message.truncate(200) })
-      nil
+                          details: { attempt: attempt, items: Array(prompt_rows).size, error: e.class.name,
+                                     status: (e.respond_to?(:status) ? e.status : nil) }.compact)
+      false
     end
 
     private
@@ -88,8 +91,14 @@ module Ingestion
     def key(index) = "i#{index}__wheat"
 
     def compare(prompt_rows, answers, merged, ingredient_paths)
-      stats = { items: prompt_rows.size, agree: 0, jev_only: 0, data_only: 0, missing: 0, disagreements: [] }
+      stats = { items: prompt_rows.size, agree: 0, jev_only: 0, data_only: 0, missing: 0, skipped: 0,
+                disagreements: [] }
       prompt_rows.each_with_index do |row, i|
+        unless merged.key?(i)
+          stats[:skipped] += 1
+          next
+        end
+
         noul = answers.dig(key(i), "noul")
         unless noul.is_a?(Numeric) && noul.between?(0, 1)
           stats[:missing] += 1

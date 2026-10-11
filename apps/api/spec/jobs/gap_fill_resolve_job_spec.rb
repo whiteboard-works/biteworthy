@@ -577,6 +577,23 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(JevObservation.where(kind: "hidden_wheat_shadow")).not_to exist
     end
 
+    it "stops asking for the rest of the attempt after one failed shadow call" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      Array.new(10) do |i|
+        create(:ingestion_item, ingestion_run: run, position: 2 + i, name: format("Mystery Dish %02d", i),
+               description: nil, decision: "pending", ingredients_payload: [], tags_payload: [])
+      end
+      jev = stub_request(:post, jev_url).to_return(status: 401, body: "{}")
+
+      described_class.perform_now(run.id)
+
+      # Two slices: cuisine asks once (then switches off), the shadow asks once (then switches off).
+      expect(jev).to have_been_made.twice
+      expect(JevObservation.where(kind: "hidden_wheat_shadow").count).to eq(1)
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
     it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
       allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
       allow(Rails.error).to receive(:report)

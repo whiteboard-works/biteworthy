@@ -76,6 +76,8 @@ RSpec.describe Ingestion::JevCuisineTagger do
     # its status, and never a response body.
     expect(kept.third.details).to eq("items" => 2, "error" => "TypesafeClient::ApiError", "status" => 401)
     expect(kept.third.latency_ms).to be_a(Integer)
+    # And never the previous call's model or tokens.
+    expect(kept.third).to have_attributes(model: nil, input_tokens: nil)
   end
 
   it "writes one row, not two, when the partial-answer report itself raises" do
