@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.11.6",
+    "date": "2026-10-11",
+    "notes": [
+      "When you add a restaurant through the chat, you can now hand over its logo and banner in the same conversation, and keep adjusting them while the listing is still your draft.",
+      "A photo an admin uploads for a dish now becomes the dish's photo right away instead of waiting in the review queue."
+    ]
+  },
+  {
     "version": "2026.10.11.5",
     "date": "2026-10-11",
     "notes": [
