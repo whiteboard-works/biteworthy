@@ -104,7 +104,13 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
     expect(result.changes.map(&:regrade)).to eq([ true ])
 
-    answers["i0__cuisine-mexican"]["noul"] = 0.95
+    # The boundaries themselves: 0.7 holds, 0.9 promotes.
+    answers["i0__cuisine-mexican"]["noul"] = 0.7
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
+
+    answers["i0__cuisine-mexican"]["noul"] = 0.9
     stub_jev(answers)
     described_class.new(restaurant, tagger: tagger).call
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
