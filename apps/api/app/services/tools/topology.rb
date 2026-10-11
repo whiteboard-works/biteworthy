@@ -64,13 +64,15 @@ module Tools
         audience: :user,
         arguments: %i[restaurant],
         steps: %w[
-          list_cities create_restaurant set_restaurant_branding start_menu_scan get_scan_status
-          list_staged_items edit_staged_item accept_staged_items undo_staged_item
+          list_cities create_restaurant start_menu_scan get_scan_status list_staged_items
+          edit_staged_item accept_staged_items undo_staged_item
         ],
         note: "create_restaurant only if search_restaurants found nothing. Extraction is " \
               "async — poll get_scan_status. accept_staged_items is the ONLY step that " \
-              "publishes; everything before it stays in staging. For a homepage URL with " \
-              "more than one location, use \"Import a restaurant from its website\" instead."
+              "publishes; everything before it stays in staging. A logo or banner the user " \
+              "uploads goes on create_restaurant, or on set_restaurant_branding while the " \
+              "restaurant is still their draft. For a homepage URL with more than one " \
+              "location, use \"Import a restaurant from its website\" instead."
       },
       {
         name: "Import a restaurant from its website",
