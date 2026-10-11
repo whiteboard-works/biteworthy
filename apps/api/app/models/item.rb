@@ -70,6 +70,9 @@ class Item < ApplicationRecord
   end
   validates_image_attachments :photo
 
+  normalizes :name, with: ->(name) { Names::Standard.item_name(name) }
+  normalizes :description, with: ->(text) { Names::Standard.description(text) }
+
   validates :name, presence: true
   validates :status,     inclusion: { in: STATUSES }
   validates :confidence, inclusion: { in: CONFIDENCE }
