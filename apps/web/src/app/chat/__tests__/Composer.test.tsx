@@ -100,6 +100,14 @@ describe('Composer drop and paste', () => {
     };
   }
 
+  const clipboard = (files: File[], text = '') => ({
+    clipboardData: {
+      files,
+      types: text ? ['text/plain', 'Files'] : ['Files'],
+      getData: () => text,
+    },
+  });
+
   const chips = () => screen.queryByTestId('attachment-chips')?.textContent ?? '';
 
   it('attaches dropped photos as chips without sending them', async () => {
@@ -133,7 +141,7 @@ describe('Composer drop and paste', () => {
     expect(screen.getByRole('alert').textContent).toContain('notes.txt');
   });
 
-  it('accepts a HEIC photo the browser could not label', async () => {
+  it('leaves an unlabeled file for the API to sniff (a dragged HEIC arrives with no type)', async () => {
     const { zone } = setup();
 
     fireEvent.drop(zone, {
@@ -152,7 +160,7 @@ describe('Composer drop and paste', () => {
     fireEvent.dragEnter(zone, { dataTransfer: { types: ['Files'] } });
     expect(screen.getByText('Drop menu photos here')).toBeTruthy();
 
-    fireEvent.dragLeave(zone, { relatedTarget: null });
+    fireEvent.dragLeave(zone, { dataTransfer: { types: ['Files'] } });
     expect(screen.queryByText('Drop menu photos here')).toBeNull();
   });
 
@@ -168,9 +176,7 @@ describe('Composer drop and paste', () => {
   it('attaches a pasted screenshot', async () => {
     const { box } = setup();
 
-    fireEvent.paste(box, {
-      clipboardData: { files: [photo('image.png', 'image/png')], types: ['Files'] },
-    });
+    fireEvent.paste(box, clipboard([photo('image.png', 'image/png')]));
 
     await waitFor(() => expect(chips()).toContain('image.png'));
   });
@@ -180,10 +186,78 @@ describe('Composer drop and paste', () => {
     // it on the clipboard; the user meant the text.
     const { box } = setup();
 
-    fireEvent.paste(box, {
-      clipboardData: { files: [photo('cells.png', 'image/png')], types: ['text/plain', 'Files'] },
-    });
+    fireEvent.paste(box, clipboard([photo('cells.png', 'image/png')], 'Burger\t12.00'));
 
     expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('attaches a file copied in Finder, which also puts its name on the clipboard', async () => {
+    const { box } = setup();
+
+    fireEvent.paste(box, clipboard([photo('menu.jpg')], 'menu.jpg'));
+
+    await waitFor(() => expect(chips()).toContain('menu.jpg'));
+  });
+
+  it('keeps Send off until every upload in flight has landed', async () => {
+    // A paste during a slow drop must not let Send go out without the drop's pages.
+    let finishDrop: () => void = () => {};
+    upload.mockImplementationOnce(
+      (file: File) =>
+        new Promise((resolve) => {
+          finishDrop = () =>
+            resolve({ id: 'slow', filename: file.name, content_type: file.type, byte_size: 1 });
+        }),
+    );
+    const { zone, box } = setup();
+    const sendButton = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+
+    fireEvent.drop(zone, { dataTransfer: { files: [photo('page1.jpg')], types: ['Files'] } });
+    fireEvent.paste(box, clipboard([photo('shot.png', 'image/png')]));
+    await waitFor(() => expect(chips()).toContain('shot.png'));
+    expect(sendButton.disabled).toBe(true);
+
+    finishDrop();
+    await waitFor(() => expect(sendButton.disabled).toBe(false));
+    expect(chips()).toContain('page1.jpg');
+  });
+
+  it('keeps the pages that uploaded when one in the same drop fails', async () => {
+    upload.mockImplementation(async (file: File) => {
+      if (file.name === 'huge.jpg')
+        throw new Error('That file is too large to upload (20 MB max).');
+      return { id: file.name, filename: file.name, content_type: file.type, byte_size: 1 };
+    });
+    const { zone } = setup();
+
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [
+          photo('notes.txt', 'text/plain'),
+          photo('p1.jpg'),
+          photo('huge.jpg'),
+          photo('p3.jpg'),
+        ],
+        types: ['Files'],
+      },
+    });
+
+    await waitFor(() => expect(chips()).toContain('p3.jpg'));
+    expect(chips()).toContain('p1.jpg');
+    const alert = screen.getByRole('alert').textContent ?? '';
+    expect(alert).toContain('notes.txt');
+    expect(alert).toContain('huge.jpg');
+  });
+
+  it("keeps the drop target up while the drag crosses the composer's own controls", () => {
+    const { zone, box } = setup();
+
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ['Files'] } });
+    fireEvent.dragEnter(box, { dataTransfer: { types: ['Files'] } });
+    fireEvent.dragLeave(zone, { dataTransfer: { types: ['Files'] }, relatedTarget: null });
+    expect(screen.getByText('Drop menu photos here')).toBeTruthy();
+
+    fireEvent.dragLeave(box, { dataTransfer: { types: ['Files'] }, relatedTarget: null });
+    expect(screen.queryByText('Drop menu photos here')).toBeNull();
   });
 });

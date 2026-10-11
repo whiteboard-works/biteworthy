@@ -35,21 +35,13 @@ interface ComposerProps {
   onCancelQueued: (id: string) => void;
 }
 
-const ACCEPTED_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/heic',
-  'image/heif',
-  'image/webp',
-  'application/pdf',
-];
-const ACCEPT = ACCEPTED_TYPES.join(',');
+const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf';
 
-/** Chrome and Firefox hand over a dragged HEIC with no type at all. */
-function accepted(file: File): boolean {
-  if (ACCEPTED_TYPES.includes(file.type)) return true;
-  return file.type === '' && /\.(heic|heif)$/i.test(file.name);
-}
+/** Only an obvious mismatch is turned away here. The API sniffs the real
+ *  type, and browsers often send none (a dragged HEIC) or an odd one
+ *  (`image/jpg`) for a file it would take. */
+const obviouslyUnusable = (file: File) =>
+  file.type !== '' && !file.type.startsWith('image/') && file.type !== 'application/pdf';
 
 const carriesFiles = (types: readonly string[]) => types.includes('Files');
 
@@ -61,9 +53,15 @@ export function Composer({
 }: ComposerProps): ReactElement {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [uploading, setUploading] = useState(false);
+  // A count, not a flag: a paste can land while a drop is still uploading,
+  // and Send must wait for both.
+  const [uploads, setUploads] = useState(0);
+  const uploading = uploads > 0;
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  // dragenter/dragleave fire for every child crossed; the target is up
+  // while more have entered than left. Safari leaves relatedTarget null.
+  const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
@@ -83,6 +81,8 @@ export function Composer({
     const swallow = (event: globalThis.DragEvent) => {
       if (event.dataTransfer && carriesFiles(Array.from(event.dataTransfer.types))) {
         event.preventDefault();
+        // Keep the no-drop cursor: outside the composer nothing is taken.
+        event.dataTransfer.dropEffect = 'none';
       }
     };
     window.addEventListener('dragover', swallow);
@@ -114,53 +114,79 @@ export function Composer({
   };
 
   const attach = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const usable = Array.from(files).filter(accepted);
-    const skipped = Array.from(files).filter((file) => !accepted(file));
-    setError(
-      skipped.length > 0
-        ? `Only photos and PDFs can be attached — skipped ${skipped.map((f) => f.name).join(', ')}.`
-        : null,
-    );
+    const picked = Array.from(files ?? []);
+    // Cleared up front so picking the same file again still fires change.
+    if (fileInput.current) fileInput.current.value = '';
+    if (picked.length === 0) return;
+
+    const problems: string[] = [];
+    const skipped = picked.filter(obviouslyUnusable).map((file) => file.name);
+    if (skipped.length > 0) {
+      problems.push(`Only photos and PDFs can be attached — skipped ${skipped.join(', ')}.`);
+    }
+    setError(problems.join(' ') || null);
+
+    const usable = picked.filter((file) => !obviouslyUnusable(file));
     if (usable.length === 0) return;
-    setUploading(true);
+    setUploads((n) => n + 1);
     try {
       // One at a time: each upload shrinks a full-size photo first, and
-      // several decoded at once can exceed Safari's canvas memory.
-      const uploaded: Attachment[] = [];
-      for (const file of usable) uploaded.push(await uploadAttachment(file));
-      setAttachments((current) => [...current, ...uploaded]);
-    } catch (e) {
-      setError((e as Error).message);
+      // several decoded at once can exceed Safari's canvas memory. Each
+      // lands as it finishes, so one bad page does not cost the others.
+      for (const file of usable) {
+        try {
+          const uploaded = await uploadAttachment(file);
+          setAttachments((current) => [...current, uploaded]);
+        } catch (e) {
+          problems.push(`${file.name}: ${(e as Error).message}`);
+          setError(problems.join(' '));
+        }
+      }
     } finally {
-      setUploading(false);
-      if (fileInput.current) fileInput.current.value = '';
+      setUploads((n) => n - 1);
     }
+  };
+
+  const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!carriesFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
   };
 
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!carriesFiles(event.dataTransfer.types)) return;
     event.preventDefault();
-    setDragging(true);
+    // The window handler marks drops elsewhere 'none'; this one is taken.
+    event.dataTransfer.dropEffect = 'copy';
+    event.stopPropagation();
   };
 
   const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    // Leaving the composer, not passing from it onto one of its children.
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+    if (!carriesFiles(event.dataTransfer.types)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     if (!carriesFiles(event.dataTransfer.types)) return;
     event.preventDefault();
+    dragDepth.current = 0;
     setDragging(false);
     void attach(event.dataTransfer.files);
   };
 
-  // A spreadsheet or document copy carries the text plus a picture of it;
-  // the text is what was meant, so only a files-only paste attaches.
+  // A spreadsheet copy carries the cells' text plus a picture of them, and
+  // the text is what was meant. A Finder copy carries the file plus its
+  // name as text, and the file is what was meant.
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const { files, types } = event.clipboardData;
-    if (files.length === 0 || types.includes('text/plain')) return;
+    const { files } = event.clipboardData;
+    if (files.length === 0) return;
+    const pastedText = event.clipboardData.getData('text/plain').trim();
+    const names = Array.from(files).map((file) => file.name);
+    if (pastedText && !pastedText.split(/\r?\n/).every((line) => names.includes(line.trim()))) {
+      return;
+    }
     event.preventDefault();
     void attach(files);
   };
@@ -168,7 +194,7 @@ export function Composer({
   return (
     <div
       data-testid="composer"
-      onDragEnter={onDragOver}
+      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
