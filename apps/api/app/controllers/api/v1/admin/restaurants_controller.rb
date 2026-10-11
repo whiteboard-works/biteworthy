@@ -67,6 +67,8 @@ module Api
             website:    restaurant.website,
             phone:      restaurant.phone,
             claimed_at: restaurant.claimed_at,
+            logo_url:   representation_url_for(restaurant.logo, :thumb),
+            banner_url: representation_url_for(restaurant.banner, :card),
             items_by_confidence: Item.where(restaurant_id: restaurant.id)
                                      .group(:confidence).count
           )

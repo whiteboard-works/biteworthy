@@ -31,7 +31,17 @@ export function RestaurantCards({
               className="flex h-full flex-col rounded-bw-lg border border-zinc-200 bg-white p-bw-5 shadow-sm transition hover:border-bite hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-bw-2">
-                <p className="text-bw-lg font-bold text-zinc-900">{r.name}</p>
+                <div className="flex min-w-0 items-start gap-bw-3">
+                  {r.logo_url && (
+                    <img
+                      src={r.logo_url}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-bw-md border border-zinc-100 object-cover"
+                      data-testid={`restaurant-logo-${r.slug}`}
+                    />
+                  )}
+                  <p className="text-bw-lg font-bold text-zinc-900">{r.name}</p>
+                </div>
                 {openStatus && (
                   <span
                     className={`shrink-0 rounded-bw-md px-bw-2 py-bw-1 text-bw-xs font-semibold ${

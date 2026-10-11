@@ -28,6 +28,13 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Restaurant branding: logo + banner (shipped 2026-10-11)
+
+- [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
+- [x] Doors: `PATCH /api/v1/restaurants/:id/branding` (multipart) and the MCP `set_restaurant_branding` tool (attachment ids from `POST /attachments`).
+- [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
+- [ ] Mobile — render the logo on home rows and the banner on `restaurants/[id]` (`expo-image`); the API already returns both.
+
 ## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
 
 - [x] Web scan uploads go straight to the API with a 10-minute ticket (`POST /api/v1/attachments/ticket`, `X-Upload-Ticket`), so the web server's 4.5 MB body limit no longer caps them; the client ceiling is the API's 15 MB.

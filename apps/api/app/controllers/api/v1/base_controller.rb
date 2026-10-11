@@ -73,6 +73,16 @@ module Api
         return nil unless record.photo.attached?
         Rails.application.routes.url_helpers.rails_blob_url(record.photo, host: public_host)
       end
+
+      # Signed URL for a named variant of an attachment (restaurant logo
+      # / banner), or nil when nothing is attached. The variant is what
+      # gets served; the original upload never is.
+      def representation_url_for(attachment, variant)
+        return nil unless attachment.attached?
+        Rails.application.routes.url_helpers.rails_representation_url(
+          attachment.variant(variant), host: public_host
+        )
+      end
     end
   end
 end

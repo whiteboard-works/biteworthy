@@ -14,6 +14,7 @@ const ranked = {
   slug: 'chamayo',
   name: 'Chamayo',
   web_path: '/restaurants/usa/colorado/durango/chamayo',
+  logo_url: null,
   visible_count: 28,
   hidden_count: 8,
   total_count: 36,

@@ -25,12 +25,14 @@ module Api
     # published list, so the cap must stay comfortably above the real
     # count until pagination exists.
     class RestaurantsController < BaseController
+      include RestaurantPayload
+
       skip_before_action :authenticate_user!, only: [:show, :index]
 
       INDEX_LIMIT = 100
 
       def index
-        scope = Restaurant.published.includes(:city, :addresses, :hours)
+        scope = Restaurant.published.includes(:city, :addresses, :hours, logo_attachment: :blob)
         q = params[:q].to_s.strip
         if q.present?
           scope = scope.where(
@@ -39,13 +41,15 @@ module Api
           )
         end
         restaurants = scope.order(:name).limit(INDEX_LIMIT)
-        render json: { restaurants: restaurants.map { |r| serialize_summary(r) } }
+        render json: { restaurants: restaurants.map { |r| restaurant_summary_payload(r) } }
       end
 
       def show
-        restaurant = Restaurant.published.includes(:city, :addresses, :hours).find_by_id_or_slug!(params[:id])
+        restaurant = Restaurant.published
+                               .includes(:city, :addresses, :hours, logo_attachment: :blob, banner_attachment: :blob)
+                               .find_by_id_or_slug!(params[:id])
         # `favorited` seeds the detail page's save button. Anonymous → false.
-        render json: serialize(restaurant).merge(favorited: current_user_favorited_restaurant?(restaurant))
+        render json: restaurant_payload(restaurant).merge(favorited: current_user_favorited_restaurant?(restaurant))
       end
 
       def create
@@ -61,7 +65,7 @@ module Api
         if result.duplicate?
           render json: { error: "possible_duplicate", candidates: result.candidates }, status: :conflict
         else
-          render json: serialize(result.restaurant), status: :created
+          render json: restaurant_payload(result.restaurant), status: :created
         end
       rescue ArgumentError
         render json: { error: "name_required" }, status: :unprocessable_entity
@@ -71,92 +75,10 @@ module Api
 
       private
 
-      # Lighter than #serialize — list rows don't need claim fields,
-      # but the home screen wants an address line + coords (the
-      # near-me sort lands with expo-location in a followup). Hours
-      # are included so cards can show open/closed badges.
-      def serialize_summary(r)
-        first_address = r.addresses.first
-        {
-          id:     r.id,
-          slug:   r.slug,
-          name:   r.name,
-          status: r.status,
-          web_path: r.web_path,
-          city:   { slug: r.city.slug, name: r.city.name, region: r.city.region },
-          # Keep the original street/coords fields — the OpenAPI contract and
-          # web RestaurantSummary still read them — and add the full address
-          # object so admin/MCP callers can see city/region/postal/country.
-          street:    first_address&.street,
-          address: first_address && {
-            street:      first_address.street,
-            city:        first_address.city,
-            region:      first_address.region,
-            postal_code: first_address.postal_code,
-            country:     first_address.country
-          },
-          latitude:  first_address&.latitude&.to_f,
-          longitude: first_address&.longitude&.to_f,
-          time_zone: r.city.time_zone,
-          hours: r.hours.map { |h|
-            {
-              day_of_week: h.day_of_week,
-              opens_at:    h.opens_at&.strftime("%H:%M"),
-              closes_at:   h.closes_at&.strftime("%H:%M")
-            }
-          }
-        }
-      end
-
       # Whether the signed-in caller has saved this restaurant (false anonymously).
       def current_user_favorited_restaurant?(restaurant)
         return false unless current_user
         FavoriteRestaurant.exists?(user_id: current_user.id, restaurant_id: restaurant.id)
-      end
-
-      def serialize(r)
-        first_address = r.addresses.first
-        {
-          id:                 r.id,
-          slug:               r.slug,
-          name:               r.name,
-          about:              r.about,
-          phone:              r.phone,
-          website:            r.website,
-          status:             r.status,
-          web_path:           r.web_path,
-          # Phase 4.9 — non-PII signals so the web page can show or
-          # hide the "Claim this restaurant" button without a second
-          # roundtrip. claimed_by_user_id is the user's UUID; not
-          # private and useful for "is this me" comparisons.
-          claimed_at:         r.claimed_at,
-          claimed_by_user_id: r.claimed_by_user_id,
-          city: {
-            id:     r.city.id,
-            slug:   r.city.slug,
-            name:   r.city.name,
-            region: r.city.region
-          },
-          address: first_address && {
-            street:      first_address.street,
-            city:        first_address.city,
-            region:      first_address.region,
-            postal_code: first_address.postal_code,
-            country:     first_address.country
-          },
-          # Restaurant hours (sorted by day_of_week, then opens_at) and timezone
-          # for computing open/closed status. Multiple intervals per day support
-          # split shifts (lunch 11-14, dinner 17-21). Null opens_at/closes_at
-          # means closed that day.
-          time_zone: r.city.time_zone,
-          hours: r.hours.map { |h|
-            {
-              day_of_week: h.day_of_week,
-              opens_at:    h.opens_at&.strftime("%H:%M"),
-              closes_at:   h.closes_at&.strftime("%H:%M")
-            }
-          }
-        }
       end
     end
   end

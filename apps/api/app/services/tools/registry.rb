@@ -64,7 +64,8 @@ module Tools
         "Restaurants::CreateRestaurant",
         "Restaurants::CloneMenu",
         "Restaurants::EditRestaurant",
-        "Restaurants::ConfirmRestaurantData"
+        "Restaurants::ConfirmRestaurantData",
+        "Restaurants::SetRestaurantBranding"
       ],
       structure: [
         "Structure::GetMenuStructure",

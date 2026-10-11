@@ -57,6 +57,8 @@ export interface CityRanked {
     name: string;
     /** See `Restaurant.web_path` in lib/restaurants.ts. */
     web_path: string;
+    /** 200px WebP of the owner-set logo; null when none. */
+    logo_url: string | null;
     visible_count: number;
     hidden_count: number;
     total_count: number;

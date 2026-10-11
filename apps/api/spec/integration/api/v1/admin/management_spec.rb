@@ -26,6 +26,8 @@ def admin_restaurant_row_schema
       website:    { type: :string, nullable: true },
       phone:      { type: :string, nullable: true },
       claimed_at: { type: :string, format: "date-time", nullable: true },
+      logo_url:   { type: :string, nullable: true },
+      banner_url: { type: :string, nullable: true },
       items_by_confidence: { type: :object, additionalProperties: { type: :integer } }
     }
   }

@@ -90,6 +90,8 @@ Rails.application.routes.draw do
         # Phase 4.9 — restaurant claim flow.
         post   "claim",        to: "restaurant_claims#create"
         get    "claim/verify", to: "restaurant_claims#verify"
+        # Logo + banner, set by the verified owner or an admin.
+        patch  "branding",     to: "restaurant_brandings#update"
         # Save/unsave a restaurant (authed).
         post   "favorite", to: "favorite_restaurants#create"
         delete "favorite", to: "favorite_restaurants#destroy"

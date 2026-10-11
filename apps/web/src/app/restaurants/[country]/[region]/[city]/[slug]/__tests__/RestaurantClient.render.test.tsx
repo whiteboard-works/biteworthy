@@ -105,6 +105,8 @@ describe('RestaurantContactLine', () => {
     city: { id: 'c-1', slug: 'durango', name: 'Durango', region: 'Colorado' },
     time_zone: null,
     hours: [],
+    logo_url: null,
+    banner_url: null,
     ...over,
   });
 

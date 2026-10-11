@@ -23,6 +23,7 @@ vi.mock('../../../../../../../lib/edge-headers', () => ({
 const mockGetServerJwt = vi.fn();
 vi.mock('../../../../../../../lib/server-auth', () => ({
   getServerJwt: () => mockGetServerJwt(),
+  getServerUserId: () => null,
 }));
 
 const mockNotFound = vi.fn((): never => {

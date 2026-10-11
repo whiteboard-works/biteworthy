@@ -384,6 +384,12 @@ suggest_correction   (anyone, signed in or not; queues, changes nothing)
 The gate is `claimed_by_user_id` on the restaurant, set by
 `claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
 
+The same gate opens `set_restaurant_branding` (`restaurants` domain,
+`audience :user`): the owner's logo and banner. It takes attachment ids
+from `POST /api/v1/attachments`, never image bytes, and only resolves an
+id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
+and the REST door `PATCH /restaurants/:id/branding` shares it.
+
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.
 `POST /api/v1/items/:id/suggestions` has taken anonymous corrections
