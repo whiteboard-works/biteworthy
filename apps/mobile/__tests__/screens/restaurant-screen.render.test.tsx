@@ -151,7 +151,7 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
 
   // The header renders the owner's banner and logo only when they exist;
   // a restaurant without them looks exactly as it did before branding.
-  it('shows the banner and logo when the owner set them, and nothing otherwise', async () => {
+  it('shows the banner and logo when the owner set them', async () => {
     mockFetchRestaurant.mockResolvedValue({
       ...restaurant,
       logo_url: 'https://img.test/logo.webp',
@@ -160,10 +160,13 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     render(<RestaurantScreen />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
 
-    expect(screen.getByTestId('restaurant-banner').props.source).toEqual({
+    // Decorative images sit outside the accessibility tree on purpose,
+    // so the queries have to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('restaurant-banner', hidden).props.source).toEqual({
       uri: 'https://img.test/banner.webp',
     });
-    expect(screen.getByTestId('restaurant-logo').props.source).toEqual({
+    expect(screen.getByTestId('restaurant-logo', hidden).props.source).toEqual({
       uri: 'https://img.test/logo.webp',
     });
   });
@@ -172,8 +175,9 @@ describe('RestaurantScreen scan-loop wiring (Phase 7.3)', () => {
     render(<RestaurantScreen />);
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeOnTheScreen());
 
-    expect(screen.queryByTestId('restaurant-banner')).toBeNull();
-    expect(screen.queryByTestId('restaurant-logo')).toBeNull();
+    const hidden = { includeHiddenElements: true };
+    expect(screen.queryByTestId('restaurant-banner', hidden)).toBeNull();
+    expect(screen.queryByTestId('restaurant-logo', hidden)).toBeNull();
   });
 
   // Re-scanning moved to the tool layer; the button's destination is gone.

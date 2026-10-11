@@ -67,10 +67,13 @@ describe('Home (Phase 7.2)', () => {
     render(<Home />);
 
     await waitFor(() => expect(screen.getByText('Chimayo')).toBeTruthy());
-    expect(screen.getByTestId('restaurant-logo-ninis-1').props.source).toEqual({
+    // Decorative images sit outside the accessibility tree on purpose,
+    // so the query has to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('restaurant-logo-ninis-1', hidden).props.source).toEqual({
       uri: 'https://img.test/ninis.webp',
     });
-    expect(screen.queryByTestId('restaurant-logo-chimayo')).toBeNull();
+    expect(screen.queryByTestId('restaurant-logo-chimayo', hidden)).toBeNull();
   });
 
   it('typing re-searches (debounced) and reports a miss', async () => {

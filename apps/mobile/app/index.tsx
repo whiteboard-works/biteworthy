@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
 import { CURRENT_VERSION } from '@biteworthy/version-history';
 import { searchRestaurants, type RestaurantSummary } from '../lib/api/restaurants';
 
@@ -95,9 +95,13 @@ export default function Home() {
               style={styles.row}
             >
               {item.logo_url ? (
+                // Decorative: the name beside it is the accessible label,
+                // as web's alt="" on the same image.
                 <Image
                   source={{ uri: item.logo_url }}
-                  accessibilityLabel={`${item.name} logo`}
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
                   testID={`restaurant-logo-${item.slug}`}
                   contentFit="cover"
                   style={styles.rowLogo}
@@ -183,7 +187,7 @@ const styles = StyleSheet.create({
   rowLogo: {
     width: 44,
     height: 44,
-    borderRadius: 8,
+    borderRadius: radius.md,
     backgroundColor: colors.bgAlt,
   },
   rowText: {
