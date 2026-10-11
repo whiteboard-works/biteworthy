@@ -8,9 +8,9 @@ module Restaurants
   # Who may call it is the whole security model: the restaurant's verified
   # owner (`claimed_by_user_id`, set by the emailed claim token), an
   # admin, or — while the restaurant is still a draft — the community
-  # member who created it, the same rule the scan door applies
-  # (`Ingestion::StartRun.can_target?`). Publishing ends the creator's
-  # say: from then on it is the owner's or an admin's.
+  # member who created it (`Restaurant#draft_created_by?`, the scan
+  # door's rule too). Publishing ends the creator's say: from then on it
+  # is the owner's or an admin's.
   #
   # Every image goes through Images::StripMetadata, so an owner's phone
   # photo lands without EXIF/GPS and over the same size/type limits as a
@@ -32,8 +32,7 @@ module Restaurants
     def authorize!(user, restaurant)
       return restaurant if user&.is_admin?
       return restaurant if restaurant.claimed_by_user_id.present? && restaurant.claimed_by_user_id == user&.id
-      return restaurant if restaurant.status == "draft" && restaurant.created_by_user_id.present? &&
-                           restaurant.created_by_user_id == user&.id
+      return restaurant if restaurant.draft_created_by?(user)
 
       raise Forbidden, restaurant
     end

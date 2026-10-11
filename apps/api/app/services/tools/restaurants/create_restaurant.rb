@@ -85,16 +85,27 @@ module Tools
                        website: nil, phone: nil, hours: nil, force: false,
                        logo_attachment_id: nil, banner_attachment_id: nil)
         user = context.user!
-        # Resolved before the create so a bad id refuses the whole call
-        # rather than leaving a draft behind with no images.
         logo   = logo_attachment_id.present? ? owned_upload!(logo_attachment_id, user) : nil
         banner = banner_attachment_id.present? ? owned_upload!(banner_attachment_id, user) : nil
 
-        result = ::Restaurants::Create.call(
-          name: name, city_slug: city_slug, creator: user,
-          street: street, postal_code: postal_code, force: force,
-          website: website, phone: phone, hours: hours
-        )
+        # One transaction around the create and the images: an upload that
+        # turns out not to be an image (the scan door also accepts PDFs)
+        # refuses the whole call instead of leaving a draft behind with no
+        # images, which the retry would then trip over as a duplicate.
+        result = Restaurant.transaction do
+          created = ::Restaurants::Create.call(
+            name: name, city_slug: city_slug, creator: user,
+            street: street, postal_code: postal_code, force: force,
+            website: website, phone: phone, hours: hours
+          )
+          if created.restaurant && (logo || banner)
+            # The creator passes as the draft's creator; going through the
+            # gate keeps Branding's rule the only one.
+            ::Restaurants::Branding.authorize!(user, created.restaurant)
+            ::Restaurants::Branding.apply!(created.restaurant, logo: logo, banner: banner)
+          end
+          created
+        end
 
         if result.duplicate?
           return ok(
@@ -106,7 +117,6 @@ module Tools
         end
 
         restaurant = result.restaurant
-        ::Restaurants::Branding.apply!(restaurant, logo: logo, banner: banner) if logo || banner
         ok(
           created: true,
           restaurant: {
@@ -119,7 +129,9 @@ module Tools
           next_step: "Scan its menu with start_menu_scan to move it out of draft."
         )
       rescue Images::StripMetadata::Unprocessable => e
-        raise Errors::InvalidArgument, e.message
+        raise Errors::InvalidArgument, "That upload cannot be used as a logo or banner: #{e.message}"
+      rescue ::Restaurants::Branding::Forbidden => e
+        raise Errors::Forbidden, e.message
       rescue ArgumentError => e
         raise Errors::InvalidArgument, e.message
       rescue ::Restaurants::Create::UnknownCity => e

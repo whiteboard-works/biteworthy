@@ -69,6 +69,20 @@ RSpec.describe Tools::Restaurants::CreateRestaurant do
     expect(payload(response)[:restaurant][:banner_url]).to be_present
   end
 
+  # The scan door accepts PDFs, so an owned id can still be the wrong kind
+  # of file; the refusal must roll the draft back or the retry trips over
+  # its own duplicate.
+  it "refuses an owned upload that is not an image and leaves no draft behind" do
+    pdf = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new("%PDF-1.4"), filename: "menu.pdf", content_type: "application/pdf",
+      metadata: { "uploaded_by_user_id" => user.id }
+    )
+    response = call(name: "Ninis", city_slug: "durango", logo_attachment_id: pdf.signed_id)
+
+    expect(payload(response)[:error]).to eq("invalid_argument")
+    expect(Restaurant.where(name: "Ninis")).to be_empty
+  end
+
   it "refuses somebody else's upload and creates nothing" do
     response = call(name: "Ninis", city_slug: "durango", logo_attachment_id: upload_for(create(:user)).signed_id)
 

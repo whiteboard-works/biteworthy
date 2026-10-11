@@ -443,7 +443,9 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`create_restaurant`** — add a new restaurant. Returns possible_duplicates
   with candidate matches if the name looks like an existing one in that city;
   call again with force: true after reviewing. New restaurants land as draft.
-  Optional website, phone, and hours (full week) so a community website
+  Optional `logo_attachment_id` / `banner_attachment_id` (ids of images the
+  user uploaded; refused, with the draft rolled back, when the upload is not
+  an image). Optional website, phone, and hours (full week) so a community website
   import does not need admin `edit_place`.
 - **`update_restaurant`** — edit name, about, website, phone, and address.
   Address is a wholesale replacement when any address field is provided.

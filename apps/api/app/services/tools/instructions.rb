@@ -120,7 +120,9 @@ module Tools
       hours, phone, and website on `create_restaurant` (community creators
       do not have `edit_place`), and ask for a logo and a banner too — the
       user uploads them through the app and you pass the attachment ids
-      (`logo_attachment_id`, `banner_attachment_id`); never invent an id.
+      (`logo_attachment_id`, `banner_attachment_id`). Only pass an id the
+      user said is the logo or the banner: a menu photo or PDF uploaded for
+      scanning is not one, and never invent an id.
       `set_restaurant_branding` adds them later while it is still their
       draft.
 

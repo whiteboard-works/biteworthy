@@ -9485,7 +9485,7 @@
         "tags": [
           "Restaurants"
         ],
-        "description": "The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.",
+        "description": "The verified owner (claimed_by_user_id), an admin, or, while the restaurant is still a draft, the person who added it. Each image is re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.",
         "security": [
           {
             "bearerAuth": []
@@ -9513,7 +9513,7 @@
             }
           },
           "403": {
-            "description": "signed in, but not the owner or an admin",
+            "description": "signed in, but not the owner, an admin, or the creator of this draft",
             "content": {
               "application/json": {
                 "schema": {

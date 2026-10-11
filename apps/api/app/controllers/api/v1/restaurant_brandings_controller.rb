@@ -2,8 +2,8 @@ module Api
   module V1
     # PATCH /api/v1/restaurants/:restaurant_id/branding
     #
-    # A restaurant's logo and banner, set by its verified owner or an
-    # admin. Multipart: `logo` / `banner` files, `remove_logo` /
+    # A restaurant's logo and banner, set by its verified owner, an admin,
+    # or (while it is a draft) the person who added it. Multipart: `logo` / `banner` files, `remove_logo` /
     # `remove_banner` flags. Answers with the same payload as the public
     # `#show`, so the page can re-render from the response.
     #

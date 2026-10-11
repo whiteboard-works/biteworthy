@@ -75,7 +75,7 @@ module Ingestion
       return true if user&.is_admin?
       return true if restaurant.status == "published"
 
-      restaurant.status == "draft" && restaurant.created_by_user_id == user&.id
+      restaurant.draft_created_by?(user)
     end
 
     def self.per_file_byte_limit(user)

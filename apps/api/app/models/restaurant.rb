@@ -61,6 +61,14 @@ class Restaurant < ApplicationRecord
   scope :kept,      -> { where(archived_at: nil) }
   scope :archived,  -> { where.not(archived_at: nil) }
   scope :published, -> { kept.where(status: "published") }
+
+  # A community member's say over the restaurant they added, while it is
+  # still a draft. The scan door (`Ingestion::StartRun.can_target?`) and
+  # the branding gate (`Restaurants::Branding.authorize!`) both ask this,
+  # so the rule has one spelling; publishing ends it.
+  def draft_created_by?(user)
+    status == "draft" && created_by_user_id.present? && created_by_user_id == user&.id
+  end
   # Phase 6.4 — the moderation lens. Two ways a restaurant enters it:
   # a community member created it (created_by_user_id present), OR a
   # community member re-scanned an existing/seeded restaurant, which
