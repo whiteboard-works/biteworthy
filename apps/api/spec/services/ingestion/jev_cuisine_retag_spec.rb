@@ -84,19 +84,27 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(result.unanswered).to eq(0)
   end
 
-  it "reports a regrade of an existing row as a change: below 0.8 lands as inferred" do
+  # Near the 0.8 boundary Jev regraded near-identical dishes in opposite
+  # directions; a slug the re-tag keeps keeps its grade, and only a new
+  # slug takes Jev's probability.
+  it "keeps the grade of a slug it keeps, and grades only a new slug from Jev" do
     ItemTag.find_by!(item: tacos, tag: italian).destroy!
     ItemTag.create!(item: tacos, tag: mexican, source: "ai", confidence: "suggested")
     answers["i0__cuisine-mexican"]["noul"] = 0.6
     stub_jev(answers)
     result = described_class.new(restaurant, tagger: tagger).call
 
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
+    expect(result.changes).to be_empty
+    expect(result.unchanged).to eq(3)
+  end
+
+  it "grades a new slug from Jev's probability: below 0.8 lands as inferred" do
+    answers["i0__cuisine-mexican"]["noul"] = 0.6
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
-    expect(result.changes.map { |c| [ c.regrade, c.before, c.after ] }).to eq([ [
-      true,
-      [ { slug: "cuisine-mexican", confidence: "suggested" } ],
-      [ { slug: "cuisine-mexican", confidence: "inferred" } ]
-    ] ])
   end
 
   it "does not write to a dish whose rows already match, so its updated_at stays put" do

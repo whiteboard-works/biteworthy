@@ -213,7 +213,9 @@ belong to any culinary tradition at all?", blocking only below 0.25 so
 a soda or raw onions get no cuisine however Southern the menu around
 them while a borderline item is left to the cuisine questions) and one `noul` per
 (item, leaf cuisine tag), each with `criteria` that pin the answer to
-the item's own recipe rather than the restaurant's identity, state
+the item's own recipe rather than the restaurant's identity and name
+the dishes that merely borrow a cuisine's word (French toast, Greek
+yogurt, German chocolate cake), state
 limited to the slice's names, descriptions and sections, nothing else.
 The first dry runs showed why: with nineteen barbecue plates in the
 slice, "ONIONS" read as Southern. A tag whose probability reaches 0.5 is

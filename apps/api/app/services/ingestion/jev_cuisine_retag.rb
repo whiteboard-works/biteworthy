@@ -81,8 +81,13 @@ module Ingestion
             current = item.item_tags.includes(:tag).reload.select { |row| row.tag.family == "cuisine" }
             managed = current.select { |row| row.source == MANAGED_SOURCE }
             kept    = current - managed
+            graded  = managed.to_h { |row| [ row.tag.slug, row.confidence ] }
+            # A slug the re-tag keeps keeps its grade: Jev near the 0.8
+            # boundary regraded near-identical dishes in opposite
+            # directions, and nothing downstream reads the grade of a
+            # cuisine row. Only a new slug takes Jev's probability.
             target  = wanted.reject { |w| kept.any? { |row| row.tag.slug == w["slug"] } }
-                            .to_h { |w| [ w["slug"], ConfidenceMapper.map_confidence(w["confidence"], "ai", "suggested") ] }
+                            .to_h { |w| [ w["slug"], graded.fetch(w["slug"]) { ConfidenceMapper.map_confidence(w["confidence"], "ai", "suggested") } ] }
 
             if managed.to_h { |row| [ row.tag.slug, row.confidence ] } == target
               unchanged += 1
@@ -93,8 +98,9 @@ module Ingestion
             before = rows(current.map { |row| [ row.tag.slug, row.confidence ] })
             after  = rows(kept.map { |row| [ row.tag.slug, row.confidence ] } + target.to_a)
             apply!(item, managed, target, tags) unless dry_run
-            # From what apply! does, not from the display rows: the same
-            # managed slugs with a grade moved is a regrade, nothing else is.
+            # From what apply! does, not from the display rows. With kept
+            # slugs keeping their grade this is false today; the field
+            # stays so the report's contract does not move.
             regrade = managed.map { |row| row.tag.slug }.sort == target.keys.sort
             changes << Change.new(item: item, before: before, after: after, regrade: regrade)
           end
