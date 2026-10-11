@@ -13,7 +13,9 @@ RSpec.describe "restaurants/branding", type: :request do
     patch("Set the restaurant's logo and banner") do
       tags "Restaurants"
       description "The verified owner (claimed_by_user_id) or an admin. Each image is " \
-                  "re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields " \
+                  "re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, " \
+                  "banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never " \
+                  "enlarged); a new one replaces the old. Omitted fields " \
                   "leave that image alone; `remove_logo` / `remove_banner` clear one. " \
                   "Answers with the same row as GET /restaurants/{id}."
       consumes "multipart/form-data"
@@ -28,7 +30,9 @@ RSpec.describe "restaurants/branding", type: :request do
           logo:          { type: :string, format: :binary, description: "JPEG, PNG, WebP, or HEIC." },
           banner:        { type: :string, format: :binary, description: "JPEG, PNG, WebP, or HEIC." },
           remove_logo:   { type: :boolean },
-          remove_banner: { type: :boolean }
+          remove_banner: { type: :boolean },
+          logo_crop:     { "$ref" => "#/components/schemas/BrandingCrop" },
+          banner_crop:   { "$ref" => "#/components/schemas/BrandingCrop" }
         }
       }
       parameter name: :logo, in: :formData, type: :file, required: false
@@ -61,7 +65,7 @@ RSpec.describe "restaurants/branding", type: :request do
         run_test!
       end
 
-      response(422, "not an image, or too large") do
+      response(422, "not an image, too large, or a bad crop") do
         schema type: :object,
                required: %w[error],
                properties: { error: { type: :string }, code: { type: :string } }
