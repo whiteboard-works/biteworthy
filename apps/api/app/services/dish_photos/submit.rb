@@ -57,13 +57,16 @@ module DishPhotos
         raise ActiveRecord::RecordInvalid, submission
       end
 
+      existing = submission_from_same_upload
+      return existing if existing
+
       # Bound + strip before the lock so a decompression bomb does not
       # hold the user's submission lock.
       stripped = strip_photo
 
       DishPhotoSubmission.transaction do
         lock_user!
-        existing = pending_from_same_upload
+        existing = submission_from_same_upload
         return existing if existing
 
         raise RateLimited.new(
@@ -82,13 +85,13 @@ module DishPhotos
           review: @review,
           owns_rights: true,
           credit_name: credit_name,
-          status: "pending"
+          status: "pending",
+          source_upload_id: source_upload_id
         ) do |row|
           row.photo.attach(
             io: stripped.io,
             filename: stripped.filename,
-            content_type: stripped.content_type,
-            metadata: source_metadata
+            content_type: stripped.content_type
           )
         end
       end
@@ -106,21 +109,17 @@ module DishPhotos
 
     # A signed upload (the chat tool's door) records which blob it came
     # from, so replaying the same confirmed call returns the submission
-    # it already made instead of queueing the photo twice.
-    def source_blob_id
+    # it already made — whatever has happened to it since — instead of
+    # queueing the photo again. A withdrawn or rejected photo does not
+    # come back on a stale yes.
+    def source_upload_id
       @photo.id if @photo.is_a?(ActiveStorage::Blob)
     end
 
-    def source_metadata
-      source_blob_id ? { "source_blob_id" => source_blob_id } : {}
-    end
+    def submission_from_same_upload
+      return nil unless source_upload_id
 
-    def pending_from_same_upload
-      return nil unless source_blob_id
-
-      DishPhotoSubmission.pending.where(item_id: @item.id, user_id: @user.id)
-                         .includes(photo_attachment: :blob)
-                         .find { |row| row.photo.blob&.metadata&.dig("source_blob_id") == source_blob_id }
+      DishPhotoSubmission.find_by(user_id: @user.id, item_id: @item.id, source_upload_id:)
     end
 
     def over_daily_limit?

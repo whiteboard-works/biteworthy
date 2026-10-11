@@ -395,12 +395,15 @@ The `photos` domain (`audience :user`) is how a chat photo reaches a dish.
 Both tools take an attachment id the caller uploaded, never bytes.
 **`submit_dish_photo`** is the chat door to `DishPhotos::Submit` (the same
 strip, limits, and credit as the REST door). It declares `confirm_when { true }`
-so the "I took this photo" attestation is always the user's tap on a declared
-sentence, never the model's word. It also declares `unrecoverable_when { true }`
-so `accept_edits` still parks it. Replaying the same grant returns the existing
-pending submission. **`set_item_photo`** is the branding gate (verified owner
+so in manual and `accept_edits` modes the "I took this photo" attestation is
+the user's tap on a declared sentence, not the model's word (`unrecoverable_when
+{ true }` is what keeps `accept_edits` parking it). `auto` mode and
+`skip_confirmations` accounts skip it like every card. Replaying the same grant
+returns the existing submission in whatever state it is in, keyed on
+`source_upload_id`. **`set_item_photo`** is the branding gate (verified owner
 or admin) applied to `Item#photo`: stripped, live at once, replaces the old
-photo and clears its diner credit. `get_restaurant` returns `managed_by_caller`
+photo and clears its diner credit. It only reaches published dishes at
+published restaurants, the same as `get_menu` and `submit_dish_photo`. `get_restaurant` returns `managed_by_caller`
 so the model can pick the right one before a confirmation card is spent on a
 call that would be refused.
 

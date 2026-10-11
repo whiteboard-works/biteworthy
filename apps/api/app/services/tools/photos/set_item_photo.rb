@@ -21,8 +21,7 @@ module Tools
         or an admin can do this; for anyone else use `submit_dish_photo`,
         which goes to a moderator.
 
-        Pass the dish's id (from get_menu or get_menu_structure) and the
-        attachment id from the upload (JPEG, PNG, WebP, or HEIC). Location
+        Pass a published dish's id (from get_menu) and the attachment id from the upload (JPEG, PNG, WebP, or HEIC). Location
         data is stripped before the photo is stored.
       TEXT
 
@@ -51,25 +50,59 @@ module Tools
 
       def self.perform(context:, item_id:, attachment_id:)
         user = context.user!
-        item = Item.includes(:restaurant).find(item_id)
-        raise ActiveRecord::RecordNotFound, "Item not found" unless Restaurant.kept.exists?(item.restaurant_id)
+        item = Item.published.joins(:restaurant).merge(Restaurant.published).find(item_id)
         authorize!(user, item.restaurant)
 
-        blob = owned_upload!(attachment_id, user)
-        stripped = Images::StripMetadata.call(blob, filename: blob.filename.to_s, content_type: blob.content_type)
-
-        item.with_lock do
-          item.photo.attach(io: stripped.io, filename: stripped.filename, content_type: stripped.content_type)
-          item.update!(photo_submission_id: nil)
-        end
+        upload = owned_upload!(attachment_id, user)
+        attach_exclusively!(item, stored_copy(upload))
 
         ok(
           item:      { id: item.id, name: item.name },
           photo_url: DishPhotos::Serialize.variant_url(item.photo, :card, host: context.public_host)
         )
       rescue Images::StripMetadata::Unprocessable => e
-        raise Errors::InvalidArgument, e.message
+        raise Errors::Error.new(e.message, code: e.code)
       end
+
+      # Stored before any lock, so a storage failure leaves the dish as it
+      # was rather than committed to a blob that never landed.
+      def self.stored_copy(upload)
+        stripped = Images::StripMetadata.call(upload, filename: upload.filename.to_s,
+                                                      content_type: upload.content_type)
+        ActiveStorage::Blob.create_and_upload!(
+          io: stripped.io, filename: stripped.filename, content_type: stripped.content_type
+        )
+      end
+      private_class_method :stored_copy
+
+      # Same shape as DishPhotos::Moderate: under the item lock, attach,
+      # drop any other photo rows, clear the diner credit; purge the
+      # replaced blobs only once the new one is committed.
+      def self.attach_exclusively!(item, blob)
+        old_blob_ids = []
+        committed = false
+        begin
+          item.with_lock do
+            old_blob_ids = ActiveStorage::Attachment.where(record: item, name: "photo").pluck(:blob_id)
+            item.photo.attach(blob)
+            ActiveStorage::Attachment.where(record: item, name: "photo").where.not(blob_id: blob.id).delete_all
+            item.update!(photo_submission_id: nil)
+          end
+          committed = true
+        ensure
+          blob.purge unless committed
+        end
+        ActiveStorage::Blob.where(id: old_blob_ids - [ blob.id ]).find_each(&:purge_later)
+        preprocess_card!(item)
+      end
+      private_class_method :attach_exclusively!
+
+      def self.preprocess_card!(item)
+        item.photo.variant(:card).processed
+      rescue StandardError => e
+        Rails.logger.warn("[tools] set_item_photo variant preprocessing failed: #{e.class} #{e.message}")
+      end
+      private_class_method :preprocess_card!
 
       def self.authorize!(user, restaurant)
         return if ::Restaurants::Branding.allowed?(user, restaurant)

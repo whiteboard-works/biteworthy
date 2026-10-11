@@ -9,9 +9,11 @@ module Tools
     # the signed id here.
     #
     # The REST form asks the diner to tick "I took this photo". Here the
-    # tick is the confirmation card: `confirm_when { true }` means the
-    # model can never answer it on the user's behalf, and the sentence
-    # they approve is declared below rather than phrased by the model.
+    # tick is the confirmation card: `confirm_when { true }` parks the call
+    # in manual and accept_edits, and the sentence the user approves is
+    # declared below rather than phrased by the model. `auto` mode and a
+    # `skip_confirmations` account have opted out of every card, this one
+    # included; over MCP the gate is the documented two-call protocol.
     class SubmitDishPhoto < Tools::Base
       audience :user
 
@@ -24,9 +26,8 @@ module Tools
         `set_item_photo` puts it on the dish directly instead.
 
         Pass the dish's id (from get_menu) and the attachment id from the
-        upload. The user must confirm they took the photo themselves —
-        the call stops for that confirmation every time; never claim it for
-        them. Location data is stripped before the photo is stored.
+        upload. The user must confirm they took the photo themselves;
+        never claim it for them. Location data is stripped before the photo is stored.
       TEXT
 
       input_schema(
@@ -38,7 +39,7 @@ module Tools
         additionalProperties: false
       )
 
-      # Idempotent because DishPhotos::Submit returns the existing pending
+      # Idempotent because DishPhotos::Submit returns the existing
       # submission for the same upload — a confirmation grant is reusable
       # for its TTL, and `confirmation_gate_spec` requires this.
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
@@ -71,9 +72,9 @@ module Tools
           note:       "Queued for a moderator. The dish keeps its current photo until one approves it."
         )
       rescue DishPhotos::Submit::RateLimited => e
-        raise Errors::Error.new(e.message, code: "rate_limited")
+        raise Errors::Error.new(e.message, code: e.code)
       rescue Images::StripMetadata::Unprocessable => e
-        raise Errors::InvalidArgument, e.message
+        raise Errors::Error.new(e.message, code: e.code)
       end
     end
   end

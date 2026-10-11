@@ -90,6 +90,9 @@ and you must ship a migration widening the constraint in the same PR**.
   blob. Stored images are rewritten through libvips with metadata stripped
   (no EXIF/GPS) after a raw-size and pixel-dimension bound. Rate-limited
   to 10 per user per day and 3 pending per diner per dish.
+  `source_upload_id` is the `POST /attachments` blob a chat
+  `submit_dish_photo` came from (unique per user + dish), so a replayed
+  confirmation returns the existing row; null for REST submissions.
 - `suggestions` — polymorphic edit proposals queue. Replaces the 2020
   points/levels gamification with a real moderation pipeline.
 

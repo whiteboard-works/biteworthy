@@ -74,6 +74,16 @@ RSpec.describe Tools::Photos::SetItemPhoto do
     expect(item.reload.photo).not_to be_attached
   end
 
+  # Same reach as get_menu and submit_dish_photo: the card promises the
+  # photo shows to everyone, which is only true of a live dish.
+  it "refuses a dish that is not published" do
+    draft = create(:item, restaurant:)
+    response = call(as: owner, item_id: draft.id, attachment_id: upload_for(owner).signed_id)
+
+    expect(payload(response)[:error]).to eq("not_found")
+    expect(draft.reload.photo).not_to be_attached
+  end
+
   it "refuses a PDF" do
     pdf = ActiveStorage::Blob.create_and_upload!(
       io: StringIO.new("%PDF-1.4\n%%EOF"), filename: "menu.pdf", content_type: "application/pdf",
@@ -82,7 +92,7 @@ RSpec.describe Tools::Photos::SetItemPhoto do
 
     response = call(as: owner, item_id: item.id, attachment_id: pdf.signed_id)
 
-    expect(payload(response)[:error]).to eq("invalid_argument")
+    expect(payload(response)[:error]).to eq("unsupported_type")
   end
 
   # Replacing a photo purges the old one, which no later call puts back.

@@ -77,6 +77,18 @@ RSpec.describe Tools::Photos::SubmitDishPhoto do
     expect(DishPhotoSubmission.count).to eq(1)
   end
 
+  # A stale yes must not bring back a photo the user took back.
+  it "does not requeue a withdrawn photo when the confirmed call is replayed" do
+    args = { item_id: item.id, attachment_id: upload_for(diner).signed_id }
+    confirmed_call(as: diner, **args)
+    DishPhotoSubmission.sole.withdraw!
+
+    response = confirmed_call(as: diner, **args)
+
+    expect(payload(response)[:submission][:status]).to eq("withdrawn")
+    expect(DishPhotoSubmission.count).to eq(1)
+  end
+
   it "does not resolve an attachment somebody else uploaded" do
     response = confirmed_call(as: diner, item_id: item.id, attachment_id: upload_for(create(:user)).signed_id)
 
@@ -98,7 +110,7 @@ RSpec.describe Tools::Photos::SubmitDishPhoto do
 
     response = confirmed_call(as: diner, item_id: item.id, attachment_id: upload_for(diner).signed_id)
 
-    expect(payload(response)[:error]).to eq("rate_limited")
+    expect(payload(response)[:error]).to eq("pending_limit")
     expect(payload(response)[:message]).to match(/waiting on a moderator/)
   end
 
