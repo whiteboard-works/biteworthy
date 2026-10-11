@@ -7240,6 +7240,7 @@
                           "type": "string",
                           "enum": [
                             "pending",
+                            "approved",
                             "rate_limited",
                             "failed"
                           ]
@@ -7405,6 +7406,7 @@
                           "type": "string",
                           "enum": [
                             "pending",
+                            "approved",
                             "rate_limited",
                             "failed"
                           ]

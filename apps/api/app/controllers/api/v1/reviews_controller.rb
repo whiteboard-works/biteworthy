@@ -146,7 +146,7 @@ module Api
           owns_rights: params[:owns_rights],
           review: review
         )
-        { status: "pending", id: submission.id }
+        { status: submission.status, id: submission.id }
       rescue DishPhotos::Submit::RateLimited => e
         { status: "rate_limited", code: e.code, message: e.message }
       rescue Images::StripMetadata::Unprocessable => e

@@ -9,7 +9,8 @@ module Api
     # The photo is stripped of EXIF/GPS before it is stored. Nothing here
     # becomes Item#photo until an admin approves it. DELETE is a
     # withdrawal (status=withdrawn, bytes purged) so it still counts
-    # toward the daily limit.
+    # toward the daily limit. An admin's upload is the exception: it is
+    # approved onto the dish on create (see DishPhotos::Submit).
     class PhotoSubmissionsController < BaseController
       before_action :load_item, only: [ :create ]
       before_action :load_own_submission, only: [ :destroy ]

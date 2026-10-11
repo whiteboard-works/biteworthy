@@ -22,7 +22,10 @@ vi.mock('../../../../../../../../../lib/reviews', () => ({
 vi.mock('../../../../../../../_PostHogProvider', () => ({
   useTracker: () => ({ track: vi.fn() }),
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: mockRefresh }),
+}));
 
 import { ReviewsClient } from '../ReviewsClient';
 
@@ -49,6 +52,7 @@ beforeEach(() => {
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockReport.mockReset();
+  mockRefresh.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -190,5 +194,34 @@ describe('ReviewsClient — owner edit/delete (E11)', () => {
     });
     expect(await screen.findByTestId('photo-offer-note')).toHaveTextContent(/10 dish photos today/i);
     expect(screen.getByText('Decent.')).toBeInTheDocument();
+  });
+
+  // An admin's offer is approved on the spot: success, not an error note,
+  // and the dish header has to re-render to show the new photo.
+  it('refreshes the page and shows no error when the dish-photo offer comes back approved', async () => {
+    mockCreate.mockResolvedValue({
+      ...review(),
+      photo_offer: { status: 'approved', id: 'sub-1' },
+    });
+    render(
+      <ReviewsClient
+        itemId="item-1"
+        restaurantSlug="r"
+        restaurantPath="/restaurants/usa/colorado/durango/r"
+        currentUserId="user-1"
+        initial={initial([])}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('open-composer'));
+    const file = new File(['img'], 'taco.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('photo'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('offer-as-dish-photo'));
+    fireEvent.click(screen.getByTestId('star-5'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('submit-review'));
+    });
+    expect(await screen.findByText('Decent.')).toBeInTheDocument();
+    expect(screen.queryByTestId('photo-offer-note')).not.toBeInTheDocument();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 });

@@ -1,7 +1,8 @@
 /**
  * Diner dish-photo submissions. Multipart create goes through the Next
  * proxy so the cookie JWT is attached; the API strips EXIF/GPS before
- * storing, and nothing is public until a moderator approves it.
+ * storing, and nothing is public until a moderator approves it — except an
+ * admin's own upload, which the API approves on submit.
  */
 import { shrinkForUpload } from './shrink-image';
 import { PHOTO_MAX_BYTES, friendlyPhotoError } from './photo-errors';

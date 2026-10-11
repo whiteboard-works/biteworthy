@@ -4182,7 +4182,7 @@ export interface paths {
                             updated_at?: string;
                             photo_offer?: {
                                 /** @enum {string} */
-                                status?: "pending" | "rate_limited" | "failed";
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
                                 code?: string;
                                 message?: string;
                                 /** Format: uuid */
@@ -4276,7 +4276,7 @@ export interface paths {
                             updated_at?: string;
                             photo_offer?: {
                                 /** @enum {string} */
-                                status?: "pending" | "rate_limited" | "failed";
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
                                 code?: string;
                                 message?: string;
                                 /** Format: uuid */

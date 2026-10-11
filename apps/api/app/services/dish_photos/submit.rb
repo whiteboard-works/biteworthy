@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module DishPhotos
-  # Creates a pending DishPhotoSubmission. The photo is rewritten
+  # Creates a DishPhotoSubmission, pending unless an admin uploaded it. The photo is rewritten
   # through Images::StripMetadata *before* attach, so the stored blob
   # never carries EXIF/GPS. Rate limits are application-level (not
   # Rack::Attack): 10 submissions per user per UTC day (including
@@ -10,6 +10,10 @@ module DishPhotos
   #
   # Count-and-create runs under a per-user advisory lock so two
   # concurrent uploads cannot both observe "9 today" and both commit.
+  #
+  # An admin's upload skips the daily limit and is approved straight
+  # onto the dish as its photo. If that approve fails the row stays
+  # pending for /admin/photos, so the per-dish pending limit still holds.
   class Submit
     class RateLimited < StandardError
       attr_reader :code
@@ -61,17 +65,10 @@ module DishPhotos
       # hold the user's submission lock.
       stripped = strip_photo
 
-      DishPhotoSubmission.transaction do
+      submission = DishPhotoSubmission.transaction do
         lock_user!
-        raise RateLimited.new(
-          "You can submit at most #{DishPhotoSubmission::DAILY_LIMIT_PER_USER} dish photos per day.",
-          code: "daily_limit"
-        ) if over_daily_limit?
-
-        raise RateLimited.new(
-          "You already have #{DishPhotoSubmission::PENDING_PER_ITEM_LIMIT} photos of this dish waiting on a moderator.",
-          code: "pending_limit"
-        ) if over_pending_per_item_limit?
+        enforce_daily_limit! unless @user.is_admin?
+        enforce_pending_limit!
 
         DishPhotoSubmission.create!(
           item: @item,
@@ -88,9 +85,35 @@ module DishPhotos
           )
         end
       end
+
+      auto_approve(submission) if @user.is_admin?
+      submission
     end
 
     private
+
+    # Runs after commit: Moderate re-locks the item then the submission,
+    # and copies the blob outside any lock.
+    def auto_approve(submission)
+      DishPhotos::Moderate.new(submission, reviewer: @user).approve!(replace_item_photo: true)
+    rescue StandardError => e
+      Rails.logger.warn("Admin dish-photo auto-approve failed for #{submission.id}: #{e.class} #{e.message}")
+      submission.reload
+    end
+
+    def enforce_daily_limit!
+      raise RateLimited.new(
+        "You can submit at most #{DishPhotoSubmission::DAILY_LIMIT_PER_USER} dish photos per day.",
+        code: "daily_limit"
+      ) if over_daily_limit?
+    end
+
+    def enforce_pending_limit!
+      raise RateLimited.new(
+        "You already have #{DishPhotoSubmission::PENDING_PER_ITEM_LIMIT} photos of this dish waiting on a moderator.",
+        code: "pending_limit"
+      ) if over_pending_per_item_limit?
+    end
 
     def lock_user!
       ActiveRecord::Base.connection.execute(
