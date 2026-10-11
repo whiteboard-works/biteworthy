@@ -27,6 +27,8 @@ class Item < ApplicationRecord
   belongs_to :restaurant
   belongs_to :menu_section, optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
+  belongs_to :human_verified_by_user, class_name: "User", optional: true
+  belongs_to :restaurant_verified_by_user, class_name: "User", optional: true
 
   has_many :item_variants,    dependent: :destroy
   has_many :item_modifiers,   dependent: :destroy
@@ -86,6 +88,34 @@ class Item < ApplicationRecord
 
   def denormalized_tag_ids
     read_attribute(:tag_ids)
+  end
+
+  def human_verified?
+    human_verified_at.present?
+  end
+
+  def restaurant_verified?
+    restaurant_verified_at.present?
+  end
+
+  def mark_human_verified!(user)
+    return unless human_verified_at.nil?
+    update!(human_verified_at: Time.current, human_verified_by_user: user)
+  end
+
+  def mark_restaurant_verified!(user)
+    return unless restaurant_verified_at.nil?
+    update!(restaurant_verified_at: Time.current, restaurant_verified_by_user: user)
+  end
+
+  # Once the restaurant has verified a dish, only the verifier or a super
+  # admin may edit it. A plain admin may not: edit_item is admin-only, so
+  # letting admins through would make the lock a no-op.
+  def can_be_edited_by?(user)
+    return true unless restaurant_verified?
+    return true if user&.is_super_admin?
+
+    user&.id == restaurant_verified_by_user_id
   end
 
   # Bulk writers attach many joins to the same item, and every join rewrites

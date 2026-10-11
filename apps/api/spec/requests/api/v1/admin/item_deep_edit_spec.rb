@@ -501,4 +501,16 @@ RSpec.describe "Admin item deep edit", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(item.reload.name).not_to eq("nope")
   end
+
+  # The restaurant-verified lock has to hold on every admin edit path, not
+  # just the edit_item tool, or a second admin can quietly undo it.
+  it "refuses a dish another user restaurant-verified" do
+    item.mark_restaurant_verified!(create(:user, :admin))
+
+    patch_item(name: "nope")
+
+    expect(response).to have_http_status(:forbidden)
+    expect(response.parsed_body["error"]).to eq("restaurant_verified")
+    expect(item.reload.name).not_to eq("nope")
+  end
 end
