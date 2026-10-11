@@ -64,6 +64,10 @@ class GapFillResolveJob < ApplicationJob
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
     tagger           = cuisine_tagger(run)
     wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled?
+    # Dishes an earlier attempt already observed, by id: a retry re-sends
+    # a slice whole, and a dish Haiku found nothing for stays "not
+    # enriched" forever, so identity is the only honest dedupe.
+    observed         = wheat_shadow ? Ingestion::JevHiddenWheatShadow.observed_item_ids(run) : Set.new
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The
@@ -115,14 +119,23 @@ class GapFillResolveJob < ApplicationJob
       tagger  = nil if cuisine.nil?
       merged  = merge!(run, slice, result, ingredient_paths, cuisine)
       # Observation only, after the merge so it measures what landed, and
-      # only for a slice Haiku answered this attempt: a slice merged by an
-      # earlier attempt was observed then, so no dish is counted twice,
-      # while a slice whose first attempt failed before the merge still
-      # gets its observation when a retry lands it. A shadow that fails
-      # writes a failed observation and nothing else, and is not asked
-      # again this attempt so an outage costs one timeout.
-      if wheat_shadow && result && !wheat_shadow.call(run, prompt_rows, merged, ingredient_paths, attempt: executions)
-        wheat_shadow = nil
+      # only for dishes no earlier attempt observed, so none is counted
+      # twice while a slice whose first attempt failed before the merge
+      # still gets its observation when a retry lands it. A shadow that
+      # fails writes a failed observation and nothing else, and is not
+      # asked again this attempt so an outage costs one timeout.
+      if wheat_shadow && result
+        fresh = slice.each_index.reject { |i| observed.include?(slice[i][:item_id]) }
+        unless fresh.empty?
+          rows   = fresh.map { |i| prompt_rows[i] }
+          landed = fresh.each_with_index.to_h { |orig, i| [ i, merged[orig] ] }.compact
+          ids    = fresh.map { |i| slice[i][:item_id] }
+          if wheat_shadow.call(run, rows, landed, ingredient_paths, attempt: executions, item_ids: ids)
+            observed.merge(ids)
+          else
+            wheat_shadow = nil
+          end
+        end
       end
     end
     run.update!(enrichment_status: "completed", enrichment_failure_message: nil)

@@ -249,8 +249,10 @@ nothing to a dish: one `JevObservation` (kind `hidden_wheat_shadow`,
 disagreement that matters: Jev says wheat, the data says none, which is
 the false negative a gluten-free filter cannot afford. Switched by
 `JEV_WHEAT_SHADOW` in `deploy.yml` so the trial stops without a code
-deploy. Whether a `jev_only` answer should add a cautionary row is
-decided from those rows, never by this class.
+deploy. Each row keeps the dishes' `item_ids`, and a retry skips dishes
+an earlier attempt observed, so a slice re-sent whole never counts a
+dish twice on the dashboard. Whether a `jev_only` answer should add a
+cautionary row is decided from those rows, never by this class.
 
 The 2026-09-28 shadow trial that decided this agreed with Haiku on
 95.6% of 1,085 pairs, and the disagreements were almost all Haiku

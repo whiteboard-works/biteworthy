@@ -597,17 +597,14 @@ RSpec.describe GapFillResolveJob, type: :job do
     # A slice merged by an earlier attempt was observed then; a slice whose
     # first attempt failed before the merge is observed when a retry lands
     # it. Neither counts a dish twice, and neither is left unobserved.
-    it "shadows only the slices Haiku answered this attempt" do
+    it "observes a dish once across attempts, by identity, even when Haiku found it no ingredient" do
       allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
       allow(Rails.error).to receive(:report)
-      # A full slice of ten already enriched (skipped by the retry), then
-      # one fresh dish in a second slice.
-      enriched = [ { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" } ]
-      gap_item.update!(ingredients_payload: enriched)
-      Array.new(9) do |i|
-        create(:ingestion_item, ingestion_run: run, position: 2 + i, name: format("Done Dish %02d", i),
-               description: nil, decision: "pending", ingredients_payload: enriched, tags_payload: [])
-      end
+      # The Caesar got nothing from Haiku on the first attempt, so it is
+      # still "not enriched" and goes back whole with a fresh dish; the
+      # first attempt's observation already covered it.
+      JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "answered", agree: true,
+                          details: { attempt: 1, item_ids: [ gap_item.id ], items: 1, agree: 1, jev_only: 0 })
       fresh = create(:ingestion_item, ingestion_run: run, position: 20, name: "Mystery Dish", description: nil,
                      decision: "pending", ingredients_payload: [], tags_payload: [])
       stub_request(:post, jev_url).to_return do |req|
@@ -619,10 +616,11 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       final_attempt(run.id)
 
-      rows = JevObservation.where(kind: "hidden_wheat_shadow", subject: run)
-      expect(rows.count).to eq(1)
-      expect(rows.first.details).to include("items" => 1, "attempt" => ApplicationJob::RETRY_ATTEMPTS)
-      expect(fresh.reload.ingredients_payload).not_to be_empty
+      rows = JevObservation.where(kind: "hidden_wheat_shadow", subject: run).order(:created_at)
+      expect(rows.count).to eq(2)
+      expect(rows.last.details).to include("items" => 1, "attempt" => ApplicationJob::RETRY_ATTEMPTS,
+                                           "item_ids" => [ fresh.id ])
+      expect(rows.last.details["disagreements"].map { |d| d["item"] }).to eq([ "Mystery Dish" ])
     end
 
     it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
