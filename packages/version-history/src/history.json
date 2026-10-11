@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.11.1",
+    "date": "2026-10-11",
+    "notes": [
+      "Behind the scenes, every answer our cuisine model gives is now kept, and a second check has started asking whether a dish is usually made with wheat, so that a crust or batter nobody wrote on the menu can be caught before it reaches someone avoiding gluten. Nothing changes on a menu yet; this is the measuring step."
+    ]
+  },
+  {
     "version": "2026.10.11",
     "date": "2026-10-11",
     "notes": [
