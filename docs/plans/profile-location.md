@@ -115,7 +115,7 @@ is still on the pane branch), mobile `expo-location`, and a production
 count of addresses with coordinates.
 
 - `PageContext` gains `lat`, `lng`, `accuracy_m`; a "Use my location"
-  control in the chat composer (browser Geolocation API, permission
+  control in the chat header (browser Geolocation API, permission
   prompt, remembered per browser in `localStorage`).
 - `SystemPrompt#page_section` says "The caller is at ~lat,lng (±m)".
 - `search_restaurants` accepts `near: {lat, lng}` and `radius_km`,

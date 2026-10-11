@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { uploadAttachment, type Attachment } from '../../lib/chat';
-import type { LocationStatus } from './_useDeviceLocation';
 
 /** A message typed while the assistant was busy. Held here until the
  *  turn it was typed during finishes. */
@@ -25,15 +24,7 @@ interface ComposerProps {
   queued: QueuedMessage[];
   onSend: (text: string, attachments: Attachment[]) => void;
   onCancelQueued: (id: string) => void;
-  /** "Use my location". Omitted, the control is not shown. */
-  location?: { status: LocationStatus; onToggle: () => void };
 }
-
-const LOCATION_NOTE: Partial<Record<LocationStatus, string>> = {
-  locating: 'Finding your location…',
-  denied: 'Location is blocked for this site. Allow it in your browser settings, or name a city.',
-  unavailable: 'Could not get your location. Name a city instead.',
-};
 
 const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf';
 
@@ -42,13 +33,23 @@ export function Composer({
   queued,
   onSend,
   onCancelQueued,
-  location,
 }: ComposerProps): ReactElement {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+
+  // Grows with what is typed, up to max-h-40, then scrolls. A drag handle
+  // was the only way to make it taller before, and iOS Safari has none.
+  useLayoutEffect(() => {
+    const el = textarea.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    // scrollHeight leaves out the border; border-box sizing counts it.
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [text]);
 
   // Deliberately not gated on whether a turn is running. The input used
   // to go dead for the length of a turn — which is a minute or more of a
@@ -145,12 +146,6 @@ export function Composer({
         </p>
       ) : null}
 
-      {location && LOCATION_NOTE[location.status] ? (
-        <p role="status" className="mb-bw-2 text-bw-sm text-zinc-500">
-          {LOCATION_NOTE[location.status]}
-        </p>
-      ) : null}
-
       <div className="flex items-end gap-bw-2">
         <label
           className="cursor-pointer rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-sm text-zinc-600 hover:bg-zinc-50"
@@ -168,28 +163,8 @@ export function Composer({
           />
         </label>
 
-        {location ? (
-          <button
-            type="button"
-            onClick={location.onToggle}
-            aria-pressed={location.status === 'on' || location.status === 'locating'}
-            aria-label="Use my location"
-            title={
-              location.status === 'on'
-                ? 'Sending your approximate location with each message. Tap to stop.'
-                : 'Send your approximate location with each message, for “near me”.'
-            }
-            className={`rounded-bw-md border px-bw-3 py-bw-2 text-bw-sm ${
-              location.status === 'on'
-                ? 'border-bite bg-bite-light text-bite-dark'
-                : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50'
-            }`}
-          >
-            <span aria-hidden="true">📍</span>
-          </button>
-        ) : null}
-
         <textarea
+          ref={textarea}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
@@ -200,7 +175,7 @@ export function Composer({
               ? 'Type the next one — it will send when this finishes…'
               : 'Ask what you can eat, or add a menu…'
           }
-          className="max-h-40 min-h-[42px] flex-1 resize-y rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base focus:border-bite focus:outline-none"
+          className="max-h-40 min-h-[42px] flex-1 resize-none rounded-bw-md border border-zinc-300 px-bw-3 py-bw-2 text-bw-base focus:border-bite focus:outline-none"
         />
 
         <button
