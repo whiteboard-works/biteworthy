@@ -47,6 +47,9 @@ export interface Restaurant {
   website: string | null;
   status: string;
   city: RestaurantCity;
+  /** Owner-set branding (square WebP logo, 8:3 WebP banner); null when none. */
+  logo_url: string | null;
+  banner_url: string | null;
 }
 
 export type ItemStatus = 'visible' | 'hidden';
@@ -263,6 +266,8 @@ export interface RestaurantSummary {
   street: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** Square WebP of the owner-set logo; null when none. */
+  logo_url: string | null;
 }
 
 export async function searchRestaurants(

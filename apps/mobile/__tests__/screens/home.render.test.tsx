@@ -15,6 +15,12 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockSearch = jest.fn();
+// expo-image as a plain string component: targetable by testID without
+// the native image module.
+jest.mock('expo-image', () => ({
+  Image: 'Image',
+}));
+
 jest.mock('../../lib/api/restaurants', () => ({
   ...jest.requireActual('../../lib/api/restaurants'),
   searchRestaurants: (...args: unknown[]) => mockSearch(...args),
@@ -33,6 +39,7 @@ const ninis = {
   street: '119 W College Dr',
   latitude: 37.27,
   longitude: -107.88,
+  logo_url: null,
 };
 
 describe('Home (Phase 7.2)', () => {
@@ -48,6 +55,25 @@ describe('Home (Phase 7.2)', () => {
     await waitFor(() => expect(screen.getByText('Ninis Taqueria')).toBeTruthy());
     expect(mockSearch).toHaveBeenCalledWith('');
     expect(screen.getByText('119 W College Dr · Durango, CO')).toBeTruthy();
+  });
+
+  // A logo is the owner's branding, not a requirement: a row without one
+  // must render no image at all, not an empty slot.
+  it('shows a logo beside the name only when the restaurant has one', async () => {
+    mockSearch.mockResolvedValue([
+      { ...ninis, logo_url: 'https://img.test/ninis.webp' },
+      { ...ninis, id: 'rest-2', slug: 'chimayo', name: 'Chimayo', logo_url: null },
+    ]);
+    render(<Home />);
+
+    await waitFor(() => expect(screen.getByText('Chimayo')).toBeTruthy());
+    // Decorative images sit outside the accessibility tree on purpose,
+    // so the query has to ask for hidden elements.
+    const hidden = { includeHiddenElements: true };
+    expect(screen.getByTestId('restaurant-logo-ninis-1', hidden).props.source).toEqual({
+      uri: 'https://img.test/ninis.webp',
+    });
+    expect(screen.queryByTestId('restaurant-logo-chimayo', hidden)).toBeNull();
   });
 
   it('typing re-searches (debounced) and reports a miss', async () => {

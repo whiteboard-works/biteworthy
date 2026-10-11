@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, fontSize, space } from '@biteworthy/ui-tokens';
+import { Image } from 'expo-image';
+import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
 import {
   applyOverrides,
   filterSourceLabel,
@@ -212,8 +213,33 @@ export default function RestaurantScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {restaurant.banner_url ? (
+        // Decorative, like web's alt="": the headline names the place.
+        <Image
+          source={{ uri: restaurant.banner_url }}
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          testID="restaurant-banner"
+          contentFit="cover"
+          style={styles.banner}
+        />
+      ) : null}
       <Text style={styles.eyebrow}>{restaurant.city.name}, {restaurant.city.region}</Text>
-      <Text style={styles.headline}>{restaurant.name}</Text>
+      <View style={styles.titleRow}>
+        {restaurant.logo_url ? (
+          <Image
+            source={{ uri: restaurant.logo_url }}
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            testID="restaurant-logo"
+            contentFit="cover"
+            style={styles.logo}
+          />
+        ) : null}
+        <Text style={styles.headline}>{restaurant.name}</Text>
+      </View>
       <Text style={styles.summary}>
         {filter.source === 'none' && filter.strictness !== 'strict' ? (
           <>
@@ -478,9 +504,27 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headline: {
+    flex: 1,
     fontSize: fontSize['2xl'],
     fontWeight: '700',
     color: colors.text,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space['3'],
+  },
+  logo: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: colors.bgAlt,
+  },
+  banner: {
+    width: '100%',
+    aspectRatio: 8 / 3,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bgAlt,
   },
   summary: {
     fontSize: fontSize.base,

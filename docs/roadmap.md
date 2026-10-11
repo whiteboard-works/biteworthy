@@ -39,11 +39,12 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 
 - [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
 - [x] Doors: `PATCH /api/v1/restaurants/:id/branding` (multipart) and the MCP `set_restaurant_branding` tool (attachment ids from `POST /attachments`).
-- [x] Chat import: `create_restaurant` takes `logo_attachment_id` / `banner_attachment_id`, and the creator of a draft may brand it until it is published (the scan door's rule), so a restaurant added from chat can be complete without a claim. The web `/restaurants/new` form has no image pickers yet.
+- [x] Chat import: `create_restaurant` takes `logo_attachment_id` / `banner_attachment_id`, and the creator of a draft may brand it until it is published (the scan door's rule), so a restaurant added from chat can be complete without a claim.
+- [x] Web `/restaurants/new` form: optional logo and banner pickers; the images go through the branding door right after the create (the creator may brand their draft), with a scan link offered if that upload fails.
 - [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
 - [x] Shapes the chat knows and can crop to: logo 1:1 up to 400×400, banner 8:3 up to 1600×600. `Images::Fit` crops each upload to its slot (center, an `anchor`, or a fractional box) and never enlarges; `inspect_image` gives the chat an upload's size, and `set_restaurant_branding` / the REST door take `logo_crop` / `banner_crop`.
 - [ ] Web branding editor — crop controls that send `logo_crop` / `banner_crop` (the API takes them; the editor still uploads and lets the server center-crop).
-- [ ] Mobile — render the logo on home rows and the banner on `restaurants/[id]` (`expo-image`); the API already returns both.
+- [x] Mobile — logo on home rows and beside the name on `restaurants/[id]`, banner across the top of that screen (`expo-image`); nothing renders for a restaurant without them.
 
 ## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
 
