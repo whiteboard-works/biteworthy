@@ -119,6 +119,20 @@ RSpec.describe "Reviews API", type: :request do
       expect(item.reload.photo).not_to be_attached
     end
 
+    it "sets an admin's offered review photo as the dish photo straight away" do
+      admin = create(:user, :admin)
+      photo = fixture_file_upload(Rails.root.join("spec/fixtures/files/clean-photo.jpg"), "image/jpeg")
+
+      post "/api/v1/items/#{item.id}/reviews",
+           params: { rating: 4, body: "See pic.", photo: photo,
+                     offer_as_dish_photo: true, owns_rights: true },
+           headers: auth_headers_for(admin)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["photo_offer"]).to include("status" => "approved")
+      expect(item.reload.photo).to be_attached
+    end
+
     it "keeps the review when the dish-photo offer hits the daily limit" do
       DishPhotoSubmission::DAILY_LIMIT_PER_USER.times do
         DishPhotos::Submit.call(

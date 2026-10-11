@@ -22,8 +22,9 @@ module Tools
       description <<~TEXT
         Send the user's photo of a dish to the moderation queue. A moderator
         decides whether it becomes the dish's photo; nothing changes on the
-        menu until then. For the restaurant's verified owner or an admin,
-        `set_item_photo` puts it on the dish directly instead.
+        menu until then (an admin's photo is approved on the spot). For the
+        restaurant's verified owner, `set_item_photo` puts it on the dish
+        directly instead.
 
         Pass the dish's id (from get_menu) and the attachment id from the
         upload. The user must confirm they took the photo themselves;
@@ -69,13 +70,24 @@ module Tools
         ok(
           submission: DishPhotos::Serialize.diner_row(submission, host: context.public_host),
           item:       { id: item.id, name: item.name },
-          note:       "Queued for a moderator. The dish keeps its current photo until one approves it."
+          note:       note_for(submission)
         )
       rescue DishPhotos::Submit::RateLimited => e
         raise Errors::Error.new(e.message, code: e.code)
       rescue Images::StripMetadata::Unprocessable => e
         raise Errors::Error.new(e.message, code: e.code)
       end
+
+      # An admin's submission is approved onto the dish on the spot
+      # (DishPhotos::Submit); everyone else's waits for a moderator.
+      def self.note_for(submission)
+        case submission.status
+        when "approved" then "Approved and now the dish's photo."
+        when "pending"  then "Queued for a moderator. The dish keeps its current photo until one approves it."
+        else "This upload was already submitted for this dish and is #{submission.status}."
+        end
+      end
+      private_class_method :note_for
     end
   end
 end

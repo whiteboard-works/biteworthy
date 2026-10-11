@@ -4182,7 +4182,7 @@ export interface paths {
                             updated_at?: string;
                             photo_offer?: {
                                 /** @enum {string} */
-                                status?: "pending" | "rate_limited" | "failed";
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
                                 code?: string;
                                 message?: string;
                                 /** Format: uuid */
@@ -4276,7 +4276,7 @@ export interface paths {
                             updated_at?: string;
                             photo_offer?: {
                                 /** @enum {string} */
-                                status?: "pending" | "rate_limited" | "failed";
+                                status?: "pending" | "approved" | "rate_limited" | "failed";
                                 code?: string;
                                 message?: string;
                                 /** Format: uuid */
@@ -5483,7 +5483,7 @@ export interface paths {
         head?: never;
         /**
          * Set the restaurant's logo and banner
-         * @description The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
+         * @description The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never enlarged); a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.
          */
         patch: {
             parameters: {
@@ -5512,6 +5512,8 @@ export interface paths {
                         banner?: string;
                         remove_logo?: boolean;
                         remove_banner?: boolean;
+                        logo_crop?: components["schemas"]["BrandingCrop"];
+                        banner_crop?: components["schemas"]["BrandingCrop"];
                     };
                 };
             };
@@ -5541,7 +5543,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description not an image, or too large */
+                /** @description not an image, too large, or a bad crop */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -6405,6 +6407,21 @@ export interface components {
             name: string;
             region: string | null;
             country: string;
+        };
+        BrandingCrop: {
+            /**
+             * @description Edge kept when trimming to the slot's shape. Default center.
+             * @enum {string}
+             */
+            anchor?: "center" | "top" | "bottom" | "left" | "right";
+            /** @description Box left, fraction of width (0–1). */
+            x?: number;
+            /** @description Box top, fraction of height (0–1). */
+            y?: number;
+            /** @description Box width, fraction of width (0–1). */
+            w?: number;
+            /** @description Box height, fraction of height (0–1). */
+            h?: number;
         };
         RestaurantDetail: {
             /** Format: uuid */

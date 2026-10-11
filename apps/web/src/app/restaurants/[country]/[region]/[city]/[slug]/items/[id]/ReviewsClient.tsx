@@ -76,11 +76,12 @@ export function ReviewsClient({
     setTotal((n) => n + 1);
     setComposerOpen(false);
     const offer = saved.photo_offer;
-    if (offer && offer.status !== 'pending') {
+    if (offer && (offer.status === 'rate_limited' || offer.status === 'failed')) {
       setOfferNote(friendlyPhotoError(offer.code, offer.message));
     } else {
       setOfferNote(null);
     }
+    if (offer?.status === 'approved') router.refresh();
   };
 
   return (

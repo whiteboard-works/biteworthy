@@ -386,16 +386,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_160000) do
     t.datetime "created_at", null: false
     t.uuid "created_by_user_id"
     t.text "description"
+    t.uuid "human_verified_by_user_id"
+    t.datetime "human_verified_at"
     t.uuid "ingredient_ids", default: [], null: false, array: true
     t.uuid "menu_section_id"
     t.string "name", null: false
+    t.integer "popularity", default: 0, null: false
     t.integer "position", default: 0, null: false
     t.uuid "restaurant_id", null: false
+    t.uuid "restaurant_verified_by_user_id"
+    t.datetime "restaurant_verified_at"
     t.string "status", default: "draft", null: false
     t.uuid "tag_ids", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.uuid "photo_submission_id"
     t.index ["created_by_user_id"], name: "index_items_on_created_by_user_id"
+    t.index ["human_verified_at"], name: "index_items_on_human_verified_at"
     t.index ["ingredient_ids"], name: "index_items_on_ingredient_ids", using: :gin
     t.index ["menu_section_id", "position"], name: "index_items_on_menu_section_id_and_position"
     t.index ["menu_section_id"], name: "index_items_on_menu_section_id"
@@ -403,6 +409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_160000) do
     t.index ["photo_submission_id"], name: "index_items_on_photo_submission_id"
     t.index ["restaurant_id", "status"], name: "index_items_on_restaurant_id_and_status"
     t.index ["restaurant_id"], name: "index_items_on_restaurant_id"
+    t.index ["restaurant_verified_at"], name: "index_items_on_restaurant_verified_at"
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "items_confidence_valid"
     t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'removed'::character varying::text])", name: "items_status_valid"
@@ -842,6 +849,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_160000) do
   add_foreign_key "items", "menu_sections"
   add_foreign_key "items", "restaurants"
   add_foreign_key "items", "users", column: "created_by_user_id"
+  add_foreign_key "items", "users", column: "human_verified_by_user_id", on_delete: :nullify
+  add_foreign_key "items", "users", column: "restaurant_verified_by_user_id", on_delete: :nullify
   add_foreign_key "mcp_tokens", "users"
   add_foreign_key "menu_sections", "menus"
   add_foreign_key "menus", "restaurants"

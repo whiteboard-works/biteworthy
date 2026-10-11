@@ -34,7 +34,7 @@ export function DishPhotoOffer({
   const [previewOk, setPreviewOk] = useState(true);
   const [ownsRights, setOwnsRights] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<'pending' | 'approved' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function DishPhotoOffer({
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
     setPhoto(e.target.files?.[0] ?? null);
     setOwnsRights(false);
-    setSubmitted(false);
+    setSubmitted(null);
   };
 
   const onAddClick = () => {
@@ -82,8 +82,13 @@ export function DishPhotoOffer({
     }
     try {
       setSubmitting(true);
-      await submitDishPhoto(itemId, photo);
-      setSubmitted(true);
+      const saved = await submitDishPhoto(itemId, photo);
+      if (saved.status === 'approved') {
+        setSubmitted('approved');
+        router.refresh();
+      } else {
+        setSubmitted('pending');
+      }
       setPhoto(null);
       setOwnsRights(false);
     } catch (err) {
@@ -100,7 +105,9 @@ export function DishPhotoOffer({
   if (submitted) {
     return (
       <p className="mt-bw-4 text-bw-sm text-zinc-600" data-testid="photo-thanks">
-        Thanks, a moderator will review it.
+        {submitted === 'approved'
+          ? 'Photo set as the dish photo.'
+          : 'Thanks, a moderator will review it.'}
       </p>
     );
   }

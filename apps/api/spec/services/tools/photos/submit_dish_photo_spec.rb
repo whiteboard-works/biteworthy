@@ -55,6 +55,17 @@ RSpec.describe Tools::Photos::SubmitDishPhoto do
     expect(item.reload.photo).not_to be_attached
   end
 
+  # DishPhotos::Submit approves an admin's photo onto the dish on the
+  # spot, so the reply must not tell them it is waiting on a moderator.
+  it "says an admin's photo is already live" do
+    admin = create(:user, :admin)
+    response = confirmed_call(as: admin, item_id: item.id, attachment_id: upload_for(admin).signed_id)
+
+    expect(payload(response)[:submission][:status]).to eq("approved")
+    expect(payload(response)[:note]).to match(/now the dish's photo/)
+    expect(item.reload.photo).to be_attached
+  end
+
   it "strips GPS from the stored copy" do
     gps = JpegWithGps.tempfile
     confirmed_call(as: diner, item_id: item.id, attachment_id: upload_for(diner, io: gps).signed_id)

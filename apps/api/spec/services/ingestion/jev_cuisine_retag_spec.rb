@@ -84,19 +84,53 @@ RSpec.describe Ingestion::JevCuisineRetag do
     expect(result.unanswered).to eq(0)
   end
 
-  it "reports a regrade of an existing row as a change: below 0.8 lands as inferred" do
+  # Near the 0.8 boundary Jev regraded near-identical dishes in opposite
+  # directions; a slug the re-tag keeps moves grade only when the
+  # probability is clearly across it, and the grade is what the dish
+  # page's provenance marks show.
+  it "keeps a kept slug's grade near the boundary, and moves it only when Jev is clearly across" do
     ItemTag.find_by!(item: tacos, tag: italian).destroy!
     ItemTag.create!(item: tacos, tag: mexican, source: "ai", confidence: "suggested")
+
+    answers["i0__cuisine-mexican"]["noul"] = 0.75
+    stub_jev(answers)
+    result = described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
+    expect(result.changes).to be_empty
+
     answers["i0__cuisine-mexican"]["noul"] = 0.6
     stub_jev(answers)
     result = described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
+    expect(result.changes.map(&:regrade)).to eq([ true ])
+
+    # The boundaries themselves: 0.7 holds, 0.9 promotes.
+    answers["i0__cuisine-mexican"]["noul"] = 0.7
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
+
+    answers["i0__cuisine-mexican"]["noul"] = 0.9
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
+  end
+
+  # A model-written row a person confirmed is theirs, whatever Jev says now.
+  it "leaves a confirmed ai row alone" do
+    ItemTag.find_by!(item: tacos, tag: italian).update!(confidence: "confirmed")
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+
+    expect(cuisine_rows(tacos)).to include([ "cuisine-italian", "ai", "confirmed" ], [ "cuisine-mexican", "ai", "suggested" ])
+  end
+
+  it "grades a new slug from Jev's probability: below 0.8 lands as inferred" do
+    answers["i0__cuisine-mexican"]["noul"] = 0.6
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
 
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
-    expect(result.changes.map { |c| [ c.regrade, c.before, c.after ] }).to eq([ [
-      true,
-      [ { slug: "cuisine-mexican", confidence: "suggested" } ],
-      [ { slug: "cuisine-mexican", confidence: "inferred" } ]
-    ] ])
   end
 
   it "does not write to a dish whose rows already match, so its updated_at stays put" do

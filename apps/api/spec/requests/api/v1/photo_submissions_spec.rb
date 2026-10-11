@@ -31,6 +31,16 @@ RSpec.describe "Dish photo submissions API", type: :request do
       expect(item.reload.photo).not_to be_attached
     end
 
+    it "approves an admin's upload as the dish photo without a moderation round-trip" do
+      post "/api/v1/items/#{item.id}/photo_submissions",
+           params: { photo: jpeg_upload, owns_rights: true },
+           headers: auth_headers_for(create(:user, :admin))
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["status"]).to eq("approved")
+      expect(item.reload.photo).to be_attached
+    end
+
     it "422s a garbage owns_rights value instead of treating it as true" do
       post "/api/v1/items/#{item.id}/photo_submissions",
            params: { photo: jpeg_upload, owns_rights: "banana" },
