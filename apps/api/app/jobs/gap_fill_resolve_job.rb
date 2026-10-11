@@ -124,7 +124,12 @@ class GapFillResolveJob < ApplicationJob
       # still gets its observation when a retry lands it. A shadow that
       # fails writes a failed observation and nothing else, and is not
       # asked again this attempt so an outage costs one timeout.
-      if wheat_shadow && result
+      # Whether a dish needs observing is answered by the persisted ids
+      # alone, not by whether Haiku ran this attempt: a worker interrupted
+      # between the merge's commit and the shadow call leaves a slice
+      # fully enriched and wholly unobserved, and the retry must still
+      # observe it from the rows the merge already landed.
+      if wheat_shadow
         fresh = slice.each_index.reject { |i| observed.include?(slice[i][:item_id]) }
         unless fresh.empty?
           rows   = fresh.map { |i| prompt_rows[i] }
@@ -215,14 +220,19 @@ class GapFillResolveJob < ApplicationJob
       rows = gaps.each_with_index.filter_map do |gap, index|
         item     = locked[gap[:item_id]]
         response = response_by_index[index]
-        next if item.nil? || (response.nil? && cuisine.nil?)
+        next if item.nil?
 
         merged = if response
           merge_ingredients(item, response.dig("ingredients", "resolved"), ingredient_paths)
         else
           Array(item.ingredients_payload)
         end
+        # Reported for every locked dish, written or not: the wheat shadow
+        # compares against what the dish carries, and a dish with nothing
+        # new this attempt still has rows to compare.
         merged_by_index[index] = merged
+        next if response.nil? && cuisine.nil?
+
         # ingestion_run_id: Postgres checks NOT NULL on the insert tuple
         # before ON CONFLICT resolves. unresolved_tags is not written:
         # it was Haiku's list of cuisine-ish phrases, and Jev answers
