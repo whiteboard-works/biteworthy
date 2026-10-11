@@ -16,7 +16,7 @@ RSpec.describe Tools::Items::VerifyItemByHuman, type: :tool do
     it "marks an item as human verified" do
       response = call(item_id: item.id)
 
-      expect(response.to_h[:error]).to be_nil
+      expect(response.to_h[:isError]).to be false
       expect(item.reload.human_verified?).to be true
       expect(item.human_verified_by_user).to eq(user)
     end
@@ -32,7 +32,7 @@ RSpec.describe Tools::Items::VerifyItemByHuman, type: :tool do
     it "returns not found for nonexistent item" do
       response = call(item_id: SecureRandom.uuid)
 
-      expect(response.to_h[:error]).to be true
+      expect(response.to_h[:isError]).to be true
       expect(payload(response)[:error]).to eq("not_found")
     end
 

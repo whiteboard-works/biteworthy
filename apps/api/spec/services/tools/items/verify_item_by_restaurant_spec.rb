@@ -21,14 +21,14 @@ RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
       user = create(:user)
       response = call_as(user, item_id: item.id)
 
-      expect(response.to_h[:error]).to be true
+      expect(response.to_h[:isError]).to be true
       expect(payload(response)[:error]).to eq("forbidden")
     end
 
     it "marks an item as restaurant verified" do
       response = call(item_id: item.id)
 
-      expect(response.to_h[:error]).to be_nil
+      expect(response.to_h[:isError]).to be false
       expect(item.reload.restaurant_verified?).to be true
       expect(item.restaurant_verified_by_user).to eq(admin)
     end
@@ -51,7 +51,7 @@ RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
     it "returns not found for nonexistent item" do
       response = call(item_id: SecureRandom.uuid)
 
-      expect(response.to_h[:error]).to be true
+      expect(response.to_h[:isError]).to be true
       expect(payload(response)[:error]).to eq("not_found")
     end
 
