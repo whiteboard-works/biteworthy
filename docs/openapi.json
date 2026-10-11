@@ -664,6 +664,12 @@
                       "format": "date-time",
                       "nullable": true
                     },
+                    "items_by_confidence": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    },
                     "logo_url": {
                       "type": "string",
                       "nullable": true
@@ -671,12 +677,6 @@
                     "banner_url": {
                       "type": "string",
                       "nullable": true
-                    },
-                    "items_by_confidence": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "integer"
-                      }
                     }
                   }
                 }
@@ -791,14 +791,6 @@
                     "claimed_at": {
                       "type": "string",
                       "format": "date-time",
-                      "nullable": true
-                    },
-                    "logo_url": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "banner_url": {
-                      "type": "string",
                       "nullable": true
                     },
                     "items_by_confidence": {
@@ -2226,14 +2218,6 @@
                           "claimed_at": {
                             "type": "string",
                             "format": "date-time",
-                            "nullable": true
-                          },
-                          "logo_url": {
-                            "type": "string",
-                            "nullable": true
-                          },
-                          "banner_url": {
-                            "type": "string",
                             "nullable": true
                           },
                           "items_by_confidence": {

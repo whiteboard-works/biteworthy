@@ -26,8 +26,6 @@ def admin_restaurant_row_schema
       website:    { type: :string, nullable: true },
       phone:      { type: :string, nullable: true },
       claimed_at: { type: :string, format: "date-time", nullable: true },
-      logo_url:   { type: :string, nullable: true },
-      banner_url: { type: :string, nullable: true },
       items_by_confidence: { type: :object, additionalProperties: { type: :integer } }
     }
   }
@@ -185,7 +183,14 @@ RSpec.describe "admin/management", type: :request do
       parameter name: :Authorization, in: :header, type: :string, required: true
 
       response(200, "the restaurant") do
-        schema admin_restaurant_row_schema
+        # The branding URLs ride on the detail only; list rows and the
+        # PATCH answer do not carry them.
+        schema admin_restaurant_row_schema.deep_merge(
+          properties: {
+            logo_url:   { type: :string, nullable: true },
+            banner_url: { type: :string, nullable: true }
+          }
+        )
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id) { create(:restaurant, :published).id }
         run_test!

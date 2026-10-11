@@ -62,8 +62,8 @@ module Tools
 
         ok(
           restaurant: { id: record.id, slug: record.slug, name: record.name },
-          logo_url:   url_for(context, record.logo, :thumb),
-          banner_url: url_for(context, record.banner, :card)
+          logo_url:   ::Restaurants::Branding.variant_url(record.logo, :thumb, host: context.public_host),
+          banner_url: ::Restaurants::Branding.variant_url(record.banner, :card, host: context.public_host)
         )
       rescue ::Restaurants::Branding::Forbidden => e
         raise Errors::Forbidden, e.message
@@ -71,28 +71,10 @@ module Tools
         raise Errors::InvalidArgument, e.message
       end
 
-      # Same ownership check as the review photo: the blob must have been
-      # uploaded by this caller, so one account cannot brand with another's
-      # upload by guessing an id.
       def self.blob_for(signed_id, user)
-        return nil if signed_id.blank?
-
-        blob = ActiveStorage::Blob.find_signed(signed_id)
-        unless blob && blob.metadata["uploaded_by_user_id"].to_s == user.id.to_s
-          raise Errors::InvalidArgument, "Attachment not found."
-        end
-        blob
+        signed_id.blank? ? nil : owned_upload!(signed_id, user)
       end
       private_class_method :blob_for
-
-      def self.url_for(context, attachment, variant)
-        return nil unless attachment.attached?
-
-        Rails.application.routes.url_helpers.rails_representation_url(
-          attachment.variant(variant), host: context.public_host
-        )
-      end
-      private_class_method :url_for
     end
   end
 end

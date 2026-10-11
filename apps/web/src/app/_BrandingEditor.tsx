@@ -1,9 +1,28 @@
 'use client';
 
-import { useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type { Restaurant } from '../lib/restaurants';
 import { MAX_UPLOAD_BYTES, shrinkForUpload, tooLargeToUpload } from '../lib/shrink-image';
 
-const TOO_LARGE = `That image is too large to upload (${MAX_UPLOAD_BYTES / (1024 * 1024)} MB max).`;
+const MAX_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
+const TOO_LARGE = `That image is still over ${MAX_MB} MB after resizing. Try a smaller one.`;
+// Both images ride one request through the web server's body cap, so
+// two files that each pass the per-file check can fail together.
+const TOO_LARGE_TOGETHER = `Together these are over ${MAX_MB} MB. Save the logo and banner one at a time.`;
+
+/**
+ * Whether the signed-in viewer may edit this restaurant's branding from
+ * its page: only its verified owner. Admins use /admin instead. The API
+ * enforces the same rule; this only decides whether the editor renders,
+ * so an unclaimed restaurant (null owner) must never match an anonymous
+ * viewer (null id).
+ */
+export function canEditBranding(
+  viewerId: string | null,
+  restaurant: Pick<Restaurant, 'claimed_by_user_id'>,
+): boolean {
+  return viewerId !== null && viewerId === restaurant.claimed_by_user_id;
+}
 
 /**
  * Logo + banner uploader for a restaurant. Rendered on the public
@@ -83,22 +102,38 @@ export function BrandingEditor({
   const [error, setError] = useState<string | null>(null);
   const inputs = { logo: useRef<HTMLInputElement>(null), banner: useRef<HTMLInputElement>(null) };
 
+  // Preview URLs hold the shrunk bytes until revoked; drop the old one
+  // whenever a slot changes and all of them on unmount.
+  const previews = useRef<Record<Slot, string | null>>({ logo: null, banner: null });
+  const setPreview = (slot: Slot, url: string | null) => {
+    const old = previews.current[slot];
+    if (old) URL.revokeObjectURL(old);
+    previews.current[slot] = url;
+  };
+  useEffect(() => () => (['logo', 'banner'] as const).forEach((s) => setPreview(s, null)), []);
+
+  const clearInputs = () =>
+    (['logo', 'banner'] as const).forEach((s) => {
+      const input = inputs[s].current;
+      if (input) input.value = '';
+    });
+
   const pick = async (slot: Slot, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-    if (tooLargeToUpload(file)) {
-      setError(TOO_LARGE);
-      e.target.value = '';
-      return;
-    }
     setProcessing(slot);
     try {
+      // Shrink first: a 6 MB phone photo comes out well under the cap.
       const shrunk = await shrinkForUpload(file);
-      setDrafts((d) => ({
-        ...d,
-        [slot]: { file: shrunk, previewUrl: URL.createObjectURL(shrunk), remove: false },
-      }));
+      if (tooLargeToUpload(shrunk)) {
+        setError(TOO_LARGE);
+        e.target.value = '';
+        return;
+      }
+      const previewUrl = URL.createObjectURL(shrunk);
+      setPreview(slot, previewUrl);
+      setDrafts((d) => ({ ...d, [slot]: { file: shrunk, previewUrl, remove: false } }));
     } catch {
       setError('That image could not be processed. Try a different file.');
       e.target.value = '';
@@ -108,12 +143,21 @@ export function BrandingEditor({
   };
 
   const remove = (slot: Slot) => {
+    setPreview(slot, null);
     setDrafts((d) => ({ ...d, [slot]: { file: null, previewUrl: null, remove: true } }));
     const input = inputs[slot].current;
     if (input) input.value = '';
   };
 
   const save = async () => {
+    const total = (['logo', 'banner'] as const).reduce(
+      (sum, s) => sum + (drafts[s].file?.size ?? 0),
+      0,
+    );
+    if (total > MAX_UPLOAD_BYTES) {
+      setError(TOO_LARGE_TOGETHER);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -129,7 +173,9 @@ export function BrandingEditor({
       }
       const saved = (await res.json()) as BrandingUrls;
       onSaved({ logo_url: saved.logo_url ?? null, banner_url: saved.banner_url ?? null });
+      (['logo', 'banner'] as const).forEach((s) => setPreview(s, null));
       setDrafts({ logo: emptyDraft(), banner: emptyDraft() });
+      clearInputs();
     } catch {
       setError('Could not reach the server. Check your connection and try again.');
     } finally {
@@ -143,6 +189,11 @@ export function BrandingEditor({
     if (draft.remove) return null;
     return current[`${slot}_url`];
   };
+  // A browser that cannot decode HEIC gets the original back from the
+  // shrink step; its <img> would be a broken glyph, so say what was
+  // picked instead. The API converts it on upload either way.
+  const undecodable = (slot: Slot): boolean =>
+    /image\/hei[cf]/i.test(drafts[slot].file?.type ?? '');
 
   return (
     <div className="space-y-bw-4 text-bw-sm" data-testid="branding-editor">
@@ -155,12 +206,22 @@ export function BrandingEditor({
             <p className="text-bw-xs text-zinc-500">{SLOT_COPY[slot].hint}</p>
             {url ? (
               <div className="mt-bw-2 flex items-start gap-bw-3">
-                <img
-                  src={url}
-                  alt={`${SLOT_COPY[slot].label} preview`}
-                  className={SLOT_COPY[slot].previewClass}
-                  data-testid={`branding-${slot}-preview`}
-                />
+                {undecodable(slot) ? (
+                  <p
+                    className="rounded-bw-md bg-zinc-100 px-bw-3 py-bw-2 text-bw-xs text-zinc-600"
+                    data-testid={`branding-${slot}-preview`}
+                  >
+                    {drafts[slot].file?.name} selected (no preview for HEIC here; it is converted on
+                    save)
+                  </p>
+                ) : (
+                  <img
+                    src={url}
+                    alt={`${SLOT_COPY[slot].label} preview`}
+                    className={SLOT_COPY[slot].previewClass}
+                    data-testid={`branding-${slot}-preview`}
+                  />
+                )}
                 <div className="flex flex-col gap-bw-1">
                   <button
                     type="button"

@@ -17,7 +17,7 @@ import {
   type RestaurantItem,
   type RestaurantItemsResponse,
 } from '../../../../../../lib/restaurants';
-import { BrandingEditor, type BrandingUrls } from '../../../../../_BrandingEditor';
+import { BrandingEditor, canEditBranding, type BrandingUrls } from '../../../../../_BrandingEditor';
 import { ClaimSection } from './ClaimSection';
 import { FilterControls, ShareTokenNotice } from './FilterControls';
 import { PageHeader } from './PageHeader';
@@ -89,7 +89,7 @@ export function RestaurantClient({
     logo_url: restaurant.logo_url,
     banner_url: restaurant.banner_url,
   });
-  const isOwner = viewerId !== null && viewerId === restaurant.claimed_by_user_id;
+  const isOwner = canEditBranding(viewerId, restaurant);
   const [filter, setFilter] = useState<FilterSummary>(initialItems.filter);
   // Phase 8.3 — the raw (server-sorted) items feed the Top Picks row;
   // the section state below still drives the main menu + overrides.

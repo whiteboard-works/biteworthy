@@ -78,10 +78,7 @@ module Api
       # / banner), or nil when nothing is attached. The variant is what
       # gets served; the original upload never is.
       def representation_url_for(attachment, variant)
-        return nil unless attachment.attached?
-        Rails.application.routes.url_helpers.rails_representation_url(
-          attachment.variant(variant), host: public_host
-        )
+        ::Restaurants::Branding.variant_url(attachment, variant, host: public_host)
       end
     end
   end

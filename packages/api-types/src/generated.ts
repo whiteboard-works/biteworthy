@@ -315,11 +315,11 @@ export interface paths {
                             phone?: string | null;
                             /** Format: date-time */
                             claimed_at?: string | null;
-                            logo_url?: string | null;
-                            banner_url?: string | null;
                             items_by_confidence?: {
                                 [key: string]: number;
                             };
+                            logo_url?: string | null;
+                            banner_url?: string | null;
                         };
                     };
                 };
@@ -435,8 +435,6 @@ export interface paths {
                             phone?: string | null;
                             /** Format: date-time */
                             claimed_at?: string | null;
-                            logo_url?: string | null;
-                            banner_url?: string | null;
                             items_by_confidence?: {
                                 [key: string]: number;
                             };
@@ -1229,8 +1227,6 @@ export interface paths {
                                 phone?: string | null;
                                 /** Format: date-time */
                                 claimed_at?: string | null;
-                                logo_url?: string | null;
-                                banner_url?: string | null;
                                 items_by_confidence?: {
                                     [key: string]: number;
                                 };

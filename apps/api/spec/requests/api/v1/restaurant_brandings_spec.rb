@@ -100,6 +100,15 @@ RSpec.describe "PATCH /api/v1/restaurants/:id/branding", type: :request do
     expect(restaurant.banner).to be_attached
   end
 
+  it "lets the remove flag win over an upload in the same request" do
+    patch_branding(as: owner, params: { logo: logo_file })
+
+    patch_branding(as: owner, params: { logo: logo_file, remove_logo: "true" })
+
+    expect(response).to have_http_status(:ok)
+    expect(restaurant.reload.logo).not_to be_attached
+  end
+
   it "shows the logo on the public detail and list rows" do
     patch_branding(as: owner, params: { logo: logo_file, banner: logo_file })
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { BrandingEditor } from '../_BrandingEditor';
+import { BrandingEditor, canEditBranding } from '../_BrandingEditor';
 
 /**
  * The editor's contract with the API: only changed slots go in the
@@ -22,19 +22,30 @@ function okResponse(body: unknown): Response {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:preview' });
+  vi.stubGlobal('URL', {
+    ...URL,
+    createObjectURL: () => 'blob:preview',
+    revokeObjectURL: () => {},
+  });
+});
+
+describe('canEditBranding', () => {
+  it('matches only the verified owner, never an anonymous viewer of an unclaimed restaurant', () => {
+    expect(canEditBranding('u-1', { claimed_by_user_id: 'u-1' })).toBe(true);
+    expect(canEditBranding('u-2', { claimed_by_user_id: 'u-1' })).toBe(false);
+    expect(canEditBranding(null, { claimed_by_user_id: null })).toBe(false);
+    expect(canEditBranding('u-1', { claimed_by_user_id: null })).toBe(false);
+  });
 });
 
 describe('BrandingEditor', () => {
   it('sends only the picked banner, leaving the existing logo alone', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        okResponse({
-          logo_url: 'https://img.test/logo.webp',
-          banner_url: 'https://img.test/b.webp',
-        }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      okResponse({
+        logo_url: 'https://img.test/logo.webp',
+        banner_url: 'https://img.test/b.webp',
+      }),
+    );
     const onSaved = vi.fn();
     render(
       <BrandingEditor
@@ -84,6 +95,50 @@ describe('BrandingEditor', () => {
     const [, init] = fetchImpl.mock.calls[0] as [string, { body: FormData }];
     expect(init.body.get('remove_logo')).toBe('true');
     expect(init.body.has('logo')).toBe(false);
+  });
+
+  it('refuses to send both images in one request when together they exceed the body cap', async () => {
+    const fetchImpl = vi.fn();
+    render(
+      <BrandingEditor
+        endpoint="/api/restaurants/ninis/branding"
+        current={current}
+        onSaved={vi.fn()}
+        fetchImpl={fetchImpl}
+      />,
+    );
+    const big = (name: string) =>
+      new File([new Uint8Array(3 * 1024 * 1024)], name, { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('branding-logo-input'), {
+      target: { files: [big('l.jpg')] },
+    });
+    fireEvent.change(screen.getByTestId('branding-banner-input'), {
+      target: { files: [big('b.jpg')] },
+    });
+    await waitFor(() => expect(screen.getByTestId('branding-banner-preview')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('branding-save'));
+
+    expect(screen.getByTestId('branding-error')).toHaveTextContent('one at a time');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('shows the file name instead of a broken image for a HEIC the browser could not decode', async () => {
+    render(
+      <BrandingEditor
+        endpoint="/api/restaurants/ninis/branding"
+        current={current}
+        onSaved={vi.fn()}
+        fetchImpl={vi.fn()}
+      />,
+    );
+    const heic = new File(['x'], 'IMG_0001.HEIC', { type: 'image/heic' });
+    fireEvent.change(screen.getByTestId('branding-banner-input'), { target: { files: [heic] } });
+    await waitFor(() => expect(screen.getByTestId('branding-banner-preview')).toBeInTheDocument());
+
+    const preview = screen.getByTestId('branding-banner-preview');
+    expect(preview.tagName).toBe('P');
+    expect(preview).toHaveTextContent('IMG_0001.HEIC');
   });
 
   it('explains a 403 as an ownership problem', async () => {
