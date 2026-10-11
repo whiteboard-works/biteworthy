@@ -34,7 +34,10 @@ RSpec.describe Ingestion::JevCuisineRetag do
   end
 
   let(:answers) do
-    { "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
+    { "i0__any"             => { "type" => "noul", "noul" => 0.99 },
+      "i1__any"             => { "type" => "noul", "noul" => 0.99 },
+      "i2__any"             => { "type" => "noul", "noul" => 0.99 },
+      "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
       "i0__cuisine-italian" => { "type" => "noul", "noul" => 0.04 },
       "i1__cuisine-mexican" => { "type" => "noul", "noul" => 0.30 },
       "i1__cuisine-italian" => { "type" => "noul", "noul" => 0.02 },
@@ -76,6 +79,7 @@ RSpec.describe Ingestion::JevCuisineRetag do
         [ { slug: "cuisine-italian", confidence: "suggested" } ],
         [ { slug: "cuisine-mexican", confidence: "suggested" } ] ]
     ])
+    expect(result.changes.map(&:regrade)).to eq([ false ])
     expect(result.unchanged).to eq(2)
     expect(result.unanswered).to eq(0)
   end
@@ -88,8 +92,9 @@ RSpec.describe Ingestion::JevCuisineRetag do
     result = described_class.new(restaurant, tagger: tagger).call
 
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
-    expect(result.changes.map { |c| [ c.before, c.after ] }).to eq([ [
-      [ { slug: "cuisine-mexican", confidence: "suggested" }, { slug: "flavor-spicy", confidence: "confirmed" } ].select { |r| r[:slug].start_with?("cuisine") },
+    expect(result.changes.map { |c| [ c.regrade, c.before, c.after ] }).to eq([ [
+      true,
+      [ { slug: "cuisine-mexican", confidence: "suggested" } ],
       [ { slug: "cuisine-mexican", confidence: "inferred" } ]
     ] ])
   end

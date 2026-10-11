@@ -35,6 +35,14 @@ module Ingestion
     # sides of it; tune it from the `[jev_cuisine]` lines, not by feel.
     THRESHOLD = 0.5
 
+    # The gate exists to catch the obvious — a soda, raw onions, a branded
+    # ice cream bar — so it only blocks an item Jev is fairly sure has no
+    # cuisine. A borderline one (a naan sold on its own, a house drink)
+    # falls through to the per-cuisine questions, whose own criteria say
+    # "not merely the menu around it"; a wrong gate "no" would otherwise
+    # erase a dish's only cuisine row on a re-tag.
+    GATE_THRESHOLD = 0.25
+
     # A 200 whose `answers` map lacks a pair, or carries something that
     # is not a probability. Reported (never raised) so a shape change on
     # TypeSafe's side shows up as an error, not as a run of dishes with
@@ -51,25 +59,45 @@ module Ingestion
     # IngestionRun in gap-fill, the Restaurant in a re-tag. `prompt_rows`
     # are `{ name:, description:, section: }` hashes. Returns
     # `{ index => [{ "slug" => …, "confidence" => … }] }` with an entry for
-    # every index (nil for an item Jev did not fully answer), or nil when
-    # Jev could not answer at all.
-    def call(subject, prompt_rows)
+    # every index ([] for an item that belongs to no cuisine, nil for one
+    # Jev did not fully answer), or nil when Jev could not answer at all.
+    # `context` rides into the observation's details so a dry run or a
+    # retry can be told from a first real call: `{ dry_run: true }`,
+    # `{ attempt: 2 }`.
+    def call(subject, prompt_rows, context: {})
       tags = cuisine_tags
       return {} if tags.empty? || prompt_rows.empty?
 
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      noted   = false
       answers = @client.system_one(state: state(prompt_rows), questions: questions(prompt_rows, tags))
-      latency = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+      latency = elapsed_ms(started)
 
-      rows    = prompt_rows.each_index.to_h { |i| [ i, [] ] }
-      missing = 0
+      rows       = prompt_rows.each_index.to_h { |i| [ i, [] ] }
+      missing    = 0
+      no_cuisine = 0
       prompt_rows.each_index do |i|
+        # The gate first: an item that belongs to no cuisine (a soda, raw
+        # onions, a branded ice cream bar) gets an empty row set and its
+        # per-cuisine answers are not read, so the restaurant around it
+        # cannot stamp its identity on it.
+        gate = probability(answers, key(i, GATE))
+        if gate.nil?
+          missing += 1
+          rows[i] = nil
+          next
+        end
+        if gate < GATE_THRESHOLD
+          no_cuisine += 1
+          next
+        end
+
         tags.each do |tag|
-          noul = answers.dig(key(i, tag[:slug]), "noul")
+          noul = probability(answers, key(i, tag[:slug]))
           # An absent or malformed answer is not a "no": the item's rows
           # become nil, which the merge reads as "keep what Jev said last
           # time", and the count makes a half-answered slice visible.
-          unless noul.is_a?(Numeric) && noul.between?(0, 1)
+          if noul.nil?
             missing += 1
             rows[i] = nil
             next
@@ -79,33 +107,52 @@ module Ingestion
         end
       end
 
-      Rails.logger.info("[jev_cuisine] " + {
-        **ids(subject),
-        model:        @client.last_model,
-        latency_ms:   latency,
-        input_tokens: @client.last_usage&.dig("input_tokens"),
-        items:        prompt_rows.size,
-        tagged:       rows.values.sum { |r| r&.size.to_i },
-        missing:      missing
-      }.to_json)
+      stats = { items: prompt_rows.size, tagged: rows.values.sum { |r| r&.size.to_i },
+                no_cuisine: no_cuisine, missing: missing }
+      Rails.logger.info("[jev_cuisine] " + { **ids(subject), model: @client.last_model, latency_ms: latency,
+                                             input_tokens: @client.last_usage&.dig("input_tokens"), **stats }.to_json)
       if missing.positive?
         Rails.error.report(
-          PartialAnswers.new("#{missing} of #{prompt_rows.size * tags.size} answers missing or malformed"),
+          PartialAnswers.new("#{missing} of #{prompt_rows.size * (tags.size + 1)} answers missing or malformed"),
           handled: true, context: { **ids(subject), model: @client.last_model }
         )
       end
+      # Last, so a report that raises cannot leave this call with two rows.
+      noted = true
+      note(subject, latency, missing.positive? ? "partial" : "answered", { **context, **stats })
       rows
     rescue StandardError => e
       Rails.logger.warn(
         "[jev_cuisine] #{label(subject)} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
       )
       Rails.error.report(e, handled: true, context: ids(subject))
+      # The call may still have been billed, so the row keeps what the
+      # client knows; only the class and an HTTP status are stored, never
+      # a response body, which could carry menu text.
+      unless noted
+        note(subject, started && elapsed_ms(started), "failed",
+             { **context, items: Array(prompt_rows).size, error: e.class.name,
+               status: (e.respond_to?(:status) ? e.status : nil) }.compact)
+      end
       nil
     end
 
     private
 
     def label(subject) = "#{subject.class.name}##{subject&.id}"
+
+    # The polymorphic subject for the observation row; anything that is
+    # not a record (a test double, nil) is simply not attached.
+    def observed(subject) = subject.is_a?(ActiveRecord::Base) ? subject : nil
+
+    def elapsed_ms(started) = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+
+    def note(subject, latency, outcome, details)
+      JevObservation.note(
+        kind: "cuisine", subject: observed(subject), model: @client.last_model, latency_ms: latency,
+        input_tokens: @client.last_usage&.dig("input_tokens"), outcome: outcome, details: details
+      )
+    end
 
     # `run_id` stays for an IngestionRun so nothing reading the gap-fill
     # lines changes; `subject` names whatever the dishes belong to.
@@ -127,17 +174,56 @@ module Ingestion
       { items: prompt_rows.map { |r| r.slice(:name, :description, :section).compact } }
     end
 
+    GATE = "any"
+
+    # What the per-cuisine question means by "American". Generic
+    # restaurant plates (a ribeye, a cedar-plank salmon, a composed salad)
+    # sat at 0.3 to 0.5 without it, and lost their only tag.
+    NOTES = {
+      "american" => "Contemporary and New American restaurant fare counts: steaks, chops, burgers, " \
+                    "roasted vegetables, composed salads, farm-to-table plates, diner breakfasts."
+    }.freeze
+
+    # One gate per item plus one Noul per (item, cuisine). The criteria
+    # are what keep a restaurant's identity off its drinks and condiments:
+    # the state is the whole slice, and without them nineteen barbecue
+    # plates made "ONIONS" read as Southern.
     def questions(prompt_rows, tags)
       prompt_rows.each_index.each_with_object({}) do |i, h|
+        h[key(i, GATE)] = {
+          type:         "noul",
+          instructions: "Does `items[#{i}]` belong to any culinary tradition at all?",
+          criteria:     {
+            true:  { what:     "A prepared dish, drink, baked good or side whose recipe comes from some " \
+                               "cuisine, however small",
+                     examples: [ "naan", "kimchi", "hummus", "grits", "tzatziki", "cornbread", "chai" ] },
+            false: { what:     "A plain beverage, a single raw ingredient, a generic condiment or topping " \
+                               "with no recipe of its own, or a packaged brand item, whatever the restaurant " \
+                               "around it serves",
+                     examples: [ "hot tea", "milk", "soda", "orange juice", "a bottled beer", "raw onions",
+                                 "sliced jalapeños", "sour cream", "a sliced tomato", "a branded ice cream bar" ] }
+          }
+        }
         tags.each do |tag|
           h[key(i, tag[:slug])] = {
             type:         "noul",
-            instructions: "Is the dish `items[#{i}]` #{tag[:name]} cuisine?"
+            instructions: "Is `items[#{i}]` #{tag[:name]} cuisine?",
+            criteria:     {
+              true:  { what:    "The item's own recipe and tradition are #{tag[:name]}: its ingredients, " \
+                                "technique and name belong to that cuisine. #{NOTES[tag[:slug]]}".strip,
+                       not_for: "An item merely sold at a #{tag[:name]} restaurant or listed beside #{tag[:name]} dishes" },
+              false: { what: "The item belongs to another cuisine or to none; only the menu around it is #{tag[:name]}" }
+            }
           }
         end
       end
     end
 
     def key(index, slug) = "i#{index}__#{slug}"
+
+    def probability(answers, key)
+      noul = answers.dig(key, "noul")
+      noul if noul.is_a?(Numeric) && noul.between?(0, 1)
+    end
   end
 end

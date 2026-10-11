@@ -18,6 +18,7 @@ class Review < ApplicationRecord
   belongs_to :item
 
   has_one_attached :photo
+  validates_image_attachments :photo
   has_many :dish_photo_submissions, dependent: :nullify
 
   validates :rating,        presence: true, inclusion: { in: 1..5 }

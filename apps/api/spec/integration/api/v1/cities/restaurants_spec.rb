@@ -41,12 +41,13 @@ RSpec.describe "cities/restaurants", type: :request do
                    type: :array,
                    items: {
                      type: :object,
-                     required: %w[id slug name web_path visible_count hidden_count total_count],
+                     required: %w[id slug name web_path logo_url visible_count hidden_count total_count],
                      properties: {
                        id:            { type: :string, format: :uuid },
                        slug:          { type: :string },
                        name:          { type: :string },
                        web_path:      { type: :string },
+                       logo_url:      { type: :string, nullable: true },
                        visible_count: { type: :integer },
                        hidden_count:  { type: :integer },
                        total_count:   { type: :integer }

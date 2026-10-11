@@ -68,6 +68,7 @@ class Item < ApplicationRecord
     attachable.variant :card, resize_to_limit: [ 600, 600 ], format: :webp
     attachable.variant :full, resize_to_limit: [ 1600, 1600 ], format: :webp
   end
+  validates_image_attachments :photo
 
   validates :name, presence: true
   validates :status,     inclusion: { in: STATUSES }

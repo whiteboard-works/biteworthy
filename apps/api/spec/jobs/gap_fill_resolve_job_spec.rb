@@ -469,7 +469,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
       jev = stub_request(:post, jev_url).to_return(
         status: 200,
-        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.93 } },
+        body: { model: "jev-1.13.0", answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__italian" => { "type" => "noul", "noul" => 0.93 } },
                 usage: { input_tokens: 300 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
@@ -523,7 +523,7 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
       jev = stub_request(:post, jev_url).to_return(
         status: 200,
-        body: { model: "jev-1.13.0", answers: { "i0__italian" => { "type" => "noul", "noul" => 0.88 } } }.to_json,
+        body: { model: "jev-1.13.0", answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__italian" => { "type" => "noul", "noul" => 0.88 } } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
 
@@ -550,6 +550,140 @@ RSpec.describe GapFillResolveJob, type: :job do
 
       # 11 gap items make two Haiku slices; only the first reached Jev.
       expect(jev).to have_been_made.once
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+  end
+
+  describe "the hidden-wheat shadow" do
+    let(:jev_url) { "https://api.typesafe.ai/v1/systemone" }
+
+    before do
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(response)
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.logger).to receive(:warn)
+      allow(Rails.logger).to receive(:info)
+    end
+
+    it "is off unless JEV_WHEAT_SHADOW is set, even with a key" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return(nil)
+      jev = stub_request(:post, jev_url).to_return(status: 200, body: { model: "jev-1.13.0", answers: {} }.to_json,
+                                                    headers: { "Content-Type" => "application/json" })
+
+      described_class.perform_now(run.id)
+
+      expect(jev.with { |req| JSON.parse(req.body)["questions"].keys.any? { |k| k.end_with?("__wheat") } })
+        .not_to have_been_made
+      expect(JevObservation.where(kind: "hidden_wheat_shadow")).not_to exist
+    end
+
+    it "stops asking for the rest of the attempt after one failed shadow call" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      Array.new(10) do |i|
+        create(:ingestion_item, ingestion_run: run, position: 2 + i, name: format("Mystery Dish %02d", i),
+               description: nil, decision: "pending", ingredients_payload: [], tags_payload: [])
+      end
+      jev = stub_request(:post, jev_url).to_return(status: 401, body: "{}")
+
+      described_class.perform_now(run.id)
+
+      # Two slices: cuisine asks once (then switches off), the shadow asks once (then switches off).
+      expect(jev).to have_been_made.twice
+      expect(JevObservation.where(kind: "hidden_wheat_shadow").count).to eq(1)
+      expect(run.reload.enrichment_status).to eq("completed")
+    end
+
+    # A slice merged by an earlier attempt was observed then; a slice whose
+    # first attempt failed before the merge is observed when a retry lands
+    # it. Neither counts a dish twice, and neither is left unobserved.
+    # Worker killed after the merge committed, before the shadow ran: the
+    # retry skips Haiku for the enriched slice but still owes it its
+    # observation, from the rows already landed.
+    it "observes an enriched slice no earlier attempt recorded, without re-asking Haiku" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      gap_item.update!(ingredients_payload: [ { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" } ])
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        answers = keys.grep(/__wheat\z/).to_h { |k| [ k, { "type" => "noul", "noul" => 0.9 } ] }
+        { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      final_attempt(run.id)
+
+      row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
+      expect(row.details).to include("items" => 1, "item_ids" => [ gap_item.id ], "jev_only" => 1)
+    end
+
+    # The cuisine call failing is a handled, ordinary event; it must not
+    # leave the enriched slice looking observed while nothing was compared.
+    it "still compares an enriched slice's rows on retry when the cuisine call fails" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      gap_item.update!(ingredients_payload: [ { "slug" => "fish-anchovy", "confidence" => 0.85, "source" => "ai" } ])
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        if keys.any? { |k| k.end_with?("__wheat") }
+          { status: 200, body: { model: "jev-1.13.0", answers: keys.to_h { |k| [ k, { "type" => "noul", "noul" => 0.9 } ] } }.to_json,
+            headers: { "Content-Type" => "application/json" } }
+        else
+          { status: 401, body: "{}" }
+        end
+      end
+
+      final_attempt(run.id)
+
+      row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
+      expect(row.details).to include("items" => 1, "skipped" => 0, "jev_only" => 1, "item_ids" => [ gap_item.id ])
+    end
+
+    it "observes a dish once across attempts, by identity, even when Haiku found it no ingredient" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      # The Caesar got nothing from Haiku on the first attempt, so it is
+      # still "not enriched" and goes back whole with a fresh dish; the
+      # first attempt's observation already covered it.
+      JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "answered", agree: true,
+                          details: { attempt: 1, item_ids: [ gap_item.id ], items: 1, agree: 1, jev_only: 0 })
+      fresh = create(:ingestion_item, ingestion_run: run, position: 20, name: "Mystery Dish", description: nil,
+                     decision: "pending", ingredients_payload: [], tags_payload: [])
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        answers = keys.grep(/__wheat\z/).to_h { |k| [ k, { "type" => "noul", "noul" => 0.9 } ] }
+        { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      final_attempt(run.id)
+
+      rows = JevObservation.where(kind: "hidden_wheat_shadow", subject: run).order(:created_at)
+      expect(rows.count).to eq(2)
+      expect(rows.last.details).to include("items" => 1, "attempt" => ApplicationJob::RETRY_ATTEMPTS,
+                                           "item_ids" => [ fresh.id ])
+      expect(rows.last.details["disagreements"].map { |d| d["item"] }).to eq([ "Mystery Dish" ])
+    end
+
+    it "asks about each merged slice after the merge and records the comparison, writing nothing to dishes" do
+      allow(ENV).to receive(:[]).with("JEV_WHEAT_SHADOW").and_return("1")
+      allow(Rails.error).to receive(:report)
+      stub_request(:post, jev_url).to_return do |req|
+        keys = JSON.parse(req.body)["questions"].keys
+        answers = keys.grep(/__wheat\z/).to_h { |k| [ k, { "type" => "noul", "noul" => 0.93 } ] }
+        { status: 200, body: { model: "jev-1.13.0", answers: answers }.to_json,
+          headers: { "Content-Type" => "application/json" } }
+      end
+
+      described_class.perform_now(run.id)
+
+      row = JevObservation.find_by!(kind: "hidden_wheat_shadow", subject: run)
+      # Caesar Salad merged fish-anchovy only, so Jev's "wheat" is a jev_only disagreement.
+      expect(row.details).to include("items" => 1, "jev_only" => 1, "attempt" => 1)
+      expect(row.agree).to be(false)
+      expect(gap_item.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "fish-anchovy" ])
       expect(run.reload.enrichment_status).to eq("completed")
     end
   end

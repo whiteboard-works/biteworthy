@@ -99,6 +99,24 @@ describe('ItemRow — photo_url contract (Phase 4.11.4)', () => {
   });
 });
 
+describe('ItemRow — price chip', () => {
+  it('shows the price, or the range across sizes', () => {
+    renderRow({ variants: [{ size: null, price_cents: 1250, currency: 'USD' }] });
+    expect(screen.getByTestId('item-price-item-1')).toHaveTextContent('$12.50');
+  });
+
+  it('shows no chip when the dish has no price, rather than a guess', () => {
+    renderRow({ variants: [{ size: 'Market', price_cents: null, currency: 'USD' }] });
+    expect(screen.queryByTestId('item-price-item-1')).not.toBeInTheDocument();
+  });
+
+  // The section heading already sits above these cards.
+  it('does not repeat the menu section on the card', () => {
+    renderRow({ menu_section_name: 'Noodles' });
+    expect(screen.queryByText('Noodles')).not.toBeInTheDocument();
+  });
+});
+
 describe('ItemRow — name + description + open link', () => {
   it('renders the item name + description', () => {
     renderRow({});

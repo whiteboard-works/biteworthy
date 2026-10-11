@@ -31,6 +31,7 @@ import {
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
 import { useDeviceLocation } from './_useDeviceLocation';
+import { LocationNote, LocationToggle } from './_LocationToggle';
 import { ModeNotice, ModePicker } from './_ModePicker';
 import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
@@ -912,11 +913,12 @@ export function ChatClient(): ReactElement {
       {/* Under `lg` the pane and the transcript share one column and the
           person picks which is showing; from `lg` up both are drawn. */}
       <main className={`${paneOpen ? 'hidden lg:flex' : 'flex'} min-w-0 flex-1 flex-col`}>
-        <header className="flex items-center justify-between border-b border-zinc-200 px-bw-4 py-bw-3">
-          <h1 className="truncate text-bw-lg font-bold text-zinc-900">
+        <header className="flex items-center justify-between gap-bw-2 border-b border-zinc-200 px-bw-4 py-bw-3">
+          <h1 className="min-w-0 truncate text-bw-lg font-bold text-zinc-900">
             {active?.title ?? 'New chat'}
           </h1>
-          <div className="flex items-center gap-bw-2">
+          <div className="flex shrink-0 items-center gap-bw-2">
+            <LocationToggle status={deviceLocation.status} onToggle={deviceLocation.toggle} />
             <ModePicker mode={mode} onChange={changeMode} />
             <button
               type="button"
@@ -939,6 +941,7 @@ export function ChatClient(): ReactElement {
         </header>
 
         <ModeNotice mode={mode} />
+        <LocationNote status={deviceLocation.status} />
 
         <div
           ref={scroller}
@@ -994,7 +997,6 @@ export function ChatClient(): ReactElement {
           queued={queued.filter((m) => m.conversationId === (active?.id ?? blankKey()))}
           onSend={send}
           onCancelQueued={cancelQueued}
-          location={{ status: deviceLocation.status, onToggle: deviceLocation.toggle }}
         />
       </main>
 

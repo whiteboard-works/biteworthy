@@ -63,6 +63,11 @@ class GapFillResolveJob < ApplicationJob
 
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
     tagger           = cuisine_tagger(run)
+    wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled?
+    # Dishes an earlier attempt already observed, by id: a retry re-sends
+    # a slice whole, and a dish Haiku found nothing for stays "not
+    # enriched" forever, so identity is the only honest dedupe.
+    observed         = wheat_shadow ? Ingestion::JevHiddenWheatShadow.observed_item_ids(run) : Set.new
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The
@@ -110,9 +115,33 @@ class GapFillResolveJob < ApplicationJob
       # that succeeded, and switches Jev off for the rest of this attempt
       # so an outage costs one timeout, not one per slice. The next
       # attempt, if there is one, asks again.
-      cuisine = tagger&.call(run, prompt_rows)
+      cuisine = tagger&.call(run, prompt_rows, context: { attempt: executions })
       tagger  = nil if cuisine.nil?
-      merge!(run, slice, result, ingredient_paths, cuisine)
+      merged  = merge!(run, slice, result, ingredient_paths, cuisine)
+      # Observation only, after the merge so it measures what landed, and
+      # only for dishes no earlier attempt observed, so none is counted
+      # twice while a slice whose first attempt failed before the merge
+      # still gets its observation when a retry lands it. A shadow that
+      # fails writes a failed observation and nothing else, and is not
+      # asked again this attempt so an outage costs one timeout.
+      # Whether a dish needs observing is answered by the persisted ids
+      # alone, not by whether Haiku ran this attempt: a worker interrupted
+      # between the merge's commit and the shadow call leaves a slice
+      # fully enriched and wholly unobserved, and the retry must still
+      # observe it from the rows the merge already landed.
+      if wheat_shadow
+        fresh = slice.each_index.reject { |i| observed.include?(slice[i][:item_id]) }
+        unless fresh.empty?
+          rows   = fresh.map { |i| prompt_rows[i] }
+          landed = fresh.each_with_index.to_h { |orig, i| [ i, merged[orig] ] }.compact
+          ids    = fresh.map { |i| slice[i][:item_id] }
+          if wheat_shadow.call(run, rows, landed, ingredient_paths, attempt: executions, item_ids: ids)
+            observed.merge(ids)
+          else
+            wheat_shadow = nil
+          end
+        end
+      end
     end
     run.update!(enrichment_status: "completed", enrichment_failure_message: nil)
   rescue StandardError => e
@@ -176,7 +205,9 @@ class GapFillResolveJob < ApplicationJob
   # already enriched and only Jev was asked. `cuisine` is
   # JevCuisineTagger's { index => rows } for this slice, or nil when Jev
   # could not answer (existing AI cuisine rows then stay as they are).
+  # Returns { index => merged ingredient rows } for the wheat shadow.
   def merge!(run, gaps, result, ingredient_paths, cuisine)
+    merged_by_index = {}
     response_by_index = Array(result&.dig("items")).each_with_object({}) { |row, h| h[row["index"]] ||= row }
 
     run.transaction do
@@ -189,13 +220,19 @@ class GapFillResolveJob < ApplicationJob
       rows = gaps.each_with_index.filter_map do |gap, index|
         item     = locked[gap[:item_id]]
         response = response_by_index[index]
-        next if item.nil? || (response.nil? && cuisine.nil?)
+        next if item.nil?
 
         merged = if response
           merge_ingredients(item, response.dig("ingredients", "resolved"), ingredient_paths)
         else
           Array(item.ingredients_payload)
         end
+        # Reported for every locked dish, written or not: the wheat shadow
+        # compares against what the dish carries, and a dish with nothing
+        # new this attempt still has rows to compare.
+        merged_by_index[index] = merged
+        next if response.nil? && cuisine.nil?
+
         # ingestion_run_id: Postgres checks NOT NULL on the insert tuple
         # before ON CONFLICT resolves. unresolved_tags is not written:
         # it was Haiku's list of cuisine-ish phrases, and Jev answers
@@ -215,6 +252,7 @@ class GapFillResolveJob < ApplicationJob
         )
       end
     end
+    merged_by_index
   end
 
   def merge_ingredients(item, ai_rows, ingredient_paths)

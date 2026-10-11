@@ -28,6 +28,8 @@ const restaurantPayload: Restaurant = {
   city: { id: 'city-1', slug: 'durango', name: 'Durango', region: 'CO' },
   time_zone: null,
   hours: [],
+  logo_url: null,
+  banner_url: null,
 };
 
 const itemsPayload: RestaurantItemsResponse = {
@@ -288,6 +290,7 @@ describe('fetchRestaurants', () => {
     longitude: null,
     time_zone: null,
     hours: [],
+    logo_url: null,
   };
 
   it('GETs the published list and unwraps { restaurants }', async () => {

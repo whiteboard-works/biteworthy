@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
+import { formatPriceRange } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../../../../../lib/restaurants';
 import { HiddenReasonChip } from './SectionList';
 
@@ -23,6 +24,18 @@ import { HiddenReasonChip } from './SectionList';
  */
 export function hasDishPhoto(item: RestaurantItem): boolean {
   return Boolean(item.photo_urls?.card || item.photo_url);
+}
+
+/** A small neutral fact about a dish (its price, its menu section). */
+export function InfoChip({ testId, children }: { testId: string; children: string }) {
+  return (
+    <span
+      data-testid={testId}
+      className="rounded-bw-pill bg-zinc-100 px-bw-2 py-0.5 text-bw-xs font-semibold text-zinc-700"
+    >
+      {children}
+    </span>
+  );
 }
 
 /** Decorative stand-in for a missing dish photo: a plate, set for a meal. */
@@ -85,6 +98,7 @@ export function ItemRow({
   const showChips = hidden || overridden;
   const persistent = item.overridden_by_user === true;
   const reviewsCount = item.reviews_count ?? 0;
+  const price = formatPriceRange(item.variants);
   const itemHref = `${basePath}/items/${encodeURIComponent(item.id)}${presetSlug ? `?profile=${encodeURIComponent(presetSlug)}` : ''}`;
   return (
     <li
@@ -139,6 +153,11 @@ export function ItemRow({
             {item.name}
           </a>
         </p>
+        {price && (
+          <div className="mt-1 flex">
+            <InfoChip testId={`item-price-${item.id}`}>{price}</InfoChip>
+          </div>
+        )}
         {item.description && <p className="mt-1 text-bw-sm text-zinc-500">{item.description}</p>}
         {reviewsCount > 0 && (
           <p className="mt-1 text-bw-xs">

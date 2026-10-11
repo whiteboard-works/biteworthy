@@ -384,6 +384,12 @@ suggest_correction   (anyone, signed in or not; queues, changes nothing)
 The gate is `claimed_by_user_id` on the restaurant, set by
 `claim_restaurant` → emailed token → `verify_claim`. Admins pass it too.
 
+The same gate opens `set_restaurant_branding` (`restaurants` domain,
+`audience :user`): the owner's logo and banner. It takes attachment ids
+from `POST /api/v1/attachments`, never image bytes, and only resolves an
+id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
+and the REST door `PATCH /restaurants/:id/branding` shares it.
+
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.
 `POST /api/v1/items/:id/suggestions` has taken anonymous corrections
@@ -472,8 +478,9 @@ reusing the same business logic and validation as the REST admin endpoints:
 - **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
   the model that decides them for every new scan since 2026-10-10, and
   rewrite the model-written (`source: ai`) `cuisine` join rows.
-  `dry_run: true` reports the changes without writing and is never
-  parked; a real run is gated by `confirm_when` on both doors and
+  `dry_run: true` reports the changes without writing (`written` in
+  all, split into `changed` for slug changes and `regraded` where only
+  a confidence grade moved) and is never parked; a real run is gated by `confirm_when` on both doors and
   declared unrecoverable, so `accept_edits` parks it too (the
   `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
   confirmed and every keyword-derived one (gap-fill keeps those beside

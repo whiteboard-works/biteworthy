@@ -13,59 +13,7 @@ RSpec.describe "restaurants/show", type: :request do
       security [ {}, { bearerAuth: [] } ]
 
       response(200, "the restaurant") do
-        schema type: :object,
-               required: %w[id slug name about phone website status web_path
-                            claimed_at claimed_by_user_id city time_zone hours favorited],
-               properties: {
-                 id:                 { type: :string, format: :uuid },
-                 slug:               { type: :string },
-                 name:               { type: :string },
-                 about:              { type: :string, nullable: true },
-                 phone:              { type: :string, nullable: true },
-                 website:            { type: :string, nullable: true },
-                 status:             { type: :string, enum: %w[draft published closed] },
-                 web_path:           { type: :string },
-                 claimed_at:         { type: :string, format: "date-time", nullable: true },
-                 claimed_by_user_id: { type: :string, format: :uuid, nullable: true },
-                 city: {
-                   type: :object,
-                   required: %w[id slug name region],
-                   properties: {
-                     id:     { type: :string, format: :uuid },
-                     slug:   { type: :string },
-                     name:   { type: :string },
-                     region: { type: :string, nullable: true }
-                   }
-                 },
-                 address: {
-                   type: :object,
-                   nullable: true,
-                   properties: {
-                     street:      { type: :string, nullable: true },
-                     city:        { type: :string, nullable: true },
-                     region:      { type: :string, nullable: true },
-                     postal_code: { type: :string, nullable: true },
-                     country:     { type: :string, nullable: true }
-                   }
-                 },
-                 time_zone: { type: :string, nullable: true, description: "IANA timezone (e.g. America/Denver)" },
-                 hours: {
-                   type: :array,
-                   description: "Opening hours sorted by day_of_week then opens_at. " \
-                                "Supports multiple shifts per day (lunch/dinner). " \
-                                "Null times mean closed that day.",
-                   items: {
-                     type: :object,
-                     required: %w[day_of_week opens_at closes_at],
-                     properties: {
-                       day_of_week: { type: :integer, description: "0=Sunday, 6=Saturday" },
-                       opens_at:    { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" },
-                       closes_at:   { type: :string, nullable: true, pattern: "^[0-2][0-9]:[0-5][0-9]$" }
-                     }
-                   }
-                 },
-                 favorited: { type: :boolean, description: "Always false for an anonymous caller." }
-               }
+        schema "$ref" => "#/components/schemas/RestaurantDetail"
 
         let(:city) { create(:city, slug: "durango", name: "Durango", region: "Colorado", time_zone: "America/Denver") }
         let(:restaurant) do

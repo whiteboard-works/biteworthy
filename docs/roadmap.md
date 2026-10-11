@@ -25,8 +25,15 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Add cities (admin: `create_city` tool, `/admin/cities`) and add restaurants from the web (`/restaurants/new`); `list_cities` lets the chat find a city with nothing published yet.
 - [x] Location URLs: `/restaurants/usa/colorado/durango/<slug>`, computed once in `Restaurant#web_path`, with 301s from every old `/restaurants/<slug>` shape.
 - [x] Home city on the profile (`set_home_city`, settings picker): "what's nearby" in chat defaults `search_restaurants` to it. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
-- [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
+- [x] Location P2 (web) — "Use my location" in the chat header (moved out of the composer so the input has room on a phone); the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
+
+## Restaurant branding: logo + banner (shipped 2026-10-11)
+
+- [x] `Restaurant` carries `logo` and `banner` attachments; `Restaurants::Branding` is the one writer (verified owner or admin), every image goes through `Images::StripMetadata`, and only the WebP variants are served (`logo_url` on list/ranking/detail rows, `banner_url` on detail).
+- [x] Doors: `PATCH /api/v1/restaurants/:id/branding` (multipart) and the MCP `set_restaurant_branding` tool (attachment ids from `POST /attachments`).
+- [x] Web: logo on restaurant cards (home, browse, city diet pages) and the page header, banner across the page header; the verified owner edits both from the restaurant page ("Edit logo & banner"), admins from `/admin/restaurants/[id]`.
+- [ ] Mobile — render the logo on home rows and the banner on `restaurants/[id]` (`expo-image`); the API already returns both.
 
 ## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
 
@@ -196,15 +203,12 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
-  its latency, input tokens, tags kept, answers missing, and failures
-  only on `[jev_cuisine]` log lines and through `Rails.error.report`,
-  and a log line is not something the admin dashboard can
-  show. Add counters to
-  `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
-  so the admin dashboard can show Jev spend and health per run, and so
-  a slice that completed without cuisine is visible after the fact.
-  Schema change; its own PR.
+- **Read the hidden-wheat shadow and decide (2026-10-11)** — after a
+  few dozen scans, `JevObservation.where(kind: "hidden_wheat_shadow")`:
+  if `jev_only` disagreements are real misses (a battered fish with no
+  wheat row), let a Jev "yes" add a cautionary `grain-wheat-*` row as
+  `inferred`, never remove one; if they are noise, remove the trial and
+  the `JEV_WHEAT_SHADOW` switch. `docs/ingestion.md` §2b.
 - **Backfill cuisine tags with Jev, or let an admin re-run a menu
   (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
   Every restaurant published before 2026-10-10 still carries Haiku's

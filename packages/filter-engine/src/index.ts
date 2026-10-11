@@ -220,6 +220,10 @@ export {
   type TasteReason,
 } from './taste';
 
+// ─── Dish price chip ─────────────────────────────────────────────
+
+export { formatPriceRange, type ItemVariant } from './price';
+
 // ─── Shareable profile tokens (Phase 3.9) ──────────────────────────
 
 export { encodeProfileToken, PROFILE_TOKEN_VERSION, type ShareableProfile } from './profile-token';

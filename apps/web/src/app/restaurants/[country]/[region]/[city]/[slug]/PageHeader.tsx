@@ -158,9 +158,9 @@ function getCurrentDay(timeZone: string | null): { dayOfWeek: number } {
 }
 
 /**
- * City/region kicker, name, contact line, hours, and (signed-in only) the
- * save-restaurant button — the page's top block, above the filter
- * controls.
+ * Banner (when the owner set one), city/region kicker, logo + name,
+ * contact line, hours, and (signed-in only) the save-restaurant button —
+ * the page's top block, above the filter controls.
  */
 export function PageHeader({
   restaurant,
@@ -173,10 +173,28 @@ export function PageHeader({
 }) {
   return (
     <>
+      {restaurant.banner_url && (
+        <img
+          src={restaurant.banner_url}
+          alt=""
+          className="mb-bw-5 aspect-[8/3] w-full rounded-bw-lg object-cover"
+          data-testid="restaurant-banner"
+        />
+      )}
       <p className="text-bite text-bw-sm font-semibold uppercase tracking-wider">
         {restaurant.city.name}, {restaurant.city.region}
       </p>
-      <h1 className="mt-bw-2 text-bw-3xl font-bold">{restaurant.name}</h1>
+      <div className="mt-bw-2 flex items-center gap-bw-3">
+        {restaurant.logo_url && (
+          <img
+            src={restaurant.logo_url}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-bw-md border border-zinc-100 object-cover"
+            data-testid="restaurant-logo"
+          />
+        )}
+        <h1 className="text-bw-3xl font-bold">{restaurant.name}</h1>
+      </div>
       <RestaurantContactLine restaurant={restaurant} />
       <RestaurantHours restaurant={restaurant} />
       {signedIn && (

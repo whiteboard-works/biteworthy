@@ -33,7 +33,7 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                    type: :array,
                    items: {
                      type: :object,
-                     required: %w[id status decision_counts],
+                     required: %w[id status decision_counts jev],
                      properties: {
                        id:                { type: :string, format: :uuid },
                        status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
@@ -41,6 +41,19 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                        input_kind:        { type: :string },
                        failure_message:   { type: :string, nullable: true },
                        api_cost_cents:    { type: :integer, nullable: true },
+                       # Jev's calls on this run and the one number worth a
+                       # glance: dishes where Jev said wheat and the data said none.
+                       jev: {
+                         type: :object,
+                         required: %w[calls failed partial input_tokens wheat_jev_only],
+                         properties: {
+                           calls:          { type: :integer },
+                           failed:         { type: :integer },
+                           partial:        { type: :integer },
+                           input_tokens:   { type: :integer },
+                           wheat_jev_only: { type: :integer }
+                         }
+                       },
                        # Null on a live run. An archived run is out of
                        # the queue but its spend still counts — cost
                        # reporting deliberately does not filter on this.
@@ -87,7 +100,21 @@ RSpec.describe "admin/ingestion_runs", type: :request do
         let(:limit)         { nil }
         let(:offset)        { nil }
         before { create(:ingestion_item) } # one run with one pending item
-        run_test!
+        let!(:observed_run) { create(:ingestion_run, :staged) }
+        before do
+          JevObservation.note(kind: "cuisine", subject: observed_run, outcome: "failed", input_tokens: nil,
+                              details: { items: 10, error: "TypesafeClient::ApiError", status: 503 })
+          JevObservation.note(kind: "hidden_wheat_shadow", subject: observed_run, outcome: "answered",
+                              agree: false, input_tokens: 400, details: { items: 10, agree: 8, jev_only: 2 })
+        end
+        run_test! do |response|
+          rows = JSON.parse(response.body)["runs"]
+          observed = rows.find { |r| r["id"] == observed_run.id }
+          expect(observed["jev"]).to eq("calls" => 2, "failed" => 1, "partial" => 0, "input_tokens" => 400,
+                                        "wheat_jev_only" => 2)
+          expect(rows.reject { |r| r["id"] == observed_run.id }.map { |r| r["jev"] })
+            .to all(eq("calls" => 0, "failed" => 0, "partial" => 0, "input_tokens" => 0, "wheat_jev_only" => 0))
+        end
       end
 
       response(404, "authenticated but not an admin") do

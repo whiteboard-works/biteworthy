@@ -51,3 +51,39 @@ RSpec.describe Restaurant, type: :model do
     end
   end
 end
+
+# Branding goes through Restaurants::Branding, which strips and re-encodes
+# every image — but the model's own limits are the last line, so a blob
+# attached by any other path still cannot exceed them.
+RSpec.describe Restaurant, type: :model do
+  describe "logo and banner validation" do
+    it "rejects a non-image logo" do
+      restaurant = build(:restaurant)
+      restaurant.logo.attach(io: StringIO.new("%PDF-1.4"), filename: "menu.pdf", content_type: "application/pdf")
+
+      expect(restaurant).not_to be_valid
+      expect(restaurant.errors[:logo].sole).to include("must be one of")
+    end
+
+    it "rejects a banner over the size cap" do
+      restaurant = build(:restaurant)
+      restaurant.banner.attach(
+        io: StringIO.new("x" * (HasPhotoValidation::MAX_PHOTO_BYTES + 1)),
+        filename: "banner.jpg", content_type: "image/jpeg"
+      )
+
+      expect(restaurant).not_to be_valid
+      expect(restaurant.errors[:banner].sole).to include("5 MB or smaller")
+    end
+
+    it "accepts a small JPEG logo" do
+      restaurant = build(:restaurant)
+      restaurant.logo.attach(
+        io: File.open(Rails.root.join("spec/fixtures/files/clean-photo.jpg")),
+        filename: "logo.jpg", content_type: "image/jpeg"
+      )
+
+      expect(restaurant).to be_valid
+    end
+  end
+end

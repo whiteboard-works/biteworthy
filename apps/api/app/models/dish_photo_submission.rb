@@ -24,6 +24,7 @@ class DishPhotoSubmission < ApplicationRecord
   has_one_attached :photo do |attachable|
     attachable.variant :thumb, resize_to_limit: [ 400, 400 ], format: :webp
   end
+  validates_image_attachments :photo
 
   validates :status, inclusion: { in: STATUSES }
   validates :rejection_reason, inclusion: { in: REJECTION_REASONS }, allow_nil: true

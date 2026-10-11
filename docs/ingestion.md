@@ -208,14 +208,24 @@ usable on deterministic data.
 
 **Cuisine tags come from Jev (since 2026-10-10).** After each Haiku
 slice returns, the same items go to TypeSafe's Jev (`TypesafeClient`,
-`Ingestion::JevCuisineTagger`): one yes/no `noul` question per (item,
-leaf cuisine tag), state limited to the slice's names, descriptions
-and sections, nothing else. A tag whose probability reaches 0.5 is
+`Ingestion::JevCuisineTagger`): one gate `noul` per item ("does this
+belong to any culinary tradition at all?", blocking only below 0.25 so
+a soda or raw onions get no cuisine however Southern the menu around
+them while a borderline item is left to the cuisine questions) and one `noul` per
+(item, leaf cuisine tag), each with `criteria` that pin the answer to
+the item's own recipe rather than the restaurant's identity, state
+limited to the slice's names, descriptions and sections, nothing else.
+The first dry runs showed why: with nineteen barbecue plates in the
+slice, "ONIONS" read as Southern. A tag whose probability reaches 0.5 is
 merged as `source: "ai"` with the probability as its confidence (so
 `ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
 the slice logs one `[jev_cuisine]` JSON line (model version, latency,
 input tokens, items, tags kept, answers missing; a missing answer is
-also reported through `Rails.error.report`). Haiku is never asked for
+also reported through `Rails.error.report`) and writes one `JevObservation`
+row (kind `cuisine`, subject the run or restaurant, outcome answered /
+partial / failed, latency, tokens, the same counts), which is what
+survives a deploy: `JevObservation.where(kind: "cuisine").group(:outcome).count`.
+Haiku is never asked for
 cuisine and never sees the cuisine catalog, so gap-fill no longer
 writes `unresolved_tags`. A Jev failure never raises: the slice merges
 keeping whatever AI cuisine rows it already had, the failure is
@@ -228,6 +238,21 @@ that enriches and the keyword pass is all a dish gets. Jev's spend
 (~2k input tokens per slice at $0.042/MTok, output free) is logged,
 not added to `api_cost_cents`. Ingredients stay with Haiku: ~1,088
 slugs exceed Jev's 255-option Choice limit.
+
+**Hidden-wheat shadow (since 2026-10-11).** After each slice merges,
+`Ingestion::JevHiddenWheatShadow` asks Jev one yes/no per gap dish, "as
+usually prepared, is this made with wheat somewhere" (crust, bun, flour
+tortilla, batter, breading, pasta, roux), and compares it with whether
+the merged ingredients carry anything under `grain.wheat`. It writes
+nothing to a dish: one `JevObservation` (kind `hidden_wheat_shadow`,
+`agree`, counts, up to 20 disagreements) per slice. `jev_only` is the
+disagreement that matters: Jev says wheat, the data says none, which is
+the false negative a gluten-free filter cannot afford. Switched by
+`JEV_WHEAT_SHADOW` in `deploy.yml` so the trial stops without a code
+deploy. Each row keeps the dishes' `item_ids`, and a retry skips dishes
+an earlier attempt observed, so a slice re-sent whole never counts a
+dish twice on the dashboard. Whether a `jev_only` answer should add a
+cautionary row is decided from those rows, never by this class.
 
 The 2026-09-28 shadow trial that decided this agreed with Haiku on
 95.6% of 1,085 pairs, and the disagreements were almost all Haiku
@@ -245,7 +270,7 @@ leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
 Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
 Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
 Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
-230 questions; still a few thousand of the 64k tokens a request may
+240 questions with the gate; still a few thousand of the 64k tokens a request may
 carry (TypeSafe caps Choice *options* at 255, not Noul questions).
 Adding a cuisine is a row in that file, a migration that upserts it,
 and, only for a word that is never a dish modifier, a

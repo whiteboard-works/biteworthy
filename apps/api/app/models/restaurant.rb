@@ -1,4 +1,6 @@
 class Restaurant < ApplicationRecord
+  include HasPhotoValidation
+
   STATUSES = %w[draft published closed].freeze
 
   belongs_to :city
@@ -7,6 +9,9 @@ class Restaurant < ApplicationRecord
   # admin/seed-created rows leave this nil.
   belongs_to :created_by_user, class_name: "User", optional: true
 
+  # Nullify, not delete: the spend and the missed-wheat count were real
+  # and the dashboard's history must not shrink when a run is cleaned up.
+  has_many :jev_observations, as: :subject, dependent: :nullify
   has_many :addresses,     dependent: :destroy
   has_many :hours,         dependent: :destroy
   has_many :menus,         dependent: :destroy
@@ -29,6 +34,17 @@ class Restaurant < ApplicationRecord
   # ON DELETE, so an association missing here is a 500, not a leak —
   # spec/models/hard_delete_cascade_spec.rb is where that gets caught.
   has_many :ingestion_runs,       dependent: :nullify
+
+  # Owner-supplied branding (Restaurants::Branding is the only writer).
+  # Only the WebP variants are ever served: the logo rides on every
+  # restaurant card, the banner sits across the restaurant page header.
+  has_one_attached :logo do |attachable|
+    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp
+  end
+  has_one_attached :banner do |attachable|
+    attachable.variant :card, resize_to_limit: [ 1600, 600 ], format: :webp
+  end
+  validates_image_attachments :logo, :banner
 
   validates :slug, :name, presence: true
   validates :slug, uniqueness: true

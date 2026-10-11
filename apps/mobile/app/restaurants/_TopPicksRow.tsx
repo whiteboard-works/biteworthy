@@ -3,8 +3,9 @@ import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, fontSize, radius, space } from '@biteworthy/ui-tokens';
-import { tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
+import { formatPriceRange, tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../lib/api/restaurants';
+import { InfoChip } from './_InfoChip';
 
 /**
  * Phase 8.4 — mobile twin of the web Top Picks row (Phase 8.3).
@@ -133,6 +134,8 @@ export function TopPicksRow({
       >
         {picks.map((item) => {
           const reason = tasteReasonLine(item.taste_reasons);
+          const price = formatPriceRange(item.variants);
+          const section = item.menu_section_name?.trim();
           return (
             <Pressable
               key={item.id}
@@ -154,6 +157,14 @@ export function TopPicksRow({
               <Text style={styles.name} numberOfLines={2}>
                 {item.name}
               </Text>
+              {price || section ? (
+                <View style={styles.infoRow}>
+                  {price ? <InfoChip testID={`pick-price-${item.id}`}>{price}</InfoChip> : null}
+                  {section ? (
+                    <InfoChip testID={`pick-section-${item.id}`}>{section}</InfoChip>
+                  ) : null}
+                </View>
+              ) : null}
               {reason && (
                 <Text style={styles.reason} numberOfLines={2} testID={`pick-reason-${item.id}`}>
                   {reason}
@@ -240,6 +251,11 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: '700',
     color: colors.text,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space['1'],
   },
   reason: {
     fontSize: fontSize.xs,

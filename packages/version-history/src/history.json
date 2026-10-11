@@ -1,5 +1,48 @@
 [
   {
+    "version": "2026.10.11.3",
+    "date": "2026-10-11",
+    "notes": [
+      "Restaurant owners who have verified their listing, and our admins, can now add a logo and a banner. The logo shows beside the restaurant's name in lists and on its page, and the banner across the top of the page, on the website for now.",
+      "On a phone, the chat's message box now grows as you type a longer message instead of scrolling inside a single line, and the \"use my location\" pin has moved to the top of the chat so the box has more room."
+    ]
+  },
+  {
+    "version": "2026.10.11.2",
+    "date": "2026-10-11",
+    "notes": [
+      "Admins can now see at a glance how the cuisine model is doing: calls, failures and cost by day, week and month, and for each scan how many dishes the hidden-wheat check flagged that the menu data missed."
+    ]
+  },
+  {
+    "version": "2026.10.11.1",
+    "date": "2026-10-11",
+    "notes": [
+      "Behind the scenes, every answer our cuisine model gives is now kept, and a second check has started asking whether a dish is usually made with wheat, so that a crust or batter nobody wrote on the menu can be caught before it reaches someone avoiding gluten. Nothing changes on a menu yet; this is the measuring step."
+    ]
+  },
+  {
+    "version": "2026.10.11",
+    "date": "2026-10-11",
+    "notes": [
+      "Dishes show their price as a chip, or a range like $9–$14 when a dish comes in sizes, on the website and in the app. Your best bets also show which part of the menu each dish is from."
+    ]
+  },
+  {
+    "version": "2026.10.10.11",
+    "date": "2026-10-10",
+    "notes": [
+      "Our servers' own log stream had been repeating a false alarm, a complaint from the log shipper about a reply it could not read, even though every line it sent had arrived. The alarm is gone, so a real problem in that stream is no longer buried under it. We also confirmed end to end that an error on our side reaches our error tracking within a minute."
+    ]
+  },
+  {
+    "version": "2026.10.10.10",
+    "date": "2026-10-10",
+    "notes": [
+      "Cuisine labels now stay off things that have no cuisine, like a soda, raw onions or a bottled beer, however themed the restaurant around them. Everyday American plates such as a ribeye or a composed salad keep their American label."
+    ]
+  },
+  {
     "version": "2026.10.10.9",
     "date": "2026-10-10",
     "notes": [
