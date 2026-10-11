@@ -98,10 +98,14 @@ class Item < ApplicationRecord
   end
 
   def mark_human_verified!(user)
+    return if human_verified?
+
     update!(human_verified_at: Time.current, human_verified_by_user: user)
   end
 
   def mark_restaurant_verified!(user)
+    return if restaurant_verified?
+
     update!(restaurant_verified_at: Time.current, restaurant_verified_by_user: user)
   end
 

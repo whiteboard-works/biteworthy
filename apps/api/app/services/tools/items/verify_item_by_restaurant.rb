@@ -21,6 +21,8 @@ module Tools
 
       annotations(read_only_hint: false, destructive_hint: false, idempotent_hint: true)
 
+      running_description { |args| "Marking dish as restaurant-verified" }
+
       unrecoverable_when { false }
 
       def self.perform(context:, item_id:)

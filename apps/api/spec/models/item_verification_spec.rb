@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Item, type: :model do
+  include ActiveSupport::Testing::TimeHelpers
+
   describe "verification methods" do
     let(:item) { create(:item, :published) }
     let(:user) { create(:user) }
@@ -36,16 +38,16 @@ RSpec.describe Item, type: :model do
       end
 
       it "is idempotent" do
-        first_time = Time.current
         item.mark_human_verified!(user)
-        first_id = item.reload.human_verified_by_user_id
+        first_verified_at = item.reload.human_verified_at
+        first_id = item.human_verified_by_user_id
 
         travel 1.hour do
           item.mark_human_verified!(user)
         end
 
         expect(item.reload.human_verified_by_user_id).to eq(first_id)
-        expect(item.human_verified_at).to be > first_time
+        expect(item.human_verified_at).to eq(first_verified_at)
       end
     end
 

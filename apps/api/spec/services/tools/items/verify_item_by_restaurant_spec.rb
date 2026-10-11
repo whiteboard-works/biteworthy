@@ -44,7 +44,7 @@ RSpec.describe Tools::Items::VerifyItemByRestaurant, type: :tool do
     it "locks item from editing by non-admins" do
       call(item_id: item.id)
 
-      expect(item.can_be_edited_by?(admin)).to be true
+      expect(item.reload.can_be_edited_by?(admin)).to be true
       expect(item.can_be_edited_by?(create(:user))).to be false
     end
 
