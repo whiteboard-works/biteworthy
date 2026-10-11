@@ -222,16 +222,19 @@ provider up again on a new box:
   ```
 - Use the swipe-verify queue (mobile or the web `/admin/runs`) to accept items per restaurant. The 80%-accepted threshold flips each run + restaurant to `:published`.
 
-### 7. PostHog analytics (Phase 5.8-wiring)
+### 7. PostHog — events, errors, and logs (Phase 5.8-wiring, ADR 0009)
 
-**Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`).
+**Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`), server error tracking, and logs that outlive a deploy.
 
-- ~~Code side~~ — **done in #218**: posthog-js + posthog-react-native installed, wrapped in `AnalyticsClient` adapters, all 9 events instrumented per `docs/analytics.md`. Env vars documented in each app's `.env.example`.
+- ~~Code side~~ — **done in #218 and the ADR 0009 PR**: all three apps point at BiteWorthy's own project (id 652080). The public token is pinned in `apps/web/src/lib/posthog-config.ts` (production hosts), `apps/mobile/eas.json` (production profile), and `apps/api/config/deploy.yml` (`POSTHOG_API_KEY`, `APP_ROLE`). Nothing needs setting in Vercel or EAS.
 - Remaining (human):
-  - Generate a project API key (WBW Cross-Product project, id 370116).
-  - Vercel: set `NEXT_PUBLIC_POSTHOG_KEY=<key>`.
-  - EAS: set `EXPO_PUBLIC_POSTHOG_KEY=<key>` in the project's env (mobile capture is additionally opt-in via `EXPO_PUBLIC_POSTHOG_OPT_IN` / the in-app toggle).
-  - Verify events arrive: load the prod site, confirm `app_open` in the PostHog live-events view.
+  - [x] ~~**Verify events arrive**~~ — verified 2026-10-10 after #855 deployed: a visit to bite-worthy.com posted to `us.i.posthog.com/e/` with the 652080 token's persistence, the project's "no events yet" banner cleared, and the activity view listed `app_open` for each page load and a `$pageview` for a client-side navigation. The page-load `$pageview` was not seen from the automated browser tab because that tab was hidden, and posthog-js holds the first page view until the tab is visible (`document.visibilityState`), so it was the one event still to confirm from a normal visit; confirmed 2026-10-11 00:53 UTC through the PostHog MCP: a `$pageview` on a fresh session with `app_open` 8 ms behind it and nothing earlier in that session, which is a page load.
+  - [x] ~~**Verify the API logs arrive**~~ — verified 2026-10-10: PostHog → Logs showed `service.name = Biteworthy`, environment `production`, within minutes of the API deploy.
+  - [x] ~~**Verify the API reports exceptions**~~ — verified 2026-10-11 02:08 UTC: `Rails.error.report(RuntimeError.new("posthog smoke"), handled: true, context: { component: "smoke" })` from `kamal console` (run from `apps/api`) showed up as a `RuntimeError` issue under Error tracking within the minute, and the same report queued `ErrorReports::FileIssueJob` (ADR 0008).
+  - [x] ~~**Remove the `NEXT_PUBLIC_POSTHOG_KEY` set in Vercel**~~ — removed by the owner 2026-10-10. Until then it was ignored on production but sent every preview deploy's traffic to the old shared project; a preview built after the removal sends nothing unless the variable is set again on purpose.
+  - [ ] **Delete or redeploy the preview deployments built before that removal.** Next inlines `NEXT_PUBLIC_*` into the client bundle at build time, so a preview URL built while the variable existed still reports to the old shared project for as long as it stays reachable (Vercel → Deployments, filter to previews older than 2026-10-10).
+  - [x] ~~**Re-authorize the PostHog MCP server**~~ — re-authorized by the owner 2026-10-11; `project-get` returns project 652080 and queries run. It confirmed the exception smoke above.
+  - [ ] **L1 review:** `/privacy`'s PostHog entry now says it also receives error reports and logs from our servers.
 
 ### 8. App Store + Play Store submission (Phase 5.9-wiring)
 
@@ -266,6 +269,17 @@ Dishes promoted before #638, #766, or #794 lack the gluten rows those rules add.
 - `kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_implied_bases" --env APPLY:1`
 
 Add-only and idempotent. It never writes over what may be a person's decision: a dish missing a base that a rule live at its promotion should have added, or a dish edited since a rule went live, is listed under "to review by hand" with its admin restaurant link instead. Any FAILED line is a dish to fix by hand in admin, and the task then exits 1.
+
+### 11. Error reports → GitHub issues (private repo + token)
+
+**Unlocks:** chat and job failures filed as GitHub issues — one per distinct failure, counted, reopened when they recur — before a user writes in. Until this is done every failure is still recorded in `error_reports` (count, first and last seen) and nothing leaves the box.
+
+The API's `Rails.error` subscriber files through `ErrorReports::GithubIssues` (ADR 0008). It needs a repo to file into and a token that can write issues there.
+
+- [ ] **Pick a private repo.** `whiteboard-works/biteworthy` is public, and an issue carries a backtrace and a conversation id (the message is stored and posted with its values blanked) — so not there. A new `whiteboard-works/biteworthy-ops` (private, issues on) is the clean choice. The reporter checks the repo is private before every hour's first write and refuses if it is not.
+- [ ] **Create a fine-grained PAT** (GitHub → Settings → Developer settings → Fine-grained tokens): resource owner `whiteboard-works`, repository access limited to that one repo, permission **Issues: Read and write**, nothing else. Note the expiry.
+- [ ] **Add it to the deploy, in this order.** First `GITHUB_ERROR_REPORTS_TOKEN=github_pat_…` in `apps/api/.kamal/secrets`, then `apps/api/bin/kamal-secrets-push`. Only then a PR adding `GITHUB_ERROR_REPORTS_TOKEN` under `env.secret` and `GITHUB_ERROR_REPORTS_REPO: whiteboard-works/<repo>` under `env.clear` in `apps/api/config/deploy.yml`. Kamal fails a deploy on a listed-but-missing secret, and merging an `apps/api` change deploys.
+- [ ] **Check it fired.** After that deploy: `kamal console`, then `Rails.error.report(RuntimeError.new("error reports smoke"), handled: true, context: { component: "smoke" })`. An issue titled `[smoke] RuntimeError: error reports smoke` should appear within a minute, labelled `bug` and `auto-reported` (the reporter creates a label the repo lacks before its first issue, and finds an issue it lost track of by that label). Close it, and it stays closed unless reported again.
 
 ## CI status
 

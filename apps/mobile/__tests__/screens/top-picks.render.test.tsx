@@ -104,6 +104,35 @@ describe('TopPicksRow (mobile, Phase 8.4)', () => {
     expect(mockReplace).toHaveBeenCalledWith('/login?next=%2Frestaurants%2Frest-1');
   });
 
+  // Price and section tell a diner what the pick is and what it costs
+  // before they open it; a chip with nothing behind it would be noise.
+  it('shows price and menu-section chips when the dish has them, and nothing when not', () => {
+    const picks = [
+      {
+        ...threePicks[0]!,
+        menu_section_name: 'Curries',
+        variants: [
+          { size: 'Half', price_cents: 900, currency: 'USD' },
+          { size: 'Full', price_cents: 1400, currency: 'USD' },
+        ],
+      },
+      { ...threePicks[1]!, menu_section_name: 'Noodles', variants: [] },
+      {
+        ...threePicks[2]!,
+        menu_section_name: null,
+        variants: [{ size: null, price_cents: 750, currency: 'USD' }],
+      },
+    ];
+    render(<TopPicksRow items={picks} restaurantId="rest-1" signedIn />);
+
+    expect(screen.getByTestId('pick-price-curry').props.children).toBe('$9–$14');
+    expect(screen.getByTestId('pick-section-curry').props.children).toBe('Curries');
+    expect(screen.queryByTestId('pick-price-pad')).toBeNull();
+    expect(screen.getByTestId('pick-section-pad').props.children).toBe('Noodles');
+    expect(screen.getByTestId('pick-price-soup').props.children).toBe('$7.50');
+    expect(screen.queryByTestId('pick-section-soup')).toBeNull();
+  });
+
   it('tapping a card opens the item screen', () => {
     render(<TopPicksRow items={threePicks} restaurantId="rest-1" signedIn />);
     fireEvent.press(screen.getByTestId('top-pick-curry'));

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "ltree"
@@ -197,6 +197,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_190000) do
     t.check_constraint "status::text = ANY (ARRAY['received'::character varying::text, 'actioned'::character varying::text, 'rejected'::character varying::text])", name: "dmca_notices_status_valid"
   end
 
+  create_table "error_reports", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "fingerprint", null: false
+    t.string "error_class", null: false
+    t.string "title", null: false
+    t.text "message", null: false
+    t.string "source", null: false
+    t.boolean "handled", default: true, null: false
+    t.jsonb "context", default: {}, null: false
+    t.text "backtrace"
+    t.integer "occurrences", default: 0, null: false
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.integer "issue_number"
+    t.datetime "issue_opened_at"
+    t.integer "issue_occurrences", default: 0, null: false
+    t.datetime "issue_touched_at"
+    t.datetime "sync_scheduled_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "issue_repo"
+    t.index ["fingerprint"], name: "index_error_reports_on_fingerprint", unique: true
+    t.index ["issue_opened_at"], name: "index_error_reports_on_issue_opened_at"
+    t.index ["last_seen_at"], name: "index_error_reports_on_last_seen_at"
+  end
+
   create_table "favorite_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "item_id", null: false
@@ -379,6 +404,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_190000) do
     t.index ["tag_ids"], name: "index_items_on_tag_ids", using: :gin
     t.check_constraint "confidence::text = ANY (ARRAY['confirmed'::character varying::text, 'suggested'::character varying::text, 'inferred'::character varying::text])", name: "items_confidence_valid"
     t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'removed'::character varying::text])", name: "items_status_valid"
+  end
+
+  create_table "jev_observations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "kind", null: false
+    t.string "subject_type"
+    t.uuid "subject_id"
+    t.string "model"
+    t.integer "latency_ms"
+    t.integer "input_tokens"
+    t.string "outcome", null: false
+    t.boolean "agree"
+    t.jsonb "details", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["kind", "created_at"], name: "index_jev_observations_on_kind_and_created_at"
+    t.index ["subject_type", "subject_id"], name: "index_jev_observations_on_subject_type_and_subject_id"
   end
 
   create_table "mcp_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

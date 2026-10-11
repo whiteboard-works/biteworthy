@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
+import { formatPriceRange, tasteReasonLine, topPicksFromScores } from '@biteworthy/filter-engine';
 import type { RestaurantItem } from '../../../../../../lib/restaurants';
-import { DishPhotoPlaceholder, hasDishPhoto } from './ItemRow';
+import { DishPhotoPlaceholder, hasDishPhoto, InfoChip } from './ItemRow';
 
 /**
  * Phase 8.3 — "Your best bets here", rendered above the menu sections.
@@ -148,6 +148,8 @@ export function TopPicksRow({
       <ul className="-mx-bw-4 mt-bw-4 flex snap-x snap-proximity scroll-px-bw-4 gap-bw-3 overflow-x-auto px-bw-4 pb-bw-2">
         {picks.map((item) => {
           const reason = tasteReasonLine(item.taste_reasons);
+          const price = formatPriceRange(item.variants);
+          const section = item.menu_section_name?.trim();
           return (
             <li
               key={item.id}
@@ -188,6 +190,12 @@ export function TopPicksRow({
                 <p className="text-bw-sm font-bold leading-snug text-zinc-900 sm:text-bw-base">
                   {item.name}
                 </p>
+                {(price || section) && (
+                  <div className="mt-1 flex flex-wrap gap-bw-1">
+                    {price && <InfoChip testId={`pick-price-${item.id}`}>{price}</InfoChip>}
+                    {section && <InfoChip testId={`pick-section-${item.id}`}>{section}</InfoChip>}
+                  </div>
+                )}
                 {reason && (
                   <p
                     data-testid={`pick-reason-${item.id}`}

@@ -25,6 +25,7 @@ const watchTurn = vi.fn();
 const stopTurn = vi.fn();
 const uploadAttachment = vi.fn();
 const setConversationMode = vi.fn();
+const renameConversation = vi.fn();
 
 vi.mock('../../../lib/chat', async () => {
   const actual = await vi.importActual<typeof import('../../../lib/chat')>('../../../lib/chat');
@@ -39,6 +40,7 @@ vi.mock('../../../lib/chat', async () => {
     answerConfirmation: (id: string, ok: boolean, fingerprint: string | null, mode?: unknown) =>
       answerConfirmation(id, ok, fingerprint, mode),
     setConversationMode: (id: string, mode: unknown) => setConversationMode(id, mode),
+    renameConversation: (id: string, title: string) => renameConversation(id, title),
     watchTurn: (id: string, after: number, onEvent: (e: ChatEvent) => void) =>
       watchTurn(id, after, onEvent),
     stopTurn: (id: string) => stopTurn(id),
@@ -100,6 +102,11 @@ beforeEach(() => {
   watchTurn.mockResolvedValue(null);
   stopTurn.mockResolvedValue(undefined);
   setConversationMode.mockResolvedValue(blank);
+  renameConversation.mockImplementation(async (id: string, title: string) => ({
+    ...blank,
+    id,
+    title,
+  }));
 });
 
 afterEach(() => {
@@ -437,11 +444,11 @@ describe('ChatClient', () => {
   // renders what it was sent and nothing more, so there is no visibility
   // check here to get wrong.
   describe('usage pills', () => {
-    // Two scopes, and they must not read as one number. The old footer
-    // showed only the conversation lifetime, labelled "total", next to
-    // per-run token counts — so "203¢ total · 1,200 in" invited the
-    // arithmetic that says 1,200 tokens cost two dollars.
-    it("shows the turn's cost and the conversation's separately", async () => {
+    // Conversation spend, rounds, and duration — and nothing per-token.
+    // The old footer put "203¢ total" next to "1,200 in", which invited
+    // the arithmetic that says 1,200 tokens cost two dollars, so the
+    // per-turn cost and token counts are no longer shown at all.
+    it('shows the conversation cost without per-turn cost or token counts', async () => {
       getConversation.mockResolvedValue({
         ...answered('ok'),
         usage: {
@@ -464,11 +471,12 @@ describe('ChatClient', () => {
       await type('hi');
 
       const pills = await screen.findByTestId('usage-pills');
-      expect(pills).toHaveTextContent('9¢ turn');
       expect(pills).toHaveTextContent('34¢ conversation');
-      // Cache writes bill at 1.25× input and were recorded but never shown.
-      expect(pills).toHaveTextContent('7,550 cache r / 2,100 w');
+      expect(pills).toHaveTextContent('3 rounds');
       expect(pills).toHaveTextContent('8.2s');
+      expect(pills).not.toHaveTextContent('9¢ turn');
+      expect(pills).not.toHaveTextContent('7,550 cache r / 2,100 w');
+      expect(pills).not.toHaveTextContent('1,200 in / 400 out');
     });
 
     // The reported symptom: "203¢ total · 0 rounds · 0 cached ·
@@ -501,7 +509,7 @@ describe('ChatClient', () => {
 
       const pills = await screen.findByTestId('usage-pills');
       expect(pills).toHaveTextContent('4 rounds');
-      expect(pills).toHaveTextContent('1,200 in / 400 out');
+      expect(pills).toHaveTextContent('8.2s');
       expect(pills).toHaveTextContent('error');
       expect(pills).not.toHaveTextContent('0 rounds');
     });
@@ -1055,6 +1063,315 @@ describe('ChatClient', () => {
   // Deleting a chat cannot be undone, and the × sits right next to the
   // title people click to open it. One stray click must not cost a
   // conversation.
+  describe('renaming a chat from the sidebar', () => {
+    const old = { ...blank, id: 'c-old', title: 'Add city Riverton Utah' };
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [old] });
+      getConversation.mockResolvedValue({ ...old, messages: [] });
+      // Like the server: once renamed, the list says the new name.
+      renameConversation.mockImplementation(async (id: string, title: string) => {
+        listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+        return { ...old, title };
+      });
+    });
+
+    async function startRenaming() {
+      fireEvent.click(await screen.findByRole('button', { name: 'Rename Add city Riverton Utah' }));
+      const input = screen.getByLabelText('Chat title') as HTMLInputElement;
+      expect(input.value).toBe('Add city Riverton Utah');
+      return input;
+    }
+
+    it('saves on Enter and shows the new name in the sidebar and the header', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Add city Riverton Utah'));
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+          'Add city Riverton Utah',
+        ),
+      );
+
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: '  Riverton, Utah  ' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() =>
+        expect(renameConversation).toHaveBeenCalledWith('c-old', 'Riverton, Utah'),
+      );
+      const history = screen.getByTestId('chat-history');
+      expect(within(history).getByText('Riverton, Utah')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Riverton, Utah');
+      expect(screen.queryByLabelText('Chat title')).toBeNull();
+    });
+
+    it('drops the edit on Escape without asking the server', async () => {
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Something else' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(renameConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+
+    // "Untitled" is the sidebar's word for null, not a name the person
+    // chose; saving it as a title would stop the model naming the chat.
+    it('does not send a blank title', async () => {
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: '   ' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(renameConversation).not.toHaveBeenCalled();
+      expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument();
+    });
+
+    // A turn's teardown refetches the chat. Served before the rename
+    // committed, it carries the old name; landing after the rename drew,
+    // it must not draw the old name back over it.
+    it('keeps the new name over a refetch that was served before the rename', async () => {
+      let land: () => void = () => {};
+      getConversation.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            land = () => resolve({ ...old, messages: [] });
+          }),
+      );
+      let confirm: () => void = () => {};
+      renameConversation.mockImplementation((_id: string, title: string) => {
+        // The list is refetched on every render under test (the mocked
+        // router is a new object each time), so it has to say the new name
+        // or it would be the thing drawing the old one back — not the
+        // stale refetch this test is about.
+        listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+        return new Promise((resolve) => {
+          confirm = () => resolve({ ...old, title });
+        });
+      });
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Add city Riverton Utah'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-old'));
+
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Riverton, Utah' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      await waitFor(() => expect(renameConversation).toHaveBeenCalled());
+
+      act(() => land());
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Riverton, Utah'),
+      );
+      expect(screen.queryByText('Add city Riverton Utah')).toBeNull();
+
+      act(() => confirm());
+      await waitFor(() =>
+        expect(
+          within(screen.getByTestId('chat-history')).getByText('Riverton, Utah'),
+        ).toBeVisible(),
+      );
+    });
+
+    // The endpoint has no sequence, so two PATCHes in flight could commit
+    // in either order. The second name is drawn at once and sent only when
+    // the first has settled.
+    it('sends a second rename once the first settles', async () => {
+      const settle: Array<() => void> = [];
+      renameConversation.mockImplementation(
+        (_id: string, title: string) =>
+          new Promise((resolve) => {
+            listConversations.mockResolvedValue({ conversations: [{ ...old, title }] });
+            settle.push(() => resolve({ ...old, title }));
+          }),
+      );
+      render(<ChatClient />);
+      const first = await startRenaming();
+      fireEvent.change(first, { target: { value: 'First' } });
+      fireEvent.keyDown(first, { key: 'Enter' });
+      await waitFor(() => expect(renameConversation).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Rename First' }));
+      const second = screen.getByLabelText('Chat title');
+      fireEvent.change(second, { target: { value: 'Second' } });
+      fireEvent.keyDown(second, { key: 'Enter' });
+
+      expect(renameConversation).toHaveBeenCalledTimes(1);
+      expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument();
+
+      act(() => settle.shift()!());
+      await waitFor(() => expect(renameConversation).toHaveBeenCalledWith('c-old', 'Second'));
+      expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument();
+      act(() => settle.shift()!());
+      await waitFor(() =>
+        expect(within(screen.getByTestId('chat-history')).getByText('Second')).toBeInTheDocument(),
+      );
+      expect(renameConversation).toHaveBeenCalledTimes(2);
+    });
+
+    it('puts the old name back when the server refuses', async () => {
+      renameConversation.mockRejectedValue(new Error('Keep the title to 60 characters.'));
+      render(<ChatClient />);
+      const input = await startRenaming();
+      fireEvent.change(input, { target: { value: 'Too long, says the server' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() => expect(renameConversation).toHaveBeenCalled());
+      await waitFor(() => expect(screen.getByText('Add city Riverton Utah')).toBeInTheDocument());
+      expect(screen.queryByText('Too long, says the server')).toBeNull();
+      expect(screen.getByTestId('chat-error')).toHaveTextContent(
+        'Keep the title to 60 characters.',
+      );
+    });
+  });
+
+  describe('the marks beside a chat in the sidebar', () => {
+    const busy = { ...blank, id: 'c-1', title: 'Busy chat' };
+    const other = { ...blank, id: 'c-2', title: 'Other chat' };
+    let finish: (last?: ChatEvent) => void = () => {};
+    let drop: () => void = () => {};
+
+    beforeEach(() => {
+      listConversations.mockResolvedValue({ conversations: [busy, other] });
+      getConversation.mockImplementation(async (id: string) => ({
+        ...(id === 'c-2' ? other : busy),
+        messages: [],
+      }));
+      watchTurn.mockImplementationOnce(
+        (_id: string, _after: number, onEvent: (e: ChatEvent) => void) =>
+          new Promise<null>((resolve, reject) => {
+            finish = (last = { type: 'done', text: 'Sure.' }) => {
+              onEvent(last);
+              resolve(null);
+            };
+            drop = () => reject(new Error('connection lost'));
+          }),
+      );
+    });
+
+    const row = (title: string) =>
+      within(screen.getByTestId('chat-history')).getByText(title).closest('button')!;
+
+    it('shows which chat is working, and marks it unread once it finishes off screen', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      expect(within(row('Busy chat')).getByRole('img', { name: 'Working' })).toBeInTheDocument();
+      expect(within(row('Other chat')).queryByRole('img')).toBeNull();
+
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+      // Still working after the person moves on — that is the point.
+      expect(within(row('Busy chat')).getByRole('img', { name: 'Working' })).toBeInTheDocument();
+
+      finish();
+
+      await waitFor(() =>
+        expect(
+          within(row('Busy chat')).getByRole('img', { name: 'New reply' }),
+        ).toBeInTheDocument(),
+      );
+      expect(within(row('Busy chat')).queryByRole('img', { name: 'Working' })).toBeNull();
+
+      // Opening it is reading it.
+      fireEvent.click(screen.getByText('Busy chat'));
+      await waitFor(() => expect(within(row('Busy chat')).queryByRole('img')).toBeNull());
+    });
+
+    // The server writes a failed turn into the transcript ("Sorry —
+    // something went wrong"), so there is a reply to see.
+    it('marks a chat whose turn ended in an error', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      finish({ type: 'error', message: 'The model is unavailable.' });
+
+      await waitFor(() =>
+        expect(
+          within(row('Busy chat')).getByRole('img', { name: 'New reply' }),
+        ).toBeInTheDocument(),
+      );
+    });
+
+    // The relay losing the turn is reported as an `error` too, flagged
+    // `interrupted`; the turn itself may still be running.
+    it('does not mark a chat when the relay, not the turn, reported an error', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      finish({ type: 'error', message: 'Lost the connection to that turn.', interrupted: true });
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+
+    // A watch this side lost says nothing about the turn, which may still
+    // be running: the dot would send the person to a chat with no reply.
+    it('does not mark a chat whose watch dropped before the server said it ended', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      drop();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+
+    // Nothing ran, so there is nothing new in that chat to point at.
+    it('does not mark a chat whose send was refused before it ran', async () => {
+      let refuse: () => void = () => {};
+      sendMessage.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            refuse = () => reject(new Error('Busy answering already.'));
+          }),
+      );
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      fireEvent.click(screen.getByText('Other chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-2'));
+
+      act(() => refuse());
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+
+    // A reply that lands on the chat the person is looking at is seen as
+    // it arrives; a mark would be telling them about something on screen.
+    it('does not mark a chat whose turn finished while it was on screen', async () => {
+      render(<ChatClient />);
+      fireEvent.click(await screen.findByText('Busy chat'));
+      await waitFor(() => expect(getConversation).toHaveBeenCalledWith('c-1'));
+      await type('hi');
+      await screen.findByRole('button', { name: 'Stop' });
+
+      finish();
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
+      expect(within(row('Busy chat')).queryByRole('img')).toBeNull();
+    });
+  });
+
   describe('deleting a chat from the sidebar', () => {
     beforeEach(() => {
       listConversations.mockResolvedValue({

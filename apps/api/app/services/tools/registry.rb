@@ -100,6 +100,7 @@ module Tools
         "Admin::RejectItems",
         "Admin::ListRestaurantItems",
         "Admin::UpdatePublishedItem",
+        "Admin::RetagCuisine",
         "Admin::SetRestaurantStatus"
       ]
     }.freeze

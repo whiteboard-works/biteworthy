@@ -1308,6 +1308,21 @@ RSpec.describe Chat::AgentLoop do
       expect(result.error).to eq(Chat::UpstreamError::TIMED_OUT)
       expect(conversation.reload.state).to eq("active")
     end
+
+    # The sentence tells the person what to do; the report is how we
+    # find out how often it happens. One timeout is weather; fifty in a
+    # day is a problem nobody wrote in about.
+    it "reports an upstream failure so recurring ones get counted" do
+      allow(Rails.error).to receive(:report).and_call_original
+      client = StreamingScriptedClient.new(Faraday::TimeoutError.new("timeout"))
+
+      described_class.new(conversation, client: client).run(text: "hello")
+
+      expect(Rails.error).to have_received(:report).with(
+        an_instance_of(Faraday::TimeoutError),
+        hash_including(context: hash_including(conversation_id: conversation.id, component: "chat", stage: "upstream"))
+      )
+    end
   end
 
   # Every way a turn can end has to leave the same thing behind: a
@@ -2037,6 +2052,46 @@ RSpec.describe Chat::AgentLoop do
       loop_with(say("Sure.")).run(text: "hello")
 
       expect(conversation.reload.title).to eq("Dinner plans")
+    end
+
+    # The entry check reads the row as it was when the turn began. A rename
+    # that lands while the turn runs — the ✎ is not disabled for a working
+    # chat — must not be overwritten by the model's name a second later.
+    it "keeps a name the person gave mid-turn over the model's" do
+      renamed_meanwhile = instance_double(Chat::Titler)
+      allow(renamed_meanwhile).to receive(:call) do
+        Conversation.where(id: conversation.id).update_all(title: "Sam's birthday dinner")
+        Chat::Titler::Result.new(title: "Gluten-free options at Ninis", model: Chat::Titler::MODEL)
+      end
+      allow(Chat::Titler).to receive(:new).and_return(renamed_meanwhile)
+
+      loop_with(say("The al pastor works.")).run(text: "what can I eat without gluten")
+
+      expect(conversation.reload.title).to eq("Sam's birthday dinner")
+    end
+
+    # The person named it while the turn ran: the model call would only be
+    # discarded, so it is not made.
+    it "does not spend on naming a conversation renamed while the turn ran" do
+      conversation.update!(title: nil)
+      Conversation.where(id: conversation.id).update_all(title: "Sam's birthday dinner")
+      expect(Chat::Titler).not_to receive(:new)
+
+      loop_with(say("Sure.")).run(text: "what can I eat")
+
+      expect(conversation.reload.title).to eq("Sam's birthday dinner")
+    end
+
+    # The naming write bypasses the model, and `CompletionJob` goes on to
+    # `with_lock` this same object for a queued second turn — which `lock!`
+    # refuses on a record with unsaved changes.
+    it "leaves the record lockable after naming it" do
+      titled("Lunch at Ninis")
+
+      loop_with(say("Sure.")).run(text: "lunch")
+
+      expect(conversation.title).to eq("Lunch at Ninis")
+      expect { conversation.with_lock { } }.not_to raise_error
     end
 
     it "does not rename a conversation on every later turn" do

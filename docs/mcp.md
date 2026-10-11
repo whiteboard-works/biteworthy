@@ -475,10 +475,25 @@ reusing the same business logic and validation as the REST admin endpoints:
   current join (downgrade only). Dish-level `confidence` is not settable
   directly — it still graduates through `promote!` and
   `confirm_restaurant_data`.
+- **`retag_cuisine`** — re-decide a restaurant's cuisine tags with Jev,
+  the model that decides them for every new scan since 2026-10-10, and
+  rewrite the model-written (`source: ai`) `cuisine` join rows.
+  `dry_run: true` reports the changes without writing (`written` in
+  all, split into `changed` for slug changes and `regraded` where only
+  a confidence grade moved) and is never parked; a real run is gated by `confirm_when` on both doors and
+  declared unrecoverable, so `accept_edits` parks it too (the
+  `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
+  confirmed and every keyword-derived one (gap-fill keeps those beside
+  Jev's too), touches no other family, and never changes a dish's own
+  confidence. All slices are asked before anything is written and each
+  dish is locked and re-read inside the transaction, so a Jev failure
+  part-way or a concurrent edit changes nothing it should not. This is
+  the admin re-run for menus published with Haiku's cuisine tags; the
+  backfill is calling it per restaurant.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 
-All ten require `is_admin: true` and are filtered out of the catalogue for
+All eleven require `is_admin: true` and are filtered out of the catalogue for
 non-admin callers. Rate limiting is shared with the rest of `/mcp`:
 120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
 anonymous.
@@ -836,7 +851,7 @@ be a separate request because the one that started the turn is busy.
 | `GET /api/v1/conversations` | The caller's own, newest first |
 | `POST /api/v1/conversations` | Opens an empty one |
 | `GET /api/v1/conversations/:id` | Replay: the transcript in client block shapes, plus any parked confirmation |
-| `PATCH /api/v1/conversations/:id` | Sets `mode` — for switching without sending anything |
+| `PATCH /api/v1/conversations/:id` | Sets `mode` (switching without sending anything) and/or `title` (a rename the titler never overwrites) |
 | `DELETE /api/v1/conversations/:id` | Removes it and its messages |
 | `POST /api/v1/conversations/:id/messages` | Runs a turn, streaming SSE. Optional `mode` switches and sends in one request |
 | `POST /api/v1/conversations/:id/confirm` | Answers a parked destructive call (`{"confirm": true\|false}`), streaming SSE |
@@ -845,7 +860,7 @@ be a separate request because the one that started the turn is busy.
 A turn streams these events, each as one `data:` line of JSON:
 
 `open` · `thinking_delta` · `text_delta` · `tool_use` · `tool_result` ·
-then exactly one of `done`, `awaiting_confirmation`, or `error`.
+then exactly one terminal event from the loop: `done`, `awaiting_confirmation`, or `error`. Independently of the turn, the relay may write `reconnect` (its window closed; resume from `after`) or an `error` with `interrupted: true` (it lost the turn, which may still be running). Neither is terminal, and the web client reads neither as the turn ending.
 
 Two properties follow from this being a chat and not an RPC:
 

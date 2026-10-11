@@ -19,6 +19,7 @@ import { buildAuthCookieOptions } from '../../../../lib/cookie-options';
 
 import { API_BASE } from '../../../../lib/api-base';
 import { edgeHeaders } from '../../../../lib/edge-headers';
+import { serverLog } from '../../../../lib/server-log';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 const ACTIONS = new Set(['login', 'signup', 'logout', 'forgot', 'reset']);
@@ -99,7 +100,11 @@ async function handlePasswordReset(action: 'forgot' | 'reset', body: Credentials
   // mail step, i.e. real accounts. Clamp it: defence-in-depth for the
   // enumeration guard (the failure still shows in server logs).
   if (action === 'forgot') {
-    if (!upstream.ok) console.error(`forgot-password upstream ${upstream.status}`);
+    if (!upstream.ok) {
+      serverLog.warn('forgot-password upstream failed, clamped to 202', {
+        'http.response.status_code': upstream.status,
+      });
+    }
     return new NextResponse('{}', {
       status: 202,
       headers: { 'Content-Type': 'application/json' },

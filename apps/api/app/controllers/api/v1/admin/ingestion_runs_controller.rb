@@ -33,9 +33,10 @@ module Api
           offset = page_offset
           page   = runs.limit(limit).offset(offset).to_a
           counts = decision_counts_for(page)
+          jev    = Ingestion::JevMetrics.for_runs(page.map(&:id))
 
           render json: {
-            runs: page.map { |run| serialize_queue_run(run, counts[run.id] || {}) },
+            runs: page.map { |run| serialize_queue_run(run, counts[run.id] || {}, jev[run.id]) },
             pagination: { total: total, limit: limit, offset: offset }
           }
         end
@@ -86,7 +87,7 @@ module Api
           end
         end
 
-        def serialize_queue_run(run, counts)
+        def serialize_queue_run(run, counts, jev)
           {
             id:                run.id,
             status:            run.status,
@@ -109,7 +110,8 @@ module Api
               accepted: counts["accepted"] || 0,
               rejected: counts["rejected"] || 0,
               edited:   counts["edited"]   || 0
-            }
+            },
+            jev: jev
           }
         end
       end

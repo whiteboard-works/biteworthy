@@ -179,8 +179,8 @@ the taxonomy already in Postgres:
   resolved meat suppresses "vegan"/"vegetarian", and a claim its own
   derived allergen tags contradict (wheat → no "gluten-free" badge) is
   dropped; never inferred from absence. `prep`/`flavor` are keyword
-  tables. `cuisine` is a weak keyword pass, mostly delegated to
-  gap-fill.
+  tables. `cuisine` is a weak keyword pass; Jev owns the family's real
+  coverage in gap-fill (§2b).
 
 The run transitions to `staged` right here — the verify UI gets
 populated dishes seconds after extraction.
@@ -196,26 +196,88 @@ tracked by `ingestion_runs.enrichment_status`
 (`pending | completed | failed`). `pending` holds through the job's
 `retry_on` attempts; only the last failed attempt stamps `failed`, so
 clients can treat it as final.
-The prompt carries the **prompt-cached** ingredient catalog plus the
-cuisine-family tag catalog only, and asks solely for what code can't
-do: implied ingredients ("Caesar Salad" → anchovy, egg) and cuisine
-tags. Merge rules: append-only (`source: "ai"`), unknown slugs
-dropped, rows contradicting a name-level diet claim dropped
-(`Ingestion::DietClaims` — the same gate the resolver's implied bases
-use), only items still `pending`, and allergen/diet tags re-derived
-in code over the merged ingredient set. A gap-fill failure never fails
-the run — it's already staged and usable on deterministic data.
+The Haiku prompt carries the **prompt-cached** ingredient catalog and
+no tag catalog, and asks solely for what code can't do: implied
+ingredients ("Caesar Salad" → anchovy, egg). Merge rules: append-only
+(`source: "ai"`), unknown slugs dropped, rows contradicting a
+name-level diet claim dropped (`Ingestion::DietClaims` — the same gate
+the resolver's implied bases use), only items still `pending`, and
+allergen/diet tags re-derived in code over the merged ingredient set.
+A gap-fill failure never fails the run — it's already staged and
+usable on deterministic data.
 
-**Jev shadow trial (2026-09-28).** When `JEV_API_KEY` is set, each
-merged slice is also sent to TypeSafe's Jev (`TypesafeClient`,
-`Ingestion::JevCuisineShadow`): one yes/no question per (item, leaf
-cuisine tag), state limited to the slice's names/descriptions/sections.
-It writes nothing — it logs one `[jev_shadow]` JSON line per slice
-(resolved model version, latency, agree / `jev_only` / `haiku_only` / `missing`
-counts, up to 20 disagreements) and swallows its own errors. Whether
-Jev takes over cuisine tags is decided from those lines. Ingredients
-stay with Haiku regardless: ~1,088 slugs exceed Jev's 255-option
-Choice limit.
+**Cuisine tags come from Jev (since 2026-10-10).** After each Haiku
+slice returns, the same items go to TypeSafe's Jev (`TypesafeClient`,
+`Ingestion::JevCuisineTagger`): one gate `noul` per item ("does this
+belong to any culinary tradition at all?", blocking only below 0.25 so
+a soda or raw onions get no cuisine however Southern the menu around
+them while a borderline item is left to the cuisine questions) and one `noul` per
+(item, leaf cuisine tag), each with `criteria` that pin the answer to
+the item's own recipe rather than the restaurant's identity, state
+limited to the slice's names, descriptions and sections, nothing else.
+The first dry runs showed why: with nineteen barbecue plates in the
+slice, "ONIONS" read as Southern. A tag whose probability reaches 0.5 is
+merged as `source: "ai"` with the probability as its confidence (so
+`ConfidenceMapper` grades 0.8+ as suggested, below as inferred), and
+the slice logs one `[jev_cuisine]` JSON line (model version, latency,
+input tokens, items, tags kept, answers missing; a missing answer is
+also reported through `Rails.error.report`) and writes one `JevObservation`
+row (kind `cuisine`, subject the run or restaurant, outcome answered /
+partial / failed, latency, tokens, the same counts), which is what
+survives a deploy: `JevObservation.where(kind: "cuisine").group(:outcome).count`.
+Haiku is never asked for
+cuisine and never sees the cuisine catalog, so gap-fill no longer
+writes `unresolved_tags`. A Jev failure never raises: the slice merges
+keeping whatever AI cuisine rows it already had, the failure is
+reported, and Jev is skipped for the rest of that attempt so an outage
+costs one timeout rather than one per slice. A retry (any later slice's
+Haiku failure triggers one) skips the Haiku call for slices already
+enriched but still asks Jev, which is what repairs a slice whose Jev
+call failed. With `JEV_API_KEY` unset the job warns on every attempt
+that enriches and the keyword pass is all a dish gets. Jev's spend
+(~2k input tokens per slice at $0.042/MTok, output free) is logged,
+not added to `api_cost_cents`. Ingredients stay with Haiku: ~1,088
+slugs exceed Jev's 255-option Choice limit.
+
+**Hidden-wheat shadow (since 2026-10-11).** After each slice merges,
+`Ingestion::JevHiddenWheatShadow` asks Jev one yes/no per gap dish, "as
+usually prepared, is this made with wheat somewhere" (crust, bun, flour
+tortilla, batter, breading, pasta, roux), and compares it with whether
+the merged ingredients carry anything under `grain.wheat`. It writes
+nothing to a dish: one `JevObservation` (kind `hidden_wheat_shadow`,
+`agree`, counts, up to 20 disagreements) per slice. `jev_only` is the
+disagreement that matters: Jev says wheat, the data says none, which is
+the false negative a gluten-free filter cannot afford. Switched by
+`JEV_WHEAT_SHADOW` in `deploy.yml` so the trial stops without a code
+deploy. Each row keeps the dishes' `item_ids`, and a retry skips dishes
+an earlier attempt observed, so a slice re-sent whole never counts a
+dish twice on the dashboard. Whether a `jev_only` answer should add a
+cautionary row is decided from those rows, never by this class.
+
+The 2026-09-28 shadow trial that decided this agreed with Haiku on
+95.6% of 1,085 pairs, and the disagreements were almost all Haiku
+forcing a dish into one of the then seven leaf cuisines (a Venezuelan
+menu as `mexican`, chai as `indian`, a Greek wrap as `italian`).
+
+The leaf set is `db/seeds/tags.yml`, which only a freshly created
+database reads (`db:prepare` seeds once); an existing deployment gets
+a new leaf through an idempotent data migration, the way
+`UpsertCuisineLeafTags` delivered these. Dry runs
+of `retag_cuisine` on 2026-10-10 showed Jev rightly refusing those
+force-fits but with nowhere else to put the dish (a Himalayan menu
+losing `indian` and gaining nothing), so the set grew from 7 to 23
+leaves the same day: Nepali & Tibetan, Mediterranean, Greek, Middle
+Eastern, Latin American, Caribbean, Korean, Vietnamese, French,
+Spanish, German, Ethiopian, Southern, Cajun & Creole, Barbecue,
+Tex-Mex. Every leaf is one more Noul per dish, so a slice of ten asks
+240 questions with the gate; still a few thousand of the 64k tokens a request may
+carry (TypeSafe caps Choice *options* at 255, not Noul questions).
+Adding a cuisine is a row in that file, a migration that upserts it,
+and, only for a word that is never a dish modifier, a
+`TagDeriver::Cuisine` keyword ("french" fries and "greek" yogurt are
+why french and greek have none); `taxonomy_drift_spec` pins the
+keywords to the seed file and the migration spec pins the migration
+to it.
 
 ### 3. Stage
 

@@ -1,5 +1,78 @@
 [
   {
+    "version": "2026.10.11.1",
+    "date": "2026-10-11",
+    "notes": [
+      "Behind the scenes, every answer our cuisine model gives is now kept, and a second check has started asking whether a dish is usually made with wheat, so that a crust or batter nobody wrote on the menu can be caught before it reaches someone avoiding gluten. Nothing changes on a menu yet; this is the measuring step."
+    ]
+  },
+  {
+    "version": "2026.10.11",
+    "date": "2026-10-11",
+    "notes": [
+      "Dishes show their price as a chip, or a range like $9–$14 when a dish comes in sizes, on the website and in the app. Your best bets also show which part of the menu each dish is from."
+    ]
+  },
+  {
+    "version": "2026.10.10.11",
+    "date": "2026-10-10",
+    "notes": [
+      "Our servers' own log stream had been repeating a false alarm, a complaint from the log shipper about a reply it could not read, even though every line it sent had arrived. The alarm is gone, so a real problem in that stream is no longer buried under it. We also confirmed end to end that an error on our side reaches our error tracking within a minute."
+    ]
+  },
+  {
+    "version": "2026.10.10.10",
+    "date": "2026-10-10",
+    "notes": [
+      "Cuisine labels now stay off things that have no cuisine, like a soda, raw onions or a bottled beer, however themed the restaurant around them. Everyday American plates such as a ribeye or a composed salad keep their American label."
+    ]
+  },
+  {
+    "version": "2026.10.10.9",
+    "date": "2026-10-10",
+    "notes": [
+      "Cuisine labels can now say Nepali and Tibetan, Mediterranean, Greek, Middle Eastern, Latin American, Caribbean, Korean, Vietnamese, French, Spanish, German, Ethiopian, Southern, Cajun and Creole, Barbecue, and Tex-Mex, so a dish is no longer squeezed into the nearest of seven. They also show up as choices in the taste step of onboarding and in settings."
+    ]
+  },
+  {
+    "version": "2026.10.10.8",
+    "date": "2026-10-10",
+    "notes": [
+      "When something goes wrong in a chat or in a background job on our side, we now record it ourselves: each distinct failure once, counted when it recurs, so a problem that keeps happening can be fixed before anyone has to write in. The record is the technical shape of the error, with ids, addresses, and quoted text blanked out, plus an internal reference to the affected chat so we can look into it."
+    ]
+  },
+  {
+    "version": "2026.10.10.7",
+    "date": "2026-10-10",
+    "notes": [
+      "The usage analytics the privacy policy describes are now actually on for the web and mobile apps: they report to BiteWorthy's own analytics project, where before the key was never set. Nothing new is collected from your browser or phone, and the opt-out and Do-Not-Track controls are unchanged.",
+      "Our servers now send their error reports and logs to that same project so we can see a failure when it happens. Before a line leaves a server it loses the request body, your IP address, every query value (including the diet you filter by), file and job arguments, and anything shaped like a credential; the privacy policy says so.",
+      "On mobile, turning analytics off in Settings takes effect at once instead of on the next launch, and the app sends only its named events, never the SDK's automatic ones."
+    ]
+  },
+  {
+    "version": "2026.10.10.6",
+    "date": "2026-10-10",
+    "notes": [
+      "Menus published before today kept their old cuisine labels. An admin can now re-run the cuisine labelling on any restaurant with the newer yes-or-no model, preview the changes first, and keep every label a person added by hand."
+    ]
+  },
+  {
+    "version": "2026.10.10.5",
+    "date": "2026-10-10",
+    "notes": [
+      "You can rename a chat: hover a chat in the sidebar and use the pencil to give it your own name. The assistant never overwrites a name you chose.",
+      "The chat sidebar now shows a pulsing dot beside a chat that is still working and a steady dot beside one that finished while you were in another chat, so you know where a reply is waiting."
+    ]
+  },
+  {
+    "version": "2026.10.10.4",
+    "date": "2026-10-10",
+    "notes": [
+      "Menus scanned from today on get their cuisine labels from a model built for yes-or-no judgments instead of the general-purpose one. It stopped calling a Venezuelan menu Mexican and chai Indian, answers in a fraction of a second, and costs almost nothing per dish."
+    ]
+  },
+  {
     "version": "2026.10.10.3",
     "date": "2026-10-10",
     "notes": [

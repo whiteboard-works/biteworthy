@@ -54,7 +54,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-08';
+const LAST_UPDATED = '2026-10-10';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -175,8 +175,10 @@ export default function PrivacyPage(): ReactElement {
               itself.
             </li>
             <li>
-              <strong>PostHog</strong>: product analytics. See “Your rights and controls” for
-              exactly what we send and how to opt out.
+              <strong>PostHog</strong>: product analytics, and error reports and logs from our
+              own servers — the latter two never from your browser or phone, with the request body
+              and your IP address removed before they are sent. See “Your rights and controls” for
+              exactly what we send from your device and how to opt out.
             </li>
             <li>
               <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our

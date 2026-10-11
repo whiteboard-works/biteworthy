@@ -13,6 +13,7 @@ import type {
   FilterSource,
   HideReason,
   ItemSection,
+  ItemVariant,
   Strictness,
   TasteReason,
 } from '@biteworthy/filter-engine';
@@ -109,6 +110,8 @@ export interface RestaurantItem extends FilterableItem {
    * 4.11.2 / for menu items with no inline photo.
    */
   photo_url: string | null;
+  /** Sizes and prices, in menu order; a size may have no price. */
+  variants?: ItemVariant[];
   /**
    * WebP variants of the dish photo at different sizes. Uses
    * `rails_representation_url` for lazy generation. Null when no

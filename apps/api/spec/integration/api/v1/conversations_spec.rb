@@ -70,31 +70,35 @@ RSpec.describe "conversations", type: :request do
       end
     end
 
-    patch("Switch the conversation's mode") do
+    patch("Switch the conversation's mode, or rename it") do
       tags "Chat"
       description "For switching without sending anything, so the picker survives a " \
                   "reload. A turn carries the mode it was sent under, so this sets what " \
-                  "the *next* send will use — it does not change a turn already running."
+                  "the *next* send will use — it does not change a turn already running. " \
+                  "`title` renames the conversation; a name set here is never replaced by " \
+                  "the model's. Send either field or both."
       consumes "application/json"
       produces "application/json"
       security [bearerAuth: []]
       parameter name: :Authorization, in: :header, type: :string, required: true
       parameter name: :body, in: :body, schema: {
         type: :object,
-        required: %w[mode],
         properties: {
-          mode: { type: :string, enum: %w[planning manual accept_edits auto] }
+          mode: { type: :string, enum: %w[planning manual accept_edits auto] },
+          title: { type: :string, minLength: 1, maxLength: Chat::Titler::MAX_LENGTH,
+                   description: "Whitespace is collapsed. Blank, or longer than the sidebar can " \
+                                "show, is refused." }
         }
       }
 
-      response(200, "the conversation, with the new mode") do
+      response(200, "the conversation, with the new mode or title") do
         schema "$ref" => "#/components/schemas/Conversation"
         let(:id)   { create(:conversation, user: account).id }
-        let(:body) { { mode: "planning" } }
+        let(:body) { { mode: "planning", title: "Dairy-free lunch near Belmar" } }
         run_test!
       end
 
-      response(422, "a mode that does not exist") do
+      response(422, "a mode that does not exist; a blank, over-long, or non-text title; or an empty body") do
         schema "$ref" => "#/components/schemas/ErrorResponse"
         let(:id)   { create(:conversation, user: account).id }
         let(:body) { { mode: "yolo" } }

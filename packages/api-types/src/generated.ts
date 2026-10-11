@@ -216,6 +216,74 @@ export interface paths {
                                     cache_hit_rate: number;
                                 };
                             };
+                            jev: {
+                                today: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_7_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                                last_30_days: {
+                                    label: string;
+                                    calls: number;
+                                    answered: number;
+                                    partial: number;
+                                    failed: number;
+                                    input_tokens: number;
+                                    cost_cents: number;
+                                    cuisine: {
+                                        calls: number;
+                                        failed: number;
+                                        tagged: number;
+                                        no_cuisine: number;
+                                    };
+                                    wheat: {
+                                        calls: number;
+                                        agree: number;
+                                        disagree: number;
+                                        jev_only: number;
+                                        data_only: number;
+                                    };
+                                };
+                            };
                             community: {
                                 runs_today: number;
                                 spend_today_cents: number;
@@ -1059,6 +1127,13 @@ export interface paths {
                                 input_kind?: string;
                                 failure_message?: string | null;
                                 api_cost_cents?: number | null;
+                                jev: {
+                                    calls: number;
+                                    failed: number;
+                                    partial: number;
+                                    input_tokens: number;
+                                    wheat_jev_only: number;
+                                };
                                 /** Format: date-time */
                                 archived_at?: string | null;
                                 /** Format: date-time */
@@ -3746,8 +3821,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Switch the conversation's mode
-         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.
+         * Switch the conversation's mode, or rename it
+         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running. `title` renames the conversation; a name set here is never replaced by the model's. Send either field or both.
          */
         patch: {
             parameters: {
@@ -3765,12 +3840,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        mode: "planning" | "manual" | "accept_edits" | "auto";
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
+                        /** @description Whitespace is collapsed. Blank, or longer than the sidebar can show, is refused. */
+                        title?: string;
                     };
                 };
             };
             responses: {
-                /** @description the conversation, with the new mode */
+                /** @description the conversation, with the new mode or title */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3779,7 +3856,7 @@ export interface paths {
                         "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description a mode that does not exist */
+                /** @description a mode that does not exist; a blank, over-long, or non-text title; or an empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;

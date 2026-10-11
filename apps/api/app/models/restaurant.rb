@@ -9,6 +9,9 @@ class Restaurant < ApplicationRecord
   # admin/seed-created rows leave this nil.
   belongs_to :created_by_user, class_name: "User", optional: true
 
+  # Nullify, not delete: the spend and the missed-wheat count were real
+  # and the dashboard's history must not shrink when a run is cleaned up.
+  has_many :jev_observations, as: :subject, dependent: :nullify
   has_many :addresses,     dependent: :destroy
   has_many :hours,         dependent: :destroy
   has_many :menus,         dependent: :destroy
