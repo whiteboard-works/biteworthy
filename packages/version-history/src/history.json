@@ -1,5 +1,13 @@
 [
   {
+    "version": "2026.10.11.3",
+    "date": "2026-10-11",
+    "notes": [
+      "Restaurant owners who have verified their listing, and our admins, can now add a logo and a banner. The logo shows beside the restaurant's name in lists and on its page, and the banner across the top of the page, on the website for now.",
+      "On a phone, the chat's message box now grows as you type a longer message instead of scrolling inside a single line, and the \"use my location\" pin has moved to the top of the chat so the box has more room."
+    ]
+  },
+  {
     "version": "2026.10.11.2",
     "date": "2026-10-11",
     "notes": [
