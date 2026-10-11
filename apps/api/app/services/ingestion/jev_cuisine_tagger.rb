@@ -176,11 +176,18 @@ module Ingestion
 
     GATE = "any"
 
-    # Dishes that wear a cuisine's name and belong to another tradition.
-    # Sent as the false side of every cuisine question, since the first
-    # dry runs on the criteria gave French Toast `french`.
-    NAMED_AFTER = [ "French toast", "French fries", "French dip", "Greek yogurt", "German chocolate cake",
-                    "Swiss cheese", "Italian soda", "Chinese chicken salad", "Mongolian beef" ].freeze
+    # Dishes that wear a cuisine's name and belong to another tradition,
+    # sent as the false side of that cuisine's question only: the first
+    # dry runs on the criteria gave French Toast `french`. Scoped per tag
+    # because French toast is American, and the American question must
+    # not be told otherwise.
+    NAMED_AFTER = {
+      "french"  => [ "French toast", "French fries", "French dip" ],
+      "german"  => [ "German chocolate cake", "German potato salad at a diner" ],
+      "italian" => [ "Italian soda", "Italian dressing" ],
+      "chinese" => [ "Chinese chicken salad" ],
+      "spanish" => [ "Spanish rice at a taqueria" ]
+    }.freeze
 
     # What the per-cuisine question means by "American". Generic
     # restaurant plates (a ribeye, a cedar-plank salmon, a composed salad)
@@ -200,14 +207,14 @@ module Ingestion
           type:         "noul",
           instructions: "Does `items[#{i}]` belong to any culinary tradition at all?",
           criteria:     {
-            true:  { what:     "A prepared dish, drink, baked good, side, antipasto or house-made " \
-                               "component whose recipe comes from some cuisine, however small",
+            true:  { what:     "A prepared dish, drink, baked good, antipasto or house-made component " \
+                               "with a recipe of its own that comes from some cuisine, however small",
                      examples: [ "naan", "kimchi", "hummus", "grits", "tzatziki", "cornbread", "chai",
-                                 "prosciutto-wrapped asparagus", "house pistachio sausage" ] },
-            false: { what:     "A plain beverage, a single raw ingredient, a plain add-on with no recipe of " \
-                               "its own, or a packaged brand item, whatever the restaurant around it serves",
+                                 "prosciutto-wrapped asparagus", "a house-made sausage" ] },
+            false: { what:     "A plain beverage, a portion of a single ingredient, or a packaged brand " \
+                               "item, whatever the restaurant around it serves",
                      examples: [ "hot tea", "milk", "soda", "orange juice", "a bottled beer", "raw onions",
-                                 "sliced jalapeños", "sour cream", "extra cheese", "a side of ranch",
+                                 "sliced jalapeños", "sour cream", "extra cheese", "a sliced tomato",
                                  "a branded ice cream bar" ] }
           }
         }
@@ -222,7 +229,7 @@ module Ingestion
               false: { what:     "The item belongs to another cuisine or to none, or only the menu around it " \
                                  "is #{tag[:name]}, or its name merely borrows the word while its tradition " \
                                  "is another cuisine's",
-                       examples: NAMED_AFTER }
+                       examples: NAMED_AFTER[tag[:slug]] }.compact
             }
           }
         end

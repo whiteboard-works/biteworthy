@@ -85,18 +85,38 @@ RSpec.describe Ingestion::JevCuisineRetag do
   end
 
   # Near the 0.8 boundary Jev regraded near-identical dishes in opposite
-  # directions; a slug the re-tag keeps keeps its grade, and only a new
-  # slug takes Jev's probability.
-  it "keeps the grade of a slug it keeps, and grades only a new slug from Jev" do
+  # directions; a slug the re-tag keeps moves grade only when the
+  # probability is clearly across it, and the grade is what the dish
+  # page's provenance marks show.
+  it "keeps a kept slug's grade near the boundary, and moves it only when Jev is clearly across" do
     ItemTag.find_by!(item: tacos, tag: italian).destroy!
     ItemTag.create!(item: tacos, tag: mexican, source: "ai", confidence: "suggested")
+
+    answers["i0__cuisine-mexican"]["noul"] = 0.75
+    stub_jev(answers)
+    result = described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
+    expect(result.changes).to be_empty
+
     answers["i0__cuisine-mexican"]["noul"] = 0.6
     stub_jev(answers)
     result = described_class.new(restaurant, tagger: tagger).call
+    expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "inferred" ])
+    expect(result.changes.map(&:regrade)).to eq([ true ])
 
+    answers["i0__cuisine-mexican"]["noul"] = 0.95
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
     expect(cuisine_rows(tacos)).to include([ "cuisine-mexican", "ai", "suggested" ])
-    expect(result.changes).to be_empty
-    expect(result.unchanged).to eq(3)
+  end
+
+  # A model-written row a person confirmed is theirs, whatever Jev says now.
+  it "leaves a confirmed ai row alone" do
+    ItemTag.find_by!(item: tacos, tag: italian).update!(confidence: "confirmed")
+    stub_jev(answers)
+    described_class.new(restaurant, tagger: tagger).call
+
+    expect(cuisine_rows(tacos)).to include([ "cuisine-italian", "ai", "confirmed" ], [ "cuisine-mexican", "ai", "suggested" ])
   end
 
   it "grades a new slug from Jev's probability: below 0.8 lands as inferred" do

@@ -79,17 +79,14 @@ module Ingestion
             end
 
             current = item.item_tags.includes(:tag).reload.select { |row| row.tag.family == "cuisine" }
-            managed = current.select { |row| row.source == MANAGED_SOURCE }
+            # A model-written row a person has since confirmed is theirs.
+            managed = current.select { |row| row.source == MANAGED_SOURCE && row.confidence != "confirmed" }
             kept    = current - managed
             graded  = managed.to_h { |row| [ row.tag.slug, row.confidence ] }
-            # A slug the re-tag keeps keeps its grade: Jev near the 0.8
-            # boundary regraded near-identical dishes in opposite
-            # directions, and nothing downstream reads the grade of a
-            # cuisine row. Only a new slug takes Jev's probability.
             target  = wanted.reject { |w| kept.any? { |row| row.tag.slug == w["slug"] } }
-                            .to_h { |w| [ w["slug"], graded.fetch(w["slug"]) { ConfidenceMapper.map_confidence(w["confidence"], "ai", "suggested") } ] }
+                            .to_h { |w| [ w["slug"], grade(w["confidence"], graded[w["slug"]]) ] }
 
-            if managed.to_h { |row| [ row.tag.slug, row.confidence ] } == target
+            if graded == target
               unchanged += 1
               next
             end
@@ -98,9 +95,8 @@ module Ingestion
             before = rows(current.map { |row| [ row.tag.slug, row.confidence ] })
             after  = rows(kept.map { |row| [ row.tag.slug, row.confidence ] } + target.to_a)
             apply!(item, managed, target, tags) unless dry_run
-            # From what apply! does, not from the display rows. With kept
-            # slugs keeping their grade this is false today; the field
-            # stays so the report's contract does not move.
+            # From what apply! does, not from the display rows: the same
+            # managed slugs with a grade moved is a regrade, nothing else is.
             regrade = managed.map { |row| row.tag.slug }.sort == target.keys.sort
             changes << Change.new(item: item, before: before, after: after, regrade: regrade)
           end
@@ -132,6 +128,22 @@ module Ingestion
 
     def prompt_row(item)
       { name: item.name, description: item.description.presence, section: item.menu_section&.name }
+    end
+
+    # A new slug takes Jev's probability through the usual 0.8 cut. A slug
+    # the re-tag keeps moves grade only when the probability is clearly
+    # across the boundary (0.9 up, 0.7 down): near 0.8 Jev regraded three
+    # near-identical Benedicts in opposite directions, and the grade is
+    # what the dish page's provenance marks show.
+    PROMOTE_AT = 0.9
+    DEMOTE_BELOW = 0.7
+
+    def grade(probability, current)
+      return ConfidenceMapper.map_confidence(probability, "ai", "suggested") if current.nil?
+      return "suggested" if probability >= PROMOTE_AT
+      return "inferred" if probability < DEMOTE_BELOW
+
+      current
     end
 
     def rows(pairs)

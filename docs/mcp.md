@@ -479,10 +479,11 @@ reusing the same business logic and validation as the REST admin endpoints:
   the model that decides them for every new scan since 2026-10-10, and
   rewrite the model-written (`source: ai`) `cuisine` join rows.
   `dry_run: true` reports the changes without writing (`written` in
-  all, split into `changed` for slug changes and `regraded`, which
-  stays at zero since 2026-10-11: a slug the re-tag keeps keeps its
-  grade, and only a new slug takes Jev's probability) and is never
-  parked; a real run is gated by `confirm_when` on both doors and
+  all, split into `changed` for slug changes and `regraded` where a
+  grade moved clearly across the 0.8 boundary; since 2026-10-11 a
+  kept slug keeps its grade unless Jev is at 0.9 or above, or under
+  0.7, and a model-written row a person confirmed is never touched)
+  and is never parked; a real run is gated by `confirm_when` on both doors and
   declared unrecoverable, so `accept_edits` parks it too (the
   `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
   confirmed and every keyword-derived one (gap-fill keeps those beside
