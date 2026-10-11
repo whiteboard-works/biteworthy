@@ -61,9 +61,9 @@ RSpec.describe Item, type: :model do
       end
 
       it "locks the item from editing by others" do
-        admin = create(:user, :admin)
         item.mark_restaurant_verified!(user)
-        expect(item.can_be_edited_by?(admin)).to be true
+        expect(item.can_be_edited_by?(create(:user, :super_admin))).to be true
+        expect(item.can_be_edited_by?(create(:user, :admin))).to be false
         expect(item.can_be_edited_by?(create(:user))).to be false
       end
     end
@@ -85,8 +85,12 @@ RSpec.describe Item, type: :model do
         before { item.mark_restaurant_verified!(user) }
 
         it "allows super admin to edit" do
-          admin = create(:user, :admin)
-          expect(item.can_be_edited_by?(admin)).to be true
+          expect(item.can_be_edited_by?(create(:user, :super_admin))).to be true
+        end
+
+        # edit_item is admin-only, so an admin bypass would make the lock a no-op.
+        it "denies a plain admin who did not verify it" do
+          expect(item.can_be_edited_by?(create(:user, :admin))).to be false
         end
 
         it "allows the verifying user to edit" do

@@ -15,7 +15,7 @@ module Tools
         properties: {
           item_id: { type: "string", description: "The dish's UUID, from get_menu_structure." }
         },
-        required: ["item_id"],
+        required: [ "item_id" ],
         additionalProperties: false
       )
 

@@ -108,9 +108,12 @@ class Item < ApplicationRecord
     update!(restaurant_verified_at: Time.current, restaurant_verified_by_user: user)
   end
 
+  # Once the restaurant has verified a dish, only the verifier or a super
+  # admin may edit it. A plain admin may not: edit_item is admin-only, so
+  # letting admins through would make the lock a no-op.
   def can_be_edited_by?(user)
-    return true if user&.is_admin?
     return true unless restaurant_verified?
+    return true if user&.is_super_admin?
 
     user&.id == restaurant_verified_by_user_id
   end
