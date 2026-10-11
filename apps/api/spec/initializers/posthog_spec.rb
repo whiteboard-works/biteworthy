@@ -36,6 +36,25 @@ RSpec.describe "config/initializers/posthog.rb" do
       .to eq("profile" => "[FILTERED]", "strictness" => "[FILTERED]", "q" => "[FILTERED]", "limit" => "20")
   end
 
+  describe "the OpenTelemetry error handler" do
+    let(:otel_logger) { instance_double(Logger) }
+
+    before { allow(OpenTelemetry).to receive(:logger).and_return(otel_logger) }
+
+    it "drops the exporter's complaint about PostHog's JSON acknowledgement of a delivered batch" do
+      expect(otel_logger).not_to receive(:error)
+      OpenTelemetry.handle_error(
+        exception: StandardError.new("Error occurred during parsing"),
+        message: "unexpected error decoding ExportLogsServiceResponse in OTLP::Exporter#log_partial_success"
+      )
+    end
+
+    it "still reports everything else, a rejected record included" do
+      expect(otel_logger).to receive(:error).with(a_string_including("rejected_log_records=3"))
+      OpenTelemetry.handle_error(message: "OTLP logs exporter received partial success: rejected_log_records=3, error_message=too big")
+    end
+  end
+
   it "keeps the test suite offline" do
     expect(PostHog.client.instance_variable_get(:@worker)).to be_a(PostHog::NoopWorker)
   end

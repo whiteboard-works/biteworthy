@@ -57,6 +57,23 @@ PostHog.init(silence_disabled_client_error: true) do |config|
   config.test_mode = Rails.env.test?
 end
 
+# PostHog acknowledges an OTLP/protobuf log export with `200` and a JSON
+# `{}` body, where OTLP has the response use the request's encoding. The
+# Ruby exporter protobuf-decodes that body anyway, fails, and prints an
+# ERROR line to STDOUT for every batch it just delivered, one or more a
+# second whenever the app is logging. That one complaint is dropped here;
+# everything else OpenTelemetry has to say still reaches the default
+# handler. Reported to PostHog 2026-10-11; remove once the endpoint
+# answers in kind.
+require "opentelemetry-api"
+
+otel_default_error_handler = OpenTelemetry.error_handler
+OpenTelemetry.error_handler = lambda do |exception: nil, message: nil|
+  next if message&.start_with?("unexpected error decoding ExportLogsServiceResponse")
+
+  otel_default_error_handler.call(exception: exception, message: message)
+end
+
 Rails.application.config.after_initialize do
   Rails.error.subscribe(Telemetry::ErrorSubscriber.new)
 end
