@@ -111,7 +111,7 @@ class GapFillResolveJob < ApplicationJob
       # that succeeded, and switches Jev off for the rest of this attempt
       # so an outage costs one timeout, not one per slice. The next
       # attempt, if there is one, asks again.
-      cuisine = tagger&.call(run, prompt_rows)
+      cuisine = tagger&.call(run, prompt_rows, context: { attempt: executions })
       tagger  = nil if cuisine.nil?
       merged  = merge!(run, slice, result, ingredient_paths, cuisine)
       # Observation only, after the merge so it measures what landed; a

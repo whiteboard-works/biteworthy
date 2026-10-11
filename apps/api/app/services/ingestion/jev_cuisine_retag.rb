@@ -46,6 +46,7 @@ module Ingestion
     end
 
     def call(dry_run: false)
+      @dry_run = dry_run
       tags = leaf_cuisine_tags
       raise Unavailable, "the taxonomy has no leaf cuisine tags" if tags.empty?
 
@@ -116,7 +117,7 @@ module Ingestion
     # on the first failed slice, so an outage costs one timeout.
     def ask(items)
       items.each_slice(SLICE).each_with_object({}) do |slice, answers|
-        rows = @tagger.call(@restaurant, slice.map { |item| prompt_row(item) })
+        rows = @tagger.call(@restaurant, slice.map { |item| prompt_row(item) }, context: { dry_run: @dry_run })
         raise Unavailable, "Jev did not answer for #{@restaurant.slug}" if rows.nil?
 
         slice.each_with_index { |item, i| answers[item.id] = rows[i] }

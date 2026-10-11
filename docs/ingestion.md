@@ -239,6 +239,19 @@ that enriches and the keyword pass is all a dish gets. Jev's spend
 not added to `api_cost_cents`. Ingredients stay with Haiku: ~1,088
 slugs exceed Jev's 255-option Choice limit.
 
+**Hidden-wheat shadow (since 2026-10-11).** After each slice merges,
+`Ingestion::JevHiddenWheatShadow` asks Jev one yes/no per gap dish, "as
+usually prepared, is this made with wheat somewhere" (crust, bun, flour
+tortilla, batter, breading, pasta, roux), and compares it with whether
+the merged ingredients carry anything under `grain.wheat`. It writes
+nothing to a dish: one `JevObservation` (kind `hidden_wheat_shadow`,
+`agree`, counts, up to 20 disagreements) per slice. `jev_only` is the
+disagreement that matters: Jev says wheat, the data says none, which is
+the false negative a gluten-free filter cannot afford. Switched by
+`JEV_WHEAT_SHADOW` in `deploy.yml` so the trial stops without a code
+deploy. Whether a `jev_only` answer should add a cautionary row is
+decided from those rows, never by this class.
+
 The 2026-09-28 shadow trial that decided this agreed with Haiku on
 95.6% of 1,085 pairs, and the disagreements were almost all Haiku
 forcing a dish into one of the then seven leaf cuisines (a Venezuelan

@@ -7,6 +7,7 @@ class Restaurant < ApplicationRecord
   # admin/seed-created rows leave this nil.
   belongs_to :created_by_user, class_name: "User", optional: true
 
+  has_many :jev_observations, as: :subject, dependent: :delete_all
   has_many :addresses,     dependent: :destroy
   has_many :hours,         dependent: :destroy
   has_many :menus,         dependent: :destroy

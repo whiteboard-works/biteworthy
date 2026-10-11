@@ -27,6 +27,7 @@ class IngestionRun < ApplicationRecord
 
   belongs_to :user, optional: true
   belongs_to :restaurant, optional: true
+  has_many :jev_observations, as: :subject, dependent: :delete_all
   has_many :ingestion_items, dependent: :destroy
 
   # The source artifact(s) we're extracting from. Multi-page menu
