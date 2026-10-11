@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 
 /**
  * The runs queue is the moderation inbox. What matters: the community
@@ -36,6 +36,7 @@ function runRow(overrides: Record<string, unknown> = {}) {
     user: { id: 'u-1', handle: 'scanner_1', email: 'scan@example.com', is_admin: false },
     restaurant: { id: 'rest-1', name: 'Nini’s Tacos', slug: 'ninis', status: 'published' },
     decision_counts: { pending: 3, accepted: 2, rejected: 1, edited: 0 },
+    jev: { calls: 6, failed: 0, input_tokens: 12_000, wheat_jev_only: 0 },
     ...overrides,
   };
 }
@@ -65,6 +66,27 @@ describe('AdminRunsPage', () => {
       expect.objectContaining({ community: true, offset: 0 }),
     );
     expect(screen.getByTestId('runs-community-filter')).toBeChecked();
+  });
+
+  it('names the wheat disagreements Jev saw on a run, and stays quiet when there are none', async () => {
+    mockFetchAdminRuns.mockResolvedValue({
+      runs: [
+        runRow({
+          id: 'run-1',
+          jev: { calls: 6, failed: 1, input_tokens: 12_000, wheat_jev_only: 2 },
+        }),
+        runRow({ id: 'run-2', jev: { calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0 } }),
+      ],
+      pagination: { total: 2, limit: 25, offset: 0 },
+    });
+    render(<AdminRunsPage />);
+
+    const flagged = within(await screen.findByTestId('run-row-run-1'));
+    expect(flagged.getByText(/Jev 6 calls, 1 failed/)).toBeInTheDocument();
+    expect(flagged.getByTestId('run-run-1-wheat-missed')).toHaveTextContent(
+      '2 wheat Jev saw, data missed',
+    );
+    expect(within(screen.getByTestId('run-row-run-2')).queryByText(/Jev/)).toBeNull();
   });
 
   it('writes filter changes to the URL and resets paging', async () => {

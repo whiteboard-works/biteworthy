@@ -202,11 +202,6 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   wheat row), let a Jev "yes" add a cautionary `grain-wheat-*` row as
   `inferred`, never remove one; if they are noise, remove the trial and
   the `JEV_WHEAT_SHADOW` switch. `docs/ingestion.md` §2b.
-- **Jev health on the admin dashboard (2026-10-11)** — `jev_observations`
-  is readable from a console only. A per-run rollup (calls, failures,
-  partial answers, tokens) on `/admin/dashboard` and the scan page is
-  what the run-level counters follow-up actually asked for; the table is
-  the half that had to come first.
 - **Backfill cuisine tags with Jev, or let an admin re-run a menu
   (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
   Every restaurant published before 2026-10-10 still carries Haiku's

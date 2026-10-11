@@ -229,6 +229,19 @@ function RunRow({ run, onChanged }: { run: AdminRunRow; onChanged: () => void })
           {run.created_at && <> · {new Date(run.created_at).toLocaleString()}</>}
           {run.input_kind && <> · {run.input_kind}</>}
           {run.api_cost_cents != null && <> · {(run.api_cost_cents / 100).toFixed(2)} USD</>}
+          {run.jev.calls > 0 && (
+            <>
+              {' '}
+              · Jev {run.jev.calls} call{run.jev.calls === 1 ? '' : 's'}
+              {run.jev.failed > 0 && `, ${run.jev.failed} failed`}
+              {run.jev.wheat_jev_only > 0 && (
+                <span data-testid={`run-${run.id}-wheat-missed`} className="text-danger">
+                  {' '}
+                  · {run.jev.wheat_jev_only} wheat Jev saw, data missed
+                </span>
+              )}
+            </>
+          )}
         </p>
         <p className="mt-bw-1 text-bw-xs text-zinc-600">
           {totalItems === 0

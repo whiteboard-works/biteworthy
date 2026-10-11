@@ -33,7 +33,7 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                    type: :array,
                    items: {
                      type: :object,
-                     required: %w[id status decision_counts],
+                     required: %w[id status decision_counts jev],
                      properties: {
                        id:                { type: :string, format: :uuid },
                        status:            { type: :string, enum: %w[queued extracting resolving staged published failed] },
@@ -41,6 +41,18 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                        input_kind:        { type: :string },
                        failure_message:   { type: :string, nullable: true },
                        api_cost_cents:    { type: :integer, nullable: true },
+                       # Jev's calls on this run and the one number worth a
+                       # glance: dishes where Jev said wheat and the data said none.
+                       jev: {
+                         type: :object,
+                         required: %w[calls failed input_tokens wheat_jev_only],
+                         properties: {
+                           calls:          { type: :integer },
+                           failed:         { type: :integer },
+                           input_tokens:   { type: :integer },
+                           wheat_jev_only: { type: :integer }
+                         }
+                       },
                        # Null on a live run. An archived run is out of
                        # the queue but its spend still counts — cost
                        # reporting deliberately does not filter on this.

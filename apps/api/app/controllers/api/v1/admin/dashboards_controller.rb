@@ -2,13 +2,15 @@ module Api
   module V1
     module Admin
       # GET /api/v1/admin/dashboard — Ingestion::CostMetrics buckets +
-      # the community counters + queue counts for the web admin
+      # Ingestion::JevMetrics buckets + the community counters + queue
+      # counts for the web admin
       # (successor to the Phase 2.9 ERB dashboard, retired with Avo).
       class DashboardsController < BaseController
         def show
           render json: {
             target_cents_per_item: Ingestion::CostMetrics::TARGET_CENTS_PER_ITEM,
             periods: Ingestion::CostMetrics.by_period.transform_values(&:to_h),
+            jev: Ingestion::JevMetrics.by_period.transform_values(&:to_h),
             community: community_counters,
             queues: queue_counts
           }

@@ -18,7 +18,7 @@ vi.mock('../../../lib/admin/metrics', async (importOriginal) => ({
 
 import AdminHomePage from '../page';
 import { AdminError } from '../../../lib/admin/shared';
-import type { AdminDashboardPayload, DashboardBucket } from '../../../lib/admin/metrics';
+import type { AdminDashboardPayload, DashboardBucket, JevBucket } from '../../../lib/admin/metrics';
 
 function bucket(label: string, overrides: Partial<DashboardBucket> = {}): DashboardBucket {
   return {
@@ -34,9 +34,32 @@ function bucket(label: string, overrides: Partial<DashboardBucket> = {}): Dashbo
   };
 }
 
+function jevBucket(label: string, overrides: Partial<JevBucket> = {}): JevBucket {
+  return {
+    label,
+    calls: 12,
+    answered: 11,
+    partial: 1,
+    failed: 0,
+    input_tokens: 24_000,
+    cost_cents: 0.101,
+    cuisine: { calls: 8, failed: 0, tagged: 31, no_cuisine: 9 },
+    wheat: { calls: 4, agree: 3, disagree: 1, jev_only: 0, data_only: 2 },
+    ...overrides,
+  };
+}
+
 function payload(overrides: Partial<AdminDashboardPayload> = {}): AdminDashboardPayload {
   return {
     target_cents_per_item: 0.5,
+    jev: {
+      today: jevBucket('Today', {
+        failed: 2,
+        wheat: { calls: 4, agree: 2, disagree: 2, jev_only: 3, data_only: 0 },
+      }),
+      last_7_days: jevBucket('Last 7 days'),
+      last_30_days: jevBucket('Last 30 days', { cost_cents: 1.5 }),
+    },
     periods: {
       today: bucket('Today', { avg_latency_ms: null, p95_latency_ms: null, run_count: 0 }),
       last_7_days: bucket('Last 7 days', { cost_per_item_cents: 0.9 }),
@@ -80,12 +103,15 @@ describe('AdminHomePage', () => {
   });
 
   it('is ok below 80%, warn at exactly 80%, danger at exactly the ceiling (Rails 503s at >=)', async () => {
-    expect(await spendBadgeFor({ runs_today: 1, spend_today_cents: 1599, ceiling_cents: 2000 }))
-      .toEqual({ tone: 'ok', text: '79% of daily ceiling' });
-    expect(await spendBadgeFor({ runs_today: 1, spend_today_cents: 1600, ceiling_cents: 2000 }))
-      .toEqual({ tone: 'warn', text: '80% of daily ceiling' });
-    expect(await spendBadgeFor({ runs_today: 9, spend_today_cents: 2000, ceiling_cents: 2000 }))
-      .toEqual({ tone: 'danger', text: 'Ceiling reached — scans paused' });
+    expect(
+      await spendBadgeFor({ runs_today: 1, spend_today_cents: 1599, ceiling_cents: 2000 }),
+    ).toEqual({ tone: 'ok', text: '79% of daily ceiling' });
+    expect(
+      await spendBadgeFor({ runs_today: 1, spend_today_cents: 1600, ceiling_cents: 2000 }),
+    ).toEqual({ tone: 'warn', text: '80% of daily ceiling' });
+    expect(
+      await spendBadgeFor({ runs_today: 9, spend_today_cents: 2000, ceiling_cents: 2000 }),
+    ).toEqual({ tone: 'danger', text: 'Ceiling reached — scans paused' });
   });
 
   it('treats a zero ceiling as scans-paused, matching the guard (0 >= 0 → 503)', async () => {
@@ -132,5 +158,24 @@ describe('AdminHomePage', () => {
 
     expect(await screen.findByTestId('spend-card')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-error')).not.toBeInTheDocument();
+  });
+});
+
+describe('AdminHomePage — Jev tiles', () => {
+  it('shows calls, cost, failures, and the wheat disagreements that matter', async () => {
+    mockFetchDashboard.mockResolvedValue(payload());
+    render(<AdminHomePage />);
+
+    const today = within(await screen.findByTestId('jev-today'));
+    expect(today.getByText('12')).toBeInTheDocument();
+    expect(today.getByText(/0\.101¢/)).toBeInTheDocument();
+    expect(today.getByTestId('status-badge')).toHaveTextContent('2 failed calls');
+    expect(today.getByTestId('jev-today-wheat-missed')).toHaveTextContent('3');
+    expect(today.getByTestId('jev-today-wheat-missed').className).toContain('text-danger');
+
+    const week = within(screen.getByTestId('jev-last_7_days'));
+    expect(week.queryByTestId('status-badge')).toBeNull();
+    expect(week.getByTestId('jev-last_7_days-wheat-missed').className).not.toContain('text-danger');
+    expect(within(screen.getByTestId('jev-last_30_days')).getByText(/1\.50¢/)).toBeInTheDocument();
   });
 });

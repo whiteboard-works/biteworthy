@@ -265,6 +265,7 @@
                   "required": [
                     "target_cents_per_item",
                     "periods",
+                    "jev",
                     "community",
                     "queues"
                   ],
@@ -394,6 +395,277 @@
                             },
                             "cache_hit_rate": {
                               "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jev": {
+                      "type": "object",
+                      "required": [
+                        "today",
+                        "last_7_days",
+                        "last_30_days"
+                      ],
+                      "properties": {
+                        "today": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "calls",
+                            "answered",
+                            "partial",
+                            "failed",
+                            "input_tokens",
+                            "cost_cents",
+                            "cuisine",
+                            "wheat"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "calls": {
+                              "type": "integer"
+                            },
+                            "answered": {
+                              "type": "integer"
+                            },
+                            "partial": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "input_tokens": {
+                              "type": "integer"
+                            },
+                            "cost_cents": {
+                              "type": "number"
+                            },
+                            "cuisine": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "failed",
+                                "tagged",
+                                "no_cuisine"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "failed": {
+                                  "type": "integer"
+                                },
+                                "tagged": {
+                                  "type": "integer"
+                                },
+                                "no_cuisine": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "wheat": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "agree",
+                                "disagree",
+                                "jev_only",
+                                "data_only"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "agree": {
+                                  "type": "integer"
+                                },
+                                "disagree": {
+                                  "type": "integer"
+                                },
+                                "jev_only": {
+                                  "type": "integer"
+                                },
+                                "data_only": {
+                                  "type": "integer"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "last_7_days": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "calls",
+                            "answered",
+                            "partial",
+                            "failed",
+                            "input_tokens",
+                            "cost_cents",
+                            "cuisine",
+                            "wheat"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "calls": {
+                              "type": "integer"
+                            },
+                            "answered": {
+                              "type": "integer"
+                            },
+                            "partial": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "input_tokens": {
+                              "type": "integer"
+                            },
+                            "cost_cents": {
+                              "type": "number"
+                            },
+                            "cuisine": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "failed",
+                                "tagged",
+                                "no_cuisine"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "failed": {
+                                  "type": "integer"
+                                },
+                                "tagged": {
+                                  "type": "integer"
+                                },
+                                "no_cuisine": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "wheat": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "agree",
+                                "disagree",
+                                "jev_only",
+                                "data_only"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "agree": {
+                                  "type": "integer"
+                                },
+                                "disagree": {
+                                  "type": "integer"
+                                },
+                                "jev_only": {
+                                  "type": "integer"
+                                },
+                                "data_only": {
+                                  "type": "integer"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "last_30_days": {
+                          "type": "object",
+                          "required": [
+                            "label",
+                            "calls",
+                            "answered",
+                            "partial",
+                            "failed",
+                            "input_tokens",
+                            "cost_cents",
+                            "cuisine",
+                            "wheat"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "calls": {
+                              "type": "integer"
+                            },
+                            "answered": {
+                              "type": "integer"
+                            },
+                            "partial": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "input_tokens": {
+                              "type": "integer"
+                            },
+                            "cost_cents": {
+                              "type": "number"
+                            },
+                            "cuisine": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "failed",
+                                "tagged",
+                                "no_cuisine"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "failed": {
+                                  "type": "integer"
+                                },
+                                "tagged": {
+                                  "type": "integer"
+                                },
+                                "no_cuisine": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "wheat": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "agree",
+                                "disagree",
+                                "jev_only",
+                                "data_only"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "integer"
+                                },
+                                "agree": {
+                                  "type": "integer"
+                                },
+                                "disagree": {
+                                  "type": "integer"
+                                },
+                                "jev_only": {
+                                  "type": "integer"
+                                },
+                                "data_only": {
+                                  "type": "integer"
+                                }
+                              }
                             }
                           }
                         }
@@ -1832,7 +2104,8 @@
                         "required": [
                           "id",
                           "status",
-                          "decision_counts"
+                          "decision_counts",
+                          "jev"
                         ],
                         "properties": {
                           "id": {
@@ -1863,6 +2136,29 @@
                           "api_cost_cents": {
                             "type": "integer",
                             "nullable": true
+                          },
+                          "jev": {
+                            "type": "object",
+                            "required": [
+                              "calls",
+                              "failed",
+                              "input_tokens",
+                              "wheat_jev_only"
+                            ],
+                            "properties": {
+                              "calls": {
+                                "type": "integer"
+                              },
+                              "failed": {
+                                "type": "integer"
+                              },
+                              "input_tokens": {
+                                "type": "integer"
+                              },
+                              "wheat_jev_only": {
+                                "type": "integer"
+                              }
+                            }
                           },
                           "archived_at": {
                             "type": "string",
