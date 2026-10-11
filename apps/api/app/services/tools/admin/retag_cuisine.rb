@@ -28,7 +28,8 @@ module Tools
 
         Returns `written`, the number of dishes whose rows change at all,
         split into those whose cuisine slugs change (`changed`) and those
-        where only a confidence grade moves (`regraded`), each with the
+        where only a confidence grade moves clearly across the 0.8
+        boundary (`regraded`; a kept slug keeps its grade otherwise), each with the
         rows before and after, plus counts of dishes left
         as they were, dishes Jev could not answer for, and dishes edited
         while Jev was answering (stale, left alone; run again). Running

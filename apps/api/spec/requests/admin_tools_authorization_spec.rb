@@ -63,6 +63,7 @@ RSpec.describe "Admin tools authorization" do
     { name: "list_restaurant_items", args_method: :list_restaurant_items_args },
     { name: "update_published_item", args_method: :update_published_item_args },
     { name: "retag_cuisine", args_method: :retag_cuisine_args },
+    { name: "normalize_item_names", args_method: :normalize_item_names_args },
     { name: "set_restaurant_status", args_method: :set_restaurant_status_args }
   ].freeze
 
@@ -76,6 +77,10 @@ RSpec.describe "Admin tools authorization" do
   def retag_cuisine_args
     # The tool refuses a taxonomy with no leaf cuisine before asking Jev.
     create(:tag, slug: "cuisine-mexican") unless Tag.exists?(slug: "cuisine-mexican")
+    { restaurant: restaurant.id, dry_run: true }
+  end
+
+  def normalize_item_names_args
     { restaurant: restaurant.id, dry_run: true }
   end
 

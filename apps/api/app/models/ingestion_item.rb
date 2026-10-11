@@ -8,6 +8,11 @@ class IngestionItem < ApplicationRecord
   # promotion result.
   belongs_to :matched_item, class_name: "Item", optional: true
 
+  # Same standard as Item, so comparing a re-scan to the live dish
+  # compares like with like.
+  normalizes :name, with: ->(name) { Names::Standard.item_name(name) }
+  normalizes :description, with: ->(text) { Names::Standard.description(text) }
+
   validates :decision, inclusion: { in: DECISIONS }
 
   DECISIONS.each do |d|

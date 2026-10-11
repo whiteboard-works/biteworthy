@@ -39,7 +39,7 @@ class Restaurant < ApplicationRecord
   # Only the WebP variants are ever served: the logo rides on every
   # restaurant card, the banner sits across the restaurant page header.
   has_one_attached :logo do |attachable|
-    attachable.variant :thumb, resize_to_limit: [ 200, 200 ], format: :webp
+    attachable.variant :thumb, resize_to_limit: [ 400, 400 ], format: :webp
   end
   has_one_attached :banner do |attachable|
     attachable.variant :card, resize_to_limit: [ 1600, 600 ], format: :webp

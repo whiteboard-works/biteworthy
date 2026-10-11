@@ -27,6 +27,13 @@ module Restaurants
 
     VARIANTS = { logo: :thumb, banner: :card }.freeze
 
+    # The stored shape and largest stored size of each slot. Web shows the
+    # logo as a 48–56px square and the banner full-width at 8:3, so an
+    # upload is cropped to that shape (Images::Fit) rather than trimmed
+    # by CSS. The served variants in Restaurant use the same sizes.
+    SIZES = { logo: [ 400, 400 ], banner: [ 1600, 600 ] }.freeze
+    ASPECTS = { logo: "1:1", banner: "8:3" }.freeze
+
     module_function
 
     def authorize!(user, restaurant)
@@ -39,24 +46,42 @@ module Restaurants
 
     # `logo` / `banner`: an uploaded file or an ActiveStorage::Blob, or
     # nil to leave that image alone. `remove_*` wins over an upload.
+    # `logo_crop` / `banner_crop`: an Images::Fit crop (anchor and/or
+    # box); without one an off-shape image is center-cropped.
     # Images are assigned, not attached, so the record is validated and
-    # written once however many changed. Raises
-    # Images::StripMetadata::Unprocessable for a bad image and
+    # written once however many changed. Returns what Fit did to each new
+    # image (source size, crop box, stored size). Raises
+    # Images::StripMetadata::Unprocessable for a bad image or crop and
     # ActiveRecord::RecordInvalid when the stored copy fails validation.
-    def apply!(restaurant, logo: nil, banner: nil, remove_logo: false, remove_banner: false)
-      changes = { logo: [ logo, remove_logo ], banner: [ banner, remove_banner ] }
+    def apply!(restaurant, logo: nil, banner: nil, remove_logo: false, remove_banner: false,
+               logo_crop: nil, banner_crop: nil)
+      changes = { logo: [ logo, remove_logo, logo_crop ], banner: [ banner, remove_banner, banner_crop ] }
+      changes.each do |name, (source, remove, crop)|
+        next if crop.blank? || (source && !remove)
+
+        raise Images::Fit::InvalidCrop, "#{name}_crop needs a new #{name} image to crop"
+      end
+
+      # Image work happens before the transaction, so no connection is
+      # held open while libvips decodes and encodes.
+      fits = changes.filter_map do |name, (source, remove, crop)|
+        [ name, fitted(source, name, crop) ] if source && !remove
+      end.to_h
+
       restaurant.transaction do
-        changes.each do |name, (source, remove)|
+        changes.each do |name, (_, remove, _)|
           if remove
             attachment = restaurant.public_send(name)
             attachment.purge_later if attachment.attached?
-          elsif source
-            restaurant.public_send("#{name}=", stripped(source))
+          elsif (filename, fit = fits[name])
+            restaurant.public_send("#{name}=", { io: fit.io, filename:, content_type: fit.content_type })
           end
         end
         restaurant.save!
       end
-      restaurant
+      fits.transform_values do |(_, fit)|
+        { source: fit.source, crop: fit.crop, stored: fit.stored, cropped: fit.cropped? }
+      end
     end
 
     # Signed URL for the served variant of a logo or banner, or nil when
@@ -67,11 +92,13 @@ module Restaurants
       Rails.application.routes.url_helpers.rails_representation_url(attachment.variant(variant), host: host)
     end
 
-    def stripped(source)
+    # StripMetadata first (autorotate, EXIF/GPS, size bounds), then Fit,
+    # which keeps the stripped copy's format and so its filename.
+    def fitted(source, name, crop)
       identity = Images::AttachPhoto.identity(source)
-      result = Images::StripMetadata.call(source, filename: identity[:filename], content_type: identity[:content_type])
-      { io: result.io, filename: result.filename, content_type: result.content_type }
+      stripped = Images::StripMetadata.call(source, filename: identity[:filename], content_type: identity[:content_type])
+      [ stripped.filename, Images::Fit.call(stripped.io, content_type: stripped.content_type, size: SIZES.fetch(name), crop:) ]
     end
-    private_class_method :stripped
+    private_class_method :fitted
   end
 end

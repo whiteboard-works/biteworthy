@@ -109,6 +109,9 @@ module Tools
       def self.perform(context:, item_id:, **attrs)
         context.admin!
         item = Item.find(item_id)
+        unless item.can_be_edited_by?(context.user)
+          raise Errors::Forbidden, "This dish is verified by the restaurant and cannot be edited."
+        end
 
         # Validate status
         if attrs.key?(:status) && !Item::STATUSES.include?(attrs[:status].to_s)
