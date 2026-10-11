@@ -196,15 +196,17 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
-  its latency, input tokens, tags kept, answers missing, and failures
-  only on `[jev_cuisine]` log lines and through `Rails.error.report`,
-  and a log line is not something the admin dashboard can
-  show. Add counters to
-  `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
-  so the admin dashboard can show Jev spend and health per run, and so
-  a slice that completed without cuisine is visible after the fact.
-  Schema change; its own PR.
+- **Read the hidden-wheat shadow and decide (2026-10-11)** — after a
+  few dozen scans, `JevObservation.where(kind: "hidden_wheat_shadow")`:
+  if `jev_only` disagreements are real misses (a battered fish with no
+  wheat row), let a Jev "yes" add a cautionary `grain-wheat-*` row as
+  `inferred`, never remove one; if they are noise, remove the trial and
+  the `JEV_WHEAT_SHADOW` switch. `docs/ingestion.md` §2b.
+- **Jev health on the admin dashboard (2026-10-11)** — `jev_observations`
+  is readable from a console only. A per-run rollup (calls, failures,
+  partial answers, tokens) on `/admin/dashboard` and the scan page is
+  what the run-level counters follow-up actually asked for; the table is
+  the half that had to come first.
 - **Backfill cuisine tags with Jev, or let an admin re-run a menu
   (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
   Every restaurant published before 2026-10-10 still carries Haiku's

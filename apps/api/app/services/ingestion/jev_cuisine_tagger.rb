@@ -61,13 +61,17 @@ module Ingestion
     # `{ index => [{ "slug" => …, "confidence" => … }] }` with an entry for
     # every index ([] for an item that belongs to no cuisine, nil for one
     # Jev did not fully answer), or nil when Jev could not answer at all.
-    def call(subject, prompt_rows)
+    # `context` rides into the observation's details so a dry run or a
+    # retry can be told from a first real call: `{ dry_run: true }`,
+    # `{ attempt: 2 }`.
+    def call(subject, prompt_rows, context: {})
       tags = cuisine_tags
       return {} if tags.empty? || prompt_rows.empty?
 
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      noted   = false
       answers = @client.system_one(state: state(prompt_rows), questions: questions(prompt_rows, tags))
-      latency = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+      latency = elapsed_ms(started)
 
       rows       = prompt_rows.each_index.to_h { |i| [ i, [] ] }
       missing    = 0
@@ -103,34 +107,52 @@ module Ingestion
         end
       end
 
-      Rails.logger.info("[jev_cuisine] " + {
-        **ids(subject),
-        model:        @client.last_model,
-        latency_ms:   latency,
-        input_tokens: @client.last_usage&.dig("input_tokens"),
-        items:        prompt_rows.size,
-        tagged:       rows.values.sum { |r| r&.size.to_i },
-        no_cuisine:   no_cuisine,
-        missing:      missing
-      }.to_json)
+      stats = { items: prompt_rows.size, tagged: rows.values.sum { |r| r&.size.to_i },
+                no_cuisine: no_cuisine, missing: missing }
+      Rails.logger.info("[jev_cuisine] " + { **ids(subject), model: @client.last_model, latency_ms: latency,
+                                             input_tokens: @client.last_usage&.dig("input_tokens"), **stats }.to_json)
       if missing.positive?
         Rails.error.report(
           PartialAnswers.new("#{missing} of #{prompt_rows.size * (tags.size + 1)} answers missing or malformed"),
           handled: true, context: { **ids(subject), model: @client.last_model }
         )
       end
+      # Last, so a report that raises cannot leave this call with two rows.
+      noted = true
+      note(subject, latency, missing.positive? ? "partial" : "answered", { **context, **stats })
       rows
     rescue StandardError => e
       Rails.logger.warn(
         "[jev_cuisine] #{label(subject)} slice gets no AI cuisine tags: #{e.class}: #{e.message.truncate(300)}"
       )
       Rails.error.report(e, handled: true, context: ids(subject))
+      # The call may still have been billed, so the row keeps what the
+      # client knows; only the class and an HTTP status are stored, never
+      # a response body, which could carry menu text.
+      unless noted
+        note(subject, started && elapsed_ms(started), "failed",
+             { **context, items: Array(prompt_rows).size, error: e.class.name,
+               status: (e.respond_to?(:status) ? e.status : nil) }.compact)
+      end
       nil
     end
 
     private
 
     def label(subject) = "#{subject.class.name}##{subject&.id}"
+
+    # The polymorphic subject for the observation row; anything that is
+    # not a record (a test double, nil) is simply not attached.
+    def observed(subject) = subject.is_a?(ActiveRecord::Base) ? subject : nil
+
+    def elapsed_ms(started) = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+
+    def note(subject, latency, outcome, details)
+      JevObservation.note(
+        kind: "cuisine", subject: observed(subject), model: @client.last_model, latency_ms: latency,
+        input_tokens: @client.last_usage&.dig("input_tokens"), outcome: outcome, details: details
+      )
+    end
 
     # `run_id` stays for an IngestionRun so nothing reading the gap-fill
     # lines changes; `subject` names whatever the dishes belong to.

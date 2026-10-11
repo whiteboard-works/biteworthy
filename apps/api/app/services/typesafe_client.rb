@@ -47,6 +47,9 @@ class TypesafeClient
 
   # Returns the `answers` map ({ "key" => { "type" => "noul", "noul" => 0.93 } }).
   def system_one(state:, questions:)
+    # Per call: a failed call must not report the previous call's model
+    # or tokens, which the observation ledger would then charge to it.
+    @last_usage = @last_model = nil
     response = connection.post(PATH, { model: @model, state: state, questions: questions }.to_json)
     raise ApiError.new(status: response.status, body: response.body) unless (200..299).cover?(response.status)
 
