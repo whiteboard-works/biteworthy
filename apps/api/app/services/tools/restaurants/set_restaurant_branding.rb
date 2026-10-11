@@ -45,8 +45,8 @@ module Tools
           anchor: { type: "string", enum: Images::Fit::ANCHORS, description: "Edge kept when trimming to shape." },
           x:      { type: "number", minimum: 0, maximum: 1, description: "Box left, fraction of width." },
           y:      { type: "number", minimum: 0, maximum: 1, description: "Box top, fraction of height." },
-          w:      { type: "number", minimum: 0, maximum: 1, description: "Box width, fraction of width." },
-          h:      { type: "number", minimum: 0, maximum: 1, description: "Box height, fraction of height." }
+          w:      { type: "number", exclusiveMinimum: 0, maximum: 1, description: "Box width, fraction of width; x + w <= 1." },
+          h:      { type: "number", exclusiveMinimum: 0, maximum: 1, description: "Box height, fraction of height; y + h <= 1." }
         },
         additionalProperties: false
       }.freeze

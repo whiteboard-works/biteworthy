@@ -6,7 +6,8 @@ module Tools
   module Restaurants
     # The agent never sees an upload's pixels (see SetRestaurantBranding),
     # so this is how it learns an image's shape before choosing a crop.
-    # Reads the header only; nothing is decoded, written, or attached.
+    # Downloads the blob but reads only its header; nothing is decoded,
+    # written, or attached.
     class InspectImage < Tools::Base
       audience :user
 
@@ -20,7 +21,10 @@ module Tools
 
         Use it before set_restaurant_branding when cropping matters. It
         cannot tell you what is in the picture — ask the owner which part
-        to keep if a crop trims a lot.
+        to keep if a crop trims a lot. Sizes are of the upload as sent; a
+        very heavy file may be shrunk before cropping, so give crop boxes
+        as fractions (they hold either way) and read the exact result from
+        set_restaurant_branding's `adjustments`.
       TEXT
 
       input_schema(
@@ -46,6 +50,10 @@ module Tools
         end
 
         width, height = upright_size(blob)
+        if width > Images::StripMetadata::MAX_EDGE || height > Images::StripMetadata::MAX_EDGE ||
+           width * height > Images::StripMetadata::MAX_PIXELS
+          raise Errors::InvalidArgument, "That image is too many pixels to use — ask for a smaller one."
+        end
         sizes = ::Restaurants::Branding::SIZES
         ok(
           attachment_id: attachment_id,

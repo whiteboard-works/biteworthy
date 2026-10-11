@@ -41,6 +41,13 @@ RSpec.describe Tools::Restaurants::InspectImage do
     expect(payload(response)).to include(width: 100, height: 300)
   end
 
+  # Branding would refuse it after the chat had planned a crop around it.
+  it "says up front when an image is too many pixels to use" do
+    response = call(upload(Vips::Image.black(8_001, 10, bands: 3).write_to_buffer(".png"), content_type: "image/png").signed_id)
+
+    expect(payload(response)[:error]).to eq("invalid_argument")
+  end
+
   it "does not open an upload another account made" do
     response = call(upload(ShapedImage.bytes(10, 10), by: create(:user)).signed_id)
 

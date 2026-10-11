@@ -44,10 +44,18 @@ module Api
         value if value.respond_to?(:tempfile)
       end
 
-      # `logo_crop[anchor]`, `logo_crop[x]`… — see Images::Fit.
+      # Bracketed fields (`logo_crop[anchor]`, `logo_crop[x]`…) or one
+      # JSON part, which is how OpenAPI encodes an object in multipart.
+      # Anything unreadable is a bad crop, never a silent center-crop.
       def crop_param(name)
         value = params[name]
-        value.permit(:anchor, :x, :y, :w, :h).to_h if value.respond_to?(:permit)
+        return value.permit(:anchor, :x, :y, :w, :h).to_h if value.respond_to?(:permit)
+        return if value.blank?
+
+        parsed = JSON.parse(value.to_s) rescue nil
+        raise Images::Fit::InvalidCrop, "#{name} must be an object" unless parsed.is_a?(Hash)
+
+        parsed.slice("anchor", "x", "y", "w", "h")
       end
 
       def flag?(name)

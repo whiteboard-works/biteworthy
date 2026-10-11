@@ -50,6 +50,8 @@ module Images
           crop:         box,
           stored:       { width: image.width, height: image.height }
         )
+      rescue Vips::Error
+        raise StripMetadata::Unprocessable, "We could not crop that image. Try a JPEG or PNG photo."
       end
 
       # Pure arithmetic, so `inspect_image` can say what a crop would do

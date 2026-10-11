@@ -57,21 +57,26 @@ module Restaurants
         raise Images::Fit::InvalidCrop, "#{name}_crop needs a new #{name} image to crop"
       end
 
-      adjustments = {}
+      # Image work happens before the transaction, so no connection is
+      # held open while libvips decodes and encodes.
+      fits = changes.filter_map do |name, (source, remove, crop)|
+        [ name, fitted(source, name, crop) ] if source && !remove
+      end.to_h
+
       restaurant.transaction do
-        changes.each do |name, (source, remove, crop)|
+        changes.each do |name, (_, remove, _)|
           if remove
             attachment = restaurant.public_send(name)
             attachment.purge_later if attachment.attached?
-          elsif source
-            filename, fit = fitted(source, name, crop)
-            adjustments[name] = { source: fit.source, crop: fit.crop, stored: fit.stored, cropped: fit.cropped? }
+          elsif (filename, fit = fits[name])
             restaurant.public_send("#{name}=", { io: fit.io, filename:, content_type: fit.content_type })
           end
         end
         restaurant.save!
       end
-      adjustments
+      fits.transform_values do |(_, fit)|
+        { source: fit.source, crop: fit.crop, stored: fit.stored, cropped: fit.cropped? }
+      end
     end
 
     # Signed URL for the served variant of a logo or banner, or nil when
