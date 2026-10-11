@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.11",
+    "date": "2026-10-11",
+    "notes": [
+      "Dishes show their price as a chip, or a range like $9–$14 when a dish comes in sizes, on the website and in the app. Your best bets also show which part of the menu each dish is from."
+    ]
+  },
+  {
     "version": "2026.10.10.11",
     "date": "2026-10-10",
     "notes": [
