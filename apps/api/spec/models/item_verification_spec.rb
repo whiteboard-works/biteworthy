@@ -125,5 +125,18 @@ RSpec.describe Item, type: :model do
       expect(item).to be_human_verified
       expect(item).to be_restaurant_verified
     end
+
+    it "keeps the dish locked once the verifier is gone" do
+      item = create(:item, :published)
+      user = create(:user)
+      item.mark_restaurant_verified!(user)
+
+      user.destroy!
+      item.reload
+
+      expect(item.can_be_edited_by?(nil)).to be false
+      expect(item.can_be_edited_by?(create(:user, :admin))).to be false
+      expect(item.can_be_edited_by?(create(:user, :super_admin))).to be true
+    end
   end
 end
