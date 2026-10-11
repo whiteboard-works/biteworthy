@@ -2142,6 +2142,7 @@
                             "required": [
                               "calls",
                               "failed",
+                              "partial",
                               "input_tokens",
                               "wheat_jev_only"
                             ],
@@ -2150,6 +2151,9 @@
                                 "type": "integer"
                               },
                               "failed": {
+                                "type": "integer"
+                              },
+                              "partial": {
                                 "type": "integer"
                               },
                               "input_tokens": {

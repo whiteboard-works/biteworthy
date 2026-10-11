@@ -12,7 +12,7 @@ module Ingestion
   class JevMetrics
     CENTS_PER_MTOK = 4.2
 
-    EMPTY_RUN = { calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0 }.freeze
+    EMPTY_RUN = { calls: 0, failed: 0, partial: 0, input_tokens: 0, wheat_jev_only: 0 }.freeze
 
     Bucket = Struct.new(:label, :calls, :answered, :partial, :failed, :input_tokens, :cost_cents,
                         :cuisine, :wheat, keyword_init: true)
@@ -83,10 +83,11 @@ module Ingestion
 
     # The queue's per-run rollup, one query for a page of runs, with the
     # empty rollup as the default so a run with no observations serializes
-    # the same shape: { run_id => { calls:, failed:, input_tokens:, wheat_jev_only: } }.
+    # the same shape: { run_id => { calls:, failed:, partial:, input_tokens:, wheat_jev_only: } }.
     # `wheat_jev_only` is the number this exists to surface: dishes where
-    # Jev said wheat and the data said none. The shadow runs only on a
-    # run's first attempt, so the sum never counts a dish twice.
+    # Jev said wheat and the data said none. The shadow observes a slice
+    # once, after the Haiku call that merged it, so the sum never counts
+    # a dish twice.
     def self.for_runs(run_ids)
       rollup = Hash.new(EMPTY_RUN)
       return rollup if run_ids.empty?
@@ -97,13 +98,15 @@ module Ingestion
                       :subject_id,
                       Arel.sql("COUNT(*)"),
                       Arel.sql("COUNT(*) FILTER (WHERE outcome = 'failed')"),
+                      Arel.sql("COUNT(*) FILTER (WHERE outcome = 'partial')"),
                       Arel.sql("COALESCE(SUM(input_tokens), 0)"),
                       Arel.sql("COALESCE(SUM(CASE WHEN kind = 'hidden_wheat_shadow' " \
                                "AND jsonb_typeof(details->'jev_only') = 'number' " \
                                "THEN (details->>'jev_only')::integer END), 0)")
                     )
-                    .each do |id, calls, failed, tokens, jev_only|
-                      rollup[id] = { calls: calls, failed: failed, input_tokens: tokens, wheat_jev_only: jev_only }
+                    .each do |id, calls, failed, partial, tokens, jev_only|
+                      rollup[id] = { calls: calls, failed: failed, partial: partial, input_tokens: tokens,
+                                     wheat_jev_only: jev_only }
                     end
       rollup
     end

@@ -1128,6 +1128,7 @@ export interface paths {
                                 jev: {
                                     calls: number;
                                     failed: number;
+                                    partial: number;
                                     input_tokens: number;
                                     wheat_jev_only: number;
                                 };

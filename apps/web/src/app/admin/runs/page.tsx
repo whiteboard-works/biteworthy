@@ -236,6 +236,7 @@ function RunRow({ run, onChanged }: { run: AdminRunRow; onChanged: () => void })
               {' '}
               · Jev {run.jev.calls} call{run.jev.calls === 1 ? '' : 's'}
               {run.jev.failed > 0 && `, ${run.jev.failed} failed`}
+              {run.jev.partial > 0 && `, ${run.jev.partial} partial`}
               {run.jev.wheat_jev_only > 0 && (
                 <span data-testid={`run-${run.id}-wheat-missed`} className="text-danger">
                   {' '}

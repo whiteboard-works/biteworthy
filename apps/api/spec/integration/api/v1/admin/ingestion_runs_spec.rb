@@ -45,10 +45,11 @@ RSpec.describe "admin/ingestion_runs", type: :request do
                        # glance: dishes where Jev said wheat and the data said none.
                        jev: {
                          type: :object,
-                         required: %w[calls failed input_tokens wheat_jev_only],
+                         required: %w[calls failed partial input_tokens wheat_jev_only],
                          properties: {
                            calls:          { type: :integer },
                            failed:         { type: :integer },
+                           partial:        { type: :integer },
                            input_tokens:   { type: :integer },
                            wheat_jev_only: { type: :integer }
                          }
@@ -109,9 +110,10 @@ RSpec.describe "admin/ingestion_runs", type: :request do
         run_test! do |response|
           rows = JSON.parse(response.body)["runs"]
           observed = rows.find { |r| r["id"] == observed_run.id }
-          expect(observed["jev"]).to eq("calls" => 2, "failed" => 1, "input_tokens" => 400, "wheat_jev_only" => 2)
+          expect(observed["jev"]).to eq("calls" => 2, "failed" => 1, "partial" => 0, "input_tokens" => 400,
+                                        "wheat_jev_only" => 2)
           expect(rows.reject { |r| r["id"] == observed_run.id }.map { |r| r["jev"] })
-            .to all(eq("calls" => 0, "failed" => 0, "input_tokens" => 0, "wheat_jev_only" => 0))
+            .to all(eq("calls" => 0, "failed" => 0, "partial" => 0, "input_tokens" => 0, "wheat_jev_only" => 0))
         end
       end
 

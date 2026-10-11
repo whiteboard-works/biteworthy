@@ -63,10 +63,7 @@ class GapFillResolveJob < ApplicationJob
 
     ingredient_paths = Ingredient.pluck(:slug, :path).to_h
     tagger           = cuisine_tagger(run)
-    # First attempt only: a retry re-asks Jev for slices Haiku already
-    # merged, and a second row per slice would count a missed-wheat dish
-    # twice on the dashboard.
-    wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled? && executions <= 1
+    wheat_shadow     = Ingestion::JevHiddenWheatShadow.new if Ingestion::JevHiddenWheatShadow.enabled?
 
     # One call per slice; each slice merges before the next call, so the
     # enrichment already landed survives a later slice's failure. The
@@ -117,10 +114,14 @@ class GapFillResolveJob < ApplicationJob
       cuisine = tagger&.call(run, prompt_rows, context: { attempt: executions })
       tagger  = nil if cuisine.nil?
       merged  = merge!(run, slice, result, ingredient_paths, cuisine)
-      # Observation only, after the merge so it measures what landed; a
-      # shadow that fails writes a failed observation and nothing else,
-      # and is not asked again this attempt so an outage costs one timeout.
-      if wheat_shadow && !wheat_shadow.call(run, prompt_rows, merged, ingredient_paths, attempt: executions)
+      # Observation only, after the merge so it measures what landed, and
+      # only for a slice Haiku answered this attempt: a slice merged by an
+      # earlier attempt was observed then, so no dish is counted twice,
+      # while a slice whose first attempt failed before the merge still
+      # gets its observation when a retry lands it. A shadow that fails
+      # writes a failed observation and nothing else, and is not asked
+      # again this attempt so an outage costs one timeout.
+      if wheat_shadow && result && !wheat_shadow.call(run, prompt_rows, merged, ingredient_paths, attempt: executions)
         wheat_shadow = nil
       end
     end

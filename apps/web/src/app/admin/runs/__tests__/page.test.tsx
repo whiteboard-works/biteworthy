@@ -36,7 +36,7 @@ function runRow(overrides: Record<string, unknown> = {}) {
     user: { id: 'u-1', handle: 'scanner_1', email: 'scan@example.com', is_admin: false },
     restaurant: { id: 'rest-1', name: 'Nini’s Tacos', slug: 'ninis', status: 'published' },
     decision_counts: { pending: 3, accepted: 2, rejected: 1, edited: 0 },
-    jev: { calls: 6, failed: 0, input_tokens: 12_000, wheat_jev_only: 0 },
+    jev: { calls: 6, failed: 0, partial: 0, input_tokens: 12_000, wheat_jev_only: 0 },
     ...overrides,
   };
 }
@@ -73,7 +73,7 @@ describe('AdminRunsPage', () => {
       runs: [
         runRow({
           id: 'run-1',
-          jev: { calls: 6, failed: 1, input_tokens: 12_000, wheat_jev_only: 2 },
+          jev: { calls: 6, failed: 1, partial: 2, input_tokens: 12_000, wheat_jev_only: 2 },
         }),
         runRow({ id: 'run-2', jev: { calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0 } }),
       ],
@@ -82,7 +82,7 @@ describe('AdminRunsPage', () => {
     render(<AdminRunsPage />);
 
     const flagged = within(await screen.findByTestId('run-row-run-1'));
-    expect(flagged.getByText(/Jev 6 calls, 1 failed/)).toBeInTheDocument();
+    expect(flagged.getByText(/Jev 6 calls, 1 failed, 2 partial/)).toBeInTheDocument();
     expect(flagged.getByTestId('run-run-1-wheat-missed')).toHaveTextContent(
       '2 wheat Jev saw, data missed',
     );
@@ -91,7 +91,10 @@ describe('AdminRunsPage', () => {
 
   it('still renders a row from an API that predates the Jev rollup', async () => {
     const { jev: _jev, ...older } = runRow({ id: 'run-old' });
-    mockFetchAdminRuns.mockResolvedValue({ runs: [older], pagination: { total: 1, limit: 25, offset: 0 } });
+    mockFetchAdminRuns.mockResolvedValue({
+      runs: [older],
+      pagination: { total: 1, limit: 25, offset: 0 },
+    });
     render(<AdminRunsPage />);
 
     const row = within(await screen.findByTestId('run-row-run-old'));

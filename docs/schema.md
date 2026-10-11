@@ -97,7 +97,7 @@ and you must ship a migration widening the constraint in the same PR**.
 - `ingestion_items` — staged items waiting on contributor decisions
   (`pending | accepted | rejected | edited`). `addons_payload` holds
   nested add-on/upsell lines (`{name, price_cents, source}`).
-- `jev_observations` — one row per Jev call, live (`cuisine`) or shadow (`hidden_wheat_shadow`): polymorphic subject (run or restaurant), outcome, latency, tokens, `agree`, bounded `details`. The trial ledger that outlives a deploy; the owner deletes its rows.
+- `jev_observations` — one row per Jev call, live (`cuisine`) or shadow (`hidden_wheat_shadow`): polymorphic subject (run or restaurant), outcome, latency, tokens, `agree`, bounded `details`. The trial ledger that outlives a deploy; deleting the owner nulls `subject`, never the row, so the dashboard's history keeps the spend.
 
 ## The filter (Phase 3 punchline)
 

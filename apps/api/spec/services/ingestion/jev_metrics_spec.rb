@@ -37,10 +37,10 @@ RSpec.describe Ingestion::JevMetrics do
   it "rolls up per run in one query, naming the wheat disagreements that matter" do
     rollup = described_class.for_runs([ run.id, other.id, SecureRandom.uuid ])
 
-    expect(rollup[run.id]).to eq(calls: 3, failed: 1, input_tokens: 2_500, wheat_jev_only: 2)
-    expect(rollup[other.id]).to eq(calls: 2, failed: 0, input_tokens: 1_400, wheat_jev_only: 0)
-    expect(rollup[SecureRandom.uuid]).to eq(calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0)
-    expect(described_class.for_runs([])[run.id]).to eq(calls: 0, failed: 0, input_tokens: 0, wheat_jev_only: 0)
+    expect(rollup[run.id]).to eq(calls: 3, failed: 1, partial: 0, input_tokens: 2_500, wheat_jev_only: 2)
+    expect(rollup[other.id]).to eq(calls: 2, failed: 0, partial: 1, input_tokens: 1_400, wheat_jev_only: 0)
+    expect(rollup[SecureRandom.uuid]).to eq(described_class::EMPTY_RUN)
+    expect(described_class.for_runs([])[run.id]).to eq(described_class::EMPTY_RUN)
   end
 
   # `details` is written by several services; one bad value must not 500
