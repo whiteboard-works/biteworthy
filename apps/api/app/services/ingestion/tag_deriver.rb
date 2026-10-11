@@ -219,21 +219,31 @@ module Ingestion
 
       def self.call(ctx)
         segments = ctx[:segments] + ctx[:section_segments]
-        hits     = TagDeriver.keyword_hits(segments, KEYWORDS, confidence: 0.9)
-        matched  = hits.to_h { |h| [ h[:slug], matched_phrase(segments, KEYWORDS.fetch(h[:slug])) ] }
+        spans    = KEYWORDS.transform_values { |kws| occurrences(segments, kws) }.reject { |_, v| v.empty? }
         # A word inside a longer matched phrase is not a hit of its own:
-        # "Latin American" is latin-american, not also american. Sibling
-        # cuisine tags on one dish would double-count a taste signal.
-        hits.reject do |h|
-          mine = matched.fetch(h[:slug])
-          matched.any? { |slug, other| slug != h[:slug] && other.length > mine.length && other.each_cons(mine.length).include?(mine) }
+        # the "American" in "Latin American Plates" is latin-american, not
+        # also american, or one dish would carry two sibling cuisines and
+        # double-count a taste signal. Only that occurrence is shadowed —
+        # an "American Burger" in that section still matches on its own.
+        spans.filter_map do |slug, mine|
+          shadowed = mine.all? do |seg, from, to|
+            spans.any? do |other, theirs|
+              other != slug && theirs.any? { |s2, f2, t2| s2 == seg && f2 <= from && to <= t2 && (t2 - f2) > (to - from) }
+            end
+          end
+          { slug: slug, confidence: 0.9, source: "match" } unless shadowed
         end
       end
 
-      def self.matched_phrase(segments, keywords)
-        keywords.map { |kw| kw.split(" ") }
-                .select { |tokens| segments.any? { |seg| seg.each_cons(tokens.length).include?(tokens) } }
-                .max_by(&:length)
+      # Every place a keyword occurs, as [segment index, from, to).
+      def self.occurrences(segments, keywords)
+        keywords.flat_map do |kw|
+          tokens = kw.split(" ")
+          segments.each_with_index.flat_map do |seg, si|
+            (0..(seg.length - tokens.length)).select { |i| seg[i, tokens.length] == tokens }
+                                              .map { |i| [ si, i, i + tokens.length ] }
+          end
+        end
       end
     end
 
