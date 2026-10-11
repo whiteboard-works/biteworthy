@@ -51,13 +51,17 @@ module Ingestion
         kind: "hidden_wheat_shadow", subject: run, model: @client.last_model,
         latency_ms: latency, input_tokens: @client.last_usage&.dig("input_tokens"),
         outcome: stats[:missing].positive? ? "partial" : "answered",
-        agree: stats[:jev_only].zero? && stats[:data_only].zero?,
+        # Agreement is only a fact about pairs that were compared: a slice
+        # with answers missing or nothing to compare says nothing.
+        agree: agreement(stats),
         details: { attempt: attempt, **stats }
       )
       true
     rescue StandardError => e
       Rails.logger.warn("[jev_wheat_shadow] IngestionRun##{run&.id} skipped: #{e.class}: #{e.message.truncate(300)}")
       JevObservation.note(kind: "hidden_wheat_shadow", subject: run, outcome: "failed",
+                          model: @client.last_model, input_tokens: @client.last_usage&.dig("input_tokens"),
+                          latency_ms: started && ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round,
                           details: { attempt: attempt, items: Array(prompt_rows).size, error: e.class.name,
                                      status: (e.respond_to?(:status) ? e.status : nil) }.compact)
       false
@@ -89,6 +93,12 @@ module Ingestion
     end
 
     def key(index) = "i#{index}__wheat"
+
+    def agreement(stats)
+      return nil if stats[:missing].positive? || (stats[:agree] + stats[:jev_only] + stats[:data_only]).zero?
+
+      stats[:jev_only].zero? && stats[:data_only].zero?
+    end
 
     def compare(prompt_rows, answers, merged, ingredient_paths)
       stats = { items: prompt_rows.size, agree: 0, jev_only: 0, data_only: 0, missing: 0, skipped: 0,

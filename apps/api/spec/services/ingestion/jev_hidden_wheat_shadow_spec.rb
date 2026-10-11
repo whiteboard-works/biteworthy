@@ -87,6 +87,18 @@ RSpec.describe Ingestion::JevHiddenWheatShadow do
     expect(row.agree).to be(true)
   end
 
+  it "records no agreement when an answer is missing or nothing was compared" do
+    answers.delete("i1__wheat")
+    stub_jev
+    described_class.new(client: client).call(run, rows, merged, paths)
+    expect(JevObservation.order(:created_at).last).to have_attributes(outcome: "partial", agree: nil)
+
+    stub_jev
+    described_class.new(client: client).call(run, rows, {}, paths)
+    expect(JevObservation.order(:created_at).last).to have_attributes(outcome: "answered", agree: nil)
+    expect(JevObservation.order(:created_at).last.details).to include("skipped" => 3)
+  end
+
   it "writes nothing to any dish" do
     stub_jev
     expect { described_class.new(client: client).call(run, rows, merged, paths) }
