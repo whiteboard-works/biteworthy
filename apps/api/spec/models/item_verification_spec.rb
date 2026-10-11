@@ -108,4 +108,22 @@ RSpec.describe Item, type: :model do
       end
     end
   end
+
+  # Account deletion is `current_user.destroy!`; a verifier must still be
+  # able to leave, and the dish keeps its verified timestamp.
+  describe "deleting the verifying user" do
+    it "clears the pointer and keeps the verification" do
+      item = create(:item, :published)
+      user = create(:user)
+      item.mark_human_verified!(user)
+      item.mark_restaurant_verified!(user)
+
+      user.destroy!
+
+      item.reload
+      expect([ item.human_verified_by_user_id, item.restaurant_verified_by_user_id ]).to eq([ nil, nil ])
+      expect(item).to be_human_verified
+      expect(item).to be_restaurant_verified
+    end
+  end
 end
