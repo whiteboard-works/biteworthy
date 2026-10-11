@@ -69,7 +69,10 @@ require "opentelemetry-api"
 
 otel_default_error_handler = OpenTelemetry.error_handler
 OpenTelemetry.error_handler = lambda do |exception: nil, message: nil|
-  next if message&.start_with?("unexpected error decoding ExportLogsServiceResponse")
+  if message&.start_with?("unexpected error decoding ExportLogsServiceResponse") &&
+      exception.class.name == "Google::Protobuf::ParseError"
+    next
+  end
 
   otel_default_error_handler.call(exception: exception, message: message)
 end
