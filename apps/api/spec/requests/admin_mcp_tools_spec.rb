@@ -443,6 +443,96 @@ RSpec.describe "Admin MCP tools" do
     end
   end
 
+  describe "retag_cuisine" do
+    let!(:restaurant) { create(:restaurant, city: city, status: "published") }
+    let!(:mexican)    { create(:tag, slug: "cuisine-mexican") }
+    let!(:italian)    { create(:tag, slug: "cuisine-italian") }
+    let!(:tacos)      { create(:item, restaurant: restaurant, name: "Carnitas Tacos", status: "published") }
+
+    before do
+      ItemTag.create!(item: tacos, tag: italian, source: "ai", confidence: "suggested")
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return("test-key")
+      allow(Rails.logger).to receive(:info)
+      stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return(
+        status: 200,
+        body: { model: "jev-1.13.0",
+                answers: { "i0__any" => { "type" => "noul", "noul" => 0.99 }, "i0__cuisine-mexican" => { "type" => "noul", "noul" => 0.95 },
+                           "i0__cuisine-italian" => { "type" => "noul", "noul" => 0.03 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+    end
+
+    context "as admin" do
+      it "previews without confirmation and writes nothing" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        expect(response).to have_http_status(:ok)
+        content = result_content
+        expect(content["dry_run"]).to be(true)
+        expect(content["changed"][0]).to include("item_id" => tacos.id)
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+
+      it "asks for confirmation before a real run, then rewrites the cuisine tags and reports the change" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug }, admin)
+        first = JSON.parse(response.body)["result"]
+        expect(first["isError"]).to be(true)
+        expect(first.dig("structuredContent", "error")).to eq("confirmation_required")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+
+        token = first.dig("structuredContent", "confirmation_token")
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, confirmation: token }, admin)
+
+        content = result_content
+        expect(content["dry_run"]).to be(false)
+        expect(content["written"]).to eq(1)
+        expect(content["regraded"]).to eq([])
+        expect(content["changed"].size).to eq(1)
+        expect(content["changed"][0]).to include(
+          "item_id" => tacos.id,
+          "before"  => [ { "slug" => "cuisine-italian", "confidence" => "suggested" } ],
+          "after"   => [ { "slug" => "cuisine-mexican", "confidence" => "suggested" } ]
+        )
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-mexican" ])
+      end
+
+      it "reports a Jev outage as a tool error that says nothing changed" do
+        stub_request(:post, "https://api.typesafe.ai/v1/systemone").to_return(status: 401, body: "{}")
+        allow(Rails.logger).to receive(:warn)
+        allow(Rails.error).to receive(:report)
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("nothing was changed")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+
+      it "refuses with a clear error when Jev is not configured, writing nothing" do
+        allow(ENV).to receive(:[]).with("JEV_API_KEY").and_return(nil)
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug, dry_run: true }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to include("JEV_API_KEY")
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+    end
+
+    context "as non-admin" do
+      it "is not a tool they can see" do
+        mcp_call("retag_cuisine", { restaurant: restaurant.slug }, user)
+
+        body = JSON.parse(response.body)
+        # The registry never listed it for them, so the call fails as an
+        # unknown tool, which the server reports as invalid params.
+        expect(body.dig("error", "message")).to match(/tool not found|invalid params/i)
+        expect(tacos.reload.item_tags.map { |r| r.tag.slug }).to eq([ "cuisine-italian" ])
+      end
+    end
+  end
+
   describe "set_restaurant_status" do
     context "as admin" do
       it "sets status to published" do

@@ -167,10 +167,26 @@ class Rack::Attack
     req.env["bw.throttle_user"] =
       begin
         bearer = req.get_header("HTTP_AUTHORIZATION").to_s[/\ABearer (.+)\z/i, 1]
-        "user:#{Warden::JWTAuth::TokenDecoder.new.call(bearer)['sub']}" if bearer.present?
+        if bearer.present?
+          "user:#{Warden::JWTAuth::TokenDecoder.new.call(bearer)['sub']}"
+        else
+          upload_ticket_key(req)
+        end
       rescue JWT::DecodeError
         nil
       end
+  end
+
+  # A browser scan upload carries a ticket instead of a JWT (see
+  # Attachments::UploadTicket). It names the same user, so it lands in
+  # that user's bucket rather than the shared per-IP one. Signature-
+  # checked only, like the JWT: no query.
+  def self.upload_ticket_key(req)
+    ticket = req.get_header("HTTP_X_UPLOAD_TICKET")
+    return nil if ticket.blank?
+
+    user_id = Attachments::UploadTicket.user_id_for(ticket)
+    "user:#{user_id}" if user_id
   end
 
   # Nil for an anonymous caller, so the two MCP throttles above partition

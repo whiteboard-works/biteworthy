@@ -4,7 +4,8 @@
  * Returns a `Tracker` from `@biteworthy/analytics`. The returned
  * tracker is `noopTracker` when:
  *
- *   * `NEXT_PUBLIC_POSTHOG_KEY` is unset (dev / CI / no-credentials)
+ *   * There is no key: `NEXT_PUBLIC_POSTHOG_KEY` is unset and the page is
+ *     not on a production host (`posthog-config.ts`)
  *   * The browser sends `Do-Not-Track: 1`
  *   * The user has opted out via the in-app analytics toggle
  *     (`localStorage.bw_analytics_opt_out === '1'`)

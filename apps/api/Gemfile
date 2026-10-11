@@ -62,6 +62,19 @@ gem "json-schema", "~> 6.2"
 # authorization live in one place. See docs/mcp.md.
 gem "mcp", "~> 1.6"
 
+# --- Observability (ADR 0009) ------------------------------------------------
+# PostHog takes the API's exceptions (every `Rails.error.report`, plus what
+# Rails reports itself) and its logs. posthog-rails hooks Rails.error, the
+# exception middleware, and Rails.logger; config/initializers/posthog.rb is
+# the one place that is configured. The OpenTelemetry gems carry the logs
+# over OTLP and are loaded by posthog-rails only when log forwarding is on,
+# hence `require: false`.
+gem "posthog-ruby", "~> 3.27"
+gem "posthog-rails", "~> 3.18"
+gem "opentelemetry-sdk", "~> 1.13", require: false
+gem "opentelemetry-logs-sdk", "~> 0.8.0", require: false
+gem "opentelemetry-exporter-otlp-logs", "~> 0.6.0", require: false
+
 # --- Misc utilities ----------------------------------------------------------
 gem "bcrypt", "~> 3.1"
 gem "bootsnap", require: false

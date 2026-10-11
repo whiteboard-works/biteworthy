@@ -192,7 +192,7 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 Two workflows run the test suites:
 
 - `ci-js.yml` — runs on changes to `apps/web/`, `apps/mobile/`, `packages/`, `docs/openapi.json`, or root config. Steps: `pnpm typecheck` → `pnpm lint` → `pnpm test` → api-types codegen drift check.
-- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman and Rubocop run in the same job and both block** (neither has `continue-on-error`). Rubocop inherits Rails' omakase style plus a generated `.rubocop_todo.yml` that freezes the pre-existing offences, so new code has to be clean while the backlog stays grandfathered — run `bundle exec rubocop --parallel` before pushing rather than adding a todo entry.
+- `ci-api.yml` — runs on changes to `apps/api/`. Boots Postgres 16 + ImageMagick (dish-photo cropping shells out to it) + Ghostscript (`Pdfs::Shrink` shells out to `gs`), then `bin/rails db:create db:schema:load`, then `bin/rspec`. **Brakeman and Rubocop run in the same job and both block** (neither has `continue-on-error`). Rubocop inherits Rails' omakase style plus a generated `.rubocop_todo.yml` that freezes the pre-existing offences, so new code has to be clean while the backlog stays grandfathered — run `bundle exec rubocop --parallel` before pushing rather than adding a todo entry.
 
 Branch protection requires four check runs: those two jobs plus the two `codeql.yml` language jobs (`javascript-typescript`, `ruby`). Don't request human review on red.
 

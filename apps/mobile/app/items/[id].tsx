@@ -13,6 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { shrinkForUpload } from '../../lib/shrink-image';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   createReview,
@@ -46,8 +47,7 @@ export default function ItemDetailScreen() {
   const params = useLocalSearchParams<Params>();
   const itemId = String(params.id ?? '');
   const headerName = typeof params.itemName === 'string' ? params.itemName : 'Item';
-  const restaurantSlug =
-    typeof params.restaurantSlug === 'string' ? params.restaurantSlug : null;
+  const restaurantSlug = typeof params.restaurantSlug === 'string' ? params.restaurantSlug : null;
 
   const [reviews, setReviews] = useState<ReviewPayload[]>([]);
   const [total, setTotal] = useState(0);
@@ -117,7 +117,12 @@ export default function ItemDetailScreen() {
           </Text>
         </Text>
 
-        <Pressable testID="write-review" accessibilityRole="button" onPress={onWrite} style={styles.primary}>
+        <Pressable
+          testID="write-review"
+          accessibilityRole="button"
+          onPress={onWrite}
+          style={styles.primary}
+        >
           <Text style={styles.primaryText}>Write a review</Text>
         </Pressable>
 
@@ -138,9 +143,7 @@ export default function ItemDetailScreen() {
               }}
             />
           )}
-          ListEmptyComponent={
-            <Text style={styles.empty}>No reviews yet — be the first.</Text>
-          }
+          ListEmptyComponent={<Text style={styles.empty}>No reviews yet — be the first.</Text>}
         />
       </ScrollView>
 
@@ -260,7 +263,11 @@ function ReviewCard({
           style={styles.input}
         />
         <View style={styles.editActions}>
-          <Pressable testID={`cancel-edit-${review.id}`} accessibilityRole="button" onPress={() => setEditing(false)}>
+          <Pressable
+            testID={`cancel-edit-${review.id}`}
+            accessibilityRole="button"
+            onPress={() => setEditing(false)}
+          >
             <Text style={styles.reportText}>Cancel</Text>
           </Pressable>
           <Pressable
@@ -281,15 +288,27 @@ function ReviewCard({
     <View style={styles.reviewCard} testID={`review-${review.id}`}>
       <Text style={styles.reviewAuthor}>
         {review.user.display_name ?? review.user.handle ?? 'Diner'} ·{' '}
-        <Text style={styles.reviewRating}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</Text>
+        <Text style={styles.reviewRating}>
+          {'★'.repeat(review.rating)}
+          {'☆'.repeat(5 - review.rating)}
+        </Text>
       </Text>
       {review.body ? <Text style={styles.reviewBody}>{review.body}</Text> : null}
       {review.photo_url ? (
-        <Image source={{ uri: review.photo_url }} style={styles.reviewPhoto} testID="review-photo" accessibilityLabel="Reviewer's photo of the dish" />
+        <Image
+          source={{ uri: review.photo_url }}
+          style={styles.reviewPhoto}
+          testID="review-photo"
+          accessibilityLabel="Reviewer's photo of the dish"
+        />
       ) : null}
       {isOwner ? (
         <View style={styles.editActions}>
-          <Pressable testID={`edit-${review.id}`} accessibilityRole="button" onPress={() => setEditing(true)}>
+          <Pressable
+            testID={`edit-${review.id}`}
+            accessibilityRole="button"
+            onPress={() => setEditing(true)}
+          >
             <Text style={styles.editText}>Edit</Text>
           </Pressable>
           <Pressable testID={`delete-${review.id}`} accessibilityRole="button" onPress={onDelete}>
@@ -308,7 +327,9 @@ function ReviewCard({
           disabled={reportState === 'sending'}
           style={styles.reportButton}
         >
-          <Text style={styles.reportText}>{reportState === 'sending' ? 'Reporting…' : 'Report'}</Text>
+          <Text style={styles.reportText}>
+            {reportState === 'sending' ? 'Reporting…' : 'Report'}
+          </Text>
         </Pressable>
       )}
     </View>
@@ -335,14 +356,17 @@ function ReviewComposer({
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Photo permission needed', 'Enable photo access in Settings to attach a picture.');
+      Alert.alert(
+        'Photo permission needed',
+        'Enable photo access in Settings to attach a picture.',
+      );
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
     });
-    if (!res.canceled && res.assets[0]) setPhotoUri(res.assets[0].uri);
+    if (!res.canceled && res.assets[0]) setPhotoUri((await shrinkForUpload(res.assets[0])).uri);
   };
 
   const submit = async () => {
@@ -406,12 +430,24 @@ function ReviewComposer({
         style={styles.input}
       />
 
-      <Pressable testID="pick-photo" accessibilityRole="button" onPress={pickPhoto} style={styles.secondary}>
-        <Text style={styles.secondaryText}>{photoUri ? '✓ Photo attached — change' : '+ Add a photo (optional)'}</Text>
+      <Pressable
+        testID="pick-photo"
+        accessibilityRole="button"
+        onPress={pickPhoto}
+        style={styles.secondary}
+      >
+        <Text style={styles.secondaryText}>
+          {photoUri ? '✓ Photo attached — change' : '+ Add a photo (optional)'}
+        </Text>
       </Pressable>
 
       <View style={styles.composerActions}>
-        <Pressable testID="cancel-review" accessibilityRole="button" onPress={onCancel} style={styles.secondary}>
+        <Pressable
+          testID="cancel-review"
+          accessibilityRole="button"
+          onPress={onCancel}
+          style={styles.secondary}
+        >
           <Text style={styles.secondaryText}>Cancel</Text>
         </Pressable>
         <Pressable

@@ -6,15 +6,17 @@
  * thin — every method is a passthrough — so swapping providers is a
  * single-file change.
  *
- * Project context: WBW Cross-Product (id 370116). All seven Whiteboard
- * Works sites share one PostHog project and differentiate via the
- * `extension` super-property registered at init time. Filtering in
- * the dashboard happens via that property.
+ * Project context: BiteWorthy's own PostHog project (id 652080, ADR 0009;
+ * `posthog-config.ts` has the token and host). The `extension` super
+ * property predates the dedicated project — it was how BiteWorthy's events
+ * were told apart in the shared Whiteboard Works project — and stays so
+ * the saved insights that filter on it keep working.
  */
 
 import type posthog from 'posthog-js';
 import type { CaptureResult } from 'posthog-js';
 import type { AnalyticsClient } from '@biteworthy/analytics';
+import { POSTHOG_HOST } from './posthog-config';
 
 export const EXTENSION_NAME = 'biteworthy';
 
@@ -34,7 +36,7 @@ export function initPostHog(
   options: { apiHost?: string } = {},
 ): void {
   client.init(apiKey, {
-    api_host: options.apiHost ?? 'https://us.i.posthog.com',
+    api_host: options.apiHost ?? POSTHOG_HOST,
     person_profiles: 'identified_only',
     // Page views are how traffic shows up at all; client-side navigation
     // never re-fires `app_open`. Their URLs go through `scrubEvent`.
@@ -43,16 +45,17 @@ export function initPostHog(
     persistence: 'localStorage+cookie',
     // Only the named funnel events and page views. Autocapture sent the
     // text of whatever was clicked — a celiac preset, a chat message —
-    // which /privacy promises we never send. Session replay is switched
-    // on at the project level (shared with other sites), so it has to be
-    // refused here explicitly.
+    // which /privacy promises we never send. Session replay is refused
+    // here rather than left to the project's settings, so a toggle in the
+    // dashboard cannot switch it on.
     autocapture: false,
     rageclick: false,
     capture_dead_clicks: false,
     capture_heatmaps: false,
     disable_session_recording: true,
-    // Also on at the shared project level; exceptions carry messages and
-    // stack data, and neither is something /privacy discloses.
+    // Browser exceptions carry messages and stack data, and neither is
+    // something /privacy discloses. Server-side errors are reported
+    // instead (lib/posthog-server, the API's initializer).
     capture_exceptions: false,
     capture_performance: false,
     // utm_term and friends can carry a search like "celiac tacos"; the
@@ -166,8 +169,17 @@ export function scrubUrl(value: string): string {
   return `${url.origin}${path}`;
 }
 
-function maskPath(path: string): string {
-  return path.replace(/^\/durango\/[^/]+/, '/durango/:diet').replace(/^\/u\/[^/]+/, '/u/:handle');
+/**
+ * The segments that name a diet or a person become a parameter:
+ * `/durango/<diet>` → `/durango/:diet`, `/u/<handle>` → `/u/:handle`, and the
+ * API's `/api/v1/users/<handle>` → `/api/v1/users/:handle` (server-side
+ * reports carry Rails paths).
+ */
+export function maskPath(path: string): string {
+  return path
+    .replace(/^\/durango\/[^/]+/, '/durango/:diet')
+    .replace(/^\/u\/[^/]+/, '/u/:handle')
+    .replace(/^\/api\/v1\/users\/[^/]+/, '/api/v1/users/:handle');
 }
 
 function scrubProps(props: Record<string, unknown> | undefined): void {

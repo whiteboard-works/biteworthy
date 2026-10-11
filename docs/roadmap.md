@@ -28,6 +28,14 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat composer; the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Uploads: bigger files in, smaller files stored (shipped 2026-10-10)
+
+- [x] Web scan uploads go straight to the API with a 10-minute ticket (`POST /api/v1/attachments/ticket`, `X-Upload-Ticket`), so the web server's 4.5 MB body limit no longer caps them; the client ceiling is the API's 15 MB.
+- [x] A PDF over the 10 MB scan limit, up to 15 MB, gets one Ghostscript `/ebook` pass (`Pdfs::Shrink`) at the attachments door before being refused.
+- [x] `Images::StripMetadata` accepts up to 15 MB raw (was 5 MB, the stored cap) and shrinks the stored copy under 5 MB.
+- [x] Mobile resizes a picked photo to 2000px JPEG before uploading (`lib/shrink-image.ts`, `expo-image-manipulator`), mirroring web.
+- [ ] Review and dish-photo uploads on web still go through the proxy at 4 MB; move them to the ticket path if the client-side shrink ever proves insufficient.
+
 ## Profile: about + chat notes (shipped 2026-10-06)
 
 - [x] Public bio — `users.bio` (300 chars, plain text), edited under Public profile in settings via `PATCH /me`, shown on `/u/<handle>`, included in the account export.
@@ -188,13 +196,27 @@ Loop-surfaced tasks that don't belong to a shipped phase. Humans triage
 these into the launch path or a future phase. (Resolved follow-ups are
 in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
 
-- **Jev cuisine-tag trial: read the shadow logs and decide (2026-09-28)**
-  — `GapFillResolveJob` now asks TypeSafe's Jev the cuisine question
-  alongside Haiku and logs `[jev_shadow]` agreement lines, writing
-  nothing. After a few dozen real scans, compare: if agreement is high
-  and the disagreements favor Jev, move cuisine tags to Jev (and drop
-  the cuisine catalog from the Haiku prompt); otherwise remove the
-  trial. See `docs/ingestion.md` §2b.
+- **Run-level Jev counters (2026-10-10)** — `JevCuisineTagger` reports
+  its latency, input tokens, tags kept, answers missing, and failures
+  only on `[jev_cuisine]` log lines and through `Rails.error.report`,
+  and a log line is not something the admin dashboard can
+  show. Add counters to
+  `ingestion_runs` (Jev calls, failures, partial answers, input tokens)
+  so the admin dashboard can show Jev spend and health per run, and so
+  a slice that completed without cuisine is visible after the fact.
+  Schema change; its own PR.
+- **Backfill cuisine tags with Jev, or let an admin re-run a menu
+  (2026-10-10)** — Jev decides cuisine only for gap items in new runs.
+  Every restaurant published before 2026-10-10 still carries Haiku's
+  cuisine tags (the shadow trial showed them force-fitting dishes into
+  the seven leaf cuisines), and fully matched dishes never got one at
+  all. The admin tool `retag_cuisine` (shipped 2026-10-10, backed by
+  `Ingestion::JevCuisineRetag`) re-tags one restaurant on demand, with
+  `dry_run`. The first dry runs (ten Durango restaurants, 2026-10-10)
+  showed Jev refusing the force-fits with nowhere else to put a dish, so
+  the cuisine taxonomy grew from 7 to 23 leaves the same day. **Still
+  open:** re-run the dry runs on the new taxonomy, then the real runs
+  restaurant by restaurant from an admin session.
 - **A streamed chat turn gets no retry at all (2026-08-20)** — surfaced
   while making the chat's upstream failures explain themselves
   (`Chat::UpstreamError`). `AnthropicClient#messages_stream` deliberately

@@ -17,6 +17,12 @@ Rails.application.config.filter_parameters += %i[profile_token]
 # Free text that often carries health details ("pregnant", "celiac").
 Rails.application.config.filter_parameters += %i[chat_notes]
 
+# The diet a menu is filtered by, and what someone searched for. Rails logs
+# the query string through the same filter (`filtered_path`), and request
+# logs now leave the box (initializers/posthog.rb); the web client already
+# strips `?profile=` from its page views for the same reason.
+Rails.application.config.filter_parameters += %i[profile strictness q]
+
 # The chat's "Use my location" coordinates arrive unrounded; the server
 # coarsens them only after the request line is logged. Dotted so only
 # these nested keys match, not every param with "lat" in its name.

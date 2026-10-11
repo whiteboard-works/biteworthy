@@ -1,8 +1,10 @@
 /**
- * Phone photos are 3–8 MB, and every upload goes through a Vercel
+ * Phone photos are 3–8 MB. Review and dish photos go through a Vercel
  * function whose request body tops out at 4.5 MB — a full-size photo is
- * refused with a bare 413 before our code runs. Re-encoding to a 2000px
- * JPEG lands well under that, and loses nothing the menu reader needs:
+ * refused with a bare 413 before our code runs. Scan uploads go straight
+ * to Rails (`uploadAttachment`), whose ceiling is higher, but an 8 MB
+ * photo is still a slow upload for nothing. Re-encoding to a 2000px
+ * JPEG lands well under both, and loses nothing the menu reader needs:
  * vision models downscale anything larger anyway.
  */
 

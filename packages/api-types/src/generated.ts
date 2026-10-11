@@ -3042,6 +3042,123 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a menu photo or PDF for a scan
+         * @description Returns a signed id the chat and POST /api/v1/scans refer to, so the bytes never enter the agent's context. Authenticate with the session JWT, or with a ticket from POST /api/v1/attachments/ticket in the X-Upload-Ticket header (how the browser uploads, since its JWT lives in an HttpOnly cookie). Files up to the per-file scan limit are stored as sent; a PDF over it, up to 15 MB, is rewritten through Ghostscript first.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    Authorization?: string;
+                    /** @description A ticket from POST /api/v1/attachments/ticket, in place of Authorization. */
+                    "X-Upload-Ticket"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: binary
+                         * @description JPEG, PNG, HEIC, WebP, or PDF.
+                         */
+                        file: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description stored; refer to it by id */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Attachment"];
+                    };
+                };
+                /** @description neither a valid bearer token nor a valid ticket */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description missing, too large, or a type the extractor cannot read */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attachments/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mint a short-lived ticket for uploading from a browser
+         * @description The ticket names the caller and expires in minutes; it is good only for POST /api/v1/attachments, sent in the X-Upload-Ticket header.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    Authorization: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description a ticket */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UploadTicket"];
+                    };
+                };
+                /** @description missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -3626,8 +3743,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Switch the conversation's mode
-         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running.
+         * Switch the conversation's mode, or rename it
+         * @description For switching without sending anything, so the picker survives a reload. A turn carries the mode it was sent under, so this sets what the *next* send will use — it does not change a turn already running. `title` renames the conversation; a name set here is never replaced by the model's. Send either field or both.
          */
         patch: {
             parameters: {
@@ -3645,12 +3762,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        mode: "planning" | "manual" | "accept_edits" | "auto";
+                        mode?: "planning" | "manual" | "accept_edits" | "auto";
+                        /** @description Whitespace is collapsed. Blank, or longer than the sidebar can show, is refused. */
+                        title?: string;
                     };
                 };
             };
             responses: {
-                /** @description the conversation, with the new mode */
+                /** @description the conversation, with the new mode or title */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3659,7 +3778,7 @@ export interface paths {
                         "application/json": components["schemas"]["Conversation"];
                     };
                 };
-                /** @description a mode that does not exist */
+                /** @description a mode that does not exist; a blank, over-long, or non-text title; or an empty body */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -6373,6 +6492,14 @@ export interface components {
             queued: boolean;
             /** @description Narration position to watch from. */
             after: number;
+        };
+        UploadTicket: {
+            /** @description Send as the X-Upload-Ticket header on POST /api/v1/attachments. */
+            ticket: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @description The caller's raw ceiling for one upload; a PDF over the scan limit but under this is shrunk server-side. */
+            max_bytes: number;
         };
         Attachment: {
             /** @description Signed blob id. Bytes never enter the agent's context. */
