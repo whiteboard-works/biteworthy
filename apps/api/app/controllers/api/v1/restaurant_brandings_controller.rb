@@ -4,7 +4,7 @@ module Api
     #
     # A restaurant's logo and banner, set by its verified owner or an
     # admin. Multipart: `logo` / `banner` files, `remove_logo` /
-    # `remove_banner` flags. Answers with the same payload as the public
+    # `remove_banner` flags, optional `logo_crop` / `banner_crop`. Answers with the same payload as the public
     # `#show`, so the page can re-render from the response.
     #
     # Looks up `kept` rather than `published`: an admin brands a draft
@@ -22,7 +22,9 @@ module Api
           logo:          file_param(:logo),
           banner:        file_param(:banner),
           remove_logo:   flag?(:remove_logo),
-          remove_banner: flag?(:remove_banner)
+          remove_banner: flag?(:remove_banner),
+          logo_crop:     crop_param(:logo_crop),
+          banner_crop:   crop_param(:banner_crop)
         )
 
         render json: restaurant_payload(restaurant)
@@ -40,6 +42,20 @@ module Api
       def file_param(name)
         value = params[name]
         value if value.respond_to?(:tempfile)
+      end
+
+      # Bracketed fields (`logo_crop[anchor]`, `logo_crop[x]`…) or one
+      # JSON part, which is how OpenAPI encodes an object in multipart.
+      # Anything unreadable is a bad crop, never a silent center-crop.
+      def crop_param(name)
+        value = params[name]
+        return value.permit(:anchor, :x, :y, :w, :h).to_h if value.respond_to?(:permit)
+        return if value.blank?
+
+        parsed = JSON.parse(value.to_s) rescue nil
+        raise Images::Fit::InvalidCrop, "#{name} must be an object" unless parsed.is_a?(Hash)
+
+        parsed.slice("anchor", "x", "y", "w", "h")
       end
 
       def flag?(name)

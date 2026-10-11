@@ -388,7 +388,12 @@ The same gate opens `set_restaurant_branding` (`restaurants` domain,
 `audience :user`): the owner's logo and banner. It takes attachment ids
 from `POST /api/v1/attachments`, never image bytes, and only resolves an
 id the calling account uploaded; `Restaurants::Branding` strips EXIF/GPS
-and the REST door `PATCH /restaurants/:id/branding` shares it.
+and the REST door `PATCH /restaurants/:id/branding` shares it. Each image
+is cropped to its slot by `Images::Fit` (logo 1:1 up to 400×400, banner
+8:3 up to 1600×600; center unless `logo_crop` / `banner_crop` gives an
+anchor or a fractional box). The model never sees pixels, so the
+read-only `inspect_image` tool gives it an upload's size and what a
+center crop would trim, to choose a crop or ask the owner first.
 
 `suggest_correction` is the one write in the whole surface with
 `audience :public`, and that is deliberate rather than an oversight.
@@ -479,8 +484,11 @@ reusing the same business logic and validation as the REST admin endpoints:
   the model that decides them for every new scan since 2026-10-10, and
   rewrite the model-written (`source: ai`) `cuisine` join rows.
   `dry_run: true` reports the changes without writing (`written` in
-  all, split into `changed` for slug changes and `regraded` where only
-  a confidence grade moved) and is never parked; a real run is gated by `confirm_when` on both doors and
+  all, split into `changed` for slug changes and `regraded` where a
+  grade moved clearly across the 0.8 boundary; since 2026-10-11 a
+  kept slug keeps its grade unless Jev is at 0.9 or above, or under
+  0.7, and a model-written row a person confirmed is never touched)
+  and is never parked; a real run is gated by `confirm_when` on both doors and
   declared unrecoverable, so `accept_edits` parks it too (the
   `update_avoid_lists` shape, with the static hint off). Keeps every cuisine row a person added or
   confirmed and every keyword-derived one (gap-fill keeps those beside
@@ -490,10 +498,20 @@ reusing the same business logic and validation as the REST admin endpoints:
   part-way or a concurrent edit changes nothing it should not. This is
   the admin re-run for menus published with Haiku's cuisine tags; the
   backfill is calling it per restaurant.
+- **`normalize_item_names`** — apply the naming standard
+  (`Names::Standard`) to every dish at a restaurant saved before it
+  existed: all-caps names become Title Case, all-caps descriptions
+  sentence case, and footnote asterisks at either end of a name go.
+  `dry_run: true` previews `changed` (before/after per dish); a real run
+  is confirmation-gated and unrecoverable, the `retag_cuisine` shape.
+  Dishes the caller may not edit (restaurant-verified, `Item#can_be_edited_by?`)
+  are left alone and counted in `locked`; rows edited mid-run in `stale`.
+  New writes are already normalized on assignment, so this is only for
+  old rows; `bin/rails names:normalize` is the all-restaurants backfill.
 - **`set_restaurant_status`** — change status to draft, published, or
   closed. Archive/restore are separate (soft/hard delete in the REST API).
 
-All eleven require `is_admin: true` and are filtered out of the catalogue for
+All twelve require `is_admin: true` and are filtered out of the catalogue for
 non-admin callers. Rate limiting is shared with the rest of `/mcp`:
 120/minute per credential (admin JWT or `bw_mcp_` token), 30/minute for
 anonymous.

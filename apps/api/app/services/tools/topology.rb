@@ -107,10 +107,11 @@ module Tools
         audience: :user,
         arguments: %i[restaurant],
         steps: %w[claim_restaurant verify_claim list_suggestions resolve_suggestion
-                  set_restaurant_branding],
+                  inspect_image set_restaurant_branding],
         note: "Ownership arrives by emailed token. Accepting a suggestion applies it to the " \
               "live dish immediately — say what it would change first. set_restaurant_branding " \
-              "takes attachment ids from the upload endpoint, never image bytes."
+              "takes attachment ids from the upload endpoint, never image bytes; inspect_image " \
+              "gives an upload's size so you can choose a crop."
       },
       {
         name: "Fix a live dish",

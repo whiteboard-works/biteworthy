@@ -65,7 +65,8 @@ module Tools
         "Restaurants::CloneMenu",
         "Restaurants::EditRestaurant",
         "Restaurants::ConfirmRestaurantData",
-        "Restaurants::SetRestaurantBranding"
+        "Restaurants::SetRestaurantBranding",
+        "Restaurants::InspectImage"
       ],
       structure: [
         "Structure::GetMenuStructure",
@@ -73,7 +74,9 @@ module Tools
         "Structure::EditPlace"
       ],
       items: [
-        "Items::EditItem"
+        "Items::EditItem",
+        "Items::VerifyItemByHuman",
+        "Items::VerifyItemByRestaurant"
       ],
       taxonomy: [
         "Taxonomy::CreateTaxonomyNode",
@@ -101,6 +104,7 @@ module Tools
         "Admin::ListRestaurantItems",
         "Admin::UpdatePublishedItem",
         "Admin::RetagCuisine",
+        "Admin::NormalizeItemNames",
         "Admin::SetRestaurantStatus"
       ]
     }.freeze

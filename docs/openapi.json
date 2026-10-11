@@ -9487,7 +9487,7 @@
         "tags": [
           "Restaurants"
         ],
-        "description": "The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS; a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.",
+        "description": "The verified owner (claimed_by_user_id) or an admin. Each image is re-encoded without EXIF/GPS and cropped to its slot (logo 1:1 up to 400×400, banner 8:3 up to 1600×600; center unless `*_crop` says otherwise, never enlarged); a new one replaces the old. Omitted fields leave that image alone; `remove_logo` / `remove_banner` clear one. Answers with the same row as GET /restaurants/{id}.",
         "security": [
           {
             "bearerAuth": []
@@ -9525,7 +9525,7 @@
             }
           },
           "422": {
-            "description": "not an image, or too large",
+            "description": "not an image, too large, or a bad crop",
             "content": {
               "application/json": {
                 "schema": {
@@ -9570,6 +9570,12 @@
                   },
                   "remove_banner": {
                     "type": "boolean"
+                  },
+                  "logo_crop": {
+                    "$ref": "#/components/schemas/BrandingCrop"
+                  },
+                  "banner_crop": {
+                    "$ref": "#/components/schemas/BrandingCrop"
                   }
                 }
               }
@@ -11072,6 +11078,38 @@
           },
           "country": {
             "type": "string"
+          }
+        }
+      },
+      "BrandingCrop": {
+        "type": "object",
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "enum": [
+              "center",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "description": "Edge kept when trimming to the slot's shape. Default center."
+          },
+          "x": {
+            "type": "number",
+            "description": "Box left, fraction of width (0–1)."
+          },
+          "y": {
+            "type": "number",
+            "description": "Box top, fraction of height (0–1)."
+          },
+          "w": {
+            "type": "number",
+            "description": "Box width, fraction of width (0–1)."
+          },
+          "h": {
+            "type": "number",
+            "description": "Box height, fraction of height (0–1)."
           }
         }
       },
