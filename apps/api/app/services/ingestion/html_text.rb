@@ -21,7 +21,7 @@ module Ingestion
       meta = doc.at_css("meta[charset]")&.[]("charset")
       meta ||= doc.css("meta[http-equiv]")
                   .find { |m| m["http-equiv"].to_s.casecmp?("content-type") }
-                  &.[]("content").to_s[/charset\s*=\s*([\w-]+)/i, 1]
+                  &.[]("content").to_s[/charset\s*=\s*["']?([\w-]+)/i, 1]
       meta&.strip&.downcase.presence
     end
 
@@ -39,8 +39,14 @@ module Ingestion
       # or quoted <meta> does not count.
       doc = Nokogiri::HTML(html.to_s.dup.force_encoding(Encoding::UTF_8).scrub(""), nil, "UTF-8")
       declared = declared_charset(doc)
-      if declared && !declared.match?(/\Autf-?8\z/) && Encoding.name_list.map(&:downcase).include?(declared)
-        doc = Nokogiri::HTML(html.to_s.b, nil, declared)
+      if declared && !declared.match?(/\Autf-?8\z/)
+        # Nokogiri resolves labels and aliases ("latin1"); one it cannot
+        # read keeps the UTF-8 parse.
+        doc = begin
+          Nokogiri::HTML(html.to_s.b, nil, declared)
+        rescue ArgumentError, EncodingError
+          doc
+        end
       end
       json_ld = doc.css('script[type="application/ld+json"]').map { |s| s.text.strip }
                    .select { |s| s.match?(MENU_JSON_LD) }

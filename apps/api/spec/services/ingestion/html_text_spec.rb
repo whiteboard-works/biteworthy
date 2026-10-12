@@ -26,11 +26,14 @@ RSpec.describe Ingestion::HtmlText do
     expect(described_class.call(html)).to include("Jalapeño")
   end
 
-  it "honours a charset declared through http-equiv" do
-    html = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=windows-1252\"></head>" \
-           "<body><p>Crème brûlée</p></body></html>"
+  it "honours a charset declared through http-equiv, quoted or not, and by alias" do
+    [ %(<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">),
+      %(<meta http-equiv="Content-Type" content='text/html; charset="windows-1252"'>),
+      %(<meta charset="latin1">) ].each do |meta|
+      html = "<html><head>#{meta}</head><body><p>Crème brûlée</p></body></html>"
 
-    expect(described_class.call(html.encode("Windows-1252").b)).to include("Crème brûlée")
+      expect(described_class.call(html.encode("Windows-1252").b)).to include("Crème brûlée"), meta
+    end
   end
 
   it "keeps a dish name and its price apart when cells sit side by side" do
