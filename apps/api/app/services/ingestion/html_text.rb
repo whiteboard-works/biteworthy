@@ -23,11 +23,12 @@ module Ingestion
     end
 
     def call(html)
-      # Blobs come back as binary with no charset; menu pages are UTF-8
-      # in practice, and Latin-1 guessing turns "jalapeño" into mojibake
-      # the matcher then cannot resolve.
-      body = html.to_s.dup.force_encoding(Encoding::UTF_8).scrub("")
-      doc = Nokogiri::HTML(body, nil, "UTF-8")
+      # Blobs come back as binary with no charset. Bytes that are valid
+      # UTF-8 are read as UTF-8 (Latin-1 guessing turns "jalapeño" into
+      # mojibake the matcher cannot resolve); anything else goes to
+      # Nokogiri raw, so a page's own <meta charset="windows-1252"> wins.
+      body = html.to_s.dup.force_encoding(Encoding::UTF_8)
+      doc = body.valid_encoding? ? Nokogiri::HTML(body, nil, "UTF-8") : Nokogiri::HTML(html.to_s.b)
       json_ld = doc.css('script[type="application/ld+json"]').map { |s| s.text.strip }
                    .select { |s| s.match?(MENU_JSON_LD) }
       doc.css(DROPPED).remove
