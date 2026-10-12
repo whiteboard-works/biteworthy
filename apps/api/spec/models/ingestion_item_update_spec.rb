@@ -29,6 +29,21 @@ RSpec.describe IngestionItem, "#promote! (update path)" do
     }.merge(attrs))
   end
 
+  describe "a compound sauce on a re-scan" do
+    let!(:aioli) { create(:ingredient, slug: "condiment-aioli", path: "condiment.aioli") }
+    let!(:egg)   { create(:ingredient, slug: "egg", path: "egg") }
+
+    it "appends the implied allergen to the live dish and undo takes it back off" do
+      row = staged(ingredients_payload: [ { "slug" => "condiment-aioli", "confidence" => 0.9, "source" => "ai" } ])
+
+      row.promote!
+      expect(target.reload.ingredients).to include(aioli, egg)
+
+      row.reload.undo!
+      expect(target.reload.ingredients).not_to include(egg)
+    end
+  end
+
   describe "linking" do
     it "links the matched Item instead of creating a new one" do
       row = staged

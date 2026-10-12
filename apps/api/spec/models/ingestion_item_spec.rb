@@ -48,8 +48,21 @@ RSpec.describe IngestionItem, type: :model do
         expect(promoted.tags).to include(egg_tag)
       end
 
+      it "leaves the staged row as it was scanned, so undo and the audit trail see no egg" do
+        item.promote!
+
+        expect(item.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "condiment-aioli" ])
+      end
+
       it "still honours a vegan name claim" do
         item.update!(name: "Vegan Aioli Fries")
+
+        expect(item.promote!.ingredients).not_to include(egg)
+      end
+
+      # Removing the egg from an egg-free house aioli is a person's decision.
+      it "takes a dish a person edited as they left it" do
+        item.update!(decision: "edited")
 
         expect(item.promote!.ingredients).not_to include(egg)
       end

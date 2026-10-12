@@ -93,7 +93,6 @@ class IngestionItem < ApplicationRecord
       # live menu while the audit row says rejected.
       raise "Staged dish was rejected; undo it before accepting" if rejected?
 
-      add_implied_ingredients!
       target = locked_update_target
       target ? apply_update!(target, decided_by: decided_by) : create_item!(decided_by: decided_by)
     end
@@ -126,31 +125,38 @@ class IngestionItem < ApplicationRecord
   # sauce rule (Ingestion::IngredientImplications) is enforced here too: a
   # scan resolved before it existed, or a gap-fill retry that reused
   # already-enriched rows, would otherwise publish aioli with no egg.
-  # Rows land as the resolver writes them (`derived` at 0.8, plus the
-  # allergen tag they imply), and a name's diet claim still vetoes.
-  def add_implied_ingredients!
-    present = Array(ingredients_payload)
-    slugs   = present.map { |r| r["slug"] }
-    wanted  = slugs.flat_map { |slug| Ingestion::IngredientImplications::TABLE.fetch(slug, []) }
-    return if wanted.empty?
+  # Rows go to the live dish as the resolver writes them (`derived` at
+  # 0.8, plus the allergen tag they imply); the staged row itself is left
+  # as it was, so undo and the audit trail see only what was scanned.
+  # A name's diet claim still vetoes, and a dish a person edited is taken
+  # as they left it: removing the egg from an egg-free aioli is a decision.
+  def promotion_ingredients = Array(ingredients_payload) + implied_rows.first
 
-    paths   = Ingredient.where(slug: slugs + wanted).pluck(:slug, :path).to_h.transform_values(&:to_s)
-    claims  = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(name))
-    implied = Ingestion::IngredientImplications.implied(slugs, path_for: paths.method(:[]), claims: claims)
-                .reject do |slug, path|
-                  slugs.include?(slug) || slugs.any? { |s| Ingestion::TagDeriver.under_any?(paths[s].to_s, [ path ]) }
-                end
-    return if implied.empty?
+  def promotion_tags = Array(tags_payload) + implied_rows.last
 
-    rows = implied.map { |slug, path| { slug: slug, path: path, confidence: 0.8, source: "derived" } }
-    known_tags = Array(tags_payload).map { |t| t["slug"] }
-    new_tags = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: rows)
+  def implied_rows
+    @implied_rows ||= begin
+      present = Array(ingredients_payload)
+      slugs   = present.map { |r| r["slug"] }
+      wanted  = slugs.flat_map { |slug| Ingestion::IngredientImplications::TABLE.fetch(slug, []) }
+      if edited? || wanted.empty?
+        [ [], [] ]
+      else
+        paths   = Ingredient.where(slug: slugs + wanted).pluck(:slug, :path).to_h.transform_values(&:to_s)
+        claims  = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(name))
+        implied = Ingestion::IngredientImplications.implied(slugs, path_for: paths.method(:[]), claims: claims)
+                    .reject do |slug, path|
+                      slugs.include?(slug) ||
+                        slugs.any? { |s| Ingestion::TagDeriver.under_any?(paths[s].to_s, [ path ]) }
+                    end
+        rows = implied.map { |slug, path| { slug: slug, path: path, confidence: 0.8, source: "derived" } }
+        known_tags = Array(tags_payload).map { |t| t["slug"] }
+        tags = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: rows)
                  .reject { |t| known_tags.include?(t[:slug]) }
                  .map { |t| Ingestion::AssociationPayload.load(t).dump }
-    update!(
-      ingredients_payload: present + rows.map { |r| Ingestion::AssociationPayload.dump(**r.except(:path)) },
-      tags_payload:        Array(tags_payload) + new_tags
-    )
+        [ rows.map { |r| Ingestion::AssociationPayload.dump(**r.except(:path)) }, tags ]
+      end
+    end
   end
 
   # `lock!` reloads the record, which clears its association cache — reading
@@ -164,7 +170,7 @@ class IngestionItem < ApplicationRecord
   def create_item!(decided_by:)
     # Compute dish confidence from ingredients only (not tags).
     # Zero ingredients → suggested. Otherwise → weakest ingredient confidence.
-    ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
+    ingredient_rows = map_joins_with_confidence(Ingredient, promotion_ingredients, decided_by: decided_by)
     dish_confidence = Ingestion::ConfidenceMapper.dish_confidence_from_ingredients(ingredient_rows)
 
     created = Item.create!(
@@ -177,7 +183,7 @@ class IngestionItem < ApplicationRecord
     )
 
     insert_joins_with_confidence!(ItemIngredient, created, ingredient_rows)
-    tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
+    tag_rows = map_joins_with_confidence(Tag, promotion_tags, decided_by: decided_by)
     insert_joins_with_confidence!(ItemTag, created, tag_rows)
     create_modifiers!(created)
     create_variants!(created)
@@ -216,9 +222,9 @@ class IngestionItem < ApplicationRecord
       replace_joins_with_confidence!(ItemTag, target, Tag, tags_payload, decided_by, snapshot)
       derive_allergen_tags!(target, decided_by, snapshot)
     else
-      ingredient_rows = map_joins_with_confidence(Ingredient, ingredients_payload, decided_by: decided_by)
+      ingredient_rows = map_joins_with_confidence(Ingredient, promotion_ingredients, decided_by: decided_by)
       created_ingredient_ids = insert_joins_with_confidence!(ItemIngredient, target, ingredient_rows)
-      tag_rows = map_joins_with_confidence(Tag, tags_payload, decided_by: decided_by)
+      tag_rows = map_joins_with_confidence(Tag, promotion_tags, decided_by: decided_by)
       created_tag_ids = insert_joins_with_confidence!(ItemTag, target, tag_rows)
       snapshot["created_item_ingredient_ids"] = created_ingredient_ids if created_ingredient_ids.any?
       snapshot["created_item_tag_ids"]        = created_tag_ids        if created_tag_ids.any?

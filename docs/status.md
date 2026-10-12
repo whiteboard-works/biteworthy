@@ -21,7 +21,7 @@ at a time has worked.
 
 ---
 
-2026-10-12 (UTC) — **Accept enforces the compound-sauce allergens too.** Codex found two ways a dish could still reach the live menu with aioli and no egg after #907: a scan resolved before it and accepted after, and a gap-fill retry that reuses already-enriched rows. `IngestionItem#promote!` now adds any missing implied row (and its allergen tag) under the row lock before it creates or updates the live dish, so every accept path is covered. Romesco and muhammara also imply wheat (their usual breadcrumbs).
+2026-10-12 (UTC) — **Accept enforces the compound-sauce allergens too.** Codex found two ways a dish could still reach the live menu with aioli and no egg after #907: a scan resolved before it and accepted after, and a gap-fill retry that reuses already-enriched rows. `IngestionItem#promote!` now adds any missing implied row (and its allergen tag) to the live dish it creates or updates, without rewriting the staged row, so every accept path is covered; a dish a person edited is taken as they left it. Romesco and muhammara also imply wheat (their usual breadcrumbs).
 
 2026-10-12 (UTC) — **Absence phrases read their context; garlic cloves are garlic.** Codex P1s on #908 and #909. "Dairy-free option available" and "vegan cheese available upon request" describe a variant, so they no longer swallow the dish's dairy evidence; "isn't dairy-free" (normalized to `isn t`) now counts as a negation like "not dairy-free". "Garlic cloves" matched garlic and then the clove spice through the plural fallback; "garlic clove" is now an alias of garlic, carried to production by migration `20261012233000`.
 
