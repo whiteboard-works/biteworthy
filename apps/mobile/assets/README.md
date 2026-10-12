@@ -11,14 +11,14 @@ App Router auto-links them). Regenerate with `pnpm mobile render:assets`.
 
 ## Required for store submission
 
-| File | Size | Notes |
-|---|---|---|
-| `icon.png` | 1024×1024 | App icon. No transparency. Apple expects square corners; the OS rounds them. Background must be a solid color (`colors.bite` = `#E14E2A` is the brand pick — see `packages/ui-tokens`). |
+| File                | Size      | Notes                                                                                                                                                                                       |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `icon.png`          | 1024×1024 | App icon. No transparency. Apple expects square corners; the OS rounds them. Background must be a solid color (`colors.bite` = `#E14E2A` is the brand pick — see `packages/ui-tokens`).     |
 | `adaptive-icon.png` | 1024×1024 | Android adaptive icon foreground. Center logo within the safe zone (66% of the canvas). Background color set via `app.json`'s `expo.android.adaptiveIcon.backgroundColor` to `colors.bite`. |
-| `splash.png` | 1284×2778 | iOS launch screen + Android splash. Centered logo lockup on `colors.bite`. |
-| `favicon.png` | 48×48 | Web fallback (Expo router web). |
+| `splash.png`        | 1284×2778 | iOS launch screen + Android splash. Centered logo lockup on `colors.bite`.                                                                                                                  |
+| `favicon.png`       | 48×48     | Web fallback (Expo router web).                                                                                                                                                             |
 
-## Generation flow (Phase 5.9-wiring)
+## Generation flow
 
 1. **Source vector:** `apps/mobile/assets/icon-source.svg`
    - "BW" monogram or full lockup, depending on size.

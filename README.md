@@ -2,73 +2,88 @@
 
 > **Scan any menu, see only what you can eat.**
 
-A pocket food filter that turns any restaurant menu — independent or chain —
-into a personalized shortlist in seconds. Built around dietary needs first:
-allergies, intolerances, religious observance, lifestyle.
+BiteWorthy turns a restaurant menu into a personal shortlist. You say what you
+avoid, from allergies and intolerances to religious observance and lifestyle,
+and every dish comes back as _safe_ or _hidden, and here is why_. Menus arrive
+by photo, PDF, or link; a model reads them into a curated ingredient taxonomy,
+a person checks the result, and the filter runs on the server so every client
+shows the same answer. Live at [bite-worthy.com](https://bite-worthy.com),
+Durango first, with more cities on the way.
 
-## Repository layout
+## Start here
+
+| You are…                                   | Read                                                                                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| New to the codebase                        | This file, then [`docs/local-dev.md`](docs/local-dev.md) to run it, then [`docs/schema.md`](docs/schema.md) for the data model in 60 seconds.          |
+| Working on a specific app                  | That app's `README.md` under `apps/`.                                                                                                                  |
+| An agent, or reviewing agent work          | [`AGENTS.md`](AGENTS.md): the rules, the commands CI runs, and the review contract. Every app has its own `AGENTS.md` too.                             |
+| Looking for why something is the way it is | [`docs/adr/`](docs/adr/) for the big picks, [`docs/plans/`](docs/plans/) for live work, and [`docs/status.md`](docs/status.md) for the day-by-day log. |
+| Looking for what is next                   | [`docs/roadmap.md`](docs/roadmap.md).                                                                                                                  |
+
+## What is in the box
 
 ```
 biteworthy/
 ├── apps/
-│   ├── api/         Rails 8 JSON API
-│   ├── web/         Next.js 16 (App Router)
-│   └── mobile/      Expo / React Native
+│   ├── api/        Rails 8 JSON API: the filter, the chat, the MCP server, ingestion
+│   ├── web/        Next.js 16: the public site, the chat, scanning, /admin
+│   └── mobile/     Expo: the diner's app (scan, filter, chat)
 ├── packages/
-│   ├── api-types/       TS types generated from the Rails OpenAPI spec
-│   ├── filter-engine/   Menu wire types + shared display helpers (web + mobile)
-│   ├── analytics/       Funnel-event taxonomy (web + mobile + api)
-│   ├── ui-tokens/       Shared design tokens
-│   ├── version-history/ Calver release log (YYYY.M.D[.X]) + pnpm bump
+│   ├── api-types/        TypeScript types generated from the API's OpenAPI document
+│   ├── filter-engine/    Menu wire types + display helpers shared by web and mobile (not a filter)
+│   ├── analytics/        The funnel-event taxonomy (a contract with the dashboards)
+│   ├── ui-tokens/        Design tokens for Tailwind (web) and StyleSheet (mobile)
+│   ├── version-history/  The calver release log behind /updates, written by `pnpm bump`
 │   └── eslint-config/
-├── _legacy/         Frozen 2020 Rails 4.2 codebase (read-only)
-└── docs/
-    ├── adr/         Architecture decision records
-    └── ...
+├── docs/           Run book, schema tour, ADRs, plans, the status log (index in docs/README.md)
+├── _legacy/        The 2020 Rails 4.2 app. Frozen, read-only.
+└── .github/        CI, the API deploy, auto-merge (see .github/README.md)
 ```
+
+Three surfaces talk to one API:
+
+- **Web** at bite-worthy.com (Vercel): menus, a chat assistant, scanning, and the `/admin` back office.
+- **Mobile** (Expo, iOS and Android): the same account, camera-first.
+- **MCP** at `api.bite-worthy.com/mcp`: the same tools the chat uses, exposed to any MCP client with OAuth.
+
+The one rule that shapes everything: **the server decides what is safe.**
+`Menus::Filter` in the API is the only place a dish becomes visible or hidden,
+and the clients render what they receive. See _Architecture_ in
+[`AGENTS.md`](AGENTS.md) for the why.
 
 ## Quickstart
 
-Requires Docker, plus Node 22+ and pnpm 10+ for web/mobile (and Ruby 3.3+
-only if you run the API natively).
-
-### Option A — containerized API (recommended)
-
-The API, its Solid Queue worker, and Postgres run in Docker; web and
-mobile run natively. One command brings the server side up:
+Requires Docker, Node 22, and pnpm 10. Ruby 3.3.6 only if you run the API
+natively.
 
 ```bash
-cp apps/api/.env.example apps/api/.env   # optional — only ingestion needs a key
-docker compose up                        # API :3000 + worker + Postgres
-                                         # first boot installs gems, creates + seeds the DB
+cp apps/api/.env.example apps/api/.env   # optional: only ingestion and chat need an Anthropic key
+docker compose up                        # API on :3000, its Solid Queue worker, and Postgres
+                                         # first boot installs gems and creates + seeds the database
 
 pnpm install
-pnpm dev                                 # web :3001 + mobile, via Turborepo
+pnpm dev                                 # web on :3001 and mobile, via Turborepo
 ```
 
-Edits to `apps/api` hot-reload (source is bind-mounted). `docker compose
-down` stops it; add `-v` to also drop the database volume.
+Edits under `apps/api` hot-reload (the source is bind-mounted). `docker
+compose down` stops it; add `-v` to drop the database too. For the native
+path, the test commands, and the usual snags, see
+[`docs/local-dev.md`](docs/local-dev.md).
 
-### Option B — everything native
+## Shipping
 
-```bash
-pnpm install
-docker compose up -d postgres    # just Postgres 16 in a container
-pnpm dev                         # web + mobile
+Every PR gets squash auto-merged the moment its required checks are green.
+A merge to `master` that touches `apps/api/` deploys the API to its Hetzner
+box through Kamal; Vercel deploys the web app from every push to `master`;
+mobile ships through EAS. Releases are calver entries added with
+`pnpm bump --note "…"` and rendered at `/updates`. Details in
+[`AGENTS.md`](AGENTS.md) and [`.github/README.md`](.github/README.md).
 
-cd apps/api                      # the API is not in the pnpm workspace
-bundle install
-bin/rails db:prepare             # create + load schema + seed
-bin/rails s -p 3000              # web dev server is on :3001
-bin/rails solid_queue:start      # background-job worker, in a second terminal
-```
+## Where it stands
 
-See [`docs/local-dev.md`](docs/local-dev.md) for the full local-development
-guide. Each app also has its own README under `apps/<name>/`.
+The web app is live and the product is feature complete for one city. The
+mobile app builds through EAS but is not yet in the stores; what is left is in
+[`docs/launch-readiness.md`](docs/launch-readiness.md), and the multi-city work
+in progress is at the top of [`docs/roadmap.md`](docs/roadmap.md).
 
-## Status
-
-Launch prep: all loop-shippable code is on master; remaining
-items need human provisioning — see `docs/launch-readiness.md`. See
-`docs/adr/0001-stack.md` for the architectural picks and
-`docs/roadmap.md` for the phase plan.
+Operating entity: Whiteboard Works Software LLC.
