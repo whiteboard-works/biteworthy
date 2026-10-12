@@ -108,7 +108,7 @@ module Tools
         # Clearing the unresolved lists is the point of the edit: whatever we
         # could not match, a human has now spoken to.
         attrs[:unresolved_ingredients] = [] if attrs.key?(:ingredients_payload)
-        attrs[:unresolved_tags]        = [] if attrs.key?(:tags_payload)
+        attrs[:unresolved_tags]        = [] unless tag_slugs.nil?
 
         item.update!(attrs.merge(decision: "edited", decided_at: Time.current))
 

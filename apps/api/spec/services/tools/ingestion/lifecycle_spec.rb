@@ -212,6 +212,16 @@ RSpec.describe "ingestion tools", type: :service do
       )
     end
 
+    it "leaves the unresolved tags alone when only the ingredients were edited" do
+      item.update!(unresolved_tags: ["spicy-ish"])
+
+      Tools::Ingestion::EditStagedItem.call(
+        item_id: item.id, ingredient_slugs: ["meat-beef"], server_context: ctx(owner)
+      )
+
+      expect(item.reload.unresolved_tags).to eq(["spicy-ish"])
+    end
+
     it "rejects an unknown slug without saving anything" do
       before = item.ingredients_payload
 
