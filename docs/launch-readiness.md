@@ -92,7 +92,8 @@ hcloud server create --name biteworthy-api --type cpx21 \
 
 # GHCR: GitHub → Settings → Developer settings → PAT (classic)
 # with write:packages + read:packages. Save as
-# KAMAL_REGISTRY_PASSWORD.
+# KAMAL_REGISTRY_PASSWORD. Laptop deploys only: deploy-api.yml
+# logs in with its own GITHUB_TOKEN.
 
 # Fill secrets
 cd apps/api

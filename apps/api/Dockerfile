@@ -86,6 +86,10 @@ RUN bundle exec bootsnap precompile app/ lib/
 # --- final stage -------------------------------------------------------------
 FROM base
 
+# Ties the GHCR package to this repository, so a workflow's GITHUB_TOKEN can
+# push it (deploy-api.yml) without a hand-granted package permission.
+LABEL org.opencontainers.image.source="https://github.com/whiteboard-works/biteworthy"
+
 # Runtime-only OS deps. libvips + imagemagick are both used by
 # image_processing (review photos + Phase 4.11 dish photos); ghostscript
 # for Pdfs::Shrink (oversized menu PDFs); libpq for Postgres;

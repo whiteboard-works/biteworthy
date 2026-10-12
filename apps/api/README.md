@@ -71,7 +71,9 @@ hcloud server create \
 #    - Copy the POOLED connection string (not the unpooled one —
 #      puma + worker concurrency would exhaust unpooled connections).
 
-# 3. Generate a GitHub PAT for ghcr.io access.
+# 3. Generate a GitHub PAT for ghcr.io access (laptop deploys only — the
+#    deploy-api workflow logs in with its own GITHUB_TOKEN, so an expired
+#    PAT cannot stop a CI deploy).
 #    - Settings → Developer settings → Personal access tokens (classic)
 #    - Scopes: write:packages, read:packages
 
