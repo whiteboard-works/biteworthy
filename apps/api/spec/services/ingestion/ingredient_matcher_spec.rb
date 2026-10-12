@@ -61,6 +61,8 @@ RSpec.describe Ingestion::IngredientMatcher do
 
     expect(read.("pad thai, can be made peanut-free")).to include("legume-peanuts")
     expect(read.("peanut-free pad thai")).not_to include("legume-peanuts")
+    expect(slugs("house-made vegan cheese, made with dairy-free cheese")).to be_empty
+    expect(slugs("mac and cheese, optionally dairy-free")).to include("dairy")
   end
 
   it "still matches when the absence phrase is itself negated" do
