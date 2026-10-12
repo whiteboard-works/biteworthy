@@ -27,6 +27,12 @@ module Tools
         confirms them. Say which applies if the user asks why a dish is not
         showing up for them.
 
+        A dish that another scan of this restaurant has put on the menu since
+        this one was staged is not accepted: it comes back under
+        `needs_review` with the live dish it would update, and its staged
+        card now shows `updates_existing_item`. Show the user, then accept it
+        again to apply it as an update rather than a duplicate.
+
         Reversible with `undo_staged_item`.
       TEXT
 
@@ -46,8 +52,9 @@ module Tools
       )
 
       # destructive_hint: writes to a live menu, and a client that surfaces
-      # this hint should be asking the user first.
-      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
+      # this hint should be asking the user first. Not idempotent: a
+      # replay can confirm a late match the first call held for review.
+      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
 
       # `undo_staged_item` exists precisely to reverse this, and reverses
       # what it did to the live menu with it.
@@ -62,10 +69,21 @@ module Tools
         items = select_items(run, item_ids, all)
         raise Errors::InvalidArgument, "Nothing to accept — pass item_ids, or all: true." if items.empty?
 
+        late = run.staged? || run.published? ? rematch_unmatched!(run, items) : {}
+
         accepted = []
         failed   = []
+        review   = []
 
         items.each do |item|
+          # Held back: the reviewer saw this as a new dish, and accepting it
+          # now would edit a live one. Its card now shows the match; a
+          # second accept is the confirmation.
+          if late.key?(item.id)
+            review << { id: item.id, name: untrusted(item.name), updates_existing_item: late[item.id] }
+            next
+          end
+
           accepted << accept_one(run, item, user)
         rescue StandardError => e
           # One bad dish must not abandon the rest half-published. Report it
@@ -80,6 +98,7 @@ module Tools
         ok(
           accepted:  accepted,
           failed:    failed.presence,
+          needs_review: review.presence,
           restaurant_published: Restaurant.published.exists?(id: run.restaurant_id),
           remaining_pending: run.ingestion_items.where(decision: %w[pending edited]).count
         )
@@ -98,6 +117,42 @@ module Tools
         found
       end
       private_class_method :select_items
+
+      # A dish another scan of this restaurant put on the menu after this
+      # one resolved was never a match candidate (four PDFs of one menu
+      # scanned at once all resolve against an empty menu), so accepting
+      # both would double every shared dish. One matcher pass per accept,
+      # the same matcher resolve uses, records those matches so the dish
+      # becomes an update rather than a twin.
+      #
+      # Nobody saw the match before deciding, so it is narrower than
+      # resolve's — exact names, pending rows, published dishes, and never a
+      # live dish another row of this scan already claims — and the dish is
+      # held back from this accept for the reviewer to confirm. Returns
+      # { ingestion_item_id => live item id } for the ones held back.
+      def self.rematch_unmatched!(run, items)
+        candidates = items.select { |i| i.decision == "pending" && i.item_id.nil? }
+        return {} if candidates.empty?
+
+        # Per-scan lock: two accepts must not both claim one live dish, and
+        # a match is read back fresh so a row another accept already matched
+        # is held rather than matched twice.
+        run.with_lock do
+          fresh = IngestionItem.where(id: candidates.map(&:id)).pluck(:id, :matched_item_id).to_h
+          unmatched = candidates.select { |i| fresh.key?(i.id) && fresh[i.id].nil? }
+          next {} if unmatched.empty?
+
+          claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id)
+          matches = ::Ingestion::ExistingItemMatcher.call(
+            run: run, items: unmatched, exact_only: true, published_only: true, exclude_item_ids: claimed
+          )
+          matches.each_with_object({}) do |(id, match), held|
+            IngestionItem.where(id: id).update_all(matched_item_id: match[:item_id], match_score: match[:score])
+            held[id] = match[:item_id]
+          end
+        end
+      end
+      private_class_method :rematch_unmatched!
 
       # Promote now when the run is enriched; otherwise record the acceptance
       # and let the resolve pass promote at :staged. An Item must never go

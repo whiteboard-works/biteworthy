@@ -354,6 +354,106 @@ RSpec.describe "ingestion tools", type: :service do
       expect(response.to_h[:isError]).to be(true)
     end
 
+    # Four PDFs of one restaurant scanned at once: each resolved before any
+    # was accepted, so none matched the others, and accepting the brunch
+    # menu after the dinner menu would have doubled every shared dish.
+    context "when another scan put the same dish on the menu after this one resolved" do
+      it "holds it for review, then updates that dish instead of creating a duplicate" do
+        live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        expect(item.matched_item_id).to be_nil
+
+        first = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+        expect(payload(first)[:accepted]).to be_empty
+        expect(payload(first)[:needs_review].first).to include(id: item.id, updates_existing_item: live.id)
+        expect(item.reload.matched_item_id).to eq(live.id)
+
+        second = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+        expect(Item.where(restaurant: restaurant).count).to eq(1)
+        expect(payload(second)[:accepted].first).to include(item_id: live.id, updated_existing: true)
+      end
+
+      it "matches the published dish when a draft shares its name" do
+        create(:item, restaurant: restaurant, name: "Carne Asada Taco", status: "draft")
+        live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+
+        response = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+
+        expect(payload(response)[:needs_review].first).to include(updates_existing_item: live.id)
+      end
+
+      it "matches the unclaimed twin when another row of this scan claims the first" do
+        claimed = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        free    = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", matched_item_id: claimed.id,
+                                match_score: 1.0)
+
+        response = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+
+        expect(payload(response)[:needs_review].first).to include(updates_existing_item: free.id)
+      end
+
+      it "does not late-match a merely similar name" do
+        create(:item, :published, restaurant: restaurant, name: "Carne Asada Tacos Plate")
+
+        response = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+
+        expect(payload(response)[:needs_review]).to be_nil
+      end
+
+      it "never late-matches a draft" do
+        create(:item, restaurant: restaurant, name: "Carne Asada Taco", status: "draft")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+
+      it "never late-matches on a near name" do
+        create(:item, :published, restaurant: restaurant, name: "Margarita Pizza")
+        pizza = create(:ingestion_item, ingestion_run: run, name: "Margherita Pizza")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [pizza.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+
+      it "never late-matches onto an edited dish" do
+        edited = create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", decision: "edited")
+        create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [edited.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+
+      it "does not let two staged dishes claim one live dish" do
+        live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", matched_item_id: live.id, match_score: 1.0)
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+    end
+
     # A re-scan matched to a live dish must edit it, not duplicate it.
     context "when the dish matches one already on the menu" do
       let!(:existing) { create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco") }

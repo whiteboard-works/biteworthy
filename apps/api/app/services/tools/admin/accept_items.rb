@@ -41,7 +41,7 @@ module Tools
         required: [ "scan_id" ]
       )
 
-      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
+      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
       unrecoverable_when { false }
 
       running_description { "Accepting items" }

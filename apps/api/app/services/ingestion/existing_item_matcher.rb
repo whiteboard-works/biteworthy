@@ -28,13 +28,22 @@ module Ingestion
     SIMILARITY_THRESHOLD = 0.60
     STOPWORDS = %w[and with w the of].freeze
 
-    def self.call(run:, items:)
-      new(run: run, items: items).call
+    # The accept-time pass (AcceptStagedItems) wants a narrower matcher:
+    # `exact_only:` skips the per-dish trigram queries it would discard
+    # anyway, and `published_only:` / `exclude_item_ids:` narrow the
+    # candidates BEFORE assignment, so a draft twin or a dish this scan
+    # already claims cannot win the tie and hide the one that should match.
+    def self.call(run:, items:, exact_only: false, published_only: false, exclude_item_ids: [])
+      new(run: run, items: items, exact_only: exact_only, published_only: published_only,
+                                  exclude_item_ids: exclude_item_ids).call
     end
 
-    def initialize(run:, items:)
+    def initialize(run:, items:, exact_only: false, published_only: false, exclude_item_ids: [])
       @run = run
       @items = items
+      @exact_only = exact_only
+      @published_only = published_only
+      @exclude_item_ids = Array(exclude_item_ids)
     end
 
     def call
@@ -47,6 +56,8 @@ module Ingestion
       return {} if candidates.empty?
 
       exact = exact_pairs(staged, candidates)
+      return assign(exact) if @exact_only
+
       matched_staged_ids = exact.map { |p| p[:staged].id }.to_set
       fuzzy = fuzzy_pairs(staged.reject { |i| matched_staged_ids.include?(i.id) }, candidates)
 
@@ -63,7 +74,9 @@ module Ingestion
     def eligible_candidates
       linked = run.ingestion_items.where.not(item_id: nil).pluck(:item_id)
       scope = run.restaurant.items.where.not(status: "removed")
-      scope = scope.where.not(id: linked) if linked.any?
+      scope = scope.where(status: "published") if @published_only
+      excluded = linked + @exclude_item_ids
+      scope = scope.where.not(id: excluded) if excluded.any?
       scope.select(:id, :name).to_a
     end
 
