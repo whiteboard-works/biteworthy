@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-13 (UTC) — **`list_staged_items` has a compact mode.** Reviewing North Italia's 185 staged dishes, the full rows (association objects, prices, add-ons, match diffs) filled most of an agent's context. `compact: true` returns each association as one `slug (confidence, source)` string, drops prices and add-ons, and gives a match as the live dish's id; confidence and source stay.
+
 2026-10-13 (UTC) — **Catalog terms for the menu phrases that misfired.** From the Riverton import: "ginger beer" now means the soda (it was beer, hiding a zero-proof drink from a celiac filter) while "hard ginger beer"/"spiked root beer" mean alcohol; "Root Beer" has a node; "carne asada" is beef (skirt steak); "Chicken Fried Steak" is a breaded beef node instead of chicken; and "nuts"/"glazed nuts" resolve to a Mixed Nuts node that implies peanuts too, while "nut-free"/"peanut-free" are absence phrases. Specific nuts gained "cashew nuts"-style aliases so the bare "nuts" alias does not also fire on them. Migration `20261013000000` carries the terms to production; it changes the catalog only, so dishes already live keep their old rows until re-scanned.
 
 2026-10-12 (UTC) — **Scan status tells the truth about time and failure.** The scan tools promised extraction in 20–60 seconds; the Riverton import measured 25–108 s per PDF plus up to a minute and a half of enrichment, and an agent polling on the old promise thought the scan was stuck. They now say 20 seconds to two minutes. A run that fails before resolve also stops reporting `enrichment_status: "pending"` (nothing will ever enrich it), so pollers stop waiting.

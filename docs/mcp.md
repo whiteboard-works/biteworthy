@@ -315,7 +315,7 @@ Verification is a conversation. The path is:
 
 ```
 start_menu_scan   →  get_scan_status (poll until ready)
-                  →  list_staged_items  [needs_attention: true]
+                  →  list_staged_items  [needs_attention: true, compact: true]
                   →  edit_staged_item   (fix what didn't resolve)
                   →  accept_staged_items  ← the only step that publishes
                   →  undo_staged_item   (if that was wrong)

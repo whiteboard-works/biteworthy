@@ -32,6 +32,7 @@ fixed it or what is still open.
 
 ## Throughput and access
 
+- [x] Reviewing a 185-dish scan filled an agent's context: `list_staged_items compact: true`.
 - [ ] One Solid Queue process with `threads: 3` on `queues: "*"`: four parallel scans queued behind each other and share threads with chat. Consider a dedicated ingestion worker or concurrency limits.
 - [ ] Toast-only restaurants (Saffron Circle, Seoul Meat Co) cannot be imported by an agent: HostPolicy refuses Toast (correctly, for ToS) and MCP has no upload path, so photos/PDFs must come from a person.
 - [ ] MCP cannot attach dish photos: `set_item_photo`/`submit_dish_photo` need an app-upload attachment id.
