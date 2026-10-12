@@ -316,6 +316,26 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.reload.failure_message).to include("menu_too_large")
     end
 
+    it "sends a short static menu to the model even when scripts padded its HTML" do
+      page = "<html><head><script>#{'x' * 5000}</script></head><body>" \
+             "<p>Espresso 3</p><p>Latte 4.5</p><p>Blueberry Muffin 3</p><p>Bagel 2.5</p></body></html>"
+      run.inputs.attach(io: StringIO.new(page), filename: "menu.html", content_type: "text/html")
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.status).to eq("resolving")
+    end
+
+    it "does not cap long pasted text the way it caps a fetched page" do
+      run.inputs.attach(io: StringIO.new("Taco 4\n" * 30_000), filename: "pasted-menu.txt", content_type: "text/plain")
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return(happy_extraction)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.status).to eq("resolving")
+    end
+
     it "succeeds when text/html input has sufficient content" do
       # Create content that's well over 200 chars to pass the MIN_TEXT_LENGTH check
       menu_html = "<html><body><h1>Restaurant Menu</h1>" +

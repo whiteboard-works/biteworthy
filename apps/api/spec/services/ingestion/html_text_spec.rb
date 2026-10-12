@@ -13,6 +13,7 @@ RSpec.describe Ingestion::HtmlText do
     text = described_class.call(html)
     expect(text).to include("Hummus $8")
     expect(text).to include("Falafel 9")
+    expect(described_class.call("<h3>Hummus<span>$8</span></h3>")).to include("Hummus $8")
   end
 
   it "keeps schema.org Menu JSON-LD in its array and URL forms, and drops other JSON-LD" do

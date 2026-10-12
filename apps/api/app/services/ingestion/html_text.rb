@@ -11,9 +11,9 @@ module Ingestion
 
     DROPPED = "script, style, noscript, svg, template, iframe, link, meta"
     LINE_BREAKS = "br, p, div, li, tr, h1, h2, h3, h4, h5, h6, section, article, ul, ol, dl, table"
-    # Inline and cell elements are often siblings with no whitespace
-    # between them ("<td>Hummus</td><td>8</td>"); a space keeps the name
-    # and the price apart.
+    # Inline and cell elements often touch their neighbours with no
+    # whitespace ("<td>Hummus</td><td>8</td>", "Hummus<span>$8</span>");
+    # a space on both sides keeps the name and the price apart.
     SPACED = "td, th, dt, dd, span, a, option, label, b, strong, em, i"
     MENU_JSON_LD = %r{"@type"\s*:\s*(?:\[[^\]]*?)?"(?:https?://schema\.org/)?Menu|"hasMenu}
 
@@ -32,7 +32,10 @@ module Ingestion
                    .select { |s| s.match?(MENU_JSON_LD) }
       doc.css(DROPPED).remove
       doc.css(LINE_BREAKS).each { |n| n.add_next_sibling("\n") }
-      doc.css(SPACED).each { |n| n.add_next_sibling(" ") }
+      doc.css(SPACED).each do |n|
+        n.add_previous_sibling(" ")
+        n.add_next_sibling(" ")
+      end
       visible = doc.text.gsub(/[ \t\r\f\v ]+/, " ").gsub(/ *\n\s*/, "\n").strip
       [ visible, *json_ld ].join("\n\n").strip
     end

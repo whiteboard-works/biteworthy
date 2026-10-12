@@ -41,9 +41,15 @@ module Ingestion
     # 200 chars allows for some markup while catching empty pages.
     MIN_TEXT_LENGTH = 200
 
+    # The same check on a fetched page's VISIBLE text, which has no markup
+    # to pad it: three dishes and prices clear it, an empty app shell
+    # does not.
+    MIN_PAGE_TEXT_LENGTH = 20
+
     # About 50k tokens, far above any real menu page's visible text
     # (North Italia's full dinner page is 37k characters); past it the
     # call would fail at the provider with a raw "prompt is too long".
+    # Fetched pages only: pasted text has its own ceiling in StartRun.
     MAX_TEXT_LENGTH = 200_000
 
     def self.call(run) = new(run).call
@@ -72,16 +78,21 @@ module Ingestion
       if blobs.all? { |b| text_content_type?(b.content_type.to_s) }
         # Measured on what the model will be sent: a JS-rendered page can
         # be megabytes of script around an empty <div id="app">.
-        combined_text = blobs.map do |b|
+        texts = blobs.map do |b|
           body = b.download.to_s
-          (HtmlText.html?(b.content_type, body) ? HtmlText.call(body) : body).strip
-        end.join(" ")
-        if combined_text.length > MAX_TEXT_LENGTH
+          html = HtmlText.html?(b.content_type, body)
+          [ html, (html ? HtmlText.call(body) : body).strip ]
+        end
+        if texts.select(&:first).sum { |_, text| text.length } > MAX_TEXT_LENGTH
           @run.fail!("menu_too_large: The page has more text than one scan can read. " \
                      "Link the menu page itself, or upload the menu as a PDF.")
           return
         end
-        if combined_text.length < MIN_TEXT_LENGTH
+        # A fetched page is judged on its visible text, where a small café's
+        # whole menu can be under 200 characters; pasted text keeps the
+        # original bar.
+        min_length = texts.any?(&:first) ? MIN_PAGE_TEXT_LENGTH : MIN_TEXT_LENGTH
+        if texts.map(&:last).join(" ").length < min_length
           @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
                      "Upload the menu as a PDF or photos, or paste the menu text.")
           return
