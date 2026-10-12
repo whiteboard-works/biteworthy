@@ -68,14 +68,26 @@ module Tools
       # ILIKE on name plus an aliases scan — the same pair the ingredients
       # endpoint uses, because the trigram threshold alone misses short
       # queries.
+      #
+      # Ranked so the thing asked for comes first: an exact name or alias,
+      # then a name that starts with the query, then taxonomy order. By
+      # path alone, "egg" listed Vegetable Broth and Taleggio before Egg,
+      # and a small limit cut Egg off.
       def self.ingredients(query, limit)
-        scope = Ingredient.order(:path).limit(limit)
+        scope = Ingredient.limit(limit)
         if query.present?
+          like = ActiveRecord::Base.sanitize_sql_like(query)
           scope = scope.where(
             "name ILIKE :q OR EXISTS (SELECT 1 FROM unnest(aliases) AS a WHERE a ILIKE :q)",
-            q: "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
-          )
+            q: "%#{like}%"
+          ).order(Arel.sql(ActiveRecord::Base.sanitize_sql_array([ <<~SQL.squish, query, query, "#{like}%" ])))
+            CASE WHEN lower(name) = lower(?) OR EXISTS (SELECT 1 FROM unnest(aliases) AS a WHERE lower(a) = lower(?))
+                   THEN 0
+                 WHEN name ILIKE ? THEN 1
+                 ELSE 2 END
+          SQL
         end
+        scope = scope.order(:path)
         scope.map do |i|
           { slug: i.slug, name: i.name, family: i.path.to_s.split(".").first, allergen: i.allergen }
         end
