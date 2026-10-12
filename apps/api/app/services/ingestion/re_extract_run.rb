@@ -37,6 +37,10 @@ module Ingestion
           staging:         {},
           failure_message: nil,
           latency_ms:      nil,
+          # fail! marks a pending enrichment failed; a fresh extraction
+          # will enrich again, so pollers should wait for it.
+          enrichment_status:          "pending",
+          enrichment_failure_message: nil,
           state_history:   run.state_history.except("extracting", "resolving", "staged", "failed")
         )
         # Rewind to :queued via direct write — transition_to! enforces

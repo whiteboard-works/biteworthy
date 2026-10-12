@@ -86,6 +86,15 @@ RSpec.describe IngestionRun, type: :model do
       expect(run.reload.enrichment_status).to eq("failed")
     end
 
+    it "is reset to pending when the run is re-extracted" do
+      run = create(:ingestion_run, :extracting, enrichment_status: "pending")
+      run.fail!("prompt is too long")
+
+      Ingestion::ReExtractRun.call(run)
+
+      expect(run.reload.enrichment_status).to eq("pending")
+    end
+
     it "doesn't enqueue any next-stage job" do
       expect { create(:ingestion_run).fail!("anything") }.not_to have_enqueued_job
     end

@@ -24,7 +24,7 @@ import {
  * on the filtered menu the moment they accept.
  */
 
-// Extraction is 20–60 s. Every web user's polls share one per-IP API
+// Extraction is 20 s to two minutes. Every web user's polls share one per-IP API
 // budget (the Next proxy is the client Rails sees), so poll gently and
 // back off hard on errors — a 429 above all.
 const POLL_MS = 4000;
@@ -480,7 +480,7 @@ function Progress({
       <p className="mt-bw-1 text-bw-sm text-zinc-600">
         {checking
           ? 'Filling in what each dish implies, so the allergy filter can see it.'
-          : 'Usually 20–60 seconds.'}{' '}
+          : 'Usually under two minutes.'}{' '}
         {seconds > 0 && `${seconds}s so far.`}
       </p>
     </div>
