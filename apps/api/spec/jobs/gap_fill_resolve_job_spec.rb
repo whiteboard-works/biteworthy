@@ -95,6 +95,14 @@ RSpec.describe GapFillResolveJob, type: :job do
           { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "ai" }
         )
       end
+
+      it "still lets a name-level diet claim veto the ancestor" do
+        gap_item.update!(name: "Gluten-Free Caesar Salad")
+
+        described_class.perform_now(run.id)
+
+        expect(gap_item.reload.ingredients_payload.map { |r| r["slug"] }).to eq(%w[dairy])
+      end
     end
 
     it "leaves the re-scan match columns alone (its upsert must not clobber the matcher)" do
