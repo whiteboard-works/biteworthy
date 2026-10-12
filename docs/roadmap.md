@@ -7,16 +7,19 @@ details (shipped subplans are archived under `docs/plans/archive/`).
 
 ## Status
 
-**Phases 0–8 + the legal-remediation arc have all shipped** (#112–#346).
-The product is feature-complete: anyone-can-scan ingestion, the
-real-world mobile scan loop, "most likely to enjoy" taste ranking, and
-honest privacy/ToS + E1–E13 engineering are all on master. The full
-per-PR history, each phase's demo, and the resolved follow-ups live in
-[`status-archive/roadmap-phases-0-8.md`](status-archive/roadmap-phases-0-8.md);
-the per-task acceptance criteria are in `docs/plans/archive/`.
+**Live in one city.** bite-worthy.com serves Durango: filtered menus, the
+chat assistant, scanning, and the admin back office, with the API on
+Hetzner deploying itself on every merge. The mobile app builds through EAS
+and is not yet in the stores. Phases 0–8 and the legal-remediation arc
+(#112–#346) are history in
+[`status-archive/roadmap-phases-0-8.md`](status-archive/roadmap-phases-0-8.md)
+and `docs/plans/archive/`.
 
-Everything remaining is human-credential-gated launch work — see
-**Next up** and `docs/launch-readiness.md`.
+Three kinds of work remain, each with its own section below:
+
+- **Arcs in progress** — multi-city, the MCP pivot's M7, the results pane's P2 and P3, the open follow-ups. Loop-shippable.
+- **Launch** — what only a person can do before the app is in the stores. See *Launch* below and [`launch-readiness.md`](launch-readiness.md) for the step-by-step.
+- **Growth bets** — the strategy's unscheduled ideas, kept here so the reasoning is not lost with the archived planning docs.
 
 ## Multi-city (in progress)
 
@@ -156,13 +159,10 @@ The loop takes these in order, top-down. `[BLOCKED]` prefix means
 "skip; needs a human to clear." See `docs/delivery-playbook.md` for
 the merge / review / status rules.
 
-**Launch gates** (human, not the loop): the L1–L5 legal gates (remove
-lawyer sign-off — both DRAFT banners came off at the owner's call
-ahead of it, 2026-10-05/06 — and DMCA agent registration) in `docs/plans/legal-remediation-followups.md`, alongside
-the credential-gated wiring below. `docs/launch-readiness.md` is the
-linear human path from "code complete" to launch.
+**Launch gates** are human work and live in the *Launch* section below;
+`docs/launch-readiness.md` is the step-by-step.
 
-1. **[BLOCKED] Phase 5.9-wiring — generate binary assets + screenshot routes + EAS submit** (followup to #180). Needs Apple Developer ($99/yr) + Google Play Console ($25 one-time) + lawyer signoff on `/privacy` + `/terms` + designed icon-source.svg.
+1. **[BLOCKED] Store submission — binary assets + screenshot routes + EAS submit** (follow-up to #180). Needs the Apple Developer and Google Play accounts, the L1 sign-off on `/privacy` and `/terms`, and a designed `icon-source.svg`. See *Launch*.
 2. ~~**A bot-merged `apps/api` PR does not deploy — dispatch `deploy-api` by hand.**~~ **RESOLVED 2026-08-09; verified 2026-08-14.** The `AUTOMERGE_TOKEN` secret exists, so `auto-merge.yml` no longer merges with `GITHUB_TOKEN` and GitHub's recursion guard no longer swallows the run. Evidence: tonight's auto-merged `apps/api` PRs (#608, #610, #611) all show `merged_by=wbwSoftware` rather than `github-actions[bot]` — the exact check this item prescribed — and `deploy-api.yml` fired `on: push` for each, all successful. No hand-dispatch needed. **Kept in the queue rather than deleted, because it can come back:** `AUTOMERGE_TOKEN` is a fine-grained PAT, and `auto-merge.yml` reads `secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN` — and those two words hide two *different* failure modes. **Secret deleted:** the expression picks `GITHUB_TOKEN` and the original bug returns silently, master looking shipped while the box is stale. **Secret still set but the PAT expired or was revoked:** `||` tests whether the value is empty, not whether it works, so it yields the dead token and the auto-merge step fails auth instead — PRs simply stop merging, which is at least visible as a red `enable` check. Diagnostic worth not relearning — check `merged_by` on a recently auto-merged `apps/api` PR; `github-actions[bot]` means the token is gone and API changes have stopped shipping. (The GHCR PAT in `.kamal/secrets` expired on 2026-10-12 and did exactly that, loudly: three deploys denied at `docker login ghcr.io`. `deploy-api.yml` logs in with its own `GITHUB_TOKEN` since that day, so the PAT now matters only for laptop deploys.)
 
 **Admin backoffice workstream — SHIPPED 2026-07-30** (#467–#481,
@@ -199,9 +199,10 @@ Invariants: join `confidence` never directly editable (admin chip edits
 write `confirmed`/`human`, removals row-by-row so the denormalized
 arrays stay honest); matched re-scan cards stay append-only.
 
-Other than that workstream and the exploration follow-ups below, **no
-remaining loop-shippable work.** Every loop-shippable launch piece is on
-master; the rest of the queue is human-credential-gated.
+Loop-shippable work that is not on a shipped arc: M7 (MCP pivot), P2 and
+P3 (results pane), the Location P2 follow-ups, the branding crop editor,
+the mobile dish-photo upload, and the *Open follow-ups* below. Pick the
+smallest one whose plan has acceptance criteria.
 
 ## Diner dish photos (shipped 2026-10-06)
 
@@ -275,7 +276,7 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
   only by deep link.
 - **User-exploration findings (2026-08-15)** — a live-product walkthrough
   left a severity-ordered findings brief with a small-fixes checklist in
-  [`plans/ux-exploration-2026-08-15.md`](plans/ux-exploration-2026-08-15.md).
+  [`plans/archive/ux-exploration-2026-08-15.md`](plans/archive/ux-exploration-2026-08-15.md) (archived 2026-10-12).
   The checklist items are loop-shippable (several PRs already in flight,
   tracked in the doc). **2026-08-17 demo-readiness push:** of the four
   bigger findings, three shipped — finding 1 (ingestion `gap?` widening,
@@ -423,6 +424,56 @@ in the [roadmap history](status-archive/roadmap-phases-0-8.md).)
     orphaned. Nothing was lost (relanded by cherry-pick in #496), but
     the rule is: in a stack, only the bottom PR leaves draft: promote
     the next one after its base actually merges. Or don't stack.
+
+## Launch (human-gated)
+
+What stands between the product as it runs today and the app in the
+stores. Nothing here is loop-shippable; the step-by-step with commands is
+[`launch-readiness.md`](launch-readiness.md). Folded in from the archived
+2026 planning docs on 2026-10-12, with everything they listed as open and
+the log says has since shipped removed (the first deploy, Resend, R2,
+Vercel, PostHog, the ingestion cassette, the Durango seed, the anonymous
+filter picker, diet forwarded from the city pages, per-user throttling).
+
+- [ ] **L1 — attorney sign-off on `/privacy` and `/terms`**, with the chat-privacy brief ([`plans/chat-privacy-l1-brief.md`](plans/chat-privacy-l1-brief.md)) and the L3 ruling on auto-cropping third-party dish photos. Long lead; blocks store submission. The DRAFT banners already came off at the owner's call (2026-10-05/06). Gates in [`plans/legal-remediation-followups.md`](plans/legal-remediation-followups.md).
+- [ ] **L2 — register the DMCA designated agent** (~$6) and the repeat-infringer process behind `/dmca`.
+- [ ] **Apple Developer ($99/yr) and Google Play Console ($25)**; then the three `REPLACE_WITH_…` placeholders in `apps/mobile/eas.json`, the gitignored `play-service-account.json`, and note the **Apple Team ID and Android signing SHA-256** for deep links later.
+- [ ] **Design `icon-source.svg`**, render the binary assets (`pnpm mobile render:assets`), wire screenshot routes, `eas build` then `eas submit`. Apple review 1–7 days.
+- [ ] **Neon snapshots.** ADR 0007 admits the database has no backup beyond Neon's own; one wipe during early word of mouth is unrecoverable. Turn on point-in-time restore or a scheduled export before inviting more people.
+- [ ] **Error reports to a private GitHub repo** — pick the repo, mint the fine-grained token, add `GITHUB_ERROR_REPORTS_TOKEN` and `GITHUB_ERROR_REPORTS_REPO` to the deploy (`launch-readiness.md` §11). Until then failures are counted in `error_reports` and PostHog but no issue is filed.
+- [ ] **Check strict-mode `visible_count` on the live data** before a wider push: the safest users must see real options, or honest disclosure is failing the people it exists for.
+- [ ] **Production backfills waiting on a person:** `names:normalize` (dry run, review, apply) and the Jev cuisine re-tag runs, both listed above.
+- [ ] **Press outreach** from [`outreach/`](outreach/), seven days before a public launch; stage `launch-day.md`.
+
+## Growth bets (from the 2026 strategy, not scheduled)
+
+The mid-2026 strategic review (archived under
+[`archive/strategy-2026/`](archive/strategy-2026/)) diagnosed a
+**high-value, low-frequency** product and bet on three things: coverage
+through anyone-can-scan (shipped), frequency through a contribution
+identity, and reach through taste discovery, with consumer freemium as the
+model. Its standing decisions and the work it left unscheduled:
+
+**Standing decisions.** Keep the safety-first headline ("see only what you
+can eat") and ship discovery only as a Top Picks layer inside already-safe
+menus; flip the headline to "what should I order?" only when **Top Pick
+acceptance clears about 30%** with the safety numbers green. Never let
+marketing say "safe". Expand to a second city only with a vandalism gate
+in place and the week-2 return rate trending up. The three numbers on the
+wall: **week-2 return rate** (≥ ~15%), **coverage velocity** (menus added
+per week by users), and **strict-mode `visible_count`**.
+
+- [ ] **Instrument the two decision metrics.** Week-2 return rate (derived in PostHog from `app_open`) and Top Pick acceptance: `packages/analytics` has no tap-or-save event for a pick yet.
+- [ ] **Contribution identity on `/u/<handle>`** — confirmations count, "menus you keep accurate", city rank. The confirm-and-dispute loop it builds on exists in part: dish verification shipped in #838 (two levels, verifier attribution). Build the identity only once verification shows repeat use.
+- [ ] **Anonymous onboarding** — the avoid list as a `profile_token` in the browser, applied across restaurants, "save to account" offered afterwards. Today `/onboarding` still bounces a signed-out visitor to `/login`; the anonymous presets and share links shipped 2026-09-26 cover the first visit, not a custom list.
+- [ ] **Visibility** — the sitemap still lists only the static pages and `/durango/<diet>` (the `restaurantPaths` hook in `apps/web/src/lib/sitemap.ts` is unfilled); restaurant pages have `generateMetadata` but no Restaurant or Menu JSON-LD; share links and `/u/<handle>` have no Open Graph unfurl.
+- [ ] **Restaurant QR program** — phase 1 encodes the restaurant's share URL for a table tent (web-only, small); phase 2 deep-links into the app (`associatedDomains`, `intentFilters`, AASA and assetlinks) and needs the Team ID and signing SHA from the store accounts. The read path is already anonymous, so this is mostly image generation and an admin action.
+- [ ] **Taste quiz and starter taste profiles** — [`plans/taste-quiz.md`](plans/taste-quiz.md) is the spec; the scoring engine exists (`TasteScoring`), onboarding is dietary-first and taste is a skippable step. Gated on the acceptance metric above.
+- [ ] **Vandalism gate before city #2** — trusted-contributor weighting on community publishing (two independent verifiers, or one trusted, for auto-publish). Salt Lake City is next in *Multi-city*, so this moves up when that opens to the public.
+- [ ] **Array-sync guardrail** — a nightly reconciliation that `items.ingredient_ids` and `items.tag_ids` equal their join rows, alerting on drift. The callbacks keep them in sync today; nothing checks after the fact.
+- [ ] **Freemium and billing** — free = N scans a month plus filtering; premium (~$20–30/yr) = unlimited scans, multiple profiles (household), strict mode, offline, and **table/group mode** ("what should the four of us order?"). Needs App Store and Play billing or Stripe; a manual setup item when it comes.
+- [ ] **Shared throttle store** — Rack::Attack counts per process; move to a shared store before the API runs more than one process ([`plans/legal-remediation-followups.md`](plans/legal-remediation-followups.md) F4).
+- [ ] **The Yuka "activism" lever** — let diners push a restaurant to confirm or correct its own menu. Evaluate after city #2.
 
 ## What we are explicitly NOT doing in v1
 

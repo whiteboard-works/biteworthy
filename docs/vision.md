@@ -2,7 +2,10 @@
 
 > The product thesis, the moat, and the arc. This is the "why" behind
 > the roadmap. The phase plan lives in `roadmap.md`; this is the thing
-> the phases are in service of.
+> the phases are in service of. The mid-2026 strategic review that
+> sharpened it (the frequency diagnosis, the contribution-loop bet) is
+> archived under `archive/strategy-2026/`; what is still open from it is
+> under *Growth bets* in `roadmap.md`.
 
 ## The thesis
 

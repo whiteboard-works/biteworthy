@@ -1,6 +1,6 @@
 # Taste-Profile Quiz — onboarding flow spec
 
-> Discovery-led onboarding (see `docs/strategy-2026-h2.md` §7). Goal: in ~6 taps,
+> Discovery-led onboarding (see `docs/archive/strategy-2026/strategy-2026-h2.md` §7, archived; the live bet is under *Growth bets* in `docs/roadmap.md`). Goal: in ~6 taps,
 > build a taste profile good enough to power Top Picks for a brand-new user with
 > **no dietary restrictions** — restrictions become an optional setting, not the
 > identity. Writes only to the existing `liked/disliked_{tag,ingredient}_ids`

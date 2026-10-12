@@ -1,5 +1,12 @@
 # Launch & Growth Plan
 
+> **Archived 2026-10-12. Read-only.** This was a planning document from
+> June 2026, the launch sequence and the lower-the-gate and QR work. Its open items were folded into
+> [`docs/roadmap.md`](../../roadmap.md) (*Launch* and *Growth bets*) and
+> [`docs/launch-readiness.md`](../../launch-readiness.md); the checkboxes
+> below were last trusted on the archive date and are not maintained.
+> The thesis it rests on lives on in [`docs/vision.md`](../../vision.md).
+
 > Consolidated, dependency-ordered execution plan for taking Biteworthy from
 > "code-complete, credential-gated" to launched — plus the loop-shippable growth
 > work (lower-the-gate + restaurant QR) that can run in parallel.

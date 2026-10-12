@@ -1,81 +1,21 @@
-# Launch readiness — what's done, what's left for the human
+# Launch readiness — the human checklist
 
-> **Heads up (2026-06-14):** the "What's on master right now" inventory
-> below is a point-in-time snapshot from tick #88 and predates Phases 6–8
-> (anyone-can-scan, mobile scan loop, taste ranking) and the full legal
-> remediation arc (#327–#346). For the current feature state see
-> `docs/roadmap.md`; for the legal launch gates see
-> `docs/plans/legal-remediation-followups.md` (L1–L5). The **human-action
-> checklist** in the back half of this doc is still the source of truth
-> for provisioning and is current.
+What only a person can do between the product as it runs today and the
+app in the stores, in dependency order, with the commands. Each step says
+what it unlocks and whether it is done. The roadmap's *Launch* section is
+the short list; this is the run book behind it, and it is kept current.
+What has shipped stays here as the run book for a rebuild or a rotation.
 
-Snapshot at the end of tick #88 (2026-04-30 22:51 UTC). After PR #183 merged, **every loop-shippable Phase-5 piece is on master**. The remaining work is entirely human-gated: credentials to drop, accounts to create, one cassette to record, one lawyer pass.
-
-The loop pauses here. The next tick (post-Anthropic-cap-reset at 2026-05-01 00:00 UTC) will attempt the cassette retry. Other items wait for human action.
-
-## What's on master right now
-
-### Backend (Rails 8 API, `apps/api/`)
-
-- Auth: Devise + JWT + OAuth (Apple, Google) — Phase 1.1, 1.2.
-- Profile + history endpoints — Phase 1.3, 4.8.
-- Curated taxonomy: 1,096 ingredients + tag tree + 8 dietary presets — Phase 1.4, 3.1.
-- Web admin backoffice at bite-worthy.com `/admin` (is_admin-gated; replaced Avo, retired 2026-07-30).
-- OpenAPI codegen pipeline — Phase 1.6.
-- Restaurant + Item read endpoints with the full filter — Phase 1.7.
-- AnthropicClient + ExtractMenuJob + ResolveIngredients/Tags + IngestionRun state machine — Phase 2.1–2.4. Cassettes are mocked; live recording is the only outstanding Phase 2 work.
-- Admin verify UI + 80%-accepted publish — Phase 2.5.
-- Mobile camera ingest + URL/PDF web entrypoint — Phase 2.6, 2.8.
-- Cost + latency dashboard on the web `/admin` (was the API's `/admin/dashboard` until 2026-07-30).
-- Reviews API + photos + moderation queue + reviews on item — Phase 4.3–4.6.
-- Public user profiles + history visits — Phase 4.7, 4.8.
-- Restaurant claim flow + suggestion queue — Phase 4.9, 4.10.
-- Per-dish photo extraction (cropper service, Item.has_one_attached :photo, materialize, schema+prompt extension for vision bboxes) — Phase 4.11.1, .2, .3, .4.
-- Cities ranking endpoint at `/api/v1/cities/:slug/restaurants?profile=:diet` for the SEO pages — Phase 5.6.
-- Durango batch ingest task at `bin/rails biteworthy:seed:durango FILE=…` — Phase 5.7.
-- Production smoke at `bin/rails biteworthy:production:smoke` — Phase 5.1.
-- Production SMTP (Resend) + email smoke task — Phase 5.2.
-- Production storage on Cloudflare R2 + idempotent backfill task — Phase 5.3.
-- Waitlist signup endpoint + confirmation mailer — Phase 5.10.
-- Kamal deploy config (`config/deploy.yml` + `.kamal/secrets.example`) — Phase 5.1.1.
-- 377 rspec examples passing.
-
-### Web (Next.js 16, `apps/web/`)
-
-- Marketing landing at `/` + waitlist form — Phase 5.5, 5.10.
-- SEO city/diet pages at `/durango/[diet]` (8 curated diets, build-time pre-render) — Phase 5.6.
-- Filtered restaurant pages with strictness toggle, show-anyway, never-hide, share-link, reviews — Phases 3.6, 3.7, 3.8, 3.9, 4.1, 4.2, 4.5.
-- User profiles, history, ingest URL/PDF entrypoint — Phases 4.7, 4.8, 2.8.
-- Onboarding (6-tap profile) — Phase 3.8.
-- /privacy, /terms, /press — Phases 5.9, 5.10.
-- Sitemap + robots, Vercel config, cookie-domain helper — Phase 5.4.
-- Analytics wired: posthog-js into the 9 funnel events (#218); no-op until `NEXT_PUBLIC_POSTHOG_KEY` is set — Phases 5.8, 5.8-wiring.
-- 99 vitest passing.
-
-### Mobile (Expo SDK 56, `apps/mobile/`)
-
-- Onboarding (6-tap profile) + login/signup with secure-store — Phases 3.2, 4.1.
-- Filtered restaurant page with show-anyway, never-hide, strictness toggle, hidden-reason chips, dish photos — Phases 3.3, 3.4, 3.5, 4.2, 4.11.4.
-- Camera + photo-library ingest, swipe-verify queue — Phases 2.6, 2.7.
-- Reviews UX, history, public user pages — Phases 4.4, 4.7, 4.8.
-- Suggestion submission flow — Phase 4.10.
-- Store-listing markdown templates + eas.json + assets/README — Phase 5.9.
-- Analytics wired: posthog-react-native into the 9 funnel events (#218); no-op until `EXPO_PUBLIC_POSTHOG_KEY` is set + the user opts in — Phases 5.8, 5.8-wiring.
-- 60 jest passing (all lib-only — UI snapshots gated on the jest-expo Discovered followup).
-
-### Shared packages (`packages/`)
-
-- `@biteworthy/api-types` — codegen'd from `docs/openapi.json` (Phase 1.6); CI drift-checked.
-- `@biteworthy/filter-engine` — menu wire types + shared presentation helpers (the filter itself is server-only) — Phase 3.7.
-- `@biteworthy/ui-tokens` — design tokens for Tailwind + RN StyleSheet.
-- `@biteworthy/eslint-config` — minimal flat config.
-- `@biteworthy/analytics` — Tracker abstraction + EVENTS taxonomy + noop — Phase 5.8.
+Where things stand on 2026-10-12: the API, email, storage, the web app,
+analytics, the ingestion cassette, and the Durango seed are done and
+live. Open: the L1 attorney review, the DMCA agent, the store accounts
+and submission, database snapshots, the error-reports repo, and press.
 
 ## What you (the human) need to do
 
 Numbered roughly in dependency order. Each step lists what it unlocks.
 
-### 1. Provision the Rails API (Phase 5.1.1) — ✅ **DONE**
+### 1. Provision the Rails API — ✅ **DONE**
 
 **Unlocks:** every API-dependent flow. All live: `https://api.bite-worthy.com/up` returns 200 and merges touching `apps/api/**` deploy themselves.
 
@@ -128,7 +68,7 @@ curl https://api.bite-worthy.com/up
 
 Subsequent deploys are automatic: `.github/workflows/deploy-api.yml` runs `kamal deploy` on every merge to master touching `apps/api/**`. Run `kamal deploy` by hand only for out-of-band ships.
 
-### 2. Wire production email (Phase 5.2) — ✅ **DONE 2026-08-14**
+### 2. Wire production email — ✅ **DONE 2026-08-14**
 
 **Unlocks:** Devise password reset, restaurant claim verification (Phase 4.9), waitlist confirmation emails (Phase 5.10). All three are live.
 
@@ -165,9 +105,9 @@ provider up again on a new box:
   relative to the working directory, and step 1 already `cd`'d there.)
 - Confirm: `kamal smoke` continues to pass; then `kamal app exec --roles web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'` to send a test message (`--roles web`, or it runs on the worker too and sends twice).
 
-### 3. Wire production storage (Phase 5.3)
+### 3. Wire production storage — ✅ **DONE**
 
-**Unlocks:** review photos + dish photos persisting across deploys.
+**Unlocks:** review photos + dish photos persisting across deploys. Live: the `biteworthy-blobs` bucket holds every photo and menu page. Kept as the run book for rotating the token.
 
 - Cloudflare → R2 → create bucket `biteworthy-blobs`.
 - Generate an R2 API token with Object Read + Write on that bucket.
@@ -183,9 +123,9 @@ provider up again on a new box:
   otherwise).
 - (Optional) If any pre-existing blobs exist on `:local`, run `kamal app exec --roles web "bin/rails biteworthy:storage:backfill EXIT_CODE=1"` to migrate them to R2.
 
-### 4. Provision the web app on Vercel (Phase 5.4)
+### 4. Provision the web app on Vercel — ✅ **DONE**
 
-**Unlocks:** `bite-worthy.com` resolving to the marketing landing + the SSR restaurant pages.
+**Unlocks:** `bite-worthy.com` resolving to the marketing landing + the SSR restaurant pages. Live, auto-deploying from `master`. Kept as the run book.
 
 - Sign up for Vercel (Hobby tier free).
 - Import the GitHub repo via the Vercel dashboard. Vercel auto-detects `apps/web`.
@@ -197,7 +137,9 @@ provider up again on a new box:
 - Add `bite-worthy.com` + `www.bite-worthy.com` as custom domains. Vercel emits the DNS records.
 - Push to master triggers an auto-deploy.
 
-### 5. Cassette recording for live AI ingestion (Phase 4.11.0 / 4.11.2-cassette)
+### 5. Cassette recording for live AI ingestion — ✅ **DONE**
+
+Recorded: `apps/api/spec/cassettes/extract_menu_job/` replays in CI. Kept as the run book for re-recording after a prompt or schema change.
 
 **Unlocks:** the integration smoke test for `ExtractMenuJob` flips from `skip` to a real replay; gives end-to-end confidence the prompt + schema work against a real restaurant menu.
 
@@ -211,9 +153,9 @@ provider up again on a new box:
 - Replace the `skip` block in `extract_menu_job_spec.rb` with the `VCR.use_cassette` invocation.
 - The loop's next tick will attempt this automatically after Anthropic cap reset (~49 min from this writing); if you'd rather drive it manually, do it now.
 
-### 6. Seed 30 Durango restaurants (Phase 5.7)
+### 6. Seed Durango restaurants — ✅ **DONE** (the seed run's fixes landed 2026-10-05 as #765)
 
-**Unlocks:** real restaurants on `bite-worthy.com` and `/durango/[diet]`. Required for the launch demo.
+**Unlocks:** real restaurants on `bite-worthy.com` and `/durango/[diet]`. Durango is seeded and published (the seed run's pipeline fixes landed as #765). Growth is per city now: see *Multi-city* in `roadmap.md`. Kept as the run book for the next city.
 
 - Research + populate `docs/seeds/durango.csv` (gitignored). Columns documented in `docs/seeds/durango.csv.example`. Find each restaurant's menu URL (PDF or web) — independent restaurants only, no chains.
 - Confirm Anthropic billing tier covers ~$15 (~$0.50 × 30).
@@ -223,7 +165,7 @@ provider up again on a new box:
   ```
 - Use the swipe-verify queue (mobile or the web `/admin/runs`) to accept items per restaurant. The 80%-accepted threshold flips each run + restaurant to `:published`.
 
-### 7. PostHog — events, errors, and logs (Phase 5.8-wiring, ADR 0009)
+### 7. PostHog — events, errors, and logs (ADR 0009) — ✅ **DONE** except the two items below
 
 **Unlocks:** funnel measurement (`app_open` → `profile_set` → `menu_filtered` → `restaurant_tap`), server error tracking, and logs that outlive a deploy.
 
@@ -237,7 +179,7 @@ provider up again on a new box:
   - [x] ~~**Re-authorize the PostHog MCP server**~~ — re-authorized by the owner 2026-10-11; `project-get` returns project 652080 and queries run. It confirmed the exception smoke above.
   - [ ] **L1 review:** `/privacy`'s PostHog entry now says it also receives error reports and logs from our servers.
 
-### 8. App Store + Play Store submission (Phase 5.9-wiring)
+### 8. App Store + Play Store submission
 
 **Unlocks:** the app on phones.
 
@@ -249,7 +191,7 @@ provider up again on a new box:
 - Wire expo-router `/screenshots/[id]` test routes that drive each marketing screenshot deterministically against the Phase 5.7 seeded restaurants.
 - `eas build --profile production --platform all` then `eas submit --profile production --platform all`. Apple review 1–7 days; Google Play Internal track typically minutes.
 
-### 9. Press outreach (Phase 5.10)
+### 9. Press outreach
 
 **Unlocks:** humans hearing about the app.
 
@@ -273,6 +215,8 @@ Add-only and idempotent. It never writes over what may be a person's decision: a
 
 ### 11. Error reports → GitHub issues (private repo + token)
 
+`apps/api/config/deploy.yml` carries neither `GITHUB_ERROR_REPORTS_TOKEN` nor `GITHUB_ERROR_REPORTS_REPO` as of 2026-10-12, so this is open.
+
 **Unlocks:** chat and job failures filed as GitHub issues — one per distinct failure, counted, reopened when they recur — before a user writes in. Until this is done every failure is still recorded in `error_reports` (count, first and last seen) and nothing leaves the box.
 
 The API's `Rails.error` subscriber files through `ErrorReports::GithubIssues` (ADR 0008). It needs a repo to file into and a token that can write issues there.
@@ -282,24 +226,17 @@ The API's `Rails.error` subscriber files through `ErrorReports::GithubIssues` (A
 - [ ] **Add it to the deploy, in this order.** First `GITHUB_ERROR_REPORTS_TOKEN=github_pat_…` in `apps/api/.kamal/secrets`, then `apps/api/bin/kamal-secrets-push`. Only then a PR adding `GITHUB_ERROR_REPORTS_TOKEN` under `env.secret` and `GITHUB_ERROR_REPORTS_REPO: whiteboard-works/<repo>` under `env.clear` in `apps/api/config/deploy.yml`. Kamal fails a deploy on a listed-but-missing secret, and merging an `apps/api` change deploys.
 - [ ] **Check it fired.** After that deploy: `kamal console`, then `Rails.error.report(RuntimeError.new("error reports smoke"), handled: true, context: { component: "smoke" })`. An issue titled `[smoke] RuntimeError: error reports smoke` should appear within a minute, labelled `bug` and `auto-reported` (the reporter creates a label the repo lacks before its first issue, and finds an issue it lost track of by that label). Close it, and it stays closed unless reported again.
 
-## CI status
+### 12. Database snapshots
 
-- `ci-api.yml` — runs on every PR touching `apps/api/`. Postgres 16, ImageMagick installed, full rspec, Brakeman + Rubocop (both blocking).
-- `ci-js.yml` — runs on `apps/web/` / `apps/mobile/` / `packages/` / root config. typecheck → lint → test.
-- `pr-title.yml` — checks conventional-commit titles.
-- `auto-merge.yml` — enables squash auto-merge on every non-draft PR once branch protection allows.
+**Unlocks:** recovering from a bad migration, a bad backfill, or a wipe. ADR 0007 records that nothing beyond Neon's own retention protects the data today.
 
-## Known gaps + Discovered followups
+- In the Neon console, confirm the project's point-in-time restore window (Free tier is short) or move to a plan with a longer one.
+- Add a scheduled logical export (`pg_dump` from the box or a GitHub Action with the pooled URL) to R2 or another bucket, and test a restore once.
+- Record the retention and the restore command in ADR 0007.
 
-- **jest-expo + web `@testing-library/react` wiring** — single Discovered note covers both apps. Once landed, retroactively add UI snapshots from Phases 3.2 / 3.3 / 3.4 / 3.5 / 4.11.4.
-- **Auto-merge race** — twice now (#150, #172) a follow-on commit has been lost when auto-merge enabled before the second push. Resolved in practice: open as a draft until review is clean, then mark ready (`ship merge` does this).
-- **Restaurant `neighborhood` column** — Phase 5.6 surfaced this; the SEO page wanted to show neighborhood names but the addresses table doesn't have that column. Worth a Phase 6+ followup once the launch market grows beyond Durango itself.
+### 13. Check strict-mode coverage before a wider push
 
-## Stop conditions tripped
+**Unlocks:** inviting people whose safety depends on strict mode without handing them an empty menu.
 
-Per delivery-playbook.md §7, the loop pauses when every Next-up item is `[BLOCKED]` or implicitly gated on human action. This is that state.
-
-The next loop tick (post-Anthropic-cap-reset at 2026-05-01 00:00 UTC) will attempt the cassette retry. Beyond that, the loop has no further code to ship until either:
-- A wiring PR's prerequisite credential lands (PostHog key, Apple/Google account, Vercel/Hetzner provisioning), OR
-- A human promotes a Discovered followup into Next-up, OR
-- A new phase is drafted (Phase 6+).
+- From `kamal console`, count visible items per published restaurant for a strict profile on each preset; a restaurant with zero is one to confirm by hand (the admin "Confirm community menu" action, left to a person on purpose because it loosens what strict mode shows).
+- Repeat for each new city before it goes public.

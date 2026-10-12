@@ -1,5 +1,12 @@
 # Six-month plan — reversed into tasks (manual + code)
 
+> **Archived 2026-10-12. Read-only.** This was a planning document from
+> July 2026, the strategy reversed into manual and code tasks. Its open items were folded into
+> [`docs/roadmap.md`](../../roadmap.md) (*Launch* and *Growth bets*) and
+> [`docs/launch-readiness.md`](../../launch-readiness.md); the checkboxes
+> below were last trusted on the archive date and are not maintained.
+> The thesis it rests on lives on in [`docs/vision.md`](../../vision.md).
+
 > The "how do we *win*, not just launch" companion to `docs/launch-plan.md`.
 > Reverses the launch plan + strategy (`docs/strategy-2026-h2.md`) into a
 > sequenced task breakdown, split **[MANUAL]** (human-only) vs **[CODE]**

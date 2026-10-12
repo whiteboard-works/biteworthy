@@ -1,5 +1,7 @@
 # User-exploration findings — 2026-08-15
 
+> **Archived 2026-10-12: every checklist item shipped by 2026-08-17 except the per-restaurant "Confirm community menu" backlog, which is a human decision tracked under *Open follow-ups* in `docs/roadmap.md`.** Read-only.
+
 A walkthrough of the live product (`bite-worthy.com` + `api.bite-worthy.com`)
 as an anonymous user, plus a code read of the signed-in surfaces. Point-in-time
 snapshot: 3 published restaurants, pre-store-launch, web only. Findings are
