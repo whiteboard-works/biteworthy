@@ -88,6 +88,35 @@ namespace :biteworthy do
       exit 1 if result.failures.any?
     end
 
+    # The same, for the allergen rows a compound sauce implies (aioli →
+    # egg, pesto → parmesan + pine nuts; Ingestion::IngredientImplications).
+    #
+    #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_sauce_allergens"
+    #   kamal app exec --reuse --roles web "bin/rails biteworthy:menus:backfill_sauce_allergens" --env APPLY:1
+    desc "Add the allergen rows a compound sauce implies (aioli → egg) to dishes promoted before that rule. APPLY=1 writes."
+    task backfill_sauce_allergens: :environment do
+      apply = ENV["APPLY"] == "1"
+      $stdout.sync = true
+
+      puts "== #{apply ? 'Applying' : 'Dry run'} =="
+      result = Menus::SauceAllergenBackfill.call(apply: apply) do |c|
+        puts "  #{c.restaurant_name} — #{c.item_name}: + #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
+      end
+
+      if result.reviews.any?
+        puts "== Not written: touched since the rule went live, so a person may have removed the row on purpose. Check each in admin =="
+        result.reviews.each do |c|
+          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
+          puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
+        end
+      end
+      result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
+      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
+           "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
+      puts "Re-run with APPLY=1 to write these rows (kamal: --env APPLY:1 after the command)." if !apply && result.changes.any?
+      exit 1 if result.failures.any?
+    end
+
     desc "Re-extract a restaurant's menu from its latest inputs (creates a new scan, no auto-accept)"
     task :reextract_restaurant, [ :restaurant_uuid ] => :environment do |_t, args|
       restaurant_uuid = args[:restaurant_uuid]
