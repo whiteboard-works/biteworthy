@@ -20,7 +20,7 @@ module Tools
         homepage.
 
         This returns as soon as the scan is queued — it does NOT wait for the
-        result. Extraction takes roughly 20-60 seconds. Poll `get_scan_status`
+        result. Extraction takes 20 seconds to two minutes (a long PDF is the slow end), and ingredient enrichment can run a minute or two after the dishes are staged. Poll `get_scan_status`
         with the returned scan_id, then call `list_staged_items` once it
         reports `ready: true`.
 
@@ -103,7 +103,7 @@ module Tools
           restaurant: { id: record.id, slug: record.slug, name: record.name },
           status:     run.status,
           ready:      false,
-          next_step:  "Poll get_scan_status with this scan_id; extraction usually takes 20-60 seconds."
+          next_step:  "Poll get_scan_status with this scan_id; extraction takes 20 seconds to two minutes."
         )
       end
 

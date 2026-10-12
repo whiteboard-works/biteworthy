@@ -83,6 +83,8 @@ class IngestionRun < ApplicationRecord
   def fail!(message)
     transaction do
       assign_attributes(failure_message: message.to_s.truncate(2_000))
+      # Nothing will enrich a failed run; "pending" told pollers to wait.
+      self.enrichment_status = "failed" if enrichment_status == "pending"
       transition_to!(:failed)
     end
     self

@@ -19,7 +19,7 @@ module Tools
         content. The base64 content is decoded and processed the same way as
         an uploaded file.
 
-        Returns immediately — extraction takes 20-60 seconds. Poll get_scan
+        Returns immediately — extraction takes 20 seconds to two minutes. Poll get_scan
         with the returned scan_id.
       TEXT
 
