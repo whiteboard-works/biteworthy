@@ -93,6 +93,7 @@ class IngestionItem < ApplicationRecord
       # live menu while the audit row says rejected.
       raise "Staged dish was rejected; undo it before accepting" if rejected?
 
+      add_implied_ingredients!
       target = locked_update_target
       target ? apply_update!(target, decided_by: decided_by) : create_item!(decided_by: decided_by)
     end
@@ -120,6 +121,37 @@ class IngestionItem < ApplicationRecord
   end
 
   private
+
+  # Accept is the one door every staged dish goes through, so the compound
+  # sauce rule (Ingestion::IngredientImplications) is enforced here too: a
+  # scan resolved before it existed, or a gap-fill retry that reused
+  # already-enriched rows, would otherwise publish aioli with no egg.
+  # Rows land as the resolver writes them (`derived` at 0.8, plus the
+  # allergen tag they imply), and a name's diet claim still vetoes.
+  def add_implied_ingredients!
+    present = Array(ingredients_payload)
+    slugs   = present.map { |r| r["slug"] }
+    wanted  = slugs.flat_map { |slug| Ingestion::IngredientImplications::TABLE.fetch(slug, []) }
+    return if wanted.empty?
+
+    paths   = Ingredient.where(slug: slugs + wanted).pluck(:slug, :path).to_h.transform_values(&:to_s)
+    claims  = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(name))
+    implied = Ingestion::IngredientImplications.implied(slugs, path_for: paths.method(:[]), claims: claims)
+                .reject do |slug, path|
+                  slugs.include?(slug) || slugs.any? { |s| Ingestion::TagDeriver.under_any?(paths[s].to_s, [ path ]) }
+                end
+    return if implied.empty?
+
+    rows = implied.map { |slug, path| { slug: slug, path: path, confidence: 0.8, source: "derived" } }
+    known_tags = Array(tags_payload).map { |t| t["slug"] }
+    new_tags = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: rows)
+                 .reject { |t| known_tags.include?(t[:slug]) }
+                 .map { |t| Ingestion::AssociationPayload.load(t).dump }
+    update!(
+      ingredients_payload: present + rows.map { |r| Ingestion::AssociationPayload.dump(**r.except(:path)) },
+      tags_payload:        Array(tags_payload) + new_tags
+    )
+  end
 
   # `lock!` reloads the record, which clears its association cache — reading
   # `ingestion_run` after the lock would re-fetch the run and its restaurant

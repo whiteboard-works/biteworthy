@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-12 (UTC) — **Accept enforces the compound-sauce allergens too.** Codex found two ways a dish could still reach the live menu with aioli and no egg after #907: a scan resolved before it and accepted after, and a gap-fill retry that reuses already-enriched rows. `IngestionItem#promote!` now adds any missing implied row (and its allergen tag) under the row lock before it creates or updates the live dish, so every accept path is covered. Romesco and muhammara also imply wheat (their usual breadcrumbs).
+
 2026-10-12 (UTC) — **Absence phrases read their context; garlic cloves are garlic.** Codex P1s on #908 and #909. "Dairy-free option available" and "vegan cheese available upon request" describe a variant, so they no longer swallow the dish's dairy evidence; "isn't dairy-free" (normalized to `isn t`) now counts as a negation like "not dairy-free". "Garlic cloves" matched garlic and then the clove spice through the plural fallback; "garlic clove" is now an alias of garlic, carried to production by migration `20261012233000`.
 
 2026-10-12 (UTC) — **Editing a staged dish keeps its allergen tags and provenance honest.** `edit_staged_item` replaces a list wholesale, so a reviewer re-sends every slug to add one; it used to restamp every kept row `human`/1.0, laundering model guesses into human-verified rows, and it left the `contains-*` tags as they were before the edit, which accept then published verbatim (Vanilla Cheesecake gained egg and wheat with only `contains-dairy`; the gluten-free badge followed stale tags). A slug the dish already carried at a machine source now keeps its row, and the allergen tags are re-derived from the edited ingredients, keeping cuisine, diet, and a person's own tags.

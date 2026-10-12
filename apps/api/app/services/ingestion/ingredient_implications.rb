@@ -34,8 +34,8 @@ module Ingestion
       "condiment-tzatziki"                  => %w[dairy-yogurt],
       "condiment-hummus"                    => %w[sesame-tahini],
       "condiment-baba-ganoush"              => %w[sesame-tahini],
-      "condiment-sauces-romesco"            => %w[tree_nut-almond],
-      "condiment-spreads-muhammara"         => %w[tree_nut-walnut]
+      "condiment-sauces-romesco"            => %w[tree_nut-almond grain-wheat],
+      "condiment-spreads-muhammara"         => %w[tree_nut-walnut grain-wheat]
     }.freeze
 
     # [slug, path] pairs implied by `slugs`, minus any a name's diet
