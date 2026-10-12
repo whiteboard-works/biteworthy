@@ -1,5 +1,7 @@
 # Verify-flow redesign (Phase 2 "one flow")
 
+> **Archived 2026-10-12: superseded on 2026-08-07, when ingestion moved from the swipe-verify UI into the chat (the MCP pivot). PR-1 and PR-3 shipped first; the surfaces they changed are gone.** Read-only.
+
 ## Context
 
 The scan → verify flow works, but the UX is weak (surfaced testing RGP's Wraps —

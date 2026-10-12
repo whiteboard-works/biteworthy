@@ -1,5 +1,7 @@
 # Filter loop — first slice: one signed-in path that works
 
+> **Archived 2026-10-12: every box is ticked and nothing links here.** Read-only.
+
 Living plan. Started 2026-09-08. Status: in progress.
 
 ## Principle

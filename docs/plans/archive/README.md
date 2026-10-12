@@ -17,12 +17,13 @@ new live plan under `docs/plans/` instead.
 | `phase-7.md`               | Real-world mobile scan loop                         | #306–#308       |
 | `phase-8.md`               | "Most likely to enjoy" taste ranking                | #309–#313       |
 | `legal-remediation.md`     | Privacy/ToS copy + E1–E13 engineering               | #327–#346       |
+| `verify-flow-redesign.md`  | Instant dishes + background enrichment for swipe-verify; superseded by the chat (2026-08-07) | PR-1, PR-3 |
+| `ux-exploration-2026-08-15.md` | Findings from walking the live product; small fixes + three of four bigger findings | #614–#622, #636, #638 |
+| `filter-loop.md`           | First signed-in filter path, end to end             | 2026-09 |
 
-Still live (not archived):
-
-- `docs/plans/legal-remediation-followups.md` — F1–F6 code follow-ups +
-  L1–L5 attorney/ops launch gates (open).
-- `docs/launch-readiness.md` — the human provisioning checklist.
-- `docs/automations-todo.md` — P2/P3 (launch-blocked / agent-loop).
+Still live (not archived): the plans listed under *Live plans* in
+[`docs/README.md`](../../README.md), `docs/launch-readiness.md` (the human
+checklist), and `docs/automations-todo.md`. The 2026 strategy and launch
+planning docs are archived separately under `docs/archive/strategy-2026/`.
 </content>
 </invoke>

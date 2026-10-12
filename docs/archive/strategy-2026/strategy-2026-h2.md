@@ -1,5 +1,12 @@
 # Biteworthy — Strategic Review & 6-Month Plan (2026 H2)
 
+> **Archived 2026-10-12. Read-only.** This was a planning document from
+> June 2026, the strategic review and six-month plan. Its open items were folded into
+> [`docs/roadmap.md`](../../roadmap.md) (*Launch* and *Growth bets*) and
+> [`docs/launch-readiness.md`](../../launch-readiness.md); the checkboxes
+> below were last trusted on the archive date and are not maintained.
+> The thesis it rests on lives on in [`docs/vision.md`](../../vision.md).
+
 > Working strategy doc. Check items off as we ship them. Newest learnings go in
 > the **Log** at the bottom. This is a living document — update the diagnosis if
 > the data contradicts it.
