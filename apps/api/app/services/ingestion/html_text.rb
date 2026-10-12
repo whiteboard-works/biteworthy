@@ -1,31 +1,39 @@
 # frozen_string_literal: true
 
 module Ingestion
-  # What a person reading a fetched menu page would see, for the model.
-  # Raw HTML is mostly scripts, styles, and markup: salsaleedos.net/menus
-  # is 2.2 MB for about 10 KB of menu, and sending it whole failed with
-  # "prompt is too long: 1068223 tokens". schema.org JSON-LD is kept,
-  # since some restaurant sites put the whole menu there.
+  # The text of a fetched menu page, for the model. Raw HTML is mostly
+  # scripts, styles, and markup: salsaleedos.net/menus is 2.2 MB for about
+  # 10 KB of menu, and sending it whole failed with "prompt is too long:
+  # 1068223 tokens". schema.org Menu JSON-LD is kept, since some
+  # restaurant sites put the whole menu there.
   module HtmlText
     module_function
 
     DROPPED = "script, style, noscript, svg, template, iframe, link, meta"
+    LINE_BREAKS = "br, p, div, li, tr, h1, h2, h3, h4, h5, h6, section, article, ul, ol, dl, table"
+    # Inline and cell elements are often siblings with no whitespace
+    # between them ("<td>Hummus</td><td>8</td>"); a space keeps the name
+    # and the price apart.
+    SPACED = "td, th, dt, dd, span, a, option, label, b, strong, em, i"
+    MENU_JSON_LD = %r{"@type"\s*:\s*(?:\[[^\]]*?)?"(?:https?://schema\.org/)?Menu|"hasMenu}
 
     def html?(content_type, body)
       content_type.to_s.include?("html") ||
-        (content_type.to_s == "application/xml" && body.to_s.lstrip.downcase.start_with?("<!doctype html", "<html"))
+        (content_type.to_s == "application/xml" && body.to_s[0, 512].lstrip.downcase.start_with?("<!doctype html", "<html"))
     end
 
     def call(html)
-      doc = Nokogiri::HTML(html.to_s)
-      # Only menu-bearing JSON-LD (schema.org Menu, MenuSection, MenuItem,
-      # hasMenu); a Wix page's image and breadcrumb records would otherwise
-      # pass the empty-page check and send the model nothing to read.
+      # Blobs come back as binary with no charset; menu pages are UTF-8
+      # in practice, and Latin-1 guessing turns "jalapeño" into mojibake
+      # the matcher then cannot resolve.
+      body = html.to_s.dup.force_encoding(Encoding::UTF_8).scrub("")
+      doc = Nokogiri::HTML(body, nil, "UTF-8")
       json_ld = doc.css('script[type="application/ld+json"]').map { |s| s.text.strip }
-                   .select { |s| s.match?(/"(?:@type"\s*:\s*"Menu\w*|hasMenu\w*)"/) }
+                   .select { |s| s.match?(MENU_JSON_LD) }
       doc.css(DROPPED).remove
-      doc.css("br, p, div, li, tr, h1, h2, h3, h4, h5, h6, section, article").each { |n| n.add_next_sibling("\n") }
-      visible = doc.text.gsub(/[ \t\r\f\v ]+/, " ").gsub(/ *\n[\s]*/, "\n").strip
+      doc.css(LINE_BREAKS).each { |n| n.add_next_sibling("\n") }
+      doc.css(SPACED).each { |n| n.add_next_sibling(" ") }
+      visible = doc.text.gsub(/[ \t\r\f\v ]+/, " ").gsub(/ *\n\s*/, "\n").strip
       [ visible, *json_ld ].join("\n\n").strip
     end
   end

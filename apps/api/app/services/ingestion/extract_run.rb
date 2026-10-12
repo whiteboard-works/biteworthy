@@ -41,6 +41,11 @@ module Ingestion
     # 200 chars allows for some markup while catching empty pages.
     MIN_TEXT_LENGTH = 200
 
+    # About 50k tokens, far above any real menu page's visible text
+    # (North Italia's full dinner page is 37k characters); past it the
+    # call would fail at the provider with a raw "prompt is too long".
+    MAX_TEXT_LENGTH = 200_000
+
     def self.call(run) = new(run).call
 
     def initialize(run)
@@ -71,6 +76,11 @@ module Ingestion
           body = b.download.to_s
           (HtmlText.html?(b.content_type, body) ? HtmlText.call(body) : body).strip
         end.join(" ")
+        if combined_text.length > MAX_TEXT_LENGTH
+          @run.fail!("menu_too_large: The page has more text than one scan can read. " \
+                     "Link the menu page itself, or upload the menu as a PDF.")
+          return
+        end
         if combined_text.length < MIN_TEXT_LENGTH
           @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
                      "Upload the menu as a PDF or photos, or paste the menu text.")
@@ -131,8 +141,8 @@ module Ingestion
       # A page with a header and phone numbers but no menu (a JS-rendered
       # site) passes the length check above; the model then finds nothing.
       if Array(result["sections"]).sum { |s| Array(s["items"]).size }.zero?
-        @run.fail!("no_dishes_found: We read the page but found no dishes on it. " \
-                   "Upload the menu as a PDF or photos, or paste the menu text.")
+        @run.fail!("no_dishes_found: We read the menu but found no dishes in it. " \
+                   "Try the menu page itself, clearer photos or a PDF, or paste the menu text.")
         return
       end
 

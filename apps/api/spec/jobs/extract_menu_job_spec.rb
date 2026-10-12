@@ -306,6 +306,16 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.failure_message).to include("no_dishes_found", "paste the menu text")
     end
 
+    it "fails cleanly when a page has more text than one scan can read" do
+      run.inputs.attach(io: StringIO.new("<html><body>#{'<p>Taco 4</p>' * 40_000}</body></html>"),
+                        filename: "menu.html", content_type: "text/html")
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.failure_message).to include("menu_too_large")
+    end
+
     it "succeeds when text/html input has sufficient content" do
       # Create content that's well over 200 chars to pass the MIN_TEXT_LENGTH check
       menu_html = "<html><body><h1>Restaurant Menu</h1>" +
