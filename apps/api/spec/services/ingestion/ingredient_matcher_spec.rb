@@ -53,6 +53,10 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(slugs("cheese-free pizza, no cheese, without cheese")).to be_empty
   end
 
+  it "still matches when the absence phrase is itself negated" do
+    expect(slugs("this sauce is not dairy-free")).to include("dairy")
+  end
+
   it "prefers the longest phrase and consumes it (no nested bare match)" do
     expect(slugs("goat cheese, arugula")).to include("dairy-goat-cheese")
     expect(slugs("goat cheese, arugula")).not_to include("dairy-cheese")

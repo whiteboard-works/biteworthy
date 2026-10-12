@@ -46,6 +46,8 @@ module Ingestion
       "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo"
     ].freeze
 
+    NEGATIONS = %w[not isnt nor].freeze
+
     Match = Data.define(:slug, :path, :confidence, :kind)
 
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))
@@ -109,7 +111,9 @@ module Ingestion
     def longest_match_at(tokens, start)
       [@max_ngram, tokens.length - start].min.downto(1) do |width|
         phrase = tokens[start, width].join(" ")
-        return [ :absence, width ] if ABSENCE_PHRASES.include?(phrase)
+        # "not dairy-free" asserts the ingredient; let it match as before.
+        negated = start.positive? && NEGATIONS.include?(tokens[start - 1])
+        return [ :absence, width ] if ABSENCE_PHRASES.include?(phrase) && !negated
 
         entry = @index[phrase] || @index[singularize_last(phrase)]
         return [entry, width] if entry
