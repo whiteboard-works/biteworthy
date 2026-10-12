@@ -60,11 +60,12 @@ RSpec.describe IngestionItem, type: :model do
         expect(item.promote!.ingredients).not_to include(egg)
       end
 
-      # Removing the egg from an egg-free house aioli is a person's decision.
-      it "takes a dish a person edited as they left it" do
-        item.update!(decision: "edited")
+      # `edited` is also set by fixing a typo in the description; nothing
+      # records that the person meant to remove the egg.
+      it "still applies to a dish a person edited" do
+        item.update!(decision: "edited", description: "Fixed a typo")
 
-        expect(item.promote!.ingredients).not_to include(egg)
+        expect(item.promote!.ingredients).to include(egg)
       end
     end
 

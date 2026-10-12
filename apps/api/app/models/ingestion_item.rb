@@ -128,8 +128,11 @@ class IngestionItem < ApplicationRecord
   # Rows go to the live dish as the resolver writes them (`derived` at
   # 0.8, plus the allergen tag they imply); the staged row itself is left
   # as it was, so undo and the audit trail see only what was scanned.
-  # A name's diet claim still vetoes, and a dish a person edited is taken
-  # as they left it: removing the egg from an egg-free aioli is a decision.
+  # A name's diet claim still vetoes. A person's edit does not: `edited`
+  # is also set by a typo fix, and nothing records an ingredient removal,
+  # so the rule always applies and a wrong egg row hides the dish with a
+  # reason (the loud direction). To publish a house aioli without egg,
+  # take the aioli row off the dish rather than the egg.
   def promotion_ingredients = Array(ingredients_payload) + implied_rows.first
 
   def promotion_tags = Array(tags_payload) + implied_rows.last
@@ -139,7 +142,7 @@ class IngestionItem < ApplicationRecord
       present = Array(ingredients_payload)
       slugs   = present.map { |r| r["slug"] }
       wanted  = slugs.flat_map { |slug| Ingestion::IngredientImplications::TABLE.fetch(slug, []) }
-      if edited? || wanted.empty?
+      if wanted.empty?
         [ [], [] ]
       else
         paths   = Ingredient.where(slug: slugs + wanted).pluck(:slug, :path).to_h.transform_values(&:to_s)
