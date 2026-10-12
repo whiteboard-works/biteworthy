@@ -10,8 +10,9 @@ RSpec.describe AddGarlicCloveAlias do
   it "makes garlic cloves resolve to garlic alone, and agrees with the seed file" do
     2.times { described_class.new.up }
 
-    slugs = Ingestion::IngredientMatcher.new.scan("roasted garlic cloves, whole cloves").first.map { |m| m[:slug] }
-    expect(slugs).to contain_exactly("vegetable-garlic", "spice-clove")
+    matcher = Ingestion::IngredientMatcher.new
+    expect(matcher.scan("roasted garlic cloves").first.map { |m| m[:slug] }).to eq([ "vegetable-garlic" ])
+    expect(matcher.scan("whole cloves").first.map { |m| m[:slug] }).to eq([ "spice-clove" ])
     seeded = YAML.load_file(Rails.root.join("db/seeds/ingredients.yml")).find { |r| r["slug"] == "vegetable-garlic" }
     expect(seeded["aliases"]).to include("garlic clove")
     expect(Ingredient.find_by!(slug: "vegetable-garlic").aliases).to eq([ "garlic clove" ])
