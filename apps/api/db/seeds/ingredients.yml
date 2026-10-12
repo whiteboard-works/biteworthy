@@ -73,7 +73,10 @@
 - slug: alcohol
   name: Alcohol
   path: alcohol
-  aliases: []
+  aliases:
+  - hard ginger beer
+  - hard root beer
+  - spiked root beer
   allergen: false
 - slug: alcohol-ale
   name: Ale
@@ -504,7 +507,8 @@
 - slug: condiment-ginger-ale
   name: Ginger Ale
   path: condiment.ginger_ale
-  aliases: []
+  aliases:
+  - ginger beer
   allergen: false
 - slug: condiment-green-tea
   name: Green Tea
@@ -607,6 +611,11 @@
 - slug: condiment-rice-vinegar
   name: Rice Vinegar
   path: condiment.rice_vinegar
+  aliases: []
+  allergen: false
+- slug: condiment-root-beer
+  name: Root Beer
+  path: condiment.root_beer
   aliases: []
   allergen: false
 - slug: condiment-salsa
@@ -3748,6 +3757,12 @@
   aliases:
   - beef brisket
   allergen: false
+- slug: meat-beef-chicken-fried-steak
+  name: Chicken Fried Steak
+  path: meat.beef.chicken_fried_steak
+  aliases:
+  - country fried steak
+  allergen: false
 - slug: meat-beef-corned-beef
   name: Corned Beef
   path: meat.beef.corned_beef
@@ -3816,6 +3831,7 @@
   aliases:
   - skirt
   - fajita meat
+  - carne asada
   allergen: false
 - slug: meat-beef-veal
   name: Veal
@@ -5400,6 +5416,15 @@
   name: Hickory
   path: tree_nut.hickory
   aliases: []
+  allergen: true
+- slug: tree_nut-mixed-nuts
+  name: Mixed Nuts
+  path: tree_nut.mixed_nuts
+  aliases:
+  - nuts
+  - glazed nuts
+  - candied nuts
+  - spiced nuts
   allergen: true
 - slug: tree_nut-macadamia
   name: Macadamia

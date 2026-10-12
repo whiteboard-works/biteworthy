@@ -35,7 +35,11 @@ module Ingestion
       "condiment-hummus"                    => %w[sesame-tahini],
       "condiment-baba-ganoush"              => %w[sesame-tahini],
       "condiment-sauces-romesco"            => %w[tree_nut-almond grain-wheat],
-      "condiment-spreads-muhammara"         => %w[tree_nut-walnut grain-wheat]
+      "condiment-spreads-muhammara"         => %w[tree_nut-walnut grain-wheat],
+      # Not sauces, but the same shape: a menu's "nuts" is often a mix
+      # with peanuts, and a chicken fried steak is breaded.
+      "tree_nut-mixed-nuts"                 => %w[legume-peanuts],
+      "meat-beef-chicken-fried-steak"       => %w[grain-wheat-breading]
     }.freeze
 
     # [slug, path] pairs implied by `slugs`, minus any a name's diet

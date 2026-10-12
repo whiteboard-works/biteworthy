@@ -43,7 +43,8 @@ module Ingestion
     ABSENCE_PHRASES = [
       "dairy free", "non dairy", "cheese free", "no cheese", "without cheese",
       "vegan cheese", "plant based cheese", "dairy free cheese", "non dairy cheese",
-      "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo"
+      "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo",
+      "nut free", "tree nut free", "peanut free", "no nuts", "without nuts"
     ].freeze
 
     NEGATIONS = %w[not isnt nor].freeze
