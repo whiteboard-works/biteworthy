@@ -21,7 +21,7 @@ See `docs/mcp.md`.
 | Input | Source |
 |---|---|
 | Photo | Mobile camera, multi-page capture |
-| URL | Restaurant's own menu page or same-origin PDF. DoorDash / order.online, Google Maps, and Toast ordering HTML are refused (`Ingestion::HostPolicy`) — including a DoorDash/Toast white-label on a custom domain (`script`/`link` CDN hosts or `x-dd-`/`x-toast-` headers after fetch). A restaurant site that only links to DoorDash, or embeds an order iframe, stays allowed. Ask for the own-site URL, a paste, or an upload. |
+| URL | Restaurant's own menu page or same-origin PDF. DoorDash / order.online, Google Maps, and Toast ordering HTML are refused (`Ingestion::HostPolicy`) — including a DoorDash/Toast white-label on a custom domain (`script`/`link` CDN hosts or `x-dd-`/`x-toast-` headers after fetch). A restaurant site that only links to DoorDash, or embeds an order iframe, stays allowed. Ask for the own-site URL, a paste, or an upload. A fetched HTML page is reduced to its visible text plus any schema.org Menu JSON-LD (`Ingestion::HtmlText`) before extraction; a JS-rendered page with no menu in its HTML fails as `no_menu_text`, or as `no_dishes_found` if the model finds nothing. |
 | PDF | Upload from web or mobile |
 
 All three end up as ActiveStorage blobs attached to an `IngestionRun`.

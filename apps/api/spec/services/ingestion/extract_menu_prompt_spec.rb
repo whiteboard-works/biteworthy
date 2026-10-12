@@ -39,6 +39,23 @@ RSpec.describe Ingestion::ExtractMenuPrompt do
     end
   end
 
+  # salsaleedos.net/menus is 2.2 MB of HTML for ~10 KB of menu; sending it
+  # raw hit "prompt is too long: 1068223 tokens". Scripts, styles, and
+  # markup are dropped; schema.org JSON-LD is kept, since some sites put
+  # the whole menu there.
+  it "sends an HTML page's visible text and JSON-LD, not its scripts or markup" do
+    html = <<~HTML
+      <html><head><style>.x{color:red}</style><script>var blob = "#{'x' * 5000}";</script>
+      <script type="application/ld+json">{"@type":"Menu","name":"Dinner"}</script>
+      <script type="application/ld+json">{"@type":"ImageObject","url":"x.jpg"}</script></head>
+      <body><h1>Menu</h1><p>Hummus <b>8</b></p></body></html>
+    HTML
+    text = input_blocks(blob("text/html", html)).first[:text]
+
+    expect(text).to include("Hummus", "8", '"@type":"Menu"')
+    expect(text).not_to include("var blob", "color:red", "<p>", "ImageObject")
+  end
+
   it "routes application/xml to a text block (often misreported HTML)" do
     block = input_blocks(blob("application/xml", "<html><body>Menu</body></html>")).first
     expect(block[:type]).to eq("text")

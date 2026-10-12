@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-12 (UTC) — **A URL scan sends the page's visible text, not its raw HTML.** salsaleedos.net/menus is 2.2 MB of HTML (Wix scripts and inline JSON) for about 10 KB of menu, and the scan failed with "prompt is too long: 1068223 tokens". `Ingestion::HtmlText` drops scripts, styles, and markup and keeps schema.org Menu JSON-LD; the empty-page check measures the same text, and a run whose model finds no dishes now fails as `no_dishes_found` with paste/upload guidance instead of staging empty. North Italia's menu page goes from 267 KB to 37 KB with every dish intact.
+
 2026-10-12 (UTC) — **A backfill adds the sauce allergens to dishes already live.** `Menus::SauceAllergenBackfill` (`bin/rails biteworthy:menus:backfill_sauce_allergens`, dry run unless `APPLY=1`) applies `Ingestion::IngredientImplications` to every published dish carrying a listed sauce: an aioli dish gains egg, a pesto dish parmesan and pine nuts, each as a `derived`/`suggested` row with its allergen tag, and a confirmed dish drops to suggested, the same writes `ImpliedBaseBackfill` makes for gluten. A dish touched since the rule went live (2026-10-12 21:08 UTC) goes to a review list instead, since a person may have removed the row. Not yet run in production.
 
 

@@ -280,6 +280,32 @@ RSpec.describe ExtractMenuJob, type: :job do
       expect(run.failure_message).to include("Upload the menu as a PDF or photos, or paste the menu text")
     end
 
+    it "fails fast when a page is megabytes of script with no visible menu" do
+      js_page = "<html><body><div id=app></div><script>#{'window.__DATA__=' + ('x' * 500_000)}</script></body></html>"
+      run.inputs.attach(io: StringIO.new(js_page), filename: "menu.html", content_type: "text/html")
+
+      expect_any_instance_of(AnthropicClient).not_to receive(:messages_create)
+
+      described_class.perform_now(run.id)
+
+      expect(run.reload.failure_message).to include("no_menu_text")
+    end
+
+    # A page with a header and phone numbers but no menu passes the length
+    # check; the model then finds no dishes. Without this the run "staged"
+    # with nothing in it and no word of why.
+    it "fails with guidance when the model finds no dishes on the page" do
+      run.inputs.attach(io: StringIO.new("<html><body>#{'Call us at (801) 555-0100. ' * 20}</body></html>"),
+                        filename: "menu.html", content_type: "text/html")
+      allow_any_instance_of(AnthropicClient).to receive(:messages_create).and_return({ "sections" => [] })
+
+      described_class.perform_now(run.id)
+
+      run.reload
+      expect(run.failed?).to be true
+      expect(run.failure_message).to include("no_dishes_found", "paste the menu text")
+    end
+
     it "succeeds when text/html input has sufficient content" do
       # Create content that's well over 200 chars to pass the MIN_TEXT_LENGTH check
       menu_html = "<html><body><h1>Restaurant Menu</h1>" +

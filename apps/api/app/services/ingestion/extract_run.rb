@@ -65,7 +65,12 @@ module Ingestion
       # SinglePlatform and other JS-rendered sites return HTML shells with no
       # menu text, which create empty text blocks that Anthropic rejects.
       if blobs.all? { |b| text_content_type?(b.content_type.to_s) }
-        combined_text = blobs.map { |b| b.download.to_s.strip }.join(" ")
+        # Measured on what the model will be sent: a JS-rendered page can
+        # be megabytes of script around an empty <div id="app">.
+        combined_text = blobs.map do |b|
+          body = b.download.to_s
+          (HtmlText.html?(b.content_type, body) ? HtmlText.call(body) : body).strip
+        end.join(" ")
         if combined_text.length < MIN_TEXT_LENGTH
           @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
                      "Upload the menu as a PDF or photos, or paste the menu text.")
@@ -121,6 +126,14 @@ module Ingestion
         # Saved before the transaction below, not inside it: a rollback there
         # must not also discard the answer we just bought.
         @run.update!(staging: result, latency_ms: elapsed_ms)
+      end
+
+      # A page with a header and phone numbers but no menu (a JS-rendered
+      # site) passes the length check above; the model then finds nothing.
+      if Array(result["sections"]).sum { |s| Array(s["items"]).size }.zero?
+        @run.fail!("no_dishes_found: We read the page but found no dishes on it. " \
+                   "Upload the menu as a PDF or photos, or paste the menu text.")
+        return
       end
 
       # Materialize the dishes NOW, with empty ingredient/tag payloads, so a
