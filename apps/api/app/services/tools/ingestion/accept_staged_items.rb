@@ -142,8 +142,10 @@ module Tools
         matches.each_with_object({}) do |(id, match), held|
           next if !published.include?(match[:item_id]) || claimed.include?(match[:item_id])
 
-          IngestionItem.where(id: id, matched_item_id: nil)
-                       .update_all(matched_item_id: match[:item_id], match_score: match[:score])
+          changed = IngestionItem.where(id: id, matched_item_id: nil)
+                                 .update_all(matched_item_id: match[:item_id], match_score: match[:score])
+          next unless changed == 1
+
           claimed << match[:item_id]
           held[id] = match[:item_id]
         end
