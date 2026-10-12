@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026.10.12",
+    "date": "2026-10-12",
+    "notes": [
+      "The chat assistant can ask you a question with real options when a request is ambiguous, and your pick comes back as the option you chose rather than text it has to interpret."
+    ]
+  },
+  {
     "version": "2026.10.11.8",
     "date": "2026-10-11",
     "notes": [
