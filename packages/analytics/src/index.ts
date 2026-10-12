@@ -159,7 +159,7 @@ export interface EventPropsMap {
    * it do — without any of that.
    */
   chat_turn_completed: {
-    /** done | awaiting_confirmation | error */
+    /** done | awaiting_confirmation | awaiting_answers | error */
     outcome: string;
     /** How many tools ran. Not which ones. */
     tool_count: number;

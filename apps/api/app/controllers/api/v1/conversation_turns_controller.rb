@@ -43,9 +43,37 @@ module Api
         if conversation.awaiting_confirmation?
           return render_error("Answer the pending confirmation first.", :conflict)
         end
+        if conversation.awaiting_answers?
+          return render_error("Answer the pending question first.", :conflict)
+        end
         return render_error("Unknown mode.") unless apply_mode
 
         enqueue("kind" => "message", "text" => text, "page" => page_context)
+      end
+
+      # An option id the server itself wrote down, or the person's own
+      # words if none of the options fit. Never the model's reading of a
+      # typed "yes" — that is the whole reason the tool exists.
+      def answer
+        return render_error("Nothing is waiting on you.", :conflict) unless conversation.awaiting_answers?
+
+        option_id   = params[:option_id].presence
+        text        = params[:text].to_s.strip
+        fingerprint = params[:fingerprint].presence
+        # Refused here, synchronously, rather than by the job: by the time
+        # the loop rejects a payload the client has already cleared the
+        # prompt, and the refusal arrives as a stream error over a
+        # question the person can no longer see.
+        return render_error("option_id must be a string.") unless option_id.nil? || option_id.is_a?(String)
+        return render_error("Pick an option or type an answer.") if option_id.nil? && text.blank?
+        return render_error("Send the question's fingerprint.") unless fingerprint.is_a?(String)
+        # The same ceiling as a message: the words go straight into the next
+        # transcript, and a parked question is not a way around it.
+        return render_error("That answer is too long.") if text.length > MAX_MESSAGE_CHARS
+        return render_error("Unknown mode.") unless apply_mode
+
+        enqueue("kind" => "answer", "option_id" => option_id, "text" => text.presence,
+                "fingerprint" => fingerprint)
       end
 
       def confirm
@@ -160,11 +188,11 @@ module Api
       end
 
       def terminal?(event)
-        %w[done error awaiting_confirmation].include?(event.payload["type"])
+        %w[done error awaiting_confirmation awaiting_answers].include?(event.payload["type"])
       end
 
       def more_coming?
-        conversation.reload.pending_turns? ||
+        conversation.reload.runnable_turns? ||
           ConversationRun.running.exists?(conversation_id: conversation.id)
       end
 

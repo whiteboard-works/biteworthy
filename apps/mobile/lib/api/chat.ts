@@ -70,9 +70,10 @@ export type ChatMode = 'planning' | 'manual' | 'accept_edits' | 'auto';
 export interface Conversation {
   id: string;
   title: string | null;
-  state: 'active' | 'awaiting_confirmation' | 'failed';
+  state: 'active' | 'awaiting_confirmation' | 'awaiting_answers' | 'failed';
   mode: ChatMode;
   pending: PendingTool | null;
+  question?: PendingQuestion | null;
   created_at: string;
   updated_at: string;
   messages?: ChatMessage[];
@@ -93,6 +94,8 @@ export interface ChatEvent {
    *  dropped from what the model is sent, and roughly what that saved. */
   messages?: number;
   tokens_saved?: number;
+  /** `awaiting_answers` only. */
+  question?: PendingQuestion;
 }
 
 export interface ChatEventsPage {
@@ -205,6 +208,42 @@ export function setConversationMode(
 
 /** Answers the confirmation gate. The fingerprint binds the answer to the
  *  call that was drawn, so a stale screen cannot approve a different one. */
+/** One option the server wrote down. The client renders exactly these
+ *  and answers with an `id`, so nothing downstream rests on the model
+ *  reading a typed "the first one" the way the person meant it. */
+export interface QuestionOption {
+  id: string;
+  label: string;
+  detail?: string;
+}
+
+export interface PendingQuestion {
+  question: string;
+  options: QuestionOption[];
+  /** Binds the answer to this question. Written at park time, never absent. */
+  fingerprint: string;
+}
+
+/** `optionId` when they picked one of ours, `text` when none fitted. */
+export function answerQuestion(
+  jwt: string,
+  id: string,
+  answer: { optionId?: string; text?: string },
+  fingerprint: string,
+  mode?: ChatMode,
+  opts: Options = {},
+): Promise<{ queued: boolean; after: number }> {
+  return request(
+    jwt,
+    `/api/v1/conversations/${encodeURIComponent(id)}/answer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ option_id: answer.optionId, text: answer.text, fingerprint, mode }),
+    },
+    opts,
+  );
+}
+
 export function answerConfirmation(
   jwt: string,
   id: string,

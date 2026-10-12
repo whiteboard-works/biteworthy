@@ -373,6 +373,43 @@ RSpec.describe "Api::V1::ConversationTurns", type: :request do
     end
   end
 
+  # The other park. The loop refuses a bad payload too, but by then the
+  # client has cleared the prompt and the refusal arrives as a stream error
+  # over a question nobody can see — so the request itself says no.
+  describe "POST /api/v1/conversations/:id/answer" do
+    before do
+      conversation.update!(state: "awaiting_answers",
+                           pending_questions: { "question" => "Which?", "fingerprint" => "fp",
+                                                "options" => [{ "id" => "a", "label" => "A" }] })
+    end
+
+    def post_answer(body)
+      post "/api/v1/conversations/#{conversation.id}/answer",
+           params: body.to_json, headers: headers.merge("Content-Type" => "application/json")
+    end
+
+    it "422s an option id that is not a string, without queuing it" do
+      post_answer(option_id: { "a" => 1 }, fingerprint: "fp")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.pending_turns).to be_empty
+    end
+
+    it "422s an answer with no fingerprint, without queuing it" do
+      post_answer(option_id: "a")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(conversation.reload.pending_turns).to be_empty
+    end
+
+    it "queues a well-formed answer" do
+      post_answer(option_id: "a", fingerprint: "fp")
+
+      expect(response).to have_http_status(:accepted)
+      expect(conversation.reload.pending_turns.first).to include("kind" => "answer", "option_id" => "a")
+    end
+  end
+
   # A menu scan legitimately outlives one connection. Without a cursor the
   # client cannot tell "the turn ended" from "your connection did", and it
   # would redraw a half-finished turn as final.

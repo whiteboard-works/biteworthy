@@ -27,9 +27,21 @@ module Chat
         run = ConversationRun.acquire(conversation)
         return if run.nil?
 
+        # `next_pending_turn!` skips a message while the conversation is
+        # parked. That is the message queued *while* the turn was still
+        # running, which then parked on a confirmation or a question: the
+        # person owes an answer before anything else can be delivered, and
+        # `AgentLoop` treats a message arriving in that state as a caller
+        # bug and re-raises — popping it would take the job down and lose
+        # the message with it. It stays queued; the turn that answers
+        # drains it on its way out.
+        #
+        # The controller already refuses a message sent *at* a parked
+        # conversation. This is the narrower race it cannot see: the park
+        # had not happened yet when the request arrived.
         turn = conversation.next_pending_turn!
         if turn.nil?
-          run.release!(outcome: "nothing_queued")
+          run.release!(outcome: conversation.pending_turns? ? "held_behind_park" : "nothing_queued")
           return
         end
 
@@ -38,7 +50,10 @@ module Chat
         # The run was released by the loop's ensure before this check, so a
         # turn enqueued while we were busy is picked up here rather than
         # stranded — that ordering is what closes the release race.
-        break unless conversation.pending_turns?
+        # Anything queued, not only what can run: a reply made stale by the
+        # turn that just ran is dropped by the next pop, and a message held
+        # behind a park is released above as `held_behind_park`.
+        break unless conversation.reload.pending_turns?
       end
     end
 
@@ -71,6 +86,8 @@ module Chat
     def arguments_for(turn)
       case turn["kind"]
       when "confirm" then { confirm: turn["confirm"], fingerprint: turn["fingerprint"] }
+      when "answer"  then { answer: { "option_id" => turn["option_id"], "text" => turn["text"] },
+                            fingerprint: turn["fingerprint"] }
       else                { text: turn["text"] }
       end
     end
