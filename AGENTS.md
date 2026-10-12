@@ -176,6 +176,7 @@ See `docs/schema.md` for the 60-second tour of all ~30 tables, and `docs/ingesti
 
 ## Where to look first
 
+- `docs/README.md` — the index of `docs/`: which files are living, reference, or archive, and what question each answers.
 - `docs/roadmap.md` — phase plan + the **Next up** queue (the autonomous delivery loop reads this top-down).
 - `docs/delivery-playbook.md` — the source-of-truth procedure for the `/loop 30m` autonomous loop. If you're picking up loop work, read this first.
 - `docs/plans/` — per-task acceptance criteria for live work; completed phase subplans are archived under `docs/plans/archive/` (read-only).
