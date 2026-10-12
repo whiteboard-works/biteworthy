@@ -31,6 +31,16 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 - [x] Location P2 (web) — "Use my location" in the chat header (moved out of the composer so the input has room on a phone); the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.
 
+## Import-flow hardening (active, 2026-10-12)
+
+An agent-driven import of Riverton restaurants over MCP found the places the scan-to-menu flow showed an unsafe dish as safe, failed without saying why, or doubled a menu. Plan and checklist: [`docs/plans/import-flow-hardening.md`](plans/import-flow-hardening.md).
+
+- [x] Allergen safety fixes: invented-slug fallback, compound-sauce implications (resolve, gap-fill, accept, backfill), cheese/olives/false-friend matching, honest staged edits (#906–#916).
+- [x] Scan reliability: visible-text URL scans, honest timing, no duplicate dishes from parallel scans (#911, #913, #917–#919).
+- [ ] Run the sauce-allergen backfill in production (human).
+- [ ] Constrain gap-fill output (needs the cassette re-recorded with a live key, human).
+- [ ] The open items in the plan (stale-menu detection, discovery on plain-text sites, worker concurrency, admin-accept trust).
+
 ## Naming standard: no all-caps dishes (shipped 2026-10-11)
 
 - [x] `Names::Standard` — names mostly in capitals become Title Case (acronyms like BBQ/BLT/GF kept, small words lowercase), shouting descriptions become sentence case, footnote asterisks at either end of a name are stripped; deliberate mixed case is untouched. Applied by `normalizes` on `Item` and `IngestionItem`, so every writer gets it.

@@ -369,6 +369,19 @@ order (latest accepted `IngestionItem` per dish, `position` NULLS LAST
 then `created_at`) without moving a dish or creating/renaming sections.
 Sections with no ingestion source stay after the sourced ones.
 
+## Reading the logs
+
+Production logs reach PostHog (service `Biteworthy`); agents read them with
+the PostHog MCP's `query-logs`, since `kamal app logs` is not available to
+them. A scan's id appears on every ingestion line, so `searchTerm:
+"<scan_id>"` returns its gap-fill batches (`[jev_cuisine]`,
+`[jev_wheat_shadow]`), and `searchTerm: "ExtractMenuJob"` shows each
+extraction's enqueue, start, and duration. Warn-level lines worth a look:
+`GapFillResolveJob: dropping unknown ingredient slug` and
+`gap_fill_validation_failed`. See
+[`plans/import-flow-hardening.md`](plans/import-flow-hardening.md) for what
+those lines led to.
+
 ## Honest disclosure
 
 This is the rule that keeps us safe for allergy users:

@@ -41,6 +41,7 @@ ticked moves to `plans/archive/`.
 | [`profile-location.md`](plans/profile-location.md)                       | Home city and device location: "what is nearby".                                               | Web shipped; mobile and results-pane distance open.                                     |
 | [`legal-remediation-followups.md`](plans/legal-remediation-followups.md) | Code follow-ups after the E1–E13 legal work, plus the L1–L5 attorney and ops gates.            | L1–L5 open.                                                                             |
 | [`chat-privacy-l1-brief.md`](plans/chat-privacy-l1-brief.md)             | The brief for the L1 attorney review of what the chat sends to Anthropic.                      | Awaiting the review.                                                                    |
+| [`import-flow-hardening.md`](plans/import-flow-hardening.md)             | Everything an MCP-driven Riverton import showed wrong with scan → stage → accept.              | Safety fixes shipped; backfill run, gap-fill constraint, and decisions open.            |
 | [`taste-quiz.md`](plans/taste-quiz.md)                                   | A taste-quiz onboarding.                                                                       | Draft; no code yet.                                                                     |
 
 ## Reference
