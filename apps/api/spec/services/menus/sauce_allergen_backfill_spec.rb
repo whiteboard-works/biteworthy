@@ -1,16 +1,19 @@
 require "rails_helper"
 
-# Dishes promoted before #907 carry a compound sauce (aioli, hollandaise,
-# pesto) with no row for the allergen it is made from, so an avoider
-# still sees them as safe. The backfill adds those rows, add-only.
+# Dishes that never went through #907 carry a compound sauce (aioli,
+# hollandaise, pesto) with no row for the allergen it is made from, so an
+# avoider still sees them as safe. The backfill adds those rows, add-only,
+# and never writes over a dish a person edited since the rule went live.
 RSpec.describe Menus::SauceAllergenBackfill do
   include ActiveSupport::Testing::TimeHelpers
 
   let!(:aioli)      { create(:ingredient, slug: "condiment-aioli", name: "Aioli", path: "condiment.aioli") }
   let!(:pesto)      { create(:ingredient, slug: "condiment-pesto", name: "Pesto", path: "condiment.pesto") }
   let!(:egg)        { create(:ingredient, slug: "egg", name: "Egg", path: "egg") }
+  let!(:dairy)      { create(:ingredient, slug: "dairy", name: "Dairy", path: "dairy") }
   let!(:parmesan)   { create(:ingredient, slug: "dairy-parmesan", name: "Parmesan", path: "dairy.parmesan") }
   let!(:pine_nuts)  { create(:ingredient, slug: "tree_nut-pine-nuts", name: "Pine nuts", path: "tree_nut.pine_nuts") }
+  let!(:potato)     { create(:ingredient, slug: "vegetable-potato", name: "Potato", path: "vegetable.potato") }
   let!(:egg_tag)    { create(:tag, slug: "contains-egg", name: "Contains Egg", family: "allergen") }
 
   around { |ex| travel_to(described_class::LIVE_SINCE - 1.day) { ex.run } }
@@ -42,11 +45,16 @@ RSpec.describe Menus::SauceAllergenBackfill do
     expect(dish.denormalized_ingredient_ids).not_to include(parmesan.id)
   end
 
-  it "adds nothing a dish already carries, and is idempotent" do
+  # Avoid lists expand down the tree, so only a row at or below the
+  # implied node covers it: a bare `dairy` row does not stop a
+  # parmesan-avoider, and the resolver applies the same rule.
+  it "adds nothing a dish already carries at or below the implied node, and is idempotent" do
     create(:item, :published, name: "Pesto Pasta", ingredients: [ pesto, parmesan, pine_nuts ])
+    create(:item, :published, name: "Pesto Gnocchi", ingredients: [ pesto, dairy, pine_nuts ])
     create(:item, :published, name: "Calamari", ingredients: [ aioli ])
+    create(:item, :published, name: "Fries", ingredients: [ potato ])
 
-    expect(run.changes.size).to eq(1)
+    expect(run.changes.map(&:item_name)).to contain_exactly("Calamari", "Pesto Gnocchi")
     expect(run.changes).to be_empty
   end
 
@@ -57,10 +65,17 @@ RSpec.describe Menus::SauceAllergenBackfill do
     expect(dish.reload.denormalized_ingredient_ids).not_to include(egg.id)
   end
 
-  it "leaves dishes promoted after the rule went live alone" do
+  # Accepted after #907 from a scan resolved before it, or edited by a
+  # person since: either way the row may have been removed on purpose.
+  it "lists a dish touched since the rule went live for review instead of writing it" do
     dish = create(:item, :published, name: "Calamari", ingredients: [ aioli ])
-    dish.update_columns(created_at: described_class::LIVE_SINCE + 1.hour)
+    dish.update_columns(created_at: described_class::LIVE_SINCE + 1.hour,
+                        updated_at: described_class::LIVE_SINCE + 1.hour)
 
-    expect(run.changes).to be_empty
+    result = run
+
+    expect(result.changes).to be_empty
+    expect(result.reviews.map(&:item_id)).to eq([ dish.id ])
+    expect(dish.reload.denormalized_ingredient_ids).not_to include(egg.id)
   end
 end

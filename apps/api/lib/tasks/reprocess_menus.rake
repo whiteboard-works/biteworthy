@@ -103,8 +103,16 @@ namespace :biteworthy do
         puts "  #{c.restaurant_name} — #{c.item_name}: + #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
       end
 
+      if result.reviews.any?
+        puts "== Not written: touched since the rule went live, so a person may have removed the row on purpose. Check each in admin =="
+        result.reviews.each do |c|
+          puts "  #{c.restaurant_name} — #{c.item_name}: would add #{(c.ingredient_slugs + c.tag_slugs).join(', ')}"
+          puts "    /admin/restaurants/#{c.restaurant_id} (item #{c.item_id})"
+        end
+      end
       result.failures.each { |f| puts "  FAILED #{f.item_name} (#{f.item_id}): #{f.error}" }
-      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, #{result.failures.size} failed =="
+      puts "== #{result.changes.size} dishes #{apply ? 'changed' : 'would change'}, " \
+           "#{result.reviews.size} to review by hand, #{result.failures.size} failed =="
       puts "Re-run with APPLY=1 to write these rows (kamal: --env APPLY:1 after the command)." if !apply && result.changes.any?
       exit 1 if result.failures.any?
     end

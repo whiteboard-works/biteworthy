@@ -1,28 +1,29 @@
 # frozen_string_literal: true
 
 module Menus
-  # Applies Ingestion::IngredientImplications (#907) to dishes promoted
-  # before it: a dish carrying `condiment-aioli` with no egg row still
-  # shows as safe to an egg-avoider until this adds the egg.
+  # Applies Ingestion::IngredientImplications (#907) to dishes it never
+  # ran on: a dish carrying `condiment-aioli` with no egg row still shows
+  # as safe to an egg-avoider until this adds the egg.
   #
-  # Add-only and idempotent, and it writes exactly what ImpliedBaseBackfill
-  # writes for a gluten base: the implied row as `derived` at `suggested`,
-  # the allergen tag TagDeriver derives from it, and the dish's confidence
-  # lowered to `suggested` if it was `confirmed`. A name's diet claim
-  # ("Vegan Caesar") still vetoes, through the same check the resolver uses.
+  # Add-only, and it writes what ImpliedBaseBackfill writes for a gluten
+  # base: the implied row as `derived` at `suggested`, the allergen tag
+  # TagDeriver derives from it, and the dish's confidence lowered to
+  # `suggested` if it was `confirmed`. A name's diet claim ("Vegan
+  # Caesar") still vetoes, through the same check the resolver uses.
   #
-  # Dishes promoted after #907 went live already passed through the rule,
-  # so a missing row there may be a person's removal; they are out of scope.
+  # Every published dish carrying a listed sauce is judged, whenever it was
+  # created: a scan resolved before #907 and accepted after it never went
+  # through the rule either. A dish edited since the rule went live may
+  # have had the row removed on purpose, and nothing records that, so it
+  # goes to a review list instead of being written over.
   class SauceAllergenBackfill
     LIVE_SINCE = Time.utc(2026, 10, 12, 21, 8) # deploy-api run for #907 finished 21:07:54
 
     Change  = Data.define(:item_id, :item_name, :restaurant_id, :restaurant_name, :ingredient_slugs, :tag_slugs)
     Failure = Data.define(:item_id, :item_name, :error)
-    Result  = Data.define(:changes, :failures)
+    Result  = Data.define(:changes, :reviews, :failures)
 
-    def self.default_scope = Item.published.where(created_at: ...LIVE_SINCE)
-
-    def self.call(apply:, scope: default_scope, &on_change)
+    def self.call(apply:, scope: Item.published, &on_change)
       new.call(apply:, scope:, &on_change)
     end
 
@@ -32,18 +33,28 @@ module Menus
       @by_id   = nodes.to_h { |slug, id, path| [ id, { slug: slug, path: path.to_s } ] }
       @paths   = nodes.to_h { |slug, _, path| [ slug, path.to_s ] }
       @tag_ids = Tag.pluck(:slug, :id).to_h
+      @sauce_ids = Ingestion::IngredientImplications::TABLE.keys.filter_map { |slug| @ids[slug] }
     end
 
     def call(apply:, scope:)
       changes  = []
+      reviews  = []
       failures = []
 
-      scope.includes(:restaurant).find_each do |item|
+      # The same array overlap Cities::RestaurantRanking uses: only dishes
+      # carrying a listed sauce can change.
+      candidates = scope.where("items.ingredient_ids && ARRAY[?]::uuid[]", @sauce_ids)
+      candidates.includes(:restaurant).find_each do |item|
         change = change_for(item)
         next unless change
 
+        if item.updated_at > LIVE_SINCE
+          reviews << change
+          next
+        end
+
         begin
-          Item.transaction { add!(item, change) } if apply
+          add!(item, change) if apply
         rescue StandardError => e
           failures << Failure.new(item_id: item.id, item_name: item.name, error: "#{e.class}: #{e.message}")
           next
@@ -52,7 +63,7 @@ module Menus
         yield change if block_given?
       end
 
-      Result.new(changes:, failures:)
+      Result.new(changes:, reviews:, failures:)
     end
 
     private
@@ -80,9 +91,11 @@ module Menus
 
     def under?(path, root) = path == root || path.start_with?("#{root}.")
 
-    # Same writes as ImpliedBaseBackfill#add!: through the join rows (their
-    # callbacks rebuild the denormalized arrays), and a weakest-link
-    # confidence drop that leaves updated_at alone.
+    # Same writes as ImpliedBaseBackfill#add!, through the join rows so
+    # their callbacks rebuild the denormalized arrays. defer_denormalization
+    # runs in its own transaction and its resync stamps updated_at, so a
+    # dish this wrote is judged as edited on a later run — harmless, since
+    # it then carries the rows and produces no change.
     def add!(item, change)
       Item.defer_denormalization do
         change.ingredient_slugs.each do |slug|
