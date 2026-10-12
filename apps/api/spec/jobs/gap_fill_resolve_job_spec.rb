@@ -64,6 +64,47 @@ RSpec.describe GapFillResolveJob, type: :job do
       expect(Rails.logger).to have_received(:warn).with(/not-a-real-slug/)
     end
 
+    # Logged in production: the model named `dairy-grana-padano`,
+    # `grain-wheat-flour`, `dairy-cheese` — real allergens under slugs we
+    # don't have. Dropping them left the dish with no dairy and no wheat,
+    # so a dairy- or gluten-avoider was shown it as safe.
+    context "when the model invents a slug under a family we do have" do
+      let(:response) do
+        { "items" => [
+          { "index" => 0,
+            "ingredients" => {
+              "resolved" => [
+                { "slug" => "dairy-grana-padano", "confidence" => 0.9 },
+                { "slug" => "grain-wheat-flour", "confidence" => 0.8 },
+                { "slug" => "dairy-cheese", "confidence" => 0.7 },
+              ],
+              "unresolved" => [] } },
+        ] }
+      end
+
+      before do
+        create(:ingredient, slug: "dairy", name: "Dairy", path: "dairy", aliases: [])
+        create(:ingredient, slug: "grain-wheat", name: "Wheat", path: "grain.wheat", aliases: [])
+      end
+
+      it "keeps the nearest real ancestor so the allergen family survives" do
+        described_class.perform_now(run.id)
+
+        expect(gap_item.reload.ingredients_payload).to contain_exactly(
+          { "slug" => "dairy", "confidence" => 0.9, "source" => "ai" },
+          { "slug" => "grain-wheat", "confidence" => 0.8, "source" => "ai" }
+        )
+      end
+
+      it "still lets a name-level diet claim veto the ancestor" do
+        gap_item.update!(name: "Gluten-Free Caesar Salad")
+
+        described_class.perform_now(run.id)
+
+        expect(gap_item.reload.ingredients_payload.map { |r| r["slug"] }).to eq(%w[dairy])
+      end
+    end
+
     it "leaves the re-scan match columns alone (its upsert must not clobber the matcher)" do
       target = create(:item, restaurant: restaurant, name: "Caesar Salad")
       gap_item.update!(matched_item_id: target.id, match_score: 1.0)
