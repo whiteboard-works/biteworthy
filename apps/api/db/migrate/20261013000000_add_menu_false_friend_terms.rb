@@ -19,7 +19,10 @@ class AddMenuFalseFriendTerms < ActiveRecord::Migration[8.1]
     "meat-beef-skirt-steak" => [ "carne asada" ],
     # So "cashew nuts" is read whole, not as cashew plus Mixed Nuts (and
     # the peanut Mixed Nuts implies).
+    "tree_nut-almond"       => [ "almond nuts" ],
     "tree_nut-cashew"       => [ "cashew nuts" ],
+    "tree_nut-hazel"        => [ "hazel nuts" ],
+    "tree_nut-walnut"       => [ "walnut nuts" ],
     "tree_nut-macadamia"    => [ "macadamia nuts" ],
     "tree_nut-pecan"        => [ "pecan nuts" ],
     "tree_nut-pistacia"     => [ "pistachio nuts" ]

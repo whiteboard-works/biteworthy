@@ -16,7 +16,10 @@ RSpec.describe AddMenuFalseFriendTerms do
     create(:ingredient, slug: "poultry-domestic-chicken", name: "Chicken", path: "poultry.chicken", aliases: [])
     create(:ingredient, slug: "tree_nut", name: "Tree Nut", path: "tree_nut", aliases: [])
     create(:ingredient, slug: "tree_nut-pine-nuts", name: "Pine nuts", path: "tree_nut.pine_nuts", aliases: [])
+    create(:ingredient, slug: "tree_nut-almond", name: "Almond", path: "tree_nut.almond", aliases: [ "almonds" ])
     create(:ingredient, slug: "tree_nut-cashew", name: "Cashew", path: "tree_nut.cashew", aliases: [])
+    create(:ingredient, slug: "tree_nut-hazel", name: "Hazel", path: "tree_nut.hazel", aliases: [ "hazelnut" ])
+    create(:ingredient, slug: "tree_nut-walnut", name: "Walnut", path: "tree_nut.walnut", aliases: [])
     create(:ingredient, slug: "tree_nut-macadamia", name: "Macadamia", path: "tree_nut.macadamia", aliases: [])
     create(:ingredient, slug: "tree_nut-pecan", name: "Pecan", path: "tree_nut.pecan", aliases: [])
     create(:ingredient, slug: "tree_nut-pistacia", name: "Pistachio", path: "tree_nut.pistacia",
@@ -53,7 +56,10 @@ RSpec.describe AddMenuFalseFriendTerms do
     expect(read.("carne asada steak")).to include("meat-beef-skirt-steak")
     expect(read.("chicken fried steak")).to eq([ "meat-beef-chicken-fried-steak" ])
     expect(read.("a&w root beer float")).to eq([ "condiment-root-beer" ])
-    expect(read.("cashew nuts")).to eq([ "tree_nut-cashew" ])
+    # A named nut is that nut, never also Mixed Nuts and the peanut it implies.
+    %w[almond cashew hazel macadamia pecan pistachio walnut].each do |nut|
+      expect(read.("#{nut} nuts")).not_to include("tree_nut-mixed-nuts")
+    end
     expect(read.("nut-free brownie")).to be_empty
     # A kitchen offering a nut-free version still serves nuts by default.
     expect(read.("brownie with walnuts, nut free option available")).not_to be_empty

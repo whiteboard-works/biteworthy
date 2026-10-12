@@ -5311,6 +5311,7 @@
   path: tree_nut.almond
   aliases:
   - almonds
+  - almond nuts
   allergen: true
 - slug: tree-nut-almond-almond-extract
   name: Almond Extract
@@ -5394,6 +5395,7 @@
   aliases:
   - hazelnut
   - filbert
+  - hazel nuts
   allergen: true
 - slug: tree-nut-hazelnut-butter
   name: Hazelnut butter
@@ -5477,7 +5479,8 @@
 - slug: tree_nut-walnut
   name: Walnut
   path: tree_nut.walnut
-  aliases: []
+  aliases:
+  - walnut nuts
   allergen: true
 - slug: tree-nut-walnut-walnut-oil
   name: Walnut Oil
