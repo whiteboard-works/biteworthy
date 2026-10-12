@@ -261,13 +261,12 @@ class GapFillResolveJob < ApplicationJob
     claims = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(item.name))
 
     Array(ai_rows).each do |row|
-      slug = row["slug"]
-      next if known.include?(slug)
-
-      unless ingredient_paths.key?(slug)
-        Rails.logger.warn("GapFillResolveJob: dropping unknown ingredient slug #{slug.inspect}")
+      slug = known_ancestor_slug(row["slug"], ingredient_paths)
+      unless slug
+        Rails.logger.warn("GapFillResolveJob: dropping unknown ingredient slug #{row["slug"].inspect}")
         next
       end
+      next if known.include?(slug)
 
       # Same gate as the resolver's implied bases (Ingestion::DietClaims):
       # the model is asked for implied ingredients, so without it a
@@ -283,6 +282,26 @@ class GapFillResolveJob < ApplicationJob
       known << slug
     end
     merged
+  end
+
+  # The model sometimes invents a plausible slug under a family we do
+  # have (`dairy-grana-padano`, `grain-wheat-flour`). Dropping it loses
+  # the allergen with it, so fall back to the nearest catalog ancestor by
+  # trimming hyphen segments: the dish still hides for a dairy- or
+  # gluten-avoider. A slug with no known ancestor at all is still dropped.
+  def known_ancestor_slug(slug, ingredient_paths)
+    parts = slug.to_s.split("-")
+    while parts.any?
+      candidate = parts.join("-")
+      if ingredient_paths.key?(candidate)
+        if candidate != slug
+          Rails.logger.info("GapFillResolveJob: unknown ingredient slug #{slug.inspect} → #{candidate}")
+        end
+        return candidate
+      end
+      parts.pop
+    end
+    nil
   end
 
   # Machine provenance values. Anything else (no source at all, or a
