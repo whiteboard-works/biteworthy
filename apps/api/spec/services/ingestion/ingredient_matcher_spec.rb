@@ -57,6 +57,15 @@ RSpec.describe Ingestion::IngredientMatcher do
 
   it "still matches when the absence phrase is itself negated" do
     expect(slugs("this sauce is not dairy-free")).to include("dairy")
+    expect(slugs("this sauce isn't dairy-free")).to include("dairy")
+  end
+
+  # "Dairy-free option available" describes a variant; the dish as served
+  # still has the dairy, and Diet tagging relies on that evidence to veto
+  # its own dairy-free claim.
+  it "keeps the evidence when the phrase only offers an alternative" do
+    expect(slugs("topped with cheese, dairy-free option available")).to include("dairy")
+    expect(slugs("vegan cheese available upon request")).to include("dairy-cheese")
   end
 
   # ActiveSupport singularizes "olives" to "olife" and "cloves" to

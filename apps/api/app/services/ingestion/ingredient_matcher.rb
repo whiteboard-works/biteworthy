@@ -47,6 +47,11 @@ module Ingestion
     ].freeze
 
     NEGATIONS = %w[not isnt nor].freeze
+    # "isn't" normalizes to the tokens "isn" "t".
+    CONTRACTION_STEMS = %w[isn aren wasn doesn don].freeze
+    # "dairy-free option available" offers a variant; the dish as served
+    # still has the ingredient.
+    ALTERNATIVE_WORDS = %w[option options available substitute substitution alternative version upon request].freeze
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
@@ -111,14 +116,27 @@ module Ingestion
     def longest_match_at(tokens, start)
       [@max_ngram, tokens.length - start].min.downto(1) do |width|
         phrase = tokens[start, width].join(" ")
-        # "not dairy-free" asserts the ingredient; let it match as before.
-        negated = start.positive? && NEGATIONS.include?(tokens[start - 1])
-        return [ :absence, width ] if ABSENCE_PHRASES.include?(phrase) && !negated
+        return [ :absence, width ] if absence_at?(tokens, start, width, phrase)
 
         entry = @index[phrase] || @index[singularize_last(phrase)] || @index[strip_plural_s(phrase)]
         return [entry, width] if entry
       end
       nil
+    end
+
+    # An absence phrase counts only as a statement about this dish: not
+    # when it is negated ("not dairy-free", "isn't dairy-free") and not
+    # when it offers an alternative ("dairy-free option available").
+    # Either way it falls through and matches as it did before.
+    def absence_at?(tokens, start, width, phrase)
+      return false unless ABSENCE_PHRASES.include?(phrase)
+
+      before = start.positive? ? tokens[start - 1] : nil
+      negated = NEGATIONS.include?(before) ||
+                (before == "t" && start >= 2 && CONTRACTION_STEMS.include?(tokens[start - 2]))
+      return false if negated
+
+      Array(tokens[start + width, 3]).none? { |t| ALTERNATIVE_WORDS.include?(t) }
     end
 
     # Leftover runs still split on connectives ("care and love" is two

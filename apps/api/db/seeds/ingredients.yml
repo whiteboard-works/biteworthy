@@ -5734,7 +5734,8 @@
 - slug: vegetable-garlic
   name: Garlic
   path: vegetable.garlic
-  aliases: []
+  aliases:
+  - garlic clove
   allergen: false
 - slug: vegetable-green-bean
   name: Green Bean
