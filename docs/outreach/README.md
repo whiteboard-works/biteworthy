@@ -1,6 +1,6 @@
 # Press outreach templates
 
-Phase 5.10 — short, customizable email templates for the Durango press contacts we'll pitch on launch.
+Short, customizable email templates for the Durango press contacts to pitch at launch.
 
 **One template per outlet**, shaped to that outlet's beat. Don't blast all four with the same body — Durango's press scene is small enough that they'll notice and discount the pitch.
 

@@ -1,183 +1,128 @@
 # BiteWorthy API
 
-Rails 8 JSON API. Lives at `apps/api/` inside the monorepo.
+Rails 8 JSON API on Postgres 16, at `apps/api/` in the monorepo. It is not
+part of the pnpm workspace; it has its own Bundler tree. It owns the filter,
+the chat loop, the MCP server, menu ingestion, and everything the web and
+mobile apps read.
 
-## Local setup
+## Run it
+
+The quickest path is the containerized stack from the repo root
+(`docker compose up` boots the API, its worker, and Postgres). Natively:
 
 ```bash
-docker compose up -d postgres   # from the repo root; or use your own local Postgres 16
+docker compose up -d postgres   # from the repo root, or any local Postgres 16
 cd apps/api
 bundle install
-bin/rails db:create db:schema:load db:seed
-bin/rails s -p 3000
+bin/rails db:prepare            # create + load schema + seed, idempotent
+bin/rails s -p 3000             # the web app expects the API here
+bin/jobs                        # Solid Queue worker, in a second terminal
 ```
 
-Postgres 16+ with `ltree`, `pg_trgm`, `pgcrypto`, and `citext` extensions.
-The migrations enable them automatically (your role needs `CREATE EXTENSION`
-privilege the first time).
+Or boot the worker inside Puma with `SOLID_QUEUE_IN_PUMA=true bin/rails s`.
+Postgres needs the `ltree`, `pg_trgm`, `pgcrypto`, and `citext` extensions;
+the migrations enable them, so the role needs `CREATE EXTENSION` once.
+Dish-photo cropping shells out to ImageMagick and oversized menu PDFs to
+Ghostscript; without `gs` such a PDF is refused rather than shrunk.
 
-## Routes
+Copy `.env.example` to `.env` for the optional keys. Only ingestion and the
+chat need `ANTHROPIC_API_KEY`.
 
-All app traffic lives under `/api/v1`. `/up` is the health check.
-`/api-docs` renders the OpenAPI spec via rswag.
-
-The spec is built from the rswag specs in `spec/integration/` —
-`bin/openapi-export` dumps it to `docs/openapi.json`, which feeds the
-`@biteworthy/api-types` codegen. Re-run both after any endpoint change;
-CI fails on drift.
-
-## Background jobs
-
-Solid Queue runs in the same Postgres database as the app. Boot it inline
-with `SOLID_QUEUE_IN_PUMA=true bin/rails s` or as its own process with
-`bin/jobs`.
-
-## Tests
+## Check it
 
 ```bash
-bundle exec rspec
+bundle exec rspec                               # the suite (~3,000 examples)
+bundle exec rspec spec/requests/foo_spec.rb:42  # one example
+bundle exec rubocop --parallel                  # blocks in CI; new code must be clean
+bundle exec brakeman --no-pager --quiet         # blocks in CI
 ```
+
+Specs that talk to Anthropic replay VCR cassettes from `spec/cassettes/`; CI
+runs with `record: :none`, so a new model call needs a committed cassette.
+
+## What it serves
+
+| Path        | What                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/…` | Everything the apps use: auth, profiles, restaurants and items with the filter applied, reviews, photos, scans, the chat (`/conversations`), admin.                                                                 |
+| `/mcp`      | The MCP server. The same tool catalogue the chat uses, for any MCP client, with OAuth discovery under `/.well-known/` and dynamic client registration at `/oauth/register`. See [`docs/mcp.md`](../../docs/mcp.md). |
+| `/api-docs` | The OpenAPI document, rendered by rswag.                                                                                                                                                                            |
+| `/up`       | Health check, used by the deploy's cutover.                                                                                                                                                                         |
+
+The OpenAPI document is built from the rswag specs in `spec/integration/`.
+`bin/openapi-export` writes it to `docs/openapi.json`, and
+`pnpm --filter @biteworthy/api-types build:codegen` turns it into TypeScript.
+Run both after any endpoint change; CI fails on drift.
 
 ## Where things live
 
-| Concern | Path |
-|---|---|
-| Migrations | `db/migrate/` |
-| Seed taxonomy (YAML) | `db/seeds/{tags,ingredients,dietary_profiles}.yml` |
-| Models | `app/models/` |
-| API controllers | `app/controllers/api/v1/` |
-| Ingestion services (Anthropic) | `app/services/ingestion/` |
-| Background jobs | `app/jobs/` |
+| Concern                                                      | Path                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| The filter (the only place a dish becomes visible or hidden) | `app/services/menus/` (`Menus::Filter`, `Menus::Query`)                    |
+| Taste ranking                                                | `app/services/taste_scoring.rb`                                            |
+| The chat loop, prompt, compaction, grounding review          | `app/services/chat/` (`Chat::AgentLoop` is the heart)                      |
+| Tools: one catalogue for the chat and MCP, grouped by domain | `app/services/tools/` ([`docs/mcp.md`](../../docs/mcp.md))                 |
+| Menu ingestion: photo or PDF to staged items                 | `app/services/ingestion/` ([`docs/ingestion.md`](../../docs/ingestion.md)) |
+| Anthropic client, TypeSafe (Jev) client                      | `app/services/anthropic_client.rb`, `app/services/typesafe_client.rb`      |
+| Restaurants, cities, dish photos, images, PDFs               | `app/services/{restaurants,cities,dish_photos,images,pdfs}/`               |
+| Error reports to GitHub issues                               | `app/services/error_reports/`                                              |
+| Controllers                                                  | `app/controllers/api/v1/`, `app/controllers/mcp_controller.rb`             |
+| Background jobs                                              | `app/jobs/` (Solid Queue, in the same Postgres)                            |
+| Migrations                                                   | `db/migrate/` (never edit a shipped one; add a new one)                    |
+| Seed taxonomy                                                | `db/seeds/{tags,ingredients,dietary_profiles}.yml`                         |
+| Production tasks (smoke, seed, backfills)                    | `lib/tasks/`                                                               |
 
-## Production deploy (Phase 5.1.1)
+The data model is toured in [`docs/schema.md`](../../docs/schema.md).
 
-Hosted on **Hetzner CPX21** + **Neon Postgres** + **Cloudflare R2**, deployed with **Kamal** (image registry: GitHub Container Registry). Decision + trade-offs in `docs/adr/0007-hosting-kamal-hetzner-neon.md` (which supersedes ADR 0002's Fly.io pick).
+## Production
 
-**One-time bootstrap (human, ~30 minutes):**
+Hosted on a **Hetzner** box with **Neon** Postgres and **Cloudflare R2** for
+blobs, deployed with **Kamal** from an image on GitHub Container Registry.
+The decision and its trade-offs are in
+[`docs/adr/0007-hosting-kamal-hetzner-neon.md`](../../docs/adr/0007-hosting-kamal-hetzner-neon.md).
+
+**Every deploy is automatic.** `.github/workflows/deploy-api.yml` runs
+`kamal deploy` on a merge to `master` that touches `apps/api/`. The entrypoint
+runs `db:prepare` on boot, so migrations ride along, and kamal-proxy keeps
+traffic on the old release until `/up` passes. The workflow logs into the
+registry with its own `GITHUB_TOKEN`; the PAT in `.kamal/secrets` is only for
+deploys from a laptop. Re-run a failed deploy from the Actions tab, or:
 
 ```bash
-# 1. Provision the box. Hetzner Cloud Console or hcloud CLI:
-hcloud server create \
-    --name biteworthy-api \
-    --type cpx21 \
-    --image ubuntu-24.04 \
-    --datacenter ash-dc1 \
-    --ssh-key skylar
-# Note the IP; set the api.bite-worthy.com A record at it.
-
-# 2. Set up Neon (managed Postgres).
-#    - Sign up at neon.tech, create a "biteworthy-prod" project in
-#      aws-us-east-1.
-#    - Copy the POOLED connection string (not the unpooled one —
-#      puma + worker concurrency would exhaust unpooled connections).
-
-# 3. Generate a GitHub PAT for ghcr.io access (laptop deploys only — the
-#    deploy-api workflow logs in with its own GITHUB_TOKEN, so an expired
-#    PAT cannot stop a CI deploy).
-#    - Settings → Developer settings → Personal access tokens (classic)
-#    - Scopes: write:packages, read:packages
-
-# 4. Fill in the secrets file.
-cd apps/api
-cp .kamal/secrets.example .kamal/secrets
-# Edit .kamal/secrets — put real values for KAMAL_REGISTRY_PASSWORD,
-# RAILS_MASTER_KEY, DATABASE_URL (Neon pooled), DEVISE_JWT_SECRET_KEY,
-# ANTHROPIC_API_KEY, ADMIN_*, SMTP_*, R2_*. Template's inline notes
-# explain where each value comes from.
-
-# 5. Point everything at the new IP. The placeholders are long gone —
-#    the current IP is hardcoded, and a rebuild must update ALL of:
-#      - config/deploy.yml: the `hosts:` entry under BOTH roles
-#      - .github/workflows/deploy-api.yml: its ssh config + kamal host
-#      - DNS: api.bite-worthy.com A -> new IP
-#      - SSH_KNOWN_HOSTS secret: re-pin the NEW box's keys (only after
-#        confirming out-of-band it was really rebuilt)
-#      - SSH_PRIVATE_KEY, if the deploy key changed
-#    Miss the workflow and CI keeps shipping to the replaced box.
-
-# 6. First deploy.
-gem install kamal
-kamal setup            # installs Docker on box, pulls image, boots kamal-proxy
-kamal env push          # uploads .kamal/secrets to the box
-kamal deploy            # full deploy; db:prepare runs from the entrypoint on puma boot
-bin/kamal-secrets-push  # syncs KAMAL_SECRETS_B64 so CI deploys use the same values
-
-# 7. Confirm.
-kamal smoke             # alias for `app exec "bin/rails biteworthy:production:smoke EXIT_CODE=1"`
-curl https://api.bite-worthy.com/up
+gh run rerun <run-id> --failed
 ```
 
-**Every deploy is automatic** — `.github/workflows/deploy-api.yml` runs `kamal deploy` on merges to master touching `apps/api/**`. To ship out-of-band from the laptop:
+From a laptop, with `.kamal/secrets` filled in from `.kamal/secrets.example`:
 
 ```bash
 kamal deploy
-kamal smoke             # alias from deploy.yml
+kamal smoke              # bin/rails biteworthy:production:smoke, fails loudly
+kamal console            # a Rails console on the box
+kamal shell              # bash on the box
+kamal app logs           # Docker logs; they do not outlive a deploy
+kamal rollback <version> # back to a previous image
 ```
 
-Useful aliases (all in `config/deploy.yml`):
+Secrets live in two places that must agree: `.kamal/secrets` on the laptop
+and the `KAMAL_SECRETS_B64` repo secret the workflow decodes. After changing
+any value, run `bin/kamal-secrets-push` (add `--deploy` to ship), or the next
+CI deploy reverts it.
 
-| `kamal …` | What it runs |
-|---|---|
-| `console` | `bin/rails console` on the box |
-| `shell` | bash on the box |
-| `smoke` | the production smoke task with `EXIT_CODE=1` |
-| `seed` | the Phase 5.7 Durango batch ingest |
-| `logs` | tails Docker logs across all roles |
-| `rollback` | reverts to the previous image |
+| Concern                  | Path                                                                |
+| ------------------------ | ------------------------------------------------------------------- |
+| Image                    | `Dockerfile`, `.dockerignore`, `bin/docker-entrypoint`              |
+| Kamal config and aliases | `config/deploy.yml`                                                 |
+| Secrets                  | `.kamal/secrets` (gitignored; template at `.kamal/secrets.example`) |
+| Smoke task               | `lib/tasks/production.rake`                                         |
 
-**Where things live (deploy edition):**
+### One-time provisioning
 
-| Concern | Path |
-|---|---|
-| Container image | `Dockerfile` + `.dockerignore` + `bin/docker-entrypoint` |
-| Kamal config | `config/deploy.yml` |
-| Migrations | `bin/docker-entrypoint` runs `db:prepare` when the `web` role boots |
-| Kamal secrets | `.kamal/secrets` (gitignored; template at `.kamal/secrets.example`) |
-| Smoke task | `lib/tasks/production.rake` (wraps `app/services/biteworthy/production_smoke.rb`) |
-| Production env defaults | `env.clear` block in `config/deploy.yml`; secrets in `.kamal/secrets` |
+Already done for production; kept for a rebuild or a second environment.
+The full checklist with every credential is
+[`docs/launch-readiness.md`](../../docs/launch-readiness.md).
 
-## Email (Phase 5.2)
-
-Production SMTP is wired in `config/environments/production.rb`. Decision + trade-offs in `docs/adr/0003-email-provider.md` (plain SMTP, no provider gem — that ADR's Postmark pick was later swapped for **Resend** in PR #403). Dev + test use the `:test` adapter — no real delivery — so specs don't open sockets.
-
-**One-time bootstrap (human):** in Resend, add `mail.bite-worthy.com` as a sending domain and publish the DKIM + SPF records at the registrar, generate an API key with send access, then put that key into `SMTP_PASSWORD` in `.kamal/secrets` (template at `.kamal/secrets.example`) and:
-
-```bash
-kamal env push
-kamal deploy
-bin/kamal-secrets-push   # or the next CI deploy reverts it
-```
-
-**Confirm delivery:**
-
-```bash
-kamal app exec --roles web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'
-```
-
-Reports the SMTP Message-ID per delivery; `EXIT_CODE=1` makes it fail loudly for CI.
-
-**What works after secrets are set** — Devise password reset (built-in), `RestaurantClaimMailer.verify_email` (Phase 4.9), and any new mailer added later. No code change needed per mailer.
-
-## Blob storage (Phase 5.3)
-
-Production blobs (review photos, dish photos, ingestion menu pages) live on **Cloudflare R2**. Decision + trade-offs in `docs/adr/0004-blob-storage.md` (R2 over S3 because zero egress charges; `aws-sdk-s3` works unchanged because R2 speaks S3). Dev keeps `:local` (disk under `storage/`); test uses in-memory `:test`.
-
-**One-time bootstrap (human):**
-
-```bash
-# 1. Cloudflare → R2 → create bucket "biteworthy-blobs", generate
-#    an API token with Object Read & Write on the bucket.
-# 2. Fill in R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET /
-#    R2_ENDPOINT in .kamal/secrets (template at .kamal/secrets.example).
-kamal env push
-kamal deploy
-bin/kamal-secrets-push   # or the next CI deploy reverts it
-```
-
-**(Optional) Migrate any pre-existing blobs to R2:**
-
-```bash
-kamal app exec --roles web 'bin/rails biteworthy:storage:backfill EXIT_CODE=1'
-```
-
-The backfill task is **idempotent** — blobs already on the configured service are no-ops, so it's safe to re-run after every deploy or any future service flip (R2 → S3 or back). Logs `[ok] / [skip] / [FAIL]` per blob.
+- **Box:** `hcloud server create --name biteworthy-api --type cpx21 --image ubuntu-24.04 --datacenter ash-dc1`, then point `api.bite-worthy.com` at it and run `kamal setup`.
+- **Database:** a Neon project; use the _pooled_ connection string, since Puma plus the worker would exhaust an unpooled one.
+- **Email:** Resend, sending domain `mail.bite-worthy.com` with DKIM and SPF published; the API key goes in `SMTP_PASSWORD`. Plain SMTP, no provider gem ([`docs/adr/0003-email-provider.md`](../../docs/adr/0003-email-provider.md); that ADR's Postmark pick was swapped for Resend). Confirm with `kamal app exec --roles web 'bin/rails biteworthy:email:smoke EMAIL=you@example.com'`.
+- **Blobs:** an R2 bucket `biteworthy-blobs` and a token with object read and write; the `R2_*` values go in the secrets. `aws-sdk-s3` works unchanged because R2 speaks S3 ([`docs/adr/0004-blob-storage.md`](../../docs/adr/0004-blob-storage.md)). `bin/rails biteworthy:storage:backfill` moves any blobs stored elsewhere and is idempotent.
+- **Registry:** the `biteworthy-api` package on GHCR must grant this repository write access under _Manage Actions access_, or the workflow's token logs in but cannot push.
