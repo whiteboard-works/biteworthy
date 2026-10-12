@@ -172,6 +172,67 @@ RSpec.describe "ingestion tools", type: :service do
       expect(item.reload.unresolved_ingredients).to eq([])
     end
 
+    # Lists replace wholesale, so a reviewer re-sends every slug to add
+    # one. Restamping the ones they merely kept as human would launder
+    # model guesses into human-verified rows.
+    it "keeps a slug the dish already carried at its original provenance; only a new one is human" do
+      create(:ingredient, name: "Cheddar", slug: "dairy-cheddar", path: "dairy.cheddar")
+      item.update!(ingredients_payload: [ { "slug" => "meat-beef", "confidence" => 0.8, "source" => "ai" } ])
+
+      Tools::Ingestion::EditStagedItem.call(
+        item_id: item.id, ingredient_slugs: %w[meat-beef dairy-cheddar], server_context: ctx(owner)
+      )
+
+      expect(item.reload.ingredients_payload).to contain_exactly(
+        { "slug" => "meat-beef", "confidence" => 0.8, "source" => "ai" },
+        { "slug" => "dairy-cheddar", "confidence" => 1.0, "source" => "human" }
+      )
+    end
+
+    # Accept inserts tags_payload verbatim, so a stale allergen tag on an
+    # edited dish reached the live menu: cheese added, no contains-dairy;
+    # wheat removed, contains-gluten kept.
+    it "re-derives the allergen tags from the edited ingredients, keeping the dish's other tags" do
+      create(:ingredient, name: "Cheddar", slug: "dairy-cheddar", path: "dairy.cheddar")
+      item.update!(
+        ingredients_payload: [ { "slug" => "grain-wheat", "confidence" => 0.9, "source" => "ai" } ],
+        tags_payload: [
+          { "slug" => "contains-gluten", "confidence" => 0.9, "source" => "ingredient_derived", "from_source" => "ai" },
+          { "slug" => "italian", "confidence" => 0.8, "source" => "ai" }
+        ]
+      )
+
+      Tools::Ingestion::EditStagedItem.call(
+        item_id: item.id, ingredient_slugs: %w[dairy-cheddar], server_context: ctx(owner)
+      )
+
+      expect(item.reload.tags_payload).to contain_exactly(
+        { "slug" => "italian", "confidence" => 0.8, "source" => "ai" },
+        { "slug" => "contains-dairy", "confidence" => 1.0, "source" => "ingredient_derived", "from_source" => "human" }
+      )
+    end
+
+    it "keeps the allergen tags the ingredients imply when only the tags are replaced" do
+      create(:ingredient, name: "Cheddar", slug: "dairy-cheddar", path: "dairy.cheddar")
+      item.update!(ingredients_payload: [ { "slug" => "dairy-cheddar", "confidence" => 0.9, "source" => "ai" } ],
+                   tags_payload: [ { "slug" => "contains-dairy", "confidence" => 0.9,
+                                     "source" => "ingredient_derived", "from_source" => "ai" } ])
+
+      Tools::Ingestion::EditStagedItem.call(item_id: item.id, tag_slugs: [], server_context: ctx(owner))
+
+      expect(item.reload.tags_payload.map { |t| t["slug"] }).to eq([ "contains-dairy" ])
+    end
+
+    it "leaves the unresolved tags alone when only the ingredients were edited" do
+      item.update!(unresolved_tags: ["spicy-ish"])
+
+      Tools::Ingestion::EditStagedItem.call(
+        item_id: item.id, ingredient_slugs: ["meat-beef"], server_context: ctx(owner)
+      )
+
+      expect(item.reload.unresolved_tags).to eq(["spicy-ish"])
+    end
+
     it "rejects an unknown slug without saving anything" do
       before = item.ingredients_payload
 

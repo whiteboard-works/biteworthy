@@ -91,8 +91,15 @@ module Tools
         attrs = {}
         attrs[:name]        = name        unless name.nil?
         attrs[:description] = description unless description.nil?
-        attrs[:ingredients_payload] = human_payload(Ingredient, ingredient_slugs, "ingredient") unless ingredient_slugs.nil?
-        attrs[:tags_payload]        = human_payload(Tag,        tag_slugs,        "tag")        unless tag_slugs.nil?
+        unless ingredient_slugs.nil?
+          attrs[:ingredients_payload] =
+            human_payload(Ingredient, ingredient_slugs, "ingredient", keep: item.ingredients_payload)
+        end
+        attrs[:tags_payload] = human_payload(Tag, tag_slugs, "tag", keep: item.tags_payload) unless tag_slugs.nil?
+        if attrs.key?(:ingredients_payload) || attrs.key?(:tags_payload)
+          attrs[:tags_payload] = rederive_allergen_tags(attrs.fetch(:tags_payload, item.tags_payload),
+                                                        attrs.fetch(:ingredients_payload, item.ingredients_payload))
+        end
         attrs[:prices_payload]      = normalize_prices(prices)  unless prices.nil?
         attrs[:addons_payload]      = normalize_addons(addons)  unless addons.nil?
 
@@ -101,7 +108,7 @@ module Tools
         # Clearing the unresolved lists is the point of the edit: whatever we
         # could not match, a human has now spoken to.
         attrs[:unresolved_ingredients] = [] if attrs.key?(:ingredients_payload)
-        attrs[:unresolved_tags]        = [] if attrs.key?(:tags_payload)
+        attrs[:unresolved_tags]        = [] unless tag_slugs.nil?
 
         item.update!(attrs.merge(decision: "edited", decided_at: Time.current))
 
@@ -112,10 +119,15 @@ module Tools
         )
       end
 
-      # A human typed these, so they land at the confidence a human edit
-      # earns — the promote path then decides confirmed vs suggested from
-      # WHO accepted, which is the existing trust model.
-      def self.human_payload(model, slugs, label)
+      # A human typed these, so a new slug lands at the confidence a human
+      # edit earns — the promote path then decides confirmed vs suggested
+      # from WHO accepted, which is the existing trust model. Lists replace
+      # wholesale, so a reviewer re-sends every slug to add one; a slug the
+      # dish already carried keeps its row, or the edit would launder a
+      # model guess into a human-verified one.
+      MACHINE_SOURCES = GapFillResolveJob::MACHINE_SOURCES
+
+      def self.human_payload(model, slugs, label, keep: [])
         list = Array(slugs).map(&:to_s).reject(&:blank?).uniq
         return [] if list.empty?
 
@@ -126,9 +138,29 @@ module Tools
                 "Unknown #{label} slug(s): #{missing.join(', ')}. Use search_taxonomy to find the right ones."
         end
 
-        found.map { |r| ::Ingestion::AssociationPayload.dump(slug: r.slug, confidence: 1.0, source: "human") }
+        kept = Array(keep).select { |row| MACHINE_SOURCES.include?(row["source"]) }.index_by { |row| row["slug"] }
+        found.map do |r|
+          kept[r.slug] || ::Ingestion::AssociationPayload.dump(slug: r.slug, confidence: 1.0, source: "human")
+        end
       end
       private_class_method :human_payload
+
+      # Accept inserts tags_payload as it stands, so the allergen tags must
+      # follow the edited ingredients: cheese added means contains-dairy,
+      # wheat removed means no contains-gluten. Tags of any other kind
+      # (cuisine, diet, a person's own) are left as they are.
+      def self.rederive_allergen_tags(tags, ingredients)
+        paths = Ingredient.where(slug: ingredients.map { |r| r["slug"] }).pluck(:slug, :path).to_h
+        resolved = ingredients.map do |r|
+          { slug: r["slug"], path: paths[r["slug"]].to_s, confidence: r["confidence"], source: r["source"] }
+        end
+        kept = Array(tags).reject { |row| row["source"] == "ingredient_derived" }
+        derived = ::Ingestion::TagDeriver::Allergen.call(resolved_ingredients: resolved)
+                    .reject { |t| kept.any? { |row| row["slug"] == t[:slug] } }
+                    .map { |t| ::Ingestion::AssociationPayload.load(t).dump }
+        kept + derived
+      end
+      private_class_method :rederive_allergen_tags
 
       def self.normalize_prices(rows)
         Array(rows).filter_map do |row|
