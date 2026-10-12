@@ -20,6 +20,19 @@ RSpec.describe Ingestion::HtmlText do
     expect(described_class.call(html)).to include("Crème brûlée")
   end
 
+  it "ignores a commented-out charset declaration" do
+    html = "<html><head><!-- <meta charset=\"windows-1252\"> --></head><body><p>Jalapeño</p></body></html>".b
+
+    expect(described_class.call(html)).to include("Jalapeño")
+  end
+
+  it "honours a charset declared through http-equiv" do
+    html = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=windows-1252\"></head>" \
+           "<body><p>Crème brûlée</p></body></html>"
+
+    expect(described_class.call(html.encode("Windows-1252").b)).to include("Crème brûlée")
+  end
+
   it "keeps a dish name and its price apart when cells sit side by side" do
     html = "<table><tr><td>Hummus</td><td>$8</td></tr></table><span>Falafel</span><span>9</span>"
 
