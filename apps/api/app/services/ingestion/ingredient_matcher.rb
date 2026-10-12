@@ -41,8 +41,9 @@ module Ingestion
     # vegan tag. They are consumed as leftovers, so gap-fill and the
     # reviewer still see them (a vegan cheese is often cashew or soy).
     ABSENCE_PHRASES = [
-      "dairy free", "non dairy", "vegan cheese", "plant based cheese", "dairy free cheese",
-      "non dairy cheese", "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo"
+      "dairy free", "non dairy", "cheese free", "no cheese", "without cheese",
+      "vegan cheese", "plant based cheese", "dairy free cheese", "non dairy cheese",
+      "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo"
     ].freeze
 
     Match = Data.define(:slug, :path, :confidence, :kind)

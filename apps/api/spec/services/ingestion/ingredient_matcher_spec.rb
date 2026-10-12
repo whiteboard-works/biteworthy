@@ -50,6 +50,7 @@ RSpec.describe Ingestion::IngredientMatcher do
     matches, leftovers = matcher.scan("dairy-free dressing, topped with vegan cheese, non-dairy cheese")
     expect(matches.map { |m| m[:slug] }).to be_empty
     expect(leftovers).to include("vegan cheese", "non dairy cheese")
+    expect(slugs("cheese-free pizza, no cheese, without cheese")).to be_empty
   end
 
   it "prefers the longest phrase and consumes it (no nested bare match)" do
