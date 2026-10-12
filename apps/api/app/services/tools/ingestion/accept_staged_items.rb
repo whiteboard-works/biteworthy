@@ -130,27 +130,26 @@ module Tools
       # held back from this accept for the reviewer to confirm. Returns
       # { ingestion_item_id => live item id } for the ones held back.
       def self.rematch_unmatched!(run, items)
-        unmatched = items.select { |i| i.decision == "pending" && i.matched_item_id.nil? && i.item_id.nil? }
-        return {} if unmatched.empty?
+        candidates = items.select { |i| i.decision == "pending" && i.item_id.nil? }
+        return {} if candidates.empty?
 
-        matches = ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched)
-                                                  .select { |_id, m| m[:score] >= 1.0 }
-        return {} if matches.empty?
+        # Per-scan lock: two accepts must not both claim one live dish, and
+        # a match is read back fresh so a row another accept already matched
+        # is held rather than matched twice.
+        run.with_lock do
+          fresh = IngestionItem.where(id: candidates.map(&:id)).pluck(:id, :matched_item_id).to_h
+          unmatched = candidates.select { |i| fresh.key?(i.id) && fresh[i.id].nil? }
+          next {} if unmatched.empty?
 
-        published = Item.where(id: matches.values.map { |m| m[:item_id] }, status: "published").pluck(:id).to_set
-        claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id).to_set
-        matches.each_with_object({}) do |(id, match), held|
-          next if !published.include?(match[:item_id]) || claimed.include?(match[:item_id])
+          matches = ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched, published_only: true)
+                                                    .select { |_id, m| m[:score] >= 1.0 }
+          claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id).to_set
+          matches.each_with_object({}) do |(id, match), held|
+            next if claimed.include?(match[:item_id])
 
-          changed = IngestionItem.where(id: id, matched_item_id: nil)
-                                 .update_all(matched_item_id: match[:item_id], match_score: match[:score])
-          if changed == 1
+            IngestionItem.where(id: id).update_all(matched_item_id: match[:item_id], match_score: match[:score])
             claimed << match[:item_id]
             held[id] = match[:item_id]
-          elsif (current = IngestionItem.where(id: id).pick(:matched_item_id))
-            # A concurrent accept recorded a match first; this one must not
-            # promote past the confirmation either.
-            held[id] = current
           end
         end
       end

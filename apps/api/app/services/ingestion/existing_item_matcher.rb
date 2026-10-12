@@ -28,13 +28,16 @@ module Ingestion
     SIMILARITY_THRESHOLD = 0.60
     STOPWORDS = %w[and with w the of].freeze
 
-    def self.call(run:, items:)
-      new(run: run, items: items).call
+    # `published_only:` narrows the candidates before assignment, so a
+    # draft twin cannot win the tie and hide the published dish.
+    def self.call(run:, items:, published_only: false)
+      new(run: run, items: items, published_only: published_only).call
     end
 
-    def initialize(run:, items:)
+    def initialize(run:, items:, published_only: false)
       @run = run
       @items = items
+      @published_only = published_only
     end
 
     def call
@@ -63,6 +66,7 @@ module Ingestion
     def eligible_candidates
       linked = run.ingestion_items.where.not(item_id: nil).pluck(:item_id)
       scope = run.restaurant.items.where.not(status: "removed")
+      scope = scope.where(status: "published") if @published_only
       scope = scope.where.not(id: linked) if linked.any?
       scope.select(:id, :name).to_a
     end

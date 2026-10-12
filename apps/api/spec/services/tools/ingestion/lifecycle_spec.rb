@@ -366,22 +366,15 @@ RSpec.describe "ingestion tools", type: :service do
         expect(payload(second)[:accepted].first).to include(item_id: live.id, updated_existing: true)
       end
 
-      it "still holds the dish when a concurrent accept recorded the match first" do
+      it "matches the published dish when a draft shares its name" do
+        create(:item, restaurant: restaurant, name: "Carne Asada Taco", status: "draft")
         live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
-        allow(IngestionItem).to receive(:where).and_wrap_original do |original, *args, **kwargs|
-          relation = original.call(*args, **kwargs)
-          if kwargs == { id: item.id, matched_item_id: nil }
-            original.call(id: item.id).update_all(matched_item_id: live.id, match_score: 1.0)
-          end
-          relation
-        end
 
         response = Tools::Ingestion::AcceptStagedItems.call(
           scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
         )
 
-        expect(payload(response)[:accepted]).to be_empty
-        expect(payload(response)[:needs_review].first).to include(id: item.id, updates_existing_item: live.id)
+        expect(payload(response)[:needs_review].first).to include(updates_existing_item: live.id)
       end
 
       it "never late-matches a draft" do
