@@ -16,6 +16,7 @@ fixed it or what is still open.
 - [x] False friends: bare "french"/"italian" dressing aliases retired, plural "peppers" → bell pepper (#912); ginger beer as soda, "glazed nuts" → Mixed Nuts implying peanut, carne asada → beef, chicken fried steak → breaded beef (catalog PR).
 - [x] A staged edit kept stale allergen tags and restamped kept AI rows as human (#914).
 - [ ] Remaining matcher false friends seen once: "sweet pork" → tag `sweet`, "crab meat" → generic `meat`, "creamy fish sauce" → fish sauce, "est. 1885 – bologna" → mortadella, "lemon curd" → curds. All over-hide; worth a stop-list or context rule if they recur.
+- [ ] A name-level diet claim ignores "option": `DietClaims` treats "Walnut Brownie (nut free option)" as a nut-free dish and suppresses walnut from the name scan. Make the claim variant-aware, as the matcher's absence phrases are (#916).
 - [ ] A dish whose payload ends up empty is shown to everyone as safe. Consider flagging zero-ingredient dishes in `needs_attention` and refusing to accept them without a human edit.
 - [ ] `jev_wheat_shadow` disagreements (e.g. Italian Meatballs: Jev 0.76 wheat, data none) are logged but never surfaced; put them in `needs_attention`.
 
