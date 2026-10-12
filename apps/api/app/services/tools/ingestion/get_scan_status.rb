@@ -10,7 +10,7 @@ module Tools
 
         `ready: true` means the dishes are staged and you can call
         `list_staged_items`. Until then, wait a few seconds and poll again —
-        extraction usually takes 20-60 seconds. Tell the user it's running
+        extraction takes 20 seconds to two minutes (a long PDF is the slow end). Tell the user it's running
         rather than silently looping.
 
         `failed: true` means the scan failed; `failure_message` says why and

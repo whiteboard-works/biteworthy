@@ -76,6 +76,25 @@ RSpec.describe IngestionRun, type: :model do
       expect(run.failure_message.length).to eq(2_000)
     end
 
+    # A scan that failed before resolve never runs gap-fill, so a pending
+    # enrichment status told a polling agent to keep waiting forever.
+    it "stops reporting enrichment as pending" do
+      run = create(:ingestion_run, :extracting, enrichment_status: "pending")
+
+      run.fail!("prompt is too long")
+
+      expect(run.reload.enrichment_status).to eq("failed")
+    end
+
+    it "is reset to pending when the run is re-extracted" do
+      run = create(:ingestion_run, :extracting, enrichment_status: "pending")
+      run.fail!("prompt is too long")
+
+      Ingestion::ReExtractRun.call(run)
+
+      expect(run.reload.enrichment_status).to eq("pending")
+    end
+
     it "doesn't enqueue any next-stage job" do
       expect { create(:ingestion_run).fail!("anything") }.not_to have_enqueued_job
     end
