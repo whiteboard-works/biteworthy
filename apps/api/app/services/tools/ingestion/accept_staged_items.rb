@@ -144,10 +144,14 @@ module Tools
 
           changed = IngestionItem.where(id: id, matched_item_id: nil)
                                  .update_all(matched_item_id: match[:item_id], match_score: match[:score])
-          next unless changed == 1
-
-          claimed << match[:item_id]
-          held[id] = match[:item_id]
+          if changed == 1
+            claimed << match[:item_id]
+            held[id] = match[:item_id]
+          elsif (current = IngestionItem.where(id: id).pick(:matched_item_id))
+            # A concurrent accept recorded a match first; this one must not
+            # promote past the confirmation either.
+            held[id] = current
+          end
         end
       end
       private_class_method :rematch_unmatched!
