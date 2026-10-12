@@ -7,7 +7,8 @@
 #
 # Contract:
 #   * Append-only for ingredients — never removes or rewrites a
-#     deterministic match; unknown slugs from the model are dropped.
+#     deterministic match; an unknown slug from the model falls back to
+#     its nearest catalog ancestor, and is dropped only when it has none.
 #   * Only touches items still `decision: "pending"` (row-locked, so a
 #     concurrent accept wins and the item is skipped).
 #   * Tags are fully re-derived in code over the merged ingredient set —
