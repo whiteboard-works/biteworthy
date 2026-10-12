@@ -15,8 +15,15 @@ module Ingestion
     # whitespace ("<td>Hummus</td><td>8</td>", "Hummus<span>$8</span>");
     # a space on both sides keeps the name and the price apart.
     SPACED = "td, th, dt, dd, span, a, option, label, b, strong, em, i"
-    DECLARED_CHARSET = /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i
     MENU_JSON_LD = %r{"@type"\s*:\s*(?:\[[^\]]*?)?"(?:https?://schema\.org/)?Menu|"hasMenu}
+
+    def declared_charset(doc)
+      meta = doc.at_css("meta[charset]")&.[]("charset")
+      meta ||= doc.css("meta[http-equiv]")
+                  .find { |m| m["http-equiv"].to_s.casecmp?("content-type") }
+                  &.[]("content").to_s[/charset\s*=\s*["']?([\w-]+)/i, 1]
+      meta&.strip&.downcase.presence
+    end
 
     def html?(content_type, body)
       content_type.to_s.include?("html") ||
@@ -24,16 +31,22 @@ module Ingestion
     end
 
     def call(html)
-      # Blobs come back as binary with no charset. A page that declares a
-      # non-UTF-8 charset (<meta charset="windows-1252">) is handed to
-      # Nokogiri raw so the declaration wins; everything else is read as
-      # UTF-8 with stray bytes scrubbed, since Nokogiri's Latin-1 default
-      # turns "jalapeño" into mojibake the matcher cannot resolve.
-      declared = html.to_s.b[0, 4096][DECLARED_CHARSET, 1]&.downcase
-      doc = if declared && !declared.match?(/\Autf-?8\z/)
-        Nokogiri::HTML(html.to_s.b)
-      else
-        Nokogiri::HTML(html.to_s.dup.force_encoding(Encoding::UTF_8).scrub(""), nil, "UTF-8")
+      # Blobs come back as binary with no charset. A page whose <meta>
+      # declares a non-UTF-8 charset is re-read in that charset; everything
+      # else is UTF-8 with stray bytes scrubbed, since Nokogiri's Latin-1
+      # default turns "jalapeño" into mojibake the matcher cannot resolve.
+      # The declaration is read from parsed elements, so a commented-out
+      # or quoted <meta> does not count.
+      doc = Nokogiri::HTML(html.to_s.dup.force_encoding(Encoding::UTF_8).scrub(""), nil, "UTF-8")
+      declared = declared_charset(doc)
+      if declared && !declared.match?(/\Autf-?8\z/)
+        # Nokogiri resolves labels and aliases ("latin1"); one it cannot
+        # read keeps the UTF-8 parse.
+        doc = begin
+          Nokogiri::HTML(html.to_s.b, nil, declared)
+        rescue ArgumentError, EncodingError
+          doc
+        end
       end
       json_ld = doc.css('script[type="application/ld+json"]').map { |s| s.text.strip }
                    .select { |s| s.match?(MENU_JSON_LD) }
