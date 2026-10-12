@@ -35,7 +35,7 @@ MCP tool classes and thin REST controllers.
 | `app/services/tools/instructions.rb` | Server instructions — also the chat's system prompt |
 | `app/services/tools/topology.rb` | Which tools compose into which workflow |
 | `app/services/tools/topology_resource.rb` | The same map as `biteworthy://topology` |
-| `app/services/tools/meta/` | `describe_capabilities`, for clients that don't read resources |
+| `app/services/tools/meta/` | `describe_capabilities`, for clients that don't read resources; `ask_questions`, which the chat loop parks on rather than runs |
 | `app/services/tools/discovery/` | Public read tools |
 | `app/services/tools/profile/` | The caller's own avoid lists, strictness, saves |
 | `app/services/tools/ingestion/` | Menu scanning; run-scoped, signed-in. `discover_restaurant_site` is the website-seed prelude (no run) |

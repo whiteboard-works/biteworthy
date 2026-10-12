@@ -2,7 +2,13 @@ class Conversation < ApplicationRecord
   # `awaiting_confirmation` is the human gate. The loop stops there
   # rather than calling a tool annotated destructive, and the call it
   # wanted to make waits in `pending_tool_call` until the user answers.
-  STATES = %w[active awaiting_confirmation failed].freeze
+  # `awaiting_answers` is the second parked state, and it is a different
+  # question from the first: `awaiting_confirmation` asks yes or no about
+  # a call the model wants to make, this asks *which one did you mean*.
+  # The answer comes back as the id of an option the server wrote down
+  # rather than as free text, so nothing downstream rests on reading a
+  # typed "the first one" correctly. See `Tools::Meta::AskQuestions`.
+  STATES = %w[active awaiting_confirmation awaiting_answers failed].freeze
 
   belongs_to :user
   has_many :messages, -> { order(:position) }, dependent: :destroy, inverse_of: :conversation
@@ -19,6 +25,13 @@ class Conversation < ApplicationRecord
   scope :newest_first, -> { order(updated_at: :desc) }
 
   def awaiting_confirmation? = state == "awaiting_confirmation"
+  def awaiting_answers?      = state == "awaiting_answers"
+
+  # Either way of being stopped and owing the person a reply. Anything
+  # asking "may another turn start" wants this rather than one of them —
+  # the two states differ in what is being asked, not in whether the
+  # conversation is free.
+  def parked? = awaiting_confirmation? || awaiting_answers?
 
   # Whether anything that writes has run since the person last spoke.
   #
@@ -44,7 +57,7 @@ class Conversation < ApplicationRecord
   # user message that is *not* one — otherwise every turn carrying a tool
   # call would look like it began at its own results.
   def mutated_since_last_user_message?
-    return false if awaiting_confirmation?
+    return false if parked?
 
     turn  = messages.to_a
     spoke = turn.rindex { |message| message.role == "user" && !message.tool_result? }
@@ -183,19 +196,36 @@ class Conversation < ApplicationRecord
     end
   end
 
-  # Pops the oldest queued turn, or nil. Locked because the job draining
-  # and a controller enqueuing race on the same array.
+  # Pops the oldest queued turn that can run now, or nil. Locked because
+  # the job draining and a controller enqueuing race on the same array.
+  #
+  # While parked, only the reply to the park can run — a `confirm` or an
+  # `answer`. A message queued just before the park stays where it is,
+  # in order, and the turn that answers drains it on its way out. Taking
+  # the first runnable turn rather than the head is what keeps the two
+  # from deadlocking: the reply is appended *behind* the held message, so
+  # popping the head would hand back the message, put it back, and never
+  # reach the reply.
   def next_pending_turn!
     with_lock do
       queue = Array(pending_turns)
-      return nil if queue.empty?
+      index = queue.index { |turn| runnable?(turn) }
+      return nil if index.nil?
 
-      update!(pending_turns: queue.drop(1))
-      queue.first
+      update!(pending_turns: queue.dup.tap { |q| q.delete_at(index) })
+      queue[index]
     end
   end
 
   def pending_turns? = Array(pending_turns).any?
+
+  # Whether anything queued could start now. Differs from `pending_turns?`
+  # only while parked with a message held behind the park: that message is
+  # queued but nothing is coming until the person answers, and a stream or
+  # a sidebar that treated it as "still working" would wait on it forever.
+  def runnable_turns? = Array(pending_turns).any? { |turn| runnable?(turn) }
+
+  def runnable?(turn) = !parked? || turn["kind"] != "message"
 
   # Run at the start of every turn, because the damage a dead turn leaves
   # behind is only visible on the next one.

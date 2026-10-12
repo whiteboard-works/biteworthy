@@ -20,8 +20,10 @@ describe('Transcript user bubble', () => {
         messages={[sent(text)]}
         live={null}
         pending={null}
+        question={null}
         busy={false}
         onAnswer={() => {}}
+        onAnswerQuestion={() => {}}
         previews={(id) => previews[id]}
       />,
     );

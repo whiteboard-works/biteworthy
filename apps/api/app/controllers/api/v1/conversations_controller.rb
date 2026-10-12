@@ -129,7 +129,7 @@ module Api
       private
 
       def running?
-        conversation.pending_turns? ||
+        conversation.runnable_turns? ||
           ConversationRun.running.exists?(conversation_id: conversation.id)
       end
 

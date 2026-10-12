@@ -18,6 +18,7 @@ import { shrinkForUpload } from '../lib/shrink-image';
 import { colors, fontSize, space } from '@biteworthy/ui-tokens';
 import {
   answerConfirmation,
+  answerQuestion,
   compose,
   createConversation,
   fetchEvents,
@@ -34,6 +35,7 @@ import {
   type ChatMessage,
   type ChatMode,
   type Conversation,
+  type PendingQuestion,
   type PendingTool,
   type SentFile,
 } from '../lib/api/chat';
@@ -96,6 +98,7 @@ export default function ChatScreen() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingTool | null>(null);
+  const [question, setQuestion] = useState<PendingQuestion | null>(null);
   const [live, setLive] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -134,6 +137,7 @@ export default function ChatScreen() {
     setConversation(next);
     setMessages(next.messages ?? []);
     setPending(next.pending);
+    setQuestion(next.question ?? null);
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
@@ -212,6 +216,10 @@ export default function ChatScreen() {
         if (event.type === 'tool_use') tools += 1;
         if (event.type === 'done') outcome = 'done';
         if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
+        if (event.type === 'awaiting_answers') {
+          outcome = 'awaiting_answers';
+          if (event.question) setQuestion(event.question);
+        }
       });
     } catch (e) {
       setError((e as Error).message);
@@ -242,7 +250,7 @@ export default function ChatScreen() {
       // Only when the server took this turn. If `ask` was rejected, the
       // message it was carrying is on its way back to the queue, and
       // flushing now would send the one behind it first.
-      if (accepted && settled && !settled.pending) flush(settled);
+      if (accepted && settled && !settled.pending && !settled.question) flush(settled);
     }
     return accepted;
   };
@@ -331,7 +339,7 @@ export default function ChatScreen() {
     // An empty queue is part of "idle" on purpose — without it a message
     // typed while a backlog is waiting jumps ahead of messages typed
     // earlier, which is reachable whenever a flush was interrupted.
-    const idle = !busy && !inFlight.current && pending === null;
+    const idle = !busy && !inFlight.current && pending === null && question === null;
     if (idle && queue.current.length === 0) {
       void deliver(text, files).then((sent) => {
         if (sent) return;
@@ -370,6 +378,18 @@ export default function ChatScreen() {
     tracker.track('chat_confirmed', { approved });
     await run(conversation.id, (jwt) =>
       answerConfirmation(jwt, conversation.id, approved, fingerprint, mode),
+    );
+  };
+
+  // The mirror of `answer`, for the other parked state. Cleared before
+  // the request, so a second tap cannot answer a question the server has
+  // already settled.
+  const reply = async (chosen: { optionId?: string; text?: string }) => {
+    if (!conversation || !question) return;
+    const { fingerprint } = question;
+    setQuestion(null);
+    await run(conversation.id, (jwt) =>
+      answerQuestion(jwt, conversation.id, chosen, fingerprint, mode),
     );
   };
 
@@ -472,6 +492,10 @@ export default function ChatScreen() {
 
         {pending ? <ConfirmPrompt tool={pending} busy={busy} onAnswer={answer} /> : null}
 
+        {question ? (
+          <QuestionPrompt question={question} busy={busy} onAnswer={(a) => void reply(a)} />
+        ) : null}
+
         {error ? (
           <Text style={styles.error} testID="chat-error">
             {error}
@@ -569,7 +593,7 @@ export default function ChatScreen() {
           value={draft}
           onChangeText={setDraft}
           placeholder={
-            busy || pending !== null
+            busy || pending !== null || question !== null
               ? 'Type the next one — it will send when this finishes'
               : 'Ask about a menu, or add one'
           }
@@ -577,7 +601,9 @@ export default function ChatScreen() {
           multiline
         />
         <Pressable onPress={submit} accessibilityRole="button" style={styles.send}>
-          <Text style={styles.sendLabel}>{busy || pending !== null ? 'Queue' : 'Send'}</Text>
+          <Text style={styles.sendLabel}>
+            {busy || pending !== null || question !== null ? 'Queue' : 'Send'}
+          </Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -669,6 +695,52 @@ function SentAttachment({ file }: { file: SentFile }) {
  * people are shown runs because a model decided to — the server parks the
  * call and this is where the person answers.
  */
+// Real options rather than a sentence to reply to. What comes back is
+// an id the server itself wrote down, so nothing downstream rests on
+// reading "the first one" correctly.
+function QuestionPrompt({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: PendingQuestion;
+  busy: boolean;
+  onAnswer: (answer: { optionId?: string; text?: string }) => void;
+}) {
+  const [typed, setTyped] = useState('');
+
+  return (
+    <View style={styles.confirm} testID="chat-question">
+      <Text style={styles.confirmText}>{question.question}</Text>
+      {question.options.map((option) => (
+        <Pressable
+          key={option.id}
+          disabled={busy}
+          onPress={() => onAnswer({ optionId: option.id })}
+          accessibilityRole="button"
+          style={styles.confirmNo}
+        >
+          <Text style={styles.confirmNoLabel}>{option.label}</Text>
+          {option.detail ? <Text style={styles.live}>{option.detail}</Text> : null}
+        </Pressable>
+      ))}
+      {/* Always available. An option list that misses the obvious answer
+          is worse than no options at all. */}
+      <TextInput
+        style={styles.input}
+        value={typed}
+        onChangeText={setTyped}
+        editable={!busy}
+        accessibilityLabel="Something else"
+        placeholder="Something else…"
+        onSubmitEditing={() => {
+          if (typed.trim()) onAnswer({ text: typed.trim() });
+        }}
+      />
+    </View>
+  );
+}
+
 function ConfirmPrompt({
   tool,
   busy,

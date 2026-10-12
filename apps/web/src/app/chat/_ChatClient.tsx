@@ -13,6 +13,7 @@ import {
   answerConfirmation,
   compose,
   renameConversation,
+  answerQuestion,
   sendMessage,
   setConversationMode,
   stopTurn,
@@ -27,6 +28,7 @@ import {
   type ConversationSummary,
   type PageContext,
   type DeviceLocation,
+  type PendingQuestion,
   type PendingTool,
 } from '../../lib/chat';
 import { Composer, type QueuedMessage } from './_Composer';
@@ -37,6 +39,16 @@ import { ResultsPane } from './_ResultsPane';
 import { Transcript, type LiveTurn } from './_Transcript';
 
 const EMPTY_TURN: LiveTurn = { thinking: '', text: '', tools: [], notices: [] };
+
+/** Stopped and owed a reply, either way. A message sent at a chat in
+ *  either state comes back 409, so everything that asks "may I send"
+ *  wants this rather than one of them. */
+function parkedOn(conversation: {
+  pending: PendingTool | null;
+  question?: PendingQuestion | null;
+}) {
+  return conversation.pending !== null || (conversation.question ?? null) !== null;
+}
 
 /** Enough hops for a very long scan; a bound, not an expectation. */
 const MAX_RECONNECTS = 20;
@@ -51,6 +63,7 @@ export function ChatClient(): ReactElement {
   const [active, setActive] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingTool | null>(null);
+  const [question, setQuestion] = useState<PendingQuestion | null>(null);
   const [live, setLive] = useState<LiveTurn | null>(null);
   const [busy, setBusy] = useState(false);
   // The chat whose turn this tab is running, for the sidebar's "working"
@@ -189,6 +202,7 @@ export function ChatClient(): ReactElement {
     // and in that window a refetch that carries no `pane` field must not
     // blank what the live event just drew; an explicit null still clears.
     if (conversation.pane !== undefined) setPane(conversation.pane);
+    setQuestion(conversation.question ?? null);
     // Absent reads as `manual`, matching `ModePolicy.resolve` — an older
     // API that does not send one must not leave the picker claiming a
     // looser gate than the server is applying.
@@ -331,7 +345,7 @@ export function ChatClient(): ReactElement {
     // away, or a send that failed while they were elsewhere — goes now,
     // unless another turn still holds the page (its teardown drains the
     // queue for whatever is on screen) or a confirmation is parked.
-    if (opened && turn.current === null && !opened.pending) flush(opened);
+    if (opened && turn.current === null && !parkedOn(opened)) flush(opened);
   };
 
   const startNew = () => {
@@ -344,6 +358,7 @@ export function ChatClient(): ReactElement {
     setActive(null);
     setMessages([]);
     setPending(null);
+    setQuestion(null);
     setPane(null);
     setPaneOpen(false);
     leaveBlank();
@@ -479,6 +494,8 @@ export function ChatClient(): ReactElement {
       // any other, and the stored copy catches that chat up on open.
       setPane(event.pane);
       setPaneRevision((n) => n + 1);
+    } else if (event.type === 'awaiting_answers') {
+      setQuestion(event.question);
     } else if (event.type === 'error') {
       setError(event.message);
     }
@@ -535,11 +552,13 @@ export function ChatClient(): ReactElement {
           if (event.type === 'pane') sawPane = true;
           if (event.type === 'done') outcome = 'done';
           if (event.type === 'awaiting_confirmation') outcome = 'awaiting_confirmation';
-          // The loop's three terminal events — not the relay reporting
+          if (event.type === 'awaiting_answers') outcome = 'awaiting_answers';
+          // The loop's four terminal events — not the relay reporting
           // that it lost the turn, which is an `error` with `interrupted`.
           if (
             event.type === 'done' ||
             event.type === 'awaiting_confirmation' ||
+            event.type === 'awaiting_answers' ||
             (event.type === 'error' && !event.interrupted)
           ) {
             ended = true;
@@ -636,7 +655,7 @@ export function ChatClient(): ReactElement {
           // the message it was carrying is on its way back to the head of
           // the queue — flushing now would send the one behind it first
           // and deliver the two out of the order they were typed.
-          if (accepted && settled && !settled.pending) flush(settled);
+          if (accepted && settled && !parkedOn(settled)) flush(settled);
         } else {
           flushView();
         }
@@ -689,7 +708,7 @@ export function ChatClient(): ReactElement {
   // confirmation, which the server would refuse a message behind.
   const flushView = () => {
     const view = current.current;
-    if ((view?.id ?? null) !== viewing.current || view?.pending) return;
+    if ((view?.id ?? null) !== viewing.current || (view && parkedOn(view))) return;
     flush(view);
   };
 
@@ -820,7 +839,7 @@ export function ChatClient(): ReactElement {
     // Mid-open the chat this is for has not arrived yet; `open` sends
     // what waited once it has.
     const opening = viewing.current !== (current.current?.id ?? null);
-    const idle = turn.current === null && pending === null && !opening;
+    const idle = turn.current === null && pending === null && question === null && !opening;
     // This chat's backlog is part of "idle" on purpose. Without it a
     // message typed while earlier ones are waiting jumps the queue and
     // arrives before them — reachable whenever a flush was interrupted
@@ -866,6 +885,18 @@ export function ChatClient(): ReactElement {
     setPending(null);
     tracker.track('chat_confirmed', { approved });
     await run(id, () => answerConfirmation(id, approved, fingerprint, mode));
+  };
+
+  // The mirror of `answer`, for the other parked state. Cleared before
+  // the request for the same reason: the prompt is gone the moment it is
+  // answered, and leaving it up invites a second click on a question the
+  // server has already settled.
+  const reply = async (chosen: { optionId?: string; text?: string }) => {
+    if (!active || !question) return;
+    const id = active.id;
+    const { fingerprint } = question;
+    setQuestion(null);
+    await run(id, () => answerQuestion(id, chosen, fingerprint, mode));
   };
 
   // Persisted so the picker survives a reload; a conversation that does
@@ -954,6 +985,8 @@ export function ChatClient(): ReactElement {
             messages={messages}
             live={live}
             pending={pending}
+            question={question}
+            onAnswerQuestion={(answer) => void reply(answer)}
             busy={busy}
             onAnswer={(approved) => void answer(approved)}
           />
@@ -993,7 +1026,7 @@ export function ChatClient(): ReactElement {
           </div>
         ) : null}
         <Composer
-          queueing={busy || pending !== null}
+          queueing={busy || pending !== null || question !== null}
           queued={queued.filter((m) => m.conversationId === (active?.id ?? blankKey()))}
           onSend={send}
           onCancelQueued={cancelQueued}
