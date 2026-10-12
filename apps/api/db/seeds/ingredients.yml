@@ -436,8 +436,7 @@
 - slug: condiment-dressings-french
   name: French Dressing
   path: condiment.dressings.french
-  aliases:
-  - french
+  aliases: []
   allergen: false
 - slug: condiment-dressings-green-goddess
   name: Green Goddess Dressing
@@ -454,8 +453,7 @@
 - slug: condiment-dressings-italian
   name: Italian Dressing
   path: condiment.dressings.italian
-  aliases:
-  - italian
+  aliases: []
   allergen: false
 - slug: condiment-dressings-poppyseed
   name: Poppyseed Dressing
@@ -5543,6 +5541,7 @@
   aliases:
   - capsicum
   - sweet pepper
+  - peppers
   allergen: false
 - slug: vegetable-bok-choy
   name: Bok choy
