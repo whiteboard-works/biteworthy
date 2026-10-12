@@ -39,6 +39,12 @@ RSpec.describe "POST /mcp", type: :request do
       expect(names).not_to include("get_profile", "update_avoid_lists")
     end
 
+    # A halting tool is the chat loop's: the loop parks and asks the
+    # person. This transport has nobody to ask, so the tool is not offered.
+    it "does not offer tools that halt the turn" do
+      expect(tool_names).not_to include("ask_questions")
+    end
+
     # A listed-but-forbidden tool would still leak that the capability
     # exists and would burn the model's turns discovering it can't call it.
     it "adds the profile tools once a caller is signed in" do

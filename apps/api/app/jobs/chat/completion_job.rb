@@ -50,7 +50,10 @@ module Chat
         # The run was released by the loop's ensure before this check, so a
         # turn enqueued while we were busy is picked up here rather than
         # stranded — that ordering is what closes the release race.
-        break unless conversation.runnable_turns?
+        # Anything queued, not only what can run: a reply made stale by the
+        # turn that just ran is dropped by the next pop, and a message held
+        # behind a park is released above as `held_behind_park`.
+        break unless conversation.pending_turns?
       end
     end
 

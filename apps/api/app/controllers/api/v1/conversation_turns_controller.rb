@@ -57,16 +57,23 @@ module Api
       def answer
         return render_error("Nothing is waiting on you.", :conflict) unless conversation.awaiting_answers?
 
-        option_id = params[:option_id].presence
-        text      = params[:text].to_s.strip
+        option_id   = params[:option_id].presence
+        text        = params[:text].to_s.strip
+        fingerprint = params[:fingerprint].presence
+        # Refused here, synchronously, rather than by the job: by the time
+        # the loop rejects a payload the client has already cleared the
+        # prompt, and the refusal arrives as a stream error over a
+        # question the person can no longer see.
+        return render_error("option_id must be a string.") unless option_id.nil? || option_id.is_a?(String)
         return render_error("Pick an option or type an answer.") if option_id.nil? && text.blank?
+        return render_error("Send the question's fingerprint.") unless fingerprint.is_a?(String)
         # The same ceiling as a message: the words go straight into the next
         # transcript, and a parked question is not a way around it.
         return render_error("That answer is too long.") if text.length > MAX_MESSAGE_CHARS
         return render_error("Unknown mode.") unless apply_mode
 
         enqueue("kind" => "answer", "option_id" => option_id, "text" => text.presence,
-                "fingerprint" => params[:fingerprint].presence)
+                "fingerprint" => fingerprint)
       end
 
       def confirm

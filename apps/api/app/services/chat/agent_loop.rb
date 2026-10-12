@@ -205,7 +205,7 @@ module Chat
     def halt(message, orphan_reason: "Stopped before this ran. Nothing happened.")
       @conversation.answer_orphans!(orphan_reason)
       @conversation.append!(role: "assistant", content: [{ type: "text", text: message }])
-      @conversation.update!(state: "active", pending_tool_call: nil)
+      @conversation.update!(state: "active", pending_tool_call: nil, pending_questions: nil)
       Result.new(state: :error, error: message)
     end
 
@@ -485,7 +485,9 @@ module Chat
     # The fingerprint is computed once and stored, never recomputed from
     # the parked row: jsonb does not preserve key order, so a hash taken
     # after the round trip would not reliably match one taken before it.
-    # Same reasoning as `park`, and the same failure-closed answer.
+    # It also carries a nonce, so the same question asked twice in one
+    # conversation gets two fingerprints: a tab still showing the first
+    # must not be able to answer the second. Fails closed, like `park`.
     def park_question(results, queue)
       call     = queue.first
       # `call["input"]` rather than `arguments_for`, which symbolizes keys
@@ -499,32 +501,57 @@ module Chat
       # validator, so `options: [null, {…}]` would otherwise raise on
       # `o["id"]` and turn a recoverable tool error into a crashed turn —
       # the one outcome this method exists to avoid.
-      invalid  = question.blank? || options.size < 2 ||
+      invalid  = question.blank? || options.size < 2 || options.size > 5 ||
                  options.any? { |o| !o.is_a?(Hash) } ||
                  options.any? { |o| o["id"].to_s.strip.blank? || o["label"].to_s.strip.blank? } ||
-                 options.map { |o| o["id"].to_s }.uniq.size != options.size
+                 options.map { |o| o["id"].to_s.strip }.uniq.size != options.size
+
+      emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
 
       if invalid
-        emit(type: "tool_use", name: call["name"], input: call["input"], doing: doing(call))
         emit(type: "tool_result", name: call["name"], ok: false)
         results << tool_result(call, {
           error: "invalid",
-          message: "ask_questions needs a question and at least two options, each with a " \
+          message: "ask_questions needs a question and two to five options, each with a " \
                    "non-empty unique id and label. Nothing was asked."
         }, error: true)
         return continue_queue(queue.drop(1), results)
       end
 
+      # Every call the model queued *behind* the question was decided
+      # before it had the answer, so none of them runs. Each gets a
+      # recoverable result now — the Messages API needs one per tool_use
+      # — and the model re-issues whichever it still wants once it has
+      # read the answer. Running them after the answer, as a confirmation
+      # does, would let a write go through against the guess the question
+      # existed to avoid.
+      skipped = queue.drop(1).map do |later|
+        emit(type: "tool_use", name: later["name"], input: later["input"], doing: doing(later))
+        emit(type: "tool_result", name: later["name"], ok: false)
+        tool_result(later, {
+          error: "skipped",
+          message: "Not run: ask_questions came first in this turn and the turn stopped there. " \
+                   "Call this again once you have read the answer, if it is still wanted."
+        }, error: true)
+      end
+
       pending = {
         "question"    => question,
-        "options"     => options.map { |o| o.slice("id", "label", "detail").compact },
-        "fingerprint" => Digest::SHA256.hexdigest(JSON.generate([ call["name"], call["input"] ]))
+        # Stored as strings whatever the model sent. The client posts the
+        # id back as a string and `chosen_option` compares it to what is
+        # stored, so a numeric id would otherwise never match its own
+        # button; and a non-string `detail` is not something a client can
+        # render.
+        "options"     => options.map do |o|
+          o.slice("id", "label", "detail").compact.transform_values { |v| v.to_s.strip }.reject { |_, v| v.empty? }
+        end,
+        "fingerprint" => Digest::SHA256.hexdigest(JSON.generate([ call["name"], call["input"], SecureRandom.uuid ]))
       }
 
       @conversation.update!(
         state: "awaiting_answers",
         pending_questions: pending,
-        pending_tool_call: { "results" => results, "queue" => queue, "pending" => pending }
+        pending_tool_call: { "results" => results, "queue" => [ call ], "skipped" => skipped, "pending" => pending }
       )
       pending
     end
@@ -553,6 +580,9 @@ module Chat
 
       emit(type: "tool_result", name: call["name"], ok: true)
       results << tool_result(call, chosen)
+      # The calls queued behind the question were answered as skipped at
+      # park time; they ride along so every tool_use has its result.
+      results.concat(Array(parked["skipped"]))
       @conversation.update!(state: "active", pending_tool_call: nil, pending_questions: nil)
 
       outcome = continue_queue(queue.drop(1), results)

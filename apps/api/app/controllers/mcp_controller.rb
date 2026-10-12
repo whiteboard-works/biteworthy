@@ -71,7 +71,10 @@ class McpController < ApplicationController
       title:          "Biteworthy",
       version:        SERVER_VERSION,
       instructions:   Tools::Instructions.text,
-      tools:          Tools::Registry.for(context),
+      # A tool that halts the turn belongs to the chat loop, which parks
+      # and asks the person; this transport has no loop and nobody to ask,
+      # so offering it here would hand a client a tool that cannot work.
+      tools:          Tools::Registry.for(context).reject(&:halts_turn?),
       # The tool map, so a client that reads resources can learn how the
       # tools compose without spending a turn on describe_capabilities.
       resources:      [Tools::TopologyResource],

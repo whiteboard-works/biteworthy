@@ -199,21 +199,26 @@ class Conversation < ApplicationRecord
   # Pops the oldest queued turn that can run now, or nil. Locked because
   # the job draining and a controller enqueuing race on the same array.
   #
-  # While parked, only the reply to the park can run — a `confirm` or an
-  # `answer`. A message queued just before the park stays where it is,
-  # in order, and the turn that answers drains it on its way out. Taking
-  # the first runnable turn rather than the head is what keeps the two
-  # from deadlocking: the reply is appended *behind* the held message, so
-  # popping the head would hand back the message, put it back, and never
-  # reach the reply.
+  # While parked, only the reply to *this* park can run — an `answer`
+  # while a question waits, a `confirm` while a call does. A message
+  # queued just before the park stays where it is, in order, and the turn
+  # that answers drains it on its way out. Taking the first runnable turn
+  # rather than the head is what keeps the two from deadlocking: the reply
+  # is appended *behind* the held message, so popping the head would hand
+  # back the message, put it back, and never reach the reply.
+  #
+  # A reply to a park that is no longer standing — the second tap on an
+  # option, a confirm from a tab that was behind — is dropped here rather
+  # than run. `AgentLoop#perform` treats one as a caller bug and raises,
+  # which would fail the job and strand whatever was queued behind it;
+  # the controller admitted it in good faith, and the park it answered
+  # has already been settled by the first reply.
   def next_pending_turn!
     with_lock do
-      queue = Array(pending_turns)
+      queue = Array(pending_turns).reject { |turn| stale_reply?(turn) }
       index = queue.index { |turn| runnable?(turn) }
-      return nil if index.nil?
-
-      update!(pending_turns: queue.dup.tap { |q| q.delete_at(index) })
-      queue[index]
+      update!(pending_turns: index ? queue.dup.tap { |q| q.delete_at(index) } : queue)
+      index && queue[index]
     end
   end
 
@@ -225,7 +230,15 @@ class Conversation < ApplicationRecord
   # a sidebar that treated it as "still working" would wait on it forever.
   def runnable_turns? = Array(pending_turns).any? { |turn| runnable?(turn) }
 
-  def runnable?(turn) = !parked? || turn["kind"] != "message"
+  def runnable?(turn)
+    case turn["kind"]
+    when "answer"  then awaiting_answers?
+    when "confirm" then awaiting_confirmation?
+    else                !parked?
+    end
+  end
+
+  def stale_reply?(turn) = turn["kind"] != "message" && !runnable?(turn)
 
   # Run at the start of every turn, because the damage a dead turn leaves
   # behind is only visible on the next one.

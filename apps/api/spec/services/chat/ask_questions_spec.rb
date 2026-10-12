@@ -86,7 +86,7 @@ RSpec.describe "Chat::AgentLoop asking a question" do
 
       expect(result.state).to eq(:done)
       expect(conversation.reload.state).to eq("active")
-      expect(conversation.messages.map(&:content).flatten.to_s).to include("at least two options")
+      expect(conversation.messages.map(&:content).flatten.to_s).to include("two to five options")
     end
 
     # This path bypasses `Tools::Base.call` and so the input-schema
@@ -106,6 +106,62 @@ RSpec.describe "Chat::AgentLoop asking a question" do
 
       expect(result.state).to eq(:done)
       expect(conversation.reload.state).to eq("active")
+    end
+
+    it "refuses more than five options" do
+      six = (1..6).map { |n| { "id" => "o#{n}", "label" => "Option #{n}" } }
+      result, = run_with(turn(ask(options: six)), said("let me narrow that down"), text: "hi")
+
+      expect(result.state).to eq(:done)
+      expect(conversation.reload.state).to eq("active")
+    end
+
+    # The schema is not applied on this path, so a numeric id arrives as a
+    # number. The client posts it back as a string, and an id that cannot
+    # match its own button is a question nobody can answer.
+    it "stores option ids as strings so a numeric id can still be picked" do
+      numeric = [ { "id" => 1, "label" => "One", "detail" => 2 }, { "id" => 2, "label" => "Two" } ]
+      run_with(turn(ask(options: numeric)), text: "hi")
+
+      stored = conversation.reload.pending_questions["options"]
+      expect(stored.map { |o| o["id"] }).to eq(%w[1 2])
+      expect(stored.first["detail"]).to eq("2")
+
+      _, client = run_with(said("One it is."), answer: { "option_id" => "1" },
+                           fingerprint: conversation.pending_questions["fingerprint"])
+      expect(answered_text(client)).to include("\"option_id\": \"1\"")
+    end
+
+    # Every call behind the question was decided before the model had the
+    # answer. Running it after the answer, as a confirmation does, would
+    # let a write go through against the guess the question exists to
+    # avoid — so each is answered as skipped and nothing is dispatched.
+    it "does not run the calls queued behind the question, before or after the answer" do
+      allow(Tools::Meta::DescribeCapabilities).to receive(:perform)
+      later = { "type" => "tool_use", "id" => "call-2", "name" => "describe_capabilities", "input" => {} }
+
+      run_with(turn(ask, later), text: "hi")
+      expect(conversation.reload.state).to eq("awaiting_answers")
+
+      _, client = run_with(said("The taqueria then."), answer: { "option_id" => "taqueria" },
+                           fingerprint: conversation.pending_questions["fingerprint"])
+
+      expect(Tools::Meta::DescribeCapabilities).not_to have_received(:perform)
+      results = client.requests.first[:messages].flat_map { |m| Array(m[:content]) }
+                      .select { |b| (b["type"] || b[:type]) == "tool_result" }
+      expect(results.size).to eq(2)
+      expect(results.map { |b| (b["content"] || b[:content]).to_s }.join).to include("skipped")
+    end
+
+    # Same question, same options, asked twice: a tab still showing the
+    # first must not be able to answer the second.
+    it "gives the same question a different fingerprint each time it is asked" do
+      run_with(turn(ask), text: "hi")
+      first = conversation.reload.pending_questions["fingerprint"]
+      run_with(said("ok"), answer: { "text" => "neither" }, fingerprint: first)
+      run_with(turn(ask), text: "try again")
+
+      expect(conversation.reload.pending_questions["fingerprint"]).not_to eq(first)
     end
   end
 
@@ -147,6 +203,25 @@ RSpec.describe "Chat::AgentLoop asking a question" do
       texts = conversation.messages.flat_map { |m| Array(m.content) }
                           .filter_map { |b| b["text"] if b["type"] == "text" }
       expect(texts.index("The taqueria it is.")).to be < texts.index("actually, never mind")
+    end
+
+    # Two taps, or two tabs: both pass the controller while the question
+    # is open. The first settles it; the second would reach the loop with
+    # the conversation active and raise, failing the job and stranding
+    # whatever was queued behind it. It is dropped instead.
+    it "drops a second answer to a question the first already settled" do
+      fingerprint = conversation.reload.pending_questions["fingerprint"]
+      2.times do
+        conversation.enqueue_turn!("kind" => "answer", "option_id" => "taqueria",
+                                   "fingerprint" => fingerprint, "mode" => "manual")
+      end
+      allow(AnthropicClient).to receive(:new).and_return(StreamingScriptedClient.new(said("Done.")))
+
+      expect { Chat::CompletionJob.new.perform(conversation.id) }.not_to raise_error
+
+      expect(conversation.reload.state).to eq("active")
+      expect(conversation.pending_turns).to be_empty
+      expect(conversation.messages.flat_map { |m| Array(m.content) }.count { |b| b["type"] == "tool_result" }).to eq(1)
     end
 
     # Nothing is coming until the person answers, so a stream or the

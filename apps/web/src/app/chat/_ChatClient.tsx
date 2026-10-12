@@ -186,11 +186,11 @@ export function ChatClient(): ReactElement {
   // A parked call does nothing until it is answered, so it is never left
   // above the fold.
   useEffect(() => {
-    if (!pending) return;
+    if (!pending && !question) return;
     following.current = true;
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [pending]);
+  }, [pending, question]);
 
   const adopt = (conversation: Conversation) => {
     viewing.current = conversation.id;
@@ -892,7 +892,9 @@ export function ChatClient(): ReactElement {
   // answered, and leaving it up invites a second click on a question the
   // server has already settled.
   const reply = async (chosen: { optionId?: string; text?: string }) => {
-    if (!active || !question) return;
+    // Same guard as `answer`: one turn per tab, covering the instant
+    // before `busy` disables the buttons.
+    if (!active || !question || turn.current) return;
     const id = active.id;
     const { fingerprint } = question;
     setQuestion(null);
