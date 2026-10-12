@@ -18,6 +18,11 @@ Rails.application.configure do
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
   config.log_tags = [:request_id]
   config.logger = ActiveSupport::TaggedLogging.logger(STDOUT)
+  # Bot probes (/.env, /phpinfo.php, /wp-login) each logged a RoutingError
+  # at error level, burying real ingestion errors in PostHog. Exceptions
+  # Rails already turns into a 4xx still get their one-line request log;
+  # this drops only their stack trace. Real 500s log as before.
+  config.action_dispatch.log_rescued_responses = false
   # kamal-proxy polls /up every five seconds, and every line of that went
   # to STDOUT. This silences the STDOUT logger only — silence is a
   # LoggerSilence feature the PostHog log forwarder does not have — so
