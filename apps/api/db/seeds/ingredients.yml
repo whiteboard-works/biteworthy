@@ -73,7 +73,10 @@
 - slug: alcohol
   name: Alcohol
   path: alcohol
-  aliases: []
+  aliases:
+  - hard ginger beer
+  - hard root beer
+  - spiked root beer
   allergen: false
 - slug: alcohol-ale
   name: Ale
@@ -504,7 +507,8 @@
 - slug: condiment-ginger-ale
   name: Ginger Ale
   path: condiment.ginger_ale
-  aliases: []
+  aliases:
+  - ginger beer
   allergen: false
 - slug: condiment-green-tea
   name: Green Tea
@@ -607,6 +611,11 @@
 - slug: condiment-rice-vinegar
   name: Rice Vinegar
   path: condiment.rice_vinegar
+  aliases: []
+  allergen: false
+- slug: condiment-root-beer
+  name: Root Beer
+  path: condiment.root_beer
   aliases: []
   allergen: false
 - slug: condiment-salsa
@@ -3748,6 +3757,12 @@
   aliases:
   - beef brisket
   allergen: false
+- slug: meat-beef-chicken-fried-steak
+  name: Chicken Fried Steak
+  path: meat.beef.chicken_fried_steak
+  aliases:
+  - country fried steak
+  allergen: false
 - slug: meat-beef-corned-beef
   name: Corned Beef
   path: meat.beef.corned_beef
@@ -3816,6 +3831,7 @@
   aliases:
   - skirt
   - fajita meat
+  - carne asada
   allergen: false
 - slug: meat-beef-veal
   name: Veal
@@ -5295,6 +5311,7 @@
   path: tree_nut.almond
   aliases:
   - almonds
+  - almond nuts
   allergen: true
 - slug: tree-nut-almond-almond-extract
   name: Almond Extract
@@ -5338,7 +5355,8 @@
 - slug: tree_nut-cashew
   name: Cashew
   path: tree_nut.cashew
-  aliases: []
+  aliases:
+  - cashew nuts
   allergen: true
 - slug: tree-nut-cashew-butter
   name: Cashew butter
@@ -5377,6 +5395,7 @@
   aliases:
   - hazelnut
   - filbert
+  - hazel nuts
   allergen: true
 - slug: tree-nut-hazelnut-butter
   name: Hazelnut butter
@@ -5404,7 +5423,8 @@
 - slug: tree_nut-macadamia
   name: Macadamia
   path: tree_nut.macadamia
-  aliases: []
+  aliases:
+  - macadamia nuts
   allergen: true
 - slug: tree-nut-macadamia-milk
   name: Macadamia Milk
@@ -5413,10 +5433,20 @@
   - macadamiamilk
   - macadamia beverage
   allergen: true
+- slug: tree_nut-mixed-nuts
+  name: Mixed Nuts
+  path: tree_nut.mixed_nuts
+  aliases:
+  - nuts
+  - glazed nuts
+  - candied nuts
+  - spiced nuts
+  allergen: true
 - slug: tree_nut-pecan
   name: Pecan
   path: tree_nut.pecan
-  aliases: []
+  aliases:
+  - pecan nuts
   allergen: true
 - slug: tree_nut-pine-nuts
   name: Pine nuts
@@ -5434,6 +5464,7 @@
   path: tree_nut.pistacia
   aliases:
   - Pistacia
+  - pistachio nuts
   allergen: true
 - slug: tree_nut-pumpkin-seed
   name: Pumpkin seed
@@ -5448,7 +5479,8 @@
 - slug: tree_nut-walnut
   name: Walnut
   path: tree_nut.walnut
-  aliases: []
+  aliases:
+  - walnut nuts
   allergen: true
 - slug: tree-nut-walnut-walnut-oil
   name: Walnut Oil
