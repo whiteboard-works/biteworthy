@@ -23,6 +23,13 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["soy-tamari",        "Tamari",         "soy.tamari",              []],
       ["condiment-sauces-gravy", "Gravy",     "condiment.sauces.gravy",  ["brown gravy"]],
       ["condiment-malt-vinegar", "Malt Vinegar", "condiment.malt_vinegar", []],
+      ["condiment-aioli",   "Aioli",          "condiment.aioli",         []],
+      ["condiment-sauces-hollandaise", "Hollandaise", "condiment.sauces.hollandaise", []],
+      ["condiment-pesto",   "Pesto",          "condiment.pesto",         []],
+      ["egg",               "Egg",            "egg",                     []],
+      ["dairy-butter",      "Butter",         "dairy.butter",            []],
+      ["dairy-parmesan",    "Parmesan",       "dairy.parmesan",          []],
+      ["tree_nut-pine-nuts", "Pine nuts",     "tree_nut.pine_nuts",      []],
     ])
   end
 
@@ -169,6 +176,31 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(soy.ingredients.map { |r| r["slug"] }).to include("soy-soy-sauce", "grain-wheat")
       expect(teriyaki.ingredients.map { |r| r["slug"] }).to include("soy-teriyaki", "grain-wheat")
       expect(gravy.ingredients.map { |r| r["slug"] }).to include("condiment-sauces-gravy", "grain-wheat")
+    end
+
+    # Aioli, hollandaise, and pesto sit under `condiment`, so without the
+    # implication an egg-, dairy-, or tree-nut-avoider saw these as safe.
+    it "implies the allergens a compound sauce is made from" do
+      aioli, hollandaise, pesto = resolve(
+        StubItem.new("a", "Calamari", "lemon aioli", nil),
+        StubItem.new("b", "Eggs Benedict", "hollandaise", nil),
+        StubItem.new("c", "Pesto Pasta", "pesto", nil)
+      )
+
+      expect(aioli.ingredients.map { |r| r["slug"] }).to include("condiment-aioli", "egg")
+      expect(hollandaise.ingredients.map { |r| r["slug"] }).to include("egg", "dairy-butter")
+      expect(pesto.ingredients.map { |r| r["slug"] }).to include("dairy-parmesan", "tree_nut-pine-nuts")
+      expect(aioli.ingredients).to include(
+        { "slug" => "egg", "confidence" => 0.8, "source" => "derived" }
+      )
+    end
+
+    it "does not imply an animal product onto a dish whose name claims vegan" do
+      result = resolve(StubItem.new("id-1", "Vegan Pesto Pasta", "pesto", nil)).first
+
+      slugs = result.ingredients.map { |r| r["slug"] }
+      expect(slugs).to include("tree_nut-pine-nuts")
+      expect(slugs).not_to include("dairy-parmesan")
     end
 
     it "implies barley from malt vinegar" do

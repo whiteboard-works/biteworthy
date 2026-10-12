@@ -105,6 +105,43 @@ RSpec.describe GapFillResolveJob, type: :job do
       end
     end
 
+    context "when the model names a compound sauce" do
+      let(:response) do
+        { "items" => [
+          { "index" => 0,
+            "ingredients" => {
+              "resolved" => [ { "slug" => "condiment-sauces-hollandaise", "confidence" => 0.9 } ],
+              "unresolved" => [] } },
+        ] }
+      end
+
+      before do
+        create(:ingredient, slug: "condiment-sauces-hollandaise", name: "Hollandaise",
+                            path: "condiment.sauces.hollandaise", aliases: [])
+        create(:ingredient, slug: "egg", name: "Egg", path: "egg", aliases: [])
+        create(:ingredient, slug: "dairy-butter", name: "Butter", path: "dairy.butter", aliases: [])
+      end
+
+      it "adds the allergens the sauce is made from as derived rows" do
+        described_class.perform_now(run.id)
+
+        expect(gap_item.reload.ingredients_payload).to contain_exactly(
+          { "slug" => "condiment-sauces-hollandaise", "confidence" => 0.9, "source" => "ai" },
+          { "slug" => "egg", "confidence" => 0.8, "source" => "derived" },
+          { "slug" => "dairy-butter", "confidence" => 0.8, "source" => "derived" }
+        )
+      end
+
+      it "does not imply an animal product onto a dish whose name claims vegan" do
+        gap_item.update!(name: "Vegan Benedict")
+
+        described_class.perform_now(run.id)
+
+        expect(gap_item.reload.ingredients_payload.map { |r| r["slug"] })
+          .to eq(%w[condiment-sauces-hollandaise])
+      end
+    end
+
     it "leaves the re-scan match columns alone (its upsert must not clobber the matcher)" do
       target = create(:item, restaurant: restaurant, name: "Caesar Salad")
       gap_item.update!(matched_item_id: target.id, match_score: 1.0)

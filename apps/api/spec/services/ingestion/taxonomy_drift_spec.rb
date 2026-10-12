@@ -79,6 +79,22 @@ RSpec.describe "deterministic-resolve taxonomy drift" do
       .to be_subset(ingredient_slugs)
   end
 
+  describe Ingestion::IngredientImplications do
+    it "TABLE keys and implied slugs are live ingredient slugs" do
+      slugs = described_class::TABLE.flat_map { |sauce, implied| [ sauce, *implied ] }
+      expect(slugs.to_set - ingredient_slugs).to be_empty
+    end
+
+    # TABLE is keyed by exact slug. A child node added under a listed
+    # sauce ("garlic aioli") would carry no implied allergen.
+    it "no listed sauce has child nodes the exact-slug lookup would miss" do
+      by_slug = ingredient_seeds.to_h { |r| [ r["slug"], r["path"] ] }
+      parents = described_class::TABLE.keys.map { |slug| by_slug.fetch(slug) }
+      children = ingredient_paths.select { |p| parents.any? { |parent| p.start_with?("#{parent}.") } }
+      expect(children).to eq([])
+    end
+  end
+
   # Every catalog name and alias must survive normalization + segmentation
   # as ONE matchable phrase — a term the scanner can never see (e.g. one
   # destroyed by connective-word splitting) is a silent allergen miss.

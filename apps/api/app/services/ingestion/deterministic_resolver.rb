@@ -185,12 +185,18 @@ module Ingestion
     end
 
     def implied_from_matches(matches, name_claims)
-      matches.filter_map do |match|
+      gluten = matches.filter_map do |match|
         implied_slug = GLUTEN_IMPLICATIONS[match[:slug]]
         next unless implied_slug
 
         derive_row(implied_slug, matches, name_claims, confidence: IMPLIED_BASE_CONFIDENCE)
-      end.uniq
+      end
+      allergens = IngredientImplications.implied(
+        matches.map { |m| m[:slug] }, path_for: @matcher.method(:path_for), claims: name_claims
+      ).filter_map do |slug, _path|
+        derive_row(slug, matches, name_claims, confidence: IMPLIED_BASE_CONFIDENCE)
+      end
+      (gluten + allergens).uniq
     end
 
     def derive_row(slug, matches, name_claims, confidence:)
