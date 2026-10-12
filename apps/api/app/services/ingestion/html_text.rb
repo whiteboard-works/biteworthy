@@ -15,6 +15,7 @@ module Ingestion
     # whitespace ("<td>Hummus</td><td>8</td>", "Hummus<span>$8</span>");
     # a space on both sides keeps the name and the price apart.
     SPACED = "td, th, dt, dd, span, a, option, label, b, strong, em, i"
+    DECLARED_CHARSET = /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i
     MENU_JSON_LD = %r{"@type"\s*:\s*(?:\[[^\]]*?)?"(?:https?://schema\.org/)?Menu|"hasMenu}
 
     def html?(content_type, body)
@@ -23,11 +24,17 @@ module Ingestion
     end
 
     def call(html)
-      # Blobs come back as binary with no charset; menu pages are UTF-8
-      # in practice, and Latin-1 guessing turns "jalapeño" into mojibake
-      # the matcher then cannot resolve.
-      body = html.to_s.dup.force_encoding(Encoding::UTF_8).scrub("")
-      doc = Nokogiri::HTML(body, nil, "UTF-8")
+      # Blobs come back as binary with no charset. A page that declares a
+      # non-UTF-8 charset (<meta charset="windows-1252">) is handed to
+      # Nokogiri raw so the declaration wins; everything else is read as
+      # UTF-8 with stray bytes scrubbed, since Nokogiri's Latin-1 default
+      # turns "jalapeño" into mojibake the matcher cannot resolve.
+      declared = html.to_s.b[0, 4096][DECLARED_CHARSET, 1]&.downcase
+      doc = if declared && !declared.match?(/\Autf-?8\z/)
+        Nokogiri::HTML(html.to_s.b)
+      else
+        Nokogiri::HTML(html.to_s.dup.force_encoding(Encoding::UTF_8).scrub(""), nil, "UTF-8")
+      end
       json_ld = doc.css('script[type="application/ld+json"]').map { |s| s.text.strip }
                    .select { |s| s.match?(MENU_JSON_LD) }
       doc.css(DROPPED).remove

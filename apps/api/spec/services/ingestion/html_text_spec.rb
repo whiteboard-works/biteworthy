@@ -7,6 +7,19 @@ RSpec.describe Ingestion::HtmlText do
     expect(described_class.call(html)).to include("Jalapeño", "béarnaise")
   end
 
+  it "keeps an undeclared UTF-8 page as UTF-8 when one stray byte is invalid" do
+    html = "<html><body><p>Jalapeño béarnaise</p>".b + "\xFF".b + "</body></html>".b
+
+    expect(described_class.call(html)).to include("Jalapeño béarnaise")
+  end
+
+  it "honours a page's declared non-UTF-8 charset" do
+    html = "<html><head><meta charset=\"windows-1252\"></head><body><p>Crème brûlée</p></body></html>"
+             .encode("Windows-1252").b
+
+    expect(described_class.call(html)).to include("Crème brûlée")
+  end
+
   it "keeps a dish name and its price apart when cells sit side by side" do
     html = "<table><tr><td>Hummus</td><td>$8</td></tr></table><span>Falafel</span><span>9</span>"
 
