@@ -360,8 +360,18 @@ RSpec.describe "ingestion tools", type: :service do
         expect(payload(response)[:accepted].first).to include(item_id: live.id, updated_existing: true)
       end
 
-      it "never late-matches on a near name or onto an edited dish" do
-        create(:item, :published, restaurant: restaurant, name: "Carne Asada Tacos Supreme")
+      it "never late-matches on a near name" do
+        create(:item, :published, restaurant: restaurant, name: "Margarita Pizza")
+        pizza = create(:ingestion_item, ingestion_run: run, name: "Margherita Pizza")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [pizza.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+
+      it "never late-matches onto an edited dish" do
         edited = create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", decision: "edited")
         create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
 
