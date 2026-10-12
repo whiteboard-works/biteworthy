@@ -96,9 +96,9 @@ module Tools
             human_payload(Ingredient, ingredient_slugs, "ingredient", keep: item.ingredients_payload)
         end
         attrs[:tags_payload] = human_payload(Tag, tag_slugs, "tag", keep: item.tags_payload) unless tag_slugs.nil?
-        if attrs.key?(:ingredients_payload)
+        if attrs.key?(:ingredients_payload) || attrs.key?(:tags_payload)
           attrs[:tags_payload] = rederive_allergen_tags(attrs.fetch(:tags_payload, item.tags_payload),
-                                                        attrs[:ingredients_payload])
+                                                        attrs.fetch(:ingredients_payload, item.ingredients_payload))
         end
         attrs[:prices_payload]      = normalize_prices(prices)  unless prices.nil?
         attrs[:addons_payload]      = normalize_addons(addons)  unless addons.nil?

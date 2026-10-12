@@ -212,6 +212,17 @@ RSpec.describe "ingestion tools", type: :service do
       )
     end
 
+    it "keeps the allergen tags the ingredients imply when only the tags are replaced" do
+      create(:ingredient, name: "Cheddar", slug: "dairy-cheddar", path: "dairy.cheddar")
+      item.update!(ingredients_payload: [ { "slug" => "dairy-cheddar", "confidence" => 0.9, "source" => "ai" } ],
+                   tags_payload: [ { "slug" => "contains-dairy", "confidence" => 0.9,
+                                     "source" => "ingredient_derived", "from_source" => "ai" } ])
+
+      Tools::Ingestion::EditStagedItem.call(item_id: item.id, tag_slugs: [], server_context: ctx(owner))
+
+      expect(item.reload.tags_payload.map { |t| t["slug"] }).to eq([ "contains-dairy" ])
+    end
+
     it "leaves the unresolved tags alone when only the ingredients were edited" do
       item.update!(unresolved_tags: ["spicy-ish"])
 
