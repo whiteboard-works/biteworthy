@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-12 (UTC) — **Bare "cheese" and "nuts" resolve to their allergen family.** The catalog had no term for either, so the Riverton import staged a dozen "…and cheese" dishes and Chef's Board's "glazed nuts" with no dairy or tree-nut row. `dairy` gains the alias "cheese", `tree_nut` gains "nuts" and "mixed nuts" (longest match still keeps "goat cheese" and "pine nuts" on their own nodes), and Grana Padano, Stracciatella, and Scamorza get nodes. Migration `20261012210000` carries them to production, merging aliases rather than replacing them.
+
 2026-10-12 (UTC) — **Compound sauces carry their allergens.** Aioli, mayonnaise, hollandaise, béarnaise, Caesar, ranch, pesto, Worcestershire, hummus, and a dozen more sit under `condiment`, so a dish matched to them had no egg, dairy, fish, sesame, or tree-nut row and an avoider's path filter showed it as safe (seen on North Italia's aioli dishes and Salsa Leedos' crab enchiladas in hollandaise). `Ingestion::IngredientImplications` lists what each standard recipe contains; the resolver and gap-fill both add those rows as `derived`, and a name's vegan/vegetarian/free-from claim still vetoes them. Dishes already live are not backfilled yet.
 
 2026-10-12 (UTC) — **Gap-fill keeps an invented slug's allergen family instead of dropping it.** A Riverton import logged the model naming `dairy-grana-padano` (×6), `grain-wheat-flour` (×5), `dairy-cheese`, and `dairy-cream`; `GapFillResolveJob#merge_ingredients` dropped every unknown slug, so those dishes lost their dairy and wheat. It now trims hyphen segments to the nearest catalog ancestor (`dairy`, `grain-wheat`) and only drops a slug with no known ancestor.
