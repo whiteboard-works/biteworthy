@@ -377,6 +377,29 @@ RSpec.describe "ingestion tools", type: :service do
         expect(payload(response)[:needs_review].first).to include(updates_existing_item: live.id)
       end
 
+      it "matches the unclaimed twin when another row of this scan claims the first" do
+        claimed = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        free    = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", matched_item_id: claimed.id,
+                                match_score: 1.0)
+
+        response = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+
+        expect(payload(response)[:needs_review].first).to include(updates_existing_item: free.id)
+      end
+
+      it "does not late-match a merely similar name" do
+        create(:item, :published, restaurant: restaurant, name: "Carne Asada Tacos Plate")
+
+        response = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
+
+        expect(payload(response)[:needs_review]).to be_nil
+      end
+
       it "never late-matches a draft" do
         create(:item, restaurant: restaurant, name: "Carne Asada Taco", status: "draft")
 

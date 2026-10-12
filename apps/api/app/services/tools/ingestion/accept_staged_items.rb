@@ -141,14 +141,12 @@ module Tools
           unmatched = candidates.select { |i| fresh.key?(i.id) && fresh[i.id].nil? }
           next {} if unmatched.empty?
 
-          matches = ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched, published_only: true)
-                                                    .select { |_id, m| m[:score] >= 1.0 }
-          claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id).to_set
+          claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id)
+          matches = ::Ingestion::ExistingItemMatcher.call(
+            run: run, items: unmatched, exact_only: true, published_only: true, exclude_item_ids: claimed
+          )
           matches.each_with_object({}) do |(id, match), held|
-            next if claimed.include?(match[:item_id])
-
             IngestionItem.where(id: id).update_all(matched_item_id: match[:item_id], match_score: match[:score])
-            claimed << match[:item_id]
             held[id] = match[:item_id]
           end
         end
