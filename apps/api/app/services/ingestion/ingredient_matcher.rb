@@ -115,7 +115,7 @@ module Ingestion
         negated = start.positive? && NEGATIONS.include?(tokens[start - 1])
         return [ :absence, width ] if ABSENCE_PHRASES.include?(phrase) && !negated
 
-        entry = @index[phrase] || @index[singularize_last(phrase)]
+        entry = @index[phrase] || @index[singularize_last(phrase)] || @index[strip_plural_s(phrase)]
         return [entry, width] if entry
       end
       nil
@@ -169,6 +169,15 @@ module Ingestion
 
       words[-1] = words[-1].singularize
       words.join(" ")
+    end
+
+    # Fallback for plurals the inflector mangles: it applies the
+    # knives → knife rule to "olives" ("olife") and "cloves" ("clofe").
+    # Only consulted after the exact and singularized lookups miss.
+    def strip_plural_s(phrase)
+      return phrase unless phrase.end_with?("s") && !phrase.end_with?("ss")
+
+      phrase.delete_suffix("s")
     end
   end
 end

@@ -15,6 +15,8 @@ RSpec.describe Ingestion::IngredientMatcher do
       ["fruit-lime",        "Lime",        "fruit.lime",        []],
       ["vegetable-jalapeno", "Jalapeño",   "vegetable.jalapeno", []],
       ["legume-peanuts",    "Peanuts",     "legume.peanuts",    []],
+      ["vegetable-olive",   "Olive",       "vegetable.olive",   []],
+      ["spice-clove",       "Clove",       "spice.clove",       []],
     ]
   end
 
@@ -55,6 +57,14 @@ RSpec.describe Ingestion::IngredientMatcher do
 
   it "still matches when the absence phrase is itself negated" do
     expect(slugs("this sauce is not dairy-free")).to include("dairy")
+  end
+
+  # ActiveSupport singularizes "olives" to "olife" and "cloves" to
+  # "clofe" (the knives → knife rule), so a plural olive never matched
+  # and an olive-avoider saw "tomatoes, and olives" as safe.
+  it "bridges -ves plurals the inflector gets wrong" do
+    expect(slugs("lettuce, cheese, tomatoes, and olives")).to include("vegetable-olive")
+    expect(slugs("whole cloves")).to include("spice-clove")
   end
 
   it "prefers the longest phrase and consumes it (no nested bare match)" do
