@@ -53,7 +53,7 @@ module Chat
         # Anything queued, not only what can run: a reply made stale by the
         # turn that just ran is dropped by the next pop, and a message held
         # behind a park is released above as `held_behind_park`.
-        break unless conversation.pending_turns?
+        break unless conversation.reload.pending_turns?
       end
     end
 

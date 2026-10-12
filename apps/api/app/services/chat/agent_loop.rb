@@ -493,7 +493,7 @@ module Chat
       # `call["input"]` rather than `arguments_for`, which symbolizes keys
       # for dispatch into a `perform` signature. Nothing is dispatched
       # here, and the options are stored and compared as they arrived.
-      input    = call["input"] || {}
+      input    = call["input"].is_a?(Hash) ? call["input"] : {}
       question = input["question"].to_s.strip
       options  = Array(input["options"])
       # The element type is checked before anything is read off it. This

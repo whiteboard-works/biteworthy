@@ -879,7 +879,10 @@ export function ChatClient(): ReactElement {
   const answer = async (approved: boolean) => {
     // One turn at a time per tab; the buttons are disabled while one runs,
     // and this covers the instant before `busy` catches up.
-    if (!active || !pending || turn.current) return;
+    // And only for the chat on screen: `open` points the page at the next
+    // chat before its fetch lands, and the old prompt is still drawn in
+    // that gap — a click there must not answer the chat just left.
+    if (!active || !pending || turn.current || active.id !== viewing.current) return;
     const id = active.id;
     const { fingerprint } = pending;
     setPending(null);
@@ -894,7 +897,7 @@ export function ChatClient(): ReactElement {
   const reply = async (chosen: { optionId?: string; text?: string }) => {
     // Same guard as `answer`: one turn per tab, covering the instant
     // before `busy` disables the buttons.
-    if (!active || !question || turn.current) return;
+    if (!active || !question || turn.current || active.id !== viewing.current) return;
     const id = active.id;
     const { fingerprint } = question;
     setQuestion(null);
