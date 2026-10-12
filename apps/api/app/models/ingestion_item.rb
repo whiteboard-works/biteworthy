@@ -221,8 +221,8 @@ class IngestionItem < ApplicationRecord
       # Human edit: replace joins, then re-derive allergen tags through
       # ConfidenceMapper so derived/AI/ingredient_derived stay unconfirmed
       # unless the parent ingredient itself mapped to confirmed.
-      replace_joins_with_confidence!(ItemIngredient, target, Ingredient, ingredients_payload, decided_by, snapshot)
-      replace_joins_with_confidence!(ItemTag, target, Tag, tags_payload, decided_by, snapshot)
+      replace_joins_with_confidence!(ItemIngredient, target, Ingredient, promotion_ingredients, decided_by, snapshot)
+      replace_joins_with_confidence!(ItemTag, target, Tag, promotion_tags, decided_by, snapshot)
       derive_allergen_tags!(target, decided_by, snapshot)
     else
       ingredient_rows = map_joins_with_confidence(Ingredient, promotion_ingredients, decided_by: decided_by)

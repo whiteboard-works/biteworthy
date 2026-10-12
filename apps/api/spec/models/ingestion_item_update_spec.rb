@@ -42,6 +42,18 @@ RSpec.describe IngestionItem, "#promote! (update path)" do
       row.reload.undo!
       expect(target.reload.ingredients).not_to include(egg)
     end
+
+    it "applies on an edited re-scan too, and undo restores the dish's prior ingredients" do
+      target.ingredients << beef
+      row = staged(decision: "edited",
+                   ingredients_payload: [ { "slug" => "condiment-aioli", "confidence" => 1.0, "source" => "human" } ])
+
+      row.promote!
+      expect(target.reload.ingredients).to contain_exactly(aioli, egg)
+
+      row.reload.undo!
+      expect(target.reload.ingredients).to contain_exactly(beef)
+    end
   end
 
   describe "linking" do
