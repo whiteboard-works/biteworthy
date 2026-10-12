@@ -55,6 +55,16 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(slugs("cheese-free pizza, no cheese, without cheese")).to be_empty
   end
 
+  it "does not read a vodka brand as goose" do
+    m = described_class.new(rows + [
+      ["alcohol-beer", "Beer", "alcohol.beer", []], ["poultry-domestic-goose", "Goose", "poultry.goose", []],
+      ["alcohol-vodka", "Vodka", "alcohol.vodka", []],
+      ["condiment-ginger-ale", "Ginger Ale", "condiment.ginger_ale", ["ginger beer"]],
+    ])
+    slugs = m.scan("fever tree ginger beer, grey goose vodka, draft beer").first.map { |r| r[:slug] }
+    expect(slugs).to contain_exactly("condiment-ginger-ale", "alcohol-vodka", "alcohol-beer")
+  end
+
   it "still matches when the absence phrase is itself negated" do
     expect(slugs("this sauce is not dairy-free")).to include("dairy")
     expect(slugs("this sauce isn't dairy-free")).to include("dairy")
