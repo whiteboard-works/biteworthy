@@ -23,21 +23,19 @@ class RetireFalseFriendAliases < ActiveRecord::Migration[8.1]
 
   ADD = { "vegetable-bell-pepper" => [ "peppers" ] }.freeze
 
+  # Each node on its own: a fresh database (migrations run before db:seed)
+  # has none of them, and a node an admin renamed must not hold back the
+  # other changes, since a migration never runs twice.
   def up
-    slugs = REMOVE.keys + ADD.keys
-    unless MigrationIngredient.where(slug: slugs).count == slugs.size
-      puts "Taxonomy not seeded; skipping (db:seed carries these aliases)"
-      return
-    end
+    REMOVE.each { |slug, aliases| change_aliases(slug) { |current| current - aliases } }
+    ADD.each    { |slug, aliases| change_aliases(slug) { |current| current | aliases } }
+  end
 
-    REMOVE.each do |slug, aliases|
-      ing = MigrationIngredient.find_by!(slug: slug)
-      ing.update!(aliases: Array(ing.aliases) - aliases)
-    end
-    ADD.each do |slug, aliases|
-      ing = MigrationIngredient.find_by!(slug: slug)
-      ing.update!(aliases: Array(ing.aliases) | aliases)
-    end
+  def change_aliases(slug)
+    ing = MigrationIngredient.find_by(slug: slug)
+    return say("#{slug} not found; skipping (db:seed carries its aliases)") if ing.nil?
+
+    ing.update!(aliases: yield(Array(ing.aliases)))
   end
 
   def down

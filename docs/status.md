@@ -25,7 +25,7 @@ at a time has worked.
 
 2026-10-12 (UTC) — **Scan status tells the truth about time and failure.** The scan tools promised extraction in 20–60 seconds; the Riverton import measured 25–108 s per PDF plus up to a minute and a half of enrichment, and an agent polling on the old promise thought the scan was stuck. They now say 20 seconds to two minutes. A run that fails before resolve also stops reporting `enrichment_status: "pending"` (nothing will ever enrich it), so pollers stop waiting.
 
-2026-10-12 (UTC) — **Fewer false-friend matches.** The bare aliases "french" and "italian" sent French Toast to French dressing and Italian Meatballs (and "italian fig gin") to Italian dressing; they are retired, and "French dressing"/"Italian dressing" still match. Plural "peppers" now means bell pepper instead of black pepper. "Grey Goose" is never read as goose. Migration `20261012230000` carries the alias changes to production.
+2026-10-12 (UTC) — **Fewer false-friend matches.** The bare aliases "french" and "italian" sent French Toast to French dressing and Italian Meatballs (and "italian fig gin") to Italian dressing; they are retired, and "French dressing"/"Italian dressing" still match. Plural "peppers" now means bell pepper instead of black pepper. Migration `20261012230000` carries the alias changes to production.
 
 2026-10-12 (UTC) — **`search_taxonomy` puts the thing you asked for first.** Ordered by taxonomy path, "egg" listed Vegetable Broth, Parmesan, and Taleggio before Egg, so an agent resolving a slug with a small limit could miss it. Ingredient results now rank an exact name or alias first, then names that start with the query, then path.
 

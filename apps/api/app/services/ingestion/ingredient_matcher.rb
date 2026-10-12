@@ -40,16 +40,11 @@ module Ingestion
     # dressing" and "vegan cheese" matched dairy and a vegan dish lost its
     # vegan tag. They are consumed as leftovers, so gap-fill and the
     # reviewer still see them (a vegan cheese is often cashew or soy).
-    #
-    # Also a false friend whose words are catalog terms but whose thing is
-    # not: Grey Goose is a vodka. (Ginger beer is an alias of the soda node
-    # instead, so it still matches something.)
     ABSENCE_PHRASES = [
       "dairy free", "non dairy", "cheese free", "no cheese", "without cheese",
       "vegan cheese", "plant based cheese", "dairy free cheese", "non dairy cheese",
       "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo",
-      "nut free", "tree nut free", "peanut free", "no nuts", "without nuts",
-      "grey goose"
+      "nut free", "tree nut free", "peanut free", "no nuts", "without nuts"
     ].freeze
 
     NEGATIONS = %w[not isnt nor].freeze

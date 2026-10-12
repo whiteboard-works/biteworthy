@@ -39,10 +39,10 @@ RSpec.describe RetireFalseFriendAliases do
     expect(slugs).to contain_exactly("vegetable-bell-pepper", "herb-pepper", "condiment-dressings-italian")
   end
 
-  it "does nothing under an unseeded taxonomy" do
+  it "still retires the dressing aliases when another node is missing" do
     Ingredient.where(slug: "vegetable-bell-pepper").delete_all
 
-    expect { described_class.new.up }.to output(/not seeded/).to_stdout
-    expect(Ingredient.find_by!(slug: "condiment-dressings-french").aliases).to include("french")
+    expect { described_class.new.up }.to output(/vegetable-bell-pepper not found/).to_stdout
+    expect(Ingredient.find_by!(slug: "condiment-dressings-french").aliases).not_to include("french")
   end
 end
