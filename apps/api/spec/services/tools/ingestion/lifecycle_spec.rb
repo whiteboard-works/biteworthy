@@ -65,11 +65,12 @@ RSpec.describe "ingestion tools", type: :service do
     end
 
     it "can list a big scan compactly without losing confidence or source" do
+      item.update!(ingredients_payload: [ { slug: "meat-beef", confidence: 1.0, source: "match" } ])
       dish = payload(Tools::Ingestion::ListStagedItems.call(
         scan_id: run.id, compact: true, server_context: ctx(owner)
       ))[:dishes].first
 
-      expect(dish[:ingredients].first).to start_with("meat-beef (1.0")
+      expect(dish[:ingredients].first).to eq("meat-beef (1.0, match)")
       expect(dish).not_to include(:prices, :addons)
     end
 
