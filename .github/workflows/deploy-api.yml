@@ -7,10 +7,14 @@ name: Deploy API
 #
 # ── Required repo secrets (Settings → Secrets and variables → Actions) ──
 #   KAMAL_SECRETS_B64   base64 of apps/api/.kamal/secrets — the same file Kamal
-#                       reads locally, holding every app secret AND
-#                       KAMAL_REGISTRY_PASSWORD. After changing any value in
-#                       .kamal/secrets, resync it with:
+#                       reads locally, holding every app secret. After changing
+#                       any value in .kamal/secrets, resync it with:
 #                         apps/api/bin/kamal-secrets-push   (add --deploy to ship)
+#                       Its KAMAL_REGISTRY_PASSWORD (a classic PAT, for laptop
+#                       deploys) is NOT used here: this workflow logs into GHCR
+#                       with its own GITHUB_TOKEN, which cannot expire. Two
+#                       deploys on 2026-10-12 were denied at `docker login
+#                       ghcr.io` by a PAT that had worked the day before.
 #   SSH_PRIVATE_KEY     private key with root@87.99.137.181 access (the box's
 #                       provisioning key), full text including the BEGIN/END lines.
 #   SSH_KNOWN_HOSTS     pinned known_hosts lines for the box. Host keys are
@@ -21,8 +25,8 @@ name: Deploy API
 #                       confirming a rebuild — see the note by Configure SSH.
 #
 # Kamal builds the amd64 image on the runner and pushes it to GHCR itself (it
-# logs in with KAMAL_REGISTRY_PASSWORD from the secrets file), then SSHes to the
-# box to pull + boot. The entrypoint runs db:prepare on boot, so migrations ride
+# logs in with the GITHUB_TOKEN swapped into the secrets file below), then SSHes
+# to the box to pull + boot. The entrypoint runs db:prepare on boot, so migrations ride
 # along; kamal-proxy keeps traffic on the old release until /up passes.
 
 on:
@@ -37,6 +41,13 @@ concurrency:
   # Serialize deploys; never cancel one mid-flight (would leave a half cutover).
   group: deploy-api
   cancel-in-progress: false
+
+# `packages: write` is what lets GITHUB_TOKEN push ghcr.io/whiteboard-works/
+# biteworthy-api. Everything else the job does goes through the SSH key and the
+# secrets file, so the token needs nothing more.
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   deploy:
@@ -152,9 +163,19 @@ jobs:
       - name: Materialize Kamal secrets
         env:
           KAMAL_SECRETS_B64: ${{ secrets.KAMAL_SECRETS_B64 }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           printf '%s' "$KAMAL_SECRETS_B64" | base64 -d > apps/api/.kamal/secrets
           test -s apps/api/.kamal/secrets
+          # The registry login uses the job's own token, not the PAT in the
+          # file. A classic PAT expires or gets revoked and the deploy dies at
+          # `docker login ghcr.io` with "denied" (2026-10-12, twice); the job
+          # token is minted per run and `packages: write` above covers the
+          # push. The PAT line stays in the file for laptop deploys only.
+          grep -v '^KAMAL_REGISTRY_PASSWORD=' apps/api/.kamal/secrets > apps/api/.kamal/secrets.ci
+          printf 'KAMAL_REGISTRY_PASSWORD=%s\n' "$GITHUB_TOKEN" >> apps/api/.kamal/secrets.ci
+          mv apps/api/.kamal/secrets.ci apps/api/.kamal/secrets
 
       - name: Kamal deploy
         working-directory: apps/api
