@@ -52,8 +52,9 @@ module Tools
       )
 
       # destructive_hint: writes to a live menu, and a client that surfaces
-      # this hint should be asking the user first.
-      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: true)
+      # this hint should be asking the user first. Not idempotent: a
+      # replay can confirm a late match the first call held for review.
+      annotations(read_only_hint: false, destructive_hint: true, idempotent_hint: false)
 
       # `undo_staged_item` exists precisely to reverse this, and reverses
       # what it did to the live menu with it.
