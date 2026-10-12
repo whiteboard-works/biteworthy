@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "c8610891-46f8-487d-b5c0-327f07da9bc3"
+      }
+    },
+    "plugins": [
+      "posthog-react-native/expo"
+    ]
+  }
+}
