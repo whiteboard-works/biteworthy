@@ -41,6 +41,17 @@ module Ingestion
     # 200 chars allows for some markup while catching empty pages.
     MIN_TEXT_LENGTH = 200
 
+    # The same check on a fetched page's VISIBLE text, which has no markup
+    # to pad it: three dishes and prices clear it, an empty app shell
+    # does not.
+    MIN_PAGE_TEXT_LENGTH = 20
+
+    # About 50k tokens, far above any real menu page's visible text
+    # (North Italia's full dinner page is 37k characters); past it the
+    # call would fail at the provider with a raw "prompt is too long".
+    # Fetched pages only: pasted text has its own ceiling in StartRun.
+    MAX_TEXT_LENGTH = 200_000
+
     def self.call(run) = new(run).call
 
     def initialize(run)
@@ -65,8 +76,23 @@ module Ingestion
       # SinglePlatform and other JS-rendered sites return HTML shells with no
       # menu text, which create empty text blocks that Anthropic rejects.
       if blobs.all? { |b| text_content_type?(b.content_type.to_s) }
-        combined_text = blobs.map { |b| b.download.to_s.strip }.join(" ")
-        if combined_text.length < MIN_TEXT_LENGTH
+        # Measured on what the model will be sent: a JS-rendered page can
+        # be megabytes of script around an empty <div id="app">.
+        texts = blobs.map do |b|
+          body = b.download.to_s
+          html = HtmlText.html?(b.content_type, body)
+          [ html, (html ? HtmlText.call(body) : body).strip ]
+        end
+        if texts.select(&:first).sum { |_, text| text.length } > MAX_TEXT_LENGTH
+          @run.fail!("menu_too_large: The page has more text than one scan can read. " \
+                     "Link the menu page itself, or upload the menu as a PDF.")
+          return
+        end
+        # A fetched page is judged on its visible text, where a small café's
+        # whole menu can be under 200 characters; pasted text keeps the
+        # original bar.
+        min_length = texts.any?(&:first) ? MIN_PAGE_TEXT_LENGTH : MIN_TEXT_LENGTH
+        if texts.map(&:last).join(" ").length < min_length
           @run.fail!("no_menu_text: The URL returned no menu content (JS-rendered site). " \
                      "Upload the menu as a PDF or photos, or paste the menu text.")
           return
@@ -121,6 +147,14 @@ module Ingestion
         # Saved before the transaction below, not inside it: a rollback there
         # must not also discard the answer we just bought.
         @run.update!(staging: result, latency_ms: elapsed_ms)
+      end
+
+      # A page with a header and phone numbers but no menu (a JS-rendered
+      # site) passes the length check above; the model then finds nothing.
+      if Array(result["sections"]).sum { |s| Array(s["items"]).size }.zero?
+        @run.fail!("no_dishes_found: We read the menu but found no dishes in it. " \
+                   "Try the menu page itself, clearer photos or a PDF, or paste the menu text.")
+        return
       end
 
       # Materialize the dishes NOW, with empty ingredient/tag payloads, so a

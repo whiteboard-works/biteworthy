@@ -131,7 +131,8 @@ module Ingestion
       if ct == "application/pdf"
         client.document_block(blob)
       elsif ct.start_with?("text/") || ct == "application/xml"
-        { type: "text", text: blob.download.to_s }
+        body = blob.download.to_s
+        { type: "text", text: HtmlText.html?(ct, body) ? HtmlText.call(body) : body }
       else
         client.image_block(blob)
       end
