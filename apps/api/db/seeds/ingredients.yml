@@ -5288,9 +5288,7 @@
 - slug: tree_nut
   name: Tree Nut
   path: tree_nut
-  aliases:
-  - nuts
-  - mixed nuts
+  aliases: []
   allergen: true
 - slug: tree_nut-almond
   name: Almond

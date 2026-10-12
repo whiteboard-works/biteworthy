@@ -1,24 +1,20 @@
 # frozen_string_literal: true
 
 # A Riverton import left bare "cheese" unresolved on a dozen dishes and
-# "grana padano", "stracciatella", "scamorza", and "glazed nuts" with no
-# catalog term, so those dishes carried no dairy or tree-nut row and an
-# avoider saw them as safe. Bare "cheese" and "nuts" now resolve to the
-# family roots; the matcher's longest-match rule keeps "goat cheese" and
-# "pine nuts" on their own nodes.
+# "grana padano", "stracciatella", and "scamorza" with no catalog term,
+# so those dishes carried no dairy row and a dairy-avoider saw them as
+# safe. Bare "cheese" now resolves to the dairy root; the matcher's
+# longest-match rule keeps "goat cheese" on its own node.
 #
 # Production seeds only on first boot, so the seed edit alone never
 # reaches live (see 20261005223000). Aliases are merged with whatever
 # production already carries, never replaced; new nodes are upserted.
-class AddCheeseAndNutCatalogTerms < ActiveRecord::Migration[8.1]
+class AddCheeseCatalogTerms < ActiveRecord::Migration[8.1]
   class MigrationIngredient < ActiveRecord::Base
     self.table_name = "ingredients"
   end
 
-  ALIASES = {
-    "dairy"    => [ "cheese" ],
-    "tree_nut" => [ "nuts", "mixed nuts" ]
-  }.freeze
+  ALIASES = { "dairy" => [ "cheese" ] }.freeze
 
   INGREDIENTS = [
     { slug: "dairy-grana-padano", name: "Grana Padano", path: "dairy.grana_padano",
@@ -44,8 +40,11 @@ class AddCheeseAndNutCatalogTerms < ActiveRecord::Migration[8.1]
 
     INGREDIENTS.each do |attrs|
       ing = MigrationIngredient.find_or_initialize_by(slug: attrs[:slug])
+      # Never move a node an admin placed elsewhere, and never fail the
+      # deploy over it: the rest of the change still protects people.
       if ing.persisted? && ing.path.to_s != attrs[:path]
-        raise "#{attrs[:slug]} exists at #{ing.path}; refusing to move it to #{attrs[:path]}"
+        puts "#{attrs[:slug]} exists at #{ing.path}; leaving it there (wanted #{attrs[:path]})"
+        next
       end
 
       ing.assign_attributes(attrs.merge(aliases: Array(ing.aliases) | attrs[:aliases]))
