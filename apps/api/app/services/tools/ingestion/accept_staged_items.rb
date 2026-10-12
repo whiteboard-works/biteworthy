@@ -28,8 +28,10 @@ module Tools
         showing up for them.
 
         A dish that another scan of this restaurant has put on the menu since
-        this one was staged is updated rather than duplicated; the result
-        marks it `updated_existing: true`.
+        this one was staged is not accepted: it comes back under
+        `needs_review` with the live dish it would update, and its staged
+        card now shows `updates_existing_item`. Show the user, then accept it
+        again to apply it as an update rather than a duplicate.
 
         Reversible with `undo_staged_item`.
       TEXT
@@ -66,12 +68,21 @@ module Tools
         items = select_items(run, item_ids, all)
         raise Errors::InvalidArgument, "Nothing to accept — pass item_ids, or all: true." if items.empty?
 
-        rematch_unmatched!(run, items) if run.staged? || run.published?
+        late = run.staged? || run.published? ? rematch_unmatched!(run, items) : {}
 
         accepted = []
         failed   = []
+        review   = []
 
         items.each do |item|
+          # Held back: the reviewer saw this as a new dish, and accepting it
+          # now would edit a live one. Its card now shows the match; a
+          # second accept is the confirmation.
+          if late.key?(item.id)
+            review << { id: item.id, name: untrusted(item.name), updates_existing_item: late[item.id] }
+            next
+          end
+
           accepted << accept_one(run, item, user)
         rescue StandardError => e
           # One bad dish must not abandon the rest half-published. Report it
@@ -86,6 +97,7 @@ module Tools
         ok(
           accepted:  accepted,
           failed:    failed.presence,
+          needs_review: review.presence,
           restaurant_published: Restaurant.published.exists?(id: run.restaurant_id),
           remaining_pending: run.ingestion_items.where(decision: %w[pending edited]).count
         )
@@ -109,25 +121,31 @@ module Tools
       # one resolved was never a match candidate (four PDFs of one menu
       # scanned at once all resolve against an empty menu), so accepting
       # both would double every shared dish. One matcher pass per accept,
-      # the same matcher resolve uses, turns those into updates; the result
-      # reports them as `updated_existing`.
+      # the same matcher resolve uses, records those matches so the dish
+      # becomes an update rather than a twin.
       #
-      # Narrower than resolve, because nobody saw this match before deciding:
-      # exact names only (a fuzzy merge rewrites a live dish), pending rows
-      # only (an edited row is a person's version of a new dish), and never
-      # a live dish another row of this scan already claims.
+      # Nobody saw the match before deciding, so it is narrower than
+      # resolve's — exact names, pending rows, published dishes, and never a
+      # live dish another row of this scan already claims — and the dish is
+      # held back from this accept for the reviewer to confirm. Returns
+      # { ingestion_item_id => live item id } for the ones held back.
       def self.rematch_unmatched!(run, items)
         unmatched = items.select { |i| i.decision == "pending" && i.matched_item_id.nil? && i.item_id.nil? }
-        return if unmatched.empty?
+        return {} if unmatched.empty?
 
+        matches = ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched)
+                                                  .select { |_id, m| m[:score] >= 1.0 }
+        return {} if matches.empty?
+
+        published = Item.where(id: matches.values.map { |m| m[:item_id] }, status: "published").pluck(:id).to_set
         claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id).to_set
-        ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched).each do |id, match|
-          next if match[:score] < 1.0 || claimed.include?(match[:item_id])
+        matches.each_with_object({}) do |(id, match), held|
+          next if !published.include?(match[:item_id]) || claimed.include?(match[:item_id])
 
-          # promote! re-reads the row under lock, so it sees this.
           IngestionItem.where(id: id, matched_item_id: nil)
                        .update_all(matched_item_id: match[:item_id], match_score: match[:score])
           claimed << match[:item_id]
+          held[id] = match[:item_id]
         end
       end
       private_class_method :rematch_unmatched!

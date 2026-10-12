@@ -348,16 +348,32 @@ RSpec.describe "ingestion tools", type: :service do
     # was accepted, so none matched the others, and accepting the brunch
     # menu after the dinner menu would have doubled every shared dish.
     context "when another scan put the same dish on the menu after this one resolved" do
-      it "updates that dish instead of creating a duplicate" do
+      it "holds it for review, then updates that dish instead of creating a duplicate" do
         live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
         expect(item.matched_item_id).to be_nil
 
-        response = Tools::Ingestion::AcceptStagedItems.call(
+        first = Tools::Ingestion::AcceptStagedItems.call(
           scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
         )
+        expect(payload(first)[:accepted]).to be_empty
+        expect(payload(first)[:needs_review].first).to include(id: item.id, updates_existing_item: live.id)
+        expect(item.reload.matched_item_id).to eq(live.id)
 
+        second = Tools::Ingestion::AcceptStagedItems.call(
+          scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+        )
         expect(Item.where(restaurant: restaurant).count).to eq(1)
-        expect(payload(response)[:accepted].first).to include(item_id: live.id, updated_existing: true)
+        expect(payload(second)[:accepted].first).to include(item_id: live.id, updated_existing: true)
+      end
+
+      it "never late-matches a draft" do
+        create(:item, restaurant: restaurant, name: "Carne Asada Taco", status: "draft")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
       end
 
       it "never late-matches on a near name" do
