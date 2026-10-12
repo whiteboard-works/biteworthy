@@ -35,6 +35,19 @@ module Ingestion
       melted warm cold
     ].freeze
 
+    # Phrases that name the ABSENCE of an ingredient. "Dairy" is the root
+    # node's own name and "cheese" its alias, so without this "dairy-free
+    # dressing" and "vegan cheese" matched dairy and a vegan dish lost its
+    # vegan tag. They are consumed as leftovers, so gap-fill and the
+    # reviewer still see them (a vegan cheese is often cashew or soy).
+    ABSENCE_PHRASES = [
+      "dairy free", "non dairy", "cheese free", "no cheese", "without cheese",
+      "vegan cheese", "plant based cheese", "dairy free cheese", "non dairy cheese",
+      "vegan parmesan", "vegan mozzarella", "vegan butter", "vegan mayo"
+    ].freeze
+
+    NEGATIONS = %w[not isnt nor].freeze
+
     Match = Data.define(:slug, :path, :confidence, :kind)
 
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))
@@ -45,7 +58,7 @@ module Ingestion
         add_term(name, slug:, path: path.to_s, kind: :name)
         Array(aliases).each { |a| add_term(a, slug:, path: path.to_s, kind: :alias) }
       end
-      @max_ngram = @index.keys.map { |k| k.count(" ") + 1 }.max || 1
+      @max_ngram = (@index.keys + ABSENCE_PHRASES).map { |k| k.count(" ") + 1 }.max
     end
 
     # Scan one text; returns [matches, leftovers] where matches is an
@@ -79,7 +92,10 @@ module Ingestion
       i = 0
       while i < tokens.length
         hit, width = longest_match_at(tokens, i)
-        if hit
+        if hit == :absence
+          run.concat(tokens[i, width])
+          i += width
+        elsif hit
           flush_leftover(run, leftovers)
           best = matches[hit.slug]
           matches[hit.slug] = hit if best.nil? || hit.confidence > best.confidence
@@ -95,6 +111,10 @@ module Ingestion
     def longest_match_at(tokens, start)
       [@max_ngram, tokens.length - start].min.downto(1) do |width|
         phrase = tokens[start, width].join(" ")
+        # "not dairy-free" asserts the ingredient; let it match as before.
+        negated = start.positive? && NEGATIONS.include?(tokens[start - 1])
+        return [ :absence, width ] if ABSENCE_PHRASES.include?(phrase) && !negated
+
         entry = @index[phrase] || @index[singularize_last(phrase)]
         return [entry, width] if entry
       end

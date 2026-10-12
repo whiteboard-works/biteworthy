@@ -6,6 +6,7 @@ RSpec.describe Ingestion::IngredientMatcher do
   let(:rows) do
     [
       ["dairy-cheese",      "Cheese",      "dairy.cheese",      %w[queso fromage]],
+      ["dairy",             "Dairy",       "dairy",             []],
       ["dairy-goat-cheese", "Goat Cheese", "dairy.goat_cheese", []],
       ["meat-beef",         "Beef",        "meat.beef",         %w[steak]],
       ["meat-steak",        "Steak",       "meat.steak",        []],
@@ -39,6 +40,21 @@ RSpec.describe Ingestion::IngredientMatcher do
   it "bridges plurals both ways via last-word singularization" do
     expect(slugs("Tomatoes")).to include("vegetable-tomato")
     expect(slugs("peanut sauce")).to include("legume-peanuts")
+  end
+
+  # "Dairy" is the root node's own name, so "dairy-free dressing" matched
+  # dairy, and "vegan cheese" would match the dairy root's "cheese" alias.
+  # These phrases name the absence of the thing, so they must stay
+  # leftovers for gap-fill and the reviewer, never a catalog match.
+  it "never matches a phrase that names the absence of an ingredient" do
+    matches, leftovers = matcher.scan("dairy-free dressing, topped with vegan cheese, non-dairy cheese")
+    expect(matches.map { |m| m[:slug] }).to be_empty
+    expect(leftovers).to include("vegan cheese", "non dairy cheese")
+    expect(slugs("cheese-free pizza, no cheese, without cheese")).to be_empty
+  end
+
+  it "still matches when the absence phrase is itself negated" do
+    expect(slugs("this sauce is not dairy-free")).to include("dairy")
   end
 
   it "prefers the longest phrase and consumes it (no nested bare match)" do

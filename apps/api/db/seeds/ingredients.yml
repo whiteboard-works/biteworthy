@@ -845,7 +845,8 @@
 - slug: dairy
   name: Dairy
   path: dairy
-  aliases: []
+  aliases:
+  - cheese
   allergen: true
 - slug: dairy-alfredo
   name: Alfredo Sauce
@@ -1092,6 +1093,12 @@
   path: dairy.gouda
   aliases: []
   allergen: true
+- slug: dairy-grana-padano
+  name: Grana Padano
+  path: dairy.grana_padano
+  aliases:
+  - grana
+  allergen: true
 - slug: dairy-greek-yogurt
   name: Greek Yogurt
   path: dairy.greek_yogurt
@@ -1297,6 +1304,11 @@
   path: dairy.roquefort
   aliases: []
   allergen: true
+- slug: dairy-scamorza
+  name: Scamorza
+  path: dairy.scamorza
+  aliases: []
+  allergen: true
 - slug: dairy-skim-milk
   name: Skim Milk
   path: dairy.skim_milk
@@ -1312,6 +1324,11 @@
 - slug: dairy-stilton
   name: Stilton
   path: dairy.stilton
+  aliases: []
+  allergen: true
+- slug: dairy-stracciatella
+  name: Stracciatella
+  path: dairy.stracciatella
   aliases: []
   allergen: true
 - slug: dairy-string-cheese
