@@ -344,7 +344,6 @@ RSpec.describe "ingestion tools", type: :service do
       expect(response.to_h[:isError]).to be(true)
     end
 
-    # A re-scan matched to a live dish must edit it, not duplicate it.
     # Four PDFs of one restaurant scanned at once: each resolved before any
     # was accepted, so none matched the others, and accepting the brunch
     # menu after the dinner menu would have doubled every shared dish.
@@ -360,8 +359,32 @@ RSpec.describe "ingestion tools", type: :service do
         expect(Item.where(restaurant: restaurant).count).to eq(1)
         expect(payload(response)[:accepted].first).to include(item_id: live.id, updated_existing: true)
       end
+
+      it "never late-matches on a near name or onto an edited dish" do
+        create(:item, :published, restaurant: restaurant, name: "Carne Asada Tacos Supreme")
+        edited = create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", decision: "edited")
+        create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [edited.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
+
+      it "does not let two staged dishes claim one live dish" do
+        live = create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco")
+        create(:ingestion_item, ingestion_run: run, name: "Carne Asada Taco", matched_item_id: live.id, match_score: 1.0)
+
+        expect {
+          Tools::Ingestion::AcceptStagedItems.call(
+            scan_id: run.id, item_ids: [item.id], server_context: ctx(owner)
+          )
+        }.to change(Item, :count).by(1)
+      end
     end
 
+    # A re-scan matched to a live dish must edit it, not duplicate it.
     context "when the dish matches one already on the menu" do
       let!(:existing) { create(:item, :published, restaurant: restaurant, name: "Carne Asada Taco") }
 

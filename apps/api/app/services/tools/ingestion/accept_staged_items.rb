@@ -111,14 +111,23 @@ module Tools
       # both would double every shared dish. One matcher pass per accept,
       # the same matcher resolve uses, turns those into updates; the result
       # reports them as `updated_existing`.
+      #
+      # Narrower than resolve, because nobody saw this match before deciding:
+      # exact names only (a fuzzy merge rewrites a live dish), pending rows
+      # only (an edited row is a person's version of a new dish), and never
+      # a live dish another row of this scan already claims.
       def self.rematch_unmatched!(run, items)
-        unmatched = items.select { |i| i.matched_item_id.nil? && i.item_id.nil? }
+        unmatched = items.select { |i| i.decision == "pending" && i.matched_item_id.nil? && i.item_id.nil? }
         return if unmatched.empty?
 
+        claimed = run.ingestion_items.where.not(matched_item_id: nil).pluck(:matched_item_id).to_set
         ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched).each do |id, match|
+          next if match[:score] < 1.0 || claimed.include?(match[:item_id])
+
           # promote! re-reads the row under lock, so it sees this.
           IngestionItem.where(id: id, matched_item_id: nil)
                        .update_all(matched_item_id: match[:item_id], match_score: match[:score])
+          claimed << match[:item_id]
         end
       end
       private_class_method :rematch_unmatched!
