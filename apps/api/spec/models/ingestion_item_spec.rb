@@ -26,6 +26,49 @@ RSpec.describe IngestionItem, type: :model do
       expect(promoted.confidence).to eq("confirmed")
     end
 
+    # A scan resolved before IngredientImplications existed, or a gap-fill
+    # retry that reused already-enriched rows, can reach accept with aioli
+    # and no egg. Accept is the one door every staged dish goes through,
+    # so the implication is enforced here.
+    context "when the staged dish carries a compound sauce without its allergen" do
+      let!(:aioli)   { create(:ingredient, slug: "condiment-aioli", path: "condiment.aioli") }
+      let!(:egg)     { create(:ingredient, slug: "egg", path: "egg") }
+      let!(:egg_tag) { create(:tag, slug: "contains-egg", family: "allergen") }
+
+      before do
+        item.update!(ingredients_payload: [ { "slug" => "condiment-aioli", "confidence" => 0.9, "source" => "ai" } ],
+                     tags_payload: [])
+      end
+
+      it "adds the implied ingredient and its allergen tag to the live dish" do
+        promoted = item.promote!
+
+        expect(promoted.ingredients).to include(egg)
+        expect(promoted.item_ingredients.find_by!(ingredient: egg).source).to eq("derived")
+        expect(promoted.tags).to include(egg_tag)
+      end
+
+      it "leaves the staged row as it was scanned, so undo and the audit trail see no egg" do
+        item.promote!
+
+        expect(item.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "condiment-aioli" ])
+      end
+
+      it "still honours a vegan name claim" do
+        item.update!(name: "Vegan Aioli Fries")
+
+        expect(item.promote!.ingredients).not_to include(egg)
+      end
+
+      # `edited` is also set by fixing a typo in the description; nothing
+      # records that the person meant to remove the egg.
+      it "still applies to a dish a person edited" do
+        item.update!(decision: "edited", description: "Fixed a typo")
+
+        expect(item.promote!.ingredients).to include(egg)
+      end
+    end
+
     it "sets menu_section from section_name when present" do
       item.update!(section_name: "Tacos")
 
