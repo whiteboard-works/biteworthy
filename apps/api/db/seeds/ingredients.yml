@@ -5354,7 +5354,8 @@
 - slug: tree_nut-cashew
   name: Cashew
   path: tree_nut.cashew
-  aliases: []
+  aliases:
+  - cashew nuts
   allergen: true
 - slug: tree-nut-cashew-butter
   name: Cashew butter
@@ -5417,6 +5418,19 @@
   path: tree_nut.hickory
   aliases: []
   allergen: true
+- slug: tree_nut-macadamia
+  name: Macadamia
+  path: tree_nut.macadamia
+  aliases:
+  - macadamia nuts
+  allergen: true
+- slug: tree-nut-macadamia-milk
+  name: Macadamia Milk
+  path: tree_nut.macadamia_milk
+  aliases:
+  - macadamiamilk
+  - macadamia beverage
+  allergen: true
 - slug: tree_nut-mixed-nuts
   name: Mixed Nuts
   path: tree_nut.mixed_nuts
@@ -5426,22 +5440,11 @@
   - candied nuts
   - spiced nuts
   allergen: true
-- slug: tree_nut-macadamia
-  name: Macadamia
-  path: tree_nut.macadamia
-  aliases: []
-  allergen: true
-- slug: tree-nut-macadamia-milk
-  name: Macadamia Milk
-  path: tree_nut.macadamia_milk
-  aliases:
-  - macadamiamilk
-  - macadamia beverage
-  allergen: true
 - slug: tree_nut-pecan
   name: Pecan
   path: tree_nut.pecan
-  aliases: []
+  aliases:
+  - pecan nuts
   allergen: true
 - slug: tree_nut-pine-nuts
   name: Pine nuts
@@ -5459,6 +5462,7 @@
   path: tree_nut.pistacia
   aliases:
   - Pistacia
+  - pistachio nuts
   allergen: true
 - slug: tree_nut-pumpkin-seed
   name: Pumpkin seed

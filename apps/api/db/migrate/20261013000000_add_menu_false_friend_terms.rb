@@ -4,7 +4,8 @@
 # beer (hiding a zero-proof drink from a celiac filter) and "Grey Goose"
 # goose; a menu's "glazed nuts" matched nothing, so a tree-nut or peanut
 # avoider saw the dish as safe; "carne asada" never meant beef; and
-# "Chicken Fried Steak" matched chicken. Production seeds only on first
+# "Chicken Fried Steak" matched chicken. Specific nuts gain a "<name> nuts"
+# alias so the new bare "nuts" does not also fire on them. Production seeds only on first
 # boot (see 20261005223000), so this carries the seed edit: aliases are
 # merged, never replaced, and a node an admin placed elsewhere is left.
 class AddMenuFalseFriendTerms < ActiveRecord::Migration[8.1]
@@ -15,7 +16,13 @@ class AddMenuFalseFriendTerms < ActiveRecord::Migration[8.1]
   ALIASES = {
     "alcohol"               => [ "hard ginger beer", "hard root beer", "spiked root beer" ],
     "condiment-ginger-ale"  => [ "ginger beer" ],
-    "meat-beef-skirt-steak" => [ "carne asada" ]
+    "meat-beef-skirt-steak" => [ "carne asada" ],
+    # So "cashew nuts" is read whole, not as cashew plus Mixed Nuts (and
+    # the peanut Mixed Nuts implies).
+    "tree_nut-cashew"       => [ "cashew nuts" ],
+    "tree_nut-macadamia"    => [ "macadamia nuts" ],
+    "tree_nut-pecan"        => [ "pecan nuts" ],
+    "tree_nut-pistacia"     => [ "pistachio nuts" ]
   }.freeze
 
   INGREDIENTS = [
@@ -27,18 +34,26 @@ class AddMenuFalseFriendTerms < ActiveRecord::Migration[8.1]
       aliases: [ "nuts", "glazed nuts", "candied nuts", "spiced nuts" ], allergen: true }
   ].freeze
 
-  def up
-    ALIASES.each do |slug, aliases|
-      ing = MigrationIngredient.find_by(slug: slug)
-      next say("#{slug} not found; skipping (db:seed carries its aliases)") if ing.nil?
+  # The implications on the new nodes point at these, so they must exist
+  # too or a mixed-nuts dish would imply nothing.
+  REQUIRED = %w[legume-peanuts grain-wheat-breading].freeze
 
+  def up
+    # A fresh database runs migrations before db:seed, and the seed file
+    # carries these rows; writing them here would leave orphans. The new
+    # nodes need no parent row (production has no `condiment` root at all),
+    # so this one check is the only guard.
+    unless (ALIASES.keys + REQUIRED).all? { |slug| MigrationIngredient.exists?(slug: slug) }
+      say "Taxonomy not seeded; skipping (db:seed carries these terms)"
+      return
+    end
+
+    ALIASES.each do |slug, aliases|
+      ing = MigrationIngredient.find_by!(slug: slug)
       ing.update!(aliases: Array(ing.aliases) | aliases)
     end
 
     INGREDIENTS.each do |attrs|
-      parent = attrs[:path].rpartition(".").first
-      next say("#{parent} not seeded; skipping #{attrs[:slug]}") unless MigrationIngredient.exists?(path: parent)
-
       ing = MigrationIngredient.find_or_initialize_by(slug: attrs[:slug])
       if ing.persisted? && ing.path.to_s != attrs[:path]
         next say("#{attrs[:slug]} exists at #{ing.path}; leaving it there")
