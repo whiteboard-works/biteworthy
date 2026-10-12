@@ -27,6 +27,10 @@ module Tools
         confirms them. Say which applies if the user asks why a dish is not
         showing up for them.
 
+        A dish that another scan of this restaurant has put on the menu since
+        this one was staged is updated rather than duplicated; the result
+        marks it `updated_existing: true`.
+
         Reversible with `undo_staged_item`.
       TEXT
 
@@ -61,6 +65,8 @@ module Tools
 
         items = select_items(run, item_ids, all)
         raise Errors::InvalidArgument, "Nothing to accept — pass item_ids, or all: true." if items.empty?
+
+        rematch_unmatched!(run, items) if run.staged? || run.published?
 
         accepted = []
         failed   = []
@@ -98,6 +104,24 @@ module Tools
         found
       end
       private_class_method :select_items
+
+      # A dish another scan of this restaurant put on the menu after this
+      # one resolved was never a match candidate (four PDFs of one menu
+      # scanned at once all resolve against an empty menu), so accepting
+      # both would double every shared dish. One matcher pass per accept,
+      # the same matcher resolve uses, turns those into updates; the result
+      # reports them as `updated_existing`.
+      def self.rematch_unmatched!(run, items)
+        unmatched = items.select { |i| i.matched_item_id.nil? && i.item_id.nil? }
+        return if unmatched.empty?
+
+        ::Ingestion::ExistingItemMatcher.call(run: run, items: unmatched).each do |id, match|
+          # promote! re-reads the row under lock, so it sees this.
+          IngestionItem.where(id: id, matched_item_id: nil)
+                       .update_all(matched_item_id: match[:item_id], match_score: match[:score])
+        end
+      end
+      private_class_method :rematch_unmatched!
 
       # Promote now when the run is enriched; otherwise record the acceptance
       # and let the resolve pass promote at :staged. An Item must never go
