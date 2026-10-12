@@ -51,7 +51,9 @@ module Ingestion
     CONTRACTION_STEMS = %w[isn aren wasn doesn don].freeze
     # "dairy-free option available" offers a variant; the dish as served
     # still has the ingredient.
-    ALTERNATIVE_WORDS = %w[option options available substitute substitution alternative version upon request].freeze
+    # Only the words that mark a variant on offer: "vegan butter
+    # substitute" or "alternative" names the dairy-free ingredient itself.
+    ALTERNATIVE_WORDS = %w[option options available upon request].freeze
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 

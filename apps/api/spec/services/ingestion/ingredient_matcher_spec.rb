@@ -66,6 +66,7 @@ RSpec.describe Ingestion::IngredientMatcher do
   it "keeps the evidence when the phrase only offers an alternative" do
     expect(slugs("topped with cheese, dairy-free option available")).to include("dairy")
     expect(slugs("vegan cheese available upon request")).to include("dairy-cheese")
+    expect(slugs("made with vegan butter alternative, a vegan butter substitute")).to be_empty
   end
 
   # ActiveSupport singularizes "olives" to "olife" and "cloves" to
