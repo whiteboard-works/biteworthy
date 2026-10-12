@@ -282,7 +282,23 @@ class GapFillResolveJob < ApplicationJob
       merged << Ingestion::AssociationPayload.dump(slug: slug, confidence: row["confidence"], source: "ai")
       known << slug
     end
-    merged
+    merged + implied_ingredients(merged, known, claims, ingredient_paths)
+  end
+
+  # The model names `condiment-sauces-hollandaise`; the egg and butter in
+  # it come from Ingestion::IngredientImplications, the same table the
+  # resolver applies to catalog matches.
+  def implied_ingredients(merged, known, claims, ingredient_paths)
+    present = merged.map { |r| ingredient_paths[r["slug"]].to_s }
+    Ingestion::IngredientImplications.implied(
+      merged.map { |r| r["slug"] }, path_for: ingredient_paths.method(:[]), claims: claims
+    ).filter_map do |slug, path|
+      next if known.include?(slug) || present.any? { |p| Ingestion::TagDeriver.under_any?(p, [ path ]) }
+
+      Ingestion::AssociationPayload.dump(
+        slug: slug, confidence: Ingestion::DeterministicResolver::IMPLIED_BASE_CONFIDENCE, source: "derived"
+      )
+    end
   end
 
   # The model sometimes invents a plausible slug under a family we do
