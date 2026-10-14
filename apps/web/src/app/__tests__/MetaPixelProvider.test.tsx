@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { OPT_OUT_KEY } from '../../lib/track';
+import { sendMetaEvent } from '../../lib/meta-pixel';
 
 let mockPath = '/';
 vi.mock('next/navigation', () => ({ usePathname: () => mockPath }));
@@ -27,13 +28,14 @@ function visit(path: string, referrer = '') {
 }
 
 const params = (i = 0) => new URL(sent[i]!.src).searchParams;
-const nav = navigator as { globalPrivacyControl?: boolean };
+const nav = navigator as { globalPrivacyControl?: boolean; doNotTrack?: string };
 
 beforeEach(() => {
   sent.length = 0;
   vi.stubGlobal('Image', FakeImage);
   localStorage.clear();
   delete nav.globalPrivacyControl;
+  Object.defineProperty(navigator, 'doNotTrack', { value: null, configurable: true });
   document.cookie = '_fbc=; max-age=0; path=/';
   document.cookie = '_fbp=; max-age=0; path=/';
 });
@@ -55,6 +57,18 @@ describe('Meta Pixel requests', () => {
     expect(sent[0]!.src).not.toContain('celiac');
     // The browser must not attach the full address as a Referer header.
     expect(sent[0]!.referrerPolicy).toBe('no-referrer');
+    // replaceState cleaned the live URL before the request.
+    expect(window.location.search).not.toContain('profile=');
+  });
+
+  it('strips a share token from the address bar before the request', () => {
+    visit('/restaurants/usa/colorado/durango/himalayan-kitchen?p=secret-token&view=menu');
+    render(<MetaPixelProvider />);
+
+    expect(sent).toHaveLength(1);
+    expect(params().get('dl')).not.toContain('p=');
+    expect(window.location.search).not.toContain('p=');
+    expect(window.location.search).toContain('view=menu');
   });
 
   it('sends nothing from a diet page or a profile', () => {
@@ -82,12 +96,26 @@ describe('Meta Pixel requests', () => {
     expect(sent).toHaveLength(0);
   });
 
+  it('sends nothing when the browser sends Do-Not-Track', () => {
+    visit('/story');
+    Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true });
+    render(<MetaPixelProvider />);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('never mounts a request on admin routes', () => {
+    visit('/admin/restaurants');
+    render(<MetaPixelProvider />);
+    expect(sent).toHaveLength(0);
+  });
+
   it('keeps an ad click id as a cookie and credits it, without sending the query', () => {
     visit('/?fbclid=AbC123&utm_source=fb');
     render(<MetaPixelProvider />);
     expect(params().get('fbc')).toMatch(/^fb\.1\.\d+\.AbC123$/);
     expect(params().get('dl')).toBe(`${window.location.origin}/`);
     expect(sent[0]!.src).not.toContain('utm_source');
+    expect(window.location.search).not.toContain('fbclid=');
   });
 
   it('sends a sign-up as CompleteRegistration from the sign-up page', () => {
@@ -96,5 +124,21 @@ describe('Meta Pixel requests', () => {
     expect(params().get('ev')).toBe('CompleteRegistration');
     expect(params().get('dl')).toBe(`${window.location.origin}/signup`);
     expect(sent[0]!.src).not.toContain('celiac');
+  });
+
+  it('wraps extra event params so a share token or email never ships', () => {
+    visit('/signup');
+    sendMetaEvent('CompleteRegistration', {
+      email: 'user@example.com',
+      page_url: 'https://bite-worthy.com/r/cafe?p=secret#activate=z',
+      content_ids: ['1'],
+    });
+    const src = sent[0]!.src;
+    expect(src).not.toContain('user@example.com');
+    expect(src).not.toContain('p=secret');
+    expect(src).not.toContain('activate=z');
+    expect(params().get('cd[page_url]')).toBe('https://bite-worthy.com/r/cafe');
+    expect(params().get('cd[content_name]')).toBe('BiteWorthy');
+    expect(params().get('cd[email]')).toBeNull();
   });
 });
