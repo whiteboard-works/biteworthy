@@ -12,5 +12,6 @@ describe('PrivacyPage — Meta Pixel disclosure', () => {
     expect(screen.getByText(/Meta Platforms, Inc\./)).toBeInTheDocument();
     expect(screen.getByText(/same opt-out as PostHog/)).toBeInTheDocument();
     expect(screen.getByText(/analytics \(PostHog and Meta Pixel\)/)).toBeInTheDocument();
+    expect(screen.getByText(/we do not rewrite the address bar/)).toBeInTheDocument();
   });
 });

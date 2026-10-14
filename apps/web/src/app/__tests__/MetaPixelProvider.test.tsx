@@ -57,18 +57,38 @@ describe('Meta Pixel requests', () => {
     expect(sent[0]!.src).not.toContain('celiac');
     // The browser must not attach the full address as a Referer header.
     expect(sent[0]!.referrerPolicy).toBe('no-referrer');
-    // replaceState cleaned the live URL before the request.
-    expect(window.location.search).not.toContain('profile=');
+    // Live URL keeps the diet so a reload still applies it.
+    expect(window.location.search).toContain('profile=celiac');
   });
 
-  it('strips a share token from the address bar before the request', () => {
+  it('strips a share token from the pixel request, not the live URL', () => {
     visit('/restaurants/usa/colorado/durango/himalayan-kitchen?p=secret-token&view=menu');
     render(<MetaPixelProvider />);
 
     expect(sent).toHaveLength(1);
     expect(params().get('dl')).not.toContain('p=');
-    expect(window.location.search).not.toContain('p=');
+    expect(sent[0]!.src).not.toContain('secret-token');
+    expect(window.location.search).toContain('p=secret-token');
     expect(window.location.search).toContain('view=menu');
+  });
+
+  it('leaves the shared filter on the live URL so reload and login next= keep it', () => {
+    const path = '/restaurants/usa/colorado/durango/himalayan-kitchen';
+    visit(`${path}?p=secret-token&profile=celiac`);
+    const replaceStateSpy = vi.spyOn(history, 'replaceState');
+    render(<MetaPixelProvider />);
+
+    expect(replaceStateSpy).not.toHaveBeenCalled();
+    replaceStateSpy.mockRestore();
+
+    expect(window.location.search).toContain('p=secret-token');
+    expect(window.location.search).toContain('profile=celiac');
+    // ClaimSection rebuilds next= from location.search after a 401.
+    const next = `${window.location.pathname}${window.location.search}`;
+    expect(next).toBe(`${path}?p=secret-token&profile=celiac`);
+    expect(sent[0]!.src).not.toContain('secret-token');
+    expect(sent[0]!.src).not.toContain('celiac');
+    expect(params().get('dl')).toBe(`${window.location.origin}${path}`);
   });
 
   it('sends nothing from a diet page or a profile', () => {
@@ -115,7 +135,9 @@ describe('Meta Pixel requests', () => {
     expect(params().get('fbc')).toMatch(/^fb\.1\.\d+\.AbC123$/);
     expect(params().get('dl')).toBe(`${window.location.origin}/`);
     expect(sent[0]!.src).not.toContain('utm_source');
-    expect(window.location.search).not.toContain('fbclid=');
+    expect(sent[0]!.src).not.toContain('fbclid');
+    // Live URL keeps the click id; only the outbound request is scrubbed.
+    expect(window.location.search).toContain('fbclid=AbC123');
   });
 
   it('sends a sign-up as CompleteRegistration from the sign-up page', () => {

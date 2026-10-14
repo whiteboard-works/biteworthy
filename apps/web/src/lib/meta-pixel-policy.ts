@@ -11,9 +11,10 @@
  *
  * Addresses: only the path is ever sent. Nothing after "?" or "#" leaves
  * the browser, because restaurant links carry the chosen diet as
- * `?profile=celiac` and shared filters as `?p=`. The live URL is also
- * rewritten first (`lib/sanitize-url.ts`) so a share token cannot linger
- * in `document.location` for anything else to read.
+ * `?profile=celiac` and shared filters as `?p=`. Those stay on the live
+ * URL (a reload and the login `next=` bounce need them);
+ * `lib/sanitize-url.ts` scrubs them from the outbound pixel request and
+ * event params only.
  */
 const EXACT = new Set(['/', '/signup', '/story', '/press', '/updates', '/durango', '/restaurants']);
 

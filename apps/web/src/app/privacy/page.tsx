@@ -41,8 +41,10 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * sharing opt-out, because ad pixels count as sharing under the CCPA.
  *
  * 2026-10-14: WBW-173 — share tokens and other sensitive query/hash
- * params are stripped from the address bar before any pixel request
- * (`lib/sanitize-url.ts`). The opt-out still covers PostHog and Meta.
+ * params are stripped from the outbound pixel request and event
+ * params (`lib/sanitize-url.ts`), not from the address bar (a reload
+ * and the login `next=` bounce still need `?p=` / `?profile=`). The
+ * opt-out still covers PostHog and Meta.
  *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
@@ -191,12 +193,13 @@ export default function PrivacyPage(): ReactElement {
               history, chat, settings, onboarding, or sign-in. It tells Meta that a page was viewed
               and, when you create an account, that a sign-up happened. Each request carries the
               page’s path but never anything after a “?” or “#”, so Meta is never sent which diet
-              you filtered by or a shared-filter token. Before the request we also drop share
-              tokens, diet presets, keys, emails, and similar query or hash parameters from the
-              address bar. It also carries the site you came from (only its domain, or one of the
-              public pages above), your IP address and browser details, and two cookies we set for
-              Meta: a random browser id, and the ad-click id when you arrived from a Meta ad. Meta
-              may link that to your Facebook or Instagram account under{' '}
+              you filtered by or a shared-filter token. Share tokens, diet presets, keys, emails,
+              and similar query or hash parameters are stripped from that pixel request and its
+              extra parameters; we do not rewrite the address bar, so a shared filter still applies
+              after a reload or after signing in. It also carries the site you came from (only its
+              domain, or one of the public pages above), your IP address and browser details, and
+              two cookies we set for Meta: a random browser id, and the ad-click id when you arrived
+              from a Meta ad. Meta may link that to your Facebook or Instagram account under{' '}
               <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
               Pixel respects the same opt-out as PostHog (see below). The mobile app does not use
               the Meta Pixel.

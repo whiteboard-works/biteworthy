@@ -1,12 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  SENSITIVE_PARAMS,
-  inlineUrlSanitizerSnippet,
-  sanitizeCurrentUrl,
-  sanitizeEventParams,
-  sanitizeReferrer,
-  sanitizeUrl,
-} from '../sanitize-url';
+import { describe, expect, it } from 'vitest';
+import { sanitizeEventParams, sanitizeReferrer, sanitizeUrl } from '../sanitize-url';
 
 /**
  * The Pixel used to send whatever was in document.location /
@@ -279,85 +272,35 @@ describe('sanitizeEventParams (what the Pixel would send as custom data)', () =>
   });
 });
 
-describe('inlineUrlSanitizerSnippet', () => {
-  it('embeds every sensitive param name so the bootstrap cannot drift', () => {
-    const snippet = inlineUrlSanitizerSnippet();
-    for (const name of SENSITIVE_PARAMS) {
-      expect(snippet).toContain(`"${name}"`);
-    }
+/**
+ * Outbound-only: the sanitizer is what Meta's pixel request URL and
+ * extra params go through. Rewriting `window.location` would drop the
+ * shared filter on reload and on claim/login `next=`.
+ */
+describe('outbound pixel request URLs', () => {
+  it('strips a share token and diet preset from a facebook.com/tr request', () => {
+    const request =
+      'https://www.facebook.com/tr?id=1775852390205529&ev=PageView' +
+      '&dl=https://bite-worthy.com/r/cafe&p=secret-token&profile=celiac';
+    const clean = sanitizeUrl(request);
+    expect(clean).toContain('https://www.facebook.com/tr');
+    expect(clean).toContain('id=1775852390205529');
+    expect(clean).not.toContain('p=');
+    expect(clean).not.toContain('profile=');
+    expect(clean).not.toContain('secret-token');
+    expect(clean).not.toContain('celiac');
   });
 
-  it('strips a share token from location before any later pixel call would read it', () => {
-    const original = window.location.href;
-    history.replaceState(history.state, '', `${window.location.origin}/r/cafe?p=secret&view=menu`);
-    // eslint-disable-next-line no-eval
-    eval(inlineUrlSanitizerSnippet());
-    expect(window.location.search).not.toContain('p=');
-    expect(window.location.search).toContain('view=menu');
-    history.replaceState(history.state, '', original);
-  });
-});
-
-describe('sanitizeCurrentUrl', () => {
-  let replaceStateSpy: ReturnType<typeof vi.spyOn>;
-  let originalHref: string;
-
-  beforeEach(() => {
-    replaceStateSpy = vi.spyOn(history, 'replaceState');
-    originalHref = window.location.href;
-  });
-
-  afterEach(() => {
-    replaceStateSpy.mockRestore();
-    if (window.location.href !== originalHref) {
-      history.replaceState(history.state, '', originalHref);
-    }
-  });
-
-  it('calls history.replaceState when sensitive params exist', () => {
-    const testUrl = `${window.location.origin}/test?p=token123`;
-    history.replaceState(history.state, '', testUrl);
-    replaceStateSpy.mockClear();
-
-    sanitizeCurrentUrl();
-
-    expect(replaceStateSpy).toHaveBeenCalledOnce();
-    expect(String(replaceStateSpy.mock.calls[0]?.[2])).not.toContain('p=');
-  });
-
-  it('cleans a hash-fragment payload the same way', () => {
-    const testUrl = `${window.location.origin}/test#email=a@b.c&view=ok`;
-    history.replaceState(history.state, '', testUrl);
-    replaceStateSpy.mockClear();
-
-    sanitizeCurrentUrl();
-
-    expect(replaceStateSpy).toHaveBeenCalledOnce();
-    const next = String(replaceStateSpy.mock.calls[0]?.[2]);
-    expect(next).not.toContain('email=');
-    expect(next).toContain('view=ok');
-  });
-
-  it('does not call history.replaceState when URL is already clean', () => {
-    const cleanUrl = `${window.location.origin}/test?safe=param`;
-    history.replaceState(history.state, '', cleanUrl);
-    replaceStateSpy.mockClear();
-
-    sanitizeCurrentUrl();
-
-    expect(replaceStateSpy).not.toHaveBeenCalled();
-  });
-
-  it('is idempotent', () => {
-    const testUrl = `${window.location.origin}/test?p=token123`;
-    history.replaceState(history.state, '', testUrl);
-    replaceStateSpy.mockClear();
-
-    sanitizeCurrentUrl();
-    expect(replaceStateSpy).toHaveBeenCalledOnce();
-
-    replaceStateSpy.mockClear();
-    sanitizeCurrentUrl();
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+  it('strips sensitive keys from extra event params before they become cd[]', () => {
+    const out = sanitizeEventParams({
+      p: 'secret-token',
+      profile: 'celiac',
+      page_url: 'https://bite-worthy.com/r/cafe?p=secret-token&profile=celiac',
+      content_name: 'BiteWorthy',
+    });
+    expect(out).toEqual({
+      content_name: 'BiteWorthy',
+      page_url: 'https://bite-worthy.com/r/cafe',
+    });
   });
 });

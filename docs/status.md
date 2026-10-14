@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-14 (UTC) — **WBW-173 Meta Pixel sanitizer (draft, Codex P1).** First cut used `history.replaceState` to strip `?p=` / `?profile=` from the live URL, which dropped the shared filter on reload and on the claim/login `next=` bounce. Sanitizer now runs only on the outbound pixel request URL and event params; the address bar is left alone. `inlineUrlSanitizerSnippet` (CodeQL medium, unused, also rewrote location) is gone. Still no `fbevents.js`. Draft PR #930 — do not mark ready.
+
 2026-10-14 (UTC) — **WBW-173 Meta Pixel sanitizer (draft).** #834 already stopped loading `fbevents.js` and sends path-only image requests, but there was no shared sanitizer and `/terms` still named only PostHog. `lib/sanitize-url.ts` now strips share tokens (`?p=`), diet presets, tokens/keys/emails/activation payloads, and PostHog's campaign params from query *and* hash; `history.replaceState` runs before every pixel request; extra event params go through the same wrap. `/privacy` and `/terms` name Meta Platforms and that the settings/DNT opt-out covers PostHog and Meta. Draft PR — do not mark ready (`auto-merge.yml` arms on non-draft).
 
 2026-10-13 (UTC) — **`list_staged_items` has a compact mode.** Reviewing North Italia's 185 staged dishes, the full rows (association objects, prices, add-ons, match diffs) filled most of an agent's context. `compact: true` returns each association as one `slug (confidence, source)` string, drops prices and add-ons, and gives a match as the live dish's id; confidence and source stay.

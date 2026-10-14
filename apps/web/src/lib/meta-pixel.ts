@@ -6,10 +6,11 @@
  * listen for history changes, back-forward restores, clicks, or form
  * fields, so nothing reaches Meta that this file did not send.
  *
- * WBW-173: `sanitizeCurrentUrl` rewrites the address bar (share tokens,
- * diet presets, keys, emails, hash payloads) before the request, and
- * `sanitizeEventParams` wraps any custom data. autoConfig is never on
- * because `fbevents.js` is never loaded.
+ * WBW-173: `sanitizeUrl` / `sanitizeEventParams` scrub the outbound
+ * pixel request and custom data (share tokens, diet presets, keys,
+ * emails, hash payloads). The live URL is left alone so a reload and
+ * the claim/login `next=` bounce still apply the shared filter.
+ * autoConfig is never on because `fbevents.js` is never loaded.
  */
 import { analyticsAllowed } from './track';
 import {
@@ -18,7 +19,7 @@ import {
   metaPixelPathAllowed,
   metaReferrer,
 } from './meta-pixel-policy';
-import { sanitizeCurrentUrl, sanitizeEventParams, sanitizeReferrer } from './sanitize-url';
+import { sanitizeEventParams, sanitizeReferrer, sanitizeUrl } from './sanitize-url';
 
 export const PIXEL_ID = '1775852390205529';
 export const CONTENT_NAME = 'BiteWorthy';
@@ -42,8 +43,9 @@ function writeCookie(name: string, value: string): void {
 
 /**
  * An ad click lands with `?fbclid=…`. Keep it as Meta's `_fbc` cookie so a
- * later sign-up can be credited to the ad. The query itself is never sent.
- * Must run before `sanitizeCurrentUrl` strips `fbclid`.
+ * later sign-up can be credited to the ad. The query itself is never sent
+ * (dl is path-only; the pixel request URL is sanitized). The live URL is
+ * left intact.
  */
 export function captureAdClick(): void {
   if (!metaConsented()) return;
@@ -74,9 +76,6 @@ export function sendMetaEvent(
   const { origin, pathname } = window.location;
   if (!metaPixelPathAllowed(pathname)) return false;
 
-  // Address bar first, so anything that later reads location is clean.
-  sanitizeCurrentUrl();
-
   const params = new URLSearchParams({
     id: PIXEL_ID,
     ev: event,
@@ -102,6 +101,7 @@ export function sendMetaEvent(
   const img = new Image();
   // The request must not carry the page's full address as its Referer.
   img.referrerPolicy = 'no-referrer';
-  img.src = `${ENDPOINT}?${params.toString()}`;
+  // Scrub the outbound pixel URL only — never `history.replaceState`.
+  img.src = sanitizeUrl(`${ENDPOINT}?${params.toString()}`);
   return true;
 }

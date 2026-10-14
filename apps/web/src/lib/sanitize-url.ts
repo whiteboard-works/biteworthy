@@ -6,10 +6,11 @@
  * used to auto-collect `document.location` (dl) and `document.referrer`
  * (rl) on every event, which sent those values to Meta. The site no
  * longer loads `fbevents.js` (see `lib/meta-pixel.ts`); this sanitizer
- * is still the common rule for (1) `history.replaceState` of the live
- * URL before any pixel request, (2) any URL-like event params, and
- * (3) an inline snippet kept in lockstep if a bootstrap ever races
- * React.
+ * is the common rule for (1) the outbound pixel request URL and (2) any
+ * URL-like event params. It must not rewrite `window.location`: a
+ * reload, and the claim/login `next=` bounce that rebuilds from
+ * `location.search`, both need `?p=` / `?profile=` to keep applying
+ * the shared filter.
  *
  * `document.referrer` is read-only — we sanitize any referrer we pass
  * ourselves, but we cannot change what the browser reports as `rl` on
@@ -143,38 +144,4 @@ function sanitizeSearchParams(params: URLSearchParams): void {
     if (isSensitiveParam(key)) keysToDelete.push(key);
   });
   for (const key of keysToDelete) params.delete(key);
-}
-
-/**
- * Sanitize the current page URL in place via `history.replaceState`.
- * Call this BEFORE any Meta Pixel request (or any tracker that
- * auto-collects `document.location`). Idempotent.
- *
- * The restaurant page already consumed `?p=` / `?profile=` at SSR and
- * holds them in props, so stripping them from the address bar does not
- * change the applied filter. A later full reload of the cleaned URL
- * would, which is the same trade the invalid-token cleanup already made.
- */
-export function sanitizeCurrentUrl(): void {
-  if (typeof window === 'undefined' || typeof history === 'undefined') return;
-  const original = window.location.href;
-  const sanitized = sanitizeUrl(original);
-  if (sanitized !== original) {
-    history.replaceState(history.state, '', sanitized);
-  }
-}
-
-/**
- * Standalone snippet that applies the same redaction rule, meant to be
- * the first statements of any inline analytics bootstrap so `init` /
- * PageView never races a React effect. Kept in lockstep with
- * `SENSITIVE_PARAMS` via `JSON.stringify` of the shared arrays.
- *
- * The live Pixel does not load `fbevents.js`, so this snippet is not
- * injected today. It exists so a future bootstrap cannot drift from
- * the TypeScript sanitizer.
- */
-export function inlineUrlSanitizerSnippet(): string {
-  const names = JSON.stringify([...SENSITIVE_PARAMS, ...TRACKING_PARAMS]);
-  return `(function(){try{var N=${names};function d(k){k=String(k).toLowerCase();if(N.indexOf(k)!==-1)return true;if(k.slice(0,4)==='utm_')return true;return k.slice(-6)==='_token'||k.slice(-4)==='_key'}function c(sp){var ks=[];sp.forEach(function(_v,k){if(d(k))ks.push(k)});for(var i=0;i<ks.length;i++)sp.delete(ks[i])}var u=new URL(location.href);c(u.searchParams);if(u.hash.indexOf('=')!==-1){var h=new URLSearchParams(u.hash.slice(1));c(h);u.hash=h.toString()}if(u.href!==location.href)history.replaceState(history.state,'',u.href)}catch(e){}})();`;
 }

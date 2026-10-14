@@ -13,9 +13,9 @@ import { analyticsAllowed } from '../lib/track';
  * are skipped here and by the path allowlist.
  *
  * WBW-173 — `captureAdClick` reads `fbclid` first, then `sendMetaEvent`
- * `history.replaceState`s secrets out of the address bar and sends a
- * path-only image request. Meta's own script is never loaded, so
- * autoConfig (button-text scraping) cannot run.
+ * sends a path-only image request whose URL and extra params are
+ * sanitized. The live URL is not rewritten. Meta's own script is
+ * never loaded, so autoConfig (button-text scraping) cannot run.
  */
 export function MetaPixelProvider() {
   const pathname = usePathname();
