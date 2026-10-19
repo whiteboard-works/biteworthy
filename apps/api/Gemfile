@@ -72,7 +72,7 @@ gem "mcp", "~> 1.8"
 gem "posthog-ruby", "~> 3.27"
 gem "posthog-rails", "~> 3.19"
 gem "opentelemetry-sdk", "~> 1.13", require: false
-gem "opentelemetry-logs-sdk", "~> 0.8.0", require: false
+gem "opentelemetry-logs-sdk", "~> 0.8.1", require: false
 gem "opentelemetry-exporter-otlp-logs", "~> 0.7.0", require: false
 
 # --- Misc utilities ----------------------------------------------------------
