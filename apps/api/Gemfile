@@ -70,7 +70,7 @@ gem "mcp", "~> 1.6"
 # over OTLP and are loaded by posthog-rails only when log forwarding is on,
 # hence `require: false`.
 gem "posthog-ruby", "~> 3.27"
-gem "posthog-rails", "~> 3.18"
+gem "posthog-rails", "~> 3.19"
 gem "opentelemetry-sdk", "~> 1.13", require: false
 gem "opentelemetry-logs-sdk", "~> 0.8.0", require: false
 gem "opentelemetry-exporter-otlp-logs", "~> 0.6.0", require: false
