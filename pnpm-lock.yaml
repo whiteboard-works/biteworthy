@@ -218,7 +218,7 @@ importers:
         version: link:../../packages/eslint-config
       '@testing-library/jest-dom':
         specifier: ^7.0.1
-        version: 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)))
+        version: 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)))
       '@testing-library/react':
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -259,8 +259,8 @@ importers:
         specifier: ^8.0.5
         version: 8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)
       vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
 
   packages/analytics:
     devDependencies:
@@ -268,8 +268,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
 
   packages/api-types:
     devDependencies:
@@ -299,8 +299,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
 
   packages/ui-tokens:
     devDependencies:
@@ -314,8 +314,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
 
 packages:
 
@@ -2634,10 +2634,10 @@ packages:
       oxc-transform-react:
         optional: true
 
-  '@vitest/mocker@5.0.3':
-    resolution: {integrity: sha512-T8sWAIbkSyAjkwTcaEc3Iu0o9A27X1/kdXrizhZkGuSKScRQtRzclfAMpOTcGdXCsqxeWlpGy3XjqaW8CpLORg==}
+  '@vitest/mocker@5.0.5':
+    resolution: {integrity: sha512-xLL3lkDegJZw+MGoGaCCsFayDZthGgpAtr3Vziyfc4p7xH89K7KRPcRBBh/kEYm0Aqkt5DtTmkYpBtRV/FrHZg==}
     peerDependencies:
-      msw: ^2.4.9
+      msw: ^2.4.9 || ^3.0.0
       vite: ^8.0.5
     peerDependenciesMeta:
       msw:
@@ -2645,8 +2645,8 @@ packages:
       vite:
         optional: true
 
-  '@vitest/spy@5.0.3':
-    resolution: {integrity: sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg==}
+  '@vitest/spy@5.0.5':
+    resolution: {integrity: sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw==}
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -4816,8 +4816,8 @@ packages:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
 
-  magic-string@1.4.2:
-    resolution: {integrity: sha512-vG+rjFRj1PqdIBozIxAGMjPlOhaVe+GXpbttY/iSK7rGcJRMlwNJO7dcUwmUqkymsFLJiNGI06t4D7Fr7yRC9g==}
+  magic-string@1.4.3:
+    resolution: {integrity: sha512-z12OxmaPGE0F4xlpGdjuAUckipLpQlTAuAmyGhNoD7ODpYUzvDfvtxUbjM/jwznyP178oju/KDdyi220wNJ0RQ==}
 
   make-dir@4.0.0:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
@@ -5365,8 +5365,8 @@ packages:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
 
-  obug@2.2.1:
-    resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
+  obug@3.0.0:
+    resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
 
   on-finished@2.3.0:
@@ -6404,8 +6404,8 @@ packages:
   throat@5.0.0:
     resolution: {integrity: sha512-fcwX4mndzpLQKBS1DVYhGAcYaYt7vsHNIvQV+WXMvnow5cgjPphq5CaayLaGsjRdSCKZFNGt7/GYAuXaNOiYCA==}
 
-  tinybench@6.2.0:
-    resolution: {integrity: sha512-78U2TlB2CnVenajOFzf3BKSm0J6oz5L0NV7g32LCPccvYc0lbWvys4d3uUUCS2B1N8PAf2+aekR8i1KbC3HO7Q==}
+  tinybench@6.2.2:
+    resolution: {integrity: sha512-nIZ2N2dFpjBsg2hgitKu7mA+FvsIJuGJOwysRngmVRRmWgR/UyPjwJj8c/fT/dhm8EkHnF5EOogRf+0Z2qrimA==}
     engines: {node: '>=20.0.0'}
 
   tinyexec@1.3.1:
@@ -6709,20 +6709,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@5.0.3:
-    resolution: {integrity: sha512-xMw97S3rjdtj5dkVat7jCsqWBpvchs3RlpQctUqwJD0KkERk40vz2fJ77lDwW/Vzh/pk18eItYAzkodhSes3jQ==}
+  vitest@5.0.5:
+    resolution: {integrity: sha512-cPODOMF8YnkiiYtDdHo6n4wWmBrOBBbOIYH2d33M4l3CdNn72h+qMmO6uXffUN6A5AZFXNND/d+krS9mgkXRfg==}
     engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 5.0.3
-      '@vitest/browser-preview': 5.0.3
+      '@vitest/browser-playwright': 5.0.5
+      '@vitest/browser-preview': 5.0.5
       '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
-      '@vitest/coverage-istanbul': 5.0.3
-      '@vitest/coverage-v8': 5.0.3
-      '@vitest/ui': 5.0.3
+      '@vitest/coverage-istanbul': 5.0.5
+      '@vitest/coverage-v8': 5.0.5
+      '@vitest/ui': 5.0.5
       happy-dom: '*'
       jsdom: '*'
       vite: ^8.0.5
@@ -9226,7 +9226,7 @@ snapshots:
       picocolors: 1.1.1
       redent: 3.0.0
 
-  '@testing-library/jest-dom@7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)))':
+  '@testing-library/jest-dom@7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)))':
     dependencies:
       '@adobe/css-tools': 4.5.0
       '@testing-library/dom': 10.4.1
@@ -9236,7 +9236,7 @@ snapshots:
       picocolors: 1.1.1
       redent: 3.0.0
     optionalDependencies:
-      vitest: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+      vitest: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
 
   '@testing-library/react-native@13.3.3(jest@29.7.0(@types/node@26.6.5))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react-test-renderer@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
@@ -9579,16 +9579,16 @@ snapshots:
     optionalDependencies:
       babel-plugin-react-compiler: 1.0.0
 
-  '@vitest/mocker@5.0.3(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))':
+  '@vitest/mocker@5.0.5(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.0.3
+      '@vitest/spy': 5.0.5
       estree-walker: 3.0.3
-      magic-string: 1.4.2
+      magic-string: 1.4.3
     optionalDependencies:
       vite: 8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)
 
-  '@vitest/spy@5.0.3': {}
+  '@vitest/spy@5.0.5': {}
 
   '@xmldom/xmldom@0.8.13': {}
 
@@ -12345,7 +12345,7 @@ snapshots:
 
   lz-string@1.5.0: {}
 
-  magic-string@1.4.2:
+  magic-string@1.4.3:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
@@ -13423,7 +13423,7 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.2
 
-  obug@2.2.1: {}
+  obug@3.0.0: {}
 
   on-finished@2.3.0:
     dependencies:
@@ -14590,7 +14590,7 @@ snapshots:
 
   throat@5.0.0: {}
 
-  tinybench@6.2.0: {}
+  tinybench@6.2.2: {}
 
   tinyexec@1.3.1: {}
 
@@ -14905,18 +14905,18 @@ snapshots:
       terser: 5.51.2
       yaml: 2.9.1
 
-  vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)):
+  vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(jsdom@30.1.1)(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.5(vite@8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
-      magic-string: 1.4.2
-      obug: 2.2.1
+      magic-string: 1.4.3
+      obug: 3.0.0
       picomatch: 4.0.7
       std-env: 4.3.0
-      tinybench: 6.2.0
+      tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       vite: 8.3.3(@types/node@26.6.5)(esbuild@0.25.12)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)
