@@ -47,7 +47,7 @@ gem "aws-sdk-s3", require: false
 # `anthropic` gem: app/services/anthropic_client.rb already carries our retry
 # policy, prompt-cache helpers, and the `last_usage` accounting that feeds
 # IngestionRun#record_api_usage!, and the job specs replay against it via VCR.
-gem "faraday", "~> 2.14"
+gem "faraday", "~> 2.15"
 gem "faraday-retry"
 
 # Validates Anthropic's structured-output responses against the JSON Schema
