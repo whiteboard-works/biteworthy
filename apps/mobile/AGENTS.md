@@ -15,3 +15,7 @@ Block a PR (P0/P1) when it:
 
 For architecture and conventions, also follow the repo-root `AGENTS.md`.
 <!-- END codex-review-guidelines -->
+
+## Source of truth
+
+Facts for this product (name, pricing, status, URL) live in the repo-root [`AGENTS.md`](../../AGENTS.md) under **Source of truth**. Update that section in the same PR as any copy or JSON-LD change; do not fork a second list here.
