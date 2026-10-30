@@ -55,6 +55,10 @@ module Ingestion
     # Only the words that mark a variant on offer: "vegan butter
     # substitute" or "alternative" names the dairy-free ingredient itself.
     ALTERNATIVE_WORDS = %w[option options available upon request].freeze
+    # The same offer phrased before the claim ("can be made peanut-free",
+    # "optionally gluten free"). Whole phrases ending right at the claim:
+    # a lone "made" is composition ("made with dairy-free cheese").
+    VARIANT_LEADS = [ "can be made", "can be", "can make", "ask for", "optionally", "optional" ].freeze
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
@@ -138,6 +142,9 @@ module Ingestion
       negated = NEGATIONS.include?(before) ||
                 (before == "t" && start >= 2 && CONTRACTION_STEMS.include?(tokens[start - 2]))
       return false if negated
+
+      lead = tokens[[ start - 3, 0 ].max...start].join(" ")
+      return false if VARIANT_LEADS.any? { |v| lead == v || lead.end_with?(" #{v}") }
 
       Array(tokens[start + width, 3]).none? { |t| ALTERNATIVE_WORDS.include?(t) }
     end

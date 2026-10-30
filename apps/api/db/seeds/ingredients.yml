@@ -73,10 +73,7 @@
 - slug: alcohol
   name: Alcohol
   path: alcohol
-  aliases:
-  - hard ginger beer
-  - hard root beer
-  - spiked root beer
+  aliases: []
   allergen: false
 - slug: alcohol-ale
   name: Ale
@@ -86,7 +83,10 @@
 - slug: alcohol-beer
   name: Beer
   path: alcohol.beer
-  aliases: []
+  aliases:
+  - hard ginger beer
+  - hard root beer
+  - spiked root beer
   allergen: false
 - slug: alcohol-bitters
   name: Bitters
@@ -5385,7 +5385,8 @@
 - slug: tree_nut-ginkgo
   name: Ginkgo
   path: tree_nut.ginkgo
-  aliases: []
+  aliases:
+  - ginkgo nuts
   allergen: true
 - slug: tree_nut-hazel
   name: Hazel
@@ -5411,12 +5412,14 @@
 - slug: tree_nut-hemp
   name: Hemp
   path: tree_nut.hemp
-  aliases: []
+  aliases:
+  - hemp nuts
   allergen: true
 - slug: tree_nut-hickory
   name: Hickory
   path: tree_nut.hickory
-  aliases: []
+  aliases:
+  - hickory nuts
   allergen: true
 - slug: tree_nut-macadamia
   name: Macadamia
