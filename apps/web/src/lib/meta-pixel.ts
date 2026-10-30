@@ -5,6 +5,12 @@
  * ids. Without `fbevents.js` in the page there is nothing of Meta's to
  * listen for history changes, back-forward restores, clicks, or form
  * fields, so nothing reaches Meta that this file did not send.
+ *
+ * WBW-173: `sanitizeUrl` / `sanitizeEventParams` scrub the outbound
+ * pixel request and custom data (share tokens, diet presets, keys,
+ * emails, hash payloads). The live URL is left alone so a reload and
+ * the claim/login `next=` bounce still apply the shared filter.
+ * autoConfig is never on because `fbevents.js` is never loaded.
  */
 import { analyticsAllowed } from './track';
 import {
@@ -13,6 +19,7 @@ import {
   metaPixelPathAllowed,
   metaReferrer,
 } from './meta-pixel-policy';
+import { sanitizeEventParams, sanitizeReferrer, sanitizeUrl } from './sanitize-url';
 
 export const PIXEL_ID = '1775852390205529';
 export const CONTENT_NAME = 'BiteWorthy';
@@ -36,7 +43,9 @@ function writeCookie(name: string, value: string): void {
 
 /**
  * An ad click lands with `?fbclid=…`. Keep it as Meta's `_fbc` cookie so a
- * later sign-up can be credited to the ad. The query itself is never sent.
+ * later sign-up can be credited to the ad. The query itself is never sent
+ * (dl is path-only; the pixel request URL is sanitized). The live URL is
+ * left intact.
  */
 export function captureAdClick(): void {
   if (!metaConsented()) return;
@@ -55,9 +64,14 @@ function browserId(): string {
 
 /**
  * Send one pixel event from the current page, if this page may. Returns
- * whether a request went out.
+ * whether a request went out. Extra custom-data keys are sanitized
+ * (sensitive names dropped, URL-like values scrubbed) before they are
+ * attached — the path-only `dl` is still the address Meta sees.
  */
-export function sendMetaEvent(event: 'PageView' | 'CompleteRegistration'): boolean {
+export function sendMetaEvent(
+  event: 'PageView' | 'CompleteRegistration',
+  extra: Record<string, unknown> = {},
+): boolean {
   if (!metaConsented()) return false;
   const { origin, pathname } = window.location;
   if (!metaPixelPathAllowed(pathname)) return false;
@@ -66,17 +80,28 @@ export function sendMetaEvent(event: 'PageView' | 'CompleteRegistration'): boole
     id: PIXEL_ID,
     ev: event,
     dl: metaPageAddress(origin, pathname),
-    rl: metaReferrer(document.referrer, origin),
+    rl: metaReferrer(sanitizeReferrer(document.referrer), origin),
     ts: String(Date.now()),
     fbp: browserId(),
   });
   const fbc = readCookie('_fbc');
   if (fbc) params.set('fbc', fbc);
-  if (event !== 'PageView') params.set('cd[content_name]', CONTENT_NAME);
+
+  const custom = sanitizeEventParams({
+    ...(event !== 'PageView' ? { content_name: CONTENT_NAME } : {}),
+    ...extra,
+  });
+  for (const [key, value] of Object.entries(custom)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      params.set(`cd[${key}]`, String(value));
+    }
+  }
 
   const img = new Image();
   // The request must not carry the page's full address as its Referer.
   img.referrerPolicy = 'no-referrer';
-  img.src = `${ENDPOINT}?${params.toString()}`;
+  // Scrub the outbound pixel URL only — never `history.replaceState`.
+  img.src = sanitizeUrl(`${ENDPOINT}?${params.toString()}`);
   return true;
 }
