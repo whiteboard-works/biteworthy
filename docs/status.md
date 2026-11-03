@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-13 (UTC) — **Catalog follow-up from Codex on #923.** "Hard ginger beer"/"hard root beer" now match Beer rather than the `alcohol` root, since the celiac presets avoid `alcohol.beer`; Ginkgo, Hemp, and Hickory gained "<name> nuts" aliases so bare "nuts" (and its implied peanut) doesn't also fire on them; and an absence phrase preceded by an offer ("can be made peanut-free") keeps the allergen. Migration `20261013010000`.
+
 2026-10-13 (UTC) — **`list_staged_items` has a compact mode.** Reviewing North Italia's 185 staged dishes, the full rows (association objects, prices, add-ons, match diffs) filled most of an agent's context. `compact: true` returns each association as one `slug (confidence, source)` string, drops prices and add-ons, and gives a match as the live dish's id; confidence and source stay.
 
 2026-10-13 (UTC) — **Catalog terms for the menu phrases that misfired.** From the Riverton import: "ginger beer" now means the soda (it was beer, hiding a zero-proof drink from a celiac filter) while "hard ginger beer"/"spiked root beer" mean alcohol; "Root Beer" has a node; "carne asada" is beef (skirt steak); "Chicken Fried Steak" is a breaded beef node instead of chicken; and "nuts"/"glazed nuts" resolve to a Mixed Nuts node that implies peanuts too, while "nut-free"/"peanut-free" are absence phrases. Specific nuts gained "cashew nuts"-style aliases so the bare "nuts" alias does not also fire on them. Migration `20261013000000` carries the terms to production; it changes the catalog only, so dishes already live keep their old rows until re-scanned.
