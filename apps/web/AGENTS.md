@@ -25,3 +25,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Source of truth
+
+Facts for this product (name, pricing, status, URL) live in the repo-root [`AGENTS.md`](../../AGENTS.md) under **Source of truth**. Update that section in the same PR as any copy or JSON-LD change; do not fork a second list here.
