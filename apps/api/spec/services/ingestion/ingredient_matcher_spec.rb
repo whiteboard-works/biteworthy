@@ -55,6 +55,16 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(slugs("cheese-free pizza, no cheese, without cheese")).to be_empty
   end
 
+  it "keeps the allergen when a free-from version is only on offer" do
+    m = described_class.new(rows + [ ["legume-peanuts", "Peanuts", "legume.peanuts", ["peanut"]] ])
+    read = ->(text) { m.scan(text).first.map { |r| r[:slug] } }
+
+    expect(read.("pad thai, can be made peanut-free")).to include("legume-peanuts")
+    expect(read.("peanut-free pad thai")).not_to include("legume-peanuts")
+    expect(slugs("house-made vegan cheese, made with dairy-free cheese")).to be_empty
+    expect(slugs("mac and cheese, optionally dairy-free")).to include("dairy")
+  end
+
   it "still matches when the absence phrase is itself negated" do
     expect(slugs("this sauce is not dairy-free")).to include("dairy")
     expect(slugs("this sauce isn't dairy-free")).to include("dairy")
