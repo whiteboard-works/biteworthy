@@ -370,10 +370,10 @@ GEM
     pg (1.7.0-x86_64-darwin)
     pg (1.7.0-x86_64-linux)
     pg (1.7.0-x86_64-linux-musl)
-    posthog-rails (3.19.6)
-      posthog-ruby (= 3.28.4)
+    posthog-rails (3.20.7)
+      posthog-ruby (= 3.32.0)
       railties (>= 5.2.0)
-    posthog-ruby (3.28.4)
+    posthog-ruby (3.32.0)
       concurrent-ruby (~> 1)
     pp (0.6.4)
       prettyprint
@@ -607,7 +607,7 @@ DEPENDENCIES
   opentelemetry-sdk (~> 1.13)
   pg (~> 1.7)
   posthog-rails (~> 3.19)
-  posthog-ruby (~> 3.28)
+  posthog-ruby (~> 3.32)
   puma (~> 8.0)
   rack-attack
   rack-cors
@@ -766,8 +766,8 @@ CHECKSUMS
   pg (1.7.0-x86_64-darwin) sha256=7b726ba6eab8b143fb803d3b4173b0a3e4b0b032025032212f90d436785022db
   pg (1.7.0-x86_64-linux) sha256=d0a24f448b3c874c8b2658d4efbbbefce7315c228ede84f6f6f42089d1d704b6
   pg (1.7.0-x86_64-linux-musl) sha256=0c9bc93b6e0aca2a5b07daef00b7ec4f9882bfe21ef3872b4371f8ecffe1f1e1
-  posthog-rails (3.19.6) sha256=98b1fd819e9a728e3cc0343c1c1d77dc1b010f6c1e7f0b350a210d4db807b839
-  posthog-ruby (3.28.4) sha256=05b44d5e3c49fb3a3600c6ced398c71adc5876f230ac9eed570f1d3079198974
+  posthog-rails (3.20.7) sha256=7ec5be9b079f610eea420605cda0f67711c31b1026256a6017c2c84caad53b21
+  posthog-ruby (3.32.0) sha256=24862dad62b00227b9b202b71df3a200c853e4dcb5c5fa23bfac13b8dced184d
   pp (0.6.4) sha256=dfcb0fce700c41456265922884f9fe195d7fbb0674a3578e6c0f69588e82b570
   prettyprint (0.2.1) sha256=d555d57ea6d7cf001d4774b693546a6bd88bec1e778ddffb5c60b68ceec4b7d4
   prism (2.1.0-aarch64-linux-gnu) sha256=808dddc72def68e1a0463689414c97e0ba211938eddbab05387a4844aa2b3ec2
