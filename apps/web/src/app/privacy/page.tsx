@@ -40,6 +40,12 @@ import { buildLegalMetadata } from '../../lib/legal-meta';
  * rule in step. "We do not sell or share" became "do not sell", plus the
  * sharing opt-out, because ad pixels count as sharing under the CCPA.
  *
+ * 2026-10-14: WBW-173 — share tokens and other sensitive query/hash
+ * params are stripped from the outbound pixel request and event
+ * params (`lib/sanitize-url.ts`), not from the address bar (a reload
+ * and the login `next=` bounce still need `?p=` / `?profile=`). The
+ * opt-out still covers PostHog and Meta.
+ *
  * Resolves the Phase 5.5 marketing landing footer's `/privacy`
  * placeholder href.
  */
@@ -54,7 +60,7 @@ export const metadata: Metadata = buildLegalMetadata({
   siteUrl: SITE_URL,
 });
 
-const LAST_UPDATED = '2026-10-10';
+const LAST_UPDATED = '2026-10-14';
 
 export default function PrivacyPage(): ReactElement {
   return (
@@ -63,17 +69,16 @@ export default function PrivacyPage(): ReactElement {
       <h1 className="mt-bw-3 text-bw-3xl font-bold text-zinc-900 md:text-bw-4xl">Privacy Policy</h1>
       <p className="mt-bw-2 text-bw-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
-
       <article className="prose prose-zinc mt-bw-8 max-w-none text-zinc-800">
         <Section title="The short version">
           <p>
             BiteWorthy keeps the data we need to make the dietary filter work and not much more. We
-            don’t sell your personal information. Your dietary profile, the diets you filter by,
-            and your reviews are never sent to advertisers. On a few public pages of our website,
-            the Meta Pixel tells Meta that a page was viewed or a sign-up happened, so we can
-            measure our ads; you can switch that off (see “Your rights and controls”). The list of
-            third-party services we use is short and named below. You must be at least 13
-            years old to use BiteWorthy.
+            don’t sell your personal information. Your dietary profile, the diets you filter by, and
+            your reviews are never sent to advertisers. On a few public pages of our website, the
+            Meta Pixel tells Meta that a page was viewed or a sign-up happened, so we can measure
+            our ads; you can switch that off (see “Your rights and controls”). The list of
+            third-party services we use is short and named below. You must be at least 13 years old
+            to use BiteWorthy.
           </p>
         </Section>
 
@@ -98,8 +103,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dish photos:</strong> if you submit a photo of a dish (from the dish page, or
               by offering a review photo), we store the image and whether you confirmed you took it.
-              Location metadata is stripped the same way as review photos. A moderator reviews
-              every submission before it can appear as the dish photo.
+              Location metadata is stripped the same way as review photos. A moderator reviews every
+              submission before it can appear as the dish photo.
             </li>
             <li>
               <strong>Restaurant visits:</strong> when you open a filtered restaurant page while
@@ -156,9 +161,8 @@ export default function PrivacyPage(): ReactElement {
             </li>
             <li>
               <strong>Cloudflare R2</strong>: review photos and diner-submitted dish photos
-              (metadata stripped; dish submissions unpublished until a moderator approves them),
-              and the cropped per-dish photos that the ingestion pipeline extracts from menu
-              images.
+              (metadata stripped; dish submissions unpublished until a moderator approves them), and
+              the cropped per-dish photos that the ingestion pipeline extracts from menu images.
             </li>
             <li>
               <strong>Anthropic</strong>: when a menu is being ingested, the menu image is sent to
@@ -175,26 +179,30 @@ export default function PrivacyPage(): ReactElement {
               itself.
             </li>
             <li>
-              <strong>PostHog</strong>: product analytics, and error reports and logs from our
-              own servers — the latter two never from your browser or phone, with the request body
-              and your IP address removed before they are sent. See “Your rights and controls” for
+              <strong>PostHog</strong>: product analytics, and error reports and logs from our own
+              servers — the latter two never from your browser or phone, with the request body and
+              your IP address removed before they are sent. See “Your rights and controls” for
               exactly what we send from your device and how to opt out.
             </li>
             <li>
-              <strong>Meta (Facebook)</strong>: the Meta Pixel on our website measures whether our
-              ads on Facebook and Instagram bring people to BiteWorthy. We don’t load Meta’s own
-              script; each pixel event is one request we build ourselves. It runs only on public
-              pages (the home page, sign-up, our story, press, updates, and restaurant, dish, and
-              city pages), and never on diet pages, people’s profiles, your history, chat,
-              settings, onboarding, or sign-in. It tells Meta that a page was viewed and, when you
-              create an account, that a sign-up happened. Each request carries the page’s path but
-              never anything after a “?” or “#”, so Meta is never sent which diet you filtered by.
-              It also carries the site you came from (only its domain, or one of the public pages
-              above), your IP address and browser details, and two cookies we set for Meta: a
-              random browser id, and the ad-click id when you arrived from a Meta ad. Meta may link
-              that to your Facebook or Instagram account under{' '}
+              <strong>Meta (Facebook / Meta Platforms, Inc.)</strong>: the Meta Pixel on our website
+              measures whether our ads on Facebook and Instagram bring people to BiteWorthy. We
+              don’t load Meta’s own script; each pixel event is one request we build ourselves. It
+              runs only on public pages (the home page, sign-up, our story, press, updates, and
+              restaurant, dish, and city pages), and never on diet pages, people’s profiles, your
+              history, chat, settings, onboarding, or sign-in. It tells Meta that a page was viewed
+              and, when you create an account, that a sign-up happened. Each request carries the
+              page’s path but never anything after a “?” or “#”, so Meta is never sent which diet
+              you filtered by or a shared-filter token. Share tokens, diet presets, keys, emails,
+              and similar query or hash parameters are stripped from that pixel request and its
+              extra parameters; we do not rewrite the address bar, so a shared filter still applies
+              after a reload or after signing in. It also carries the site you came from (only its
+              domain, or one of the public pages above), your IP address and browser details, and
+              two cookies we set for Meta: a random browser id, and the ad-click id when you arrived
+              from a Meta ad. Meta may link that to your Facebook or Instagram account under{' '}
               <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>. The
-              mobile app does not use the Meta Pixel.
+              Pixel respects the same opt-out as PostHog (see below). The mobile app does not use
+              the Meta Pixel.
             </li>
           </ul>
         </Section>
@@ -212,8 +220,8 @@ export default function PrivacyPage(): ReactElement {
             <li>
               <strong>Dish photo submissions:</strong> pending, rejected, withdrawn, and
               accepted-but-not-used-as-the-dish-photo submissions are deleted with your account
-              (including the stored image). An approved photo that is still the dish photo stays
-              on the menu; the byline is anonymized to “a diner”.
+              (including the stored image). An approved photo that is still the dish photo stays on
+              the menu; the byline is anonymized to “a diner”.
             </li>
             <li>
               <strong>Restaurant-visit history:</strong> kept for as long as your account is open.
@@ -240,29 +248,29 @@ export default function PrivacyPage(): ReactElement {
               for anything else, email us and we’ll fix it.
             </li>
             <li>
-              <strong>Opt out of analytics:</strong> on web, analytics are on by default — turn them
-              off with the toggle in <em>/profile/settings</em>, and we honor your browser’s
-              Do-Not-Track signal automatically. Either one also turns off the Meta Pixel. On
-              mobile, analytics are off by default and only
-              fire if you enable them in <em>Settings → Analytics</em>. Funnel events are tied to a
-              random analytics ID, <strong>not to your account</strong> — signing in does not
-              connect them to your identity. What they carry is
-              deliberately narrow: <em>menu_filtered</em> sends the restaurant, how many items were
-              visible or hidden, and which <em>kind</em> of filter was applied — not the filter
-              itself. Toggling strictness on a menu sends the before and after value.
-              Saving your dietary profile sends only that it happened, never the preset, the
-              strictness, or how much you avoid — that association is the one we most want to
-              avoid making. We never send review text, your email, or your specific avoid-lists.
-              Page views send the page’s address with the part after the “?” removed, and without
-              which diet page you opened or whose profile you viewed. Like every event, they also
-              carry that random analytics ID and basic browser and device details (browser, OS,
-              screen size, approximate location from your IP), and the domain of the site that
-              sent you. We don’t record what you click or type, and we don’t record your session.
+              <strong>Opt out of analytics:</strong> on web, analytics (PostHog and Meta Pixel) are
+              on by default — turn them off with the toggle in <em>/profile/settings</em>, and we
+              honor your browser’s Do-Not-Track signal automatically. Either one also turns off the
+              Meta Pixel. On mobile, analytics are off by default and only fire if you enable them
+              in <em>Settings → Analytics</em>. Funnel events are tied to a random analytics ID,{' '}
+              <strong>not to your account</strong> — signing in does not connect them to your
+              identity. What they carry is deliberately narrow: <em>menu_filtered</em> sends the
+              restaurant, how many items were visible or hidden, and which <em>kind</em> of filter
+              was applied — not the filter itself. Toggling strictness on a menu sends the before
+              and after value. Saving your dietary profile sends only that it happened, never the
+              preset, the strictness, or how much you avoid — that association is the one we most
+              want to avoid making. We never send review text, your email, or your specific
+              avoid-lists. Page views send the page’s address with the part after the “?” removed,
+              and without which diet page you opened or whose profile you viewed. Like every event,
+              they also carry that random analytics ID and basic browser and device details
+              (browser, OS, screen size, approximate location from your IP), and the domain of the
+              site that sent you. We don’t record what you click or type, and we don’t record your
+              session.
             </li>
             <li>
               <strong>We do not sell</strong> your personal information. The Meta Pixel described
-              above sends Meta limited website activity for advertising, which California law
-              counts as “sharing”. To opt out of that sharing, turn off analytics in{' '}
+              above sends Meta limited website activity for advertising, which California law counts
+              as “sharing”. To opt out of that sharing, turn off analytics in{' '}
               <em>/profile/settings</em>, or use a browser that sends Global Privacy Control or
               Do-Not-Track: we honor each of them, and any one switches the pixel off. We will not
               discriminate against you for exercising any of these rights.
