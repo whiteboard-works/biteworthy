@@ -24,7 +24,10 @@ import {
   humanizeDietSlug,
   type CityRanked,
 } from '../../../lib/durango';
+import { JsonLd, restaurantItemListJsonLd } from '../../../lib/json-ld';
 import { RestaurantCard } from './_RestaurantCard';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bite-worthy.com';
 
 interface Params {
   diet: string;
@@ -85,9 +88,15 @@ export default async function DurangoDietPage({ params }: PageProps): Promise<Re
 
   const visibleSlugs = ranking.restaurants.filter((r) => r.visible_count > 0);
   const allHiddenSlugs = ranking.restaurants.filter((r) => r.visible_count === 0);
+  // Same order the cards render in: visible first, then the all-hidden
+  // disclosure. Address is not on the card, so JSON-LD gets name + url only.
+  const listed = [...visibleSlugs, ...allHiddenSlugs];
 
   return (
     <main className="bg-white">
+      {listed.length > 0 && (
+        <JsonLd data={restaurantItemListJsonLd({ restaurants: listed, siteUrl: SITE_URL })} />
+      )}
       <Hero
         dietName={ranking.profile.name}
         totalRestaurants={ranking.restaurants.length}
