@@ -22,7 +22,7 @@
     "@opentelemetry/resources": "^3.0.0",
     "@opentelemetry/sdk-logs": "^0.223.0",
     "@tanstack/react-query": "^5.105.0",
-    "next": "^16.4.3",
+    "next": "^16.4.5",
     "posthog-js": "^1.434.0",
     "posthog-node": "^5.57.1",
     "react": "^19.2.6",
