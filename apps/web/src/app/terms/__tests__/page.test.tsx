@@ -16,6 +16,12 @@ describe('TermsPage — conspicuous disclaimers', () => {
     expect(box).toHaveTextContent(/confirm with the restaurant/i);
   });
 
+  it('names Meta Pixel and that the analytics opt-out covers PostHog and Meta', () => {
+    render(<TermsPage />);
+    expect(screen.getByText(/Meta Pixel \(Meta Platforms, Inc.\)/)).toBeInTheDocument();
+    expect(screen.getByText(/covers both PostHog and Meta Pixel/)).toBeInTheDocument();
+  });
+
   it('renders the AS-IS warranty + liability disclaimers conspicuously (uppercase)', () => {
     render(<TermsPage />);
     // The operative clauses are capitalized so they're "conspicuous".
