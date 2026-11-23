@@ -1454,9 +1454,10 @@ function AnalyticsSection() {
     <section className="mt-bw-8 border-t border-zinc-100 pt-bw-8">
       <h2 className="text-bw-lg font-bold text-zinc-900">Product analytics</h2>
       <p className="mt-bw-2 text-bw-sm text-zinc-600">
-        We use privacy-respecting product analytics to understand the launch funnel. Events are
-        never tied to your dietary profile — we don’t send what you avoid, your presets, or your
-        strictness. We also honor your browser’s Do-Not-Track signal automatically.
+        We use privacy-respecting product analytics (PostHog) and conversion tracking (Meta Pixel)
+        to understand the launch funnel. Events are never tied to your dietary profile — we don’t
+        send what you avoid, your presets, or your strictness. This toggle and your browser’s
+        Do-Not-Track signal govern both.
       </p>
 
       <label className="mt-bw-4 flex items-center justify-between rounded-bw-md border border-zinc-200 p-bw-4">
