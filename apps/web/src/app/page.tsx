@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import { JsonLd } from '../lib/json-ld';
+import { faqPageJsonLd, softwareApplicationJsonLd } from '../lib/landing-faq';
 import { buildLandingMetadata } from '../lib/landing-meta';
 import { fetchRestaurants, type RestaurantSummary } from '../lib/restaurants';
 import { FeatureRow } from './_FeatureRow';
 import { Footer } from './_Footer';
 import { HeroCta, MarketingExtras, TryADiet } from './_HeroCta';
+import { LandingFaq } from './_LandingFaq';
 import { RestaurantCards } from './_RestaurantCards';
 import { WaitlistSection } from './_waitlist-form';
 
@@ -47,10 +50,13 @@ export const metadata: Metadata = buildLandingMetadata({ siteUrl: SITE_URL });
 export default function HomePage(): ReactElement {
   return (
     <main className="bg-white">
+      <JsonLd data={softwareApplicationJsonLd(SITE_URL)} />
+      <JsonLd data={faqPageJsonLd()} />
       <Hero />
       <BrowseRestaurants />
       <FeatureRow />
       <DurangoNote />
+      <LandingFaq />
       <Footer />
     </main>
   );

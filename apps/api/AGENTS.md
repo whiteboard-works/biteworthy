@@ -27,3 +27,7 @@ For architecture and conventions, also follow the repo-root `AGENTS.md`.
 
 - **Every email carries the postal address footer.** It lives in `app/views/layouts/mailer.html.erb` and `mailer.text.erb`; do not render a mailer without those layouts.
 - **Any marketing email must have a one-click unsubscribe link backed by a real opt-out, `List-Unsubscribe` and `List-Unsubscribe-Post` headers, and the postal address (CAN-SPAM).** This includes the waitlist "early access" launch email that `WaitlistMailer#confirm` promises. Transactional mail (verification, password reset, the waitlist confirmation itself) is exempt. No unsubscribe endpoint exists yet because no launch email does; build it before that email is sent.
+
+## Source of truth
+
+Facts for this product (name, pricing, status, URL) live in the repo-root [`AGENTS.md`](../../AGENTS.md) under **Source of truth**. Update that section in the same PR as any copy or JSON-LD change; do not fork a second list here.

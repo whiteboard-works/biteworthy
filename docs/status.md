@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-10-30 (UTC) — **Landing JSON-LD + visible FAQ (WBW-203, WBW-204).** The marketing home emits `SoftwareApplication` (free during the Durango beta) and a five-question `FAQPage` whose wording matches the visible FAQ; `/durango/<diet>` emits an `ItemList` of the restaurants on the page (name + url only). Serializer lives in `apps/web/src/lib/json-ld.tsx`. Source-of-truth facts (name, pricing, status, URL) are in root `README.md` and `AGENTS.md`.
+
 2026-10-13 (UTC) — **`list_staged_items` has a compact mode.** Reviewing North Italia's 185 staged dishes, the full rows (association objects, prices, add-ons, match diffs) filled most of an agent's context. `compact: true` returns each association as one `slug (confidence, source)` string, drops prices and add-ons, and gives a match as the live dish's id; confidence and source stay.
 
 2026-10-13 (UTC) — **Catalog terms for the menu phrases that misfired.** From the Riverton import: "ginger beer" now means the soda (it was beer, hiding a zero-proof drink from a celiac filter) while "hard ginger beer"/"spiked root beer" mean alcohol; "Root Beer" has a node; "carne asada" is beef (skirt steak); "Chicken Fried Steak" is a breaded beef node instead of chicken; and "nuts"/"glazed nuts" resolve to a Mixed Nuts node that implies peanuts too, while "nut-free"/"peanut-free" are absence phrases. Specific nuts gained "cashew nuts"-style aliases so the bare "nuts" alias does not also fire on them. Migration `20261013000000` carries the terms to production; it changes the catalog only, so dishes already live keep their old rows until re-scanned.

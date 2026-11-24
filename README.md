@@ -87,3 +87,14 @@ mobile app builds through EAS but is not yet in the stores; what is left is in
 in progress is at the top of [`docs/roadmap.md`](docs/roadmap.md).
 
 Operating entity: Whiteboard Works Software LLC.
+
+## Source of truth
+
+- **Product name:** BiteWorthy (capital B and W)
+- **One-line:** Scan any menu, see only what you can eat (`README.md:3`)
+- **Pricing:** Free during the Durango beta; no paid plan in this repo. Landing copy: "Free during the Durango beta. No ads." (`apps/web/src/app/page.tsx:139`)
+- **Status:** Beta, live in Durango. Web is live; mobile builds through EAS and is not yet in the stores (`README.md:84-87`)
+- **Key counts:** unverified as product-wide totals. Curated Durango diet landings: 8 slugs (`apps/web/src/lib/durango.ts:30-39`)
+- **Canonical URL:** https://bite-worthy.com/ (`README.md:10`)
+
+Rule: any change to a fact above must update, in the same PR: (1) the whiteboardworks.com product page for this product (`whiteboard-works/home` → `<product>.html`: visible copy, meta/OG/Twitter text, JSON-LD), (2) the home page JSON-LD, FAQ and product card/modal copy (`whiteboard-works/home` → `index.html`), and (3) this product site's own JSON-LD and visible FAQ. Home is a separate repo, so open the companion home PR at the same time and link both PRs to each other. On whiteboardworks.com visible text shows the star value only, never review counts; counts may stay in JSON-LD.
