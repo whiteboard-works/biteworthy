@@ -39,12 +39,13 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
 ## P1 — dependency hygiene
 
 5. [x] **Dependabot ignore rules for Expo-managed packages** — done in
-   #279 (12 ignore patterns; the `expo` group removed). Note:
-   `react`/`react-dom` are deliberately NOT ignored (web needs them);
-   accepted residual risk — required checks + the renderer-sync step in
-   the align workflow now catch a bad bump. Painfully validated: #276
-   (an expo-group bump) merged minutes BEFORE the ignores landed,
-   re-broke mobile, and was cleaned up by #292.
+   #279 (12 ignore patterns; the `expo` group removed). `babel-preset-expo`
+   was a glob miss (`expo-*` does not match it) and got its own ignore
+   after #993/#1006. Note: `react`/`react-dom` are deliberately NOT
+   ignored (web needs them); accepted residual risk — required checks +
+   the renderer-sync step in the align workflow now catch a bad bump.
+   Painfully validated: #276 (an expo-group bump) merged minutes BEFORE
+   the ignores landed, re-broke mobile, and was cleaned up by #292.
 6. [x] **Monthly Expo SDK alignment workflow** — done in #283
    (`.github/workflows/expo-align.yml`), patched in #292 after its
    first dispatched run correctly caught — but couldn't fix — the
