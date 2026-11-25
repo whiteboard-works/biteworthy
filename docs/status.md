@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-25 (UTC) — **#925 Codex P1: hard-soda joins.** Alias move `20261013010000` only changed future matcher runs; dishes already joined to the `alcohol` root would still pass a celiac preset that avoids `alcohol.beer`. New idempotent `20261013020000` rewrites those ItemIngredient rows (and the denormalized `ingredient_ids`) onto `alcohol-beer`, scoped to the three moved phrases, skipping curator `human`/`owner` joins unless the dish name itself is the alias.
+
 2026-11-25 (UTC) — **Master CI unblocked (WBW-226).** Three independent reds since mid-November: (1) `ruby/setup-ruby@v1` on `ubuntu-latest` (now 26.04) has no prebuilt Ruby 3.3.6 — pin every Ruby job (`ci-api`, nightly API, `deploy-api`) to `ubuntu-24.04`, do not bump `.ruby-version`; (2) `pr-title` rejected Dependabot's `chore(deps): Bump …` on the capital B — skip subject-case for `dependabot[bot]` only; (3) CI · JS flake in `PlaceEditor.test.tsx` asserted the empty street input before the GET seeded it. Nightly already had `workflow_dispatch`; PRs that touch `ci-nightly.yml` now run it too, but the `ci-nightly` issue reporter is gated to master schedule/dispatch. Nightly API also installs `libvips42` (and ghostscript) — 24.04 does not ship vips, which was hidden while setup-ruby failed first.
 
 2026-10-13 (UTC) — **Catalog follow-up from Codex on #923.** "Hard ginger beer"/"hard root beer" now match Beer rather than the `alcohol` root, since the celiac presets avoid `alcohol.beer`; Ginkgo, Hemp, and Hickory gained "<name> nuts" aliases so bare "nuts" (and its implied peanut) doesn't also fire on them; and an absence phrase preceded by an offer ("can be made peanut-free") keeps the allergen. Migration `20261013010000`.

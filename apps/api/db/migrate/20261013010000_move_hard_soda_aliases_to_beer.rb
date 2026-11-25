@@ -5,6 +5,9 @@
 # malt-based hard soda passed them; the aliases move to Beer. The named
 # nuts the catalog still lacked a "<name> nuts" form for (ginkgo, hemp,
 # hickory) gain one, so bare "nuts" does not also fire and imply peanut.
+#
+# Catalog only: already-ingested ItemIngredient rows stay on `alcohol`
+# until 20261013020000 rewrites the ones matched through these aliases.
 class MoveHardSodaAliasesToBeer < ActiveRecord::Migration[8.1]
   class MigrationIngredient < ActiveRecord::Base
     self.table_name = "ingredients"
