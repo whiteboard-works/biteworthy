@@ -35,7 +35,7 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 
 An agent-driven import of Riverton restaurants over MCP found the places the scan-to-menu flow showed an unsafe dish as safe, failed without saying why, or doubled a menu. Plan and checklist: [`docs/plans/import-flow-hardening.md`](plans/import-flow-hardening.md).
 
-- [x] Allergen safety fixes: invented-slug fallback, compound-sauce implications (resolve, gap-fill, accept, backfill), cheese/olives/false-friend matching, honest staged edits (#906–#916).
+- [x] Allergen safety fixes: invented-slug fallback, compound-sauce implications (resolve, gap-fill, accept, backfill), cheese/olives/false-friend matching, honest staged edits (#906–#916); catalog follow-up for hard sodas as beer, named-nut aliases, and offer-before-claim (#923, #925).
 - [x] Scan reliability: visible-text URL scans, honest timing, no duplicate dishes from parallel scans (#911, #913, #917–#919).
 - [ ] Run the sauce-allergen backfill in production (human).
 - [ ] Constrain gap-fill output (needs the cassette re-recorded with a live key, human).
