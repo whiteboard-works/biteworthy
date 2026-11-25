@@ -69,6 +69,41 @@ RSpec.describe IngestionItem, type: :model do
       end
     end
 
+    # Codex on #925: accepted/rejected payloads can still name the alcohol
+    # root after the join rewrite. undo then promote! must not recreate
+    # that join even if the stored payload was never rewritten.
+    context "when a hard soda's payload still names the alcohol root" do
+      let!(:alcohol) { create(:ingredient, slug: "alcohol", path: "alcohol") }
+      let!(:beer) { create(:ingredient, slug: "alcohol-beer", path: "alcohol.beer") }
+      let!(:celiac) { create(:dietary_profile, slug: "celiac") }
+
+      before do
+        celiac.dietary_profile_ingredients.create!(ingredient: beer, rule: "avoid")
+        item.update!(
+          name: "Hard Ginger Beer",
+          description: "",
+          ingredients_payload: [ { "slug" => "alcohol", "confidence" => 0.95, "source" => "match" } ],
+          tags_payload: []
+        )
+      end
+
+      it "promotes onto beer so a celiac preset hides the dish" do
+        promoted = item.promote!
+
+        expect(promoted.item_ingredients.map(&:ingredient_id)).to eq([ beer.id ])
+        expect(item.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol" ])
+        filter = Menus::Filter.build(preset_slug: "celiac")
+        reasons = filter.reasons_for(promoted.reload, Menus::Labels.for_filter([ promoted ], filter))
+        expect(reasons).not_to be_empty
+      end
+
+      it "does not remap a wine whose payload is the alcohol root" do
+        item.update!(name: "House Cabernet")
+
+        expect(item.promote!.item_ingredients.map(&:ingredient_id)).to eq([ alcohol.id ])
+      end
+    end
+
     it "sets menu_section from section_name when present" do
       item.update!(section_name: "Tacos")
 
