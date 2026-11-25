@@ -2,28 +2,38 @@
 
 # 20261013010000 moves the hard-soda aliases onto `alcohol.beer` so a
 # future IngredientMatcher run hides those dishes from a celiac preset.
-# It does not touch live joins. Dishes accepted while the aliases sat on
-# the `alcohol` root still have an ItemIngredient pointing there, and
-# avoiding `alcohol.beer` does not expand up to the parent — those
+# It does not touch live joins or staged payloads. Dishes accepted (or
+# staged) while the aliases sat on the `alcohol` root still point there,
+# and avoiding `alcohol.beer` does not expand up to the parent — those
 # dishes stay visible. This rewrite is the live-row half of that move.
 #
-# Scoped to the three moved phrases in the dish name or description, and
-# to joins that currently point at the alcohol root. Curator (`human` /
+# Scoped to the three moved phrases after the same normalization the
+# matcher uses (hyphens, slashes, extra spaces), and to joins / staged
+# payloads that currently name the alcohol root. Curator (`human` /
 # `owner`) rows are left alone unless the dish *name* itself is one of
-# those phrases — then the join is the hard soda, even if a person
-# confirmed the matcher's alcohol node. A wine a curator tagged alcohol
-# whose description happens to mention a hard soda is not rewritten.
+# those phrases. A wine a curator tagged alcohol whose description
+# happens to mention a hard soda is not rewritten.
 #
-# Idempotent: a second `up` finds no remaining alcohol-root joins on
-# those dishes. `down` does not put them back — that is the unsafe
-# direction.
+# Pending/edited IngestionItems have no ItemIngredient yet; promote!
+# writes whatever slug is still in ingredients_payload, so those
+# payloads are rewritten too.
+#
+# Idempotent: a second `up` finds no remaining alcohol-root joins or
+# staged alcohol slugs on those dishes. `down` does not put them back —
+# that is the unsafe direction.
 class RewriteHardSodaItemIngredientsToBeer < ActiveRecord::Migration[8.1]
   class MigrationIngredient < ActiveRecord::Base
     self.table_name = "ingredients"
   end
 
+  class MigrationIngestionItem < ActiveRecord::Base
+    self.table_name = "ingestion_items"
+  end
+
   # Keep in lockstep with MoveHardSodaAliasesToBeer::MOVED.
   MOVED = [ "hard ginger beer", "hard root beer", "spiked root beer" ].freeze
+  STAGED = %w[pending edited].freeze
+  CURATOR = %w[human owner].freeze
 
   def up
     alcohol_id = MigrationIngredient.where(slug: "alcohol").pick(:id)
@@ -33,16 +43,8 @@ class RewriteHardSodaItemIngredientsToBeer < ActiveRecord::Migration[8.1]
       return
     end
 
-    item_ids = connection.select_values(<<~SQL.squish)
-      SELECT DISTINCT e.item_id FROM (#{eligible_joins_sql(alcohol_id)}) e
-    SQL
-    return if item_ids.empty?
-
-    say_with_time "rewrite #{item_ids.size} hard-soda dish(es) off the alcohol root" do
-      drop_duplicate_alcohol_joins(alcohol_id, beer_id)
-      point_remaining_joins_at_beer(alcohol_id, beer_id)
-      resync_ingredient_ids(item_ids)
-    end
+    rewrite_joins(alcohol_id, beer_id)
+    rewrite_staged_payloads
   end
 
   def down
@@ -52,52 +54,102 @@ class RewriteHardSodaItemIngredientsToBeer < ActiveRecord::Migration[8.1]
 
   private
 
-  # Alcohol-root joins on a dish whose name or description contains a
-  # moved alias. Matcher/AI/derived rows always qualify; curator rows
-  # only when the name itself carries the phrase.
-  def eligible_joins_sql(alcohol_id)
-    haystack   = "lower(coalesce(i.name, '') || ' ' || coalesce(i.description, ''))"
-    name_hay   = "lower(coalesce(i.name, ''))"
-    any_phrase = or_phrases(haystack)
-    name_phrase = or_phrases(name_hay)
-
-    <<~SQL.squish
-      SELECT ii.id, ii.item_id
+  def rewrite_joins(alcohol_id, beer_id)
+    rows = connection.select_all(<<~SQL.squish)
+      SELECT ii.id, ii.item_id, ii.source, i.name, i.description
       FROM item_ingredients ii
       INNER JOIN items i ON i.id = ii.item_id
       WHERE ii.ingredient_id = #{connection.quote(alcohol_id)}
-        AND (#{any_phrase})
-        AND (
-          ii.source NOT IN ('human', 'owner')
-          OR (#{name_phrase})
-        )
     SQL
+    eligible = rows.select { |row| eligible_text?(row["name"], row["description"], source: row["source"]) }
+    return if eligible.empty?
+
+    item_ids = eligible.map { |row| row["item_id"] }.uniq
+    join_ids = eligible.map { |row| row["id"] }
+
+    say_with_time "rewrite #{item_ids.size} hard-soda dish(es) off the alcohol root" do
+      drop_duplicate_alcohol_joins(join_ids, beer_id)
+      point_remaining_joins_at_beer(join_ids, beer_id)
+      resync_ingredient_ids(item_ids)
+    end
   end
 
-  def or_phrases(haystack)
-    MOVED.map { |phrase| "position(#{connection.quote(phrase)} in #{haystack}) > 0" }.join(" OR ")
+  def rewrite_staged_payloads
+    rewritten = 0
+    MigrationIngestionItem.where(decision: STAGED).find_each do |staged|
+      next unless eligible_text?(staged.name, staged.description, source: "match")
+
+      payload = Array(staged.ingredients_payload)
+      updated = remap_payload(payload, name_has_phrase: phrase_in?(staged.name))
+      next if updated == payload
+
+      staged.update!(ingredients_payload: updated)
+      rewritten += 1
+    end
+    say "rewrote #{rewritten} staged hard-soda payload(s)" if rewritten.positive?
   end
 
-  def drop_duplicate_alcohol_joins(alcohol_id, beer_id)
+  # Matcher/AI/derived rows always qualify when the phrase is in name or
+  # description; curator rows only when the name itself carries it.
+  def eligible_text?(name, description, source:)
+    return false unless phrase_in?("#{name} #{description}")
+    return true unless CURATOR.include?(source.to_s)
+
+    phrase_in?(name)
+  end
+
+  def phrase_in?(text)
+    hay = normalize(text)
+    MOVED.any? { |phrase| hay.include?(phrase) }
+  end
+
+  # Copied from Ingestion::MenuText.normalize so a later matcher change
+  # cannot silently retarget an already-run data migration. Hyphens,
+  # slashes, leftover punctuation, and extra whitespace have to fold the
+  # same way they did when the join was written.
+  def normalize(text)
+    ActiveSupport::Inflector
+      .transliterate(text.to_s.downcase)
+      .gsub("&", " and ")
+      .tr("-/", "  ")
+      .gsub(/[^a-z0-9 ]/, " ")
+      .squish
+  end
+
+  def remap_payload(payload, name_has_phrase:)
+    rows = payload.map { |row| stringify_row(row) }
+    has_beer = rows.any? { |row| row["slug"] == "alcohol-beer" }
+    rows.filter_map do |row|
+      next row unless row["slug"] == "alcohol"
+      next row if CURATOR.include?(row["source"].to_s) && !name_has_phrase
+      next if has_beer
+
+      has_beer = true
+      row.merge("slug" => "alcohol-beer")
+    end
+  end
+
+  def stringify_row(row)
+    row.respond_to?(:to_h) ? row.to_h.stringify_keys : { "slug" => row }
+  end
+
+  def drop_duplicate_alcohol_joins(join_ids, beer_id)
     execute(<<~SQL.squish)
       DELETE FROM item_ingredients ii
-      WHERE ii.id IN (
-        SELECT e.id FROM (#{eligible_joins_sql(alcohol_id)}) e
-        WHERE EXISTS (
+      WHERE ii.id IN (#{quoted_ids(join_ids)})
+        AND EXISTS (
           SELECT 1 FROM item_ingredients beer
-          WHERE beer.item_id = e.item_id
+          WHERE beer.item_id = ii.item_id
             AND beer.ingredient_id = #{connection.quote(beer_id)}
         )
-      )
     SQL
   end
 
-  def point_remaining_joins_at_beer(alcohol_id, beer_id)
+  def point_remaining_joins_at_beer(join_ids, beer_id)
     execute(<<~SQL.squish)
-      UPDATE item_ingredients ii
+      UPDATE item_ingredients
       SET ingredient_id = #{connection.quote(beer_id)}, updated_at = CURRENT_TIMESTAMP
-      FROM (#{eligible_joins_sql(alcohol_id)}) e
-      WHERE ii.id = e.id
+      WHERE id IN (#{quoted_ids(join_ids)})
     SQL
   end
 
@@ -112,7 +164,11 @@ class RewriteHardSodaItemIngredientsToBeer < ActiveRecord::Migration[8.1]
         FROM item_ingredients j
         WHERE j.item_id = items.id
       ), updated_at = CURRENT_TIMESTAMP
-      WHERE id IN (#{item_ids.map { |id| connection.quote(id) }.join(", ")})
+      WHERE id IN (#{quoted_ids(item_ids)})
     SQL
+  end
+
+  def quoted_ids(ids)
+    ids.map { |id| connection.quote(id) }.join(", ")
   end
 end

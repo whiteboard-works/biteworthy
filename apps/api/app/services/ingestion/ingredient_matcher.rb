@@ -59,6 +59,10 @@ module Ingestion
     # "optionally gluten free"). Whole phrases ending right at the claim:
     # a lone "made" is composition ("made with dairy-free cheese").
     VARIANT_LEADS = [ "can be made", "can be", "can make", "ask for", "optionally", "optional" ].freeze
+    # Longest VARIANT_LEAD is three tokens. Carried across MenuText
+    # segment boundaries so "can be made: peanut-free" still sees the
+    # offer — punctuation splits the lead and the claim apart.
+    VARIANT_LEAD_WIDTH = VARIANT_LEADS.map { |v| v.split.size }.max
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
@@ -82,8 +86,10 @@ module Ingestion
       matches   = {}
       leftovers = []
 
+      prefix = []
       MenuText.segments(text).each do |tokens|
-        scan_segment(tokens, matches, leftovers)
+        scan_segment(tokens, matches, leftovers, prefix: prefix)
+        prefix = tokens.last(VARIANT_LEAD_WIDTH)
       end
 
       [matches.values.map { |m| { slug: m.slug, path: m.path, confidence: m.confidence, source: "match" } },
@@ -99,11 +105,11 @@ module Ingestion
 
     # Greedy longest-match-first n-gram scan. A hit consumes its tokens;
     # unmatched tokens accumulate into leftover runs.
-    def scan_segment(tokens, matches, leftovers)
+    def scan_segment(tokens, matches, leftovers, prefix: [])
       run = []
       i = 0
       while i < tokens.length
-        hit, width = longest_match_at(tokens, i)
+        hit, width = longest_match_at(tokens, i, prefix: prefix)
         if hit == :absence
           run.concat(tokens[i, width])
           i += width
@@ -120,10 +126,10 @@ module Ingestion
       flush_leftover(run, leftovers)
     end
 
-    def longest_match_at(tokens, start)
+    def longest_match_at(tokens, start, prefix: [])
       [@max_ngram, tokens.length - start].min.downto(1) do |width|
         phrase = tokens[start, width].join(" ")
-        return [ :absence, width ] if absence_at?(tokens, start, width, phrase)
+        return [ :absence, width ] if absence_at?(tokens, start, width, phrase, prefix: prefix)
 
         entry = @index[phrase] || @index[singularize_last(phrase)] || @index[strip_plural_s(phrase)]
         return [entry, width] if entry
@@ -135,15 +141,17 @@ module Ingestion
     # when it is negated ("not dairy-free", "isn't dairy-free") and not
     # when it offers an alternative ("dairy-free option available").
     # Either way it falls through and matches as it did before.
-    def absence_at?(tokens, start, width, phrase)
+    def absence_at?(tokens, start, width, phrase, prefix: [])
       return false unless ABSENCE_PHRASES.include?(phrase)
 
-      before = start.positive? ? tokens[start - 1] : nil
+      context = prefix + tokens
+      idx = prefix.length + start
+      before = idx.positive? ? context[idx - 1] : nil
       negated = NEGATIONS.include?(before) ||
-                (before == "t" && start >= 2 && CONTRACTION_STEMS.include?(tokens[start - 2]))
+                (before == "t" && idx >= 2 && CONTRACTION_STEMS.include?(context[idx - 2]))
       return false if negated
 
-      lead = tokens[[ start - 3, 0 ].max...start].join(" ")
+      lead = context[[ idx - VARIANT_LEAD_WIDTH, 0 ].max...idx].join(" ")
       return false if VARIANT_LEADS.any? { |v| lead == v || lead.end_with?(" #{v}") }
 
       Array(tokens[start + width, 3]).none? { |t| ALTERNATIVE_WORDS.include?(t) }

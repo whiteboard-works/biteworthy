@@ -124,4 +124,54 @@ RSpec.describe RewriteHardSodaItemIngredientsToBeer do
     expect(join.reload.ingredient_id).to eq(alcohol.id)
     expect(item.reload.denormalized_ingredient_ids).to eq([ alcohol.id ])
   end
+
+  # The matcher folds hyphens, slashes, and extra spaces before lookup.
+  # Lowercasing the raw stored name misses those spellings, so a join
+  # the matcher wrote to alcohol would stay there.
+  it "rewrites joins whose stored spelling only matches after MenuText.normalize" do
+    hyphen, hyphen_join = hard_soda(name: "Hard-Ginger Beer")
+    slash, slash_join = hard_soda(name: "Hard / Root Beer")
+    spaces, spaces_join = hard_soda(name: "Spiked  Root  Beer")
+
+    described_class.new.up
+
+    expect(hyphen_join.reload.ingredient_id).to eq(beer.id)
+    expect(slash_join.reload.ingredient_id).to eq(beer.id)
+    expect(spaces_join.reload.ingredient_id).to eq(beer.id)
+    expect(celiac_reasons(hyphen)).not_to be_empty
+    expect(celiac_reasons(slash)).not_to be_empty
+    expect(celiac_reasons(spaces)).not_to be_empty
+  end
+
+  # Pending/edited staged rows have no ItemIngredient yet. promote! writes
+  # whatever slug is still in ingredients_payload, so leaving alcohol there
+  # recreates the gap on accept.
+  it "rewrites a pending hard-soda payload so promote! lands on beer" do
+    run = create(:ingestion_run, :staged, restaurant: restaurant)
+    staged = create(:ingestion_item, ingestion_run: run, name: "Hard Ginger Beer",
+                                     description: "",
+                                     ingredients_payload: [
+                                       { "slug" => "alcohol", "confidence" => 0.95, "source" => "match" }
+                                     ])
+
+    described_class.new.up
+    promoted = staged.reload.promote!
+
+    expect(staged.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol-beer" ])
+    expect(promoted.item_ingredients.map(&:ingredient_id)).to eq([ beer.id ])
+    expect(celiac_reasons(promoted)).not_to be_empty
+  end
+
+  it "does not rewrite a pending wine payload that is not a hard soda" do
+    run = create(:ingestion_run, :staged, restaurant: restaurant)
+    staged = create(:ingestion_item, ingestion_run: run, name: "House Cabernet",
+                                     description: "",
+                                     ingredients_payload: [
+                                       { "slug" => "alcohol", "confidence" => 0.95, "source" => "match" }
+                                     ])
+
+    described_class.new.up
+
+    expect(staged.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol" ])
+  end
 end

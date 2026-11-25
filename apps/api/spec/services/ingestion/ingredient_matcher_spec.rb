@@ -60,7 +60,10 @@ RSpec.describe Ingestion::IngredientMatcher do
     read = ->(text) { m.scan(text).first.map { |r| r[:slug] } }
 
     expect(read.("pad thai, can be made peanut-free")).to include("legume-peanuts")
+    expect(read.("pad thai, can be made: peanut-free")).to include("legume-peanuts")
+    expect(read.("can be made. peanut-free")).to include("legume-peanuts")
     expect(read.("peanut-free pad thai")).not_to include("legume-peanuts")
+    expect(read.("pad thai: peanut-free")).not_to include("legume-peanuts")
     expect(slugs("house-made vegan cheese, made with dairy-free cheese")).to be_empty
     expect(slugs("mac and cheese, optionally dairy-free")).to include("dairy")
   end
