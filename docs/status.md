@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-25 (UTC) — **posthog-rails 3.26 captures in-request `Rails.error.report`.** posthog-ruby 3.34.3 and posthog-rails 3.26.6 must move together (the Rails gem pins an exact Ruby SDK). 3.20 removed the private `in_web_request?` helpers and started capturing handled in-request reports itself, so `Telemetry::ErrorSubscriber` is gone — a second subscriber would race the gem's first-wins `capture_exception` dedupe. The gem still lifts a report's `user_id` / `distinct_id` into `capture_exception` even with `capture_user_context` off; `Telemetry::AnonymousErrorReports` is prepended so those stay anonymous. Dependabot #997/#1000 stay closed as superseded.
+
 2026-11-25 (UTC) — **Expo SDK 56 realign + Dependabot ignores.** `npx expo install --fix` pulled `babel-preset-expo` off the 58.x line back to `~56.0.21` (and the other SDK-56 patch drifts: expo, expo-linking, expo-router, jest-expo). Dependabot now ignores `babel-preset-expo` (`expo-*` does not match it) and semver-major on `@opentelemetry/sdk-logs` (0.x → 3.x). #1006 closed as superseded; #988 closed as skip.
 
 2026-11-25 (UTC) — **#925 Codex P1 follow-up on c17e0a32.** Three more safety gaps: (1) pending/edited `ingredients_payload` still had `alcohol`, so `promote!` recreated the root join; (2) backfill lowercased raw text and missed matcher spellings (`Hard-Ginger Beer`, slashes, extra spaces); (3) `can be made: peanut-free` split the variant lead off the claim. `20261013020000` now remaps staged payloads and selects with MenuText-equivalent normalize; the matcher carries the last VARIANT_LEAD tokens across punctuation segments.
