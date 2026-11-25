@@ -38,6 +38,9 @@ RSpec.describe AddMenuFalseFriendTerms do
         .to eq([ seed["name"], seed["path"], seed["aliases"], seed["allergen"] ])
     end
     described_class::ALIASES.each do |slug, aliases|
+      # 20261013010000 moves the hard-soda aliases from the root to Beer.
+      next if slug == "alcohol"
+
       expect(seeded.find { |r| r["slug"] == slug }["aliases"]).to include(*aliases)
       expect(Ingredient.find_by!(slug: slug).aliases).to include(*aliases)
     end
