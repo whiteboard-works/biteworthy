@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-25 (UTC) — **Expo SDK 56 realign + Dependabot ignores.** `npx expo install --fix` pulled `babel-preset-expo` off the 58.x line back to `~56.0.21` (and the other SDK-56 patch drifts: expo, expo-linking, expo-router, jest-expo). Dependabot now ignores `babel-preset-expo` (`expo-*` does not match it) and semver-major on `@opentelemetry/sdk-logs` (0.x → 3.x). #1006 closed as superseded; #988 closed as skip.
+
 2026-11-25 (UTC) — **#925 Codex P1 follow-up on c17e0a32.** Three more safety gaps: (1) pending/edited `ingredients_payload` still had `alcohol`, so `promote!` recreated the root join; (2) backfill lowercased raw text and missed matcher spellings (`Hard-Ginger Beer`, slashes, extra spaces); (3) `can be made: peanut-free` split the variant lead off the claim. `20261013020000` now remaps staged payloads and selects with MenuText-equivalent normalize; the matcher carries the last VARIANT_LEAD tokens across punctuation segments.
 
 2026-11-25 (UTC) — **#925 Codex P1: hard-soda joins.** Alias move `20261013010000` only changed future matcher runs; dishes already joined to the `alcohol` root would still pass a celiac preset that avoids `alcohol.beer`. New idempotent `20261013020000` rewrites those ItemIngredient rows (and the denormalized `ingredient_ids`) onto `alcohol-beer`, scoped to the three moved phrases, skipping curator `human`/`owner` joins unless the dish name itself is the alias.
