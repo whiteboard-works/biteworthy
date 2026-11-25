@@ -168,24 +168,29 @@ RSpec.describe ErrorReports::GithubIssues do
 
   # GitHub created the issue, the response never arrived, and the row
   # still says it has none. The retry must find it, not open a twin.
+  # Freeze time: created_at is captured as iso8601 when the list is
+  # stubbed, then compared to 90.minutes.ago after the request. CI run
+  # 38323185527 failed 1 of 3241 when that gap was 1.002s.
   it "adopts the issue a lost create response left behind, instead of opening a twin" do
-    report = record
-    stub_list([
-      { number: 3, body: "| Fingerprint | `0000000000000000` |", created_at: 2.hours.ago.utc.iso8601 },
-      { number: 11, body: "| Fingerprint | `#{report.fingerprint}` |", created_at: 90.minutes.ago.utc.iso8601 },
-      { number: 12, body: "| Fingerprint | `#{report.fingerprint}` |", pull_request: { url: "x" } }
-    ])
-    create  = stub_create
-    stub_issue(number: 11)
-    comment = stub_comment(number: 11)
+    freeze_time do
+      report = record
+      stub_list([
+        { number: 3, body: "| Fingerprint | `0000000000000000` |", created_at: 2.hours.ago.utc.iso8601 },
+        { number: 11, body: "| Fingerprint | `#{report.fingerprint}` |", created_at: 90.minutes.ago.utc.iso8601 },
+        { number: 12, body: "| Fingerprint | `#{report.fingerprint}` |", pull_request: { url: "x" } }
+      ])
+      create  = stub_create
+      stub_issue(number: 11)
+      comment = stub_comment(number: 11)
 
-    issues.sync(report)
+      issues.sync(report)
 
-    expect(create).not_to have_been_requested
-    expect(comment).to have_been_requested.once
-    expect(ErrorReport.last.issue_number).to eq(11)
-    expect(ErrorReport.last.issue_opened_at).to be_within(1.second).of(90.minutes.ago)
-    expect(ErrorReport.last.issue_occurrences).to eq(1)
+      expect(create).not_to have_been_requested
+      expect(comment).to have_been_requested.once
+      expect(ErrorReport.last.issue_number).to eq(11)
+      expect(ErrorReport.last.issue_opened_at).to be_within(1.second).of(90.minutes.ago)
+      expect(ErrorReport.last.issue_occurrences).to eq(1)
+    end
   end
 
   # What a person typed can end up quoted in a parser's or a
