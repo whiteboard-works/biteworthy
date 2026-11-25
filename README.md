@@ -48,8 +48,8 @@ Three surfaces talk to one API:
 
 The one rule that shapes everything: **the server decides what is safe.**
 `Menus::Filter` in the API is the only place a dish becomes visible or hidden,
-and the clients render what they receive. See _Architecture_ in
-[`AGENTS.md`](AGENTS.md) for the why.
+and the clients render what they receive. See
+[`agent-docs/architecture.md`](agent-docs/architecture.md) for the why.
 
 ## Quickstart
 
@@ -72,7 +72,7 @@ path, the test commands, and the usual snags, see
 
 ## Shipping
 
-Every PR gets squash auto-merged the moment its required checks are green.
+Every non-draft PR gets squash auto-merged the moment its required checks are green.
 A merge to `master` that touches `apps/api/` deploys the API to its Hetzner
 box through Kamal; Vercel deploys the web app from every push to `master`;
 mobile ships through EAS. Releases are calver entries added with

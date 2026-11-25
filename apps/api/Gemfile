@@ -5,7 +5,7 @@ ruby "3.3.6"
 # --- Core --------------------------------------------------------------------
 gem "rails", "~> 8.1.4"
 gem "pg", "~> 1.7"
-gem "puma", "~> 8.0"
+gem "puma", "~> 8.1"
 
 # Solid* trio (Rails 8 defaults — no Redis, all Postgres).
 gem "solid_cache"
@@ -24,7 +24,7 @@ gem "rswag-ui"
 # --- Auth --------------------------------------------------------------------
 gem "devise", "~> 5.0"
 gem "devise-jwt", "~> 0.12"
-gem "omniauth", "~> 2.1"
+gem "omniauth", "~> 2.3"
 gem "omniauth-rails_csrf_protection"
 gem "omniauth-google-oauth2"
 
@@ -47,7 +47,7 @@ gem "aws-sdk-s3", require: false
 # `anthropic` gem: app/services/anthropic_client.rb already carries our retry
 # policy, prompt-cache helpers, and the `last_usage` accounting that feeds
 # IngestionRun#record_api_usage!, and the job specs replay against it via VCR.
-gem "faraday", "~> 2.14"
+gem "faraday", "~> 2.15"
 gem "faraday-retry"
 
 # Validates Anthropic's structured-output responses against the JSON Schema
@@ -60,7 +60,7 @@ gem "json-schema", "~> 6.2"
 # endpoint, which exposes app/tools/* to Claude Desktop / Claude Code. The
 # same tool classes back the first-party chat, so domain logic and
 # authorization live in one place. See docs/mcp.md.
-gem "mcp", "~> 1.6"
+gem "mcp", "~> 1.11"
 
 # --- Observability (ADR 0009) ------------------------------------------------
 # PostHog takes the API's exceptions (every `Rails.error.report`, plus what
@@ -69,11 +69,11 @@ gem "mcp", "~> 1.6"
 # the one place that is configured. The OpenTelemetry gems carry the logs
 # over OTLP and are loaded by posthog-rails only when log forwarding is on,
 # hence `require: false`.
-gem "posthog-ruby", "~> 3.27"
-gem "posthog-rails", "~> 3.18"
+gem "posthog-ruby", "~> 3.28"
+gem "posthog-rails", "~> 3.19"
 gem "opentelemetry-sdk", "~> 1.13", require: false
-gem "opentelemetry-logs-sdk", "~> 0.8.0", require: false
-gem "opentelemetry-exporter-otlp-logs", "~> 0.6.0", require: false
+gem "opentelemetry-logs-sdk", "~> 0.8.1", require: false
+gem "opentelemetry-exporter-otlp-logs", "~> 0.7.0", require: false
 
 # --- Misc utilities ----------------------------------------------------------
 gem "bcrypt", "~> 3.1"
@@ -82,7 +82,7 @@ gem "tzinfo-data", platforms: %i[windows jruby]
 
 group :development, :test do
   gem "debug", platforms: %i[mri windows], require: "debug/prelude"
-  gem "rspec-rails", "~> 8.0"
+  gem "rspec-rails", "~> 8.1"
   gem "factory_bot_rails"
   gem "faker"
   gem "rswag-specs"
@@ -100,5 +100,5 @@ group :test do
   # Cassette-based playback for the live Anthropic calls in Phase 2.3+.
   # Cassettes are recorded locally with ANTHROPIC_API_KEY; CI replays them
   # with `record: :none`.
-  gem "vcr", "~> 6.3"
+  gem "vcr", "~> 6.4"
 end

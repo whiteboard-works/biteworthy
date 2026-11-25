@@ -51,7 +51,9 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Pin 24.04: ubuntu-latest is 26.04, and ruby/setup-ruby has no
+    # prebuilt 3.3.6 for that image. Same pin as ci-api / ci-nightly.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
