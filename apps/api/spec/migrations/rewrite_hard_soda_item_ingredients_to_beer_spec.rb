@@ -174,4 +174,24 @@ RSpec.describe RewriteHardSodaItemIngredientsToBeer do
 
     expect(staged.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol" ])
   end
+
+  # Codex on #925 (comment 4700839319): STAGED is pending/edited only.
+  # promote! sets decision=accepted and leaves the payload as scanned.
+  # undo then re-accept would recreate the alcohol-root join. The
+  # follow-up migration (20261125220100) rewrites every decision.
+  it "leaves accepted and rejected payloads on alcohol" do
+    run = create(:ingestion_run, :staged, restaurant: restaurant)
+    payload = [ { "slug" => "alcohol", "confidence" => 0.95, "source" => "match" } ]
+    accepted = create(:ingestion_item, ingestion_run: run, name: "Hard Ginger Beer",
+                                       description: "", ingredients_payload: payload)
+    accepted.promote!
+    rejected = create(:ingestion_item, ingestion_run: run, name: "Spiked Root Beer",
+                                       decision: "rejected", description: "",
+                                       ingredients_payload: payload)
+
+    described_class.new.up
+
+    expect(accepted.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol" ])
+    expect(rejected.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol" ])
+  end
 end

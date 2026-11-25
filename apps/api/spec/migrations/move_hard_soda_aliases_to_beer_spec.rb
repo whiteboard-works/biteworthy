@@ -45,4 +45,17 @@ RSpec.describe MoveHardSodaAliasesToBeer do
       expect(Array(r["aliases"]).map(&:downcase)).to include("#{r['name'].downcase} nuts"), r["slug"]
     end
   end
+
+  # Codex on #925 (comment 4700839330): the all-or-nothing guard returns
+  # early if Ginkgo/Hemp/Hickory were deleted via DeleteTaxonomyNode, so
+  # the hard-soda aliases stay on the alcohol root. The follow-up
+  # migration (20261125220000) requires only the two alcohol nodes.
+  it "no-ops the whole alias move when a named-nut node is missing" do
+    Ingredient.find_by!(slug: "tree_nut-ginkgo").destroy!
+
+    described_class.new.up
+
+    expect(Ingredient.find_by!(slug: "alcohol").aliases).to include("hard ginger beer")
+    expect(Ingredient.find_by!(slug: "alcohol-beer").aliases).not_to include("hard ginger beer")
+  end
 end
