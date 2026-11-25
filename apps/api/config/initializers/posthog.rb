@@ -15,9 +15,13 @@
 #     the controllers) and the unhandled ones Rails reports itself — a 500,
 #     a job whose retries ran out — become `$exception` events. Errors
 #     that are rescued and rendered (a 404, a 422) are not reported.
-#     posthog-rails covers the unhandled ones and the reports made outside
-#     a request; `Telemetry::ErrorSubscriber` covers the reports made
-#     inside one, which posthog-rails skips.
+#     posthog-rails 3.20+ captures handled `Rails.error.report` calls
+#     during a web request as well as the unhandled ones (changelog
+#     3cf8079); a second subscriber would race its first-wins
+#     `capture_exception` dedupe. `Telemetry::AnonymousErrorReports` is
+#     prepended so a context `user_id` / `distinct_id` is not used as
+#     the event's identity (`capture_user_context` only covers the
+#     middleware path).
 #   * Logs. `Rails.logger` is broadcast to PostHog Logs over OTLP, info and
 #     up, through `Telemetry::Scrub.log`, which also drops the health
 #     checks `silence_healthcheck_path` keeps out of STDOUT.
@@ -77,6 +81,9 @@ OpenTelemetry.error_handler = lambda do |exception: nil, message: nil|
   otel_default_error_handler.call(exception: exception, message: message)
 end
 
+# after_initialize so Zeitwerk can load the prepend module from app/.
+# Gems are not reloaded, so once is enough: every already-subscribed
+# ErrorSubscriber instance picks this up for subsequent reports.
 Rails.application.config.after_initialize do
-  Rails.error.subscribe(Telemetry::ErrorSubscriber.new)
+  PostHog::Rails::ErrorSubscriber.prepend(Telemetry::AnonymousErrorReports)
 end
