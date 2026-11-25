@@ -91,11 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Ingestion::DishPhotoCropper depends on MiniMagick which shells
-      # out to `magick`/`identify`. Be explicit so a runner image
-      # change doesn't silently drop it.
-      - name: Install ImageMagick
-        run: sudo apt-get update -y && sudo apt-get install -y imagemagick
+      # Same packages as ci-api.yml. ubuntu-24.04 does not ship libvips,
+      # so ruby-vips fails at boot (`vips.so.42: cannot open shared
+      # object file`) unless we install it — that was hidden while
+      # setup-ruby died first on ubuntu-26.04.
+      - name: Install ImageMagick, libvips, and Ghostscript
+        run: sudo apt-get update -y && sudo apt-get install -y imagemagick libvips42 ghostscript
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -117,7 +118,11 @@ jobs:
     name: open or update failure issue
     runs-on: ubuntu-latest
     needs: [js, api]
-    if: always() && (needs.js.result == 'failure' || needs.api.result == 'failure')
+    # Only the scheduled/dispatched master run should file the
+    # repository-wide incident. A PR that touches this workflow (or a
+    # dispatch on a branch) must not comment on the master ci-nightly
+    # issue.
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && (needs.js.result == 'failure' || needs.api.result == 'failure')
     permissions:
       issues: write
     env:
