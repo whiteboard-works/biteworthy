@@ -21,10 +21,13 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
   pull_request_review:
     types: [submitted]
+  pull_request_review_comment:
+    types: [created, edited]
   issue_comment:
     types: [created]
-  pull_request_review_thread:
-    types: [resolved, unresolved]
+  # pull_request_review_thread is a webhook, not an Actions trigger;
+  # including it fails workflow validation. Resolving a thread re-evaluates
+  # on the next push, review, or review comment (the usual fix is a push).
   pull_request:
     paths:
       - '.github/workflows/auto-merge.yml'
@@ -43,7 +46,7 @@ on:
         default: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && 'test' || 'gate' }}-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && 'test' || 'gate' }}-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 permissions:
@@ -104,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run }}
     steps:
       # Always the default branch (except workflow_dispatch, which is a
       # human-chosen ref). pull_request_review / issue_comment would
@@ -125,7 +128,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          NUMBER="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}"
+          NUMBER="${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}"
           if [ -z "$NUMBER" ]; then
             echo "No PR number on this event" >&2
             exit 1

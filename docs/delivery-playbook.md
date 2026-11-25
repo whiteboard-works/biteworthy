@@ -163,7 +163,10 @@ soon as required checks pass. Branch protection on master is what
 actually decides what "required" means.
 
 If Codex is slow or silent, auto-merge stays off (fail closed). Comment
-`@codex review` and wait; do not re-enable by hand to skip it.
+`@codex review` and wait; do not re-enable by hand to skip it. Resolving
+a review thread does not itself start a workflow (Actions has no
+`pull_request_review_thread` trigger); the next push, review, or inline
+comment re-evaluates.
 
 Hard rules the loop still enforces (refuse to open or merge a PR
 that violates these):
