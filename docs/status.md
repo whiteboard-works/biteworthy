@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-25 (UTC) — **Auto-merge waits for Codex on the current head.** `auto-merge.yml` had been re-arming squash auto-merge on every push, so PRs (#995, #1004, #925) merged before Codex reviewed the head commit. It now enables auto-merge only when `chatgpt-codex-connector` has a review (or a "Didn't find any major issues" comment) on the current head SHA and GraphQL reports no unresolved P0/P1 Codex threads; a `synchronize` disarms first. Dependabot patch/minor still skip that wait via `dependabot/fetch-metadata`. Not a branch-protection required-review rule.
+
 2026-11-25 (UTC) — **#925 Codex P1 follow-up on c17e0a32.** Three more safety gaps: (1) pending/edited `ingredients_payload` still had `alcohol`, so `promote!` recreated the root join; (2) backfill lowercased raw text and missed matcher spellings (`Hard-Ginger Beer`, slashes, extra spaces); (3) `can be made: peanut-free` split the variant lead off the claim. `20261013020000` now remaps staged payloads and selects with MenuText-equivalent normalize; the matcher carries the last VARIANT_LEAD tokens across punctuation segments.
 
 2026-11-25 (UTC) — **#925 Codex P1: hard-soda joins.** Alias move `20261013010000` only changed future matcher runs; dishes already joined to the `alcohol` root would still pass a celiac preset that avoids `alcohol.beer`. New idempotent `20261013020000` rewrites those ItemIngredient rows (and the denormalized `ingredient_ids`) onto `alcohol-beer`, scoped to the three moved phrases, skipping curator `human`/`owner` joins unless the dish name itself is the alias.

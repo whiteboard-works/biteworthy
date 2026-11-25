@@ -22,11 +22,11 @@ from it. If the loop's behavior diverges from this file, the file wins.
    marking ready-for-merge.
 4. **CI must pass.** Never request human review on red. Never
    auto-merge on red.
-5. **Trust review.** GitHub auto-merge runs once required checks are
-   green; it does not wait on review threads (conversation resolution is
-   off on `master`), and there is no label or approval gate (see
-   §Auto-merge policy). Open a draft to hold a PR; `ship merge` also
-   waits for zero unresolved P1/P2 findings.
+5. **Trust review.** `.github/workflows/auto-merge.yml` enables GitHub
+   auto-merge only after Codex has reviewed the current head SHA with no
+   unresolved P0/P1 Codex threads (see §Auto-merge policy). Required
+   checks still come from branch protection. Open a draft to hold a PR;
+   `ship merge` also waits for zero unresolved P1/P2 findings.
 6. **Plan-first updates.** Before starting work, the loop syncs
    `docs/roadmap.md`'s "Next up" queue. Before merging, it ticks the
    completed item. Mid-task progress goes in `docs/status.md` (see
@@ -62,12 +62,13 @@ applicable branch.
 
 | State | Action |
 |---|---|
-| PR open, CI green, no unresolved threads | Auto-merge is already enabled — GitHub will squash-merge as soon as branch protection allows. Continue to step 3 once merged. |
+| PR open, CI green, Codex has reviewed head, no unresolved P0/P1 Codex threads | Auto-merge is already enabled — GitHub will squash-merge as soon as branch protection allows. Continue to step 3 once merged. |
+| PR open, waiting for Codex on the current head | Do nothing. Log "waiting for Codex." Auto-merge stays off. |
 | PR open, CI green, has unresolved review threads | Read each thread. If small + clear, address and push. If ambiguous or architectural, post a question on the thread tagging `@shadoath` and pause. |
 | PR open, CI red | Fetch the failing logs. If the cause is known and the fix is small, push it to the same branch. If unknown after one diagnosis attempt, post a status comment summarizing the failure, ping `@shadoath`, and pause. |
 | PR open, CI pending | Do nothing. Log "waiting for CI." |
 | PR open, conflicts with master | Rebase onto master. If conflicts are mechanical, resolve and force-push. If non-trivial, ping and pause. |
-| No PR open, branch has commits | Open the PR as a draft (auto-merge arms the moment a PR is non-draft), do the self-review pass, mark it ready once review threads are resolved, then continue to step 3. |
+| No PR open, branch has commits | Open the PR as a draft (auto-merge does not arm drafts), do the self-review pass, mark it ready, request `@codex review`, then continue to step 3 once Codex has reviewed the head. |
 | No PR open, working tree clean | Continue to step 3. |
 
 ### 3. Update the plan
@@ -137,14 +138,32 @@ breadcrumbs for the next tick to resume.
 
 ## Auto-merge policy
 
-Auto-merge is enabled on **every PR** by `.github/workflows/auto-merge.yml`
-(policy changed 2026-04-29: dropped the `auto-merge-ok` + `claude-cd`
-label gate and the codex/shadoath approval requirement — CI green is
-the only gate the owner cares about for routine work).
+Auto-merge is enabled by `.github/workflows/auto-merge.yml` on a
+**non-draft PR targeting `master`** only when Codex
+(`chatgpt-codex-connector[bot]`) has reviewed the **current head SHA**
+and there are no unresolved P0/P1 Codex review threads. Codex marks
+severity with a `![P0 Badge]` / `![P1 Badge]` / `![P2 Badge]` in the
+inline comment; P2 does not block. A clean pass is a `pull_request_review`
+on that SHA and/or an issue comment containing "Didn't find any major
+issues" for that SHA. A new push (`synchronize`) **disarms** auto-merge
+so the previous SHA's checks cannot merge the new commit.
+
+**Exemption:** Dependabot (`dependabot[bot]`) patch and minor version
+bumps (`dependabot/fetch-metadata` `update-type` of
+`version-update:semver-patch` or `version-update:semver-minor`) may
+auto-merge without Codex. Majors still need Codex. Green CI is still
+required by branch protection.
+
+This is not a branch-protection required-review rule. The
+`auto-merge-ok` / `claude-cd` labels do not gate anything (dropped
+2026-04-29). Base is `master`, never `main`.
 
 Once auto-merge is enabled, GitHub completes the squash-merge as
 soon as required checks pass. Branch protection on master is what
 actually decides what "required" means.
+
+If Codex is slow or silent, auto-merge stays off (fail closed). Comment
+`@codex review` and wait; do not re-enable by hand to skip it.
 
 Hard rules the loop still enforces (refuse to open or merge a PR
 that violates these):

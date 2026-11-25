@@ -1,29 +1,181 @@
 name: Auto-merge
 
 # Realizes the auto-merge policy from docs/delivery-playbook.md.
-# Enables PR auto-merge (squash) on every PR. Once enabled, GitHub
-# completes the merge as soon as required checks pass and required
-# reviews are satisfied. Branch protection on master is what actually
-# gates the merge — this workflow just opts in.
+# Enables PR auto-merge (squash) when Codex has reviewed the current head
+# SHA with no unresolved P0/P1 threads (Dependabot patch/minor skip that
+# wait). GitHub then completes the merge as soon as required checks pass.
+# Branch protection on master is still what gates CI; this workflow only
+# opts in, and never adds a required-review rule.
 #
-# Policy change 2026-04-29: dropped the `auto-merge-ok` + `claude-cd`
-# label gate. The owner does not want approval to be required for
-# routine work; CI green is sufficient.
+# pull_request_target (not pull_request) so AUTOMERGE_TOKEN is available
+# and the workflow file + gate script come from the base/default branch,
+# not the PR head. A same-repo PR cannot rewrite the gate and then run
+# the rewrite with secrets.
+#
+# On opened/reopened/synchronize/ready_for_review the first mutating step
+# disarms auto-merge so a new commit cannot merge on the previous SHA's
+# already-green checks before Codex sees it.
 
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+  pull_request_review_thread:
+    types: [resolved, unresolved]
+  pull_request:
+    paths:
+      - '.github/workflows/auto-merge.yml'
+      - '.github/scripts/codex-auto-merge-gate.mjs'
+      - '.github/scripts/codex-auto-merge-gate.test.mjs'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to evaluate
+        required: true
+        type: string
+      dry_run:
+        description: Log the decision without changing auto-merge
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && 'test' || 'gate' }}-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  enable:
-    if: github.event.pull_request.draft == false
+  test:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - uses: peter-evans/enable-pull-request-automerge@v3
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Gate unit tests
+        run: node --test .github/scripts/codex-auto-merge-gate.test.mjs
+      - name: Proof against historical PRs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expect() {
+            local pr="$1" want="$2"
+            shift 2
+            local out
+            out="$(node .github/scripts/codex-auto-merge-gate.mjs --pr "$pr" "$@")"
+            echo "$out"
+            echo "$out" | jq -e --arg want "$want" '.enable == ($want == "true")' >/dev/null
+          }
+          echo '::group::(a) #925 Codex reviewed an older SHA, not head — must not enable'
+          expect 925 false
+          echo '::endgroup::'
+          echo '::group::(b) #994 clean Codex comment on current head — must enable'
+          expect 994 true
+          echo '::endgroup::'
+          echo '::group::(c) #998 Dependabot minor exemption — must enable'
+          expect 998 true --update-type version-update:semver-minor
+          echo '::endgroup::'
+          echo '::group::(c) #998 without update-type — no exemption'
+          expect 998 false
+          echo '::endgroup::'
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo '::group::this PR (no enable expected until Codex reviews head)'
+            node .github/scripts/codex-auto-merge-gate.mjs --pr "${{ github.event.pull_request.number }}"
+            echo '::endgroup::'
+          fi
+
+  gate:
+    if: >
+      github.event_name != 'pull_request'
+      && (github.event_name != 'issue_comment' || github.event.issue.pull_request)
+      && (github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      # Always the default branch (except workflow_dispatch, which is a
+      # human-chosen ref). pull_request_review / issue_comment would
+      # otherwise check out the PR head, and a PR could rewrite the gate
+      # script and then run it with AUTOMERGE_TOKEN.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NUMBER="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}"
+          if [ -z "$NUMBER" ]; then
+            echo "No PR number on this event" >&2
+            exit 1
+          fi
+          PR_JSON="$(gh api "repos/${{ github.repository }}/pulls/${NUMBER}")"
+          AUTHOR="$(echo "$PR_JSON" | jq -r .user.login)"
+          STATE="$(echo "$PR_JSON" | jq -r .state)"
+          echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "author=${AUTHOR}" >> "$GITHUB_OUTPUT"
+          echo "state=${STATE}" >> "$GITHUB_OUTPUT"
+          echo "PR #${NUMBER} author=${AUTHOR} state=${STATE} dry_run=${DRY_RUN}"
+
+      - name: Disarm auto-merge on new or updated code
+        if: github.event_name == 'pull_request_target' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" --disable-auto \
+            && echo "disarmed auto-merge on #${{ steps.pr.outputs.number }}" \
+            || echo "auto-merge was not armed (ok)"
+
+      - name: Dependabot metadata
+        id: metadata
+        if: steps.pr.outputs.author == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Evaluate Codex gate
+        id: decide
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPENDABOT_UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/codex-auto-merge-gate.mjs \
+            --pr "${{ steps.pr.outputs.number }}" \
+            --update-type "${DEPENDABOT_UPDATE_TYPE:-}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Gate decision
+        run: |
+          echo "enable=${{ steps.decide.outputs.enable }}"
+          echo "reason=${{ steps.decide.outputs.reason }}"
+
+      - name: Enable auto-merge
+        if: steps.decide.outputs.enable == 'true' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
+        uses: peter-evans/enable-pull-request-automerge@v3
         with:
           # NOT `secrets.GITHUB_TOKEN`. GitHub's recursion guard starts no
           # workflow runs for a commit pushed with it, so an auto-merged
@@ -37,5 +189,15 @@ jobs:
           # dispatch, exactly as before. Add AUTOMERGE_TOKEN and the deploy
           # starts firing on its own, with no further change here.
           token: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ github.event.pull_request.number }}
+          pull-request-number: ${{ steps.pr.outputs.number }}
           merge-method: squash
+
+      - name: Keep auto-merge disarmed when the gate fails
+        if: steps.decide.outputs.enable != 'true' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" --disable-auto \
+            && echo "left auto-merge off on #${{ steps.pr.outputs.number }}: ${{ steps.decide.outputs.reason }}" \
+            || echo "auto-merge already off (ok)"

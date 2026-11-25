@@ -31,7 +31,7 @@ Inside the container, test commands need `docker compose exec -e RAILS_ENV=test 
 - **Prettier here is semicolons on, single quotes**, 100 columns (`.prettierrc`), overriding any global preference. Never reformat to another style.
 - **Never edit anything under `_legacy/`**, not even a comment.
 - **Never edit, delete, or rename a shipped migration** in `apps/api/db/migrate/`; add a new one.
-- **Every non-draft PR squash-merges itself once the four required checks are green** (`auto-merge.yml`); no label or approval holds it. Review before opening it ready; open a draft to hold one.
+- **Every non-draft PR squash-merges itself once the four required checks are green and Codex has reviewed the current head** (`auto-merge.yml`) with no unresolved P0/P1 Codex threads. Dependabot patch/minor bumps skip the Codex wait. No label or required GitHub approval holds it; open a draft to hold a PR.
 - **A merge to `master` touching any file under `apps/api/`, Markdown included, deploys the API to production** (`deploy-api.yml`, Kamal). Re-pin the `SSH_KNOWN_HOSTS` secret only after confirming a real rebuild of the box, never to clear a host-key error.
 - **The server's filter is the only filter.** `Menus::Filter#reasons_for` alone decides an item's `status` / `reasons`; web and mobile render them and never derive visible or hidden.
 - **Never write `items.ingredient_ids` / `items.tag_ids` directly**; write the `ItemIngredient` / `ItemTag` join rows. Read them via `item.denormalized_ingredient_ids` / `denormalized_tag_ids` (the plain reader costs a query per item).
