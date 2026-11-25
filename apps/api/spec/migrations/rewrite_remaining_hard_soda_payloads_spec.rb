@@ -99,4 +99,33 @@ RSpec.describe RewriteRemainingHardSodaPayloads do
 
     expect(staged.reload.ingredients_payload.map { |r| r["slug"] }).to eq([ "alcohol-beer" ])
   end
+
+  # Codex on #1018: an edited update-accept snapshots the pre-existing
+  # alcohol join in applied_changes. 20261013020000 rewrites the live
+  # join, but undo! restores the snapshot onto the published item.
+  it "rewrites a replaced-join snapshot so undo does not restore the alcohol root" do
+    item = create(:item, restaurant: restaurant, name: "Hard Ginger Beer", description: "")
+    ItemIngredient.create!(item: item, ingredient: alcohol, confidence: "suggested", source: "match")
+    run = create(:ingestion_run, :staged, restaurant: restaurant)
+    staged = create(:ingestion_item, ingestion_run: run, name: "Hard Ginger Beer",
+                                     description: "", decision: "edited",
+                                     matched_item_id: item.id, match_score: 1.0,
+                                     ingredients_payload: alcohol_payload, tags_payload: [])
+    staged.promote!
+
+    expect(replaced_ingredient_ids(staged)).to eq([ alcohol.id.to_s ])
+
+    RewriteHardSodaItemIngredientsToBeer.new.up
+    described_class.new.up
+
+    expect(replaced_ingredient_ids(staged.reload)).to eq([ beer.id.to_s ])
+
+    staged.undo!
+    expect(item.reload.item_ingredients.map(&:ingredient_id)).to eq([ beer.id ])
+    expect(celiac_reasons(item)).not_to be_empty
+  end
+
+  def replaced_ingredient_ids(staged)
+    Array(staged.applied_changes&.dig("replaced_item_ingredient_ids")).map { |row| row["ingredient_id"].to_s }
+  end
 end

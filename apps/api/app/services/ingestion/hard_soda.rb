@@ -30,6 +30,18 @@ module Ingestion
       end
     end
 
+    # Undo of an edited update restores applied_changes ingredient ids.
+    # Those snapshots can still name the alcohol root after the live join
+    # was rewritten onto beer.
+    def remap_join_ingredient_id(ingredient_id, alcohol_id:, beer_id:, name:, description:, source: nil)
+      return ingredient_id if alcohol_id.blank? || beer_id.blank?
+      return ingredient_id unless ingredient_id.to_s == alcohol_id.to_s
+      return ingredient_id unless phrase_in?("#{name} #{description}")
+      return ingredient_id if CURATOR.include?(source.to_s) && !phrase_in?(name)
+
+      beer_id
+    end
+
     def phrase_in?(text)
       hay = normalize(text)
       PHRASES.any? { |phrase| hay.include?(phrase) }

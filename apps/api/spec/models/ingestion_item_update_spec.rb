@@ -264,6 +264,36 @@ RSpec.describe IngestionItem, "#promote! (update path)" do
       expect(row.item_id).to be_nil
     end
 
+    # Codex on #1018: an edited update snapshots the pre-existing alcohol
+    # join. Even if the payload backfill never rewrote that JSON, undo
+    # must not put the alcohol root back on a hard soda the celiac
+    # presets would then see as safe.
+    it "remaps a stale alcohol snapshot onto beer for a hard soda" do
+      alcohol = create(:ingredient, slug: "alcohol", path: "alcohol")
+      beer = create(:ingredient, slug: "alcohol-beer", path: "alcohol.beer")
+      celiac = create(:dietary_profile, slug: "celiac")
+      celiac.dietary_profile_ingredients.create!(ingredient: beer, rule: "avoid")
+      soda = create(:item, restaurant: restaurant, name: "Hard Ginger Beer",
+                           description: "", status: "published")
+      ItemIngredient.create!(item: soda, ingredient: alcohol,
+                             confidence: "suggested", source: "match")
+      row = staged(name: "Hard Ginger Beer", description: "", decision: "edited",
+                   matched_item_id: soda.id,
+                   ingredients_payload: [ { "slug" => "alcohol", "confidence" => 0.95, "source" => "match" } ],
+                   tags_payload: [])
+      row.promote!
+      snapshot_ids = Array(row.reload.applied_changes["replaced_item_ingredient_ids"])
+                       .map { |r| r["ingredient_id"].to_s }
+      expect(snapshot_ids).to eq([ alcohol.id.to_s ])
+
+      row.undo!
+
+      expect(soda.reload.item_ingredients.map(&:ingredient_id)).to eq([ beer.id ])
+      filter = Menus::Filter.build(preset_slug: "celiac")
+      reasons = filter.reasons_for(soda.reload, Menus::Labels.for_filter([ soda ], filter))
+      expect(reasons).not_to be_empty
+    end
+
     it "still destroys the created Item when the accept was a fallback create" do
       row = staged
       target.destroy

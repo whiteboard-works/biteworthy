@@ -462,8 +462,18 @@ class IngestionItem < ApplicationRecord
 
         # Restore replaced joins
         if (rows = changes["replaced_item_ingredient_ids"])
+          alcohol_id = Ingredient.where(slug: Ingestion::HardSoda::FROM).pick(:id)
+          beer_id    = Ingredient.where(slug: Ingestion::HardSoda::TO).pick(:id)
           rows.each do |row|
-            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: row["ingredient_id"]) do |join|
+            ingredient_id = Ingestion::HardSoda.remap_join_ingredient_id(
+              row["ingredient_id"],
+              alcohol_id: alcohol_id,
+              beer_id: beer_id,
+              name: target.name,
+              description: target.description,
+              source: row["source"]
+            )
+            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: ingredient_id) do |join|
               join.confidence = row["confidence"] || "confirmed"
               join.source = row["source"] || "human"
             end
