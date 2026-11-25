@@ -33,7 +33,12 @@ jobs:
 
   rspec:
     name: rspec · brakeman · rubocop
-    runs-on: ubuntu-latest
+    # Pin 24.04: ubuntu-latest is 26.04, and ruby/setup-ruby has no
+    # prebuilt 3.3.6 for that image ("Unavailable version 3.3.6 for ruby
+    # on ubuntu-26.04"). Do not bump the app's Ruby to chase the runner.
+    # libvips42 / imagemagick / ghostscript are the 24.04 package names
+    # (26.04 would pull libvips42t64 as a Provides).
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
@@ -63,9 +68,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # Phase 4.11.1 — Ingestion::DishPhotoCropper depends on
-      # MiniMagick which shells out to `magick`/`identify`. The
-      # ubuntu-latest runner ships ImageMagick today but be explicit
-      # so a future runner image change doesn't silently break us.
+      # MiniMagick which shells out to `magick`/`identify`. Be explicit
+      # so a runner image change doesn't silently drop them.
       # libvips42 for ActiveStorage variant processing (WebP generation).
       # ghostscript for Pdfs::Shrink (oversized menu PDFs).
       - name: Install ImageMagick, libvips, and Ghostscript

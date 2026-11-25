@@ -38,7 +38,11 @@ jobs:
             revert
             style
           requireScope: false
-          subjectPattern: ^(?![A-Z])(?!.*\.$).+$
+          # Dependabot titles are conventional except the capital B in
+          # "Bump foo from x to y" (see PR #980). Skip only the
+          # subject-case rule for that bot; humans still need lowercase
+          # and no trailing period.
+          subjectPattern: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && '^(?!.*\.$).+$' || '^(?![A-Z])(?!.*\.$).+$' }}
           subjectPatternError: |
             The PR subject "{subject}" must start lowercase and not end in a period.
             Example: feat(api): add Devise JWT login endpoint

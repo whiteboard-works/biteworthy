@@ -44,7 +44,12 @@ describe('PlaceEditor', () => {
   it('seeds the address form and marks days without a row as closed', async () => {
     render(<PlaceEditor restaurantId="r1" />);
 
-    expect(await screen.findByTestId('address-street')).toHaveValue('1 Elm');
+    // Inputs mount empty while the GET is in flight. findByTestId wins
+    // that race and asserts "" (CI · JS 45653290482 on master). Wait for
+    // the seeded value, which is the behavior this test exists to pin.
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('address-street')).toHaveValue('1 Elm');
+    });
     // Monday has hours; Sunday has no row at all.
     expect(screen.getByTestId('hours-opens-1-0')).toHaveValue('11:00');
     expect(screen.getByTestId('hours-closed-1')).not.toBeChecked();

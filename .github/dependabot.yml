@@ -14,6 +14,10 @@ updates:
       timezone: America/Denver
     open-pull-requests-limit: 5
     commit-message:
+      # Produces `chore(deps): Bump foo from x to y`. Dependabot always
+      # capitalizes "Bump"; pr-title.yml allows that for dependabot[bot]
+      # only, so do not drop this prefix (it is what makes the type+scope
+      # conventional).
       prefix: chore
       prefix-development: chore
       include: scope
@@ -63,6 +67,8 @@ updates:
       timezone: America/Denver
     open-pull-requests-limit: 5
     commit-message:
+      # Same as the npm ecosystem: type+scope prefix is conventional;
+      # the capital "Bump" is allowed for dependabot[bot] in pr-title.yml.
       prefix: chore
       prefix-development: chore
       include: scope
@@ -86,5 +92,7 @@ updates:
       timezone: America/Denver
     open-pull-requests-limit: 3
     commit-message:
+      # Same as the npm ecosystem: type+scope prefix is conventional;
+      # the capital "Bump" is allowed for dependabot[bot] in pr-title.yml.
       prefix: chore
       include: scope
