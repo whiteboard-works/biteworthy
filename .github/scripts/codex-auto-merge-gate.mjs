@@ -97,6 +97,14 @@ export function decideAutoMerge(input) {
     return { enable: false, reason: `base is ${baseRefName || '(empty)'}, not ${REQUIRED_BASE}` };
   }
 
+  const blockers = unresolvedP0P1Threads(input.reviewThreads);
+  if (blockers.length > 0) {
+    return {
+      enable: false,
+      reason: `${blockers.length} unresolved Codex P0/P1 review thread(s)`,
+    };
+  }
+
   if (
     normalizeLogin(authorLogin) === DEPENDABOT_LOGIN &&
     EXEMPT_DEPENDABOT_UPDATE_TYPES.has(updateType)
@@ -111,14 +119,6 @@ export function decideAutoMerge(input) {
     return {
       enable: false,
       reason: 'no Codex review on current head (waiting; fail closed)',
-    };
-  }
-
-  const blockers = unresolvedP0P1Threads(input.reviewThreads);
-  if (blockers.length > 0) {
-    return {
-      enable: false,
-      reason: `${blockers.length} unresolved Codex P0/P1 review thread(s)`,
     };
   }
 

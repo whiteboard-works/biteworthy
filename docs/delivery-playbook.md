@@ -151,8 +151,9 @@ so the previous SHA's checks cannot merge the new commit.
 **Exemption:** Dependabot (`dependabot[bot]`) patch and minor version
 bumps (`dependabot/fetch-metadata` `update-type` of
 `version-update:semver-patch` or `version-update:semver-minor`) may
-auto-merge without Codex. Majors still need Codex. Green CI is still
-required by branch protection.
+auto-merge without waiting for a Codex review. Majors still need Codex.
+Unresolved Codex P0/P1 threads still block, including on those
+exemptions. Green CI is still required by branch protection.
 
 This is not a branch-protection required-review rule. The
 `auto-merge-ok` / `claude-cd` labels do not gate anything (dropped

@@ -109,6 +109,39 @@ jobs:
     env:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run }}
     steps:
+      # First mutating step, before checkout / Node. An already-armed PR
+      # stays mergeable until this runs; delaying it behind setup is how a
+      # new SHA can merge on the previous commit's green checks.
+      - name: Disarm auto-merge on new or updated code
+        if: >
+          github.event_name == 'pull_request_target'
+          && env.DRY_RUN != 'true'
+          && github.event.pull_request.state == 'open'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "No PR number on pull_request_target" >&2
+            exit 1
+          fi
+          set +e
+          out="$(gh pr merge "${PR_NUMBER}" --repo "${{ github.repository }}" --disable-auto 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$out"
+          if [ "$status" -eq 0 ]; then
+            echo "disarmed auto-merge on #${PR_NUMBER}"
+            exit 0
+          fi
+          if printf '%s\n' "$out" | grep -qiE 'not configured to auto-merge|Can.?t disable auto-merge|is not enabled'; then
+            echo "auto-merge was not armed (ok)"
+            exit 0
+          fi
+          echo "failed to disarm auto-merge on #${PR_NUMBER}" >&2
+          exit "$status"
+
       # Always the default branch (except workflow_dispatch, which is a
       # human-chosen ref). pull_request_review / issue_comment would
       # otherwise check out the PR head, and a PR could rewrite the gate
@@ -140,16 +173,6 @@ jobs:
           echo "author=${AUTHOR}" >> "$GITHUB_OUTPUT"
           echo "state=${STATE}" >> "$GITHUB_OUTPUT"
           echo "PR #${NUMBER} author=${AUTHOR} state=${STATE} dry_run=${DRY_RUN}"
-
-      - name: Disarm auto-merge on new or updated code
-        if: github.event_name == 'pull_request_target' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
-        env:
-          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" --disable-auto \
-            && echo "disarmed auto-merge on #${{ steps.pr.outputs.number }}" \
-            || echo "auto-merge was not armed (ok)"
 
       - name: Dependabot metadata
         id: metadata
@@ -199,8 +222,21 @@ jobs:
         if: steps.decide.outputs.enable != 'true' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
         env:
           GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           set -euo pipefail
-          gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" --disable-auto \
-            && echo "left auto-merge off on #${{ steps.pr.outputs.number }}: ${{ steps.decide.outputs.reason }}" \
-            || echo "auto-merge already off (ok)"
+          set +e
+          out="$(gh pr merge "${PR_NUMBER}" --repo "${{ github.repository }}" --disable-auto 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$out"
+          if [ "$status" -eq 0 ]; then
+            echo "left auto-merge off on #${PR_NUMBER}: ${{ steps.decide.outputs.reason }}"
+            exit 0
+          fi
+          if printf '%s\n' "$out" | grep -qiE 'not configured to auto-merge|Can.?t disable auto-merge|is not enabled'; then
+            echo "auto-merge already off (ok)"
+            exit 0
+          fi
+          echo "failed to keep auto-merge disarmed on #${PR_NUMBER}" >&2
+          exit "$status"

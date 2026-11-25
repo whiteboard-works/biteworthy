@@ -170,6 +170,28 @@ test('(c) Dependabot patch and minor skip Codex', () => {
   assert.match(minor.reason, /semver-minor/);
 });
 
+test('Dependabot patch/minor still block on unresolved Codex P0/P1 threads', () => {
+  const decision = decideAutoMerge(
+    base({
+      authorLogin: 'dependabot[bot]',
+      dependabotUpdateType: 'version-update:semver-patch',
+      reviewThreads: [
+        {
+          isResolved: false,
+          comments: [
+            {
+              authorLogin: 'chatgpt-codex-connector',
+              body: '![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)',
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  assert.equal(decision.enable, false);
+  assert.match(decision.reason, /unresolved Codex P0\/P1/);
+});
+
 test('(c) Dependabot major still needs Codex on head', () => {
   const waiting = decideAutoMerge(
     base({
