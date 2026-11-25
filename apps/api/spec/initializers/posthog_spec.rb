@@ -43,8 +43,32 @@ RSpec.describe "config/initializers/posthog.rb" do
     args, kwargs = captured
     expect(args[0]).to be(error)
     expect(args[2]).to include("$exception_handled" => true, "$context_attempt" => 2)
-    expect(args[2]).not_to have_key("$context_user_id")
     expect(kwargs[:mechanism]).to include("type" => "rails_error_reporter", "handled" => true)
+  end
+
+  # The gem's ErrorSubscriber always does `context[:user_id] || context[:distinct_id]`
+  # as capture_exception's second argument, independent of capture_user_context
+  # (that flag only covers the middleware path). Passing those keys through
+  # would attach a person to a server error, which ADR 0009 forbids.
+  it "does not identify a Rails.error.report from context user_id or distinct_id" do
+    expect(PostHog::Rails::ErrorSubscriber.ancestors).to include(Telemetry::AnonymousErrorReports)
+
+    error = RuntimeError.new("mailer down")
+    captured = nil
+    allow(PostHog).to receive(:capture_exception) { |*args, **kwargs| captured = [ args, kwargs ] }
+
+    Rails.error.report(
+      error,
+      handled: true,
+      context: { component: :waitlist, attempt: 2, user_id: 7, distinct_id: "person-7" }
+    )
+
+    args, = captured
+    expect(args[0]).to be(error)
+    expect(args[1]).to be_nil
+    expect(args[2]).to include("$context_attempt" => 2)
+    expect(args[2]).not_to have_key("$context_user_id")
+    expect(args[2]).not_to have_key("$context_distinct_id")
   end
 
   it "keeps the diet and the search out of request logs" do
