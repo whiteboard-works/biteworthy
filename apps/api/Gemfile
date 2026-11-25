@@ -5,7 +5,7 @@ ruby "3.3.6"
 # --- Core --------------------------------------------------------------------
 gem "rails", "~> 8.1.4"
 gem "pg", "~> 1.7"
-gem "puma", "~> 8.0"
+gem "puma", "~> 8.1"
 
 # Solid* trio (Rails 8 defaults — no Redis, all Postgres).
 gem "solid_cache"
