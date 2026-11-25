@@ -8,7 +8,7 @@ BiteWorthy ("scan any menu, see only what you can eat"): a pnpm 10 + Turborepo m
 
 ## Commands
 
-`ci-js.yml` builds `@biteworthy/web` (typed routes), then runs the root scripts; `ci-api.yml` runs `bin/rspec`, Brakeman, and RuboCop from `apps/api/`, all blocking.
+`ci-js.yml` builds `@biteworthy/web` (typed routes), then runs the root scripts; `ci-api.yml` runs `bin/rspec`, Brakeman, and RuboCop from `apps/api/` on `ubuntu-24.04` (Ruby 3.3.6 is not prebuilt on `ubuntu-latest` / 26.04), all blocking.
 
 ```bash
 pnpm install && pnpm dev                   # web :3001 + mobile
