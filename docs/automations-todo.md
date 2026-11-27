@@ -23,6 +23,10 @@ Status legend: `[ ]` queued · `[~]` in progress · `[x]` done · `[B]` blocked 
    `javascript-typescript`, `ruby` (check-run names, not the
    "workflow / job-id" form). `strict` is off; admins not enforced.
    Verified working: red dependabot PRs are now blocked from merging.
+   **Human follow-up:** add `codex-gate` (commit status from
+   `auto-merge.yml`) to that same rule after the status-posting workflow
+   is on `master` — Settings → Branches → master. Do not require it
+   before the status exists or open PRs cannot satisfy it.
 3. [x] **Nightly full-suite CI on master** — done in #278
    (`.github/workflows/ci-nightly.yml`, 09:00 UTC + workflow_dispatch;
    on failure opens/updates an issue labeled `ci-nightly` mentioning

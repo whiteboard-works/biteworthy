@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Decides whether auto-merge.yml may enable GitHub auto-merge.
+ * Decides whether auto-merge.yml may enable GitHub auto-merge, and maps that
+ * decision to a commit status named exactly `codex-gate` on the PR head SHA
+ * so branch protection can require it.
  *
  * Enable only when Codex (chatgpt-codex-connector) has reviewed the current
  * head SHA and no unresolved P0/P1 Codex threads remain — except Dependabot
@@ -18,6 +20,9 @@ export const CODEX_LOGIN = 'chatgpt-codex-connector';
 export const DEPENDABOT_LOGIN = 'dependabot';
 export const CLEAN_REVIEW_PHRASE = "Didn't find any major issues";
 export const REQUIRED_BASE = 'master';
+export const CODEX_GATE_CONTEXT = 'codex-gate';
+export const FRESH_HEAD_DESCRIPTION = 'new head; waiting for Codex gate';
+export const STATUS_DESCRIPTION_MAX = 140;
 export const EXEMPT_DEPENDABOT_UPDATE_TYPES = new Set([
   'version-update:semver-patch',
   'version-update:semver-minor',
@@ -189,6 +194,99 @@ export function decideAutoMerge(input) {
   return { enable: true, reason: 'Codex reviewed current head; no unresolved P0/P1 threads' };
 }
 
+/**
+ * GitHub commit-status descriptions are capped at 140 characters.
+ */
+export function statusDescription(reason) {
+  const text = String(reason || 'waiting')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return 'waiting';
+  if (text.length <= STATUS_DESCRIPTION_MAX) return text;
+  return `${text.slice(0, STATUS_DESCRIPTION_MAX - 3)}...`;
+}
+
+/**
+ * First status on a new SHA (synchronize). Posted before checkout so a
+ * fresh push cannot inherit a previous SHA's success.
+ */
+export function freshHeadPendingStatus() {
+  return {
+    state: 'pending',
+    context: CODEX_GATE_CONTEXT,
+    description: FRESH_HEAD_DESCRIPTION,
+  };
+}
+
+/**
+ * Map a decideAutoMerge result to a GitHub commit status on the PR head.
+ * Waiting (no Codex on head, unresolved P0/P1, draft, wrong base) stays
+ * `pending` so branch protection blocks merge without a hard failure.
+ * `failure` is reserved for a definite "this will not pass" case we do
+ * not currently emit — prefer pending.
+ *
+ * Fork PRs always pending (fail closed), even if the Codex gate would enable.
+ *
+ * @param {{ enable: boolean, reason: string }} decision
+ * @param {{ fork?: boolean }} [opts]
+ * @returns {{ state: 'success' | 'pending' | 'failure', context: string, description: string }}
+ */
+export function commitStatusForDecision(decision, opts = {}) {
+  if (opts.fork) {
+    return {
+      state: 'pending',
+      context: CODEX_GATE_CONTEXT,
+      description: statusDescription('fork PR (fail closed)'),
+    };
+  }
+  if (decision.enable) {
+    return {
+      state: 'success',
+      context: CODEX_GATE_CONTEXT,
+      description: statusDescription(decision.reason),
+    };
+  }
+  return {
+    state: 'pending',
+    context: CODEX_GATE_CONTEXT,
+    description: statusDescription(decision.reason || 'waiting'),
+  };
+}
+
+export async function postCommitStatus(
+  { token, owner, repo, sha, state, description, targetUrl },
+  fetchImpl = fetch,
+) {
+  if (!sha) {
+    throw new Error('postCommitStatus requires a SHA');
+  }
+  const body = {
+    state,
+    description: statusDescription(description),
+    context: CODEX_GATE_CONTEXT,
+  };
+  if (targetUrl) body.target_url = targetUrl;
+  const response = await fetchImpl(
+    `https://api.github.com/repos/${owner}/${repo}/statuses/${sha}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+        'User-Agent': 'biteworthy-codex-auto-merge-gate',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`failed to post ${CODEX_GATE_CONTEXT} on ${sha}: ${response.status} ${detail}`);
+  }
+  return response;
+}
+
 async function githubGraphql(token, query, variables) {
   const response = await fetch('https://api.github.com/graphql', {
     method: 'POST',
@@ -356,7 +454,7 @@ export async function loadPullRequestState({ token, owner, repo, number }) {
   };
 }
 
-export function formatDecision(state, decision) {
+export function formatDecision(state, decision, status) {
   return {
     enable: decision.enable,
     reason: decision.reason,
@@ -365,13 +463,36 @@ export function formatDecision(state, decision) {
     authorLogin: state.authorLogin,
     baseRefName: state.baseRefName,
     isDraft: state.isDraft,
+    status: status?.state,
+    statusDescription: status?.description,
   };
 }
 
-function writeGithubOutput(path, decision) {
+function writeGithubOutput(path, decision, status, headSha) {
   if (!path) return;
   appendFileSync(path, `enable=${decision.enable}\n`);
   appendFileSync(path, `reason<<EOF\n${decision.reason}\nEOF\n`);
+  if (status) {
+    appendFileSync(path, `status_state=${status.state}\n`);
+    appendFileSync(path, `status_description<<EOF\n${status.description}\nEOF\n`);
+  }
+  if (headSha) {
+    appendFileSync(path, `head_sha=${headSha}\n`);
+  }
+}
+
+async function postFailClosedStatus({ token, owner, repo, sha, reason, targetUrl }) {
+  if (!sha) return;
+  const status = commitStatusForDecision({ enable: false, reason }, { fork: false });
+  await postCommitStatus({
+    token,
+    owner,
+    repo,
+    sha,
+    state: status.state,
+    description: status.description,
+    targetUrl,
+  });
 }
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
@@ -381,8 +502,11 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
       owner: { type: 'string' },
       repo: { type: 'string' },
       pr: { type: 'string' },
+      sha: { type: 'string', default: '' },
       'update-type': { type: 'string', default: '' },
       'github-output': { type: 'string', default: '' },
+      'post-status': { type: 'boolean', default: false },
+      fork: { type: 'boolean', default: false },
     },
   });
 
@@ -392,6 +516,12 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const repo = values.repo || defaultRepo;
   const number = values.pr || env.PR_NUMBER;
   const token = env.GITHUB_TOKEN || env.GH_TOKEN;
+  const postStatus = Boolean(values['post-status']);
+  const isFork = Boolean(values.fork);
+  const fallbackSha = values.sha || env.HEAD_SHA || '';
+  const targetUrl = env.GITHUB_RUN_ID
+    ? `${env.GITHUB_SERVER_URL || 'https://github.com'}/${repoSlug}/actions/runs/${env.GITHUB_RUN_ID}`
+    : '';
   if (!owner || !repo || !number) {
     throw new Error('usage: codex-auto-merge-gate.mjs --owner <org> --repo <name> --pr <n>');
   }
@@ -399,19 +529,50 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     throw new Error('GITHUB_TOKEN (or GH_TOKEN) is required');
   }
 
-  const state = await loadPullRequestState({ token, owner, repo, number });
+  let state;
+  try {
+    state = await loadPullRequestState({ token, owner, repo, number });
+  } catch (error) {
+    if (postStatus) {
+      await postFailClosedStatus({
+        token,
+        owner,
+        repo,
+        sha: fallbackSha,
+        reason: `gate error: ${error.message || error}`,
+        targetUrl,
+      });
+    }
+    throw error;
+  }
+
   const providedType = values['update-type'] || env.DEPENDABOT_UPDATE_TYPE || '';
   const inferredType =
     !providedType && normalizeLogin(state.authorLogin) === DEPENDABOT_LOGIN
       ? inferDependabotUpdateType(state.title, state.body, state.commitMessages)
       : '';
-  const decision = decideAutoMerge({
+  let decision = decideAutoMerge({
     ...state,
     dependabotUpdateType: providedType || inferredType,
   });
-  const result = formatDecision(state, decision);
+  if (isFork) {
+    decision = { enable: false, reason: 'fork PR (fail closed)' };
+  }
+  const status = commitStatusForDecision(decision, { fork: isFork });
+  if (postStatus) {
+    await postCommitStatus({
+      token,
+      owner,
+      repo,
+      sha: state.headSha,
+      state: status.state,
+      description: status.description,
+      targetUrl,
+    });
+  }
+  const result = formatDecision(state, decision, status);
   console.log(JSON.stringify(result, null, 2));
-  writeGithubOutput(values['github-output'] || env.GITHUB_OUTPUT, decision);
+  writeGithubOutput(values['github-output'] || env.GITHUB_OUTPUT, decision, status, state.headSha);
   return result;
 }
 

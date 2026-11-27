@@ -3,18 +3,26 @@ name: Auto-merge
 # Realizes the auto-merge policy from docs/delivery-playbook.md.
 # Enables PR auto-merge (squash) when Codex has reviewed the current head
 # SHA with no unresolved P0/P1 threads (Dependabot patch/minor skip that
-# wait). GitHub then completes the merge as soon as required checks pass.
-# Branch protection on master is still what gates CI; this workflow only
-# opts in, and never adds a required-review rule.
+# wait). Also publishes a commit status named exactly `codex-gate` on the
+# current head SHA so branch protection can require it — auto-merge alone
+# cannot: GitHub can squash before this job disarms a new push.
+#
+# Status states (context `codex-gate`):
+#   pending — Codex has not reviewed this head, unresolved P0/P1, draft,
+#             fork PR, or the gate has not finished evaluating
+#   success — decideAutoMerge.enable (including Dependabot patch/minor)
+#   failure — not used for waiting; prefer pending
 #
 # pull_request_target (not pull_request) so AUTOMERGE_TOKEN is available
 # and the workflow file + gate script come from the base/default branch,
 # not the PR head. A same-repo PR cannot rewrite the gate and then run
-# the rewrite with secrets.
+# the rewrite with secrets. That also means this file's status posting
+# only starts after it merges to master.
 #
-# On opened/reopened/synchronize/ready_for_review the first mutating step
-# disarms auto-merge so a new commit cannot merge on the previous SHA's
-# already-green checks before Codex sees it.
+# On synchronize the first mutating step posts `pending` on the NEW head
+# (before checkout) so a fresh push can never be satisfied by an old SHA.
+# Then it disarms auto-merge so a new commit cannot merge on the previous
+# SHA's already-green checks before Codex sees it.
 
 on:
   pull_request_target:
@@ -40,7 +48,7 @@ on:
         required: true
         type: string
       dry_run:
-        description: Log the decision without changing auto-merge
+        description: Log the decision without changing auto-merge (still publishes codex-gate)
         required: false
         type: boolean
         default: true
@@ -52,6 +60,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write
 
 jobs:
   test:
@@ -79,7 +88,11 @@ jobs:
             local out
             out="$(node .github/scripts/codex-auto-merge-gate.mjs --pr "$pr" "$@")"
             echo "$out"
-            echo "$out" | jq -e --arg want "$want" '.enable == ($want == "true")' >/dev/null
+            echo "$out" | jq -e --arg want "$want" '
+              .enable == ($want == "true")
+              and .status == (if $want == "true" then "success" else "pending" end)
+              and .statusDescription != null
+            ' >/dev/null
           }
           echo '::group::(a) #925 Codex reviewed an older SHA, not head — must not enable'
           expect 925 false
@@ -103,18 +116,39 @@ jobs:
           fi
 
   gate:
+    # Drafts still run so `codex-gate` is pending on their head; auto-merge
+    # stays off because decideAutoMerge.enable is false for drafts.
     if: >
       github.event_name != 'pull_request'
       && (github.event_name != 'issue_comment' || github.event.issue.pull_request)
-      && (github.event.pull_request.draft != true)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run }}
     steps:
-      # First mutating step, before checkout / Node. An already-armed PR
-      # stays mergeable until this runs; delaying it behind setup is how a
-      # new SHA can merge on the previous commit's green checks.
+      # First mutating step, before checkout / Node / disarm. A new SHA
+      # has no `codex-gate` yet; posting pending here is what branch
+      # protection can require so auto-merge cannot complete on the
+      # previous SHA's success.
+      - name: Mark new head pending
+        if: >
+          github.event_name == 'pull_request_target'
+          && github.event.pull_request.head.sha != ''
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
+            -f state=pending \
+            -f context=codex-gate \
+            -f description='new head; waiting for Codex gate' \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # An already-armed PR stays mergeable until this runs; delaying it
+      # behind setup is how a new SHA can merge on the previous commit's
+      # green checks. `codex-gate` pending (above) is the required-check
+      # half of the same race.
       - name: Disarm auto-merge on new or updated code
         if: >
           github.event_name == 'pull_request_target'
@@ -172,10 +206,19 @@ jobs:
           PR_JSON="$(gh api "repos/${{ github.repository }}/pulls/${NUMBER}")"
           AUTHOR="$(echo "$PR_JSON" | jq -r .user.login)"
           STATE="$(echo "$PR_JSON" | jq -r .state)"
+          HEAD_SHA="$(echo "$PR_JSON" | jq -r .head.sha)"
+          HEAD_REPO="$(echo "$PR_JSON" | jq -r '.head.repo.full_name // empty')"
+          if [ -z "$HEAD_REPO" ] || [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+            IS_FORK=true
+          else
+            IS_FORK=false
+          fi
           echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
           echo "author=${AUTHOR}" >> "$GITHUB_OUTPUT"
           echo "state=${STATE}" >> "$GITHUB_OUTPUT"
-          echo "PR #${NUMBER} author=${AUTHOR} state=${STATE} dry_run=${DRY_RUN}"
+          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "is_fork=${IS_FORK}" >> "$GITHUB_OUTPUT"
+          echo "PR #${NUMBER} author=${AUTHOR} state=${STATE} head=${HEAD_SHA} fork=${IS_FORK} dry_run=${DRY_RUN}"
 
       # fetch-metadata reads github.event.pull_request, which issue_comment
       # and review events do not have. Restrict it to pull_request_target;
@@ -199,26 +242,53 @@ jobs:
         id: decide
         if: hashFiles('.github/scripts/codex-auto-merge-gate.mjs') != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
           DEPENDABOT_UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
           set -euo pipefail
-          node .github/scripts/codex-auto-merge-gate.mjs \
-            --pr "${{ steps.pr.outputs.number }}" \
-            --update-type "${DEPENDABOT_UPDATE_TYPE:-}" \
+          args=(
+            --pr "${{ steps.pr.outputs.number }}"
+            --update-type "${DEPENDABOT_UPDATE_TYPE:-}"
             --github-output "$GITHUB_OUTPUT"
+            --sha "${HEAD_SHA}"
+            --post-status
+          )
+          if [ "${{ steps.pr.outputs.is_fork }}" = "true" ]; then
+            args+=(--fork)
+          fi
+          node .github/scripts/codex-auto-merge-gate.mjs "${args[@]}"
 
       - name: Gate script missing on default branch
         if: hashFiles('.github/scripts/codex-auto-merge-gate.mjs') == ''
-        run: echo "codex-auto-merge-gate.mjs is not on the default branch; leaving auto-merge disarmed"
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          echo "codex-auto-merge-gate.mjs is not on the default branch; leaving auto-merge disarmed"
+          if [ -n "${HEAD_SHA}" ]; then
+            gh api --method POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
+              -f state=pending \
+              -f context=codex-gate \
+              -f description='gate script missing on default branch' \
+              -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
 
       - name: Gate decision
         run: |
           echo "enable=${{ steps.decide.outputs.enable }}"
           echo "reason=${{ steps.decide.outputs.reason }}"
+          echo "status_state=${{ steps.decide.outputs.status_state }}"
+          echo "status_description=${{ steps.decide.outputs.status_description }}"
+          echo "head_sha=${{ steps.decide.outputs.head_sha }}"
 
       - name: Enable auto-merge
-        if: steps.decide.outputs.enable == 'true' && env.DRY_RUN != 'true' && steps.pr.outputs.state == 'open'
+        if: >
+          steps.decide.outputs.enable == 'true'
+          && env.DRY_RUN != 'true'
+          && steps.pr.outputs.state == 'open'
+          && steps.pr.outputs.is_fork != 'true'
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
           # NOT `secrets.GITHUB_TOKEN`. GitHub's recursion guard starts no
