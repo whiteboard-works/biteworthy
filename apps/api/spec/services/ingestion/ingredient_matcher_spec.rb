@@ -157,4 +157,54 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(matches).to be_empty
     expect(leftovers).to be_empty
   end
+
+  # WBW-246: Laan Thai's "rice noodles" / "glass noodles" / rice-paper
+  # rolls were matching wheat pasta or wheat spring rolls. The seed
+  # catalog is the production matcher; injected rows would hide a
+  # missing glass-noodle node.
+  describe "qualified noodle and wrapper phrases (Laan Thai)" do
+    let(:seed_rows) do
+      YAML.load_file(Rails.root.join("db/seeds/ingredients.yml")).map do |row|
+        [ row["slug"], row["name"], row["path"], row["aliases"] ]
+      end
+    end
+    let(:seed_matcher) { described_class.new(seed_rows) }
+
+    def seed_slugs(text)
+      seed_matcher.scan(text).first.map { |m| m[:slug] }
+    end
+
+    it "maps rice noodles to rice noodle, not wheat pasta" do
+      expect(seed_slugs("rice noodles")).to include("grain-rice-noodle")
+      expect(seed_slugs("rice noodles")).not_to include("grain-wheat-pasta")
+    end
+
+    it "maps glass noodles to glass noodles, not wheat pasta" do
+      expect(seed_slugs("glass noodles")).to include("grain-rice-noodle-glass")
+      expect(seed_slugs("glass noodles")).not_to include("grain-wheat-pasta")
+      expect(seed_slugs("cellophane noodles")).to include("grain-rice-noodle-glass")
+      expect(seed_slugs("mung bean noodles")).to include("grain-rice-noodle-glass")
+    end
+
+    it "maps rice-paper spring rolls to rice paper, not wheat spring roll" do
+      slugs = seed_slugs("fresh spring rolls wrapped in rice paper")
+      expect(slugs).to include("grain-rice-paper")
+      expect(slugs).not_to include("grain-wheat-spring-roll")
+    end
+
+    it "maps bean sprouts without inventing gluten" do
+      expect(seed_slugs("bean sprouts")).to include("vegetable-bean-sprout")
+      expect(seed_slugs("bean sprouts")).not_to include("grain-wheat-pasta")
+    end
+
+    it "still maps fried spring rolls and generic noodles to wheat" do
+      expect(seed_slugs("crispy spring rolls")).to include("grain-wheat-spring-roll")
+      expect(seed_slugs("noodles")).to include("grain-wheat-pasta")
+    end
+
+    it "does not treat hard seltzer as beer" do
+      expect(seed_slugs("hard seltzer")).not_to include("alcohol-beer")
+      expect(seed_slugs("hard ginger beer")).to include("alcohol-beer")
+    end
+  end
 end

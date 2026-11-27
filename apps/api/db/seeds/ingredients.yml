@@ -2559,6 +2559,22 @@
   - rice stick
   - ho fun
   - pad thai noodle
+  - rice noodles
+  allergen: false
+- slug: grain-rice-noodle-glass
+  name: Glass Noodle
+  path: grain.rice.noodle.glass
+  aliases:
+  - glass noodles
+  - cellophane noodle
+  - cellophane noodles
+  - bean thread
+  - bean thread noodle
+  - bean thread noodles
+  - mung bean noodle
+  - mung bean noodles
+  - woon sen
+  - wun sen
   allergen: false
 - slug: grain-rice-noodle-vermicelli
   name: Rice Vermicelli
@@ -2827,7 +2843,8 @@
 - slug: grain-wheat-noodle-egg
   name: Egg Noodle
   path: grain.wheat.noodle.egg
-  aliases: []
+  aliases:
+  - egg noodles
   allergen: true
 - slug: grain-wheat-noodle-lo-mein
   name: Lo Mein
@@ -2858,6 +2875,12 @@
   path: grain.wheat.pasta
   aliases:
   - noodles
+  allergen: true
+- slug: grain-wheat-pasta-egg
+  name: Egg Pasta
+  path: grain.wheat.pasta.egg
+  aliases:
+  - egg pasta
   allergen: true
 - slug: grain-wheat-pasta-fettuccine
   name: Fettuccine
@@ -2981,6 +3004,7 @@
   path: grain.wheat.wonton
   aliases:
   - wonton wrapper
+  - egg wonton wrapper
   allergen: true
 - slug: grain-wild-rice
   name: Wild rice
@@ -5531,6 +5555,13 @@
   path: vegetable.banana_pepper
   aliases:
   - yellow wax pepper
+  allergen: false
+- slug: vegetable-bean-sprout
+  name: Bean Sprout
+  path: vegetable.bean_sprout
+  aliases:
+  - bean sprouts
+  - mung bean sprouts
   allergen: false
 - slug: vegetable-beet
   name: Beet

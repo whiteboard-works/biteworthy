@@ -17,6 +17,10 @@
 #     after_destroy callbacks keep the denormalized items.ingredient_ids/
 #     tag_ids arrays honest (rebuilt once for the whole edit, not once
 #     per row — see Item.defer_denormalization). Never delete_all.
+#   - After an ingredient-slug sync, allergen tags are re-derived the
+#     same way staged edits are: drop only `ingredient_derived` rows,
+#     recompute from the current ingredients, and leave every other tag
+#     (cuisine, diet, a curator's own contains-*) in place.
 #   - `confidence` on the Item itself is NOT settable here. After a join
 #     sync it is re-derived from the weakest current join row (ingredients
 #     AND tags, only ever downgraded) so a suggested contains-gluten tag
@@ -78,15 +82,18 @@ module Admin
           @item.save!
 
           synced = false
+          ingredients_changed = false
           Item.defer_denormalization do
             if attrs.key?(:ingredient_slugs)
               sync_ingredients(attrs[:ingredient_slugs], added_confidence)
               synced = true
+              ingredients_changed = true
             end
             if attrs.key?(:tag_slugs)
               sync_tags(attrs[:tag_slugs], added_confidence)
               synced = true
             end
+            rederive_allergen_tags! if ingredients_changed
           end
           rederive_item_confidence! if synced
           replace_variants(attrs[:variants])         if attrs.key?(:variants)
@@ -197,6 +204,34 @@ module Admin
           item: @item, ingredient: wanted.find { |i| i.slug == slug },
           **added_join_attrs(added_confidence)
         )
+      end
+    end
+
+    # Mirror EditStagedItem.rederive_allergen_tags on live join rows:
+    # strip only ingredient_derived tags, recompute from current
+    # ingredients, skip a slug a person already attached by hand.
+    def rederive_allergen_tags!
+      ItemTag.where(item_id: @item.id, source: "ingredient_derived").find_each(&:destroy!)
+
+      resolved = ItemIngredient.where(item_id: @item.id).includes(:ingredient).filter_map do |join|
+        ingredient = join.ingredient
+        next unless ingredient
+
+        { slug: ingredient.slug, path: ingredient.path.to_s,
+          confidence: join.confidence == "inferred" ? 0.5 : 1.0,
+          source: join.source }
+      end
+      kept_slugs = ItemTag.where(item_id: @item.id).includes(:tag).map { |row| row.tag.slug }.to_set
+
+      Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved }).each do |row|
+        next if kept_slugs.include?(row[:slug])
+
+        tag = Tag.find_by(slug: row[:slug])
+        next unless tag
+
+        payload = Ingestion::AssociationPayload.load(row)
+        ItemTag.create!(item: @item, tag: tag,
+                        **Ingestion::ConfidenceMapper.map_row(payload, decided_by: nil))
       end
     end
 

@@ -66,6 +66,35 @@ module Ingestion
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
+    # Generic wheat nodes the catalog uses as a catch-all ("noodles",
+    # "spring roll") lose to a qualified rice/glass/rice-paper match in
+    # the same scan. Longest-phrase matching already prefers "rice
+    # noodles" over "noodles"; this is the leftover case where both
+    # phrases independently hit (spring rolls + rice paper).
+    GENERIC_WHEAT_SLUGS = %w[grain-wheat-pasta grain-wheat-spring-roll].freeze
+    RICE_PAPER_PREFIX = "grain.rice.paper"
+    RICE_NOODLE_PREFIX = "grain.rice.noodle"
+
+    def self.under_prefix?(path, prefix)
+      path == prefix || path.start_with?("#{prefix}.")
+    end
+
+    def self.prefer_qualified(rows)
+      list = Array(rows)
+      return list if list.empty?
+
+      paths = list.filter_map { |row| (row[:path] || row["path"]).to_s }
+      rice_paper  = paths.any? { |path| under_prefix?(path, RICE_PAPER_PREFIX) }
+      rice_noodle = paths.any? { |path| under_prefix?(path, RICE_NOODLE_PREFIX) }
+      list.reject do |row|
+        slug = (row[:slug] || row["slug"]).to_s
+        next false unless GENERIC_WHEAT_SLUGS.include?(slug)
+
+        (slug == "grain-wheat-spring-roll" && rice_paper) ||
+          (slug == "grain-wheat-pasta" && rice_noodle)
+      end
+    end
+
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))
       @index = {}
       @paths_by_slug = {}
@@ -92,8 +121,8 @@ module Ingestion
         prefix = tokens.last(VARIANT_LEAD_WIDTH)
       end
 
-      [matches.values.map { |m| { slug: m.slug, path: m.path, confidence: m.confidence, source: "match" } },
-       leftovers]
+      rows = matches.values.map { |m| { slug: m.slug, path: m.path, confidence: m.confidence, source: "match" } }
+      [self.class.prefer_qualified(rows), leftovers]
     end
 
     # Catalog lookup by slug (nil when absent) — lets the resolver's

@@ -104,6 +104,7 @@ module Ingestion
         matches += implied_from_matches(matches, name_claims)
         name_hits = implied_base_hits(MenuText.segments(item.name))
         matches += implied_rows(name_hits, matches, name_claims)
+        matches = IngredientMatcher.prefer_qualified(matches)
 
         section_segments = MenuText.segments(item.section_name)
         tags = TagDeriver.derive(
@@ -180,8 +181,21 @@ module Ingestion
     # contradicts the base. Every hit still routes the item to gap-fill.
     def implied_rows(hits, matches, name_claims)
       hits.filter_map do |hit|
+        next if skip_implied_wheat_for_rice_paper?(hit, matches)
+
         derive_row(hit[:slug], matches, name_claims, confidence: hit[:confidence])
       end.uniq
+    end
+
+    # "Fresh Spring Rolls" in the name unions grain-wheat, but the
+    # description "wrapped in rice paper" is the qualified wrapper.
+    # Soy-sauce wheat still arrives via implied_from_matches.
+    def skip_implied_wheat_for_rice_paper?(hit, matches)
+      return false unless hit[:slug] == "grain-wheat"
+
+      matches.any? do |match|
+        IngredientMatcher.under_prefix?(match[:path].to_s, IngredientMatcher::RICE_PAPER_PREFIX)
+      end
     end
 
     def implied_from_matches(matches, name_claims)

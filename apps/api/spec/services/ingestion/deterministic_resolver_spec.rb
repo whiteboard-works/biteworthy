@@ -30,6 +30,11 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["dairy-butter",      "Butter",         "dairy.butter",            []],
       ["dairy-parmesan",    "Parmesan",       "dairy.parmesan",          []],
       ["tree_nut-pine-nuts", "Pine nuts",     "tree_nut.pine_nuts",      []],
+      ["grain-rice-noodle", "Rice Noodle",    "grain.rice.noodle",       ["rice stick"]],
+      ["grain-rice-noodle-glass", "Glass Noodle", "grain.rice.noodle.glass",
+       ["glass noodles", "cellophane noodles", "mung bean noodles"]],
+      ["grain-rice-paper",  "Rice Paper",     "grain.rice.paper",        ["spring roll wrapper"]],
+      ["grain-wheat-spring-roll", "Spring Roll", "grain.wheat.spring_roll", []],
     ])
   end
 
@@ -164,6 +169,30 @@ RSpec.describe Ingestion::DeterministicResolver do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
       expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+    end
+
+    # WBW-246: "Fresh Spring Rolls" in the name used to union wheat even
+    # when the description named rice paper. Prefer the qualified wrapper.
+    it "does not union wheat onto rice-paper spring rolls" do
+      result = resolve(
+        StubItem.new("id-1", "Fresh Spring Rolls", "wrapped in rice paper", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-rice-paper")
+      expect(result.ingredients.map { |r| r["slug"] })
+        .not_to include("grain-wheat", "grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+    end
+
+    it "still unions wheat onto fried spring rolls with no rice-paper qualifier" do
+      result = resolve(
+        StubItem.new("id-1", "Fried Spring Rolls", "crispy spring rolls", nil)
+      ).first
+
+      # Spring-roll already sits under grain.wheat, so the implied wheat
+      # root is skipped; the wheat spring-roll row is what hides it.
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 
     it "implies wheat from soy sauce, teriyaki, and gravy matches" do

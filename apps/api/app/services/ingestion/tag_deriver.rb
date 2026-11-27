@@ -80,7 +80,13 @@ module Ingestion
         "grain.barley"     => "contains-gluten",
         "grain.rye"        => "contains-gluten",
         "grain.spelt"      => "contains-gluten",
-        "grain.triticale"  => "contains-gluten"
+        "grain.triticale"  => "contains-gluten",
+        # Beer/ale are malted barley (or wheat). Hard seltzer is not
+        # under these prefixes. #925/#1018 only moved hard-soda aliases
+        # onto alcohol-beer so a celiac *ingredient* avoid would hide
+        # them; they did not decide against a gluten tag on beer.
+        "alcohol.beer"     => "contains-gluten",
+        "alcohol.ale"      => "contains-gluten"
       }.freeze
 
       # Cross-root oddballs the subtree map can't see. Coconut counts as
@@ -90,6 +96,14 @@ module Ingestion
         "soy-teriyaki"                  => %w[contains-gluten],
         "condiment-sauces-gravy"        => %w[contains-gluten],
         "condiment-malt-vinegar"        => %w[contains-gluten],
+        # Wheat-path compounds that also contain egg. The ltree parent
+        # is grain.wheat, so gluten is already derived; egg is a
+        # sibling root and needs an explicit link. Egg rolls are a
+        # fried wheat wrapper (the "egg" is a translation artifact),
+        # not an egg filling — they stay off this list.
+        "grain-wheat-noodle-egg"        => %w[contains-egg],
+        "grain-wheat-pasta-egg"         => %w[contains-egg],
+        "grain-wheat-wonton"            => %w[contains-egg],
         "condiment-oyster-sauce"        => %w[contains-shellfish],
         "oil-and-fat-toasted-sesame-oil" => %w[contains-sesame],
         "fruit-coconut"                 => %w[contains-tree-nut],

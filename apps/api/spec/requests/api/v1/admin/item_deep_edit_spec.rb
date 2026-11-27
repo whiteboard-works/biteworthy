@@ -94,6 +94,39 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.name).to eq("Renamed only")
     end
 
+    # WBW-243: adding egg on a live dish left allergen tags stale, so an
+    # egg-avoider still saw Khao Soi as safe. Staged edits already
+    # re-derive; published edits must do the same without wiping a
+    # curator's own tags.
+    it "re-derives allergen tags from edited ingredients and keeps hand-added tags" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+      dairy_tag = create(:tag, slug: "contains-dairy", name: "Contains Dairy",
+                               family: "allergen", path: "allergen.contains_dairy")
+      ItemTag.create!(item: item, tag: vegan, confidence: "confirmed", source: "human")
+      ItemTag.create!(item: item, tag: dairy_tag, confidence: "suggested", source: "human")
+
+      patch_item(ingredient_slugs: %w[egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: egg))
+        .to have_attributes(confidence: "confirmed", source: "human")
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(source: "ingredient_derived")
+      expect(item.item_tags.find_by!(tag: vegan))
+        .to have_attributes(confidence: "confirmed", source: "human")
+      expect(item.item_tags.find_by!(tag: dairy_tag))
+        .to have_attributes(confidence: "suggested", source: "human")
+      expect(item.reload.read_attribute(:tag_ids)).to include(egg_tag.id, vegan.id, dairy_tag.id)
+
+      patch_item(ingredient_slugs: %w[meat-beef])
+
+      expect(item.item_tags.find_by(tag: egg_tag)).to be_nil
+      expect(item.item_tags.find_by!(tag: dairy_tag))
+        .to have_attributes(confidence: "suggested", source: "human")
+    end
+
     # Unlike the extractor's payloads (silently filtered), an admin typo
     # must not vanish into a no-op.
     it "422s an unknown slug and changes nothing" do

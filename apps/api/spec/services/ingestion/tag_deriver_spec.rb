@@ -40,6 +40,39 @@ RSpec.describe Ingestion::TagDeriver do
       expect(tag_slugs(tags)).to include("contains-shellfish", "contains-tree-nut")
     end
 
+    # WBW-244: egg noodles sit under grain.wheat, so they already derive
+    # gluten, but the terminal "egg" segment is not the egg allergen
+    # subtree. Same gap on wonton/egg wrappers; egg rolls are a name,
+    # not an egg filling, and must not pick up contains-egg.
+    it "derives contains-egg from egg noodles, egg pasta, and wonton wrappers" do
+      noodles = derive(ingredients: [ing("grain-wheat-noodle-egg", "grain.wheat.noodle.egg")])
+      pasta   = derive(ingredients: [ing("grain-wheat-pasta-egg", "grain.wheat.pasta.egg")])
+      wonton  = derive(ingredients: [ing("grain-wheat-wonton", "grain.wheat.wonton")])
+      expect(tag_slugs(noodles)).to include("contains-egg", "contains-gluten")
+      expect(tag_slugs(pasta)).to include("contains-egg", "contains-gluten")
+      expect(tag_slugs(wonton)).to include("contains-egg", "contains-gluten")
+    end
+
+    it "does not treat egg rolls as containing egg" do
+      tags = derive(ingredients: [ing("grain-wheat-egg-roll", "grain.wheat.egg_roll")])
+      expect(tag_slugs(tags)).to include("contains-gluten")
+      expect(tag_slugs(tags)).not_to include("contains-egg")
+    end
+
+    # WBW-245: beer is barley/wheat malt. #925/#1018 moved hard sodas
+    # onto alcohol-beer so a celiac ingredient-avoid would hide them;
+    # they did not strip gluten from beer. Hard seltzer is not beer.
+    it "derives contains-gluten from beer and ale, not from hard seltzer" do
+      beer = derive(ingredients: [ing("alcohol-beer", "alcohol.beer")])
+      ipa  = derive(ingredients: [ing("alcohol-ipa", "alcohol.beer.ipa")])
+      ale  = derive(ingredients: [ing("alcohol-ale", "alcohol.ale")])
+      seltzer = derive(ingredients: [ing("alcohol-seltzer", "alcohol.seltzer")])
+      expect(tag_slugs(beer)).to include("contains-gluten")
+      expect(tag_slugs(ipa)).to include("contains-gluten")
+      expect(tag_slugs(ale)).to include("contains-gluten")
+      expect(tag_slugs(seltzer)).not_to include("contains-gluten")
+    end
+
     it "is nil-safe when ingredients or paths are missing" do
       expect { derive(ingredients: nil) }.not_to raise_error
       expect(derive(ingredients: nil)).to eq([])

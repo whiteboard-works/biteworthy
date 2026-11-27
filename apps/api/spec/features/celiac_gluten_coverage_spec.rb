@@ -114,6 +114,8 @@ RSpec.describe "Celiac filter over real dish names" do
     [ "Gulab Jamun", "sweet gulab jamun dessert", true, "PR 766 gulab jamun keyword" ],
     [ "Corn Tortilla Tacos", "tacos with corn tortillas", false, "corn tortilla is not wheat" ],
     [ "Rice Noodle Pho", "pho with rice noodles", false, "rice noodles are not wheat" ],
+    [ "Pad Woon Sen", "stir fried glass noodles", false, "glass noodles are not wheat" ],
+    [ "Fresh Spring Rolls", "wrapped in rice paper", false, "rice paper is not wheat" ],
     [ "Tamari Glazed Salmon", "salmon with tamari glaze", false, "tamari stays gluten-free" ],
     [ "GF Pancakes", "served with maple syrup", false, "explicit GF claim on the name" ]
   ].freeze
