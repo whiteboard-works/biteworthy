@@ -36,9 +36,9 @@ module Restaurants
     class << self
       def call(restaurant:, city:)
         target = find_city!(city)
-        assert_same_region!(restaurant.city, target)
         return restaurant if restaurant.city_id == target.id
 
+        assert_same_region!(restaurant.city, target)
         restaurant.update!(city: target)
         sync_address!(restaurant, target)
         restaurant.reload
@@ -75,20 +75,30 @@ module Restaurants
       end
 
       def same_place?(left, right)
-        country_key(left) == country_key(right) && region_key(left) == region_key(right)
+        left_region  = region_key(left)
+        right_region = region_key(right)
+        return false if left_region.blank? || right_region.blank?
+
+        country_key(left) == country_key(right) && left_region == right_region
       end
 
       def country_key(city) = city.country.to_s.strip.upcase
 
       def region_key(city)
-        Cities::Create.state_name(city.region) || city.region.to_s.strip.downcase
+        Cities::Create.state_name(city.region) || city.region.to_s.strip.downcase.presence
       end
 
       def sync_address!(restaurant, city)
         address = restaurant.addresses.order(:created_at).first
         return unless address
 
-        address.update!(city: city.name, region: city.region, country: city.country)
+        # City text follows the City row. Coordinates, postal code, and
+        # the map place id still describe the old pin — SearchRestaurants
+        # ranks by those — so they go until a later address write.
+        address.update!(
+          city: city.name, region: city.region, country: city.country,
+          postal_code: nil, latitude: nil, longitude: nil, map_provider_place_id: nil
+        )
       end
     end
   end

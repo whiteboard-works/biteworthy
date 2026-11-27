@@ -2,8 +2,8 @@ require "rails_helper"
 
 # WBW-247 — admins must be able to move a restaurant between cities in the
 # same state. Lookup is by the trailing slug, so the restaurant slug stays
-# put and the old city URL 301/308s via the existing web_path mismatch
-# redirect. Non-admins have no write on this field.
+# put and the old city URL 307s via the existing web_path mismatch
+# redirect (city assignment is reversible). Non-admins have no write on this field.
 RSpec.describe "Admin restaurant city reassignment", type: :request do
   let(:admin) { create(:user, :admin) }
   let!(:ogden)   { create(:city, slug: "ogden",   name: "Ogden",   region: "Utah",     country: "US") }
@@ -76,6 +76,19 @@ RSpec.describe "Admin restaurant city reassignment", type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
     expect(response.parsed_body["error"]).to eq("city_outside_region")
     expect(restaurant.reload.city.slug).to eq("ogden")
+  end
+
+  it "422s when either city has no region, even in the same country" do
+    nowhere = create(:city, slug: "nowhere", name: "Nowhere", region: nil, country: "US")
+    create(:city, slug: "elsewhere", name: "Elsewhere", region: nil, country: "US")
+    stray = create(:restaurant, :published, city: nowhere, slug: "stray-diner")
+
+    patch "/api/v1/admin/restaurants/#{stray.id}",
+          params: { city: "elsewhere" }.to_json, headers: admin_headers
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["error"]).to eq("city_outside_region")
+    expect(stray.reload.city_id).to eq(nowhere.id)
   end
 
   it "404s a non-admin instead of applying the move" do

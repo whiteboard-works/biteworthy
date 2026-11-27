@@ -472,8 +472,9 @@ reusing the same business logic and validation as the REST admin endpoints:
   import does not need admin `edit_place`.
 - **`update_restaurant`** — edit name, about, website, phone, city, and address.
   `city` is a city slug or UUID: it moves the restaurant to that city (must
-  already exist in the same state and country). The restaurant slug does not
-  change, so the old city-path URL redirects. Address is a wholesale
+  already exist in the same state and country; a blank region does not count
+  as matching). The restaurant slug does not change, so the old city-path
+  URL 307s. A city move clears stale address coordinates. Address is a wholesale
   replacement when any address field is provided. Reuses `Places::Writer`
   validation and `Restaurants::ReassignCity`.
 - **`set_restaurant_hours`** — replace weekly hours. Supports multiple
@@ -730,7 +731,8 @@ their validation with the REST controllers rather than reimplementing it:
 respectively. Moving a restaurant between cities goes through
 `Restaurants::ReassignCity` (admin PATCH, `edit_restaurant`,
 `update_restaurant`, `edit_place`) so a city slug cannot be stored as
-address text. That is deliberate — the place/item writers validate before
+address text. A move requires a known region on both cities and clears
+stale address coordinates. That is deliberate — the place/item writers validate before
 coercing, because Rails' casts are lossy in exactly the directions that
 corrupt live data (`"monday".to_i` is `0`, `"25:99"` becomes "closed", a
 non-numeric latitude becomes Null Island), and `Taxonomy::Writer` exists

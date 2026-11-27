@@ -12,7 +12,7 @@ import { fetchReviewsServer, type ReviewsResponse } from '../../../../../../../.
 import { getServerJwt, getServerUserId } from '../../../../../../../../lib/server-auth';
 import { edgeHeaders } from '../../../../../../../../lib/edge-headers';
 import { toQueryString } from '../../../../../../../../lib/query-string';
-import { isCanonicalPath } from '../../../../../../../../lib/restaurant-path';
+import { locationRedirectKind } from '../../../../../../../../lib/restaurant-path';
 import FavoriteDishButton from './_FavoriteDishButton';
 import DetectedIngredients from './_DetectedIngredients';
 import { DishPhotoOffer } from './_DishPhotoOffer';
@@ -70,10 +70,13 @@ export default async function ItemDetailPage({
 
   if (!restaurant || !item) notFound();
 
-  // Same rule as the menu page: a stale location in the URL 301s to the
-  // canonical one, so a dish has one indexable address.
-  if (!isCanonicalPath(restaurant.web_path, { country, region, city, slug })) {
-    permanentRedirect(`${restaurant.web_path}/items/${id}${toQueryString(search)}` as Route);
+  // Same rule as the menu page: a stale location in the URL redirects
+  // to the canonical one, so a dish has one indexable address.
+  const locationKind = locationRedirectKind(restaurant.web_path, { country, region, city, slug });
+  if (locationKind) {
+    const target = `${restaurant.web_path}/items/${id}${toQueryString(search)}` as Route;
+    if (locationKind === 'temporary') redirect(target);
+    permanentRedirect(target);
   }
 
   if (addPhoto && currentUserId == null) {
