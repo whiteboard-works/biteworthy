@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   CLEAN_REVIEW_PHRASE,
+  CODEX_GATE_CONTEXT,
+  commitStatusForDecision,
   decideAutoMerge,
   extractReviewedCommit,
+  freshHeadPendingStatus,
   hasP0OrP1Badge,
   inferDependabotUpdateType,
+  postCommitStatus,
   shaMatches,
+  statusDescription,
 } from './codex-auto-merge-gate.mjs';
 
 const HEAD = 'ffaa49c829f996eb8a211e121f913fab283ab7e7';
@@ -241,11 +247,9 @@ test('issue_comment: empty fetch-metadata still reads Dependabot commit update-t
   const decision = decideAutoMerge(
     base({
       authorLogin: 'dependabot[bot]',
-      dependabotUpdateType: inferDependabotUpdateType(
-        'chore(deps): Bump actions/setup-node',
-        '',
-        [commit],
-      ),
+      dependabotUpdateType: inferDependabotUpdateType('chore(deps): Bump actions/setup-node', '', [
+        commit,
+      ]),
     }),
   );
   assert.equal(decision.enable, true);
@@ -266,7 +270,10 @@ test('inferDependabotUpdateType reads from/to in title or body', () => {
     'version-update:semver-major',
   );
   assert.equal(
-    inferDependabotUpdateType('', 'Bumps [puma](https://github.com/puma/puma) from 8.0.2 to 8.1.2.'),
+    inferDependabotUpdateType(
+      '',
+      'Bumps [puma](https://github.com/puma/puma) from 8.0.2 to 8.1.2.',
+    ),
     'version-update:semver-minor',
   );
 });
@@ -287,11 +294,9 @@ test('inferDependabotUpdateType takes the highest YAML update-type in a group co
 });
 
 test('inferDependabotUpdateType takes the highest bump in a group PR', () => {
-  const body = [
-    'Bumps the tanstack group',
-    'from 5.108.2 to 5.108.3',
-    'from 5.1.0 to 6.0.0',
-  ].join('\n');
+  const body = ['Bumps the tanstack group', 'from 5.108.2 to 5.108.3', 'from 5.1.0 to 6.0.0'].join(
+    '\n',
+  );
   assert.equal(
     inferDependabotUpdateType('Bump the tanstack group', body),
     'version-update:semver-major',
@@ -303,7 +308,10 @@ test('inferDependabotUpdateType takes the highest bump in a group PR', () => {
 });
 
 test('inferDependabotUpdateType is empty when there is no from/to', () => {
-  assert.equal(inferDependabotUpdateType('chore(deps): Bump the actions group', 'digest update'), '');
+  assert.equal(
+    inferDependabotUpdateType('chore(deps): Bump the actions group', 'digest update'),
+    '',
+  );
 });
 
 test('inferred patch/minor from title enables Dependabot without fetch-metadata', () => {
@@ -332,4 +340,134 @@ test('a non-Codex review on head is not enough', () => {
     }),
   );
   assert.equal(decision.enable, false);
+});
+
+test('commitStatusForDecision: enable is success, including Dependabot patch/minor', () => {
+  const reviewed = commitStatusForDecision(decideAutoMerge(base({ reviews: [headReview] })));
+  assert.equal(reviewed.state, 'success');
+  assert.equal(reviewed.context, CODEX_GATE_CONTEXT);
+  assert.equal(reviewed.context, 'codex-gate');
+  assert.match(reviewed.description, /Codex reviewed current head/);
+
+  const dependabot = commitStatusForDecision(
+    decideAutoMerge(
+      base({
+        authorLogin: 'dependabot[bot]',
+        dependabotUpdateType: 'version-update:semver-patch',
+      }),
+    ),
+  );
+  assert.equal(dependabot.state, 'success');
+  assert.match(dependabot.description, /exemption/);
+});
+
+test('commitStatusForDecision: waiting, unresolved P0/P1, drafts, and wrong base are pending not failure', () => {
+  const waiting = commitStatusForDecision(decideAutoMerge(base()));
+  assert.equal(waiting.state, 'pending');
+  assert.equal(waiting.context, 'codex-gate');
+  assert.match(waiting.description, /no Codex review on current head/);
+
+  const p1 = commitStatusForDecision(
+    decideAutoMerge(
+      base({
+        reviews: [headReview],
+        reviewThreads: [
+          {
+            isResolved: false,
+            comments: [
+              {
+                authorLogin: 'chatgpt-codex-connector',
+                body: '![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)',
+              },
+            ],
+          },
+        ],
+      }),
+    ),
+  );
+  assert.equal(p1.state, 'pending');
+  assert.match(p1.description, /unresolved Codex P0\/P1/);
+
+  const draft = commitStatusForDecision(
+    decideAutoMerge(base({ isDraft: true, reviews: [headReview] })),
+  );
+  assert.equal(draft.state, 'pending');
+  assert.match(draft.description, /draft PR/);
+
+  const wrongBase = commitStatusForDecision(
+    decideAutoMerge(base({ baseRefName: 'main', reviews: [headReview] })),
+  );
+  assert.equal(wrongBase.state, 'pending');
+  assert.notEqual(wrongBase.state, 'failure');
+});
+
+test('commitStatusForDecision: fork PRs fail closed as pending even when the gate would enable', () => {
+  const decision = decideAutoMerge(base({ reviews: [headReview] }));
+  assert.equal(decision.enable, true);
+  const status = commitStatusForDecision(decision, { fork: true });
+  assert.equal(status.state, 'pending');
+  assert.equal(status.context, 'codex-gate');
+  assert.match(status.description, /fork PR/);
+});
+
+test('statusDescription clips to GitHub commit-status 140-character limit', () => {
+  assert.equal(statusDescription('short reason'), 'short reason');
+  assert.equal(statusDescription('x'.repeat(140)).length, 140);
+  const clipped = statusDescription('x'.repeat(200));
+  assert.equal(clipped.length, 140);
+  assert.equal(clipped.endsWith('...'), true);
+});
+
+test('freshHeadPendingStatus is pending on context codex-gate', () => {
+  const status = freshHeadPendingStatus();
+  assert.equal(status.state, 'pending');
+  assert.equal(status.context, 'codex-gate');
+  assert.match(status.description, /new head/i);
+});
+
+test('postCommitStatus POSTs context codex-gate on the given SHA', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 201, text: async () => '', json: async () => ({}) };
+  };
+  await postCommitStatus(
+    {
+      token: 't',
+      owner: 'whiteboard-works',
+      repo: 'biteworthy',
+      sha: HEAD,
+      state: 'pending',
+      description: 'waiting',
+    },
+    fetchImpl,
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    `https://api.github.com/repos/whiteboard-works/biteworthy/statuses/${HEAD}`,
+  );
+  assert.equal(calls[0].init.method, 'POST');
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.context, 'codex-gate');
+  assert.equal(body.state, 'pending');
+  assert.equal(body.description, 'waiting');
+});
+
+test('workflow marks the new head pending before checkout and grants statuses: write', () => {
+  const yaml = readFileSync(new URL('../workflows/auto-merge.yml', import.meta.url), 'utf8');
+  assert.match(yaml, /statuses:\s*write/);
+
+  const gateStart = yaml.indexOf('\n  gate:');
+  assert.ok(gateStart >= 0, 'gate job is present');
+  const gateYaml = yaml.slice(gateStart);
+  const markPending = gateYaml.indexOf('Mark new head pending');
+  const gateCheckout = gateYaml.indexOf('uses: actions/checkout@v7');
+  assert.ok(markPending >= 0, 'gate job marks the new head pending');
+  assert.ok(
+    markPending < gateCheckout,
+    'pending status on the new head must be the first mutating step, before checkout',
+  );
+  assert.match(gateYaml, /context=codex-gate/);
+  assert.match(gateYaml, /state=pending/);
 });

@@ -24,9 +24,11 @@ from it. If the loop's behavior diverges from this file, the file wins.
    auto-merge on red.
 5. **Trust review.** `.github/workflows/auto-merge.yml` enables GitHub
    auto-merge only after Codex has reviewed the current head SHA with no
-   unresolved P0/P1 Codex threads (see §Auto-merge policy). Required
-   checks still come from branch protection. Open a draft to hold a PR;
-   `ship merge` also waits for zero unresolved P1/P2 findings.
+   unresolved P0/P1 Codex threads (see §Auto-merge policy). The same
+   decision is a commit status named `codex-gate` on that SHA, which
+   branch protection on `master` must require (alongside the four CI
+   checks). Open a draft to hold a PR; `ship merge` also waits for zero
+   unresolved P1/P2 findings.
 6. **Plan-first updates.** Before starting work, the loop syncs
    `docs/roadmap.md`'s "Next up" queue. Before merging, it ticks the
    completed item. Mid-task progress goes in `docs/status.md` (see
@@ -145,8 +147,25 @@ and there are no unresolved P0/P1 Codex review threads. Codex marks
 severity with a `![P0 Badge]` / `![P1 Badge]` / `![P2 Badge]` in the
 inline comment; P2 does not block. A clean pass is a `pull_request_review`
 on that SHA and/or an issue comment containing "Didn't find any major
-issues" for that SHA. A new push (`synchronize`) **disarms** auto-merge
+issues" for that SHA. A new push (`synchronize`) posts `codex-gate`
+`pending` on the new head **before checkout**, then **disarms** auto-merge
 so the previous SHA's checks cannot merge the new commit.
+
+**`codex-gate` commit status.** Every gate evaluation (opened / reopened /
+synchronize / ready_for_review, review submitted, review comments, issue
+comments, `workflow_dispatch`) POSTs a commit status named exactly
+`codex-gate` on the PR's current head SHA: `pending` with the gate reason
+when Codex has not reviewed the head, P0/P1 threads are unresolved, the
+PR is a draft, or it is from a fork; `success` when `decideAutoMerge`
+enables (including the Dependabot patch/minor exemption); `failure` only
+for a definite "will not pass" case — waiting stays `pending`. Mark
+`codex-gate` **required** in
+[Settings → Branches → master](https://github.com/whiteboard-works/biteworthy/settings/branches)
+alongside `typecheck · lint · test`, `rspec · brakeman · rubocop`,
+`javascript-typescript`, and `ruby`. Because `pull_request_target` runs
+the workflow from `master`, the status only starts appearing after that
+workflow file is on `master` — add it to the rule then, not before, or
+open PRs have no status to satisfy.
 
 **Exemption:** Dependabot (`dependabot[bot]`) patch and minor version
 bumps (`dependabot/fetch-metadata` `update-type` of
@@ -159,13 +178,14 @@ strip the exemption.
 Unresolved Codex P0/P1 threads still block, including on those
 exemptions. Green CI is still required by branch protection.
 
-This is not a branch-protection required-review rule. The
-`auto-merge-ok` / `claude-cd` labels do not gate anything (dropped
-2026-04-29). Base is `master`, never `main`.
+This is not a branch-protection required-review rule (`codex-gate` is a
+required *status*, not a required GitHub review). The `auto-merge-ok` /
+`claude-cd` labels do not gate anything (dropped 2026-04-29). Base is
+`master`, never `main`.
 
 Once auto-merge is enabled, GitHub completes the squash-merge as
-soon as required checks pass. Branch protection on master is what
-actually decides what "required" means.
+soon as required checks pass — including `codex-gate`. Branch protection
+on master is what actually decides what "required" means.
 
 If Codex is slow or silent, auto-merge stays off (fail closed). Comment
 `@codex review` and wait; do not re-enable by hand to skip it. Resolving

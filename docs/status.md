@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-27 (UTC) — **`codex-gate` commit status so branch protection can wait for Codex.** Auto-merge can still squash a new push before the workflow disarms, because nothing required waited for Codex. `auto-merge.yml` now POSTs a commit status named exactly `codex-gate` on the current head SHA (`pending` while waiting / draft / fork / unresolved P0/P1; `success` when the gate enables, including Dependabot patch/minor). On `synchronize` that pending is the first mutating step, before checkout. Human follow-up: mark `codex-gate` required in Settings → Branches → master after this lands (the status only appears once `pull_request_target` runs from master).
+
 2026-11-27 (UTC) — **Dependabot auto-merge exemption survives issue comments.** `dependabot/fetch-metadata` needs a `pull_request` payload, so an `issue_comment` left `update-type` empty and the gate could disarm a patch/minor. Fetch-metadata now runs only on `pull_request_target`; the gate loads the PR by number and reads the same `update-type` from the Dependabot commit trailer (`updated-dependencies`), falling back to title/body `from X to Y`.
 
 2026-11-25 (UTC) — **Auto-merge waits for Codex on the current head.** `auto-merge.yml` had been re-arming squash auto-merge on every push, so PRs (#995, #1004, #925) merged before Codex reviewed the head commit. It now enables auto-merge only when `chatgpt-codex-connector` has a review (or a "Didn't find any major issues" comment) on the current head SHA and GraphQL reports no unresolved P0/P1 Codex threads; a `synchronize` disarms first. Dependabot patch/minor still skip that wait via `dependabot/fetch-metadata`. Not a branch-protection required-review rule.
