@@ -26,6 +26,15 @@ module Tools
           status: restaurant.status
         }
       end
+
+      # City slug or UUID. The restaurant slug is left alone; a city in
+      # another state/country is refused rather than silently rewriting
+      # address text (WBW-247).
+      def reassign_city!(restaurant, city)
+        ::Restaurants::ReassignCity.call(restaurant: restaurant, city: city)
+      rescue ::Restaurants::ReassignCity::UnknownCity, ::Restaurants::ReassignCity::RegionMismatch => e
+        raise Errors::InvalidArgument, e.message
+      end
     end
   end
 end

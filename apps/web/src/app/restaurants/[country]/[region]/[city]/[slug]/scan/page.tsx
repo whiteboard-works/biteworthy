@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import { fetchRestaurant } from '../../../../../../../lib/restaurants';
 import { getServerJwt } from '../../../../../../../lib/server-auth';
 import { edgeHeaders } from '../../../../../../../lib/edge-headers';
-import { isCanonicalPath, restaurantBasePath } from '../../../../../../../lib/restaurant-path';
+import { locationRedirectKind, restaurantBasePath } from '../../../../../../../lib/restaurant-path';
 import { ScanClient } from './_ScanClient';
 
 export const metadata: Metadata = {
@@ -41,9 +41,14 @@ export default async function ScanPage({
   );
   // A published restaurant knows its real location; a stale one in the URL
   // would otherwise leak into every self-link the scan screen builds.
-  if (restaurant && !isCanonicalPath(restaurant.web_path, { country, region, city, slug })) {
-    const qs = resumeScanId ? `?scan=${encodeURIComponent(resumeScanId)}` : '';
-    permanentRedirect(`${restaurant.web_path}/scan${qs}` as Route);
+  if (restaurant) {
+    const locationKind = locationRedirectKind(restaurant.web_path, { country, region, city, slug });
+    if (locationKind) {
+      const qs = resumeScanId ? `?scan=${encodeURIComponent(resumeScanId)}` : '';
+      const target = `${restaurant.web_path}/scan${qs}` as Route;
+      if (locationKind === 'temporary') redirect(target);
+      permanentRedirect(target);
+    }
   }
   return (
     <ScanClient

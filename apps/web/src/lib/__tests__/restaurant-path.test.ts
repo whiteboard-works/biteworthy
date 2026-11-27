@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCanonicalPath, restaurantBasePath } from '../restaurant-path';
+import { isCanonicalPath, locationRedirectKind, restaurantBasePath } from '../restaurant-path';
 
 /**
  * The canonical check runs on every restaurant, dish and scan page; a
@@ -23,6 +23,38 @@ describe('isCanonicalPath', () => {
         slug: 'a b?',
       }),
     ).toBe(false);
+  });
+});
+
+describe('locationRedirectKind', () => {
+  const draper = {
+    country: 'usa',
+    region: 'utah',
+    city: 'draper',
+    slug: 'laan-thai-restaurant',
+  };
+  const webPath = '/restaurants/usa/utah/draper/laan-thai-restaurant';
+
+  it('is null on the canonical path', () => {
+    expect(locationRedirectKind(webPath, draper)).toBeNull();
+  });
+
+  // City reassignment is reversible; a cached 308 Ogden→Draper loops
+  // if an admin later moves the restaurant back.
+  it('is temporary when only the city segment is stale', () => {
+    expect(locationRedirectKind(webPath, { ...draper, city: 'ogden' })).toBe('temporary');
+  });
+
+  it('is permanent when country or region also differ', () => {
+    expect(locationRedirectKind(webPath, { ...draper, country: 'us' })).toBe('permanent');
+    expect(
+      locationRedirectKind(webPath, {
+        country: 'usa',
+        region: 'colorado',
+        city: 'durango',
+        slug: 'laan-thai-restaurant',
+      }),
+    ).toBe('permanent');
   });
 });
 

@@ -368,6 +368,7 @@ export interface paths {
                             city?: {
                                 /** Format: uuid */
                                 id?: string;
+                                slug?: string;
                                 name?: string;
                             } | null;
                             /** Format: uuid */
@@ -466,6 +467,8 @@ export interface paths {
                         phone?: string;
                         /** @enum {string} */
                         status?: "draft" | "published" | "closed";
+                        /** @description City slug or UUID. Must exist in the same state and country. The restaurant slug is unchanged. */
+                        city?: string;
                     };
                 };
             };
@@ -488,6 +491,7 @@ export interface paths {
                             city?: {
                                 /** Format: uuid */
                                 id?: string;
+                                slug?: string;
                                 name?: string;
                             } | null;
                             /** Format: uuid */
@@ -509,7 +513,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description immutable slug change or invalid status */
+                /** @description immutable slug change, invalid status, unknown city, or city in another state */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1287,6 +1291,7 @@ export interface paths {
                                 city?: {
                                     /** Format: uuid */
                                     id?: string;
+                                    slug?: string;
                                     name?: string;
                                 } | null;
                                 /** Format: uuid */

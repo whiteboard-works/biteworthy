@@ -894,6 +894,9 @@
                           "type": "string",
                           "format": "uuid"
                         },
+                        "slug": {
+                          "type": "string"
+                        },
                         "name": {
                           "type": "string"
                         }
@@ -1023,6 +1026,9 @@
                           "type": "string",
                           "format": "uuid"
                         },
+                        "slug": {
+                          "type": "string"
+                        },
                         "name": {
                           "type": "string"
                         }
@@ -1077,7 +1083,7 @@
             }
           },
           "422": {
-            "description": "immutable slug change or invalid status",
+            "description": "immutable slug change, invalid status, unknown city, or city in another state",
             "content": {
               "application/json": {
                 "schema": {
@@ -1112,6 +1118,10 @@
                       "published",
                       "closed"
                     ]
+                  },
+                  "city": {
+                    "type": "string",
+                    "description": "City slug or UUID. Must exist in the same state and country. The restaurant slug is unchanged."
                   }
                 }
               }
@@ -2477,6 +2487,9 @@
                               "id": {
                                 "type": "string",
                                 "format": "uuid"
+                              },
+                              "slug": {
+                                "type": "string"
                               },
                               "name": {
                                 "type": "string"

@@ -1,10 +1,10 @@
 import type { Metadata, Route } from 'next';
-import { notFound, permanentRedirect } from 'next/navigation';
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
 import { fetchRestaurant, fetchRestaurantItems } from '../../../../../../lib/restaurants';
 import { getServerJwt, getServerUserId } from '../../../../../../lib/server-auth';
 import { edgeHeaders } from '../../../../../../lib/edge-headers';
 import { toQueryString } from '../../../../../../lib/query-string';
-import { isCanonicalPath } from '../../../../../../lib/restaurant-path';
+import { locationRedirectKind } from '../../../../../../lib/restaurant-path';
 import { resolveMenuItems } from './_resolve-items';
 import { RestaurantClient } from './RestaurantClient';
 
@@ -15,11 +15,12 @@ import { RestaurantClient } from './RestaurantClient';
  * `/restaurants/<country>/<region>/<city>/<slug>` (`Restaurant#web_path`).
  * Lookup is ALWAYS by the trailing `slug`; `country`/`region`/`city` are
  * for humans/SEO. When they don't match the restaurant's real location
- * this page 301s to the canonical path (query string preserved) — but
- * only once the restaurant has actually been fetched. A failed fetch
- * (e.g. a draft, which the public show endpoint 404s) just falls through
- * to the existing `notFound()` below rather than attempting a redirect
- * with nothing to redirect to.
+ * this page redirects to the canonical path (query string preserved) —
+ * 307 when only the city is stale (city reassignment is reversible),
+ * 308 otherwise — but only once the restaurant has actually been
+ * fetched. A failed fetch (e.g. a draft, which the public show endpoint
+ * 404s) just falls through to the existing `notFound()` below rather
+ * than attempting a redirect with nothing to redirect to.
  *
  * `?p=<token>` (Phase 3.9) and `?profile=<preset>` (durango-card links)
  * are forwarded to the items endpoint; the client island keeps them on
@@ -99,9 +100,12 @@ export default async function RestaurantPage({
 
   // The restaurant was fetched — its web_path is now the authority on
   // country/region/city. A mismatch (stale link, hand-typed URL, a
-  // restaurant that moved cities) 301s to the real one.
-  if (!isCanonicalPath(restaurant.web_path, { country, region, city, slug })) {
-    permanentRedirect(`${restaurant.web_path}${toQueryString(search)}` as Route);
+  // restaurant that moved cities) redirects to the real one.
+  const locationKind = locationRedirectKind(restaurant.web_path, { country, region, city, slug });
+  if (locationKind) {
+    const target = `${restaurant.web_path}${toQueryString(search)}` as Route;
+    if (locationKind === 'temporary') redirect(target);
+    permanentRedirect(target);
   }
 
   return (
