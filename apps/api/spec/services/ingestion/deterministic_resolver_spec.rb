@@ -37,6 +37,8 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["grain-wheat-spring-roll", "Spring Roll", "grain.wheat.spring_roll", []],
       ["alcohol-beer",      "Beer",           "alcohol.beer",            []],
       ["alcohol-ale",       "Ale",            "alcohol.ale",             []],
+      ["alcohol-lager",     "Lager",          "alcohol.beer.lager",      []],
+      ["alcohol-ipa",       "IPA",            "alcohol.beer.ipa",        []],
     ])
   end
 
@@ -177,6 +179,16 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
+    it "keeps gluten on beer-battered fish that offers a gluten-free option" do
+      result = resolve(
+        StubItem.new("id-1", "Beer-battered fish, gluten-free option available", nil, nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
     it "keeps beer identity on a gluten-free beer without minting contains-gluten" do
       beer, ale = resolve(
         StubItem.new("a", "Gluten-Free Beer", nil, nil),
@@ -188,6 +200,19 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(beer.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
       expect(ale.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
       expect(ale.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+    end
+
+    it "keeps a gluten-free lager and GF IPA exempt without minting contains-gluten" do
+      lager, ipa = resolve(
+        StubItem.new("a", "Gluten-Free Lager", nil, nil),
+        StubItem.new("b", "GF IPA", nil, nil)
+      )
+
+      expect(lager.ingredients.map { |r| r["slug"] }).to include("alcohol-lager")
+      expect(lager.tags.map { |t| t["slug"] }).to include("gluten-free")
+      expect(lager.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+      expect(ipa.ingredients.map { |r| r["slug"] }).to include("alcohol-ipa")
+      expect(ipa.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
     end
 
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do

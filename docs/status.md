@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-27 (UTC) — **#1021 Codex P1: beer gluten exemption is a GF-beer name, not any GF mention.** Only names like Gluten-Free Lager, GF IPA, or Omission suppress beer-derived `contains-gluten`. "Beer-battered fish, gluten-free option available" keeps gluten and does not get a gluten-free diet tag. Rice paper drops wheat spring-roll only when the gap tokens are wrap words (`wrapped in`), not merely nearby.
+
 2026-11-27 (UTC) — **#1021 Codex P1: beer gluten suppression is name-only.** `TagDeriver::Allergen` reads `name_segments`, not the combined name+description, so "House Ale — gluten-free option available" still derives `contains-gluten`. A dish *named* Gluten-Free Beer still keeps beer identity without the gluten tag.
 
 2026-11-27 (UTC) — **#1021 Codex P1s: GF beer keeps beer identity; retained allergen tags survive re-derive; rice-paper wrap is span-local.** A gluten-free name no longer drops `alcohol-beer`/`alcohol-ale` (it only suppresses beer-derived `contains-gluten`). `ItemEditor` keeps `ingredient_derived` tags listed in the PATCH `tag_slugs`. Rice paper drops wheat spring-roll only within a 3-token wrap window, so "alongside" mixed platters keep gluten.

@@ -78,6 +78,7 @@ module Ingestion
     RICE_PAPER_PREFIX = "grain.rice.paper"
     # "wrapped in" is two tokens; keep a little room for "in the".
     RICE_PAPER_WRAP_WINDOW = 3
+    WRAP_GAP_WORDS = %w[wrapped in the a an of using inside into].freeze
 
     def self.under_prefix?(path, prefix)
       path == prefix || path.start_with?("#{prefix}.")
@@ -88,7 +89,7 @@ module Ingestion
     def self.row_start(row) = row[:start_token] || row["start_token"]
     def self.row_end(row) = row[:end_token] || row["end_token"]
 
-    def self.prefer_qualified(rows)
+    def self.prefer_qualified(rows, tokens: nil)
       list = Array(rows)
       return list if list.empty?
 
@@ -108,12 +109,20 @@ module Ingestion
         finish = row_end(row)
         next false if finish.nil?
 
-        paper_starts.any? { |start| wrapped_by_rice_paper?(finish, start) }
+        paper_starts.any? { |start| wrapped_by_rice_paper?(finish, start, tokens) }
       end
     end
 
-    def self.wrapped_by_rice_paper?(wheat_end, paper_start)
-      paper_start > wheat_end && (paper_start - wheat_end - 1) <= RICE_PAPER_WRAP_WINDOW
+    def self.wrapped_by_rice_paper?(wheat_end, paper_start, tokens)
+      return false unless paper_start > wheat_end
+
+      gap = (wheat_end + 1)...paper_start
+      return false if gap.size > RICE_PAPER_WRAP_WINDOW
+
+      stream = Array(tokens)
+      return true if stream.empty?
+
+      stream[gap].all? { |token| WRAP_GAP_WORDS.include?(token.to_s) }
     end
 
     def self.payload_row(row)
@@ -143,8 +152,9 @@ module Ingestion
     # that could be ingredients we don't know. The caller decides how
     # name vs description leftovers weigh (see DeterministicResolver).
     def scan(text)
-      hits, leftovers, = scan_hits(text)
-      rows = self.class.best_by_slug(self.class.prefer_qualified(hits)).map { |row| self.class.payload_row(row) }
+      hits, leftovers, _, _, tokens = scan_hits(text)
+      rows = self.class.best_by_slug(self.class.prefer_qualified(hits, tokens: tokens))
+                       .map { |row| self.class.payload_row(row) }
       [rows, leftovers]
     end
 
@@ -157,10 +167,12 @@ module Ingestion
       hits      = []
       leftovers = []
       prefix    = []
+      stream    = []
       last_clause = clause_id
 
       MenuText.segments(text).each_with_index do |tokens, seg_i|
         last_clause += 1 if seg_i.positive?
+        stream.concat(tokens)
         last_clause, token_index = scan_segment(
           tokens, hits, leftovers,
           clause_id: last_clause, prefix: prefix, token_index: token_index
@@ -168,7 +180,7 @@ module Ingestion
         prefix = tokens.last(VARIANT_LEAD_WIDTH)
       end
 
-      [hits, leftovers, last_clause, token_index]
+      [hits, leftovers, last_clause, token_index, stream]
     end
 
     # Catalog lookup by slug (nil when absent) — lets the resolver's

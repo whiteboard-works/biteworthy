@@ -63,10 +63,26 @@ RSpec.describe Ingestion::TagDeriver do
     # WBW-245: beer is barley/wheat malt. #925/#1018 moved hard sodas
     # onto alcohol-beer so a celiac ingredient-avoid would hide them;
     # they did not strip gluten from beer. Hard seltzer is not beer.
-    it "does not mint contains-gluten from beer when the name claims gluten-free" do
-      tags = derive(text: "Gluten-Free Beer", ingredients: [ing("alcohol-beer", "alcohol.beer")])
-      expect(tag_slugs(tags)).to include("gluten-free")
-      expect(tag_slugs(tags)).not_to include("contains-gluten")
+    it "does not mint contains-gluten from a name that claims a gluten-free beer" do
+      beer   = derive(text: "Gluten-Free Beer", ingredients: [ing("alcohol-beer", "alcohol.beer")])
+      lager  = derive(text: "Gluten-Free Lager", ingredients: [ing("alcohol-lager", "alcohol.beer.lager")])
+      ipa    = derive(text: "GF IPA", ingredients: [ing("alcohol-ipa", "alcohol.beer.ipa")])
+      brand  = derive(text: "Omission", ingredients: [ing("alcohol-beer", "alcohol.beer")])
+      expect(tag_slugs(beer)).to include("gluten-free")
+      expect(tag_slugs(beer)).not_to include("contains-gluten")
+      expect(tag_slugs(lager)).to include("gluten-free")
+      expect(tag_slugs(lager)).not_to include("contains-gluten")
+      expect(tag_slugs(ipa)).not_to include("contains-gluten")
+      expect(tag_slugs(brand)).not_to include("contains-gluten")
+    end
+
+    it "keeps gluten on beer-battered fish that mentions a gluten-free option" do
+      tags = derive(
+        text: "Beer-battered fish, gluten-free option available",
+        ingredients: [ing("alcohol-beer", "alcohol.beer"), ing("fish", "fish")]
+      )
+      expect(tag_slugs(tags)).to include("contains-gluten", "contains-fish")
+      expect(tag_slugs(tags)).not_to include("gluten-free")
     end
 
     it "still tags beer gluten when only a description mentions a gluten-free option" do

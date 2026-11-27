@@ -202,6 +202,11 @@ RSpec.describe Ingestion::IngredientMatcher do
       expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
     end
 
+    it "keeps wheat spring-roll when nearby rice paper is not the wrapper" do
+      slugs = seed_slugs("fresh spring rolls, peanut sauce, rice paper chips")
+      expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
     it "maps bean sprouts without inventing gluten" do
       expect(seed_slugs("bean sprouts")).to include("vegetable-bean-sprout")
       expect(seed_slugs("bean sprouts")).not_to include("grain-wheat-pasta")
@@ -227,21 +232,38 @@ RSpec.describe Ingestion::IngredientMatcher do
     end
 
     it "drops wheat spring-roll only when rice paper wraps that span" do
-      wrapped = described_class.prefer_qualified([
-        { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
-          confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
-        { slug: "grain-rice-paper", path: "grain.rice.paper",
-          confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
-      ]).map { |row| row[:slug] }
+      wrapped = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
+        ],
+        tokens: %w[fresh spring rolls wrapped in rice paper]
+      ).map { |row| row[:slug] }
       expect(wrapped).to eq([ "grain-rice-paper" ])
 
-      distant = described_class.prefer_qualified([
-        { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
-          confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
-        { slug: "grain-rice-paper", path: "grain.rice.paper",
-          confidence: 1.0, source: "match", start_token: 8, end_token: 9 }
-      ]).map { |row| row[:slug] }
+      distant = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 8, end_token: 9 }
+        ],
+        tokens: %w[crispy spring rolls alongside summer rolls wrapped in rice paper]
+      ).map { |row| row[:slug] }
       expect(distant).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+
+      nearby = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
+        ],
+        tokens: %w[fresh spring rolls peanut sauce rice paper]
+      ).map { |row| row[:slug] }
+      expect(nearby).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
     end
 
     it "does not treat hard seltzer as beer" do
