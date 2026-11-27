@@ -224,6 +224,20 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 
+    it "does not skip pizza's implied wheat just because rice paper appears on the plate" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Margherita Pizza",
+          "served with summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
     it "implies wheat from soy sauce, teriyaki, and gravy matches" do
       soy, teriyaki, gravy = resolve(
         StubItem.new("a", "Stir Fry", "vegetables with soy sauce", nil),

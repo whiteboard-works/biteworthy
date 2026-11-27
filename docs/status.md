@@ -21,7 +21,7 @@ at a time has worked.
 
 ---
 
-2026-11-27 (UTC) — **#1021 Codex P1: rice-paper suppression is clause-scoped.** `prefer_qualified` drops `grain-wheat-spring-roll` only when rice paper is in the same connective/punctuation clause, so "crispy spring rolls with summer rolls wrapped in rice paper" keeps `contains-gluten`. "Fresh spring rolls wrapped in rice paper" still drops the wheat wrapper. Resolver skip of name-implied wheat follows the surviving spring-roll match, not an item-level rice-paper boolean.
+2026-11-27 (UTC) — **#1021 Codex P1: rice-paper suppression is clause-scoped.** `prefer_qualified` drops `grain-wheat-spring-roll` only when rice paper is in the same connective/punctuation clause, so "crispy spring rolls with summer rolls wrapped in rice paper" keeps `contains-gluten`. "Fresh spring rolls wrapped in rice paper" still drops the wheat wrapper. Name-implied wheat is skipped only for a spring-roll name whose wheat spring-roll match did not survive — a pizza that mentions rice paper still unions wheat.
 
 2026-11-27 (UTC) — **#1021 Codex P1s on Laan Thai allergen tagging.** Egg/beer backfills now cover drafts and resync `items.tag_ids` through `ItemTag.resync_denormalized_ids`; beer/ale (including IPA/lager children) get a live gluten-tag backfill. Published-item re-derive copies the parent join's confidence instead of confirming a suggested/human row. `prefer_qualified` no longer drops wheat pasta that co-occurs with rice noodles; rice-paper still beats wheat spring-roll. `promote!` re-derives `ingredient_derived` tags from current ingredients so a staged payload from before the egg/beer links cannot publish untagged.
 

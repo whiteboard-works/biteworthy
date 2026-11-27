@@ -118,6 +118,8 @@ RSpec.describe "Celiac filter over real dish names" do
     [ "Fresh Spring Rolls", "wrapped in rice paper", false, "rice paper is not wheat" ],
     [ "Appetizer Platter", "crispy spring rolls with summer rolls wrapped in rice paper", true,
       "wheat spring roll next to rice-paper rolls still has gluten" ],
+    [ "Margherita Pizza", "served with summer rolls wrapped in rice paper", true,
+      "rice paper on the plate does not drop a pizza's implied wheat" ],
     [ "Tamari Glazed Salmon", "salmon with tamari glaze", false, "tamari stays gluten-free" ],
     [ "GF Pancakes", "served with maple syrup", false, "explicit GF claim on the name" ]
   ].freeze
