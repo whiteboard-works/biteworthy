@@ -67,13 +67,19 @@ RSpec.describe Ingestion::TagDeriver do
       beer   = derive(text: "Gluten-Free Beer", ingredients: [ing("alcohol-beer", "alcohol.beer")])
       lager  = derive(text: "Gluten-Free Lager", ingredients: [ing("alcohol-lager", "alcohol.beer.lager")])
       ipa    = derive(text: "GF IPA", ingredients: [ing("alcohol-ipa", "alcohol.beer.ipa")])
-      brand  = derive(text: "Omission", ingredients: [ing("alcohol-beer", "alcohol.beer")])
       expect(tag_slugs(beer)).to include("gluten-free")
       expect(tag_slugs(beer)).not_to include("contains-gluten")
       expect(tag_slugs(lager)).to include("gluten-free")
       expect(tag_slugs(lager)).not_to include("contains-gluten")
       expect(tag_slugs(ipa)).not_to include("contains-gluten")
-      expect(tag_slugs(brand)).not_to include("contains-gluten")
+    end
+
+    # Omission markets gluten-reduced barley beer, not gluten-free.
+    # A brand name is not a verified GF claim.
+    it "keeps contains-gluten on an Omission beer" do
+      tags = derive(text: "Omission", ingredients: [ing("alcohol-beer", "alcohol.beer")])
+      expect(tag_slugs(tags)).to include("contains-gluten")
+      expect(tag_slugs(tags)).not_to include("gluten-free")
     end
 
     it "keeps gluten on beer-battered fish that mentions a gluten-free option" do

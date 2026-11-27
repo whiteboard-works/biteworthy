@@ -120,6 +120,8 @@ RSpec.describe "Celiac filter over real dish names" do
       "wheat spring roll next to rice-paper rolls still has gluten" ],
     [ "Fresh Spring Rolls", "peanut sauce, rice paper chips", true,
       "nearby rice paper that is not the wrapper does not drop wheat spring roll" ],
+    [ "Spring Rolls", "rice paper chips", true,
+      "rice paper in the description is not a wrapper across the name boundary" ],
     [ "Beer-battered fish, gluten-free option available", nil, true,
       "GF option on beer-battered fish still has gluten" ],
     [ "Margherita Pizza", "served with summer rolls wrapped in rice paper", true,

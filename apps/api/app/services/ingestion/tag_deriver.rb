@@ -96,7 +96,6 @@ module Ingestion
       # mention both "beer" and "gluten-free". Over-tagging gluten is
       # the safe direction.
       BEER_IDENTITY_WORDS = %w[beer ale lager ipa pilsner stout porter].freeze
-      GF_BEER_BRANDS = %w[omission].freeze
       BEER_FOOD_CONTEXT = %w[
         battered breaded fried fish chicken shrimp pizza burger sandwich
         taco pasta noodle bread cake doughnut donut cookie
@@ -136,7 +135,6 @@ module Ingestion
         tokens = Array(segments).flatten.map(&:to_s)
         return false if tokens.empty?
         return false if tokens.intersect?(BEER_FOOD_CONTEXT)
-        return true if tokens.intersect?(GF_BEER_BRANDS)
 
         tokens.each_index.any? do |i|
           width = if tokens[i, 2] == %w[gluten free]
@@ -159,8 +157,9 @@ module Ingestion
 
       def self.call(ctx)
         # Only a name that claims a gluten-free beer (Gluten-Free Lager,
-        # GF IPA, Omission) suppresses beer-derived gluten. A description
-        # or a dish name that merely mentions a GF option does not.
+        # GF IPA) suppresses beer-derived gluten. A brand like Omission
+        # is gluten-reduced, not gluten-free. A description or a dish
+        # name that merely mentions a GF option does not.
         suppress_beer_gluten = gluten_free_beer_name?(ctx[:name_segments])
         best = {}
         ctx[:resolved_ingredients].each do |ing|

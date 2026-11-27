@@ -264,6 +264,19 @@ RSpec.describe Ingestion::IngredientMatcher do
         tokens: %w[fresh spring rolls peanut sauce rice paper]
       ).map { |row| row[:slug] }
       expect(nearby).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+
+      # Name "Spring Rolls" concatenated onto description "rice paper
+      # chips" leaves an empty gap. That is not wrapping language.
+      adjacent = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 0, end_token: 1 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 2, end_token: 3 }
+        ],
+        tokens: %w[spring rolls rice paper chips]
+      ).map { |row| row[:slug] }
+      expect(adjacent).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
     end
 
     it "does not treat hard seltzer as beer" do

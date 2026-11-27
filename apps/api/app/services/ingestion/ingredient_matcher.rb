@@ -68,12 +68,13 @@ module Ingestion
 
     # "Spring rolls" and "rice paper" are independent catalog hits.
     # Rice paper only drops a wheat spring-roll that it actually wraps:
-    # the generic match must sit immediately before the rice-paper
-    # tokens ("fresh spring rolls wrapped in rice paper"). A wheat roll
-    # further away ("crispy spring rolls alongside summer rolls wrapped
-    # in rice paper") stays — dropping it under-hides gluten. Longest-
-    # phrase matching already prefers "rice noodles" / "glass noodles"
-    # over the "noodles" alias of wheat pasta.
+    # wrap words must sit between the generic match and the rice-paper
+    # tokens ("fresh spring rolls wrapped in rice paper"). An empty gap
+    # (name "Spring Rolls" concatenated onto description "rice paper
+    # chips") is not wrapping language — keep the wheat. A wheat roll
+    # further away stays too. Longest-phrase matching already prefers
+    # "rice noodles" / "glass noodles" over the "noodles" alias of
+    # wheat pasta.
     WHEAT_SPRING_ROLL_SLUG = "grain-wheat-spring-roll"
     RICE_PAPER_PREFIX = "grain.rice.paper"
     # "wrapped in" is two tokens; keep a little room for "in the".
@@ -117,12 +118,13 @@ module Ingestion
       return false unless paper_start > wheat_end
 
       gap = (wheat_end + 1)...paper_start
-      return false if gap.size > RICE_PAPER_WRAP_WINDOW
+      return false if gap.size.zero? || gap.size > RICE_PAPER_WRAP_WINDOW
 
       stream = Array(tokens)
-      return true if stream.empty?
+      words = stream.empty? ? [] : Array(stream[gap])
+      return false if words.empty?
 
-      stream[gap].all? { |token| WRAP_GAP_WORDS.include?(token.to_s) }
+      words.all? { |token| WRAP_GAP_WORDS.include?(token.to_s) }
     end
 
     def self.payload_row(row)

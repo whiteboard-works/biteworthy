@@ -215,6 +215,14 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(ipa.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
     end
 
+    it "keeps contains-gluten on an Omission beer" do
+      result = resolve(StubItem.new("a", "Omission Pale Ale", nil, nil)).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
@@ -258,6 +266,18 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.ingredients.map { |r| r["slug"] })
         .to include("grain-wheat-spring-roll", "grain-rice-paper")
       expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "does not drop a named wheat spring roll when the description is rice paper chips" do
+      chips, paper = resolve(
+        StubItem.new("a", "Spring Rolls", "rice paper chips", nil),
+        StubItem.new("b", "Spring Rolls", "Rice paper", nil)
+      )
+
+      expect(chips.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(chips.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(paper.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(paper.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 
     it "does not drop a named wheat spring roll when rice paper qualifies a later roll" do
