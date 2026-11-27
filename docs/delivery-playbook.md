@@ -152,6 +152,9 @@ so the previous SHA's checks cannot merge the new commit.
 bumps (`dependabot/fetch-metadata` `update-type` of
 `version-update:semver-patch` or `version-update:semver-minor`) may
 auto-merge without waiting for a Codex review. Majors still need Codex.
+`fetch-metadata` only runs on `pull_request_target`; on `issue_comment`
+and review events the gate infers the same `update-type` from the PR
+title/body `from X to Y` so a comment cannot strip the exemption.
 Unresolved Codex P0/P1 threads still block, including on those
 exemptions. Green CI is still required by branch protection.
 

@@ -5,6 +5,7 @@ import {
   decideAutoMerge,
   extractReviewedCommit,
   hasP0OrP1Badge,
+  inferDependabotUpdateType,
   shaMatches,
 } from './codex-auto-merge-gate.mjs';
 
@@ -215,6 +216,59 @@ test('(c) Dependabot major still needs Codex on head', () => {
 test('Dependabot without an update-type does not get the exemption', () => {
   const decision = decideAutoMerge(base({ authorLogin: 'dependabot[bot]' }));
   assert.equal(decision.enable, false);
+});
+
+test('inferDependabotUpdateType reads from/to in title or body', () => {
+  assert.equal(
+    inferDependabotUpdateType('chore(deps): Bump puma from 8.0.2 to 8.1.2 in /apps/api', ''),
+    'version-update:semver-minor',
+  );
+  assert.equal(
+    inferDependabotUpdateType('Bump foo from 8.0.2 to 8.0.3', ''),
+    'version-update:semver-patch',
+  );
+  assert.equal(
+    inferDependabotUpdateType('Bump foo from 8.0.2 to 9.0.0', ''),
+    'version-update:semver-major',
+  );
+  assert.equal(
+    inferDependabotUpdateType('', 'Bumps [puma](https://github.com/puma/puma) from 8.0.2 to 8.1.2.'),
+    'version-update:semver-minor',
+  );
+});
+
+test('inferDependabotUpdateType takes the highest bump in a group PR', () => {
+  const body = [
+    'Bumps the tanstack group',
+    'from 5.108.2 to 5.108.3',
+    'from 5.1.0 to 6.0.0',
+  ].join('\n');
+  assert.equal(
+    inferDependabotUpdateType('Bump the tanstack group', body),
+    'version-update:semver-major',
+  );
+  assert.equal(
+    inferDependabotUpdateType('', 'from 1.0.0 to 1.0.1\nfrom 1.0.0 to 1.1.0'),
+    'version-update:semver-minor',
+  );
+});
+
+test('inferDependabotUpdateType is empty when there is no from/to', () => {
+  assert.equal(inferDependabotUpdateType('chore(deps): Bump the actions group', 'digest update'), '');
+});
+
+test('inferred patch/minor from title enables Dependabot without fetch-metadata', () => {
+  const decision = decideAutoMerge(
+    base({
+      authorLogin: 'dependabot[bot]',
+      dependabotUpdateType: inferDependabotUpdateType(
+        'chore(deps): Bump puma from 8.0.2 to 8.1.2 in /apps/api',
+        'Bumps [puma](https://github.com/puma/puma) from 8.0.2 to 8.1.2.',
+      ),
+    }),
+  );
+  assert.equal(decision.enable, true);
+  assert.match(decision.reason, /semver-minor exemption/);
 });
 
 test('drafts and non-master bases never enable', () => {

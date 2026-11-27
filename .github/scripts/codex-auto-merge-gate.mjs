@@ -25,6 +25,9 @@ export const EXEMPT_DEPENDABOT_UPDATE_TYPES = new Set([
 
 const P0_P1_BADGE = /!\[P[01] Badge\]/i;
 const REVIEWED_COMMIT = /\*\*Reviewed commit:\*\*\s*`([0-9a-f]{7,40})`/i;
+const FROM_TO_VERSION =
+  /\bfrom\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)\s+to\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)/gi;
+const BUMP_RANK = { major: 3, minor: 2, patch: 1 };
 
 export function normalizeLogin(login) {
   return String(login || '')
@@ -51,6 +54,40 @@ export function extractReviewedCommit(body) {
 
 export function hasP0OrP1Badge(body) {
   return P0_P1_BADGE.test(String(body || ''));
+}
+
+function versionCore(value) {
+  const match = String(value || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function bumpKind(from, to) {
+  const a = versionCore(from);
+  const b = versionCore(to);
+  if (!a || !b) return null;
+  if (b[0] !== a[0]) return 'major';
+  if (b[1] !== a[1]) return 'minor';
+  if (b[2] !== a[2]) return 'patch';
+  return null;
+}
+
+/**
+ * Infer Dependabot fetch-metadata `update-type` from a PR title/body when the
+ * action cannot run (issue_comment / review events have no pull_request
+ * payload). Group PRs can list several from/to pairs; the highest bump wins.
+ *
+ * @returns {'' | 'version-update:semver-patch' | 'version-update:semver-minor' | 'version-update:semver-major'}
+ */
+export function inferDependabotUpdateType(title, body) {
+  const text = `${title || ''}\n${body || ''}`;
+  let worst = null;
+  for (const match of text.matchAll(FROM_TO_VERSION)) {
+    const kind = bumpKind(match[1], match[2]);
+    if (!kind) continue;
+    if (!worst || BUMP_RANK[kind] > BUMP_RANK[worst]) worst = kind;
+  }
+  return worst ? `version-update:semver-${worst}` : '';
 }
 
 function hasCodexReviewOnHead(headSha, reviews) {
@@ -155,6 +192,8 @@ export async function loadPullRequestState({ token, owner, repo, number }) {
             isDraft
             baseRefName
             headRefOid
+            title
+            body
             author { login }
           }
         }
@@ -264,6 +303,8 @@ export async function loadPullRequestState({ token, owner, repo, number }) {
     isDraft: pull.isDraft,
     baseRefName: pull.baseRefName,
     headSha: pull.headRefOid,
+    title: pull.title || '',
+    body: pull.body || '',
     authorLogin: pull.author?.login || '',
     reviews: reviews.map((review) => ({
       authorLogin: review.author?.login || '',
@@ -328,9 +369,14 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   }
 
   const state = await loadPullRequestState({ token, owner, repo, number });
+  const providedType = values['update-type'] || env.DEPENDABOT_UPDATE_TYPE || '';
+  const inferredType =
+    !providedType && normalizeLogin(state.authorLogin) === DEPENDABOT_LOGIN
+      ? inferDependabotUpdateType(state.title, state.body)
+      : '';
   const decision = decideAutoMerge({
     ...state,
-    dependabotUpdateType: values['update-type'] || env.DEPENDABOT_UPDATE_TYPE || '',
+    dependabotUpdateType: providedType || inferredType,
   });
   const result = formatDecision(state, decision);
   console.log(JSON.stringify(result, null, 2));

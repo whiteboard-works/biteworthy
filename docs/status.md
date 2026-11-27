@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-27 (UTC) — **Dependabot auto-merge exemption survives issue comments.** `dependabot/fetch-metadata` needs a `pull_request` payload, so an `issue_comment` left `update-type` empty and the gate could disarm a patch/minor. Fetch-metadata now runs only on `pull_request_target`; the gate infers patch/minor/major from the PR title/body `from X to Y` when that output is missing.
+
 2026-11-25 (UTC) — **Auto-merge waits for Codex on the current head.** `auto-merge.yml` had been re-arming squash auto-merge on every push, so PRs (#995, #1004, #925) merged before Codex reviewed the head commit. It now enables auto-merge only when `chatgpt-codex-connector` has a review (or a "Didn't find any major issues" comment) on the current head SHA and GraphQL reports no unresolved P0/P1 Codex threads; a `synchronize` disarms first. Dependabot patch/minor still skip that wait via `dependabot/fetch-metadata`. Not a branch-protection required-review rule.
 
 2026-11-25 (UTC) — **#925 post-merge Codex P1s.** Two leftover under-hides for celiac: (1) `20261013020000` rewrote pending/edited payloads only, so undo of an accepted/rejected hard soda then `promote!` recreated an `alcohol` join; (2) `20261013010000` no-op'd entirely when Ginkgo/Hemp/Hickory were missing, leaving the aliases on the alcohol root. New idempotent `20261125220000` / `20261125220100` plus a `promote!` remap of leftover alcohol slugs. Do not edit the shipped migrations. #1018 Codex: edited update-accept snapshots also kept the alcohol ingredient id — `20261125220100` rewrites those too, and `undo!` remaps on restore.

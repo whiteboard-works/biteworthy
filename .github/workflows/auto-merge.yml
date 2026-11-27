@@ -90,8 +90,11 @@ jobs:
           echo '::group::(c) #998 Dependabot minor exemption — must enable'
           expect 998 true --update-type version-update:semver-minor
           echo '::endgroup::'
-          echo '::group::(c) #998 without update-type — no exemption'
-          expect 998 false
+          echo '::group::(c) #998 without fetch-metadata (issue_comment shape) — infer minor'
+          expect 998 true
+          echo '::endgroup::'
+          echo '::group::(c) #998 explicit major — no exemption, still needs Codex'
+          expect 998 false --update-type version-update:semver-major
           echo '::endgroup::'
           if [ -n "${{ github.event.pull_request.number }}" ]; then
             echo '::group::this PR (no enable expected until Codex reviews head)'
@@ -174,16 +177,27 @@ jobs:
           echo "state=${STATE}" >> "$GITHUB_OUTPUT"
           echo "PR #${NUMBER} author=${AUTHOR} state=${STATE} dry_run=${DRY_RUN}"
 
+      # fetch-metadata reads github.event.pull_request, which issue_comment
+      # and review events do not have. Restrict it to pull_request_target;
+      # the gate script infers patch/minor/major from the PR title/body
+      # when this output is empty so an unrelated comment cannot strip the
+      # Dependabot exemption.
       - name: Dependabot metadata
         id: metadata
-        if: steps.pr.outputs.author == 'dependabot[bot]'
+        if: >
+          steps.pr.outputs.author == 'dependabot[bot]'
+          && github.event_name == 'pull_request_target'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      # Until this workflow is on the default branch, review/comment events
+      # still check out master (no gate script yet). Fail closed: leave
+      # auto-merge disarmed instead of erroring the job.
       - name: Evaluate Codex gate
         id: decide
+        if: hashFiles('.github/scripts/codex-auto-merge-gate.mjs') != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEPENDABOT_UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
@@ -193,6 +207,10 @@ jobs:
             --pr "${{ steps.pr.outputs.number }}" \
             --update-type "${DEPENDABOT_UPDATE_TYPE:-}" \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Gate script missing on default branch
+        if: hashFiles('.github/scripts/codex-auto-merge-gate.mjs') == ''
+        run: echo "codex-auto-merge-gate.mjs is not on the default branch; leaving auto-merge disarmed"
 
       - name: Gate decision
         run: |
