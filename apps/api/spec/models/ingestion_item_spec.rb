@@ -101,6 +101,20 @@ RSpec.describe IngestionItem, type: :model do
 
         expect(item.promote!.tags).to include(gluten_tag)
       end
+
+      it "still derives contains-egg after undo restores the stale payload" do
+        item.update!(
+          ingredients_payload: [ { "slug" => "grain-wheat-noodle-egg", "confidence" => 0.95, "source" => "match" } ],
+          tags_payload: [ { "slug" => "contains-gluten", "confidence" => 0.95,
+                            "source" => "ingredient_derived", "from_source" => "match" } ]
+        )
+
+        item.promote!
+        item.reload.undo!
+
+        expect(item.reload.tags_payload.map { |row| row["slug"] }).to eq([ "contains-gluten" ])
+        expect(item.promote!.tags).to include(egg_tag)
+      end
     end
 
     # Codex on #925: accepted/rejected payloads can still name the alcohol
