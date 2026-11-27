@@ -218,6 +218,40 @@ test('Dependabot without an update-type does not get the exemption', () => {
   assert.equal(decision.enable, false);
 });
 
+test('issue_comment: empty fetch-metadata still reads Dependabot commit update-type', () => {
+  // fetch-metadata needs github.event.pull_request, which issue_comment
+  // does not have. The gate must recover the same update-type from the
+  // Dependabot commit trailer (updated-dependencies / update-type).
+  const commit = [
+    'chore(deps): Bump actions/setup-node',
+    '',
+    '---',
+    'updated-dependencies:',
+    '- dependency-name: actions/setup-node',
+    '  dependency-type: direct:production',
+    '  update-type: version-update:semver-patch',
+    '...',
+    '',
+    'Signed-off-by: dependabot[bot] <support@github.com>',
+  ].join('\n');
+  assert.equal(
+    inferDependabotUpdateType('chore(deps): Bump actions/setup-node', '', [commit]),
+    'version-update:semver-patch',
+  );
+  const decision = decideAutoMerge(
+    base({
+      authorLogin: 'dependabot[bot]',
+      dependabotUpdateType: inferDependabotUpdateType(
+        'chore(deps): Bump actions/setup-node',
+        '',
+        [commit],
+      ),
+    }),
+  );
+  assert.equal(decision.enable, true);
+  assert.match(decision.reason, /semver-patch exemption/);
+});
+
 test('inferDependabotUpdateType reads from/to in title or body', () => {
   assert.equal(
     inferDependabotUpdateType('chore(deps): Bump puma from 8.0.2 to 8.1.2 in /apps/api', ''),
@@ -235,6 +269,21 @@ test('inferDependabotUpdateType reads from/to in title or body', () => {
     inferDependabotUpdateType('', 'Bumps [puma](https://github.com/puma/puma) from 8.0.2 to 8.1.2.'),
     'version-update:semver-minor',
   );
+});
+
+test('inferDependabotUpdateType takes the highest YAML update-type in a group commit', () => {
+  const commit = [
+    'chore(deps): Bump the tanstack group',
+    '',
+    '---',
+    'updated-dependencies:',
+    '- dependency-name: "@tanstack/react-query"',
+    '  update-type: version-update:semver-patch',
+    '- dependency-name: "@tanstack/react-query-devtools"',
+    '  update-type: version-update:semver-major',
+    '...',
+  ].join('\n');
+  assert.equal(inferDependabotUpdateType('', '', [commit]), 'version-update:semver-major');
 });
 
 test('inferDependabotUpdateType takes the highest bump in a group PR', () => {

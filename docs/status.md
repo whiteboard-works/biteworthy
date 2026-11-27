@@ -21,7 +21,7 @@ at a time has worked.
 
 ---
 
-2026-11-27 (UTC) — **Dependabot auto-merge exemption survives issue comments.** `dependabot/fetch-metadata` needs a `pull_request` payload, so an `issue_comment` left `update-type` empty and the gate could disarm a patch/minor. Fetch-metadata now runs only on `pull_request_target`; the gate infers patch/minor/major from the PR title/body `from X to Y` when that output is missing.
+2026-11-27 (UTC) — **Dependabot auto-merge exemption survives issue comments.** `dependabot/fetch-metadata` needs a `pull_request` payload, so an `issue_comment` left `update-type` empty and the gate could disarm a patch/minor. Fetch-metadata now runs only on `pull_request_target`; the gate loads the PR by number and reads the same `update-type` from the Dependabot commit trailer (`updated-dependencies`), falling back to title/body `from X to Y`.
 
 2026-11-25 (UTC) — **Auto-merge waits for Codex on the current head.** `auto-merge.yml` had been re-arming squash auto-merge on every push, so PRs (#995, #1004, #925) merged before Codex reviewed the head commit. It now enables auto-merge only when `chatgpt-codex-connector` has a review (or a "Didn't find any major issues" comment) on the current head SHA and GraphQL reports no unresolved P0/P1 Codex threads; a `synchronize` disarms first. Dependabot patch/minor still skip that wait via `dependabot/fetch-metadata`. Not a branch-protection required-review rule.
 

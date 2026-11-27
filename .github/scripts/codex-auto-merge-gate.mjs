@@ -25,8 +25,6 @@ export const EXEMPT_DEPENDABOT_UPDATE_TYPES = new Set([
 
 const P0_P1_BADGE = /!\[P[01] Badge\]/i;
 const REVIEWED_COMMIT = /\*\*Reviewed commit:\*\*\s*`([0-9a-f]{7,40})`/i;
-const FROM_TO_VERSION =
-  /\bfrom\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)\s+to\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)/gi;
 const BUMP_RANK = { major: 3, minor: 2, patch: 1 };
 
 export function normalizeLogin(login) {
@@ -72,22 +70,51 @@ function bumpKind(from, to) {
   return null;
 }
 
-/**
- * Infer Dependabot fetch-metadata `update-type` from a PR title/body when the
- * action cannot run (issue_comment / review events have no pull_request
- * payload). Group PRs can list several from/to pairs; the highest bump wins.
- *
- * @returns {'' | 'version-update:semver-patch' | 'version-update:semver-minor' | 'version-update:semver-major'}
- */
-export function inferDependabotUpdateType(title, body) {
-  const text = `${title || ''}\n${body || ''}`;
+function highestUpdateType(kinds) {
   let worst = null;
-  for (const match of text.matchAll(FROM_TO_VERSION)) {
-    const kind = bumpKind(match[1], match[2]);
-    if (!kind) continue;
+  for (const kind of kinds) {
+    if (!kind || !BUMP_RANK[kind]) continue;
     if (!worst || BUMP_RANK[kind] > BUMP_RANK[worst]) worst = kind;
   }
   return worst ? `version-update:semver-${worst}` : '';
+}
+
+/**
+ * Same `update-type` fetch-metadata reads from a Dependabot commit trailer
+ * (`updated-dependencies` / `update-type: version-update:semver-*`).
+ */
+export function updateTypeFromDependabotCommit(message) {
+  return inferDependabotUpdateType('', '', [message]);
+}
+
+/**
+ * Infer Dependabot fetch-metadata `update-type` when the action cannot run
+ * (issue_comment / review events have no pull_request payload). Prefers the
+ * commit trailer (same source as fetch-metadata), then `from X to Y` in the
+ * title, body, or commit messages. Group PRs take the highest bump.
+ *
+ * @returns {'' | 'version-update:semver-patch' | 'version-update:semver-minor' | 'version-update:semver-major'}
+ */
+export function inferDependabotUpdateType(title, body, commitMessages = []) {
+  const yamlKinds = [];
+  for (const message of commitMessages || []) {
+    for (const match of String(message || '').matchAll(
+      /^\s*update-type:\s*(version-update:semver-(major|minor|patch))\s*$/gm,
+    )) {
+      yamlKinds.push(match[2]);
+    }
+  }
+  const fromYaml = highestUpdateType(yamlKinds);
+  if (fromYaml) return fromYaml;
+
+  const text = [title, body, ...(commitMessages || [])].filter(Boolean).join('\n');
+  const kinds = [];
+  for (const match of text.matchAll(
+    /\bfrom\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)\s+to\s+v?(\d+\.\d+\.\d+[0-9A-Za-z.-]*)/gi,
+  )) {
+    kinds.push(bumpKind(match[1], match[2]));
+  }
+  return highestUpdateType(kinds);
 }
 
 function hasCodexReviewOnHead(headSha, reviews) {
@@ -195,6 +222,9 @@ export async function loadPullRequestState({ token, owner, repo, number }) {
             title
             body
             author { login }
+            commits(first: 20) {
+              nodes { commit { message } }
+            }
           }
         }
       }
@@ -306,6 +336,7 @@ export async function loadPullRequestState({ token, owner, repo, number }) {
     title: pull.title || '',
     body: pull.body || '',
     authorLogin: pull.author?.login || '',
+    commitMessages: (pull.commits?.nodes || []).map((node) => node.commit?.message || ''),
     reviews: reviews.map((review) => ({
       authorLogin: review.author?.login || '',
       commitOid: review.commit?.oid || '',
@@ -372,7 +403,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const providedType = values['update-type'] || env.DEPENDABOT_UPDATE_TYPE || '';
   const inferredType =
     !providedType && normalizeLogin(state.authorLogin) === DEPENDABOT_LOGIN
-      ? inferDependabotUpdateType(state.title, state.body)
+      ? inferDependabotUpdateType(state.title, state.body, state.commitMessages)
       : '';
   const decision = decideAutoMerge({
     ...state,

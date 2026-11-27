@@ -179,9 +179,9 @@ jobs:
 
       # fetch-metadata reads github.event.pull_request, which issue_comment
       # and review events do not have. Restrict it to pull_request_target;
-      # the gate script infers patch/minor/major from the PR title/body
-      # when this output is empty so an unrelated comment cannot strip the
-      # Dependabot exemption.
+      # the gate script then loads the PR by number and reads the same
+      # `update-type` from the Dependabot commit trailer so a comment cannot
+      # strip a patch/minor exemption.
       - name: Dependabot metadata
         id: metadata
         if: >
