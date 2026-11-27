@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-27 (UTC) — **#1021 Codex P1: beer gluten suppression is name-only.** `TagDeriver::Allergen` reads `name_segments`, not the combined name+description, so "House Ale — gluten-free option available" still derives `contains-gluten`. A dish *named* Gluten-Free Beer still keeps beer identity without the gluten tag.
+
 2026-11-27 (UTC) — **#1021 Codex P1s: GF beer keeps beer identity; retained allergen tags survive re-derive; rice-paper wrap is span-local.** A gluten-free name no longer drops `alcohol-beer`/`alcohol-ale` (it only suppresses beer-derived `contains-gluten`). `ItemEditor` keeps `ingredient_derived` tags listed in the PATCH `tag_slugs`. Rice paper drops wheat spring-roll only within a 3-token wrap window, so "alongside" mixed platters keep gluten.
 
 2026-11-27 (UTC) — **#1021 Codex P1: rice-paper suppression is clause-scoped.** `prefer_qualified` drops `grain-wheat-spring-roll` only when rice paper is in the same connective/punctuation clause, so "crispy spring rolls with summer rolls wrapped in rice paper" keeps `contains-gluten`. "Fresh spring rolls wrapped in rice paper" still drops the wheat wrapper. Name-implied wheat is skipped only for a spring-roll name whose wheat spring-roll match did not survive — a pizza that mentions rice paper still unions wheat.

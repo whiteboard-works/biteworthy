@@ -163,7 +163,10 @@ class IngestionItem < ApplicationRecord
       { slug: slug, path: paths[slug].to_s,
         confidence: row["confidence"], source: row["source"] }
     end
-    derived = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: resolved)
+    derived = Ingestion::TagDeriver::Allergen.call(
+      resolved_ingredients: resolved,
+      name_segments: Ingestion::MenuText.segments(name)
+    )
                 .reject { |tag| known.include?(tag[:slug]) }
                 .map { |tag| Ingestion::AssociationPayload.load(tag).dump }
     kept + derived
@@ -429,7 +432,10 @@ class IngestionItem < ApplicationRecord
         source: join.source }
     end
 
-    derived = Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved })
+    derived = Ingestion::TagDeriver::Allergen.call(
+      resolved_ingredients: resolved,
+      name_segments: Ingestion::MenuText.segments(name)
+    )
     return if derived.empty?
 
     payload = derived.map { |row|

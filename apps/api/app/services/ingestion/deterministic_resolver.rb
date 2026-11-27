@@ -109,6 +109,7 @@ module Ingestion
         section_segments = MenuText.segments(item.section_name)
         tags = TagDeriver.derive(
           segments:             MenuText.segments(item.name, item.description),
+          name_segments:        name_segments,
           section_segments:     section_segments,
           resolved_ingredients: matches
         )

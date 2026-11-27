@@ -167,6 +167,16 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
+    it "keeps gluten on beer when only a description mentions a gluten-free option" do
+      result = resolve(
+        StubItem.new("id-1", "House Ale", "gluten-free option available", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
     it "keeps beer identity on a gluten-free beer without minting contains-gluten" do
       beer, ale = resolve(
         StubItem.new("a", "Gluten-Free Beer", nil, nil),

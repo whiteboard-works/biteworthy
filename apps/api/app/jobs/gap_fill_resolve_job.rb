@@ -342,6 +342,7 @@ class GapFillResolveJob < ApplicationJob
 
     Ingestion::TagDeriver.derive(
       segments:             Ingestion::MenuText.segments(item.name, item.description),
+      name_segments:        Ingestion::MenuText.segments(item.name),
       section_segments:     Ingestion::MenuText.segments(item.section_name),
       resolved_ingredients: resolved
     ).each do |t|

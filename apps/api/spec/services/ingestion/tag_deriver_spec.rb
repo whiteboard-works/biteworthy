@@ -5,9 +5,10 @@ RSpec.describe Ingestion::TagDeriver do
     { slug:, path:, confidence:, source: }
   end
 
-  def derive(text: "", section: nil, ingredients: [])
+  def derive(text: "", description: nil, section: nil, ingredients: [])
     described_class.derive(
-      segments:             Ingestion::MenuText.segments(text),
+      segments:             Ingestion::MenuText.segments(text, description),
+      name_segments:        Ingestion::MenuText.segments(text),
       section_segments:     Ingestion::MenuText.segments(section),
       resolved_ingredients: ingredients
     )
@@ -66,6 +67,16 @@ RSpec.describe Ingestion::TagDeriver do
       tags = derive(text: "Gluten-Free Beer", ingredients: [ing("alcohol-beer", "alcohol.beer")])
       expect(tag_slugs(tags)).to include("gluten-free")
       expect(tag_slugs(tags)).not_to include("contains-gluten")
+    end
+
+    it "still tags beer gluten when only a description mentions a gluten-free option" do
+      tags = derive(
+        text: "House Ale",
+        description: "gluten-free option available",
+        ingredients: [ing("alcohol-ale", "alcohol.ale")]
+      )
+      expect(tag_slugs(tags)).to include("contains-gluten")
+      expect(tag_slugs(tags)).not_to include("gluten-free")
     end
 
     it "derives contains-gluten from beer and ale, not from hard seltzer" do

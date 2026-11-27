@@ -19,12 +19,15 @@ module Ingestion
   # fails CI when the taxonomy moves out from under these tables.
   #
   # Context keys: segments (name+description token arrays from
-  # MenuText.segments), section_segments, and resolved_ingredients as
+  # MenuText.segments), name_segments (the dish name only — diet claims
+  # that suppress beer-derived gluten must be about the item itself),
+  # section_segments, and resolved_ingredients as
   # [{slug:, path:, confidence:, source:}].
   class TagDeriver
-    def self.derive(segments:, resolved_ingredients:, section_segments: [])
+    def self.derive(segments:, resolved_ingredients:, section_segments: [], name_segments: [])
       ctx = {
         segments: Array(segments),
+        name_segments: Array(name_segments),
         section_segments: Array(section_segments),
         resolved_ingredients: Array(resolved_ingredients)
       }
@@ -126,7 +129,9 @@ module Ingestion
       end
 
       def self.call(ctx)
-        suppress_beer_gluten = DietClaims.claims_in(Array(ctx[:segments])).include?("gluten-free")
+        # Name-only: "gluten-free option available" in a description is
+        # a variant, not a claim that this beer-containing dish is GF.
+        suppress_beer_gluten = DietClaims.claims_in(Array(ctx[:name_segments])).include?("gluten-free")
         best = {}
         ctx[:resolved_ingredients].each do |ing|
           next unless ing.respond_to?(:[])
