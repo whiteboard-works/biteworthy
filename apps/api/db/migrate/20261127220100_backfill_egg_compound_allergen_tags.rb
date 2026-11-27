@@ -1,14 +1,17 @@
 # frozen_string_literal: true
 
 # WBW-244: egg noodles, egg pasta, and wonton wrappers now derive
-# contains-egg via TagDeriver::SLUG_TAGS. Dishes already published with
+# contains-egg via TagDeriver::SLUG_TAGS. Dishes that already carry
 # those ingredients still have no egg tag, so an egg-avoider sees them
 # as safe. Add the missing tag as ingredient_derived / suggested — the
 # same write SauceAllergenBackfill makes for aioli — and never replace a
 # tag already on the dish (Laan Thai's hand-added contains-egg stays).
 #
-# Idempotent: a second `up` finds no published dish that still lacks the
-# tag. `down` does not strip it — that is the unsafe direction.
+# Drafts are included: a later status-only publish does not re-derive
+# allergens, so a draft left untagged would go live still missing egg.
+#
+# Idempotent: a second `up` finds no dish that still lacks the tag.
+# `down` does not strip it — that is the unsafe direction.
 class BackfillEggCompoundAllergenTags < ActiveRecord::Migration[8.1]
   class MigrationIngredient < ActiveRecord::Base
     self.table_name = "ingredients"
@@ -35,13 +38,12 @@ class BackfillEggCompoundAllergenTags < ActiveRecord::Migration[8.1]
 
     item_ids = connection.select_values(<<~SQL.squish)
       SELECT id FROM items
-      WHERE status = 'published'
-        AND ingredient_ids && ARRAY[#{quoted_ids(compound_ids)}]::uuid[]
+      WHERE ingredient_ids && ARRAY[#{quoted_ids(compound_ids)}]::uuid[]
         AND NOT (COALESCE(tag_ids, '{}'::uuid[]) && ARRAY[#{connection.quote(egg_tag_id)}]::uuid[])
     SQL
     return if item_ids.empty?
 
-    say_with_time "add contains-egg to #{item_ids.size} published egg-compound dish(es)" do
+    say_with_time "add contains-egg to #{item_ids.size} egg-compound dish(es)" do
       execute(<<~SQL.squish)
         INSERT INTO item_tags (id, item_id, tag_id, confidence, source, created_at, updated_at)
         SELECT gen_random_uuid(), items.id, #{connection.quote(egg_tag_id)},
@@ -54,7 +56,7 @@ class BackfillEggCompoundAllergenTags < ActiveRecord::Migration[8.1]
               AND existing.tag_id = #{connection.quote(egg_tag_id)}
           )
       SQL
-      resync_tag_ids(item_ids)
+      ItemTag.resync_denormalized_ids(item_ids)
       execute(<<~SQL.squish)
         UPDATE items
         SET confidence = 'suggested', updated_at = CURRENT_TIMESTAMP
@@ -69,18 +71,6 @@ class BackfillEggCompoundAllergenTags < ActiveRecord::Migration[8.1]
   end
 
   private
-
-  def resync_tag_ids(item_ids)
-    execute(<<~SQL.squish)
-      UPDATE items
-      SET tag_ids = (
-        SELECT COALESCE(array_agg(j.tag_id), '{}'::uuid[])
-        FROM item_tags j
-        WHERE j.item_id = items.id
-      ), updated_at = CURRENT_TIMESTAMP
-      WHERE id IN (#{quoted_ids(item_ids)})
-    SQL
-  end
 
   def quoted_ids(ids)
     ids.map { |id| connection.quote(id) }.join(", ")

@@ -113,7 +113,7 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.item_ingredients.find_by!(ingredient: egg))
         .to have_attributes(confidence: "confirmed", source: "human")
       expect(item.item_tags.find_by!(tag: egg_tag))
-        .to have_attributes(source: "ingredient_derived")
+        .to have_attributes(confidence: "confirmed", source: "ingredient_derived")
       expect(item.item_tags.find_by!(tag: vegan))
         .to have_attributes(confidence: "confirmed", source: "human")
       expect(item.item_tags.find_by!(tag: dairy_tag))
@@ -125,6 +125,21 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.item_tags.find_by(tag: egg_tag)).to be_nil
       expect(item.item_tags.find_by!(tag: dairy_tag))
         .to have_attributes(confidence: "suggested", source: "human")
+    end
+
+    it "inherits a suggested parent join's confidence onto the derived allergen tag" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+      ItemIngredient.create!(item: item, ingredient: egg, confidence: "suggested", source: "human")
+
+      patch_item(ingredient_slugs: %w[egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: egg))
+        .to have_attributes(confidence: "suggested", source: "human")
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(confidence: "suggested", source: "ingredient_derived")
     end
 
     # Unlike the extractor's payloads (silently filtered), an admin typo

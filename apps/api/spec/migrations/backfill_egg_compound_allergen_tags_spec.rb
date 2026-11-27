@@ -1,9 +1,10 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20261127220100_backfill_egg_compound_allergen_tags")
 
-# Egg noodles on a published dish derived gluten but not contains-egg, so
-# an egg-avoider saw Khao Soi as safe. This is the live-row half of the
-# SLUG_TAGS link.
+# Egg noodles on a dish derived gluten but not contains-egg, so an
+# egg-avoider saw Khao Soi as safe. This is the live-row half of the
+# SLUG_TAGS link. Drafts are included because a later status-only
+# publish does not re-derive allergens.
 RSpec.describe BackfillEggCompoundAllergenTags do
   let!(:egg_noodle) do
     create(:ingredient, slug: "grain-wheat-noodle-egg", name: "Egg Noodle",
@@ -51,6 +52,17 @@ RSpec.describe BackfillEggCompoundAllergenTags do
     described_class.new.up
 
     expect(dish.item_tags.find_by!(tag: egg_tag).source).to eq("ingredient_derived")
+  end
+
+  it "covers a draft dish so a later status-only publish is not missing contains-egg" do
+    dish = create(:item, restaurant: restaurant, name: "Khao Soi", status: "draft")
+    join_for(dish, egg_noodle)
+
+    described_class.new.up
+
+    expect(dish.item_tags.find_by!(tag: egg_tag))
+      .to have_attributes(confidence: "suggested", source: "ingredient_derived")
+    expect(dish.reload.read_attribute(:tag_ids)).to eq([ egg_tag.id ])
   end
 
   it "leaves a hand-added contains-egg row and a dish without the compound alone" do

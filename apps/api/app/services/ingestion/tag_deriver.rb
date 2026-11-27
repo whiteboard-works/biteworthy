@@ -115,13 +115,17 @@ module Ingestion
         "grain-rice-coconut-rice"       => %w[contains-tree-nut]
       }.freeze
 
+      def self.tag_slugs_for(ing)
+        Array(SLUG_TAGS[ing[:slug]]) +
+          SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [ prefix ]) }
+      end
+
       def self.call(ctx)
         best = {}
         ctx[:resolved_ingredients].each do |ing|
           next unless ing.respond_to?(:[])
 
-          tag_slugs = Array(SLUG_TAGS[ing[:slug]]) +
-                      SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [prefix]) }
+          tag_slugs = tag_slugs_for(ing)
           # Allergen tags inferred from an ingredient keep that ingredient's
           # numeric confidence and original source (from_source) so promote
           # can map them to the same join confidence. Distinct from

@@ -66,14 +66,15 @@ module Ingestion
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
-    # Generic wheat nodes the catalog uses as a catch-all ("noodles",
-    # "spring roll") lose to a qualified rice/glass/rice-paper match in
-    # the same scan. Longest-phrase matching already prefers "rice
-    # noodles" over "noodles"; this is the leftover case where both
-    # phrases independently hit (spring rolls + rice paper).
-    GENERIC_WHEAT_SLUGS = %w[grain-wheat-pasta grain-wheat-spring-roll].freeze
+    # "Spring rolls" and "rice paper" are independent catalog hits in
+    # different spans ("fresh spring rolls wrapped in rice paper"). The
+    # rice paper is the qualified wrapper, so the generic wheat spring
+    # roll drops. Longest-phrase matching already prefers "rice noodles"
+    # / "glass noodles" over the "noodles" alias of wheat pasta; do not
+    # also drop a wheat-pasta hit that co-occurs as its own ingredient
+    # ("pasta and rice noodles") — that under-hides gluten.
+    WHEAT_SPRING_ROLL_SLUG = "grain-wheat-spring-roll"
     RICE_PAPER_PREFIX = "grain.rice.paper"
-    RICE_NOODLE_PREFIX = "grain.rice.noodle"
 
     def self.under_prefix?(path, prefix)
       path == prefix || path.start_with?("#{prefix}.")
@@ -83,16 +84,10 @@ module Ingestion
       list = Array(rows)
       return list if list.empty?
 
-      paths = list.filter_map { |row| (row[:path] || row["path"]).to_s }
-      rice_paper  = paths.any? { |path| under_prefix?(path, RICE_PAPER_PREFIX) }
-      rice_noodle = paths.any? { |path| under_prefix?(path, RICE_NOODLE_PREFIX) }
-      list.reject do |row|
-        slug = (row[:slug] || row["slug"]).to_s
-        next false unless GENERIC_WHEAT_SLUGS.include?(slug)
+      rice_paper = list.any? { |row| under_prefix?((row[:path] || row["path"]).to_s, RICE_PAPER_PREFIX) }
+      return list unless rice_paper
 
-        (slug == "grain-wheat-spring-roll" && rice_paper) ||
-          (slug == "grain-wheat-pasta" && rice_noodle)
-      end
+      list.reject { |row| (row[:slug] || row["slug"]).to_s == WHEAT_SPRING_ROLL_SLUG }
     end
 
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))

@@ -202,6 +202,20 @@ RSpec.describe Ingestion::IngredientMatcher do
       expect(seed_slugs("noodles")).to include("grain-wheat-pasta")
     end
 
+    it "keeps an independent wheat pasta match next to rice noodles" do
+      expect(seed_slugs("pasta and rice noodles"))
+        .to include("grain-wheat-pasta", "grain-rice-noodle")
+    end
+
+    it "does not drop wheat pasta just because a rice-noodle path is also present" do
+      rows = [
+        { slug: "grain-wheat-pasta", path: "grain.wheat.pasta", confidence: 1.0, source: "match" },
+        { slug: "grain-rice-noodle", path: "grain.rice.noodle", confidence: 1.0, source: "match" }
+      ]
+      expect(described_class.prefer_qualified(rows).map { |row| row[:slug] })
+        .to contain_exactly("grain-wheat-pasta", "grain-rice-noodle")
+    end
+
     it "does not treat hard seltzer as beer" do
       expect(seed_slugs("hard seltzer")).not_to include("alcohol-beer")
       expect(seed_slugs("hard ginger beer")).to include("alcohol-beer")

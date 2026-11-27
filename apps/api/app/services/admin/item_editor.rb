@@ -63,6 +63,15 @@ module Admin
     # PR 793 source for a name/keyword guess (pizza → wheat).
     UNVERIFIED_SOURCE = "derived"
 
+    # TagDeriver ranks by numeric confidence; live joins store the enum.
+    # Keep the enum on the derived tag so a community-accepted
+    # suggested/human egg row does not mint a confirmed contains-egg.
+    JOIN_CONFIDENCE_NUMERIC = {
+      "confirmed" => 1.0,
+      "suggested" => 0.9,
+      "inferred"  => 0.5
+    }.freeze
+
     def initialize(item)
       @item = item
     end
@@ -210,6 +219,8 @@ module Admin
     # Mirror EditStagedItem.rederive_allergen_tags on live join rows:
     # strip only ingredient_derived tags, recompute from current
     # ingredients, skip a slug a person already attached by hand.
+    # Confidence copies the parent ingredient join — ConfidenceMapper
+    # with an admin accept cap would confirm a suggested/human row.
     def rederive_allergen_tags!
       ItemTag.where(item_id: @item.id, source: "ingredient_derived").find_each(&:destroy!)
 
@@ -218,8 +229,9 @@ module Admin
         next unless ingredient
 
         { slug: ingredient.slug, path: ingredient.path.to_s,
-          confidence: join.confidence == "inferred" ? 0.5 : 1.0,
-          source: join.source }
+          confidence: JOIN_CONFIDENCE_NUMERIC.fetch(join.confidence, 0.0),
+          source: join.source,
+          join_confidence: join.confidence }
       end
       kept_slugs = ItemTag.where(item_id: @item.id).includes(:tag).map { |row| row.tag.slug }.to_set
 
@@ -229,10 +241,17 @@ module Admin
         tag = Tag.find_by(slug: row[:slug])
         next unless tag
 
-        payload = Ingestion::AssociationPayload.load(row)
         ItemTag.create!(item: @item, tag: tag,
-                        **Ingestion::ConfidenceMapper.map_row(payload, decided_by: nil))
+                        confidence: parent_join_confidence(row[:slug], resolved),
+                        source: "ingredient_derived")
       end
+    end
+
+    def parent_join_confidence(tag_slug, resolved)
+      parent = resolved
+               .select { |ing| Ingestion::TagDeriver::Allergen.tag_slugs_for(ing).include?(tag_slug) }
+               .max_by { |ing| ing[:confidence].to_f }
+      parent&.fetch(:join_confidence, "suggested") || "suggested"
     end
 
     def sync_tags(slugs, added_confidence)
