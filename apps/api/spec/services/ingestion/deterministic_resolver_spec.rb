@@ -35,6 +35,8 @@ RSpec.describe Ingestion::DeterministicResolver do
        ["glass noodles", "cellophane noodles", "mung bean noodles"]],
       ["grain-rice-paper",  "Rice Paper",     "grain.rice.paper",        ["spring roll wrapper"]],
       ["grain-wheat-spring-roll", "Spring Roll", "grain.wheat.spring_roll", []],
+      ["alcohol-beer",      "Beer",           "alcohol.beer",            []],
+      ["alcohol-ale",       "Ale",            "alcohol.ale",             []],
     ])
   end
 
@@ -165,6 +167,19 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
+    it "keeps beer identity on a gluten-free beer without minting contains-gluten" do
+      beer, ale = resolve(
+        StubItem.new("a", "Gluten-Free Beer", nil, nil),
+        StubItem.new("b", "GF Ale", nil, nil)
+      )
+
+      expect(beer.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(beer.tags.map { |t| t["slug"] }).to include("gluten-free")
+      expect(beer.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+      expect(ale.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
+      expect(ale.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+    end
+
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
@@ -200,7 +215,7 @@ RSpec.describe Ingestion::DeterministicResolver do
         StubItem.new(
           "id-1",
           "Appetizer Platter",
-          "crispy spring rolls with summer rolls wrapped in rice paper",
+          "crispy spring rolls alongside summer rolls wrapped in rice paper",
           nil
         )
       ).first

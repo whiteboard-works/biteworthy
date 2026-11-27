@@ -88,6 +88,7 @@ module Ingestion
         "alcohol.beer"     => "contains-gluten",
         "alcohol.ale"      => "contains-gluten"
       }.freeze
+      BEER_GLUTEN_PREFIXES = %w[alcohol.beer alcohol.ale].freeze
 
       # Cross-root oddballs the subtree map can't see. Coconut counts as
       # a tree nut per FDA labeling guidance.
@@ -115,17 +116,23 @@ module Ingestion
         "grain-rice-coconut-rice"       => %w[contains-tree-nut]
       }.freeze
 
+      def self.beer_or_ale?(path)
+        TagDeriver.under_any?(path.to_s, BEER_GLUTEN_PREFIXES)
+      end
+
       def self.tag_slugs_for(ing)
         Array(SLUG_TAGS[ing[:slug]]) +
           SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [ prefix ]) }
       end
 
       def self.call(ctx)
+        suppress_beer_gluten = DietClaims.claims_in(Array(ctx[:segments])).include?("gluten-free")
         best = {}
         ctx[:resolved_ingredients].each do |ing|
           next unless ing.respond_to?(:[])
 
           tag_slugs = tag_slugs_for(ing)
+          tag_slugs -= %w[contains-gluten] if suppress_beer_gluten && beer_or_ale?(ing[:path])
           # Allergen tags inferred from an ingredient keep that ingredient's
           # numeric confidence and original source (from_source) so promote
           # can map them to the same join confidence. Distinct from

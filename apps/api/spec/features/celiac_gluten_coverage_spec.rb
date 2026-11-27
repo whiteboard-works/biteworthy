@@ -116,7 +116,7 @@ RSpec.describe "Celiac filter over real dish names" do
     [ "Rice Noodle Pho", "pho with rice noodles", false, "rice noodles are not wheat" ],
     [ "Pad Woon Sen", "stir fried glass noodles", false, "glass noodles are not wheat" ],
     [ "Fresh Spring Rolls", "wrapped in rice paper", false, "rice paper is not wheat" ],
-    [ "Appetizer Platter", "crispy spring rolls with summer rolls wrapped in rice paper", true,
+    [ "Appetizer Platter", "crispy spring rolls alongside summer rolls wrapped in rice paper", true,
       "wheat spring roll next to rice-paper rolls still has gluten" ],
     [ "Margherita Pizza", "served with summer rolls wrapped in rice paper", true,
       "rice paper on the plate does not drop a pizza's implied wheat" ],

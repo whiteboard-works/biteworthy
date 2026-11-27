@@ -62,6 +62,12 @@ RSpec.describe Ingestion::TagDeriver do
     # WBW-245: beer is barley/wheat malt. #925/#1018 moved hard sodas
     # onto alcohol-beer so a celiac ingredient-avoid would hide them;
     # they did not strip gluten from beer. Hard seltzer is not beer.
+    it "does not mint contains-gluten from beer when the name claims gluten-free" do
+      tags = derive(text: "Gluten-Free Beer", ingredients: [ing("alcohol-beer", "alcohol.beer")])
+      expect(tag_slugs(tags)).to include("gluten-free")
+      expect(tag_slugs(tags)).not_to include("contains-gluten")
+    end
+
     it "derives contains-gluten from beer and ale, not from hard seltzer" do
       beer = derive(ingredients: [ing("alcohol-beer", "alcohol.beer")])
       ipa  = derive(ingredients: [ing("alcohol-ipa", "alcohol.beer.ipa")])

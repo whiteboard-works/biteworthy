@@ -136,7 +136,7 @@ module Ingestion
     # ("Taco", "Bowl") — they only count when the name is all the
     # evidence we have (no description, or one that matched nothing).
     def match_item(item, name_claims)
-      name_hits, name_leftovers, clause_id = @matcher.scan_hits(item.name)
+      name_hits, name_leftovers, clause_id, token_index = @matcher.scan_hits(item.name)
       # The name's claim beats the name's own evidence ("pasta" matching
       # the catalog inside "Gluten-Free Pasta"); description matches are
       # exempt — a dish that lists wheat flour is not gluten-free
@@ -144,7 +144,9 @@ module Ingestion
       name_hits = name_hits.reject do |m|
         DietClaims.contradicted?(name_claims, slug: m[:slug], path: m[:path])
       end
-      desc_hits, desc_leftovers, = @matcher.scan_hits(item.description, clause_id: clause_id)
+      desc_hits, desc_leftovers, = @matcher.scan_hits(
+        item.description, clause_id: clause_id, token_index: token_index
+      )
 
       gap_phrases = desc_leftovers.dup
       gap_phrases += name_leftovers if item.description.blank? || desc_hits.empty?

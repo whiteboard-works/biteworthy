@@ -102,7 +102,7 @@ module Admin
               sync_tags(attrs[:tag_slugs], added_confidence)
               synced = true
             end
-            rederive_allergen_tags! if ingredients_changed
+            rederive_allergen_tags!(keep_slugs: attrs[:tag_slugs]) if ingredients_changed
           end
           rederive_item_confidence! if synced
           replace_variants(attrs[:variants])         if attrs.key?(:variants)
@@ -221,8 +221,13 @@ module Admin
     # ingredients, skip a slug a person already attached by hand.
     # Confidence copies the parent ingredient join — ConfidenceMapper
     # with an admin accept cap would confirm a suggested/human row.
-    def rederive_allergen_tags!
-      ItemTag.where(item_id: @item.id, source: "ingredient_derived").find_each(&:destroy!)
+    def rederive_allergen_tags!(keep_slugs: nil)
+      keep = Array(keep_slugs).map(&:to_s).to_set
+      ItemTag.where(item_id: @item.id, source: "ingredient_derived").includes(:tag).find_each do |row|
+        next if keep.include?(row.tag.slug)
+
+        row.destroy!
+      end
 
       resolved = ItemIngredient.where(item_id: @item.id).includes(:ingredient).filter_map do |join|
         ingredient = join.ingredient

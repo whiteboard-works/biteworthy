@@ -127,6 +127,22 @@ RSpec.describe "Admin item deep edit", type: :request do
         .to have_attributes(confidence: "suggested", source: "human")
     end
 
+    it "keeps an explicitly retained ingredient_derived allergen when the parent ingredient is removed" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+
+      patch_item(ingredient_slugs: %w[egg])
+      expect(item.item_tags.find_by!(tag: egg_tag).source).to eq("ingredient_derived")
+
+      patch_item(ingredient_slugs: %w[meat-beef], tag_slugs: %w[contains-egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: beef)).to be_present
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(source: "ingredient_derived", confidence: "confirmed")
+    end
+
     it "inherits a suggested parent join's confidence onto the derived allergen tag" do
       egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
       egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",

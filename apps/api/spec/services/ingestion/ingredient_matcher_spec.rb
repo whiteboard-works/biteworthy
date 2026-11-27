@@ -197,6 +197,11 @@ RSpec.describe Ingestion::IngredientMatcher do
       expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
     end
 
+    it "keeps wheat spring-roll when rice paper qualifies a later roll across 'alongside'" do
+      slugs = seed_slugs("crispy spring rolls alongside summer rolls wrapped in rice paper")
+      expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
     it "maps bean sprouts without inventing gluten" do
       expect(seed_slugs("bean sprouts")).to include("vegetable-bean-sprout")
       expect(seed_slugs("bean sprouts")).not_to include("grain-wheat-pasta")
@@ -221,22 +226,22 @@ RSpec.describe Ingestion::IngredientMatcher do
         .to contain_exactly("grain-wheat-pasta", "grain-rice-noodle")
     end
 
-    it "drops wheat spring-roll only in the rice-paper clause" do
-      same = described_class.prefer_qualified([
+    it "drops wheat spring-roll only when rice paper wraps that span" do
+      wrapped = described_class.prefer_qualified([
         { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
-          confidence: 1.0, source: "match", clause_id: 0 },
+          confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
         { slug: "grain-rice-paper", path: "grain.rice.paper",
-          confidence: 1.0, source: "match", clause_id: 0 }
+          confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
       ]).map { |row| row[:slug] }
-      expect(same).to eq([ "grain-rice-paper" ])
+      expect(wrapped).to eq([ "grain-rice-paper" ])
 
-      split = described_class.prefer_qualified([
+      distant = described_class.prefer_qualified([
         { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
-          confidence: 1.0, source: "match", clause_id: 0 },
+          confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
         { slug: "grain-rice-paper", path: "grain.rice.paper",
-          confidence: 1.0, source: "match", clause_id: 1 }
+          confidence: 1.0, source: "match", start_token: 8, end_token: 9 }
       ]).map { |row| row[:slug] }
-      expect(split).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+      expect(distant).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
     end
 
     it "does not treat hard seltzer as beer" do
