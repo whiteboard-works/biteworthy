@@ -83,6 +83,20 @@ describe('RestaurantPage — canonical redirect on a location mismatch', () => {
     );
   });
 
+  // WBW-247 — after an admin moves a restaurant Ogden → Draper the slug
+  // is unchanged, so the old city path must 308 to the new web_path.
+  it('301/308s the old city path to the new one after a restaurant changes city', async () => {
+    mockFetchRestaurant.mockResolvedValue({
+      web_path: '/restaurants/usa/utah/draper/laan-thai-restaurant',
+    });
+    await expect(
+      run({ country: 'usa', region: 'utah', city: 'ogden', slug: 'laan-thai-restaurant' }),
+    ).rejects.toThrow('NEXT_REDIRECT');
+    expect(mockPermanentRedirect).toHaveBeenCalledWith(
+      '/restaurants/usa/utah/draper/laan-thai-restaurant',
+    );
+  });
+
   it('does not redirect when the URL segments already match web_path', async () => {
     mockFetchRestaurant.mockResolvedValue({
       web_path: '/restaurants/usa/colorado/durango/rgp-s-wraps',

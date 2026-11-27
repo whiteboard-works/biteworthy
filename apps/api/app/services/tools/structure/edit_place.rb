@@ -9,6 +9,10 @@ module Tools
         Update where a restaurant is, when it is open, or both. Read the
         current values back first — BOTH writes REPLACE what is there.
 
+        `city` is a city slug or UUID. It moves the restaurant to that city
+        (must already exist in the same state and country). The restaurant
+        slug does not change.
+
         Sending `hours` replaces the entire week. A day you leave out becomes
         closed (no hours stored). Send the whole week every time, including
         days that did not change.
@@ -37,7 +41,11 @@ module Tools
         properties: {
           restaurant:  { type: "string", description: "Restaurant slug or UUID." },
           street:      { type: "string" },
-          city:        { type: "string" },
+          city:        {
+            type: "string",
+            description: "City slug or UUID. Moves the restaurant to that city " \
+                         "(must exist, same state/country). Restaurant slug unchanged."
+          },
           region:      { type: "string", description: "State or province." },
           postal_code: { type: "string" },
           country:     { type: "string" },
@@ -80,10 +88,18 @@ module Tools
           raise Errors::InvalidArgument, "Pass address fields, hours, or both."
         end
 
-        record = ::Places::Writer.replace_address!(record, attrs) if attrs.any?
-        record = ::Places::Writer.replace_hours!(record, hours)   unless hours.nil?
+        record = Restaurant.transaction do
+          record = reassign_city!(record, attrs[:city]) if attrs.key?(:city)
 
-        ok(restaurant: restaurant_row(record), place: ::Places::Writer.serialize(record))
+          writer_attrs = attrs.except(:city)
+          writer_attrs[:city] = record.city.name if attrs.key?(:city)
+          record = ::Places::Writer.replace_address!(record, writer_attrs) if writer_attrs.any?
+          record = ::Places::Writer.replace_hours!(record, hours) unless hours.nil?
+          record
+        end
+
+        ok(restaurant: restaurant_row(record).merge(city: record.city.summary, web_path: record.web_path),
+           place: ::Places::Writer.serialize(record))
       rescue ::Places::Writer::InvalidInput => e
         raise Errors::InvalidArgument, invalid_message(e)
       end
