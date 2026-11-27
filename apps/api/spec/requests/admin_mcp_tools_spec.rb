@@ -126,6 +126,37 @@ RSpec.describe "Admin MCP tools" do
         expect(result["isError"]).to be(true)
         expect(result.dig("content", 0, "text")).to include("invalid_coordinate")
       end
+
+      # WBW-247 — `city` used to write address.city text only, so
+      # `city: "Draper"` left restaurants.city_id (and the public URL) on
+      # Ogden. A city slug or id must reassign the City row.
+      it "reassigns the restaurant's city by slug without changing the restaurant slug" do
+        ogden  = create(:city, slug: "ogden",  name: "Ogden",  region: "Utah")
+        draper = create(:city, slug: "draper", name: "Draper", region: "Utah")
+        place  = create(:restaurant, :published, city: ogden, slug: "laan-thai-restaurant")
+
+        mcp_call("update_restaurant", { restaurant: place.id, city: "Draper" }, admin)
+
+        expect(response).to have_http_status(:ok)
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).not_to be(true)
+        expect(place.reload).to have_attributes(slug: "laan-thai-restaurant", city_id: draper.id)
+        expect(place.city.slug).to eq("draper")
+        expect(place.web_path).to eq("/restaurants/usa/utah/draper/laan-thai-restaurant")
+      end
+
+      it "rejects a city in another state" do
+        ogden = create(:city, slug: "ogden", name: "Ogden", region: "Utah")
+        create(:city, slug: "durango", name: "Durango", region: "Colorado")
+        place = create(:restaurant, city: ogden, slug: "laan-thai-restaurant")
+
+        mcp_call("update_restaurant", { restaurant: place.id, city: "durango" }, admin)
+
+        result = JSON.parse(response.body)["result"]
+        expect(result["isError"]).to be(true)
+        expect(result.dig("content", 0, "text")).to match(/same state|Utah|Colorado/i)
+        expect(place.reload.city.slug).to eq("ogden")
+      end
     end
 
     context "as non-admin" do

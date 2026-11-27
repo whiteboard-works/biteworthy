@@ -27,6 +27,7 @@ Biteworthy launched as Durango-only; Salt Lake City is next.
 
 - [x] Add cities (admin: `create_city` tool, `/admin/cities`) and add restaurants from the web (`/restaurants/new`); `list_cities` lets the chat find a city with nothing published yet.
 - [x] Location URLs: `/restaurants/usa/colorado/durango/<slug>`, computed once in `Restaurant#web_path`, with 301s from every old `/restaurants/<slug>` shape.
+- [x] Admin city reassignment (WBW-247): `PATCH /admin/restaurants/:id` and the MCP admin tools (`edit_restaurant`, `update_restaurant`, `edit_place`) accept a city slug or id in the same state/country; the restaurant slug stays put so the old city path 307s (city assignment is reversible).
 - [x] Home city on the profile (`set_home_city`, settings picker): "what's nearby" in chat defaults `search_restaurants` to it. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [x] Location P2 (web) — "Use my location" in the chat header (moved out of the composer so the input has room on a phone); the device location rides one turn into the tool context (never the prompt, profile, or transcript) and `search_restaurants near_me: true` sorts by distance. Plan: [`docs/plans/profile-location.md`](plans/profile-location.md).
 - [ ] Location P2 follow-ups — production count of published addresses with coordinates (backfill if thin), distance in the results pane's `restaurants` kind, mobile `expo-location` behind the same `near_me`.

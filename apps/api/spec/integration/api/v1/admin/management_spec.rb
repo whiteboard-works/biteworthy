@@ -15,7 +15,11 @@ def admin_restaurant_row_schema
       archived_at: { type: :string, format: "date-time", nullable: true },
       city: {
         type: :object, nullable: true,
-        properties: { id: { type: :string, format: :uuid }, name: { type: :string } }
+        properties: {
+          id:   { type: :string, format: :uuid },
+          slug: { type: :string },
+          name: { type: :string }
+        }
       },
       created_by_user_id: { type: :string, format: :uuid, nullable: true },
       claimed_by_user_id: { type: :string, format: :uuid, nullable: true },
@@ -210,7 +214,10 @@ RSpec.describe "admin/management", type: :request do
           about:   { type: :string },
           website: { type: :string },
           phone:   { type: :string },
-          status:  { type: :string, enum: %w[draft published closed] }
+          status:  { type: :string, enum: %w[draft published closed] },
+          city:    { type: :string,
+                     description: "City slug or UUID. Must exist in the same state and country. " \
+                                  "The restaurant slug is unchanged." }
         }
       }
 
@@ -222,7 +229,7 @@ RSpec.describe "admin/management", type: :request do
         run_test!
       end
 
-      response(422, "immutable slug change or invalid status") do
+      response(422, "immutable slug change, invalid status, unknown city, or city in another state") do
         schema "$ref" => "#/components/schemas/Error"
         let(:Authorization) { bearer_for(create(:user, :admin)) }
         let(:id)   { create(:restaurant, :published).id }

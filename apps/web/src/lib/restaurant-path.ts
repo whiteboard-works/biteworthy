@@ -12,6 +12,51 @@ export function isCanonicalPath(
   return safeDecode(webPath) === safeDecode(current);
 }
 
+/**
+ * How to send a visitor from this URL to `webPath`.
+ *
+ * `null` when the URL is already canonical. `temporary` (307) when only
+ * the city segment is stale — city reassignment is a reversible admin
+ * edit, and a cached 308 Ogden→Draper loops if the restaurant moves
+ * back. `permanent` (308) for country/region/slug canonicalization.
+ */
+export function locationRedirectKind(
+  webPath: string,
+  params: { country: string; region: string; city: string; slug: string },
+): 'temporary' | 'permanent' | null {
+  if (isCanonicalPath(webPath, params)) return null;
+  return cityOnlyMismatch(webPath, params) ? 'temporary' : 'permanent';
+}
+
+function cityOnlyMismatch(
+  webPath: string,
+  params: { country: string; region: string; city: string; slug: string },
+): boolean {
+  const canonical = restaurantSegments(safeDecode(webPath));
+  const current = restaurantSegments(
+    safeDecode(`/restaurants/${params.country}/${params.region}/${params.city}/${params.slug}`),
+  );
+  if (!canonical || !current) return false;
+  return (
+    canonical.country === current.country &&
+    canonical.region === current.region &&
+    canonical.slug === current.slug &&
+    canonical.city !== current.city
+  );
+}
+
+function restaurantSegments(
+  path: string,
+): { country: string; region: string; city: string; slug: string } | null {
+  const parts = path.split('/').filter(Boolean);
+  const country = parts[1];
+  const region = parts[2];
+  const city = parts[3];
+  const slug = parts[4];
+  if (parts[0] !== 'restaurants' || !country || !region || !city || !slug) return null;
+  return { country, region, city, slug };
+}
+
 function safeDecode(path: string): string {
   try {
     return decodeURI(path)

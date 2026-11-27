@@ -5,14 +5,16 @@ module Api
       #
       #   GET   /api/v1/admin/restaurants           list/search
       #   GET   /api/v1/admin/restaurants/:id       detail + confidence counts
-      #   PATCH /api/v1/admin/restaurants/:id       edit + status (publish/unpublish/close)
+      #   PATCH /api/v1/admin/restaurants/:id       edit + status + city (publish/unpublish/close)
       #   POST  /api/v1/admin/restaurants/:id/confirm_community
       #   POST  /api/v1/admin/restaurants/:id/restore
       #   DEL   /api/v1/admin/restaurants/:id        archive (or ?hard=true)
       #
       # Slug is immutable in v1 — it's the SEO URL and the
       # find_by_id_or_slug! lookup key. Status writes go through the
-      # model's inclusion validation (draft|published|closed).
+      # model's inclusion validation (draft|published|closed). City is a
+      # slug or UUID of an existing city in the same state/country; the
+      # restaurant slug does not change with the move.
       class RestaurantsController < BaseController
         include Deletable
 
@@ -90,9 +92,22 @@ module Api
             value = params[field]
             attrs[field] = value if value.nil? || value.is_a?(String)
           end
-          restaurant.update!(attrs)
+          restaurant = Restaurant.transaction do
+            restaurant.update!(attrs) if attrs.any?
+            if params.key?(:city)
+              restaurant = ::Restaurants::ReassignCity.call(
+                restaurant: restaurant, city: params[:city]
+              )
+            end
+            restaurant
+          end
 
           render json: serialize_restaurant(restaurant)
+        rescue ::Restaurants::ReassignCity::UnknownCity
+          render json: { error: "unknown_city" }, status: :unprocessable_entity
+        rescue ::Restaurants::ReassignCity::RegionMismatch => e
+          render json: { error: "city_outside_region", message: e.message },
+                 status: :unprocessable_entity
         end
 
         def confirm_community
@@ -183,7 +198,9 @@ module Api
             name:   restaurant.name,
             status: restaurant.status,
             archived_at: restaurant.archived_at,
-            city: restaurant.city && { id: restaurant.city.id, name: restaurant.city.name },
+            city: restaurant.city && {
+              id: restaurant.city.id, slug: restaurant.city.slug, name: restaurant.city.name
+            },
             created_by_user_id: restaurant.created_by_user_id,
             claimed_by_user_id: restaurant.claimed_by_user_id,
             created_at: restaurant.created_at

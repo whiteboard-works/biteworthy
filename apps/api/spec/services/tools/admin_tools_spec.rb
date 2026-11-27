@@ -52,6 +52,26 @@ RSpec.describe "admin tools" do
     it "does not expose the slug as editable" do
       expect(described_class.input_schema_value.to_h[:properties]).not_to have_key(:slug)
     end
+
+    it "moves the restaurant to another city in the same state by slug or id" do
+      draper = create(:city, slug: "draper", name: "Draper", region: restaurant.city.region,
+                             country: restaurant.city.country)
+      original_slug = restaurant.slug
+
+      call(described_class, admin, restaurant: restaurant.slug, city: "draper")
+
+      expect(restaurant.reload.city_id).to eq(draper.id)
+      expect(restaurant.slug).to eq(original_slug)
+    end
+
+    it "rejects a city in another country or state" do
+      create(:city, slug: "toronto", name: "Toronto", region: "Ontario", country: "CA")
+
+      response = call(described_class, admin, restaurant: restaurant.slug, city: "toronto")
+
+      expect(payload(response)[:error]).to eq("invalid_argument")
+      expect(restaurant.reload.city.slug).not_to eq("toronto")
+    end
   end
 
   describe Tools::Restaurants::ConfirmRestaurantData do
@@ -192,6 +212,19 @@ RSpec.describe "admin tools" do
       response = call(described_class, admin, restaurant: restaurant.slug)
 
       expect(payload(response)[:error]).to eq("invalid_argument")
+    end
+
+    # WBW-247 — city is the City row (slug or id), not address.city text.
+    it "reassigns the restaurant city when given a city slug" do
+      draper = create(:city, slug: "draper", name: "Draper", region: restaurant.city.region,
+                             country: restaurant.city.country)
+      original_slug = restaurant.slug
+
+      response = call(described_class, admin, restaurant: restaurant.slug, city: "draper")
+
+      expect(payload(response)[:error]).to be_nil
+      expect(restaurant.reload.city_id).to eq(draper.id)
+      expect(restaurant.slug).to eq(original_slug)
     end
   end
 
