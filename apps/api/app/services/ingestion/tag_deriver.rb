@@ -19,12 +19,15 @@ module Ingestion
   # fails CI when the taxonomy moves out from under these tables.
   #
   # Context keys: segments (name+description token arrays from
-  # MenuText.segments), section_segments, and resolved_ingredients as
-  # [{slug:, path:, confidence:, source:}].
+  # MenuText.segments), name_segments (the dish name only),
+  # section_segments, and resolved_ingredients as
+  # [{slug:, path:, confidence:, source:}]. Beer always derives
+  # contains-gluten; a gluten-free name does not suppress it.
   class TagDeriver
-    def self.derive(segments:, resolved_ingredients:, section_segments: [])
+    def self.derive(segments:, resolved_ingredients:, section_segments: [], name_segments: [])
       ctx = {
         segments: Array(segments),
+        name_segments: Array(name_segments),
         section_segments: Array(section_segments),
         resolved_ingredients: Array(resolved_ingredients)
       }
@@ -80,8 +83,15 @@ module Ingestion
         "grain.barley"     => "contains-gluten",
         "grain.rye"        => "contains-gluten",
         "grain.spelt"      => "contains-gluten",
-        "grain.triticale"  => "contains-gluten"
+        "grain.triticale"  => "contains-gluten",
+        # Beer/ale are malted barley (or wheat). Hard seltzer is not
+        # under these prefixes. #925/#1018 only moved hard-soda aliases
+        # onto alcohol-beer so a celiac *ingredient* avoid would hide
+        # them; they did not decide against a gluten tag on beer.
+        "alcohol.beer"     => "contains-gluten",
+        "alcohol.ale"      => "contains-gluten"
       }.freeze
+      BEER_GLUTEN_PREFIXES = %w[alcohol.beer alcohol.ale].freeze
 
       # Cross-root oddballs the subtree map can't see. Coconut counts as
       # a tree nut per FDA labeling guidance.
@@ -90,6 +100,14 @@ module Ingestion
         "soy-teriyaki"                  => %w[contains-gluten],
         "condiment-sauces-gravy"        => %w[contains-gluten],
         "condiment-malt-vinegar"        => %w[contains-gluten],
+        # Wheat-path compounds that also contain egg. The ltree parent
+        # is grain.wheat, so gluten is already derived; egg is a
+        # sibling root and needs an explicit link. Egg rolls are a
+        # fried wheat wrapper (the "egg" is a translation artifact),
+        # not an egg filling — they stay off this list.
+        "grain-wheat-noodle-egg"        => %w[contains-egg],
+        "grain-wheat-pasta-egg"         => %w[contains-egg],
+        "grain-wheat-wonton"            => %w[contains-egg],
         "condiment-oyster-sauce"        => %w[contains-shellfish],
         "oil-and-fat-toasted-sesame-oil" => %w[contains-sesame],
         "fruit-coconut"                 => %w[contains-tree-nut],
@@ -101,13 +119,24 @@ module Ingestion
         "grain-rice-coconut-rice"       => %w[contains-tree-nut]
       }.freeze
 
+      def self.beer_or_ale?(path)
+        TagDeriver.under_any?(path.to_s, BEER_GLUTEN_PREFIXES)
+      end
+
+      def self.tag_slugs_for(ing)
+        Array(SLUG_TAGS[ing[:slug]]) +
+          SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [ prefix ]) }
+      end
+
       def self.call(ctx)
+        # Beer always derives contains-gluten. A gluten-free name does
+        # not strip it — over-tagging gluten is the safe direction, and
+        # Diet then vetoes a gluten-free claim against the allergen.
         best = {}
         ctx[:resolved_ingredients].each do |ing|
           next unless ing.respond_to?(:[])
 
-          tag_slugs = Array(SLUG_TAGS[ing[:slug]]) +
-                      SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [prefix]) }
+          tag_slugs = tag_slugs_for(ing)
           # Allergen tags inferred from an ingredient keep that ingredient's
           # numeric confidence and original source (from_source) so promote
           # can map them to the same join confidence. Distinct from

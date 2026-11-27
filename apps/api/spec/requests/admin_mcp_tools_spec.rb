@@ -453,6 +453,23 @@ RSpec.describe "Admin MCP tools" do
         expect(result.dig("content", 0, "text")).to include("Unknown")
       end
 
+      it "derives contains-egg when a published dish is edited to include egg" do
+        egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+        egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                               family: "allergen", path: "allergen.contains_egg")
+        item.update!(status: "published")
+
+        mcp_call("update_published_item", {
+          item_id: item.id,
+          ingredient_slugs: [ "egg" ]
+        }, admin)
+
+        expect(response).to have_http_status(:ok)
+        expect(item.reload.ingredients.pluck(:slug)).to eq([ "egg" ])
+        expect(item.item_tags.find_by!(tag: egg_tag))
+          .to have_attributes(source: "ingredient_derived")
+      end
+
       it "marks added rows suggested/derived when added_confidence is suggested" do
         gluten = create(:tag, slug: "contains-gluten", name: "Contains gluten",
                               family: "allergen", path: "allergen.contains_gluten")

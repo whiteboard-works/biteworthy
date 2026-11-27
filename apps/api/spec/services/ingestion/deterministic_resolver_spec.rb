@@ -30,6 +30,15 @@ RSpec.describe Ingestion::DeterministicResolver do
       ["dairy-butter",      "Butter",         "dairy.butter",            []],
       ["dairy-parmesan",    "Parmesan",       "dairy.parmesan",          []],
       ["tree_nut-pine-nuts", "Pine nuts",     "tree_nut.pine_nuts",      []],
+      ["grain-rice-noodle", "Rice Noodle",    "grain.rice.noodle",       ["rice stick"]],
+      ["grain-rice-noodle-glass", "Glass Noodle", "grain.rice.noodle.glass",
+       ["glass noodles", "cellophane noodles", "mung bean noodles"]],
+      ["grain-rice-paper",  "Rice Paper",     "grain.rice.paper",        ["spring roll wrapper"]],
+      ["grain-wheat-spring-roll", "Spring Roll", "grain.wheat.spring_roll", []],
+      ["alcohol-beer",      "Beer",           "alcohol.beer",            []],
+      ["alcohol-ale",       "Ale",            "alcohol.ale",             []],
+      ["alcohol-lager",     "Lager",          "alcohol.beer.lager",      []],
+      ["alcohol-ipa",       "IPA",            "alcohol.beer.ipa",        []],
     ])
   end
 
@@ -160,10 +169,132 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
+    it "keeps gluten on beer when only a description mentions a gluten-free option" do
+      result = resolve(
+        StubItem.new("id-1", "House Ale", "gluten-free option available", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
+    it "keeps gluten on beer-battered fish that offers a gluten-free option" do
+      result = resolve(
+        StubItem.new("id-1", "Beer-battered fish, gluten-free option available", nil, nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
+    it "keeps contains-gluten on a gluten-free beer name and a GF beer option" do
+      beer, option = resolve(
+        StubItem.new("a", "Gluten-Free Beer", nil, nil),
+        StubItem.new("b", "House Beer — GF beer option available", nil, nil)
+      )
+
+      expect(beer.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(beer.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(beer.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+      expect(option.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(option.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(option.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+    end
+
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
       result = resolve(StubItem.new("id-1", "Vegan Burger", "basil", nil)).first
 
       expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+    end
+
+    # WBW-246: "Fresh Spring Rolls" in the name used to union wheat even
+    # when the description named rice paper. Prefer the qualified wrapper.
+    it "does not union wheat onto rice-paper spring rolls" do
+      result = resolve(
+        StubItem.new("id-1", "Fresh Spring Rolls", "wrapped in rice paper", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-rice-paper")
+      expect(result.ingredients.map { |r| r["slug"] })
+        .not_to include("grain-wheat", "grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
+    end
+
+    it "still unions wheat onto fried spring rolls with no rice-paper qualifier" do
+      result = resolve(
+        StubItem.new("id-1", "Fried Spring Rolls", "crispy spring rolls", nil)
+      ).first
+
+      # Spring-roll already sits under grain.wheat, so the implied wheat
+      # root is skipped; the wheat spring-roll row is what hides it.
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "keeps gluten on a mixed wheat and rice-paper roll platter" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Appetizer Platter",
+          "crispy spring rolls alongside summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] })
+        .to include("grain-wheat-spring-roll", "grain-rice-paper")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "does not drop a named wheat spring roll when the description is rice paper chips" do
+      chips, paper = resolve(
+        StubItem.new("a", "Spring Rolls", "rice paper chips", nil),
+        StubItem.new("b", "Spring Rolls", "Rice paper", nil)
+      )
+
+      expect(chips.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(chips.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(paper.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(paper.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "does not drop a named wheat spring roll when rice paper qualifies a later roll" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Crispy Spring Rolls",
+          "with summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "keeps pizza wheat next to rice-paper spring rolls in the same name" do
+      result = resolve(
+        StubItem.new("id-1", "Pizza, Fresh Spring Rolls", "wrapped in rice paper", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "does not skip pizza's implied wheat just because rice paper appears on the plate" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Margherita Pizza",
+          "served with summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 
     it "implies wheat from soy sauce, teriyaki, and gravy matches" do

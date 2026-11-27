@@ -69,6 +69,54 @@ RSpec.describe IngestionItem, type: :model do
       end
     end
 
+    # A scan resolved before egg-noodle / beer allergen links kept the
+    # old tags_payload. Promote must re-derive so accepting that row
+    # cannot publish a dish missing contains-egg / contains-gluten.
+    context "when the staged payload predates an allergen derivation link" do
+      let!(:egg_noodle) do
+        create(:ingredient, slug: "grain-wheat-noodle-egg", path: "grain.wheat.noodle.egg")
+      end
+      let!(:beer) { create(:ingredient, slug: "alcohol-beer", path: "alcohol.beer") }
+      let!(:egg_tag) { create(:tag, slug: "contains-egg", family: "allergen") }
+      let!(:gluten_tag) { create(:tag, slug: "contains-gluten", family: "allergen") }
+
+      it "adds contains-egg for egg noodles without rewriting the staged payload" do
+        item.update!(
+          ingredients_payload: [ { "slug" => "grain-wheat-noodle-egg", "confidence" => 0.95, "source" => "match" } ],
+          tags_payload: [ { "slug" => "contains-gluten", "confidence" => 0.95,
+                            "source" => "ingredient_derived", "from_source" => "match" } ]
+        )
+
+        promoted = item.promote!
+
+        expect(promoted.tags).to include(egg_tag, gluten_tag)
+        expect(item.reload.tags_payload.map { |row| row["slug"] }).to eq([ "contains-gluten" ])
+      end
+
+      it "adds contains-gluten for beer when the payload listed none" do
+        item.update!(
+          ingredients_payload: [ { "slug" => "alcohol-beer", "confidence" => 0.95, "source" => "match" } ],
+          tags_payload: []
+        )
+
+        expect(item.promote!.tags).to include(gluten_tag)
+      end
+
+      it "still derives contains-egg after undo restores the stale payload" do
+        item.update!(
+          ingredients_payload: [ { "slug" => "grain-wheat-noodle-egg", "confidence" => 0.95, "source" => "match" } ],
+          tags_payload: [ { "slug" => "contains-gluten", "confidence" => 0.95,
+                            "source" => "ingredient_derived", "from_source" => "match" } ]
+        )
+
+        item.promote!
+        item.reload.undo!
+
+        expect(item.reload.tags_payload.map { |row| row["slug"] }).to eq([ "contains-gluten" ])
+        expect(item.promote!.tags).to include(egg_tag)
+      end
+    end
+
     # Codex on #925: accepted/rejected payloads can still name the alcohol
     # root after the join rewrite. undo then promote! must not recreate
     # that join even if the stored payload was never rewritten.

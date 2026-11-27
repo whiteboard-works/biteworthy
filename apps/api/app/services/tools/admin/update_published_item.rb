@@ -21,9 +21,13 @@ module Tools
         contains-gluten because it likely has wheat soy sauce. Only rows
         ADDED in that call get the marking; kept rows stay as they are.
         Unverified adds land source: derived so a later remap cannot treat
-        them as confirmed. The dish's own confidence is then re-derived
-        from the weakest current join (a suggested contains-gluten tag
-        pulls a confirmed dish down to suggested).
+        them as confirmed. Changing ingredient_slugs also re-derives
+        allergen tags (contains-egg from egg, and so on) the same way
+        edit_staged_item does: only ingredient_derived rows are replaced,
+        and a tag a person added by hand is kept. The dish's own
+        confidence is then re-derived from the weakest current join (a
+        suggested contains-gluten tag pulls a confirmed dish down to
+        suggested).
 
         status: "removed" is the admin unpublish — the item stays in the
         database with its reviews, but is hidden from the public menu.

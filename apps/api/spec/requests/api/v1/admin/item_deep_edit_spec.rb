@@ -94,6 +94,89 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.name).to eq("Renamed only")
     end
 
+    it "re-derives beer gluten when a published gluten-free beer is renamed" do
+      beer = create(:ingredient, slug: "alcohol-beer", name: "Beer", path: "alcohol.beer")
+      gluten_tag = create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                                family: "allergen", path: "allergen.contains_gluten")
+      gf_tag = create(:tag, slug: "gluten-free", name: "Gluten free",
+                            family: "diet", path: "diet.gluten_free")
+      item.update!(name: "Gluten-Free Beer")
+      ItemIngredient.create!(item: item, ingredient: beer, confidence: "confirmed", source: "human")
+      ItemTag.create!(item: item, tag: gf_tag, confidence: "confirmed", source: "match")
+
+      patch_item(name: "House Beer")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.name).to eq("House Beer")
+      expect(item.item_ingredients.find_by!(ingredient: beer)).to be_present
+      expect(item.item_tags.find_by!(tag: gluten_tag))
+        .to have_attributes(source: "ingredient_derived")
+    end
+
+    # WBW-243: adding egg on a live dish left allergen tags stale, so an
+    # egg-avoider still saw Khao Soi as safe. Staged edits already
+    # re-derive; published edits must do the same without wiping a
+    # curator's own tags.
+    it "re-derives allergen tags from edited ingredients and keeps hand-added tags" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+      dairy_tag = create(:tag, slug: "contains-dairy", name: "Contains Dairy",
+                               family: "allergen", path: "allergen.contains_dairy")
+      ItemTag.create!(item: item, tag: vegan, confidence: "confirmed", source: "human")
+      ItemTag.create!(item: item, tag: dairy_tag, confidence: "suggested", source: "human")
+
+      patch_item(ingredient_slugs: %w[egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: egg))
+        .to have_attributes(confidence: "confirmed", source: "human")
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(confidence: "confirmed", source: "ingredient_derived")
+      expect(item.item_tags.find_by!(tag: vegan))
+        .to have_attributes(confidence: "confirmed", source: "human")
+      expect(item.item_tags.find_by!(tag: dairy_tag))
+        .to have_attributes(confidence: "suggested", source: "human")
+      expect(item.reload.read_attribute(:tag_ids)).to include(egg_tag.id, vegan.id, dairy_tag.id)
+
+      patch_item(ingredient_slugs: %w[meat-beef])
+
+      expect(item.item_tags.find_by(tag: egg_tag)).to be_nil
+      expect(item.item_tags.find_by!(tag: dairy_tag))
+        .to have_attributes(confidence: "suggested", source: "human")
+    end
+
+    it "keeps an explicitly retained ingredient_derived allergen when the parent ingredient is removed" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+
+      patch_item(ingredient_slugs: %w[egg])
+      expect(item.item_tags.find_by!(tag: egg_tag).source).to eq("ingredient_derived")
+
+      patch_item(ingredient_slugs: %w[meat-beef], tag_slugs: %w[contains-egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: beef)).to be_present
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(source: "ingredient_derived", confidence: "confirmed")
+    end
+
+    it "inherits a suggested parent join's confidence onto the derived allergen tag" do
+      egg = create(:ingredient, slug: "egg", name: "Egg", path: "egg")
+      egg_tag = create(:tag, slug: "contains-egg", name: "Contains Egg",
+                             family: "allergen", path: "allergen.contains_egg")
+      ItemIngredient.create!(item: item, ingredient: egg, confidence: "suggested", source: "human")
+
+      patch_item(ingredient_slugs: %w[egg])
+
+      expect(response).to have_http_status(:ok)
+      expect(item.item_ingredients.find_by!(ingredient: egg))
+        .to have_attributes(confidence: "suggested", source: "human")
+      expect(item.item_tags.find_by!(tag: egg_tag))
+        .to have_attributes(confidence: "suggested", source: "ingredient_derived")
+    end
+
     # Unlike the extractor's payloads (silently filtered), an admin typo
     # must not vanish into a no-op.
     it "422s an unknown slug and changes nothing" do

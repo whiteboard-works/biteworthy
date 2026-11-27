@@ -142,7 +142,35 @@ class IngestionItem < ApplicationRecord
       implied_rows.first
   end
 
-  def promotion_tags = Array(tags_payload) + implied_rows.last
+  # Accept used to insert tags_payload as it stood. A scan resolved
+  # before a new SLUG_TAGS / SUBTREE_TAGS link (egg noodles → egg, beer
+  # → gluten) kept the old payload, so promote published the dish
+  # without the tag. Re-derive ingredient_derived rows from the
+  # promotion ingredients (including implied sauces); cuisine/diet and
+  # a person's own contains-* stay. The staged row is not rewritten.
+  def promotion_tags
+    ingredients = promotion_ingredients
+    kept = Array(tags_payload).reject { |row| row["source"] == "ingredient_derived" }
+    slugs = ingredients.filter_map { |row| row["slug"] }.uniq
+    return kept if slugs.empty?
+
+    paths = ingredient_paths_by_slug(slugs)
+    known = kept.filter_map { |row| row["slug"] }.to_set
+    resolved = ingredients.filter_map do |row|
+      slug = row["slug"]
+      next if slug.blank?
+
+      { slug: slug, path: paths[slug].to_s,
+        confidence: row["confidence"], source: row["source"] }
+    end
+    derived = Ingestion::TagDeriver::Allergen.call(
+      resolved_ingredients: resolved,
+      name_segments: Ingestion::MenuText.segments(name)
+    )
+                .reject { |tag| known.include?(tag[:slug]) }
+                .map { |tag| Ingestion::AssociationPayload.load(tag).dump }
+    kept + derived
+  end
 
   def implied_rows
     @implied_rows ||= begin
@@ -152,7 +180,7 @@ class IngestionItem < ApplicationRecord
       if wanted.empty?
         [ [], [] ]
       else
-        paths   = Ingredient.where(slug: slugs + wanted).pluck(:slug, :path).to_h.transform_values(&:to_s)
+        paths   = ingredient_paths_by_slug(slugs + wanted)
         claims  = Ingestion::DietClaims.claims_in(Ingestion::MenuText.segments(name))
         implied = Ingestion::IngredientImplications.implied(slugs, path_for: paths.method(:[]), claims: claims)
                     .reject do |slug, path|
@@ -160,13 +188,20 @@ class IngestionItem < ApplicationRecord
                         slugs.any? { |s| Ingestion::TagDeriver.under_any?(paths[s].to_s, [ path ]) }
                     end
         rows = implied.map { |slug, path| { slug: slug, path: path, confidence: 0.8, source: "derived" } }
-        known_tags = Array(tags_payload).map { |t| t["slug"] }
-        tags = Ingestion::TagDeriver::Allergen.call(resolved_ingredients: rows)
-                 .reject { |t| known_tags.include?(t[:slug]) }
-                 .map { |t| Ingestion::AssociationPayload.load(t).dump }
-        [ rows.map { |r| Ingestion::AssociationPayload.dump(**r.except(:path)) }, tags ]
+        [ rows.map { |r| Ingestion::AssociationPayload.dump(**r.except(:path)) }, [] ]
       end
     end
+  end
+
+  def ingredient_paths_by_slug(slugs)
+    @ingredient_paths_by_slug ||= {}
+    missing = slugs.uniq - @ingredient_paths_by_slug.keys
+    if missing.any?
+      @ingredient_paths_by_slug.merge!(
+        Ingredient.where(slug: missing).pluck(:slug, :path).to_h.transform_values(&:to_s)
+      )
+    end
+    @ingredient_paths_by_slug
   end
 
   # `lock!` reloads the record, which clears its association cache — reading
@@ -314,9 +349,10 @@ class IngestionItem < ApplicationRecord
     payload_rows = Ingestion::AssociationPayload.load_all(payload)
     return [] if payload_rows.empty?
 
-    # One lookup for all slugs
+    # One lookup for all slugs. Ingredient rows also fill the path cache
+    # so promotion_tags can re-derive allergens without a second SELECT.
     slugs = payload_rows.filter_map { |row| row.slug.presence }.uniq
-    by_slug = model.where(slug: slugs).pluck(:slug, :id).to_h
+    by_slug = catalog_ids_by_slug(model, slugs)
 
     payload_rows.filter_map do |row|
       node_id = by_slug[row.slug]
@@ -324,6 +360,21 @@ class IngestionItem < ApplicationRecord
 
       mapped = Ingestion::ConfidenceMapper.map_row(row, decided_by: decided_by)
       { node_id: node_id, confidence: mapped[:confidence], source: mapped[:source] }
+    end
+  end
+
+  def catalog_ids_by_slug(model, slugs)
+    if model == Ingredient
+      pairs = {}
+      cache = (@ingredient_paths_by_slug ||= {})
+      model.where(slug: slugs).pluck(:slug, :id, :path).each do |slug, id, path|
+        pairs[slug] = id
+        cache[slug] = path.to_s
+      end
+      slugs.each { |slug| cache[slug] ||= "" }
+      pairs
+    else
+      model.where(slug: slugs).pluck(:slug, :id).to_h
     end
   end
 
@@ -381,7 +432,10 @@ class IngestionItem < ApplicationRecord
         source: join.source }
     end
 
-    derived = Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved })
+    derived = Ingestion::TagDeriver::Allergen.call(
+      resolved_ingredients: resolved,
+      name_segments: Ingestion::MenuText.segments(name)
+    )
     return if derived.empty?
 
     payload = derived.map { |row|

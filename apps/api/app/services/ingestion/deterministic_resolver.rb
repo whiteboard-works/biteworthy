@@ -88,6 +88,7 @@ module Ingestion
     end.freeze
 
     IMPLIED_BASE_CONFIDENCE = 0.8
+    WRAPPER_WHEAT_KEYWORDS = [ "spring roll", "spring rolls" ].freeze
 
     def self.call(items, matcher: IngredientMatcher.new)
       new(matcher:).call(items)
@@ -102,12 +103,18 @@ module Ingestion
         name_claims = DietClaims.claims_in(MenuText.segments(item.name))
         matches, gap_phrases = match_item(item, name_claims)
         matches += implied_from_matches(matches, name_claims)
-        name_hits = implied_base_hits(MenuText.segments(item.name))
-        matches += implied_rows(name_hits, matches, name_claims)
+        name_segments = MenuText.segments(item.name)
+        text_segments = MenuText.segments(item.name, item.description)
+        name_hits = implied_base_hits(name_segments)
+        matches += implied_rows(
+          name_hits, matches, name_claims,
+          name_segments: name_segments, text_segments: text_segments
+        )
 
         section_segments = MenuText.segments(item.section_name)
         tags = TagDeriver.derive(
           segments:             MenuText.segments(item.name, item.description),
+          name_segments:        name_segments,
           section_segments:     section_segments,
           resolved_ingredients: matches
         )
@@ -135,20 +142,25 @@ module Ingestion
     # ("Taco", "Bowl") — they only count when the name is all the
     # evidence we have (no description, or one that matched nothing).
     def match_item(item, name_claims)
-      name_matches, name_leftovers = @matcher.scan(item.name)
+      name_hits, name_leftovers, clause_id, token_index, name_tokens = @matcher.scan_hits(item.name)
       # The name's claim beats the name's own evidence ("pasta" matching
       # the catalog inside "Gluten-Free Pasta"); description matches are
       # exempt — a dish that lists wheat flour is not gluten-free
       # whatever its name says.
-      name_matches = name_matches.reject do |m|
+      name_hits = name_hits.reject do |m|
         DietClaims.contradicted?(name_claims, slug: m[:slug], path: m[:path])
       end
-      desc_matches, desc_leftovers = @matcher.scan(item.description)
+      desc_hits, desc_leftovers, _, _, desc_tokens = @matcher.scan_hits(
+        item.description, clause_id: clause_id, token_index: token_index
+      )
 
       gap_phrases = desc_leftovers.dup
-      gap_phrases += name_leftovers if item.description.blank? || desc_matches.empty?
+      gap_phrases += name_leftovers if item.description.blank? || desc_hits.empty?
 
-      [merge_matches(name_matches, desc_matches), gap_phrases]
+      hits = IngredientMatcher.prefer_qualified(
+        name_hits + desc_hits, tokens: name_tokens + desc_tokens
+      )
+      [merge_matches(hits.map { |row| IngredientMatcher.payload_row(row) }), gap_phrases]
     end
 
     def merge_matches(*match_lists)
@@ -178,10 +190,41 @@ module Ingestion
     # explicit match already covers the base's own subtree ("Quesadilla —
     # flour tortilla" needs no extra wheat row) or the name's diet claim
     # contradicts the base. Every hit still routes the item to gap-fill.
-    def implied_rows(hits, matches, name_claims)
+    def implied_rows(hits, matches, name_claims, name_segments:, text_segments:)
       hits.filter_map do |hit|
+        next if skip_implied_wheat_for_rice_paper?(hit, matches, name_segments, text_segments)
+
         derive_row(hit[:slug], matches, name_claims, confidence: hit[:confidence])
       end.uniq
+    end
+
+    # Rice paper may drop the wheat implied by a spring-roll phrase
+    # itself. Any other wheat keyword (pizza, bread, flour-adjacent
+    # names, …) in the name or description keeps grain-wheat —
+    # keyword_hits collapses every grain-wheat phrase into one hit, so
+    # skipping that hit would hide a pizza next to rice-paper rolls.
+    def skip_implied_wheat_for_rice_paper?(hit, matches, name_segments, text_segments)
+      return false unless hit[:slug] == "grain-wheat"
+      return false unless spring_roll_name?(name_segments)
+      return false unless matches.any? { |match|
+        IngredientMatcher.under_prefix?(match[:path].to_s, IngredientMatcher::RICE_PAPER_PREFIX)
+      }
+      return false if other_wheat_keyword?(text_segments)
+
+      matches.none? { |match| IngredientMatcher.row_slug(match) == IngredientMatcher::WHEAT_SPRING_ROLL_SLUG }
+    end
+
+    def other_wheat_keyword?(segments)
+      keywords = IMPLIED_BASE_TERMS.fetch("grain-wheat", []) - WRAPPER_WHEAT_KEYWORDS
+      TagDeriver.keyword_hits(segments, { "grain-wheat" => keywords }, confidence: 0).any?
+    end
+
+    def spring_roll_name?(segments)
+      TagDeriver.keyword_hits(
+        segments,
+        { "grain-wheat" => [ "spring roll", "spring rolls" ] },
+        confidence: 0
+      ).any?
     end
 
     def implied_from_matches(matches, name_claims)

@@ -17,6 +17,11 @@
 #     after_destroy callbacks keep the denormalized items.ingredient_ids/
 #     tag_ids arrays honest (rebuilt once for the whole edit, not once
 #     per row — see Item.defer_denormalization). Never delete_all.
+#   - After a name, description, or ingredient-slug change, allergen
+#     tags are re-derived the same way staged edits are: drop only
+#     `ingredient_derived` rows, recompute from the current ingredients,
+#     and leave every other tag (cuisine, diet, a curator's own
+#     contains-*) in place. Beer always contributes contains-gluten.
 #   - `confidence` on the Item itself is NOT settable here. After a join
 #     sync it is re-derived from the weakest current join row (ingredients
 #     AND tags, only ever downgraded) so a suggested contains-gluten tag
@@ -59,6 +64,15 @@ module Admin
     # PR 793 source for a name/keyword guess (pizza → wheat).
     UNVERIFIED_SOURCE = "derived"
 
+    # TagDeriver ranks by numeric confidence; live joins store the enum.
+    # Keep the enum on the derived tag so a community-accepted
+    # suggested/human egg row does not mint a confirmed contains-egg.
+    JOIN_CONFIDENCE_NUMERIC = {
+      "confirmed" => 1.0,
+      "suggested" => 0.9,
+      "inferred"  => 0.5
+    }.freeze
+
     def initialize(item)
       @item = item
     end
@@ -78,15 +92,18 @@ module Admin
           @item.save!
 
           synced = false
+          rederive_allergens = attrs.key?(:name) || attrs.key?(:description)
           Item.defer_denormalization do
             if attrs.key?(:ingredient_slugs)
               sync_ingredients(attrs[:ingredient_slugs], added_confidence)
               synced = true
+              rederive_allergens = true
             end
             if attrs.key?(:tag_slugs)
               sync_tags(attrs[:tag_slugs], added_confidence)
               synced = true
             end
+            rederive_allergen_tags!(keep_slugs: attrs[:tag_slugs]) if rederive_allergens
           end
           rederive_item_confidence! if synced
           replace_variants(attrs[:variants])         if attrs.key?(:variants)
@@ -198,6 +215,49 @@ module Admin
           **added_join_attrs(added_confidence)
         )
       end
+    end
+
+    # Mirror EditStagedItem.rederive_allergen_tags on live join rows:
+    # strip only ingredient_derived tags, recompute from current
+    # ingredients, skip a slug a person already attached by hand.
+    # Confidence copies the parent ingredient join — ConfidenceMapper
+    # with an admin accept cap would confirm a suggested/human row.
+    def rederive_allergen_tags!(keep_slugs: nil)
+      keep = Array(keep_slugs).map(&:to_s).to_set
+      ItemTag.where(item_id: @item.id, source: "ingredient_derived").includes(:tag).find_each do |row|
+        next if keep.include?(row.tag.slug)
+
+        row.destroy!
+      end
+
+      resolved = ItemIngredient.where(item_id: @item.id).includes(:ingredient).filter_map do |join|
+        ingredient = join.ingredient
+        next unless ingredient
+
+        { slug: ingredient.slug, path: ingredient.path.to_s,
+          confidence: JOIN_CONFIDENCE_NUMERIC.fetch(join.confidence, 0.0),
+          source: join.source,
+          join_confidence: join.confidence }
+      end
+      kept_slugs = ItemTag.where(item_id: @item.id).includes(:tag).map { |row| row.tag.slug }.to_set
+
+      Ingestion::TagDeriver::Allergen.call({ resolved_ingredients: resolved }).each do |row|
+        next if kept_slugs.include?(row[:slug])
+
+        tag = Tag.find_by(slug: row[:slug])
+        next unless tag
+
+        ItemTag.create!(item: @item, tag: tag,
+                        confidence: parent_join_confidence(row[:slug], resolved),
+                        source: "ingredient_derived")
+      end
+    end
+
+    def parent_join_confidence(tag_slug, resolved)
+      parent = resolved
+               .select { |ing| Ingestion::TagDeriver::Allergen.tag_slugs_for(ing).include?(tag_slug) }
+               .max_by { |ing| ing[:confidence].to_f }
+      parent&.fetch(:join_confidence, "suggested") || "suggested"
     end
 
     def sync_tags(slugs, added_confidence)

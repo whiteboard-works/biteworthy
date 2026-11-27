@@ -157,4 +157,131 @@ RSpec.describe Ingestion::IngredientMatcher do
     expect(matches).to be_empty
     expect(leftovers).to be_empty
   end
+
+  # WBW-246: Laan Thai's "rice noodles" / "glass noodles" / rice-paper
+  # rolls were matching wheat pasta or wheat spring rolls. The seed
+  # catalog is the production matcher; injected rows would hide a
+  # missing glass-noodle node.
+  describe "qualified noodle and wrapper phrases (Laan Thai)" do
+    let(:seed_rows) do
+      YAML.load_file(Rails.root.join("db/seeds/ingredients.yml")).map do |row|
+        [ row["slug"], row["name"], row["path"], row["aliases"] ]
+      end
+    end
+    let(:seed_matcher) { described_class.new(seed_rows) }
+
+    def seed_slugs(text)
+      seed_matcher.scan(text).first.map { |m| m[:slug] }
+    end
+
+    it "maps rice noodles to rice noodle, not wheat pasta" do
+      expect(seed_slugs("rice noodles")).to include("grain-rice-noodle")
+      expect(seed_slugs("rice noodles")).not_to include("grain-wheat-pasta")
+    end
+
+    it "maps glass noodles to glass noodles, not wheat pasta" do
+      expect(seed_slugs("glass noodles")).to include("grain-rice-noodle-glass")
+      expect(seed_slugs("glass noodles")).not_to include("grain-wheat-pasta")
+      expect(seed_slugs("cellophane noodles")).to include("grain-rice-noodle-glass")
+      expect(seed_slugs("mung bean noodles")).to include("grain-rice-noodle-glass")
+    end
+
+    it "maps rice-paper spring rolls to rice paper, not wheat spring roll" do
+      slugs = seed_slugs("fresh spring rolls wrapped in rice paper")
+      expect(slugs).to include("grain-rice-paper")
+      expect(slugs).not_to include("grain-wheat-spring-roll")
+    end
+
+    it "keeps an independent wheat spring roll next to rice-paper rolls" do
+      slugs = seed_slugs("crispy spring rolls with summer rolls wrapped in rice paper")
+      expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
+    it "keeps wheat spring-roll when rice paper qualifies a later roll across 'alongside'" do
+      slugs = seed_slugs("crispy spring rolls alongside summer rolls wrapped in rice paper")
+      expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
+    it "keeps wheat spring-roll when nearby rice paper is not the wrapper" do
+      slugs = seed_slugs("fresh spring rolls, peanut sauce, rice paper chips")
+      expect(slugs).to include("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
+    it "maps bean sprouts without inventing gluten" do
+      expect(seed_slugs("bean sprouts")).to include("vegetable-bean-sprout")
+      expect(seed_slugs("bean sprouts")).not_to include("grain-wheat-pasta")
+    end
+
+    it "still maps fried spring rolls and generic noodles to wheat" do
+      expect(seed_slugs("crispy spring rolls")).to include("grain-wheat-spring-roll")
+      expect(seed_slugs("noodles")).to include("grain-wheat-pasta")
+    end
+
+    it "keeps an independent wheat pasta match next to rice noodles" do
+      expect(seed_slugs("pasta and rice noodles"))
+        .to include("grain-wheat-pasta", "grain-rice-noodle")
+    end
+
+    it "does not drop wheat pasta just because a rice-noodle path is also present" do
+      rows = [
+        { slug: "grain-wheat-pasta", path: "grain.wheat.pasta", confidence: 1.0, source: "match" },
+        { slug: "grain-rice-noodle", path: "grain.rice.noodle", confidence: 1.0, source: "match" }
+      ]
+      expect(described_class.prefer_qualified(rows).map { |row| row[:slug] })
+        .to contain_exactly("grain-wheat-pasta", "grain-rice-noodle")
+    end
+
+    it "drops wheat spring-roll only when rice paper wraps that span" do
+      wrapped = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
+        ],
+        tokens: %w[fresh spring rolls wrapped in rice paper]
+      ).map { |row| row[:slug] }
+      expect(wrapped).to eq([ "grain-rice-paper" ])
+
+      distant = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 8, end_token: 9 }
+        ],
+        tokens: %w[crispy spring rolls alongside summer rolls wrapped in rice paper]
+      ).map { |row| row[:slug] }
+      expect(distant).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+
+      nearby = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 1, end_token: 2 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 5, end_token: 6 }
+        ],
+        tokens: %w[fresh spring rolls peanut sauce rice paper]
+      ).map { |row| row[:slug] }
+      expect(nearby).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+
+      # Name "Spring Rolls" concatenated onto description "rice paper
+      # chips" leaves an empty gap. That is not wrapping language.
+      adjacent = described_class.prefer_qualified(
+        [
+          { slug: "grain-wheat-spring-roll", path: "grain.wheat.spring_roll",
+            confidence: 1.0, source: "match", start_token: 0, end_token: 1 },
+          { slug: "grain-rice-paper", path: "grain.rice.paper",
+            confidence: 1.0, source: "match", start_token: 2, end_token: 3 }
+        ],
+        tokens: %w[spring rolls rice paper chips]
+      ).map { |row| row[:slug] }
+      expect(adjacent).to contain_exactly("grain-wheat-spring-roll", "grain-rice-paper")
+    end
+
+    it "does not treat hard seltzer as beer" do
+      expect(seed_slugs("hard seltzer")).not_to include("alcohol-beer")
+      expect(seed_slugs("hard ginger beer")).to include("alcohol-beer")
+    end
+  end
 end

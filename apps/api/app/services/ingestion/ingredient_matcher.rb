@@ -66,6 +66,77 @@ module Ingestion
 
     Match = Data.define(:slug, :path, :confidence, :kind)
 
+    # "Spring rolls" and "rice paper" are independent catalog hits.
+    # Rice paper only drops a wheat spring-roll that it actually wraps:
+    # wrap words must sit between the generic match and the rice-paper
+    # tokens ("fresh spring rolls wrapped in rice paper"). An empty gap
+    # (name "Spring Rolls" concatenated onto description "rice paper
+    # chips") is not wrapping language — keep the wheat. A wheat roll
+    # further away stays too. Longest-phrase matching already prefers
+    # "rice noodles" / "glass noodles" over the "noodles" alias of
+    # wheat pasta.
+    WHEAT_SPRING_ROLL_SLUG = "grain-wheat-spring-roll"
+    RICE_PAPER_PREFIX = "grain.rice.paper"
+    # "wrapped in" is two tokens; keep a little room for "in the".
+    RICE_PAPER_WRAP_WINDOW = 3
+    WRAP_GAP_WORDS = %w[wrapped in the a an of using inside into].freeze
+
+    def self.under_prefix?(path, prefix)
+      path == prefix || path.start_with?("#{prefix}.")
+    end
+
+    def self.row_slug(row) = (row[:slug] || row["slug"]).to_s
+    def self.row_path(row) = (row[:path] || row["path"]).to_s
+    def self.row_start(row) = row[:start_token] || row["start_token"]
+    def self.row_end(row) = row[:end_token] || row["end_token"]
+
+    def self.prefer_qualified(rows, tokens: nil)
+      list = Array(rows)
+      return list if list.empty?
+
+      paper_starts = list.filter_map do |row|
+        next unless under_prefix?(row_path(row), RICE_PAPER_PREFIX)
+
+        row_start(row)
+      end
+      return list if paper_starts.empty?
+
+      list.reject do |row|
+        next false unless row_slug(row) == WHEAT_SPRING_ROLL_SLUG
+
+        # No span means we cannot tell this wheat row is the wrapped
+        # roll. Keep it — the unsafe direction is dropping an independent
+        # wheat spring-roll.
+        finish = row_end(row)
+        next false if finish.nil?
+
+        paper_starts.any? { |start| wrapped_by_rice_paper?(finish, start, tokens) }
+      end
+    end
+
+    def self.wrapped_by_rice_paper?(wheat_end, paper_start, tokens)
+      return false unless paper_start > wheat_end
+
+      gap = (wheat_end + 1)...paper_start
+      return false if gap.size.zero? || gap.size > RICE_PAPER_WRAP_WINDOW
+
+      stream = Array(tokens)
+      words = stream.empty? ? [] : Array(stream[gap])
+      return false if words.empty?
+
+      words.all? { |token| WRAP_GAP_WORDS.include?(token.to_s) }
+    end
+
+    def self.payload_row(row)
+      row.except(:clause_id, "clause_id", :start_token, "start_token", :end_token, "end_token")
+    end
+
+    def self.best_by_slug(rows)
+      Array(rows)
+        .group_by { |row| row_slug(row) }
+        .map { |_, group| group.max_by { |row| row[:confidence] || row["confidence"] } }
+    end
+
     def initialize(ingredients = Ingredient.pluck(:slug, :name, :path, :aliases))
       @index = {}
       @paths_by_slug = {}
@@ -83,17 +154,35 @@ module Ingestion
     # that could be ingredients we don't know. The caller decides how
     # name vs description leftovers weigh (see DeterministicResolver).
     def scan(text)
-      matches   = {}
-      leftovers = []
+      hits, leftovers, _, _, tokens = scan_hits(text)
+      rows = self.class.best_by_slug(self.class.prefer_qualified(hits, tokens: tokens))
+                       .map { |row| self.class.payload_row(row) }
+      [rows, leftovers]
+    end
 
-      prefix = []
-      MenuText.segments(text).each do |tokens|
-        scan_segment(tokens, matches, leftovers, prefix: prefix)
+    # Same as scan, but leaves start/end token indexes on each hit and
+    # does not prefer_qualified / slug-dedupe. DeterministicResolver
+    # merges name and description hits in one token stream so "Fresh
+    # Spring Rolls" / "wrapped in rice paper" still drop wheat, while a
+    # wheat roll further from the rice paper stays.
+    def scan_hits(text, clause_id: 0, token_index: 0)
+      hits      = []
+      leftovers = []
+      prefix    = []
+      stream    = []
+      last_clause = clause_id
+
+      MenuText.segments(text).each_with_index do |tokens, seg_i|
+        last_clause += 1 if seg_i.positive?
+        stream.concat(tokens)
+        last_clause, token_index = scan_segment(
+          tokens, hits, leftovers,
+          clause_id: last_clause, prefix: prefix, token_index: token_index
+        )
         prefix = tokens.last(VARIANT_LEAD_WIDTH)
       end
 
-      [matches.values.map { |m| { slug: m.slug, path: m.path, confidence: m.confidence, source: "match" } },
-       leftovers]
+      [hits, leftovers, last_clause, token_index, stream]
     end
 
     # Catalog lookup by slug (nil when absent) — lets the resolver's
@@ -104,19 +193,28 @@ module Ingestion
     private
 
     # Greedy longest-match-first n-gram scan. A hit consumes its tokens;
-    # unmatched tokens accumulate into leftover runs.
-    def scan_segment(tokens, matches, leftovers, prefix: [])
+    # unmatched tokens accumulate into leftover runs. start_token /
+    # end_token are offsets in the concatenated name+description stream
+    # so prefer_qualified can tell a wrapped roll from a sibling dish.
+    def scan_segment(tokens, hits, leftovers, clause_id:, prefix: [], token_index:)
       run = []
       i = 0
+      last_clause = clause_id
       while i < tokens.length
+        extra = tokens[0...i].count { |token| MenuText::SEGMENT_BREAK_WORDS.include?(token) }
+        this_clause = clause_id + extra
+        last_clause = this_clause if this_clause > last_clause
+
         hit, width = longest_match_at(tokens, i, prefix: prefix)
         if hit == :absence
           run.concat(tokens[i, width])
           i += width
         elsif hit
           flush_leftover(run, leftovers)
-          best = matches[hit.slug]
-          matches[hit.slug] = hit if best.nil? || hit.confidence > best.confidence
+          start = token_index + i
+          hits << { slug: hit.slug, path: hit.path, confidence: hit.confidence,
+                    source: "match", clause_id: this_clause,
+                    start_token: start, end_token: start + width - 1 }
           i += width
         else
           run << tokens[i]
@@ -124,6 +222,8 @@ module Ingestion
         end
       end
       flush_leftover(run, leftovers)
+      trailing = clause_id + tokens.count { |token| MenuText::SEGMENT_BREAK_WORDS.include?(token) }
+      [ [ last_clause, trailing ].max, token_index + tokens.length ]
     end
 
     def longest_match_at(tokens, start, prefix: [])
