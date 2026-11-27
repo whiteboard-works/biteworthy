@@ -31,10 +31,12 @@ not a filter.
 
 ## Expo-managed dependencies
 
-`expo-*`, `react-native`, and `jest-expo` versions belong to the SDK. Change
-them only with `npx expo install --fix`; the monthly `expo-align` workflow
-does the same and opens a PR when there is drift. Camera and image picking
-come from `expo-camera` and `expo-image-picker`, the JWT lives in
+`expo-*`, `babel-preset-expo`, `react-native`, and `jest-expo` versions belong
+to the SDK. Change them only with `npx expo install --fix`; the monthly
+`expo-align` workflow does the same and opens a PR when there is drift.
+`babel-preset-expo` is not matched by the `expo-*` Dependabot ignore, so it
+has its own entry in `.github/dependabot.yml`. Camera and image picking come
+from `expo-camera` and `expo-image-picker`, the JWT lives in
 `expo-secure-store`.
 
 ## Builds and the stores

@@ -24,7 +24,7 @@ gem "rswag-ui"
 # --- Auth --------------------------------------------------------------------
 gem "devise", "~> 5.0"
 gem "devise-jwt", "~> 0.12"
-gem "omniauth", "~> 2.3"
+gem "omniauth", "~> 2.4"
 gem "omniauth-rails_csrf_protection"
 gem "omniauth-google-oauth2"
 
@@ -69,8 +69,8 @@ gem "mcp", "~> 1.11"
 # the one place that is configured. The OpenTelemetry gems carry the logs
 # over OTLP and are loaded by posthog-rails only when log forwarding is on,
 # hence `require: false`.
-gem "posthog-ruby", "~> 3.28"
-gem "posthog-rails", "~> 3.19"
+gem "posthog-ruby", "~> 3.34"
+gem "posthog-rails", "~> 3.26"
 gem "opentelemetry-sdk", "~> 1.13", require: false
 gem "opentelemetry-logs-sdk", "~> 0.8.1", require: false
 gem "opentelemetry-exporter-otlp-logs", "~> 0.7.0", require: false

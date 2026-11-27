@@ -125,15 +125,22 @@ class IngestionItem < ApplicationRecord
   # sauce rule (Ingestion::IngredientImplications) is enforced here too: a
   # scan resolved before it existed, or a gap-fill retry that reused
   # already-enriched rows, would otherwise publish aioli with no egg.
+  # Hard sodas whose payload still names the alcohol root (accepted /
+  # rejected rows the 20261013020000 backfill skipped) remap onto
+  # alcohol.beer here so undo-then-re-accept cannot recreate a join the
+  # celiac presets miss. The staged row itself is left as it was, so undo
+  # and the audit trail see only what was scanned.
   # Rows go to the live dish as the resolver writes them (`derived` at
-  # 0.8, plus the allergen tag they imply); the staged row itself is left
-  # as it was, so undo and the audit trail see only what was scanned.
-  # A name's diet claim still vetoes. A person's edit does not: `edited`
-  # is also set by a typo fix, and nothing records an ingredient removal,
-  # so the rule always applies and a wrong egg row hides the dish with a
-  # reason (the loud direction). To publish a house aioli without egg,
-  # take the aioli row off the dish rather than the egg.
-  def promotion_ingredients = Array(ingredients_payload) + implied_rows.first
+  # 0.8, plus the allergen tag they imply). A name's diet claim still
+  # vetoes. A person's edit does not: `edited` is also set by a typo fix,
+  # and nothing records an ingredient removal, so the rule always applies
+  # and a wrong egg row hides the dish with a reason (the loud direction).
+  # To publish a house aioli without egg, take the aioli row off the dish
+  # rather than the egg.
+  def promotion_ingredients
+    Ingestion::HardSoda.remap_payload(Array(ingredients_payload), name: name, description: description) +
+      implied_rows.first
+  end
 
   def promotion_tags = Array(tags_payload) + implied_rows.last
 
@@ -455,8 +462,18 @@ class IngestionItem < ApplicationRecord
 
         # Restore replaced joins
         if (rows = changes["replaced_item_ingredient_ids"])
+          alcohol_id = Ingredient.where(slug: Ingestion::HardSoda::FROM).pick(:id)
+          beer_id    = Ingredient.where(slug: Ingestion::HardSoda::TO).pick(:id)
           rows.each do |row|
-            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: row["ingredient_id"]) do |join|
+            ingredient_id = Ingestion::HardSoda.remap_join_ingredient_id(
+              row["ingredient_id"],
+              alcohol_id: alcohol_id,
+              beer_id: beer_id,
+              name: target.name,
+              description: target.description,
+              source: row["source"]
+            )
+            ItemIngredient.find_or_create_by!(item_id: target.id, ingredient_id: ingredient_id) do |join|
               join.confidence = row["confidence"] || "confirmed"
               join.source = row["source"] || "human"
             end

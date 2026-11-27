@@ -40,6 +40,10 @@ updates:
       - dependency-name: "jest"
       - dependency-name: "@types/jest"
       - dependency-name: "react-test-renderer"
+      # babel-preset-expo is Expo-managed (SDK 56 wants ~56.0.0) but is NOT
+      # matched by expo-*. Dependabot #993/#1006 bumped it onto the 58.x line;
+      # expo-align owns it.
+      - dependency-name: "babel-preset-expo"
       # Stay on Tailwind v3. v4 moved its PostCSS plugin to
       # @tailwindcss/postcss and switched to CSS-first config, which breaks
       # apps/web's v3-style postcss.config.mjs + tailwind.config.ts under
@@ -47,6 +51,11 @@ updates:
       # build, so only Vercel catches it). #421 bumped to 4.3.3 and broke
       # every deploy. Allow 3.x, block the major until a deliberate migration.
       - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      # sdk-logs 0.223 → 3.x is a breaking jump: it needs @opentelemetry/api
+      # >= 1.10 and lockstep 0.300.x companions (api-logs, exporter-logs-otlp-http).
+      # Web stays on the 0.223 line until a deliberate migration. #988.
+      - dependency-name: "@opentelemetry/sdk-logs"
         update-types: ["version-update:semver-major"]
     groups:
       types:
