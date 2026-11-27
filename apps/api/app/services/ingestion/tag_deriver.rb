@@ -19,10 +19,10 @@ module Ingestion
   # fails CI when the taxonomy moves out from under these tables.
   #
   # Context keys: segments (name+description token arrays from
-  # MenuText.segments), name_segments (the dish name only — diet claims
-  # that suppress beer-derived gluten must be about the item itself),
+  # MenuText.segments), name_segments (the dish name only),
   # section_segments, and resolved_ingredients as
-  # [{slug:, path:, confidence:, source:}].
+  # [{slug:, path:, confidence:, source:}]. Beer always derives
+  # contains-gluten; a gluten-free name does not suppress it.
   class TagDeriver
     def self.derive(segments:, resolved_ingredients:, section_segments: [], name_segments: [])
       ctx = {
@@ -92,14 +92,6 @@ module Ingestion
         "alcohol.ale"      => "contains-gluten"
       }.freeze
       BEER_GLUTEN_PREFIXES = %w[alcohol.beer alcohol.ale].freeze
-      # Name claims a gluten-free beer, not a dish that happens to
-      # mention both "beer" and "gluten-free". Over-tagging gluten is
-      # the safe direction.
-      BEER_IDENTITY_WORDS = %w[beer ale lager ipa pilsner stout porter].freeze
-      BEER_FOOD_CONTEXT = %w[
-        battered breaded fried fish chicken shrimp pizza burger sandwich
-        taco pasta noodle bread cake doughnut donut cookie
-      ].freeze
 
       # Cross-root oddballs the subtree map can't see. Coconut counts as
       # a tree nut per FDA labeling guidance.
@@ -131,42 +123,20 @@ module Ingestion
         TagDeriver.under_any?(path.to_s, BEER_GLUTEN_PREFIXES)
       end
 
-      def self.gluten_free_beer_name?(segments)
-        tokens = Array(segments).flatten.map(&:to_s)
-        return false if tokens.empty?
-        return false if tokens.intersect?(BEER_FOOD_CONTEXT)
-
-        tokens.each_index.any? do |i|
-          width = if tokens[i, 2] == %w[gluten free]
-            2
-          elsif tokens[i] == "gf"
-            1
-          end
-          next unless width
-
-          rest = tokens[(i + width)..] || []
-          BEER_IDENTITY_WORDS.include?(rest[0].to_s) ||
-            (rest[0] && BEER_IDENTITY_WORDS.include?(rest[1].to_s))
-        end
-      end
-
       def self.tag_slugs_for(ing)
         Array(SLUG_TAGS[ing[:slug]]) +
           SUBTREE_TAGS.filter_map { |prefix, tag| tag if TagDeriver.under_any?(ing[:path].to_s, [ prefix ]) }
       end
 
       def self.call(ctx)
-        # Only a name that claims a gluten-free beer (Gluten-Free Lager,
-        # GF IPA) suppresses beer-derived gluten. A brand like Omission
-        # is gluten-reduced, not gluten-free. A description or a dish
-        # name that merely mentions a GF option does not.
-        suppress_beer_gluten = gluten_free_beer_name?(ctx[:name_segments])
+        # Beer always derives contains-gluten. A gluten-free name does
+        # not strip it — over-tagging gluten is the safe direction, and
+        # Diet then vetoes a gluten-free claim against the allergen.
         best = {}
         ctx[:resolved_ingredients].each do |ing|
           next unless ing.respond_to?(:[])
 
           tag_slugs = tag_slugs_for(ing)
-          tag_slugs -= %w[contains-gluten] if suppress_beer_gluten && beer_or_ale?(ing[:path])
           # Allergen tags inferred from an ingredient keep that ingredient's
           # numeric confidence and original source (from_source) so promote
           # can map them to the same join confidence. Distinct from

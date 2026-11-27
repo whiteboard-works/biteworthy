@@ -94,6 +94,25 @@ RSpec.describe "Admin item deep edit", type: :request do
       expect(item.name).to eq("Renamed only")
     end
 
+    it "re-derives beer gluten when a published gluten-free beer is renamed" do
+      beer = create(:ingredient, slug: "alcohol-beer", name: "Beer", path: "alcohol.beer")
+      gluten_tag = create(:tag, slug: "contains-gluten", name: "Contains gluten",
+                                family: "allergen", path: "allergen.contains_gluten")
+      gf_tag = create(:tag, slug: "gluten-free", name: "Gluten free",
+                            family: "diet", path: "diet.gluten_free")
+      item.update!(name: "Gluten-Free Beer")
+      ItemIngredient.create!(item: item, ingredient: beer, confidence: "confirmed", source: "human")
+      ItemTag.create!(item: item, tag: gf_tag, confidence: "confirmed", source: "match")
+
+      patch_item(name: "House Beer")
+
+      expect(response).to have_http_status(:ok)
+      expect(item.reload.name).to eq("House Beer")
+      expect(item.item_ingredients.find_by!(ingredient: beer)).to be_present
+      expect(item.item_tags.find_by!(tag: gluten_tag))
+        .to have_attributes(source: "ingredient_derived")
+    end
+
     # WBW-243: adding egg on a live dish left allergen tags stale, so an
     # egg-avoider still saw Khao Soi as safe. Staged edits already
     # re-derive; published edits must do the same without wiping a

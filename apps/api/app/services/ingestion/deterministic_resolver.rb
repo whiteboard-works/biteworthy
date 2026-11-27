@@ -88,6 +88,7 @@ module Ingestion
     end.freeze
 
     IMPLIED_BASE_CONFIDENCE = 0.8
+    WRAPPER_WHEAT_KEYWORDS = [ "spring roll", "spring rolls" ].freeze
 
     def self.call(items, matcher: IngredientMatcher.new)
       new(matcher:).call(items)
@@ -103,8 +104,12 @@ module Ingestion
         matches, gap_phrases = match_item(item, name_claims)
         matches += implied_from_matches(matches, name_claims)
         name_segments = MenuText.segments(item.name)
+        text_segments = MenuText.segments(item.name, item.description)
         name_hits = implied_base_hits(name_segments)
-        matches += implied_rows(name_hits, matches, name_claims, name_segments: name_segments)
+        matches += implied_rows(
+          name_hits, matches, name_claims,
+          name_segments: name_segments, text_segments: text_segments
+        )
 
         section_segments = MenuText.segments(item.section_name)
         tags = TagDeriver.derive(
@@ -185,28 +190,33 @@ module Ingestion
     # explicit match already covers the base's own subtree ("Quesadilla —
     # flour tortilla" needs no extra wheat row) or the name's diet claim
     # contradicts the base. Every hit still routes the item to gap-fill.
-    def implied_rows(hits, matches, name_claims, name_segments:)
+    def implied_rows(hits, matches, name_claims, name_segments:, text_segments:)
       hits.filter_map do |hit|
-        next if skip_implied_wheat_for_rice_paper?(hit, matches, name_segments)
+        next if skip_implied_wheat_for_rice_paper?(hit, matches, name_segments, text_segments)
 
         derive_row(hit[:slug], matches, name_claims, confidence: hit[:confidence])
       end.uniq
     end
 
-    # "Fresh Spring Rolls" in the name unions grain-wheat, but the
-    # description "wrapped in rice paper" is the qualified wrapper.
-    # Soy-sauce wheat still arrives via implied_from_matches. Skip only
-    # that spring-roll implication, and only when no wheat spring-roll
-    # match survived (a mixed platter keeps gluten). A pizza that happens
-    # to mention rice paper must still union wheat.
-    def skip_implied_wheat_for_rice_paper?(hit, matches, name_segments)
+    # Rice paper may drop the wheat implied by a spring-roll phrase
+    # itself. Any other wheat keyword (pizza, bread, flour-adjacent
+    # names, …) in the name or description keeps grain-wheat —
+    # keyword_hits collapses every grain-wheat phrase into one hit, so
+    # skipping that hit would hide a pizza next to rice-paper rolls.
+    def skip_implied_wheat_for_rice_paper?(hit, matches, name_segments, text_segments)
       return false unless hit[:slug] == "grain-wheat"
       return false unless spring_roll_name?(name_segments)
       return false unless matches.any? { |match|
         IngredientMatcher.under_prefix?(match[:path].to_s, IngredientMatcher::RICE_PAPER_PREFIX)
       }
+      return false if other_wheat_keyword?(text_segments)
 
       matches.none? { |match| IngredientMatcher.row_slug(match) == IngredientMatcher::WHEAT_SPRING_ROLL_SLUG }
+    end
+
+    def other_wheat_keyword?(segments)
+      keywords = IMPLIED_BASE_TERMS.fetch("grain-wheat", []) - WRAPPER_WHEAT_KEYWORDS
+      TagDeriver.keyword_hits(segments, { "grain-wheat" => keywords }, confidence: 0).any?
     end
 
     def spring_roll_name?(segments)

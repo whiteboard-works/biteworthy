@@ -17,10 +17,11 @@
 #     after_destroy callbacks keep the denormalized items.ingredient_ids/
 #     tag_ids arrays honest (rebuilt once for the whole edit, not once
 #     per row — see Item.defer_denormalization). Never delete_all.
-#   - After an ingredient-slug sync, allergen tags are re-derived the
-#     same way staged edits are: drop only `ingredient_derived` rows,
-#     recompute from the current ingredients, and leave every other tag
-#     (cuisine, diet, a curator's own contains-*) in place.
+#   - After a name, description, or ingredient-slug change, allergen
+#     tags are re-derived the same way staged edits are: drop only
+#     `ingredient_derived` rows, recompute from the current ingredients,
+#     and leave every other tag (cuisine, diet, a curator's own
+#     contains-*) in place. Beer always contributes contains-gluten.
 #   - `confidence` on the Item itself is NOT settable here. After a join
 #     sync it is re-derived from the weakest current join row (ingredients
 #     AND tags, only ever downgraded) so a suggested contains-gluten tag
@@ -91,18 +92,18 @@ module Admin
           @item.save!
 
           synced = false
-          ingredients_changed = false
+          rederive_allergens = attrs.key?(:name) || attrs.key?(:description)
           Item.defer_denormalization do
             if attrs.key?(:ingredient_slugs)
               sync_ingredients(attrs[:ingredient_slugs], added_confidence)
               synced = true
-              ingredients_changed = true
+              rederive_allergens = true
             end
             if attrs.key?(:tag_slugs)
               sync_tags(attrs[:tag_slugs], added_confidence)
               synced = true
             end
-            rederive_allergen_tags!(keep_slugs: attrs[:tag_slugs]) if ingredients_changed
+            rederive_allergen_tags!(keep_slugs: attrs[:tag_slugs]) if rederive_allergens
           end
           rederive_item_confidence! if synced
           replace_variants(attrs[:variants])         if attrs.key?(:variants)

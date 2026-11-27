@@ -126,6 +126,11 @@ RSpec.describe "Celiac filter over real dish names" do
       "GF option on beer-battered fish still has gluten" ],
     [ "Margherita Pizza", "served with summer rolls wrapped in rice paper", true,
       "rice paper on the plate does not drop a pizza's implied wheat" ],
+    [ "Pizza, Fresh Spring Rolls", "wrapped in rice paper", true,
+      "pizza wheat is not dropped because rice paper wraps the rolls" ],
+    [ "Gluten-Free Beer", nil, true, "named GF beer still has gluten from beer" ],
+    [ "House Beer — GF beer option available", nil, true,
+      "a GF option on a beer name still has gluten" ],
     [ "Tamari Glazed Salmon", "salmon with tamari glaze", false, "tamari stays gluten-free" ],
     [ "GF Pancakes", "served with maple syrup", false, "explicit GF claim on the name" ]
   ].freeze

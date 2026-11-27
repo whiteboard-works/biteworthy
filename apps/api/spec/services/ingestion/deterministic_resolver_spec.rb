@@ -189,38 +189,18 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
-    it "keeps beer identity on a gluten-free beer without minting contains-gluten" do
-      beer, ale = resolve(
+    it "keeps contains-gluten on a gluten-free beer name and a GF beer option" do
+      beer, option = resolve(
         StubItem.new("a", "Gluten-Free Beer", nil, nil),
-        StubItem.new("b", "GF Ale", nil, nil)
+        StubItem.new("b", "House Beer — GF beer option available", nil, nil)
       )
 
       expect(beer.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
-      expect(beer.tags.map { |t| t["slug"] }).to include("gluten-free")
-      expect(beer.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
-      expect(ale.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
-      expect(ale.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
-    end
-
-    it "keeps a gluten-free lager and GF IPA exempt without minting contains-gluten" do
-      lager, ipa = resolve(
-        StubItem.new("a", "Gluten-Free Lager", nil, nil),
-        StubItem.new("b", "GF IPA", nil, nil)
-      )
-
-      expect(lager.ingredients.map { |r| r["slug"] }).to include("alcohol-lager")
-      expect(lager.tags.map { |t| t["slug"] }).to include("gluten-free")
-      expect(lager.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
-      expect(ipa.ingredients.map { |r| r["slug"] }).to include("alcohol-ipa")
-      expect(ipa.tags.map { |t| t["slug"] }).not_to include("contains-gluten")
-    end
-
-    it "keeps contains-gluten on an Omission beer" do
-      result = resolve(StubItem.new("a", "Omission Pale Ale", nil, nil)).first
-
-      expect(result.ingredients.map { |r| r["slug"] }).to include("alcohol-ale")
-      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
-      expect(result.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+      expect(beer.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(beer.tags.map { |t| t["slug"] }).not_to include("gluten-free")
+      expect(option.ingredients.map { |r| r["slug"] }).to include("alcohol-beer")
+      expect(option.tags.map { |t| t["slug"] }).to include("contains-gluten")
+      expect(option.tags.map { |t| t["slug"] }).not_to include("gluten-free")
     end
 
     it "keeps the base under a claim it doesn't contradict (a vegan burger still has a bun)" do
@@ -291,6 +271,15 @@ RSpec.describe Ingestion::DeterministicResolver do
       ).first
 
       expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "keeps pizza wheat next to rice-paper spring rolls in the same name" do
+      result = resolve(
+        StubItem.new("id-1", "Pizza, Fresh Spring Rolls", "wrapped in rice paper", nil)
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat")
       expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 

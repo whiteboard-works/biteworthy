@@ -30,15 +30,15 @@ module Ingestion
     def contradicted?(claims, slug:, path:)
       return false if claims.empty?
 
+      # Beer still names beer even when the dish claims gluten-free.
+      # Dropping the alcohol node would show the drink as safe to someone
+      # avoiding beer. Gluten is tagged on the beer; Diet vetoes the
+      # gluten-free claim. Never remove gluten evidence here.
+      return false if TagDeriver::Allergen.beer_or_ale?(path)
+
       allergens = TagDeriver::Allergen.call(
         resolved_ingredients: [ { slug: slug, path: path, confidence: 0, source: "derived" } ]
       ).map { |t| t[:slug] }
-      # Beer/ale now derive contains-gluten, but a "Gluten-Free Beer" name
-      # still names beer. Dropping the alcohol node would show the drink
-      # as safe to someone avoiding beer; strip only the gluten evidence.
-      if claims.include?("gluten-free") && TagDeriver::Allergen.beer_or_ale?(path)
-        allergens -= %w[contains-gluten]
-      end
       claims.any? { |claim| Array(TagDeriver::Diet::CONTRADICTED_BY[claim]).intersect?(allergens) }
     end
   end

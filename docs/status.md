@@ -21,6 +21,8 @@ at a time has worked.
 
 ---
 
+2026-11-27 (UTC) — **#1021 conservative gluten: beer always has contains-gluten; rename re-derives; mixed wheat stays.** No gluten-free-beer name exemption. Published ItemEditor re-derives allergens on name, description, or ingredient_slugs. Rice-paper wrap may drop spring-roll wheat only; any other wheat keyword in name or description keeps `grain-wheat`.
+
 2026-11-27 (UTC) — **#1021 Codex P1: Omission is not gluten-free; empty wrap-gap is not a wrapper.** Omission is gluten-reduced barley beer, so its beer node keeps `contains-gluten`. Rice paper drops wheat spring-roll only when wrap words sit in the gap; concatenating name "Spring Rolls" onto description "rice paper chips" leaves an empty gap and keeps gluten.
 
 2026-11-27 (UTC) — **#1021 Codex P1: beer gluten exemption is a GF-beer name, not any GF mention.** Only names like Gluten-Free Lager or GF IPA suppress beer-derived `contains-gluten`. "Beer-battered fish, gluten-free option available" keeps gluten and does not get a gluten-free diet tag. Rice paper drops wheat spring-roll only when the gap tokens are wrap words (`wrapped in`), not merely nearby.
