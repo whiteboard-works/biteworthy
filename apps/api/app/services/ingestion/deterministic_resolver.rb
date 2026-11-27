@@ -136,20 +136,21 @@ module Ingestion
     # ("Taco", "Bowl") — they only count when the name is all the
     # evidence we have (no description, or one that matched nothing).
     def match_item(item, name_claims)
-      name_matches, name_leftovers = @matcher.scan(item.name)
+      name_hits, name_leftovers, clause_id = @matcher.scan_hits(item.name)
       # The name's claim beats the name's own evidence ("pasta" matching
       # the catalog inside "Gluten-Free Pasta"); description matches are
       # exempt — a dish that lists wheat flour is not gluten-free
       # whatever its name says.
-      name_matches = name_matches.reject do |m|
+      name_hits = name_hits.reject do |m|
         DietClaims.contradicted?(name_claims, slug: m[:slug], path: m[:path])
       end
-      desc_matches, desc_leftovers = @matcher.scan(item.description)
+      desc_hits, desc_leftovers, = @matcher.scan_hits(item.description, clause_id: clause_id)
 
       gap_phrases = desc_leftovers.dup
-      gap_phrases += name_leftovers if item.description.blank? || desc_matches.empty?
+      gap_phrases += name_leftovers if item.description.blank? || desc_hits.empty?
 
-      [merge_matches(name_matches, desc_matches), gap_phrases]
+      hits = IngredientMatcher.prefer_qualified(name_hits + desc_hits)
+      [merge_matches(hits.map { |row| IngredientMatcher.payload_row(row) }), gap_phrases]
     end
 
     def merge_matches(*match_lists)
@@ -189,13 +190,17 @@ module Ingestion
 
     # "Fresh Spring Rolls" in the name unions grain-wheat, but the
     # description "wrapped in rice paper" is the qualified wrapper.
-    # Soy-sauce wheat still arrives via implied_from_matches.
+    # Soy-sauce wheat still arrives via implied_from_matches. A surviving
+    # wheat spring-roll match (a mixed platter) already hides the dish;
+    # do not skip implied wheat in that case — and do not skip it just
+    # because some other clause mentioned rice paper.
     def skip_implied_wheat_for_rice_paper?(hit, matches)
       return false unless hit[:slug] == "grain-wheat"
-
-      matches.any? do |match|
+      return false unless matches.any? { |match|
         IngredientMatcher.under_prefix?(match[:path].to_s, IngredientMatcher::RICE_PAPER_PREFIX)
-      end
+      }
+
+      matches.none? { |match| IngredientMatcher.row_slug(match) == IngredientMatcher::WHEAT_SPRING_ROLL_SLUG }
     end
 
     def implied_from_matches(matches, name_claims)

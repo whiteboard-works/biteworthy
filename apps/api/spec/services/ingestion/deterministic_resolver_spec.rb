@@ -195,6 +195,35 @@ RSpec.describe Ingestion::DeterministicResolver do
       expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
     end
 
+    it "keeps gluten on a mixed wheat and rice-paper roll platter" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Appetizer Platter",
+          "crispy spring rolls with summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] })
+        .to include("grain-wheat-spring-roll", "grain-rice-paper")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
+    it "does not drop a named wheat spring roll when rice paper qualifies a later roll" do
+      result = resolve(
+        StubItem.new(
+          "id-1",
+          "Crispy Spring Rolls",
+          "with summer rolls wrapped in rice paper",
+          nil
+        )
+      ).first
+
+      expect(result.ingredients.map { |r| r["slug"] }).to include("grain-wheat-spring-roll")
+      expect(result.tags.map { |t| t["slug"] }).to include("contains-gluten")
+    end
+
     it "implies wheat from soy sauce, teriyaki, and gravy matches" do
       soy, teriyaki, gravy = resolve(
         StubItem.new("a", "Stir Fry", "vegetables with soy sauce", nil),
